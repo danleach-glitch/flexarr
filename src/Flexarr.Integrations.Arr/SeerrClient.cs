@@ -39,7 +39,9 @@ public sealed record SeerrRequestMedia(int Id, int TmdbId, int? TvdbId, int Stat
 public sealed record SeerrRequestSeason(int SeasonNumber);
 
 /// <summary>A title's own record in Seerr and the requests it holds for it (from <c>mediaInfo</c>).</summary>
-public sealed record SeerrMediaRecord(int Id, int Status, IReadOnlyList<SeerrRequest>? Requests);
+/// <param name="Status">As <see cref="SeerrRequestMedia.Status"/>.</param>
+/// <param name="TvdbId">A show's TheTVDB id, how Sonarr knows it.</param>
+public sealed record SeerrMediaRecord(int Id, int Status, int? TvdbId, IReadOnlyList<SeerrRequest>? Requests);
 
 public sealed record SeerrPage(int Page, int TotalPages, IReadOnlyList<SeerrResult> Results);
 

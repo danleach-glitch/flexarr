@@ -1,0 +1,200 @@
+using System.Globalization;
+using Flexarr.Api.Configuration;
+using Flexarr.Core.Data;
+using Flexarr.Core.Media;
+using Flexarr.Integrations.Arr;
+using Flexarr.Integrations.Arr.Models;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+
+namespace Flexarr.Api.Endpoints;
+
+/// <summary>Take back a film or show request.</summary>
+/// <param name="MediaType">"movie" or "tv".</param>
+/// <param name="Seasons">For a show, just these seasons; null or empty for every season that isn't in yet.</param>
+public sealed record TitleUndoBody(string MediaType, int TmdbId, IReadOnlyList<int>? Seasons = null);
+
+/// <summary>
+/// Taking a film or show request back, as music's unrequest does: Seerr's request goes, Radarr or Sonarr stop wanting
+/// it and drop its downloads, and a film or show with nothing on disk leaves them. Files are never deleted. Seerr,
+/// Radarr and Sonarr are the household's, so it's for everyone: every profile's open request for the title closes.
+/// Nothing to take back (already undone, in the library, or in a library the profile can't see) answers 204 and
+/// changes nothing. Throws <see cref="ServiceException"/> when one of them refuses or doesn't answer.
+/// </summary>
+public static class RequestUndo
+{
+    /// <summary>Which service failed, for a plain message (their own words can name addresses and go to the log).</summary>
+    public sealed class ServiceException(string service, HttpRequestException inner) : Exception($"{service} didn't answer.", inner)
+    {
+        public string Service { get; } = service;
+    }
+
+    /// <summary>Seerr's request states that mean nothing is left to undo.</summary>
+    private const int Declined = 3, Completed = 5;
+
+    /// <summary>Seerr's title states: partly in, all in.</summary>
+    private const int PartlyAvailable = 4, Available = 5;
+
+    public static async Task<IResult> UnrequestAsync(TitleUndoBody body, SeerrInstance seerr, SeerrClient seerrClient, ArrClient arr, FlexarrOptions options,
+        FlexarrDbContext db, IMemoryCache cache, CancellationToken ct)
+    {
+        var movie = body.MediaType == "movie";
+        var kind = RequestEndpoints.KindOf(body.MediaType);
+        var tmdb = body.TmdbId.ToString(CultureInfo.InvariantCulture);
+
+        // In a library the profile can't see (someone else's films): not theirs to undo. In one it can, and not just
+        // a missing season: it's in, and there's nothing to take back.
+        var inLibrary = await db.MediaItems.IgnoreQueryFilters().Where(i => i.Kind == kind && i.TmdbId == tmdb).Select(i => i.Id).ToListAsync(ct);
+        var visible = inLibrary.Count == 0 ? [] : await db.MediaItems.Where(i => inLibrary.Contains(i.Id)).Select(i => i.Id).ToListAsync(ct);
+        if (inLibrary.Count > 0 && visible.Count == 0)
+        {
+            return Results.NoContent();
+        }
+
+        var record = await Call("Seerr", () => seerrClient.MediaAsync(seerr, body.MediaType, body.TmdbId, ct));
+        if (movie && (visible.Count > 0 || record?.Status == Available))
+        {
+            return Results.NoContent();
+        }
+
+        var chosen = !movie && body.Seasons is { Count: > 0 } given ? given.Where(n => n > 0).ToHashSet() : null;
+        var open = (record?.Requests ?? []).Where(r => r.Status is not (Declined or Completed)).ToList();
+
+        // Radarr or Sonarr first: a request deleted in Seerr while they still want it would download anyway.
+        if (movie)
+        {
+            foreach (var radarr in options.Arr.Where(a => a.Kind == ArrKind.Radarr))
+            {
+                foreach (var film in await Call("Radarr", () => arr.GetMoviesByTmdbIdAsync(radarr, body.TmdbId, ct)))
+                {
+                    if (film.HasFile)
+                    {
+                        continue; // it's in (a library Flexarr hasn't scanned yet): never touched
+                    }
+
+                    await Call("Radarr", () => DropDownloadsAsync(arr, radarr, q => q.MovieId == film.Id, ct));
+                    await Call("Radarr", () => arr.RemoveMovieAsync(radarr, film.Id, ct));
+                }
+            }
+        }
+        else
+        {
+            var tvdbId = record?.TvdbId ?? open.Select(r => r.Media?.TvdbId).FirstOrDefault(t => t is > 0)
+                ?? (await db.MediaItems.IgnoreQueryFilters().Where(i => i.Kind == MediaKind.Series && i.TmdbId == tmdb && i.TvdbId != null)
+                    .Select(i => i.TvdbId).FirstOrDefaultAsync(ct) is { } stored && int.TryParse(stored, CultureInfo.InvariantCulture, out var parsed) ? parsed : null);
+            if (tvdbId is { } tvdb)
+            {
+                foreach (var sonarr in options.Arr.Where(a => a.Kind == ArrKind.Sonarr))
+                {
+                    foreach (var series in await Call("Sonarr", () => arr.GetSeriesByTvdbIdAsync(sonarr, tvdb, ct)))
+                    {
+                        chosen = await UndoSeasonsAsync(arr, sonarr, series, chosen, ct);
+                    }
+                }
+            }
+        }
+
+        // Then Seerr: every request the undo covers. A show's request that also asked for seasons still wanted stays.
+        var covered = open.Where(r => movie || chosen is null || (r.Seasons is { Count: > 0 } seasons && seasons.All(s => chosen.Contains(s.SeasonNumber)))).ToList();
+        foreach (var request in covered)
+        {
+            await Call("Seerr", () => seerrClient.DeleteRequestAsync(seerr, request.Id, ct));
+        }
+
+        // With none left, Seerr's own record goes too, so it reads as not requested rather than still processing. A
+        // show that's partly in keeps it: Seerr's next sync with Sonarr keeps that right.
+        var left = open.Count - covered.Count;
+        if (record is { } media && left == 0 && media.Status is not (PartlyAvailable or Available))
+        {
+            await Call("Seerr", () => seerrClient.DeleteMediaAsync(seerr, media.Id, ct));
+        }
+
+        if (left == 0)
+        {
+            foreach (var asked in await db.MediaRequests.Where(r => r.Kind == kind && r.TmdbId == body.TmdbId && r.FulfilledAt == null).ToListAsync(ct))
+            {
+                asked.FulfilledAt = DateTime.UtcNow;
+            }
+
+            await db.SaveChangesAsync(ct);
+        }
+
+        foreach (var showId in movie ? [] : inLibrary)
+        {
+            ShowMissingEndpoints.Forget(cache, options, showId);
+        }
+
+        UpcomingEndpoints.ForgetArrCalls();
+        RequestRequested.Forget();
+        return Results.NoContent();
+    }
+
+    /// <summary>
+    /// Sonarr stops wanting the seasons (given, or every one with nothing on disk) and their downloads go; a show
+    /// with nothing on disk at all, and no season still wanted, leaves Sonarr.
+    /// </summary>
+    /// <returns>The seasons undone, for matching Seerr's requests; null for "the whole show".</returns>
+    private static async Task<HashSet<int>?> UndoSeasonsAsync(ArrClient arr, ArrInstance sonarr, SonarrSeries series, HashSet<int>? chosen, CancellationToken ct)
+    {
+        var episodes = await Call("Sonarr", () => arr.GetEpisodesAsync(sonarr, series.Id, ct));
+        var seasonsWithFiles = episodes.Where(e => e.HasFile).Select(e => e.SeasonNumber).ToHashSet();
+        var scope = chosen ?? [.. series.Seasons.Select(s => s.SeasonNumber).Where(n => n > 0 && !seasonsWithFiles.Contains(n))];
+
+        var missing = episodes.Where(e => scope.Contains(e.SeasonNumber) && !e.HasFile && e.Monitored).Select(e => e.Id).ToList();
+        if (missing.Count > 0)
+        {
+            await Call("Sonarr", () => arr.SetEpisodesMonitoredAsync(sonarr, missing, monitored: false, ct));
+        }
+
+        await Call("Sonarr", () => arr.SetSeasonsMonitoredAsync(sonarr, series.Id, scope, monitored: false, ct));
+        var inScope = episodes.Where(e => scope.Contains(e.SeasonNumber)).Select(e => e.Id).ToHashSet();
+        await Call("Sonarr", () => DropDownloadsAsync(arr, sonarr, q => q.SeriesId == series.Id && q.EpisodeId is { } e && inScope.Contains(e), ct));
+
+        var stillWanted = series.Seasons.Any(s => s.Monitored && s.SeasonNumber > 0 && !scope.Contains(s.SeasonNumber));
+        if (seasonsWithFiles.Count == 0 && !stillWanted)
+        {
+            await Call("Sonarr", () => arr.RemoveSeriesAsync(sonarr, series.Id, ct));
+        }
+
+        return chosen is null && seasonsWithFiles.Count == 0 ? null : scope;
+    }
+
+    /// <summary>
+    /// Takes the title's downloads out of the queue. A download that also carries something else (a pack with other
+    /// seasons, say) stays, as music's does: removing it would stop the rest importing too.
+    /// </summary>
+    private static async Task DropDownloadsAsync(ArrClient arr, ArrInstance instance, Func<ArrQueueItem, bool> mine, CancellationToken ct)
+    {
+        var queue = await arr.GetQueueAsync(instance, ct);
+        var ours = queue.Where(mine).ToList();
+        var shared = queue.Where(q => !mine(q) && q.DownloadId is not null).Select(q => q.DownloadId!).ToHashSet();
+        foreach (var queued in ours.Where(q => q.DownloadId is null || !shared.Contains(q.DownloadId)))
+        {
+            await arr.RemoveFromQueueAsync(instance, queued.Id, ct);
+        }
+    }
+
+    private static async Task<T> Call<T>(string service, Func<Task<T>> call)
+    {
+        try
+        {
+            return await call();
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new ServiceException(service, ex);
+        }
+    }
+
+    private static async Task Call(string service, Func<Task> call)
+    {
+        try
+        {
+            await call();
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new ServiceException(service, ex);
+        }
+    }
+}

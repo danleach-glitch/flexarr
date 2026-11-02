@@ -81,8 +81,11 @@ public sealed record ExternalDetailDto(
     bool? OnWatchlist = null,
     RottenTomatoesState? RottenTomatoesState = null);
 
-public static class RequestEndpoints
+public static partial class RequestEndpoints
 {
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Service} refused or didn't answer taking a request back ({Status})")]
+    private static partial void LogUndoRefused(ILogger logger, Exception ex, string service, int? status);
+
     private static readonly (string Id, string List, string Title)[] Lists =
     [
         ("trending", "trending", "Trending this week"),
@@ -281,6 +284,45 @@ public static class RequestEndpoints
             catch (NotRequestableException ex)
             {
                 return Results.Problem(ex.Message, statusCode: 409);
+            }
+        });
+
+        // Take a film or show request back, for the household: Seerr's request goes, Radarr or Sonarr stop wanting it.
+        group.MapPost("/unrequest", async (TitleUndoBody body, IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, ArrClient arr, FlexarrDbContext db,
+            CurrentProfile current, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, ILoggerFactory loggers, CancellationToken ct) =>
+        {
+            if (body.MediaType is not ("movie" or "tv"))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["mediaType"] = ["Use \"movie\" or \"tv\"."] });
+            }
+
+            if ((await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(KindOf(body.MediaType)))
+            {
+                return Results.Problem(body.MediaType == "movie" ? "This profile can't request movies." : "This profile can't request shows.", statusCode: 403);
+            }
+
+            if (options.CurrentValue.Seerr?.Instance is not { } instance)
+            {
+                return Results.Problem("Requests need a Seerr server. Add one under Settings › Connections.", statusCode: 409);
+            }
+
+            if (MusicRequestEndpoints.UndoRefused(current, cache, "Guests can't undo requests.") is { } refused)
+            {
+                return refused;
+            }
+
+            try
+            {
+                return MusicRequestEndpoints.Counted(current, cache,
+                    await RequestUndo.UnrequestAsync(body, instance, seerr, arr, options.CurrentValue, db, cache, ct));
+            }
+            catch (RequestUndo.ServiceException ex)
+            {
+                var status = (int?)((HttpRequestException)ex.InnerException!).StatusCode;
+                LogUndoRefused(loggers.CreateLogger("Flexarr.Requests"), ex.InnerException!, ex.Service, status);
+                return status is >= 400 and < 500
+                    ? Results.Problem($"{ex.Service} turned that down.", statusCode: 502)
+                    : Results.Problem($"{ex.Service} isn't answering. Try again later.", statusCode: 502);
             }
         });
 
