@@ -164,7 +164,8 @@ fun TvDetailScreen(model: AppModel, id: String) {
                 val alike = if (similar.isEmpty() && item.kind != MediaKind.Episode) async { runCatching { client.similar(item.id) }.getOrNull() } else null
                 when (item.kind) {
                     MediaKind.Series -> {
-                        launch {
+                        // On the effect's own scope, not this one: the page (and pull to refresh) doesn't wait for Sonarr.
+                        this@LaunchedEffect.launch {
                             runCatching { client.showMissing(item.id) }.onSuccess {
                                 missing = it
                                 // Whether Seerr is answering, so a season's Request and Requested can wait while it isn't.
@@ -224,6 +225,7 @@ fun TvDetailScreen(model: AppModel, id: String) {
                                     else model.titleState(titleKey("tv", tmdb, season.seasonNumber), if (season.requested) Availability.Requested else Availability.None)
                                 },
                                 canAsk = model.canAskForTitles,
+                                seerrNotAnswering = model.seerrUnreachable,
                                 onRequest = { season ->
                                     loaded.tmdbId?.toIntOrNull()?.let { navigator.requestTitle(model, "tv", it, season.seasonNumber) }
                                 },

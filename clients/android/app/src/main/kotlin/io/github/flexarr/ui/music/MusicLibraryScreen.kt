@@ -50,6 +50,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.Home
 import io.github.flexarr.core.ItemSummary
@@ -131,14 +133,18 @@ fun MusicLibraryScreen(model: AppModel, libraryId: String, genre: String? = null
             MusicBrowse(home.copy(rows = home.rows.filter { it.showsInMusic }), artists.items.filter { it.kind == MediaKind.Artist || it.kind == MediaKind.Unknown }, artists.total)
         }
     }
-    // Each grid's pages and place, kept while another view is shown.
+    // Each grid's pages and place, kept while another view is shown and while an album or artist opened from it is
+    // (the pages in this screen's own ViewModel, the place saved with it), so Back returns to where it was.
     // Again when an artist has left the library from here (a placeholder unfollowed), so they don't stay listed.
-    val artists = remember(libraryId, artistSort, model.musicArtistsVersion) { MusicPager { skip, take -> client.libraryItems(libraryId, artistSort, skip = skip, take = take) } }
-    val albums = remember(libraryId, albumSort) {
-        MusicPager { skip, take -> client.libraryAlbums(libraryId, albumSort, skip = skip, take = take) ?: Paged(0, emptyList()) }
+    val pagers = viewModel { MusicPagers() }
+    val artists = remember(libraryId, artistSort, model.musicArtistsVersion) {
+        pagers.pager("artists", client, libraryId, artistSort, model.musicArtistsVersion) { skip, take -> client.libraryItems(libraryId, artistSort, skip = skip, take = take) }
     }
-    val artistGrid = remember(artistSort) { androidx.compose.foundation.lazy.grid.LazyGridState() }
-    val albumGrid = remember(albumSort) { androidx.compose.foundation.lazy.grid.LazyGridState() }
+    val albums = remember(libraryId, albumSort) {
+        pagers.pager("albums", client, libraryId, albumSort) { skip, take -> client.libraryAlbums(libraryId, albumSort, skip = skip, take = take) ?: Paged(0, emptyList()) }
+    }
+    val artistGrid = rememberSaveable(artistSort, saver = LazyGridState.Saver) { LazyGridState() }
+    val albumGrid = rememberSaveable(albumSort, saver = LazyGridState.Saver) { LazyGridState() }
     val browseGrid = rememberLazyGridState()
     // Loaded the first time Genres is shown, then kept.
     var genresOpened by rememberSaveable { mutableStateOf(false) }
@@ -263,13 +269,15 @@ private fun MusicGridScreen(model: AppModel, libraryId: String, view: MusicView,
     val library = rememberLoader(libraryId) { client.libraries().firstOrNull { it.id == libraryId } }
     val albums = view == MusicView.Albums
     var sort by rememberSaveable { mutableStateOf(initialSort.takeIf { it in view.sorts } ?: LibrarySort.Title) }
-    val pager = remember(libraryId, albums, sort, if (albums) 0 else model.musicArtistsVersion) {
-        MusicPager { skip, take ->
+    val pagers = viewModel { MusicPagers() }
+    val version = if (albums) 0 else model.musicArtistsVersion
+    val pager = remember(libraryId, albums, sort, version) {
+        pagers.pager("grid", client, libraryId, albums, sort, version) { skip, take ->
             if (albums) client.libraryAlbums(libraryId, sort, skip = skip, take = take) ?: Paged(0, emptyList())
             else client.libraryItems(libraryId, sort, skip = skip, take = take)
         }
     }
-    val grid = remember(sort) { androidx.compose.foundation.lazy.grid.LazyGridState() }
+    val grid = rememberSaveable(sort, saver = LazyGridState.Saver) { LazyGridState() }
     RoomBackground(ambient = pager.items.firstOrNull()?.let { glowColor(it.accentColor) }, intensity = 0.18f) {
         Column {
             PageTitle((library.state as? Load.Loaded)?.value?.name.orEmpty(), onBack = { navigator.back() }) { SortMenu(view.sorts, sort) { sort = it } }
@@ -288,10 +296,11 @@ private fun MusicGenreScreen(model: AppModel, libraryId: String, genre: String) 
     val client = model.client ?: return
     val navigator = LocalNavigator.current
     var sort by rememberSaveable { mutableStateOf(LibrarySort.Title) }
+    val pagers = viewModel { MusicPagers() }
     val albums = remember(libraryId, genre, sort) {
-        MusicPager { skip, take -> client.libraryAlbums(libraryId, sort, genre, skip = skip, take = take) ?: Paged(0, emptyList()) }
+        pagers.pager("genre", client, libraryId, genre, sort) { skip, take -> client.libraryAlbums(libraryId, sort, genre, skip = skip, take = take) ?: Paged(0, emptyList()) }
     }
-    val grid = remember(sort) { androidx.compose.foundation.lazy.grid.LazyGridState() }
+    val grid = rememberSaveable(sort, saver = LazyGridState.Saver) { LazyGridState() }
     val ambient = albums.items.firstOrNull()?.let { glowColor(it.accentColor) }
     RoomBackground(ambient = ambient, intensity = 0.18f) {
         Column {
@@ -307,8 +316,22 @@ private fun MusicGenreScreen(model: AppModel, libraryId: String, genre: String) 
     }
 }
 
+/**
+ * A music screen's pagers, kept with its place in the back stack (Navigation drops what's only remembered while
+ * another screen is on top), one for each [slot] and replaced when what it lists ([keys]) changes.
+ */
+internal class MusicPagers : ViewModel() {
+    private val slots = HashMap<String, Pair<List<Any?>, MusicPager>>()
+
+    fun pager(slot: String, vararg keys: Any?, page: suspend (skip: Int, take: Int) -> Paged<ItemSummary>): MusicPager {
+        val listed = keys.toList()
+        slots[slot]?.takeIf { it.first == listed }?.let { return it.second }
+        return MusicPager(page).also { slots[slot] = listed to it }
+    }
+}
+
 /** Pages of a music library's artists or albums, loaded as the grid nears the end of what's in. */
-private class MusicPager(private val page: suspend (skip: Int, take: Int) -> Paged<ItemSummary>) {
+internal class MusicPager(private val page: suspend (skip: Int, take: Int) -> Paged<ItemSummary>) {
     val items = mutableStateListOf<ItemSummary>()
     var total by mutableIntStateOf(0)
     var loading by mutableStateOf(false)

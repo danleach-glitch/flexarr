@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -29,6 +30,7 @@ import io.github.flexarr.core.MissingSeason
 import io.github.flexarr.core.ShowEpisode
 import io.github.flexarr.core.ShowMissing
 import io.github.flexarr.ui.components.RemoteImage
+import io.github.flexarr.ui.external.SeerrNotAnswering
 import io.github.flexarr.ui.external.TitleRequestState
 import io.github.flexarr.ui.external.label
 import io.github.flexarr.ui.theme.Flexarr
@@ -49,6 +51,8 @@ internal fun TvShowMissing(
     requestState: (MissingSeason) -> TitleRequestState,
     /** Whether Request and Requested can be pressed now (not on a kids profile, nor while Seerr isn't answering). */
     canAsk: Boolean,
+    /** Seerr is connected but not answering: Request and Requested are greyed, with a line saying why. */
+    seerrNotAnswering: Boolean = false,
     onRequest: (MissingSeason) -> Unit,
     onUnrequest: (MissingSeason) -> Unit,
     onSearch: (seasonNumber: Int, episodes: List<Int>?) -> Unit,
@@ -72,8 +76,13 @@ internal fun TvShowMissing(
                             missing.canSearch -> "Search" to { onSearch(season.seasonNumber, null) }
                             else -> null to null
                         }
-                        SeasonCard(season, status, requested, action)
+                        // Request or Requested that can't be pressed now (a kids profile, or Seerr not answering): greyed, as on the phones.
+                        val blocked = !canAsk && missing.canRequest && (state == TitleRequestState.Requested || (!requested && state != TitleRequestState.Refused))
+                        SeasonCard(season, status, requested, action, dimmed = blocked)
                     }
+                }
+                if (missing.canRequest && seerrNotAnswering) {
+                    Text(SeerrNotAnswering, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, modifier = Modifier.padding(horizontal = TvLayout.Edge))
                 }
             }
             missing.episodesBySeason.forEach { (season, episodes) ->
@@ -120,7 +129,7 @@ internal fun TvShowMissing(
 }
 
 @Composable
-private fun SeasonCard(season: MissingSeason, status: String?, requested: Boolean, action: (() -> Unit)?) {
+private fun SeasonCard(season: MissingSeason, status: String?, requested: Boolean, action: (() -> Unit)?, dimmed: Boolean = false) {
     val width = 150.dp
     TvArtworkButton(
         ambient = Flexarr.silver,
@@ -141,7 +150,7 @@ private fun SeasonCard(season: MissingSeason, status: String?, requested: Boolea
                 Text(season.title, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.88f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 season.detail.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 11.sp, color = Flexarr.usher, maxLines = 1) }
                 status?.let {
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.alpha(if (dimmed) 0.5f else 1f), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(if (requested) FlexarrIcons.requested else if (it == "Search") FlexarrIcons.search else FlexarrIcons.request, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(13.dp))
                         Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
                     }

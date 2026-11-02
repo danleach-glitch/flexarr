@@ -118,7 +118,7 @@ private fun Page(model: AppModel, detail: ExternalDetail) {
                         detail.tagline?.takeIf { it.isNotBlank() }?.let {
                             Text(it, fontSize = 14.sp, fontStyle = FontStyle.Italic, color = Flexarr.screen.copy(alpha = 0.85f))
                         }
-                        FactsLine(facts(detail), scores = if (model.isKids) null else detail.scores)
+                        FactsLine(facts(detail, scores = !model.isKids), scores = if (model.isKids) null else detail.scores)
                         if (detail.genres.isNotEmpty()) {
                             Text(detail.genres.take(3).joinToString(", "), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                         }
@@ -232,11 +232,11 @@ private fun Actions(model: AppModel, detail: ExternalDetail) {
     if (confirming) TitleUndoDialog(detail.title, onConfirm = { navigator.unrequestTitle(model, detail.mediaType, detail.tmdbId) }, onDismiss = { confirming = false })
 }
 
-/** "R   2026   1h 59m   Movie", as the TV's page. */
-private fun facts(detail: ExternalDetail): List<String> {
+/** "R   2026   1h 59m   Movie", as the TV's page; TMDB's score with [scores] (never for a kids profile). */
+private fun facts(detail: ExternalDetail, scores: Boolean): List<String> {
     val length = if (detail.isShow) detail.seasons?.let { if (it == 1) "1 season" else "$it seasons" } else detail.runtimeMinutes?.let { Format.runtime(minutes = it) }
     val status = detail.status?.takeIf { it != "Released" && it != "Ended" }
-    val tmdb = detail.tmdbRating?.takeIf { detail.scores.imdb == null }?.let { String.format(Locale.ROOT, "%.1f/10", it) }
+    val tmdb = detail.tmdbRating?.takeIf { scores && detail.scores.imdb == null }?.let { String.format(Locale.ROOT, "%.1f/10", it) }
     return listOfNotNull(detail.certification, detail.year?.toString(), length, if (detail.isShow) "Show" else "Movie", status, tmdb)
 }
 

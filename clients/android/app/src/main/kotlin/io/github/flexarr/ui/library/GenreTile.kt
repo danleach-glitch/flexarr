@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.library
 
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -84,8 +85,13 @@ private fun BookGenreArt(covers: List<String>, modifier: Modifier) {
             Wash()
             return@BoxWithConstraints
         }
-        RemoteImage(front, 185, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.4f; scaleY = 1.4f }.blur(26.dp)) { Wash() }
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            RemoteImage(front, 185, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.4f; scaleY = 1.4f }.blur(26.dp)) { Wash() }
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
+        } else {
+            // Blur does nothing before Android 12, so the enlarged cover would sit sharp behind the others: the wash.
+            Wash()
+        }
         // Smaller than the web's half, so on a phone's tile the covers stay clear of the name beneath.
         val side = maxHeight * 0.4f
         Box(Modifier.align(Alignment.TopEnd).padding(top = maxHeight * 0.08f, end = maxWidth * 0.06f).size(side)) {

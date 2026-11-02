@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,8 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -167,16 +164,19 @@ private fun EpisodeLine(episode: ShowEpisode, detail: String?) {
     }
 }
 
-/** A small action under a card or beside a heading, styled as music's request chip; [on] lights it. */
+/**
+ * A small action under a card or beside a heading, styled as music's request chip; [on] lights it. TalkBack reads its
+ * label (Requested, Search…) and hears [description] as what a double-tap does ("Unrequest Season 2").
+ */
 @Composable
 internal fun MissingChip(label: String, icon: ImageVector?, on: Boolean, enabled: Boolean, description: String? = null, onClick: () -> Unit) {
     val shape = RoundedCornerShape(Tokens.radiusControl)
     Box(
-        Modifier.heightIn(min = 48.dp).pressable(onClick, enabled = enabled).semantics { if (description != null) contentDescription = description },
+        Modifier.heightIn(min = 48.dp).pressable(onClick, enabled = enabled, onClickLabel = description),
         contentAlignment = Alignment.CenterStart,
     ) {
         Row(
-            Modifier.height(32.dp).clip(shape)
+            Modifier.heightIn(min = 32.dp).clip(shape)
                 .musicOnStyle(on, Flexarr.silver, shape, offFill = Flexarr.screen.copy(alpha = 0.09f))
                 .then(if (on) Modifier else Modifier.border(1.dp, Flexarr.screen.copy(alpha = 0.22f), shape))
                 .alpha(if (enabled || on) 1f else 0.5f)
