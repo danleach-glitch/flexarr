@@ -47,6 +47,7 @@ struct PosterCard: View {
 /// Poster artwork with a title placeholder, watched tick and progress bar. Fills the width it's given.
 struct PosterArtwork: View {
     @Environment(AppModel.self) private var model
+    @Environment(DownloadStore.self) private var downloads
     let item: ItemSummary
 
     var body: some View {
@@ -73,6 +74,7 @@ struct PosterArtwork: View {
             .overlay(alignment: .topTrailing) {
                 if item.userData.watched { WatchedBadge(label: item.isBook ? "Finished" : "Watched").padding(6) }
             }
+            .downloadedMark(downloads.entry(for: item.id)?.isDownloaded == true, raised: item.progress != nil)
             .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
     }
 }

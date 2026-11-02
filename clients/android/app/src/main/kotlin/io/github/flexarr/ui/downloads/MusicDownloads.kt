@@ -218,6 +218,19 @@ fun DownloadedMark(modifier: Modifier = Modifier, size: Dp = 14.dp) {
     Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.go, modifier = modifier.size(size))
 }
 
+/**
+ * The downloaded mark in a card's bottom-right corner, the same on posters, albums and books; lifted clear of a progress
+ * bar along the bottom ([raised]). Call it inside the artwork's [androidx.compose.foundation.layout.Box].
+ */
+@Composable
+fun androidx.compose.foundation.layout.BoxScope.CardDownloadedMark(shown: Boolean, raised: Boolean = false) {
+    if (!shown) return
+    DownloadedMark(
+        Modifier.align(Alignment.BottomEnd).padding(5.dp).padding(bottom = if (raised) 10.dp else 0.dp)
+            .clip(CircleShape).background(Flexarr.room.copy(alpha = 0.85f)).padding(4.dp),
+    )
+}
+
 /** An album's or playlist's saved picture: its cover, or for a playlist without one a mosaic of its tracks' covers. */
 @Composable
 fun CollectionArtwork(model: AppModel, collection: LocalCollection, modifier: Modifier = Modifier) {

@@ -112,6 +112,22 @@ struct DownloadedMark: View {
     }
 }
 
+extension View {
+    /// The downloaded mark in a card's bottom-right corner, the same on posters, albums and books; lifted clear of a
+    /// progress bar along the bottom (`raised`).
+    func downloadedMark(_ shown: Bool, raised: Bool = false) -> some View {
+        overlay(alignment: .bottomTrailing) {
+            if shown {
+                DownloadedMark()
+                    .padding(4)
+                    .background(Circle().fill(Color.room.opacity(0.85)))
+                    .padding(5)
+                    .padding(.bottom, raised ? 10 : 0)
+            }
+        }
+    }
+}
+
 /// An album's or playlist's saved picture: its cover, or for a playlist without one a mosaic of its tracks' covers.
 struct CollectionArtwork: View {
     @Environment(DownloadStore.self) private var store
