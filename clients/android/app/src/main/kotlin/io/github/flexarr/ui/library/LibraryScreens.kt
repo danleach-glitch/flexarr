@@ -394,7 +394,8 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
     RoomBackground(ambient = ambient?.let { glowColor(it.accentColor) }, intensity = if (shows == Showing.Browse) 0.28f else 0.18f) {
         Column {
             PageTitle(initialGenre ?: loadedLibrary?.name.orEmpty(), onBack = { navigator.back() }) {
-                if (shows == Showing.All) SortAndFilter(sort, { sort = it }, genre, { genre = it }, genreList)
+                // A genre's own page is that genre's, so it sorts but offers no other genre.
+                if (shows == Showing.All) SortAndFilter(sort, { sort = it }, genre.takeIf { initialGenre == null }, { genre = it }, if (initialGenre != null) emptyList() else genreList)
             }
             if (loadedLibrary != null && (browses || hasGenres)) {
                 val all = when (loadedLibrary.type) {

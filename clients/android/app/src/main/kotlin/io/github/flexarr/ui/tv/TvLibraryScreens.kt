@@ -285,7 +285,7 @@ enum class TvGridContent {
 /**
  * Every title in a library as a poster grid, paged as it scrolls, with sort and genre at the top and an A–Z rail down
  * the right to jump through it when sorted by title. On a tab, [top] is the Browse and All switch; opened from a row's
- * "See all" or a genre, the library's name heads it instead. As the Apple TV's LibraryView. For music ([content]): its
+ * "See all", the library's name heads it instead, and opened from a genre, the genre's name. As the Apple TV's LibraryView. For music ([content]): its
  * artists as round pictures, or its albums as square covers; a genre's albums (opened from its tile) have Play and
  * Shuffle for the genre's tracks under its name.
  */
@@ -320,7 +320,8 @@ fun TvLibraryGrid(
     val firstRequester = remember { FocusRequester() }
     val grid = rememberLazyGridState()
     // A music genre's own page has no genre to choose, so no list of them.
-    val genrePage = content == TvGridContent.Albums && initialGenre != null
+    // A genre's own page is that genre's, so it offers no other.
+    val genrePage = initialGenre != null && top == null
     val genres = rememberLoader(library.id, content, genrePage) {
         when {
             genrePage -> emptyList()
@@ -463,8 +464,8 @@ fun TvLibraryGrid(
                 Header(
                     library, top, content, content.count(total), sort, onSort = { sort = it }, genre,
                     hasGenres = !genrePage && (genres.state as? Load.Loaded)?.value?.isNotEmpty() == true, onGenre = { choosingGenre = true },
-                    // A music genre's own page: its albums under its name, and its tracks to play.
-                    title = if (content == TvGridContent.Albums) initialGenre ?: library.name else library.name,
+                    // A genre's own page, of any library, is under the genre's name; a music genre's has its tracks to play.
+                    title = initialGenre?.takeIf { top == null } ?: library.name,
                     genrePlay = initialGenre.takeIf { content == TvGridContent.Albums && top == null }?.let { name ->
                         { shuffled: Boolean -> navigator.playGenre(library.id, name, shuffled) }
                     },

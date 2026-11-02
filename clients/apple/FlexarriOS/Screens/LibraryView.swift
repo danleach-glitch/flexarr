@@ -76,8 +76,8 @@ struct LibraryView: View {
     /// Whether the server lists a music library's albums (and so has Albums and Genres): from 0.59, asked once per
     /// server. Until it answers, Browse and Artists.
     private var offersAlbums: Bool { model.offersMusicAlbums == true }
-    /// A music genre's page is that genre's: its title and Play are, so it offers no other.
-    private var showsGenreFilter: Bool { !(music && initialGenre != nil) }
+    /// A genre's own page is that genre's (its title, and a music genre's Play), so it offers no other.
+    private var showsGenreFilter: Bool { initialGenre == nil }
     /// The genres the filter offers for what the grid lists.
     private var filterGenres: [GenreCount] { listsAlbums ? albumGenres : genres }
     /// What the grid lists: a music library's albums, or the library's titles (a music library's are its artists).

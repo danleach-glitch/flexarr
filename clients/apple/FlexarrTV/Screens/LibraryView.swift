@@ -16,8 +16,8 @@ struct LibraryView: View {
     var musicSwitch: Binding<MusicOpening>?
     var offersAlbums = true
 
-    /// A music genre's page is that genre's: its heading and Play are, so it offers no other.
-    private var showsGenreFilter: Bool { !(content == .albums && initialGenre != nil && !onTab) }
+    /// A genre's own page is that genre's (its heading, and a music genre's Play), so it offers no other.
+    private var showsGenreFilter: Bool { !(initialGenre != nil && !onTab) }
 
     /// On a tab, under the sidebar's label, rather than pushed with the library's name as a heading.
     private var onTab: Bool { viewSwitch != nil || musicSwitch != nil }
@@ -169,8 +169,8 @@ struct LibraryView: View {
                     }
                     .focusSection()
                 } else {
-                    // A music genre's page is its albums, under the genre's name.
-                    Text(content == .albums ? initialGenre ?? library.name : library.name)
+                    // A genre's own page, of any library, is under the genre's name (as books' and the phones' are).
+                    Text(initialGenre ?? library.name)
                         .font(.marquee(76, weight: .heavy))
                         .foregroundStyle(Color.screen)
                 }
