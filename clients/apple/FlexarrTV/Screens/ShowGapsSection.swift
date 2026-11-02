@@ -3,7 +3,7 @@ import SwiftUI
 
 /// A show's *Not in your library* (seasons it has none of, and the missing episodes of seasons it has some of) and
 /// *Coming up* (the next episodes Sonarr has dates for). Requests go to Seerr for just that season; Search asks Sonarr
-/// (the main profile).
+/// (the main profile). Pressing a season requested through Seerr asks (Keep first), then takes back just that season.
 struct ShowGapsSection: View {
     @Environment(AppModel.self) private var model
     let showId: String
@@ -12,6 +12,12 @@ struct ShowGapsSection: View {
     let gaps: ShowGaps
     /// Seasons asked for or searched here, until the page next loads.
     @State private var asked: Set<Int> = []
+    /// Whole seasons Sonarr was asked to search for here: those aren't Seerr's to take back.
+    @State private var searched: Set<Int> = []
+    /// Seasons whose request was taken back here, until the page next loads.
+    @State private var undone: Set<Int> = []
+    /// The season whose Requested was pressed: asked about before it's taken back.
+    @State private var undoing: MissingSeason?
     @State private var busy = false
 
     var body: some View {
@@ -65,10 +71,22 @@ struct ShowGapsSection: View {
                 }
             }
         }
+        .undoConfirmation(TitleWords.unrequest(undoing?.title ?? ""), isPresented: Binding(get: { undoing != nil }, set: { if !$0 { undoing = nil } }),
+                          keep: TitleWords.keepIt, undo: TitleWords.unrequestAction) {
+            if let season = undoing { Task { await unrequest(season) } }
+        }
     }
 
     private func state(_ season: MissingSeason) -> MissingSeasonAction {
-        asked.contains(season.seasonNumber) ? .requested : gaps.action(for: season)
+        let n = season.seasonNumber
+        if asked.contains(n) || searched.contains(n) { return .requested }
+        if undone.contains(n), gaps.canRequest { return .request }
+        return gaps.action(for: season)
+    }
+
+    /// A season requested through Seerr can be taken back from here; one Sonarr is searching for can't.
+    private func undoable(_ season: MissingSeason) -> Bool {
+        gaps.canRequest && tmdbId != nil && !searched.contains(season.seasonNumber) && season.availability != .partlyAvailable
     }
 
     private func seasonCard(_ season: MissingSeason) -> some View {
@@ -78,7 +96,12 @@ struct ShowGapsSection: View {
         return ArtworkButton(ambient: .silver, accessibilityText: season.title) {
             // Pressing it does what it says, as on Android TV: no dialog in between.
             guard !busy else { return }
-            if action == .request { Task { await request(season) } } else if action == .search { Task { await search(season.seasonNumber) } }
+            switch action {
+            case .request: Task { await request(season) }
+            case .search: Task { await search(season.seasonNumber) }
+            case .requested where undoable(season): undoing = season
+            default: break
+            }
         } artwork: {
             RemoteImage(url: model.client?.imageURL(season.poster, width: 342)) {
                 ZStack {
@@ -159,8 +182,22 @@ struct ShowGapsSection: View {
         do {
             try await client.requestSeasons(tmdbId: tmdbId, seasons: [season.seasonNumber])
             asked.insert(season.seasonNumber)
+            undone.remove(season.seasonNumber)
         } catch {
             model.requestError = ConnectionError(error).message
+        }
+    }
+
+    /// Takes back just this season's request, for the household.
+    private func unrequest(_ season: MissingSeason) async {
+        guard let tmdbId else { return }
+        busy = true
+        defer { busy = false }
+        if let failure = await model.unrequestTitle(mediaType: "tv", tmdbId: tmdbId, seasons: [season.seasonNumber]) {
+            model.requestError = failure
+        } else {
+            asked.remove(season.seasonNumber)
+            undone.insert(season.seasonNumber)
         }
     }
 
@@ -171,7 +208,7 @@ struct ShowGapsSection: View {
         defer { busy = false }
         do {
             try await client.searchMissing(showId: showId, season: season)
-            asked.insert(episodesOnly ? -season : season)
+            if episodesOnly { asked.insert(-season) } else { searched.insert(season) }
         } catch {
             model.requestError = ConnectionError(error).message
         }
