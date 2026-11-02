@@ -316,6 +316,7 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
                 request={{ kind: 'artist', artistId: item.id }}
                 availability={extras.data.followed ? 'Requested' : 'None'}
                 title={item.title}
+                unanswered={extras.data.lidarrAnswered === false}
                 // A followed artist with nothing yet leaves the library when unfollowed: back to it.
                 onUndone={waiting ? () => navigate(`/library/${item.libraryId}`, { replace: true }) : undefined}
               />
@@ -351,7 +352,7 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
           </h2>
           <div className="poster-grid music-albums">
             {extras.data.missing.map((a, i) => (
-              <MusicExternalCard key={`${i}-${a.deezerId}-${a.musicBrainzId ?? a.title}`} item={a} showArtist={false} />
+              <MusicExternalCard key={`${i}-${a.deezerId}-${a.musicBrainzId ?? a.title}`} item={a} showArtist={false} unanswered={extras.data?.lidarrAnswered === false} />
             ))}
           </div>
         </section>

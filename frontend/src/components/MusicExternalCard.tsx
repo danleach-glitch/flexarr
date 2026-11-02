@@ -22,6 +22,7 @@ export function MusicRequestButton({
   size = 'small',
   title,
   onUndone,
+  unanswered = false,
 }: {
   request: MusicRequest
   availability: MusicExternal['availability']
@@ -32,6 +33,8 @@ export function MusicRequestButton({
   title?: string
   /** After Following or Requested was taken back. */
   onUndone?: () => void
+  /** Lidarr didn't answer for this page: what it says couldn't be checked, so nothing is offered. */
+  unanswered?: boolean
 }) {
   // What this button did, if anything: otherwise it says what the server says, which can change under it.
   // 'refused' is Lidarr saying no (it can't find it): asking again won't change that, so no Try again.
@@ -42,7 +45,7 @@ export function MusicRequestButton({
   const state: State = sent ?? availability
   // Lidarr not answering: say so on the page, and don't offer what can't work. (Cached: every card asks.)
   const status = useApi(getMusicRequestStatus, [])
-  const offline = status.data?.reachable === false
+  const offline = status.data?.reachable === false || unanswered
 
   async function send() {
     setSent('sending')
@@ -65,7 +68,14 @@ export function MusicRequestButton({
       setAsking(false)
       onUndone?.()
     } catch (e) {
-      setUndoError(e instanceof ApiError && e.messages[0] ? e.messages[0] : 'That didn’t work. Try again.')
+      // A server from before undo (it answers 404 to any of these) can't do it.
+      setUndoError(
+        e instanceof ApiError && (e.status === 404 || e.status === 405)
+          ? 'Update the server to undo this.'
+          : e instanceof ApiError && e.messages[0]
+            ? e.messages[0]
+            : 'That didn’t work. Try again.',
+      )
     }
   }
 
@@ -137,7 +147,7 @@ export function MusicRequestButton({
 }
 
 /** An artist (round photo) or album (square cover) from outside the library, with its request button. */
-export function MusicExternalCard({ item, showArtist = true }: { item: MusicExternal; showArtist?: boolean }) {
+export function MusicExternalCard({ item, showArtist = true, unanswered = false }: { item: MusicExternal; showArtist?: boolean; unanswered?: boolean }) {
   const to = musicLink(item)
   const art = (
     <div className="card-frame">
@@ -167,7 +177,7 @@ export function MusicExternalCard({ item, showArtist = true }: { item: MusicExte
       {subtitle && <span className="card-subtitle">{subtitle}</span>}
       <div className="external-card-actions">
         {(item.kind === 'album' || !item.libraryItemId) && (
-          <MusicRequestButton request={request} availability={item.availability} libraryItemId={item.libraryItemId} kind={item.kind} title={item.title} />
+          <MusicRequestButton request={request} availability={item.availability} libraryItemId={item.libraryItemId} kind={item.kind} title={item.title} unanswered={unanswered} />
         )}
       </div>
     </div>

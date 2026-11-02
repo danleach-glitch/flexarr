@@ -113,7 +113,7 @@ The same words on every client and in the guide:
 - Sorting a library: **A–Z**, **Recently added**, **Year**, **Rating** (never "Title", "Newest first" or "Highest rated").
 - Music: **Artists**, **Albums**, **Genres**, **Your artists**, **Radio**, **Shuffle**; a music library's switch reads **Browse · Artists · Albums · Genres**.
 - **Watchlist**, **Continue watching**, **Up next**, **Coming soon**, **Discover**, **Cast and crew**, **More like this**.
-- Requests: **Request** (movies and shows), **Request album**, **Follow artist** and then **Following**, **Requested**, **In your library**, **Partly in your library**, **Not in your library**, **Fans also like**. Discover's halves are **Movies and shows** and **Music**.
+- Requests: **Request** (movies and shows), **Request album**, **Follow** and then **Following**, **Unrequest**, **Stop following**, **Requested**, **In your library**, **Partly in your library**, **Not in your library**, **Fans also like**. Discover's halves are **Movies and shows** and **Music**.
 - Episodes: **S1E3** where space is short, **Season 1, Episode 3** in headings. No zero padding, no pipes.
 - Facts sit side by side with space between them, never joined with middle dots.
 

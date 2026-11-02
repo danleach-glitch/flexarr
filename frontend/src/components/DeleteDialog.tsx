@@ -26,7 +26,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
       : item.kind === 'Artist'
         ? { name: item.title, noun: 'artist', detail: 'Lidarr deletes the artist and all their files from disk.' }
       : item.kind === 'Album'
-        ? { name: item.title, noun: 'album', detail: 'Lidarr deletes the album’s files from disk and won’t download it again. You can still request it later.' }
+        ? { name: item.title, noun: 'album', detail: 'Lidarr deletes the album’s files from disk.' }
       : item.kind === 'Series'
         ? { name: item.title, noun: 'show', detail: 'Sonarr deletes the files of every episode from disk and stops tracking the show.' }
         : {

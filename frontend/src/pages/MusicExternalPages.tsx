@@ -15,7 +15,7 @@ const shelves: [string, (t: string | null | undefined) => boolean][] = [
 ]
 
 /** Releases in a grid per kind, each with Request album. */
-export function MusicShelves({ albums, showArtist = false }: { albums: MusicExternal[]; showArtist?: boolean }) {
+export function MusicShelves({ albums, showArtist = false, unanswered = false }: { albums: MusicExternal[]; showArtist?: boolean; unanswered?: boolean }) {
   return shelves.map(([title, holds]) => {
     const found = albums.filter((a) => holds(a.recordType))
     return (
@@ -24,7 +24,7 @@ export function MusicShelves({ albums, showArtist = false }: { albums: MusicExte
           <h2 className="music-section-title">{title}</h2>
           <div className="poster-grid music-albums">
             {found.map((a, i) => (
-              <MusicExternalCard key={`${i}-${a.deezerId}-${a.musicBrainzId ?? a.title}`} item={a} showArtist={showArtist} />
+              <MusicExternalCard key={`${i}-${a.deezerId}-${a.musicBrainzId ?? a.title}`} item={a} showArtist={showArtist} unanswered={unanswered} />
             ))}
           </div>
         </section>
@@ -33,7 +33,7 @@ export function MusicShelves({ albums, showArtist = false }: { albums: MusicExte
   })
 }
 
-/** An artist the library may not have: Follow artist, their releases to request one by one, and artists like them. */
+/** An artist the library may not have: Follow, their releases to request one by one, and artists like them. */
 export function MusicExternalArtistPage() {
   const { id = '' } = useParams()
   const artist = useApi((signal) => getMusicArtist(id, signal), [id])
@@ -62,11 +62,11 @@ export function MusicExternalArtistPage() {
                 In your library
               </Link>
             )}
-            <MusicRequestButton key={String(a.followed)} kind="artist" size="large" request={{ kind: 'artist', deezerId: a.deezerId }} availability={a.followed ? 'Requested' : 'None'} title={a.name} />
+            <MusicRequestButton key={String(a.followed)} kind="artist" size="large" request={{ kind: 'artist', deezerId: a.deezerId }} availability={a.followed ? 'Requested' : 'None'} title={a.name} unanswered={a.lidarrAnswered === false} />
           </div>
         </div>
       </header>
-      <MusicShelves albums={a.albums} />
+      <MusicShelves albums={a.albums} unanswered={a.lidarrAnswered === false} />
       {a.similar.length > 0 && (
         <Row title="Fans also like">
           {a.similar.map((s, i) => (
@@ -121,7 +121,7 @@ export function MusicExternalAlbumPage() {
                 In your library
               </Link>
             ) : (
-              <MusicRequestButton kind="album" size="large" request={{ kind: 'album', deezerId: a.deezerId }} availability={a.availability} title={a.title} />
+              <MusicRequestButton kind="album" size="large" request={{ kind: 'album', deezerId: a.deezerId }} availability={a.availability} title={a.title} unanswered={a.lidarrAnswered === false} />
             )}
           </div>
         </div>

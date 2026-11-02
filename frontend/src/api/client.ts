@@ -1421,6 +1421,8 @@ export interface MusicArtistDetail {
   followed: boolean
   availability: ExternalTitle['availability']
   libraryItemId: string | null
+  /** False when Lidarr didn't answer: Followed and Requested couldn't be checked. Absent from servers before 0.59. */
+  lidarrAnswered?: boolean
 }
 
 export interface MusicTrack {
@@ -1444,6 +1446,8 @@ export interface MusicAlbumDetail {
   durationSeconds: number
   availability: ExternalTitle['availability']
   libraryItemId: string | null
+  /** As on MusicArtistDetail. Absent from servers before 0.59. */
+  lidarrAnswered?: boolean
 }
 
 /** A library artist, from outside: the albums of theirs you don't have, artists like them, and whether they're followed. */
@@ -1452,6 +1456,8 @@ export interface MusicArtistExtras {
   similar: MusicExternal[]
   followed: boolean
   deezerId: number | null
+  /** As on MusicArtistDetail. Absent from servers before 0.59. */
+  lidarrAnswered?: boolean
 }
 
 /** A music request: an album on its own, or an artist followed for their new releases. */
@@ -1502,7 +1508,11 @@ export interface MusicRequested {
   progress: number | null
   artistLibraryItemId: string | null
 }
-export const getMusicRequested = (signal?: AbortSignal) => apiGet<MusicRequested[]>('/requests/music/requested', signal)
+/** What Lidarr awaits; given a library, only its artists. */
+export const getMusicRequested = (libraryId?: string, signal?: AbortSignal) =>
+  apiGet<MusicRequested[]>(`/requests/music/requested${libraryId ? `?libraryId=${encodeURIComponent(libraryId)}` : ''}`, signal)
+/** Whether Lidarr answers right now, asked afresh (not the minute's cached answer). */
+export const getMusicRequestStatusNow = (signal?: AbortSignal) => apiGet<{ configured: boolean; reachable: boolean }>('/requests/music/status', signal)
 /** The music libraries the current profile's music requests can go to (every one, for the main profile). */
 export const getMusicDestinations = (signal?: AbortSignal) =>
   apiGet<{ id: string; name: string; isDefault: boolean }[]>('/requests/music/destinations', signal)

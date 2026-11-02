@@ -81,7 +81,8 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
           Genres
         </Link>
       )}
-      {music && (requests.data?.configured || view === 'requested') && (
+      {/* Kept in place while the status loads (no jump); gone only once it says music can't be requested. */}
+      {music && (requests.data?.configured !== false || view === 'requested') && (
         <Link to={`/library/${library.id}?view=requested`} aria-current={current('requested')}>
           Requested
         </Link>

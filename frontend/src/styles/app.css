@@ -3276,3 +3276,13 @@ a.download-attention {
 .requested-progress::-moz-progress-bar {
   background: var(--screen);
 }
+
+/* Every card's Unrequest on one line, whether or not it has a progress bar above it. */
+.requested-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.requested-card .external-card-actions {
+  margin-top: auto;
+}

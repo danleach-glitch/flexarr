@@ -56,7 +56,8 @@ function subtitle(item: ItemSummary): string | null {
     case 'Episode':
       return episodeCode(item)
     case 'Artist':
-      return item.childCount === 1 ? '1 album' : `${item.childCount} albums`
+      // A followed artist none of whose music has arrived says nothing rather than "0 albums".
+      return item.childCount === 0 ? null : item.childCount === 1 ? '1 album' : `${item.childCount} albums`
     case 'Album':
       return [item.seriesTitle, item.year].filter(Boolean).join(', ')
     case 'Audiobook':

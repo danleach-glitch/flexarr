@@ -18,6 +18,7 @@ vi.mock('../api/client', async (importOriginal) => ({
   },
   unrequestAlbum: async (body: unknown) => {
     sent.push({ unrequest: body })
+    if (refusal) throw refusal
   },
   getMusicRequestStatus: async () => status,
 }))
@@ -145,5 +146,15 @@ describe('MusicExternalCard', () => {
     status = { configured: true, reachable: false }
     renderCard(album)
     await waitFor(() => expect((screen.getByRole('button', { name: 'Request album' }) as HTMLButtonElement).disabled).toBe(true))
+  })
+
+  it('says to update the server when it has no undo yet', async () => {
+    refusal = new ApiError(404, 'Not Found', [])
+    renderCard({ ...album, availability: 'Requested' })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Requested' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Unrequest' }))
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Update the server to undo this.'))
   })
 })

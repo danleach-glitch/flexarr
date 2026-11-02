@@ -6,6 +6,7 @@ import { requestedState } from '../lib/requestedState'
 import { LibraryRequested } from './LibraryRequested'
 
 const unrequested: unknown[] = []
+let reachable = true
 const albums: MusicRequested[] = [
   { musicBrainzId: 'rg-1', title: 'moisturizer', artist: 'Wet Leg', artistMusicBrainzId: 'a1', image: null, releaseDate: '2025-07-11', state: 'downloading', progress: 0.45, artistLibraryItemId: 'artist-1' },
   { musicBrainzId: 'rg-2', title: 'Next One', artist: 'Wet Leg', artistMusicBrainzId: 'a1', image: null, releaseDate: '2099-11-14', state: 'upcoming', progress: null, artistLibraryItemId: null },
@@ -13,6 +14,7 @@ const albums: MusicRequested[] = [
 vi.mock('../api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/client')>()),
   getMusicRequested: async () => albums,
+  getMusicRequestStatusNow: async () => ({ configured: true, reachable }),
   unrequestAlbum: async (body: unknown) => {
     unrequested.push(body)
   },
@@ -44,5 +46,18 @@ describe('LibraryRequested', () => {
     await waitFor(() => expect(screen.queryAllByText('moisturizer')).toHaveLength(0))
     expect(unrequested).toEqual([{ musicBrainzId: 'rg-1' }])
     expect(screen.getAllByText('Next One').length).toBeGreaterThan(0)
+  })
+
+  it('says Lidarr isn’t answering, and greys Unrequest, rather than that nothing is coming', async () => {
+    reachable = false
+    render(
+      <MemoryRouter>
+        <LibraryRequested library={library} viewSwitch={null} />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Lidarr isn’t answering.')).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'Unrequest' }).every((b) => (b as HTMLButtonElement).disabled)).toBe(true)
+    reachable = true
   })
 })
