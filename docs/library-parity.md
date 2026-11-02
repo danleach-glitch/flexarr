@@ -5,7 +5,8 @@ work in #271–#276 and the first six batches of fixes from this page). Work oft
 of the others, so the next brief can carry the idea across, and where the same idea looks or reads differently.
 
 It was mapped from the code, not by using the apps, so a mark can be wrong in a corner. Check before building on one.
-Update it when a library gets something new: add the row, mark the others.
+Update it when a library gets something new: add the row, mark the others. Music's Fix match and health, and editing
+films and shows by hand, are planned in [fix-match-and-editing.md](fix-match-and-editing.md).
 
 ✅ there · 🟡 partly · ❌ missing · — doesn't apply.
 Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV** Android TV.
