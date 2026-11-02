@@ -503,6 +503,8 @@ struct TabStack<Content: View>: View {
             WatchlistView()
         case .comingSoon:
             ComingSoonView()
+        case .musicArtist, .musicAlbum, .musicGenre, .musicItem:
+            EmptyView()
         }
     }
 }

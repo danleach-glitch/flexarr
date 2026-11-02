@@ -14,12 +14,16 @@ struct SearchView: View {
     @State private var outside: [ExternalTitle] = []
     /// Seerr is set up, so searches look beyond the library too; nil until asked.
     @State private var looksOutside: Bool?
+    /// Artists and albums beyond the library (from Deezer, requested through Lidarr).
+    @State private var outsideMusic: [MusicExternal] = []
+    /// Music requests are on for this profile; nil until asked.
+    @State private var looksForMusic: Bool?
 
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 24) {
                 if let results {
-                    if results.isEmpty && outside.isEmpty {
+                    if results.isEmpty && outside.isEmpty && outsideMusic.isEmpty {
                         StatusView(state: .empty("Nothing matches \u{201C}\(query)\u{201D}."))
                             .frame(height: 240)
                     }
@@ -71,10 +75,13 @@ struct SearchView: View {
                             }
                         }
                     }
-                    if !outside.isEmpty {
+                    if !outside.isEmpty || !outsideMusic.isEmpty {
                         section("Not in your library") {
                             ForEach(outside) { title in
                                 OutsideTitleCard(title: title, width: Layout.posterWidth(sizeClass))
+                            }
+                            ForEach(outsideMusic) { item in
+                                ExternalMusicCard(item: item, width: Layout.posterWidth(sizeClass))
                             }
                         }
                     }
@@ -214,14 +221,20 @@ struct SearchView: View {
             // Asked once, before the first search that needs it.
             looksOutside = (try? await client.requestStatus())?.configured == true
         }
+        if looksForMusic == nil {
+            looksForMusic = (try? await client.musicRequestStatus())?.configured == true
+        }
         do {
             async let beyond: [ExternalTitle] = looksOutside == true ? (try? await client.searchEverything(text)) ?? [] : []
+            async let music: MusicSearchResults = looksForMusic == true ? (try? await client.searchMusic(text)) ?? .empty : .empty
             let found = try await client.search(text)
             let more = await beyond
+            let moreMusic = await music
             guard text == query.trimmingCharacters(in: .whitespaces) else { return }
             results = found
             // What the library has is already above.
             outside = more.filter { $0.libraryItemId == nil && $0.availability != .available }
+            outsideMusic = (moreMusic.artists + moreMusic.albums).filter { $0.libraryItemId == nil && $0.availability != .available }
             error = nil
         } catch {
             self.error = ConnectionError(error).message

@@ -463,6 +463,7 @@ final class AppModel {
     private func forgetWatchlist() {
         hasWatchlist = false
         watchlistItems = []
+        musicAsked = []
         onWatchlistForgotten?()
     }
 
@@ -1096,6 +1097,10 @@ final class AppModel {
 
     /// Why the last request (Request on a title the library doesn't have) didn't go through, for an alert.
     var requestError: String?
+
+    /// Music asked for here (`MusicExternal.id`s, and `library-artist-<id>` for a library artist followed), so every
+    /// card and page shows Requested or Following at once, before the server's next answer says so.
+    var musicAsked: Set<String> = []
 
     /// Called when the watchlist is forgotten (signing out, another profile), so the widget empties at once.
     var onWatchlistForgotten: (() -> Void)?
@@ -1798,6 +1803,14 @@ enum Route: Hashable {
     case bookSeries(id: String, name: String)
     /// What's coming over the next few weeks, a day at a time.
     case comingSoon
+    /// An artist from outside the library (Deezer's), to follow or request albums of.
+    case musicArtist(MusicExternal)
+    /// An album from outside the library, to request.
+    case musicAlbum(MusicExternal)
+    /// A genre's artists from outside the library (Apple TV's Discover › Music).
+    case musicGenre(MusicGenre)
+    /// A library artist or album known only by id (an outside page's In your library).
+    case musicItem(id: String, isArtist: Bool)
 }
 
 /// One navigation stack per tab.
