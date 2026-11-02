@@ -5,6 +5,8 @@ import { usePlay } from '../hooks/usePlay'
 import { episodeHeading, formatDuration, year } from '../lib/format'
 import { AsyncButton } from './AsyncButton'
 import { Info, Play } from './icons'
+import { hasScores, scoresOf } from '../lib/scores'
+import { ScoreChips } from './ScoreChips'
 
 const ROTATE_MS = 10_000
 const BACKDROP_WIDTHS = [780, 1280, 1920]
@@ -22,15 +24,22 @@ export function Facts({ item, extra = [] }: { item: ItemSummary; extra?: (string
       {facts.map((f) => (
         <span key={f}>{f}</span>
       ))}
-      {item.communityRating && (
-        <span className="score">
-          <span className="visually-hidden">Rated </span>
-          {item.communityRating.toFixed(1)}
-          <span className="muted">/10</span>
-        </span>
-      )}
-      {item.criticRating !== null && item.criticRating !== undefined && <span className="score">{item.criticRating}% critics</span>}
+      <Scores item={item} />
     </p>
+  )
+}
+
+/** IMDb and Rotten Tomatoes beside their marks; a title with neither keeps its plain score. Hidden for kids (app.css). */
+function Scores({ item }: { item: ItemSummary }) {
+  const scores = scoresOf(item)
+  if (hasScores(scores)) return <ScoreChips scores={scores} />
+  if (!item.communityRating) return null
+  return (
+    <span className="score">
+      <span className="visually-hidden">Rated </span>
+      {item.communityRating.toFixed(1)}
+      <span className="muted">/10</span>
+    </span>
   )
 }
 
