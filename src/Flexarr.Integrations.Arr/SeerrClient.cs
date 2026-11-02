@@ -60,15 +60,16 @@ public sealed class SeerrClient(HttpClient http)
         return await response.Content.ReadFromJsonAsync<SeerrPage>(Json, ct).ConfigureAwait(false) ?? new SeerrPage(1, 0, []);
     }
 
-    /// <summary>Requests a film, or every season of a show; Seerr passes it to Radarr or Sonarr.</summary>
+    /// <summary>Requests a film, or a show's seasons; Seerr passes it to Radarr or Sonarr.</summary>
     /// <param name="to">Where it goes; null, Seerr's default server and root folder.</param>
-    public async Task RequestAsync(SeerrInstance seerr, string mediaType, int tmdbId, SeerrDestination? to, CancellationToken ct)
+    /// <param name="seasons">For a show, just these seasons; null or empty for every one.</param>
+    public async Task RequestAsync(SeerrInstance seerr, string mediaType, int tmdbId, SeerrDestination? to, CancellationToken ct, IReadOnlyList<int>? seasons = null)
     {
         using var request = Request(seerr, HttpMethod.Post, "request");
         var body = new Dictionary<string, object> { ["mediaType"] = mediaType, ["mediaId"] = tmdbId };
         if (mediaType == "tv")
         {
-            body["seasons"] = "all";
+            body["seasons"] = seasons is { Count: > 0 } ? seasons : "all";
         }
 
         if (to is not null)
