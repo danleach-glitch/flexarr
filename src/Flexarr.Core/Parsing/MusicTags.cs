@@ -9,7 +9,11 @@ namespace Flexarr.Core.Parsing;
 /// compilation or a featured-artist track isn't the album's.
 /// </summary>
 public sealed record TrackInfo(string Artist, string Album, string Title, int? Disc, int? Track, int? Year, string? AlbumMusicBrainzId, string? ArtistMusicBrainzId,
-    string? TrackArtist = null);
+    string? TrackArtist = null)
+{
+    /// <summary>The genres the tags name ("Rock; Indie" is two), for an album no Lidarr describes.</summary>
+    public IReadOnlyList<string> Genres { get; init; } = [];
+}
 
 /// <summary>Reads artist/album/track from tags, falling back to the Artist/Album/NN Title.ext folder layout.</summary>
 public static partial class MusicTags
@@ -41,7 +45,12 @@ public static partial class MusicTags
             Year(Tag("date", "originaldate", "year")) ?? Year(folderAlbum),
             Tag("musicbrainz_albumid", "MusicBrainz Album Id"),
             Tag("musicbrainz_albumartistid", "musicbrainz_artistid", "MusicBrainz Album Artist Id", "MusicBrainz Artist Id"),
-            trackArtist);
+            trackArtist)
+        {
+            Genres = Tag("genre") is { } genre
+                ? genre.Split([';', '\0'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.OrdinalIgnoreCase).Take(5).ToList()
+                : [],
+        };
     }
 
     /// <summary>The album artist a compilation gets when its tags name none.</summary>

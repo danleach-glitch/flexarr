@@ -36,6 +36,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On the web, a music library has **Requested**: every album Lidarr is waiting for with that library's artists, including new releases by artists you follow, with **Downloading** and how far, **Importing**, **Searching** or when it's out. **Unrequest** takes one back.
 - On the web, the main profile can delete an album or an artist from its **⋯** menu. With Lidarr, Lidarr deletes the files; a deleted album stays requestable without downloading again.
 - Without Lidarr, Discover › Music, Follow and Request aren't shown. With Lidarr connected but not answering, they're greyed.
+- Music libraries without Lidarr get their **Genres** from the files' genre tags, as new albums are scanned.
 - An artist's page from outside your library opens sooner, with the usual spinner while it loads. Artist and album pages put their buttons in the same order in every app.
 
 ## 0.58.0 · 2 November 2026

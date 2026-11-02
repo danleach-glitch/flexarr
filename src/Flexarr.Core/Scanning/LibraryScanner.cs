@@ -735,6 +735,11 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 .Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series || i.Kind == MediaKind.Artist || i.Kind == MediaKind.Album || i.Kind == MediaKind.Audiobook)
                 .ToListAsync(ct).ConfigureAwait(false);
             parents.ForEach(index.Track);
+            if (library.Type == LibraryType.Music)
+            {
+                index._genres = await db.Genres.ToDictionaryAsync(g => g.Name, StringComparer.OrdinalIgnoreCase, ct).ConfigureAwait(false);
+            }
+
             if (library.Type is not (LibraryType.TvShows or LibraryType.HomeVideos))
             {
                 return index;
@@ -845,6 +850,20 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     MusicBrainzId = info.AlbumMusicBrainzId,
                     PosterUrl = cover is not null ? $"file://{cover}" : probe?.HasCoverArt == true ? $"embedded://{filePath}" : null,
                 });
+
+                // A new album takes its first track's genre tags: its Genres view then works without Lidarr (whose
+                // genres replace these when it describes the album).
+                foreach (var name in info.Genres)
+                {
+                    if (!_genres.TryGetValue(name, out var genre))
+                    {
+                        genre = new Genre { Name = name };
+                        db.Genres.Add(genre);
+                        _genres[name] = genre;
+                    }
+
+                    album.Genres.Add(genre);
+                }
             }
             else if (album.PosterUrl is null && probe?.HasCoverArt == true)
             {
@@ -963,6 +982,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
         private readonly Dictionary<string, MediaItem> _byKey = new(StringComparer.Ordinal);
         private readonly Dictionary<Guid, MediaItem> _artistsById = [];
+        private Dictionary<string, Genre> _genres = new(StringComparer.OrdinalIgnoreCase);
 
         private DateTime _addedAt = DateTime.UtcNow;
 

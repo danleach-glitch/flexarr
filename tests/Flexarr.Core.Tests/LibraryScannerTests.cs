@@ -723,6 +723,24 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Music_AlbumsTakeTheirGenreTags_SoGenresWorkWithoutLidarr()
+    {
+        var root = Touch("music/Radiohead/OK Computer (1997)/01 - Airbag.flac", "music/Wet Leg/Wet Leg (2022)/01 - Being in Love.flac");
+        _probe.Tags["01 - Airbag.flac"] = new() { ["artist"] = "Radiohead", ["album"] = "OK Computer", ["title"] = "Airbag", ["genre"] = "Rock; Alternative" };
+        _probe.Tags["01 - Being in Love.flac"] = new() { ["artist"] = "Wet Leg", ["album"] = "Wet Leg", ["title"] = "Being in Love", ["GENRE"] = "rock" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+
+        await Scanner().ScanAsync(library, null, default);
+        _db.ChangeTracker.Clear();
+
+        var albums = await _db.MediaItems.Include(i => i.Genres).Where(i => i.Kind == MediaKind.Album).OrderBy(i => i.SortTitle).ToListAsync();
+        // The first spelling met names the genre for everyone.
+        Assert.Equal(["rock", "alternative"], albums.Single(a => a.Title == "OK Computer").Genres.Select(g => g.Name.ToLowerInvariant()));
+        Assert.Equal(["rock"], albums.Single(a => a.Title == "Wet Leg").Genres.Select(g => g.Name.ToLowerInvariant()));
+        Assert.Equal(2, await _db.Genres.CountAsync()); // one Rock, whatever its case
+    }
+
+    [Fact]
     public async Task Music_APlaceholderNeverAdoptsAnotherArtistsAlbum()
     {
         var root = Touch("music/Them/Angry Young Them (1965)/01 - Gloria.flac");
