@@ -146,7 +146,9 @@ public static class MusicRequestEndpoints
                 if (lidarrArtist is { Lidarr: var lidarr, Artist: var artist })
                 {
                     // Lidarr's list, as its metadata profile shapes it (usually albums alone), with Deezer's covers where it has them.
-                    var byTitle = deezerAlbums.GroupBy(a => MusicNames.NormaliseTitle(a.Title)).ToDictionary(g => g.Key, g => g.First());
+                    // Each Deezer album lends its cover and id to one Lidarr album at most: the same title, nearest in year.
+                    var byTitle = deezerAlbums.ToLookup(a => MusicNames.NormaliseTitle(a.Title));
+                    var lent = new HashSet<long>();
                     foreach (var album in (await SafeAsync(() => c.Client.GetArtistAlbumsAsync(lidarr, artist.Id, ct)) ?? []).OrderByDescending(a => a.ReleaseDate))
                     {
                         if (album.Statistics?.TrackFileCount > 0 || owned.AlbumId(item.Title, album.Title) is not null)
@@ -154,7 +156,13 @@ public static class MusicRequestEndpoints
                             continue;
                         }
 
-                        var onDeezer = byTitle.GetValueOrDefault(MusicNames.NormaliseTitle(album.Title));
+                        var onDeezer = byTitle[MusicNames.NormaliseTitle(album.Title)].Where(a => !lent.Contains(a.Id))
+                            .OrderBy(a => album.ReleaseDate is { } d && a.Year is { } y ? Math.Abs(d.Year - y) : 0).FirstOrDefault();
+                        if (onDeezer is not null)
+                        {
+                            lent.Add(onDeezer.Id);
+                        }
+
                         missing.Add(new MusicExternalDto("album", onDeezer?.Id ?? 0, album.Title, item.Title, deezer?.Id, album.ReleaseDate?.Year ?? onDeezer?.Year,
                             ImageEndpoints.RemoteUrl(onDeezer?.Cover), album.Monitored ? AvailabilityDto.Requested : owned.AlbumAvailability(item.Title, album.Title), null,
                             onDeezer?.RecordType ?? album.AlbumType?.ToLowerInvariant(), album.ForeignAlbumId));
@@ -294,6 +302,8 @@ public static class MusicRequestEndpoints
                 .Select(a => a with { Artist = artist });
         }));
         return albums.SelectMany(a => a).Where(a => owned.AlbumId(a.Artist?.Name, a.Title) is null)
+            // A joint album turns up under each of its artists you have: once is enough.
+            .DistinctBy(a => a.Id)
             .DistinctBy(a => OwnedMusic.AlbumKey(a.Artist?.Name, a.Title))
             .OrderByDescending(a => a.ReleaseDate, StringComparer.Ordinal).Take(RowSize).Select(a => Album(a, owned)).ToList();
     }

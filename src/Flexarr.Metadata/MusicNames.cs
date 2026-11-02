@@ -60,11 +60,14 @@ public static partial class MusicNames
     [GeneratedRegex(@"\s*[\(\[][^\)\]]*[\)\]]")]
     private static partial Regex Bracketed();
 
-    /// <summary>Words that make a bracketed part, or a part after " - ", an edition rather than part of the name.</summary>
-    [GeneratedRegex(@"\b(deluxe|edition|remaster(ed)?|expanded|anniversary|bonus|special|version|reissue|mono|stereo|explicit|clean|super)\b", RegexOptions.IgnoreCase)]
+    /// <summary>
+    /// Words that make a bracketed part, or a part after " - ", an edition rather than part of the name. Not
+    /// "version": "(Taylor's Version)" is a different recording, not a pressing.
+    /// </summary>
+    [GeneratedRegex(@"\b(deluxe|edition|remaster(ed)?|expanded|anniversary|bonus|reissue|mono|stereo|explicit|clean|super)\b", RegexOptions.IgnoreCase)]
     private static partial Regex Edition();
 
-    [GeneratedRegex(@"\s+-\s+[^-]*\b(deluxe|edition|remaster(ed)?|expanded|anniversary|bonus|special|version|reissue)\b.*$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\s+-\s+[^-]*\b(deluxe|edition|remaster(ed)?|expanded|anniversary|bonus|reissue)\b.*$", RegexOptions.IgnoreCase)]
     private static partial Regex EditionSuffix();
 
     [GeneratedRegex(@"\s+")]

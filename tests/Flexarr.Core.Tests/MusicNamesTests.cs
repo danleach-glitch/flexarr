@@ -21,5 +21,8 @@ public class MusicNamesTests
     [InlineData("(What's the Story) Morning Glory?", "what s the story morning glory")]
     [InlineData("moisturizer", "moisturizer")]
     [InlineData("(Deluxe)", "deluxe")]
+    [InlineData("Fearless (Taylor's Version)", "fearless taylor s version")]
+    [InlineData("Fearless (Platinum Edition)", "fearless")]
+    [InlineData("Ten - Special Edition", "ten")]
     public void AlbumTitles(string title, string expected) => Assert.Equal(expected, MusicNames.NormaliseTitle(title));
 }
