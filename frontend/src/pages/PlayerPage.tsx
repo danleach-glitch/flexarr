@@ -734,12 +734,24 @@ export function PlayerPage() {
     if (!playing || shuffleRef.current) return undefined
     return { from: origin.current, startedWith: startedWith.current, stoppedOn: playing.item.id, watched: over || isWatched(at, length, creditsStart), next: playing.next?.id ?? null }
   }
-  // Leaving by the browser's Back (or a swipe) counts as closing too.
+  // Leaving by the browser's Back (or a swipe) counts as closing too. It's recorded as the history moves, before the
+  // page Play was pressed on renders, so that page moves on at once; unmounting catches any other way out.
   useEffect(
-    () => () => {
-      if (leaving.current) return
-      const ending = endingNow()
-      if (ending) recordEnding(ending)
+    () => {
+      const record = () => {
+        if (leaving.current) return
+        const ending = endingNow()
+        if (ending) recordEnding(ending)
+      }
+      const onBack = () => {
+        record()
+        leaving.current = true
+      }
+      window.addEventListener('popstate', onBack)
+      return () => {
+        window.removeEventListener('popstate', onBack)
+        record()
+      }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- on leaving only; it reads the latest through refs
     [],
