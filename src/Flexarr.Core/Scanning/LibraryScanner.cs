@@ -629,7 +629,8 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             .ExecuteUpdateAsync(u => u.SetProperty(i => i.MissingSince, (DateTime?)null), ct).ConfigureAwait(false);
 
         await MarkContainersAsync(items.Where(i => i.Kind == MediaKind.Season || i.Kind == MediaKind.Album)).ConfigureAwait(false);
-        await MarkContainersAsync(items.Where(i => i.Kind == MediaKind.Series || i.Kind == MediaKind.Artist)).ConfigureAwait(false);
+        // A followed artist waiting for their first album has no children to go by: it stays as it is.
+        await MarkContainersAsync(items.Where(i => i.Kind == MediaKind.Series || (i.Kind == MediaKind.Artist && !i.Placeholder))).ConfigureAwait(false);
 
         async Task MarkContainersAsync(IQueryable<MediaItem> containers)
         {
@@ -683,7 +684,10 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         await WatchHistoryCarryOver.BuryAsync(db, playable, ct).ConfigureAwait(false);
         await playable.ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await items.Where(i => (i.Kind == MediaKind.Season || i.Kind == MediaKind.Album) && !i.Children.Any()).ExecuteDeleteAsync(ct).ConfigureAwait(false);
-        var containers = items.Where(i => (i.Kind == MediaKind.Series || i.Kind == MediaKind.Artist) && !i.Children.Any());
+        // An artist's first album arriving makes a followed artist's placeholder an ordinary artist.
+        await items.Where(i => i.Kind == MediaKind.Artist && i.Placeholder && i.Children.Any())
+            .ExecuteUpdateAsync(u => u.SetProperty(i => i.Placeholder, false), ct).ConfigureAwait(false);
+        var containers = items.Where(i => (i.Kind == MediaKind.Series || (i.Kind == MediaKind.Artist && !i.Placeholder)) && !i.Children.Any());
         await WatchHistoryCarryOver.BuryAsync(db, containers, ct).ConfigureAwait(false);
         await containers.ExecuteDeleteAsync(ct).ConfigureAwait(false);
     }

@@ -84,6 +84,9 @@ public sealed class MediaRequest
 
     public DateTime RequestedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>For an album: asking for it added its artist to Lidarr, so cancelling it can take them out again.</summary>
+    public bool AddedArtist { get; set; }
+
     /// <summary>When it arrived (and the profile was told); null while it's awaited. A followed artist's never is.</summary>
     public DateTime? FulfilledAt { get; set; }
 

@@ -59,6 +59,12 @@ public sealed class MediaItem
     public string? MusicBrainzId { get; set; }
 
     /// <summary>
+    /// An artist followed before any of their music arrived: kept in the library with no albums (scans leave it be)
+    /// until their first album is scanned in, which makes it an ordinary artist. Artists only.
+    /// </summary>
+    public bool Placeholder { get; set; }
+
+    /// <summary>
     /// What sort of release an album is: one of <see cref="AlbumKind"/>'s values. Lidarr tells us; tags rarely say,
     /// so the scanner leaves it null, and an album without one is taken to be a plain album.
     /// </summary>

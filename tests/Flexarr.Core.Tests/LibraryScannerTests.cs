@@ -673,6 +673,34 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Music_AFollowedArtistWithNothingYet_IsKept_ThenFilledInByTheirFirstAlbum()
+    {
+        var root = Touch("music/Radiohead/OK Computer (1997)/01 - Airbag.flac");
+        _probe.Tags["01 - Airbag.flac"] = new() { ["artist"] = "Radiohead", ["album"] = "OK Computer", ["title"] = "Airbag", ["track"] = "1" };
+        _probe.Tags["01 - Glass Animals Song.flac"] = new() { ["artist"] = "Glass Animals", ["album"] = "Dreamland", ["title"] = "Dreamland", ["track"] = "1" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+        await Scanner().ScanAsync(library, null, default);
+        _db.MediaItems.Add(new MediaItem { LibraryId = library.Id, Kind = MediaKind.Artist, Title = "Glass Animals", SortTitle = "glass animals", Placeholder = true });
+        await _db.SaveChangesAsync();
+        _db.ChangeTracker.Clear();
+
+        // Scans leave a placeholder be: not pruned, not marked missing.
+        await Scanner().ScanAsync(library, null, default);
+        var waiting = await _db.MediaItems.SingleAsync(i => i.Title == "Glass Animals");
+        Assert.True(waiting.Placeholder);
+        Assert.Null(waiting.MissingSince);
+
+        // Their first album arrives: the same artist, now an ordinary one.
+        Touch("music/Glass Animals/Dreamland (2020)/01 - Glass Animals Song.flac");
+        await Scanner().ScanAsync(library, null, default);
+        _db.ChangeTracker.Clear();
+        var artist = await _db.MediaItems.Include(i => i.Children).SingleAsync(i => i.Kind == MediaKind.Artist && i.Title == "Glass Animals");
+        Assert.Equal(waiting.Id, artist.Id);
+        Assert.False(artist.Placeholder);
+        Assert.Equal(["Dreamland"], artist.Children.Select(a => a.Title));
+    }
+
+    [Fact]
     public async Task Music_ACompilationFlaggedWithoutAnAlbumArtist_IsOneAlbumUnderVariousArtists()
     {
         var root = Touch("music/Compilations/Now That's What I Call Music/01 - Blue Monday.mp3", "music/Compilations/Now That's What I Call Music/02 - Relax.mp3");
