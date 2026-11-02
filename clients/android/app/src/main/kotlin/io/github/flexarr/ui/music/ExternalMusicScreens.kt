@@ -12,10 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -70,6 +66,10 @@ import io.github.flexarr.AppModel
 import io.github.flexarr.core.Availability
 import io.github.flexarr.core.MusicExternal
 import io.github.flexarr.core.followArtist
+import io.github.flexarr.core.followLibraryArtist
+import io.github.flexarr.core.releaseShelves
+import androidx.compose.ui.semantics.Role
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.core.requestAlbum
 import io.github.flexarr.ui.Navigator
 import io.github.flexarr.ui.components.ItemMenu
@@ -85,62 +85,94 @@ import io.github.flexarr.ui.theme.marquee
 // Music from outside the library (Deezer's, through the server): cards for Search and the artist pages, and the
 // outside artist and album pages, as the iPhone app's ExternalMusicViews.
 
-/** Where an outside artist or album stands, for its button: asked for, followed, in, or not yet. */
-internal enum class MusicRequestState { CanRequest, Requested, InLibrary, Unavailable }
+/** Where an outside artist or album stands, for its control: ask for it, on its way, asked, in, or nothing to offer. */
+internal enum class MusicRequestState { CanRequest, Sending, Requested, InLibrary, None }
 
-/** [sent]: asked for here since the page loaded, ahead of the server's next answer. */
-internal fun MusicExternal.requestState(sent: Boolean): MusicRequestState = when {
-    libraryItemId != null || availability == Availability.Available || availability == Availability.PartlyAvailable -> MusicRequestState.InLibrary
-    sent || availability == Availability.Requested -> MusicRequestState.Requested
-    canRequest -> MusicRequestState.CanRequest
-    else -> MusicRequestState.Unavailable
+/** Where [item] stands, counting what this profile asked for here ([AppModel.musicAsked]) ahead of the server. */
+internal fun AppModel.requestState(item: MusicExternal): MusicRequestState = when {
+    item.libraryItemId != null || item.availability == Availability.Available || item.availability == Availability.PartlyAvailable -> MusicRequestState.InLibrary
+    item.availability == Availability.Requested || item.id in musicAsked -> MusicRequestState.Requested
+    item.id in musicSending -> MusicRequestState.Sending
+    item.canRequest -> MusicRequestState.CanRequest
+    // A kind from a newer server, or nothing to ask Lidarr by: no control at all.
+    else -> MusicRequestState.None
 }
 
-/** "Request album", "Follow artist", "Requested", "Following" or "In your library". */
-internal fun MusicRequestState.label(isArtist: Boolean): String = when (this) {
+/** The one quiet line when Lidarr is connected but not answering, as the Apple apps' MusicWords. */
+internal const val LidarrNotAnswering = "Lidarr isn’t answering."
+
+/** Whether Lidarr can take a request now: not when it isn't answering. */
+internal val AppModel.canAskForMusic: Boolean get() = !musicUnreachable
+
+/** "Request album", "Follow artist", "Requested", "Following" or "In your library"; null for nothing to offer. */
+internal fun MusicRequestState.label(isArtist: Boolean): String? = when (this) {
     MusicRequestState.CanRequest -> if (isArtist) "Follow artist" else "Request album"
+    MusicRequestState.Sending -> if (isArtist) "Following…" else "Requesting…"
     MusicRequestState.Requested -> if (isArtist) "Following" else "Requested"
     MusicRequestState.InLibrary -> "In your library"
-    MusicRequestState.Unavailable -> "Not available"
+    MusicRequestState.None -> null
 }
 
-internal val MusicRequestState.icon: ImageVector
-    get() = when (this) {
-        MusicRequestState.CanRequest -> Icons.Filled.Add
-        MusicRequestState.Requested -> Icons.Filled.Schedule
-        MusicRequestState.InLibrary -> Icons.Filled.Check
-        MusicRequestState.Unavailable -> Icons.Filled.Schedule
-    }
+internal fun MusicRequestState.icon(isArtist: Boolean): ImageVector? = when (this) {
+    MusicRequestState.CanRequest -> if (isArtist) FlexarrIcons.follow else FlexarrIcons.request
+    MusicRequestState.Sending, MusicRequestState.Requested -> if (isArtist) FlexarrIcons.following else FlexarrIcons.requested
+    MusicRequestState.InLibrary -> FlexarrIcons.music
+    MusicRequestState.None -> null
+}
+
+/** The keys a library artist's follow is kept under: theirs here, and theirs on Deezer when known. */
+internal fun libraryArtistKeys(id: String, deezerId: Long?): List<String> = listOfNotNull("library-artist-$id", deezerId?.let { "artist-$it" })
+
+/** Follow artist or Following for an artist: [followed] by the server's word, or asked for here under any of [keys]. */
+internal fun AppModel.followState(keys: List<String>, followed: Boolean): MusicRequestState = when {
+    followed || keys.any { it in musicAsked } -> MusicRequestState.Requested
+    keys.any { it in musicSending } -> MusicRequestState.Sending
+    else -> MusicRequestState.CanRequest
+}
 
 /**
- * Asks Lidarr for an album or to follow an artist, saying so in the snackbar if that didn't work ([onFailed] puts back
- * what the screen showed).
+ * Asks Lidarr for an album or to follow an artist, once (a second press while it's on its way sends nothing), saying
+ * so in the snackbar if that didn't work. [keys]: what it's kept under ([AppModel.musicAsked]), the item's id by default.
  */
-internal fun Navigator.requestMusic(model: AppModel, item: MusicExternal, onFailed: () -> Unit) {
-    val client = model.client ?: return
+internal fun Navigator.requestMusic(model: AppModel, item: MusicExternal, keys: List<String> = listOf(item.id)) {
     watchlistChange(if (item.isArtist) "Couldn’t follow this artist" else "Couldn’t request this album") {
-        try {
-            if (item.isArtist) client.followArtist(item.deezerId) else client.requestAlbum(item)
-        } catch (e: Exception) {
-            onFailed()
-            throw e
-        }
+        model.askForMusic(keys) { client -> if (item.isArtist) client.followArtist(item.deezerId) else client.requestAlbum(item) }
     }
 }
+
+/** Follows a library artist, by its id here, once; the snackbar says if it didn't work. */
+internal fun Navigator.followLibraryArtist(model: AppModel, id: String, deezerId: Long?) {
+    watchlistChange("Couldn’t follow this artist") {
+        model.askForMusic(libraryArtistKeys(id, deezerId)) { it.followLibraryArtist(id) }
+    }
+}
+
+/** "Album", "EP", "Single" or "Compilation". */
+private val MusicExternal.releaseKind: String
+    get() = when (recordType) {
+        "ep" -> "EP"
+        "single" -> "Single"
+        "compile" -> "Compilation"
+        else -> "Album"
+    }
 
 /**
  * An artist (round photo) or album (square cover) from outside the library, with its name and a quieter line. Tapping
- * opens it (as itself when the household has it); a long press offers Request album or Follow artist. [showsRequest]
- * puts that under the card instead, for a page of an artist's albums.
+ * opens it (as itself when the household has it); a long press offers Request album or Follow artist, wherever the
+ * card is. [showsRequest] puts that under the card too, for a page of an artist's albums. [showsKind] says "Artist" or
+ * "Album, <artist>" under the name, as Search's film cards say "Film, 2014".
  */
 @Composable
-fun MusicExternalCard(model: AppModel, item: MusicExternal, width: Dp?, modifier: Modifier = Modifier, showsRequest: Boolean = false) {
+fun MusicExternalCard(model: AppModel, item: MusicExternal, width: Dp?, modifier: Modifier = Modifier, showsRequest: Boolean = false, showsKind: Boolean = false) {
     val navigator = LocalNavigator.current
-    var sent by remember(item.id) { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
-    val state = item.requestState(sent)
-    val request = { sent = true; navigator.requestMusic(model, item) { sent = false } }
-    val actions = if (state == MusicRequestState.CanRequest && !showsRequest) listOf(MenuAction(state.label(item.isArtist), state.icon) { request() }) else emptyList()
+    val state = model.requestState(item)
+    val request = { navigator.requestMusic(model, item) }
+    val actions = if (state == MusicRequestState.CanRequest && model.canAskForMusic) {
+        listOf(MenuAction(state.label(item.isArtist)!!, state.icon(item.isArtist)) { request() })
+    } else {
+        emptyList()
+    }
     Box(modifier.then(if (width != null) Modifier.width(width) else Modifier)) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = if (item.isArtist) Alignment.CenterHorizontally else Alignment.Start) {
             Column(
@@ -151,17 +183,20 @@ fun MusicExternalCard(model: AppModel, item: MusicExternal, width: Dp?, modifier
                 MusicExternalArtwork(item, if (item.isArtist) Modifier.padding(horizontal = 6.dp) else Modifier)
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(1.dp), horizontalAlignment = if (item.isArtist) Alignment.CenterHorizontally else Alignment.Start) {
                     Text(item.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    val below = if (item.isArtist) {
-                        state.takeIf { it == MusicRequestState.InLibrary }?.label(true)
-                    } else if (showsRequest) {
-                        item.kindLine
-                    } else {
-                        item.artist ?: item.kindLine
+                    // Where it stands, after what it is: "Album, Daft Punk, Requested".
+                    val standing = state.takeIf { it == MusicRequestState.InLibrary || it == MusicRequestState.Requested }?.label(item.isArtist)
+                    val what = when {
+                        showsKind -> if (item.isArtist) "Artist" else listOfNotNull(item.releaseKind, item.artist).joinToString(", ")
+                        item.isArtist -> null
+                        showsRequest -> item.kindLine
+                        else -> item.artist ?: item.kindLine
                     }
+                    // Under the chip, the chip says where it stands.
+                    val below = listOfNotNull(what, standing.takeIf { !showsRequest }).joinToString(", ").ifEmpty { null }
                     below?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 }
             }
-            if (showsRequest) MusicRequestChip(item, state, onRequest = request)
+            if (showsRequest && state != MusicRequestState.None) MusicRequestChip(model, item, state, onRequest = request)
         }
         ItemMenu(actions, menu, onDismiss = { menu = false })
     }
@@ -169,19 +204,20 @@ fun MusicExternalCard(model: AppModel, item: MusicExternal, width: Dp?, modifier
 
 /** Under an album on an artist's page: Request album, or where it stands ("In your library" opens it). */
 @Composable
-private fun MusicRequestChip(item: MusicExternal, state: MusicRequestState, onRequest: () -> Unit) {
+private fun MusicRequestChip(model: AppModel, item: MusicExternal, state: MusicRequestState, onRequest: () -> Unit) {
     val navigator = LocalNavigator.current
-    val enabled = state == MusicRequestState.CanRequest || (state == MusicRequestState.InLibrary && item.libraryItemId != null)
+    val asks = state == MusicRequestState.CanRequest && model.canAskForMusic
+    val enabled = asks || (state == MusicRequestState.InLibrary && item.libraryItemId != null)
     Box(
-        Modifier.fillMaxWidth().heightIn(min = 32.dp).clip(RoundedCornerShape(Tokens.radiusControl))
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(Tokens.radiusControl))
             .background(if (state == MusicRequestState.CanRequest) Flexarr.screen.copy(alpha = 0.14f) else androidx.compose.ui.graphics.Color.Transparent)
-            .alpha(if (state == MusicRequestState.Unavailable) 0.5f else 1f)
+            .alpha(if (state == MusicRequestState.CanRequest && !asks) 0.5f else 1f)
             .pressable({ if (state == MusicRequestState.CanRequest) onRequest() else navigator.openMusic(item) }, enabled = enabled)
             .padding(horizontal = 6.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            state.label(item.isArtist),
+            state.label(item.isArtist).orEmpty(),
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             color = if (state == MusicRequestState.CanRequest) Flexarr.screen else Flexarr.usher,
@@ -227,46 +263,48 @@ internal fun MusicExternalShelf(model: AppModel, title: String, items: List<Musi
     }
 }
 
-/**
- * The header of an outside page: the art, the name and what's under it, and one button (Follow artist, Request album,
- * or where it stands). "In your library" opens it.
- */
+/** The header of an outside page: the art, the name and what's under it, and its buttons. */
 @Composable
 private fun ExternalMusicHeader(
     art: @Composable () -> Unit,
     title: String,
     below: @Composable () -> Unit,
-    item: MusicExternal,
-    sent: Boolean,
-    onRequest: () -> Unit,
+    buttons: @Composable () -> Unit,
 ) {
-    val navigator = LocalNavigator.current
-    val state = item.requestState(sent)
     Column(Modifier.fillMaxWidth().statusBarsPadding().padding(top = 12.dp, start = Edge, end = Edge), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         art()
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, style = marquee(30), textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
             below()
         }
-        ActionButton(
-            state.label(item.isArtist),
-            onClick = {
-                when (state) {
-                    MusicRequestState.CanRequest -> onRequest()
-                    MusicRequestState.InLibrary -> navigator.openMusic(item)
-                    else -> Unit
-                }
-            },
-            icon = state.icon,
-            prominent = state == MusicRequestState.CanRequest,
-            enabled = state == MusicRequestState.CanRequest || (state == MusicRequestState.InLibrary && item.libraryItemId != null),
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) { buttons() }
     }
+}
+
+/** Follow artist, Request album, or where it stands ("In your library" opens it); nothing when there's nothing to offer. */
+@Composable
+private fun MusicRequestButton(model: AppModel, item: MusicExternal, state: MusicRequestState, onRequest: () -> Unit) {
+    val navigator = LocalNavigator.current
+    val label = state.label(item.isArtist) ?: return
+    ActionButton(
+        label,
+        onClick = {
+            when (state) {
+                MusicRequestState.CanRequest -> onRequest()
+                MusicRequestState.InLibrary -> navigator.openMusic(item)
+                else -> Unit
+            }
+        },
+        icon = state.icon(item.isArtist),
+        prominent = state == MusicRequestState.CanRequest,
+        enabled = (state == MusicRequestState.CanRequest && model.canAskForMusic) || (state == MusicRequestState.InLibrary && item.libraryItemId != null),
+    )
 }
 
 /**
  * An artist from outside the library, as the iPhone app's ExternalArtistView: their photo and name, Follow artist,
- * their albums each with Request album, and Fans also like. One the household has opens as itself.
+ * their releases (albums, EPs and singles, compilations) each with Request album, and Fans also like. One the
+ * household has adds In your library, opening theirs.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -274,16 +312,14 @@ fun ExternalArtistScreen(model: AppModel, deezerId: Long) {
     val client = model.client ?: return
     val navigator = LocalNavigator.current
     val page = rememberLoader(deezerId) { client.musicArtist(deezerId) }
-    (page.state as? Load.Loaded)?.value?.libraryItemId?.let { id ->
-        ArtistScreen(model, id)
-        return
-    }
-    var sent by remember(deezerId) { mutableStateOf(false) }
     RoomBackground(ambient = Flexarr.silver, intensity = 0.3f) {
         when (val state = page.state) {
             is Load.Loaded -> PullToRefreshBox(isRefreshing = page.refreshing, onRefresh = page.retry) {
                 val artist = state.value
-                val summary = artist.summary(followedHere = sent)
+                val summary = artist.summary
+                val libraryId = artist.libraryItemId
+                val keys = listOfNotNull(summary.id, libraryId?.let { "library-artist-$it" })
+                val follow = model.followState(keys, artist.followed || artist.availability == Availability.Requested)
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(105.dp),
                     contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 32.dp),
@@ -296,14 +332,23 @@ fun ExternalArtistScreen(model: AppModel, deezerId: Long) {
                             art = { MusicArtwork(artist.image, artist.name, circular = true, modifier = Modifier.width(180.dp).shadow(20.dp, CircleShape)) },
                             title = artist.name,
                             below = { if (artist.albums.isNotEmpty()) FactsLine(listOf(if (artist.albums.size == 1) "1 album" else "${artist.albums.size} albums")) },
-                            item = summary,
-                            sent = sent,
-                            onRequest = { sent = true; navigator.requestMusic(model, summary) { sent = false } },
+                            buttons = {
+                                if (libraryId != null) {
+                                    ActionButton("In your library", onClick = { navigator.openLibraryArtist(libraryId) }, icon = FlexarrIcons.music, prominent = true)
+                                }
+                                ActionButton(
+                                    follow.label(isArtist = true)!!,
+                                    onClick = { if (follow == MusicRequestState.CanRequest) navigator.requestMusic(model, summary, keys) },
+                                    icon = follow.icon(isArtist = true),
+                                    prominent = follow == MusicRequestState.CanRequest && libraryId == null,
+                                    enabled = follow == MusicRequestState.CanRequest && model.canAskForMusic,
+                                )
+                            },
                         )
                     }
-                    if (artist.albums.isNotEmpty()) {
-                        fullWidth { SectionHeading("Albums", Modifier.bleed()) }
-                        itemsIndexed(artist.albums, key = { index, album -> "album-$index-${album.id}" }) { _, album -> MusicExternalCard(model, album, width = null, showsRequest = true) }
+                    artist.albums.releaseShelves().forEach { (title, albums) ->
+                        fullWidth { SectionHeading(title, Modifier.bleed()) }
+                        itemsIndexed(albums, key = { index, album -> "$title-$index-${album.id}" }) { _, album -> MusicExternalCard(model, album, width = null, showsRequest = true) }
                     }
                     if (artist.similar.isNotEmpty()) {
                         fullWidth { MusicExternalShelf(model, "Fans also like", artist.similar, Modifier.bleed()) }
@@ -317,12 +362,9 @@ fun ExternalArtistScreen(model: AppModel, deezerId: Long) {
     }
 }
 
-/** The artist as a card knows them, for Follow artist: following already (there or here) reads as Requested. */
-private fun MusicArtistDetail.summary(followedHere: Boolean): MusicExternal = MusicExternal(
-    "artist", deezerId, name, image = image,
-    availability = if (followed || followedHere) Availability.Requested else availability,
-    libraryItemId = libraryItemId,
-)
+/** The artist as a card knows them, for Follow artist. */
+private val MusicArtistDetail.summary: MusicExternal
+    get() = MusicExternal("artist", deezerId, name, image = image, availability = availability, libraryItemId = libraryItemId)
 
 /**
  * An album from outside the library, as the iPhone app's ExternalAlbumView: cover, title, artist (opening theirs) and
@@ -338,7 +380,6 @@ fun ExternalAlbumScreen(model: AppModel, deezerId: Long) {
         AlbumScreen(model, id)
         return
     }
-    var sent by remember(deezerId) { mutableStateOf(false) }
     RoomBackground(ambient = Flexarr.silver, intensity = 0.3f) {
         when (val state = page.state) {
             is Load.Loaded -> PullToRefreshBox(isRefreshing = page.refreshing, onRefresh = page.retry) {
@@ -351,18 +392,21 @@ fun ExternalAlbumScreen(model: AppModel, deezerId: Long) {
                             title = album.title,
                             below = {
                                 val artistId = album.artistDeezerId
-                                Text(
-                                    album.artist,
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (artistId != null) Flexarr.silver else Flexarr.screen.copy(alpha = 0.9f),
-                                    modifier = if (artistId != null) Modifier.pressable({ navigator.openMusicArtist(artistId) }) else Modifier,
-                                )
+                                // The artist's name opens theirs: a button, big enough to tap.
+                                Box(
+                                    if (artistId != null) Modifier.heightIn(min = 48.dp).pressable({ navigator.openMusicArtist(artistId) }, role = Role.Button) else Modifier,
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        album.artist,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (artistId != null) Flexarr.silver else Flexarr.screen.copy(alpha = 0.9f),
+                                    )
+                                }
                                 FactsLine(albumFacts(album))
                             },
-                            item = summary,
-                            sent = sent,
-                            onRequest = { sent = true; navigator.requestMusic(model, summary) { sent = false } },
+                            buttons = { MusicRequestButton(model, summary, model.requestState(summary)) { navigator.requestMusic(model, summary) } },
                         )
                     }
                     album.tracks.forEachIndexed { index, track ->

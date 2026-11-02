@@ -27,8 +27,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.layout.layout
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -59,9 +57,7 @@ import io.github.flexarr.core.ItemDetail
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.MusicArtistExtras
-import io.github.flexarr.core.followLibraryArtist
 import io.github.flexarr.core.musicArtistExtras
-import io.github.flexarr.core.musicRequestStatus
 import io.github.flexarr.core.PlaylistDetail
 import io.github.flexarr.core.artistName
 import io.github.flexarr.core.discs
@@ -90,6 +86,7 @@ import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.launch
 import io.github.flexarr.ui.theme.Tokens
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 // The music screens, as the iPhone app's: an artist, an album and a playlist (a library is in MusicLibraryScreen.kt).
 // Each title page has Play and Shuffle; tapping a track plays from it, and tapping the one playing pauses it.
@@ -166,8 +163,8 @@ private fun MusicHeader(
             below()
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            ActionButton("Play", onClick = onPlay, icon = Icons.Filled.PlayArrow, prominent = true, ambient = ambient, enabled = canPlay && !busy)
-            ActionButton("Shuffle", onClick = onShuffle, icon = Icons.Filled.Shuffle, ambient = ambient, enabled = canShuffle && !busy)
+            ActionButton("Play", onClick = onPlay, icon = FlexarrIcons.play, prominent = true, ambient = ambient, enabled = canPlay && !busy)
+            ActionButton("Shuffle", onClick = onShuffle, icon = FlexarrIcons.shuffle, ambient = ambient, enabled = canShuffle && !busy)
             extra()
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), color = Flexarr.usher, strokeWidth = 2.dp)
         }
@@ -198,10 +195,9 @@ fun ArtistScreen(model: AppModel, id: String) {
     // From outside the library, when this profile can request music: their albums the library lacks, artists like
     // them, and whether Lidarr follows them. Anything failing leaves the page as it was.
     var extras by remember(id) { mutableStateOf<MusicArtistExtras?>(null) }
-    var followedHere by remember(id) { mutableStateOf(false) }
     LaunchedEffect(id, model.credentials) {
         extras = try {
-            if (client.musicRequestStatus().configured) client.musicArtistExtras(id) else null
+            if (model.musicStatus().configured) client.musicArtistExtras(id) else null
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -252,27 +248,17 @@ fun ArtistScreen(model: AppModel, id: String) {
                             onShuffle = { playAll(state.value, shuffled = true) },
                         )
                     }
-                    extras?.takeIf { !it.followed }?.let {
+                    // Once it's known music requests are on: Follow artist, or Following (said by the server, or asked here).
+                    extras?.let { known ->
                         fullWidth {
+                            val follow = model.followState(libraryArtistKeys(id, known.deezerId), known.followed)
                             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                                 ActionButton(
-                                    if (followedHere) "Following" else "Follow artist",
-                                    onClick = {
-                                        if (!followedHere) {
-                                            followedHere = true
-                                            navigator.watchlistChange("Couldn’t follow this artist") {
-                                                try {
-                                                    client.followLibraryArtist(id)
-                                                } catch (e: Exception) {
-                                                    followedHere = false
-                                                    throw e
-                                                }
-                                            }
-                                        }
-                                    },
-                                    icon = if (followedHere) MusicRequestState.Requested.icon else MusicRequestState.CanRequest.icon,
+                                    follow.label(isArtist = true)!!,
+                                    onClick = { if (follow == MusicRequestState.CanRequest) navigator.followLibraryArtist(model, id, known.deezerId) },
+                                    icon = follow.icon(isArtist = true),
                                     ambient = ambient,
-                                    enabled = !followedHere,
+                                    enabled = follow == MusicRequestState.CanRequest && model.canAskForMusic,
                                 )
                             }
                         }

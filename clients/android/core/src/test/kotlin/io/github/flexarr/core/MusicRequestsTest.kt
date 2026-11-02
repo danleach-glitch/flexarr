@@ -91,6 +91,17 @@ class MusicRequestsTest {
     }
 
     @Test
+    fun `an artist's releases go on albums, EPs and singles, and compilations shelves`() {
+        fun album(id: Long, type: String?) = MusicExternal("album", id, "A$id", recordType = type)
+        val shelves = listOf(album(1, "album"), album(2, "single"), album(3, null), album(4, "ep"), album(5, "compile")).releaseShelves()
+        assertEquals(listOf("Albums", "EPs and singles", "Compilations"), shelves.map { it.first })
+        assertEquals(listOf(1L, 3L), shelves[0].second.map { it.deezerId })
+        assertEquals(listOf(2L, 4L), shelves[1].second.map { it.deezerId })
+        // Only the shelves with something on them.
+        assertEquals(listOf("EPs and singles"), listOf(album(6, "ep")).releaseShelves().map { it.first })
+    }
+
+    @Test
     fun `an album's page has its tracks`() {
         val album = decode<MusicAlbumDetail>(
             """{"deezerId":302127,"title":"Discovery","artist":"Daft Punk","artistDeezerId":27,"image":null,"year":2001,"recordType":"album",

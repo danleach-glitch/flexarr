@@ -8,6 +8,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.core.MusicRequestStatus
+import io.github.flexarr.core.musicRequestStatus
 import io.github.flexarr.player.PlaybackEnding
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.LiveTvStatus
@@ -494,6 +496,54 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         hasWatchlist = false
         watchlistItems = emptySet()
         watchlistTitles = emptySet()
+        musicAsked = emptySet()
+        musicSending = emptySet()
+        musicUnreachable = false
+    }
+
+    /**
+     * Lidarr is connected but didn't answer the last time music requests' status was asked: the screens say so in one
+     * line, and their Request album and Follow artist wait.
+     */
+    var musicUnreachable by mutableStateOf(false)
+        private set
+
+    /** Music requests' status for this profile, noting whether Lidarr answered ([musicUnreachable]). */
+    suspend fun musicStatus(): MusicRequestStatus {
+        val client = client ?: return MusicRequestStatus(configured = false, reachable = false)
+        val status = client.musicRequestStatus()
+        if (client.profileToken == this.client?.profileToken) musicUnreachable = status.configured && !status.reachable
+        return status
+    }
+
+    /**
+     * Music asked for here (`MusicExternal.id`s, and `library-artist-<id>` for a library artist followed), so every card
+     * and page says Requested or Following at once, before the server's next answer does, as the iPhone's musicAsked.
+     * Forgotten with the sign-in or the profile.
+     */
+    var musicAsked: Set<String> by mutableStateOf(emptySet())
+        private set
+
+    /** Music requests on their way, so a second press (or another card for the same album) doesn't send one again. */
+    var musicSending: Set<String> by mutableStateOf(emptySet())
+        private set
+
+    /**
+     * Asks Lidarr for what [keys] name (the first one decides), once: false, sending nothing, while it's asked already or
+     * on its way. Throws what went wrong, leaving it to ask again.
+     */
+    suspend fun askForMusic(keys: List<String>, send: suspend (FlexarrClient) -> Unit): Boolean {
+        val client = client ?: return false
+        if (keys.any { it in musicAsked || it in musicSending }) return false
+        musicSending = musicSending + keys
+        try {
+            send(client)
+            // Someone else may have been chosen meanwhile: what they asked for isn't theirs.
+            if (client.profileToken == this.client?.profileToken) musicAsked = musicAsked + keys
+        } finally {
+            musicSending = musicSending - keys.toSet()
+        }
+        return true
     }
 
     /** The episodes to hear next, in order, the same on every device. */

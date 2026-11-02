@@ -53,6 +53,17 @@ data class MusicExternal(
         }
 }
 
+/**
+ * An artist's releases shelved as the web shelves them: "Albums" (an album, or a kind Deezer didn't say or a newer one),
+ * "EPs and singles", then "Compilations"; only the shelves with something on them.
+ */
+fun List<MusicExternal>.releaseShelves(): List<Pair<String, List<MusicExternal>>> =
+    listOf(
+        "Albums" to filter { it.recordType !in setOf("ep", "single", "compile") },
+        "EPs and singles" to filter { it.recordType == "ep" || it.recordType == "single" },
+        "Compilations" to filter { it.recordType == "compile" },
+    ).filter { it.second.isNotEmpty() }
+
 /** One of Discover's music rows: "artists" are round photos, "albums" square covers. */
 @Serializable
 data class MusicRow(

@@ -18,9 +18,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -55,11 +52,13 @@ import io.github.flexarr.core.Library
 import io.github.flexarr.core.LibrarySort
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.MusicArtistExtras
+import io.github.flexarr.core.Availability
+import io.github.flexarr.core.MusicExternal
 import io.github.flexarr.core.followLibraryArtist
 import io.github.flexarr.core.musicArtistExtras
-import io.github.flexarr.core.musicRequestStatus
-import io.github.flexarr.ui.music.MusicRequestState
-import io.github.flexarr.ui.music.icon
+import io.github.flexarr.ui.music.LidarrNotAnswering
+import io.github.flexarr.ui.music.followState
+import io.github.flexarr.ui.music.libraryArtistKeys
 import io.github.flexarr.core.artistName
 import io.github.flexarr.core.discs
 import io.github.flexarr.core.facts
@@ -83,6 +82,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import io.github.flexarr.ui.theme.Tokens
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 // The music screens, as the Apple TV's: a library's Browse (its hero, rows and artists; its tab is in
 // TvLibraryScreens.kt), an artist, an album and a playlist. Each title page has Play and Shuffle, which also bring up Now Playing over everything; pressing a track plays
@@ -316,21 +316,23 @@ private fun MusicHeader(
     onShuffle: () -> Unit,
     busy: Boolean = false,
     alignment: Alignment.Vertical = Alignment.Bottom,
+    /** Play takes focus as the page opens; not when the page is giving it back to what had it. */
+    takesFocus: Boolean = true,
     /** After Play and Shuffle: an artist's Follow artist. */
     extra: @Composable () -> Unit = {},
     art: @Composable () -> Unit,
     below: @Composable () -> Unit,
 ) {
     val play = remember { FocusRequester() }
-    LaunchedEffect(canPlay) { if (canPlay) play.takeFocusSoon() }
+    LaunchedEffect(canPlay) { if (canPlay && takesFocus) play.takeFocusSoon() }
     Row(Modifier.padding(horizontal = TvLayout.Edge), horizontalArrangement = Arrangement.spacedBy(30.dp), verticalAlignment = alignment) {
         art()
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(title, style = marquee(titleSize).copy(fontWeight = FontWeight.ExtraBold), maxLines = 2, overflow = TextOverflow.Ellipsis)
             below()
             Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(13.dp), verticalAlignment = Alignment.CenterVertically) {
-                TvActionButton("Play", onClick = onPlay, icon = Icons.Filled.PlayArrow, prominent = true, ambient = ambient, enabled = canPlay && !busy, modifier = Modifier.focusRequester(play))
-                TvActionButton("Shuffle", onClick = onShuffle, icon = Icons.Filled.Shuffle, ambient = ambient, enabled = canShuffle && !busy)
+                TvActionButton("Play", onClick = onPlay, icon = FlexarrIcons.play, prominent = true, ambient = ambient, enabled = canPlay && !busy, modifier = Modifier.focusRequester(play))
+                TvActionButton("Shuffle", onClick = onShuffle, icon = FlexarrIcons.shuffle, ambient = ambient, enabled = canShuffle && !busy)
                 extra()
                 if (busy) CircularProgressIndicator(Modifier.size(20.dp), color = Flexarr.screen, strokeWidth = 2.dp)
             }
@@ -351,10 +353,13 @@ fun TvArtistScreen(model: AppModel, id: String) {
     // From outside the library, when this profile can request music: their albums the library lacks, artists like
     // them, and whether Lidarr follows them. Anything failing leaves the page as it was.
     var extras by remember(id) { mutableStateOf<MusicArtistExtras?>(null) }
-    var followedHere by remember(id) { mutableStateOf(false) }
+    // Coming back from an album or artist opened here, focus goes back to it rather than to Play.
+    val focus = rememberFocusMemory()
+    val returning = remember { focus.lastKey != null }
+    LaunchedEffect(page.state is Load.Loaded) { if (returning && page.state is Load.Loaded) focus.restore(null) }
     LaunchedEffect(id, model.credentials) {
         extras = try {
-            if (client.musicRequestStatus().configured) client.musicArtistExtras(id) else null
+            if (model.musicStatus().configured) client.musicArtistExtras(id) else null
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -382,7 +387,7 @@ fun TvArtistScreen(model: AppModel, id: String) {
 
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 65.dp, bottom = 45.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     item(key = "header") {
-                        MusicHeader(
+                        Box(Modifier.focusMemory(focus, "header")) { MusicHeader(
                             title = item.title,
                             titleSize = 42,
                             ambient = ambient,
@@ -392,27 +397,20 @@ fun TvArtistScreen(model: AppModel, id: String) {
                             onShuffle = { playAll(shuffled = true) },
                             busy = queueing,
                             alignment = Alignment.CenterVertically,
+                            takesFocus = !returning,
                             extra = {
-                                // Shown once it's known they aren't followed; one button throughout, so focus stays on it.
-                                if (extras?.followed == false) {
-                                    TvActionButton(
-                                        if (followedHere) "Following" else "Follow artist",
-                                        onClick = {
-                                            if (!followedHere) {
-                                                followedHere = true
-                                                navigator.watchlistChange("Couldn’t follow this artist") {
-                                                    try {
-                                                        client.followLibraryArtist(id)
-                                                    } catch (e: Exception) {
-                                                        followedHere = false
-                                                        throw e
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        icon = if (followedHere) MusicRequestState.Requested.icon else MusicRequestState.CanRequest.icon,
+                                // Once it's known music requests are on: Follow artist, or Following. One button
+                                // throughout, so focus stays on it; what went wrong beside it, with Try again.
+                                extras?.let { known ->
+                                    val keys = libraryArtistKeys(id, known.deezerId)
+                                    TvMusicRequestButton(
+                                        model,
+                                        MusicExternal("artist", known.deezerId ?: 0, item.title, availability = Availability.None),
+                                        model.followState(keys, known.followed),
+                                        keys,
                                         ambient = ambient,
-                                    )
+                                        prominent = false,
+                                    ) { it.followLibraryArtist(id) }
                                 }
                             },
                             art = { Box(Modifier.shadow(15.dp, CircleShape)) { TvSquareArtwork(item, 180.dp, circular = true) } },
@@ -426,21 +424,22 @@ fun TvArtistScreen(model: AppModel, id: String) {
                                 state.value.overview?.takeIf { it.isNotEmpty() }?.let {
                                     Text(it, fontSize = 13.sp, lineHeight = 18.sp, color = Flexarr.screen.copy(alpha = 0.88f), maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 500.dp))
                                 }
+                                if (extras != null && model.musicUnreachable) Text(LidarrNotAnswering, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                             },
-                        )
+                        ) }
                     }
                     if (albums.isNotEmpty()) {
                         item(key = "albums-heading") { TvRowHeading("Albums", Modifier.padding(top = 14.dp)) }
-                        gridRows(albums, key = "albums") { _, album -> TvAlbumCard(album, onClick = { navigator.open(album) }) }
+                        gridRows(albums, key = "albums") { _, album -> TvAlbumCard(album, onClick = { navigator.open(album) }, modifier = Modifier.focusMemory(focus, "own/${album.id}")) }
                     } else if (extras?.missing.isNullOrEmpty()) {
                         item(key = "empty") { Box(Modifier.height(100.dp)) { TvStatusView("No albums yet.", empty = true) } }
                     }
                     extras?.missing?.takeIf { it.isNotEmpty() }?.let { missing ->
                         item(key = "missing-heading") { TvRowHeading("Not in your library", Modifier.padding(top = 14.dp)) }
-                        requestableAlbumRows(model, missing, "missing")
+                        requestableAlbumRows(model, missing, "missing", focus)
                     }
                     extras?.similar?.takeIf { it.isNotEmpty() }?.let { similar ->
-                        item(key = "similar") { TvMusicExternalRow("Fans also like", similar) }
+                        item(key = "similar") { TvMusicExternalRow("Fans also like", similar, cardModifier = { Modifier.focusMemory(focus, "similar/${it.id}") }) }
                     }
                 }
             }

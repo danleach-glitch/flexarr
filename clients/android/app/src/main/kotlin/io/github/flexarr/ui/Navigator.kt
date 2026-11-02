@@ -47,6 +47,9 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         else -> openItem(item.id)
     }
 
+    /** A library artist's page, by its id here (an outside artist's In your library). */
+    fun openLibraryArtist(id: String) = nav.navigate("artist/$id")
+
     /** An artist from outside the library, by Deezer id. */
     fun openMusicArtist(deezerId: Long) = nav.navigate("music-artist/$deezerId")
 
