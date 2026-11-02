@@ -575,6 +575,8 @@ export interface Settings {
   askPinForMainProfile?: boolean
   /** The admin's own Trakt app, if one replaces Flexarr's. Absent from servers before 0.57. */
   traktApp?: { clientId: string; hasSecret: boolean } | null
+  /** Whether music can be requested through Lidarr. Absent from servers before 0.59. */
+  allowMusicRequests?: boolean | null
 }
 
 export interface SettingsUpdate {
@@ -594,6 +596,7 @@ export interface SettingsUpdate {
   askPinForMainProfile?: boolean
   /** An empty client id goes back to Flexarr's own app; a blank secret keeps the saved one. */
   traktApp?: { clientId: string; clientSecret?: string }
+  allowMusicRequests?: boolean
 }
 
 export interface ArrStatus {
