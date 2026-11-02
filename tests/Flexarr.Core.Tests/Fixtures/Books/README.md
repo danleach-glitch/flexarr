@@ -1,1 +1,2 @@
-- `google-search.json` is written from Google's documented `volumes` shape: keyless calls get a quota of zero. The rest were recorded 2026-10-31.
+- The Audnexus, Audible and Open Library answers were recorded 2026-10-31.
+- `itunes-search-gb.json` and `itunes-search-dcc.json` were recorded 2026-11-02 from the iTunes Search API (UK and US stores), with descriptions cut short and preview links dropped.

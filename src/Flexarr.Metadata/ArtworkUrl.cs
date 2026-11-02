@@ -18,14 +18,16 @@ public static partial class ArtworkUrl
         ["is3-ssl.mzstatic.com"] = ["/image/thumb/"],
         ["is4-ssl.mzstatic.com"] = ["/image/thumb/"],
         ["is5-ssl.mzstatic.com"] = ["/image/thumb/"],
-        // Book covers: Audible's (through Audnexus and its catalogue) and Open Library's (Fix match). Goodreads' covers,
-        // which books matched by earlier dev builds may still carry, live on Amazon's hosts too, and on their own.
+        // Book covers: Audible's (through Audnexus and its catalogue), Apple Books' (on the mzstatic hosts above) and
+        // Open Library's. Goodreads' covers, which books matched by earlier dev builds may still carry, live on Amazon's
+        // hosts too, and on their own.
         ["m.media-amazon.com"] = ["/images/I/", "/images/S/compressed.photo.goodreads.com/"],
         ["images-na.ssl-images-amazon.com"] = ["/images/I/", "/images/S/compressed.photo.goodreads.com/"],
         ["i.gr-assets.com"] = ["/images/S/compressed.photo.goodreads.com/"],
         ["covers.openlibrary.org"] = ["/b/"],
+        // Hardcover's and Google Books' covers, which books matched by earlier dev builds may still carry. Google's have
+        // no file name, only the volume's id (see GoogleCover).
         ["assets.hardcover.app"] = ["/"],
-        // Google Books' thumbnails: no file name, only the volume's id (see GoogleCover).
         ["books.google.com"] = ["/books/content"],
     };
 

@@ -153,7 +153,7 @@ function TitleMatchDialog({ item, onFixed, onClose }: Props) {
 }
 
 /**
- * Which book this is, from the online providers (Audible, Open Library, Google Books, Hardcover): searched by title and
+ * Which book this is, from the online providers (Audible, Apple Books, Open Library): searched by title and
  * author, and the one chosen stays matched, its details taking the place of what was found before.
  */
 function BookMatchDialog({ item, onFixed, onClose }: Props) {
@@ -247,4 +247,4 @@ function BookMatchDialog({ item, onFixed, onClose }: Props) {
   )
 }
 
-const providerName: Record<string, string> = { audible: 'Audible', openlibrary: 'Open Library', google: 'Google Books', hardcover: 'Hardcover' }
+const providerName: Record<string, string> = { audible: 'Audible', itunes: 'Apple Books', openlibrary: 'Open Library' }

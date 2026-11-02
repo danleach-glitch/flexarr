@@ -76,7 +76,7 @@ On iPhone and iPad, yes: download movies, episodes, albums, playlists and podcas
 Your library, what everyone watches, your profiles and your logs stay on your server. Flexarr has no account, analytics or adverts. A few things do go out, each for a reason:
 
 - **Artwork and details.** The server downloads posters and artwork from the image addresses Sonarr, Radarr and Lidarr give it, looks up shows on TVmaze, and movies on TMDB if you add a TMDB key.
-- **Audiobook details** (from the next release) come from Audible and Open Library, and from Google Books and Hardcover if you add their keys.
+- **Audiobook details** (from the next release) come from Audible, Apple Books and Open Library, with no keys needed.
 - **Updates.** Once a day the server asks GitHub whether there's a newer version.
 - **Trakt**, if a profile connects to it. Signing in goes through the relay at push.flexarr.io unless you use your own Trakt app.
 - **Podcasts.** Browsing and search use Apple's podcast directory, and the server fetches each show's feed and episodes. Your devices play them through your server, so podcast hosts see your server rather than each listener.
