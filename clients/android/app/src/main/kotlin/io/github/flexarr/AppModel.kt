@@ -505,7 +505,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     /**
      * Lidarr is connected but didn't answer the last time music requests' status was asked: the screens say so in one
-     * line, and their Request album and Follow artist wait.
+     * line, and their Request album and Follow wait.
      */
     var musicUnreachable by mutableStateOf(false)
         private set
@@ -556,7 +556,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         private set
 
     /**
-     * Unfollowed or unrequested here, so every card and page says Follow artist or Request album again at once, though
+     * Unfollowed or unrequested here, so every card and page says Follow or Request album again at once, though
      * the page it came from still says the server's Following or Requested. Forgotten with the sign-in or the profile.
      */
     var musicUndone: Set<String> by mutableStateOf(emptySet())

@@ -307,7 +307,9 @@ private fun LazyListScope.gridRows(
 
 /**
  * A title page's header, as the Apple TV's artist, album and playlist pages: the art at the left, then the name, what's
- * under it, and Play and Shuffle. Play takes focus as the page opens, so OK plays at once.
+ * under it, and the action row in [io.github.flexarr.core.MusicActions] order: Play (the one labelled button), then
+ * round Shuffle, Radio (an artist's, given [onRadio]) and [extra], the focused round one named under the row. Play takes
+ * focus as the page opens, so OK plays at once.
  */
 @Composable
 private fun MusicHeader(
@@ -322,11 +324,13 @@ private fun MusicHeader(
     alignment: Alignment.Vertical = Alignment.Bottom,
     /** Play takes focus as the page opens; not when the page is giving it back to what had it. */
     takesFocus: Boolean = true,
+    /** An artist's radio (them and artists like them), round after Shuffle; null for none. */
+    onRadio: (() -> Unit)? = null,
     /** Play and Shuffle: not for an artist with nothing here yet (a placeholder, followed until their first album). */
     showsPlay: Boolean = true,
-    /** The row has round buttons, whose focused one is named under it. */
+    /** [extra] has round buttons (Shuffle and Radio always are), whose focused one is named under the row. */
     hasRound: Boolean = false,
-    /** After Play and Shuffle, in [io.github.flexarr.core.MusicActions] order: an artist's Follow, a round button. */
+    /** After Play, Shuffle and Radio, in [io.github.flexarr.core.MusicActions] order: an artist's Follow, a round button. */
     extra: @Composable (onFocusName: (String?) -> Unit) -> Unit = {},
     art: @Composable () -> Unit,
     below: @Composable () -> Unit,
@@ -342,13 +346,14 @@ private fun MusicHeader(
             Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(13.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (showsPlay) {
                     TvActionButton("Play", onClick = onPlay, icon = FlexarrIcons.play, prominent = true, ambient = ambient, enabled = canPlay && !busy, modifier = Modifier.focusRequester(play))
-                    TvActionButton("Shuffle", onClick = onShuffle, icon = FlexarrIcons.shuffle, ambient = ambient, enabled = canShuffle && !busy)
+                    RoundAction("Shuffle", FlexarrIcons.shuffle, ambient, { focusedName = it }, enabled = canShuffle && !busy, onClick = onShuffle)
+                    onRadio?.let { RoundAction("Radio", FlexarrIcons.radio, ambient, { focusedName = it }, enabled = canPlay && !busy, onClick = it) }
                 }
                 extra { focusedName = it }
                 if (busy) CircularProgressIndicator(Modifier.size(20.dp), color = Flexarr.screen, strokeWidth = 2.dp)
             }
             // The focused round button's name; the line keeps its height so nothing jumps.
-            if (hasRound) Text(focusedName ?: " ", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen.copy(alpha = 0.75f), modifier = Modifier.semantics { hideFromAccessibility() })
+            if (hasRound || showsPlay) Text(focusedName ?: " ", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen.copy(alpha = 0.75f), modifier = Modifier.semantics { hideFromAccessibility() })
         }
     }
 }
@@ -386,6 +391,9 @@ fun TvArtistScreen(model: AppModel, id: String) {
     }
     val placeholder = detail?.children?.none { it.kind == MediaKind.Album } == true
     LaunchedEffect(placeholder, extras != null) { if (placeholder && extras != null && !returning) follow.takeFocusSoon() }
+    // A placeholder unfollowed here has gone from the library (the server took them out): the page goes back.
+    var gone by remember(id) { mutableStateOf(false) }
+    LaunchedEffect(gone) { if (gone) navigator.back() }
 
     RoomBackground(ambient = ambient, intensity = 0.4f) {
         when (val state = page.state) {
@@ -393,7 +401,7 @@ fun TvArtistScreen(model: AppModel, id: String) {
                 val item = state.value.item
                 val albums = state.value.children.filter { it.kind == MediaKind.Album }
                 val actions = MusicActions.of(
-                    MusicActions.Input(MusicActions.Kind.ARTIST, hasMusic = albums.isNotEmpty(), canRequest = extras != null, platform = MusicActions.Platform.TV),
+                    MusicActions.Input(MusicActions.Kind.ARTIST, hasMusic = albums.isNotEmpty(), canRequest = extras != null, platform = MusicActions.Platform.TV, canRadio = true),
                 )
 
                 /** Everything they have, fetched when asked rather than with the page, then Now Playing. */
@@ -418,13 +426,14 @@ fun TvArtistScreen(model: AppModel, id: String) {
                             canShuffle = albums.isNotEmpty(),
                             onPlay = { playAll(shuffled = false) },
                             onShuffle = { playAll(shuffled = true) },
+                            onRadio = { navigator.playArtist(item, radio = true) }.takeIf { MusicActions.Button.RADIO in actions },
                             busy = queueing,
                             alignment = Alignment.CenterVertically,
                             takesFocus = !returning,
                             showsPlay = MusicActions.Button.PLAY in actions,
                             hasRound = MusicActions.Button.FOLLOW in actions,
                             extra = { onFocusName ->
-                                // Once it's known music requests are on: Follow artist, or Following. One button
+                                // Once it's known music requests are on: Follow, or Following. One button
                                 // throughout, so focus stays on it; what went wrong beside it, with Try again.
                                 val known = extras
                                 if (known != null && MusicActions.Button.FOLLOW in actions) {
@@ -439,6 +448,7 @@ fun TvArtistScreen(model: AppModel, id: String) {
                                         ambient = ambient,
                                         request = { it.followLibraryArtist(id) },
                                         undo = { it.unfollowArtist(artistId = id) },
+                                        onUndone = { if (albums.isEmpty()) gone = true },
                                     )
                                 }
                             },

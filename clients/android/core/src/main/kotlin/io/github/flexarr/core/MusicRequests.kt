@@ -4,7 +4,8 @@ import kotlinx.serialization.Serializable
 
 // Music requests: artists and albums from outside the library (from Deezer, matched to MusicBrainz through Lidarr),
 // requesting an album and following an artist, as FlexarrKit's MusicRequests.swift. Everything here is absent from
-// servers before music requests, which answer the status with their web page (or a 404): off.
+// servers before music requests, which answer the status with their web page (or a 404): off. Unfollowing and
+// unrequesting are absent from servers before 0.59.
 
 /** Whether music requests are on for this profile: a Lidarr is connected, and answered just now. */
 @Serializable
@@ -216,7 +217,7 @@ suspend fun FlexarrClient.followLibraryArtist(artistId: String) {
 /**
  * Stops following an artist, for the whole household (Lidarr is shared): albums already asked for still come, new ones
  * don't. By [artistId] (a library artist), [deezerId] or [musicBrainzId]: the first one given. Absent from servers
- * before music-polish, which answer 404.
+ * before 0.59, which answer 404: that throws [UndoNeedsNewerServer]'s words.
  */
 suspend fun FlexarrClient.unfollowArtist(artistId: String? = null, deezerId: Long? = null, musicBrainzId: String? = null) {
     val body = when {
@@ -224,14 +225,31 @@ suspend fun FlexarrClient.unfollowArtist(artistId: String? = null, deezerId: Lon
         deezerId != null && deezerId != 0L -> MusicUnfollowBody(deezerId = deezerId)
         else -> MusicUnfollowBody(musicBrainzId = requireNotNull(musicBrainzId) { "Nothing to unfollow the artist by." })
     }
-    send("POST", "requests/music/unfollow", body = FlexarrClient.json.encodeToString(MusicUnfollowBody.serializer(), body))
+    undoing { send("POST", "requests/music/unfollow", body = FlexarrClient.json.encodeToString(MusicUnfollowBody.serializer(), body)) }
 }
 
 /**
  * Cancels an album's request, for the whole household: Lidarr stops looking for it. By its release group when it's
- * known (Lidarr's own id for it), else its Deezer id. Absent from servers before music-polish, which answer 404.
+ * known (Lidarr's own id for it), else its Deezer id. Absent from servers before 0.59, which answer 404: that throws
+ * [UndoNeedsNewerServer]'s words.
  */
 suspend fun FlexarrClient.unrequestAlbum(album: MusicExternal) {
     val body = if (album.musicBrainzId != null) MusicUnrequestBody(musicBrainzId = album.musicBrainzId) else MusicUnrequestBody(deezerId = album.deezerId.takeIf { it != 0L } ?: error("Nothing to cancel the request by."))
-    send("POST", "requests/music/unrequest", body = FlexarrClient.json.encodeToString(MusicUnrequestBody.serializer(), body))
+    undoing { send("POST", "requests/music/unrequest", body = FlexarrClient.json.encodeToString(MusicUnrequestBody.serializer(), body)) }
+}
+
+/** What an unfollow or unrequest says when the server has no way to undo one yet (before 0.59). */
+const val UndoNeedsNewerServer = "Update the server to undo this."
+
+/**
+ * An unfollow or unrequest, a 404 (or 405) from a server before 0.59 saying so in [UndoNeedsNewerServer]'s words.
+ * Anything else (a family guest's 403, Lidarr's refusal) keeps the server's own.
+ */
+private suspend fun undoing(send: suspend () -> Unit) {
+    try {
+        send()
+    } catch (e: FlexarrException.Http) {
+        if (e.status == 404 || e.status == 405) throw FlexarrException.Http(e.status, UndoNeedsNewerServer, e.detail)
+        throw e
+    }
 }

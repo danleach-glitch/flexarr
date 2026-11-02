@@ -117,7 +117,7 @@ fun TvActionButton(
     enabled: Boolean = true,
     contentDescription: String? = null,
     onLongClick: (() -> Unit)? = null,
-    /** Lit while it's on (Following, Requested), as a chosen pill is, so it shows with focus elsewhere. */
+    /** Lit and ringed while it's on (Following, Requested), so it shows with focus elsewhere. */
     selected: Boolean = false,
 ) {
     // Turned off, it stays focusable and only looks it, ignoring presses: a button that went dark while focused (Next
@@ -138,6 +138,11 @@ fun TvActionButton(
             focusedContentColor = Flexarr.room,
             pressedContainerColor = if (enabled) Flexarr.screen else Flexarr.screen.copy(alpha = 0.35f),
             pressedContentColor = Flexarr.room,
+        ),
+        // On, a ring of the page's colour too (as the Apple TV's), so on and off differ by more than a tint.
+        border = ClickableSurfaceDefaults.border(
+            border = if (selected && enabled) Border(BorderStroke(2.dp, ambient.copy(alpha = 0.8f)), shape = RoundedCornerShape(Tokens.radiusControl)) else Border.None,
+            focusedBorder = Border.None,
         ),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.07f, pressedScale = 0.97f),
         glow = ClickableSurfaceDefaults.glow(focusedGlow = Glow(ambient.copy(alpha = 0.65f), 14.dp)),

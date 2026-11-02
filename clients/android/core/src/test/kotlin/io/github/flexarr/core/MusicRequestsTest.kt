@@ -198,6 +198,37 @@ class MusicRequestsTest {
     }
 
     @Test
+    fun `an undo on an older server says to update it`() = runTest {
+        server.enqueue(MockResponse.Builder().code(404).build())
+        server.enqueue(MockResponse.Builder().code(404).build())
+        val client = client()
+        for (undo in listOf<suspend () -> Unit>({ client.unfollowArtist(deezerId = 27) }, { client.unrequestAlbum(MusicExternal("album", 1, "A", availability = Availability.Requested)) })) {
+            try {
+                undo()
+                fail("expected a 404")
+            } catch (e: FlexarrException.Http) {
+                assertEquals(404, e.status)
+                assertEquals(UndoNeedsNewerServer, e.message)
+            }
+        }
+    }
+
+    @Test
+    fun `a guest's undo says the server's words`() = runTest {
+        server.enqueue(
+            MockResponse.Builder().code(403).addHeader("Content-Type", "application/problem+json")
+                .body("""{"title":"Forbidden","status":403,"detail":"Ask your host to stop following them."}""").build(),
+        )
+        try {
+            client().unfollowArtist(artistId = "a1")
+            fail("expected a refusal")
+        } catch (e: FlexarrException.Http) {
+            assertEquals(403, e.status)
+            assertTrue(e.message!!.contains("Ask your host"))
+        }
+    }
+
+    @Test
     fun `a refused request says why`() = runTest {
         server.enqueue(
             MockResponse.Builder().code(409).addHeader("Content-Type", "application/problem+json")
