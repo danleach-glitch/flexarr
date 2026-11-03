@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router'
 import { ApiError, getLiveChannels, liveHeartbeat, removeRecording, stopLiveChannel, watchLiveChannel, type LiveChannel, type LiveWatch } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { FavouriteButton } from '../components/FavouriteButton'
+import { ChannelLogo } from '../components/LiveChannelCard'
 import { Back, ChevronDown, ChevronUp, ExitFullscreen, Fullscreen, Muted, Replay10, Forward10, Star, Tv, Volume } from '../components/icons'
 import { icon } from '../components/icons.generated'
 import { useFavourites } from '../hooks/useFavourites'
@@ -360,7 +361,7 @@ export default function LivePlayerPage() {
                   }}
                 >
                   <span className="live-channel-number">{c.number}</span>
-                  {c.logoUrl ? <img src={c.logoUrl} alt="" /> : <span className="live-logo-fallback" />}
+                  <ChannelLogo channel={c} />
                   <span className="live-channel-text">
                     <strong>
                       {c.name}
