@@ -209,18 +209,64 @@ public sealed class DownloadTests : IDisposable
         Assert.Equal(HttpStatusCode.NotFound, (await Client().GetAsync(new Uri($"/api/v1/items/{artist}/download-options", UriKind.Relative))).StatusCode);
     }
 
+    [Fact]
+    public async Task AConversionTheHardwareEncoderFails_IsDoneAgainInSoftware()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        // Stands in for ffmpeg: the hardware encoder fails; libx264 writes the file (its last argument).
+        var ffmpeg = Path.Combine(_factory.DataDirectory, "fake-ffmpeg");
+        await File.WriteAllTextAsync(ffmpeg, """
+            #!/bin/sh
+            case "$*" in *libx264*) ;; *) echo "No VA display found" >&2; exit 1 ;; esac
+            for last; do :; done
+            echo x > "$last"
+            """);
+        File.SetUnixFileMode(ffmpeg, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var server = _factory.WithWebHostBuilder(b => b
+            .UseSetting("Flexarr:FfmpegPath", ffmpeg)
+            .UseSetting("Flexarr:Transcoding:HardwareAcceleration", "Vaapi"));
+        var (movie, _) = await AddMovieAsync("matroska,webm", "mpeg2video", "aac");
+        var client = server.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+
+        var created = await (await client.PostAsJsonAsync(new Uri("/api/v1/offline", UriKind.Relative), new { itemId = movie, quality = "Medium" }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+
+        await WaitForAsync(client, created.GetProperty("id").GetString()!, "Ready", server.Services);
+    }
+
+    [Fact]
+    public async Task AConversionThatThrows_EndsAsFailed_NotPreparingForever()
+    {
+        using var server = _factory.WithWebHostBuilder(b => b.UseSetting("Flexarr:FfmpegPath", Path.Combine(_factory.DataDirectory, "no-such-ffmpeg")));
+        var (movie, _) = await AddMovieAsync("matroska,webm", "mpeg2video", "aac");
+        var client = server.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+
+        var created = await (await client.PostAsJsonAsync(new Uri("/api/v1/offline", UriKind.Relative), new { itemId = movie, quality = "Medium" }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+
+        await WaitForAsync(client, created.GetProperty("id").GetString()!, "Failed", server.Services);
+        Assert.Empty(Directory.EnumerateFiles(Downloads.DownloadPreparer.Folder(
+            server.Services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>().CurrentValue), "*.part.*"));
+    }
+
     private async Task<double> PositionAsync(Guid item)
     {
         using var scope = _factory.Services.CreateScope();
         return (await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().PlaybackStates.SingleAsync(p => p.MediaItemId == item)).PositionSeconds;
     }
 
-    private async Task<JsonElement> WaitForAsync(HttpClient client, string id, string status)
+    private async Task<JsonElement> WaitForAsync(HttpClient client, string id, string status, IServiceProvider? services = null)
     {
         for (var i = 0; i < 100; i++)
         {
             // The worker doesn't run in tests: a round of it, as its timer would.
-            await _factory.Services.GetRequiredService<Flexarr.Api.Downloads.DownloadPreparer>().RunOnceAsync(CancellationToken.None);
+            await (services ?? _factory.Services).GetRequiredService<Flexarr.Api.Downloads.DownloadPreparer>().RunOnceAsync(CancellationToken.None);
             var download = await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/offline/{id}", UriKind.Relative));
             if (download.GetProperty("status").GetString() == status)
             {
