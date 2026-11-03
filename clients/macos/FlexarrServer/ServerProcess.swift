@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Observation
+import SystemConfiguration
 
 /// Runs the server bundled in Contents/Helpers as a child process, which inherits the app's sandbox and the
 /// folders it has open, even ones chosen while it runs. Restarts it if it stops on its own.
@@ -28,6 +29,9 @@ final class ServerProcess {
     private var requestsPort: UInt16?
     private var process: Process?
     private var quickExits = 0
+    /// Flexarr's Bonjour announcement ("_flexarr._tcp"), so apps on the network list this server. The app makes it, as
+    /// the sandbox leaves the server no system tool to announce with; up while the server is.
+    private var announcement: NetService?
 
     /// The port the server listens on. `defaults write <bundle id> Port 8484` changes it.
     let port: Int = UserDefaults.standard.integer(forKey: "Port").nonZero ?? 8383
@@ -125,6 +129,8 @@ final class ServerProcess {
     /// Asks the server to stop and waits for it, up to 10 seconds, then kills it: Quit mustn't leave it running, and
     /// a server slow to shut down mustn't hang the menu.
     func stop() {
+        announcement?.stop()
+        announcement = nil
         guard let process else { return }
         // Forgotten first, so its exit isn't taken for a crash to restart from.
         self.process = nil
@@ -150,6 +156,8 @@ final class ServerProcess {
     private func ended(_ which: ObjectIdentifier, code: Int32, after seconds: TimeInterval) {
         guard let process, ObjectIdentifier(process) == which else { return }
         self.process = nil
+        announcement?.stop()
+        announcement = nil
         // Give up after a few exits in a row within seconds of starting: something's wrong that a restart won't fix.
         quickExits = seconds < 30 ? quickExits + 1 : 0
         if quickExits >= 3 {
@@ -171,6 +179,7 @@ final class ServerProcess {
             if let (_, response) = try? await URLSession.shared.data(from: health),
                (response as? HTTPURLResponse)?.statusCode == 200 {
                 status = .running
+                announce()
                 await followSetupCode()
                 return
             }
@@ -180,6 +189,16 @@ final class ServerProcess {
 }
 
 extension ServerProcess {
+    /// Announces the server as the server does elsewhere: "Flexarr on <Bonjour name>", with its address in the TXT record.
+    fileprivate func announce() {
+        guard announcement == nil else { return }
+        let host = SCDynamicStoreCopyLocalHostName(nil).map { String($0) } ?? "localhost"
+        let service = NetService(domain: "local.", type: "_flexarr._tcp.", name: "Flexarr on \(host)", port: Int32(port))
+        service.setTXTRecord(NetService.data(fromTXTRecord: ["url": Data("http://\(host).local:\(port)".utf8)]))
+        service.publish()
+        announcement = service
+    }
+
     /// Shows the setup code while the file is there: the server deletes it once someone has set it up.
     fileprivate func followSetupCode() async {
         while true {
