@@ -659,7 +659,18 @@ final class PlayerViewController: UIViewController {
                 return
             case .select:
                 if scan != nil { endScan(commit: true); return }
-                if controls.scrubber.isFocused, controls.scrubber.commitScrubIfNeeded() { return }
+                if controls.scrubber.isFocused, controls.scrubber.isScrubbing {
+                    // A scrub that only just began is the thumb slipping as it pressed: it's a plain play/pause.
+                    if controls.scrubber.scrubJustBegan {
+                        controls.scrubber.cancelScrubIfNeeded()
+                        togglePlayPause()
+                        return
+                    }
+                    // A scrub that was meant: go there and play, as Apple's player does.
+                    controls.scrubber.commitScrubIfNeeded()
+                    transport?.play()
+                    return
+                }
                 if !controlsVisible && !controls.promptShown {
                     togglePlayPause()
                     return
