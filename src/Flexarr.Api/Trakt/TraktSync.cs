@@ -122,6 +122,27 @@ public sealed partial class TraktSync(FlexarrDbContext db, TraktClient trakt, Tr
     /// </summary>
     public async Task<TraktImportPreview?> ImportAsync(string profileId, bool apply, CancellationToken ct)
     {
+        if (!apply)
+        {
+            return await ImportOnceAsync(profileId, apply, ct);
+        }
+
+        // Not alongside the regular sync: it could put back the last-activities stamp the import clears (delaying the
+        // plays), or add the same row the import does.
+        var gate = Running.GetOrAdd(profileId, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(ct);
+        try
+        {
+            return await ImportOnceAsync(profileId, apply, ct);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private async Task<TraktImportPreview?> ImportOnceAsync(string profileId, bool apply, CancellationToken ct)
+    {
         // Before fetching: plays made on Trakt while this runs come with the next sync.
         var startedAt = DateTime.UtcNow;
         // Keyed by the connection too: a preview from before reconnecting (perhaps as someone else) isn't confirmed.

@@ -481,6 +481,35 @@ public sealed class TraktTests : IAsyncLifetime
         Assert.False(await InDbAsync(db => db.TraktHistoryHolds.AnyAsync()));
     }
 
+    [Fact]
+    public async Task TheImport_WaitsForARegularSyncToFinish()
+    {
+        await SeedAsync(db => db.Add(Films));
+        await ConnectAsync(importedAt: DateTime.UtcNow.AddDays(-1));
+        Activities();
+        var syncing = new TaskCompletionSource();
+        var release = new TaskCompletionSource();
+        _trakt.Before = async key =>
+        {
+            if (key == "GET /sync/last_activities")
+            {
+                syncing.TrySetResult();
+                await release.Task;
+            }
+        };
+
+        var sync = InScopeAsync(s => s.GetRequiredService<TraktSync>().SyncAsync(Owner, default));
+        await syncing.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var import = InScopeAsync(s => s.GetRequiredService<TraktSync>().ImportAsync(Owner, apply: true, default));
+        await Task.Delay(200);
+        var fetchedDuringSync = _trakt.Count("GET /sync/watched/movies");
+        release.SetResult();
+        await Task.WhenAll(sync, import).WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(0, fetchedDuringSync);
+        Assert.True(_trakt.Count("GET /sync/watched/movies") > 0);
+    }
+
     // ---- The regular sync ----
 
     private Task SyncAsync() => InScopeAsync(s => s.GetRequiredService<TraktSync>().SyncAsync(Owner, default));
