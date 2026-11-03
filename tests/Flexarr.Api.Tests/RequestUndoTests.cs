@@ -363,7 +363,7 @@ public sealed class RequestUndoTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Requested_AsksARadarrThatDoesntAnswer_OnlyOnce()
+    public async Task Requested_AsksARadarrThatDoesntAnswer_OnlyOnce_EvenAcrossRefreshes()
     {
         await InDbAsync(async db =>
         {
@@ -392,9 +392,11 @@ public sealed class RequestUndoTests : IAsyncLifetime
         };
 
         var rows = (await Client().GetFromJsonAsync<JsonElement>(Api("/requests/requested"))).EnumerateArray().ToList();
+        var refreshed = (await Client().GetFromJsonAsync<JsonElement>(Api("/requests/requested"))).EnumerateArray().ToList();
 
         Assert.Equal(3, rows.Count);
         Assert.All(rows, r => Assert.Equal("searching", r.GetProperty("state").GetString()));
-        Assert.Single(_arr.Requests, r => r.StartsWith("GET /api/v3/", StringComparison.Ordinal));
+        Assert.Equal(3, refreshed.Count);
+        Assert.Single(_arr.Requests, r => r.StartsWith("GET /api/v3/", StringComparison.Ordinal)); // the refresh didn't wait on it again
     }
 }
