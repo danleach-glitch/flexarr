@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Website
+- flexarr.io/why is now linked from every page: how Flexarr compares with Plex, Jellyfin and Emby and with the Infuse, Plezy, Swiftfin and Rivulet apps, brought up to 0.60.0 with music requests, scores, fixing matches, what a show is missing and audiobooks.
+
 ## 0.60.0 · 3 November 2026
 
 ### Playback
