@@ -91,14 +91,17 @@ public static class RequestUndo
             var tvdbId = record?.TvdbId ?? open.Select(r => r.Media?.TvdbId).FirstOrDefault(t => t is > 0)
                 ?? (await db.MediaItems.IgnoreQueryFilters().Where(i => i.Kind == MediaKind.Series && i.TmdbId == tmdb && i.TvdbId != null)
                     .Select(i => i.TvdbId).FirstOrDefaultAsync(ct) is { } stored && int.TryParse(stored, CultureInfo.InvariantCulture, out var parsed) ? parsed : null);
+            // The whole show means the seasons its open requests asked for, not every season without files: one
+            // the admin monitored by hand in Sonarr isn't anyone's request. Without Seerr's seasons, every one not yet in.
+            var asked = open.SelectMany(r => r.Seasons ?? []).Select(s => s.SeasonNumber).Where(n => n > 0).ToHashSet();
             if (tvdbId is { } tvdb)
             {
                 foreach (var sonarr in options.Arr.Where(a => a.Kind == ArrKind.Sonarr))
                 {
                     foreach (var series in await Call("Sonarr", () => arr.GetSeriesByTvdbIdAsync(sonarr, tvdb, ct)))
                     {
-                        (chosen, var withFiles) = await UndoSeasonsAsync(arr, sonarr, series, chosen, ct);
-                        onDisk.UnionWith(withFiles);
+                        (chosen, var complete) = await UndoSeasonsAsync(arr, sonarr, series, chosen, asked.Count > 0 ? asked : null, ct);
+                        onDisk.UnionWith(complete);
                     }
                 }
             }
@@ -142,15 +145,22 @@ public static class RequestUndo
     }
 
     /// <summary>
-    /// Sonarr stops wanting the seasons (given, or every one with nothing on disk) and their downloads go; a show
-    /// with nothing on disk at all, and no season still wanted, leaves Sonarr.
+    /// Sonarr stops wanting the seasons (given, or else those asked for, or every one, that aren't all on disk) and
+    /// their downloads go; a partly downloaded season keeps its files. A show with nothing on disk at all, and no
+    /// season still wanted, leaves Sonarr.
     /// </summary>
-    /// <returns>The seasons undone, for matching Seerr's requests (null for "the whole show"), and the seasons with files.</returns>
-    private static async Task<(HashSet<int>? Undone, HashSet<int> WithFiles)> UndoSeasonsAsync(ArrClient arr, ArrInstance sonarr, SonarrSeries series, HashSet<int>? chosen, CancellationToken ct)
+    /// <returns>The seasons undone, for matching Seerr's requests (null for "the whole show"), and the seasons all on disk.</returns>
+    private static async Task<(HashSet<int>? Undone, HashSet<int> Complete)> UndoSeasonsAsync(ArrClient arr, ArrInstance sonarr, SonarrSeries series,
+        HashSet<int>? chosen, HashSet<int>? asked, CancellationToken ct)
     {
         var episodes = await Call("Sonarr", () => arr.GetEpisodesAsync(sonarr, series.Id, ct));
         var seasonsWithFiles = episodes.Where(e => e.HasFile).Select(e => e.SeasonNumber).ToHashSet();
-        var scope = chosen ?? [.. series.Seasons.Select(s => s.SeasonNumber).Where(n => n > 0 && !seasonsWithFiles.Contains(n))];
+
+        // A season is on disk only when every episode that has aired has its file: one still part way through keeps
+        // downloading otherwise, while its request closes.
+        var now = DateTime.UtcNow;
+        var complete = seasonsWithFiles.Where(n => episodes.All(e => e.SeasonNumber != n || e.HasFile || e.AirDateUtc is not { } aired || aired > now)).ToHashSet();
+        var scope = chosen ?? [.. (asked ?? series.Seasons.Select(s => s.SeasonNumber)).Where(n => n > 0 && !complete.Contains(n))];
 
         var missing = episodes.Where(e => scope.Contains(e.SeasonNumber) && !e.HasFile && e.Monitored).Select(e => e.Id).ToList();
         if (missing.Count > 0)
@@ -168,7 +178,7 @@ public static class RequestUndo
             await Call("Sonarr", () => arr.RemoveSeriesAsync(sonarr, series.Id, ct));
         }
 
-        return (chosen is null && seasonsWithFiles.Count == 0 ? null : scope, seasonsWithFiles);
+        return (chosen is null && seasonsWithFiles.Count == 0 ? null : scope, complete);
     }
 
     /// <summary>

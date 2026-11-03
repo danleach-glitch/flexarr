@@ -175,6 +175,80 @@ public sealed class RequestUndoTests : IAsyncLifetime
         Assert.True(await InDbAsync(db => db.MediaRequests.AllAsync(r => r.TmdbId != 8002 || r.FulfilledAt != null)));
     }
 
+    /// <summary>Sets up show <paramref name="tmdb"/> in Seerr and Sonarr, and catches what Sonarr is told to monitor.</summary>
+    private (Func<Dictionary<int, bool>> Seasons, Func<string?> Episodes) AShow(int tmdb, int seriesId, string requests, string seasons, string episodes)
+    {
+        _arr.Responses[$"GET /api/v1/tv/{tmdb}"] = $$"""{"id":{{tmdb}},"mediaInfo":{"id":{{tmdb}},"status":4,"tvdbId":{{tmdb}},"requests":""" + requests + "}}";
+        var series = $$"""{"id":{{seriesId}},"title":"Show","seasons":{{seasons}}}""";
+        _arr.Responses[$"GET //sonarr.test/api/v3/series?tvdbId={tmdb}"] = $"[{series}]";
+        _arr.Responses[$"GET //sonarr.test/api/v3/series/{seriesId}"] = series;
+        _arr.Responses[$"PUT //sonarr.test/api/v3/series/{seriesId}"] = series;
+        _arr.Responses["PUT //sonarr.test/api/v3/episode/monitor"] = "[]";
+        _arr.Responses[$"GET //sonarr.test/api/v3/episode?seriesId={seriesId}&includeImages=true"] = episodes;
+        string? putSeries = null, putEpisodes = null;
+        _arr.OnRequest = r =>
+        {
+            if (r.Method == HttpMethod.Put && r.RequestUri!.AbsolutePath == $"/api/v3/series/{seriesId}")
+            {
+                putSeries = r.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            }
+            else if (r.Method == HttpMethod.Put && r.RequestUri!.AbsolutePath == "/api/v3/episode/monitor")
+            {
+                putEpisodes = r.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            }
+        };
+        return (() => JsonDocument.Parse(putSeries!).RootElement.GetProperty("seasons").EnumerateArray()
+            .ToDictionary(s => s.GetProperty("seasonNumber").GetInt32(), s => s.GetProperty("monitored").GetBoolean()), () => putEpisodes);
+    }
+
+    [Fact]
+    public async Task AWholeShow_OnlyStopsTheSeasonsItsRequestsAskedFor()
+    {
+        var (seasons, _) = AShow(8003, 7, """[{"id":4,"status":2,"type":"tv","seasons":[{"seasonNumber":2}]}]""",
+            """[{"seasonNumber":1,"monitored":true},{"seasonNumber":2,"monitored":true},{"seasonNumber":3,"monitored":true}]""",
+            """
+            [{"id":101,"seasonNumber":1,"episodeNumber":1,"hasFile":true,"monitored":true},
+             {"id":201,"seasonNumber":2,"episodeNumber":1,"hasFile":false,"monitored":true},
+             {"id":301,"seasonNumber":3,"episodeNumber":1,"hasFile":false,"monitored":true}]
+            """);
+        Deletes("/api/v1/request/4");
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "tv", tmdbId = 8003 });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Contains("DELETE /api/v1/request/4", _arr.Requests);
+        Assert.Equal(new Dictionary<int, bool> { [1] = true, [2] = false, [3] = true }, seasons()); // season 3: the admin's own
+    }
+
+    [Fact]
+    public async Task AWholeShow_StopsAPartlyDownloadedSeason_AndKeepsItsFiles()
+    {
+        var (seasons, episodes) = AShow(8004, 8, """[{"id":5,"status":2,"type":"tv","seasons":[{"seasonNumber":1},{"seasonNumber":2},{"seasonNumber":3}]}]""",
+            """[{"seasonNumber":1,"monitored":true},{"seasonNumber":2,"monitored":true},{"seasonNumber":3,"monitored":true}]""",
+            """
+            [{"id":101,"seasonNumber":1,"episodeNumber":1,"hasFile":true,"monitored":true,"airDateUtc":"2020-01-01T00:00:00Z"},
+             {"id":201,"seasonNumber":2,"episodeNumber":1,"hasFile":true,"monitored":true,"airDateUtc":"2021-01-01T00:00:00Z"},
+             {"id":202,"seasonNumber":2,"episodeNumber":2,"hasFile":false,"monitored":true,"airDateUtc":"2021-01-08T00:00:00Z"},
+             {"id":301,"seasonNumber":3,"episodeNumber":1,"hasFile":false,"monitored":true,"airDateUtc":"2022-01-01T00:00:00Z"}]
+            """);
+        Deletes("/api/v1/request/5");
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Series, TmdbId = 8004 });
+            return await db.SaveChangesAsync();
+        });
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "tv", tmdbId = 8004 });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Contains("DELETE /api/v1/request/5", _arr.Requests);
+        Assert.DoesNotContain(_arr.Requests, r => r.StartsWith("DELETE /api/v3/series", StringComparison.Ordinal));
+        Assert.Equal(new Dictionary<int, bool> { [1] = true, [2] = false, [3] = false }, seasons());
+        var unmonitored = JsonDocument.Parse(episodes()!).RootElement.GetProperty("episodeIds").EnumerateArray().Select(e => e.GetInt32()).Order();
+        Assert.Equal([202, 301], unmonitored);
+        Assert.True(await InDbAsync(db => db.MediaRequests.AllAsync(r => r.TmdbId != 8004 || r.FulfilledAt != null)));
+    }
+
     [Fact]
     public async Task NothingToTakeBack_IsDone_AndChangesNothing()
     {
