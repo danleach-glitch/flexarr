@@ -136,7 +136,7 @@ struct ExternalAlbumView: View {
                                 .font(.system(size: 28, weight: .medium))
                                 .lineLimit(1)
                             if track.explicit {
-                                Image(systemName: "e.square.fill")
+                                Image(systemName: Symbol.explicit)
                                     .font(.system(size: 22))
                                     .accessibilityLabel("Explicit")
                             }
