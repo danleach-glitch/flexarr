@@ -16,6 +16,8 @@ import io.github.flexarr.core.musicRequestStatus
 import io.github.flexarr.player.PlaybackEnding
 import io.github.flexarr.player.DeviceCapabilities
 import io.github.flexarr.core.PreparedStreams
+import io.github.flexarr.core.LinkSpeed
+import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import io.github.flexarr.core.PlaybackRequest
 import io.github.flexarr.core.DeviceProfile
 import io.github.flexarr.core.ItemSummary
@@ -270,6 +272,13 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         stop = { sessionId -> client?.stopPlayback(sessionId) },
     )
 
+    /** How fast the players' streams have come lately, sent with each start (docs/fast-start.md). */
+    val linkSpeed = LinkSpeed().also { speed ->
+        DefaultBandwidthMeter.getSingletonInstance(context).addEventListener(android.os.Handler(android.os.Looper.getMainLooper())) { millis, bytes, _ ->
+            speed.sample(bytes, millis.toLong())
+        }
+    }
+
     /** The video profile the player asks with ([DeviceCapabilities.withServer]), worked out once per server. */
     private var videoProfile: Pair<String, DeviceProfile>? = null
 
@@ -291,7 +300,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 if (client == null || serverUnreachable || downloads.entry(item.id)?.isDownloaded == true) return
                 scope.launch {
                     val profile = videoProfile() ?: return@launch
-                    warmUps.getReady(PlaybackRequest(itemId = item.id, profile = profile))
+                    warmUps.getReady(PlaybackRequest(itemId = item.id, profile = profile, measuredBitrate = linkSpeed.current()))
                 }
             }
             MediaKind.Audiobook -> books.getReady(item)
@@ -1485,6 +1494,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     /** Back in front: a guest's tunnel is started again if it stopped while the app was away. */
     fun cameToFront() {
+        // The connection to the server is set up again before Play needs it.
+        client?.let { scope.launch { it.warmConnection() } }
         tunnelIdle?.cancel()
         if (credentials?.isGuest == true) scope.launch(Dispatchers.IO) { tunnel.ensureRunning() }
         // Offline mode ends (or starts) as soon as it's known whether the server answers now, and tries again while

@@ -111,6 +111,16 @@ class FlexarrClient(
 
     suspend fun systemStatus(): SystemStatus = get("system/status")
 
+    /**
+     * A small request (the server's health check) so the connection is up before anything that matters asks: coming
+     * back to the app, the first real request (Play) doesn't pay for setting it up. Best effort.
+     */
+    suspend fun warmConnection() {
+        withContext(Dispatchers.IO) {
+            runCatching { http.newCall(Request.Builder().url(baseUrl.newBuilder().addPathSegment("health").build()).build()).execute().close() }
+        }
+    }
+
     // Libraries and items
 
     suspend fun libraries(): List<Library> = get("libraries")

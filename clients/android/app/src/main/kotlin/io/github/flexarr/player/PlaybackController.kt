@@ -299,6 +299,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 replacesSessionId = info?.sessionId,
                 shuffle = if (shuffle) true else null,
                 subtitleKey = if (subtitlesOff) "off" else viewerSubtitleKey,
+                measuredBitrate = model.linkSpeed.current(),
             )
         }
     }
