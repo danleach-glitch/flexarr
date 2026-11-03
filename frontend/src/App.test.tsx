@@ -1196,6 +1196,32 @@ describe('Player', () => {
   const problem = (status: number, detail: string) => new Response(JSON.stringify({ detail }), { status })
   const takenOver = 'Someone started watching on another screen, so this one had to stop.'
 
+  it('converts a file the browser can’t play after all, keeping the audio track chosen', async () => {
+    const requests: { forceTranscode?: boolean; audioStreamIndex?: number; subtitleKey?: string }[] = []
+    mockApi({
+      '/libraries': [],
+      'POST /playback': (init?: RequestInit) => {
+        requests.push(JSON.parse(String(init?.body)))
+        const sessionId = `d${requests.length}`
+        return requests.length === 1
+          ? { ...transcode(sessionId), method: 'DirectPlay', url: `/api/v1/playback/${sessionId}/stream`, selectedAudioIndex: 3 }
+          : { ...transcode(sessionId), selectedAudioIndex: 3 }
+      },
+      'DELETE /playback/d1': undefined,
+      'DELETE /playback/d2': undefined,
+    })
+
+    renderAt('/play/e1')
+    await screen.findByText('Pilot')
+    const video = document.querySelector('video')!
+    await vi.waitFor(() => expect(video.src).toContain('/playback/d1/'), { timeout: 5000 })
+    act(() => {
+      video.dispatchEvent(new Event('error'))
+    })
+    await vi.waitFor(() => expect(requests).toHaveLength(2), { timeout: 5000 })
+    expect(requests[1]).toMatchObject({ forceTranscode: true, audioStreamIndex: 3, subtitleKey: 'off' })
+  })
+
   it('says another screen took over, and Watch here instead starts afresh rather than being refused again', async () => {
     const requests: { replacesSessionId?: string }[] = []
     mockApi({
