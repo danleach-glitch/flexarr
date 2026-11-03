@@ -982,15 +982,24 @@ kbd {
   opacity: 1;
 }
 
-/* The room takes the colour of what's on screen: an ambient wash rising from the bottom left. */
+/*
+ * The room takes the colour of what's on screen: an ambient wash rising from the bottom left. The title and overview sit
+ * over the left half, so it stays dark well past them even when the backdrop is a bright one.
+ */
 .hero-art::after,
 .detail-art::after {
   content: '';
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(to top, var(--room) 2%, transparent 45%),
-    linear-gradient(to right, color-mix(in srgb, var(--room) 92%, transparent) 0%, color-mix(in srgb, var(--room) 45%, transparent) 42%, transparent 70%),
+    linear-gradient(to top, var(--room) 2%, color-mix(in srgb, var(--room) 50%, transparent) 28%, transparent 55%),
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--room) 94%, transparent) 0%,
+      color-mix(in srgb, var(--room) 78%, transparent) 38%,
+      color-mix(in srgb, var(--room) 40%, transparent) 58%,
+      transparent 80%
+    ),
     radial-gradient(ellipse 70% 60% at 0% 100%, color-mix(in srgb, var(--ambient) 34%, transparent), transparent 70%);
   transition: background 0.6s ease;
 }
@@ -1499,25 +1508,29 @@ kbd {
   margin-top: -6px;
 }
 
-/* On a phone: the status chips scroll in one row, and kind and sort share the next. */
+/*
+ * On a phone, chips (a library's genres, the watchlist's statuses) scroll in one row rather than pushing the first
+ * posters below the fold; on the watchlist, kind and sort share the next.
+ */
 @media (max-width: 600px) {
-  .watchlist-page .genre-chips {
+  .genre-chips {
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
     /* Fades at the edge, so it's plain there's more to scroll to. */
-    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to right, var(--black) calc(100% - 32px), transparent);
     margin-inline: calc(var(--edge) * -1);
     padding-inline: var(--edge);
   }
 
   /* The scrolling rows mustn't widen the header (and push sort off the screen). */
-  .watchlist-page .library-header,
-  .watchlist-page .library-header > * {
+  .library-header,
+  .library-header > * {
     min-width: 0;
     max-width: 100%;
   }
 
+  .genre-chips .chip,
   .watchlist-page .chip,
   .watchlist-page .external-state {
     flex: none;
@@ -2344,7 +2357,9 @@ a.upcoming-row:hover strong {
 }
 
 .view-switch a {
+  flex: none;
   padding: 6px 16px;
+  white-space: nowrap;
   border-radius: 999px;
   font-weight: 700;
   font-size: var(--step--1);
@@ -2359,6 +2374,15 @@ a.upcoming-row:hover strong {
 .view-switch a[aria-current='page'] {
   background: var(--screen);
   color: var(--room);
+}
+
+/* On a phone the views scroll rather than squeeze a label onto two lines. */
+@media (max-width: 600px) {
+  .view-switch {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
 }
 
 /* ---------- Coming soon: a row per day ---------- */
@@ -2447,7 +2471,7 @@ a.upcoming-row:hover strong {
   gap: 10px;
   align-items: center;
   padding: 8px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: var(--seat);
   color: inherit;
   text-decoration: none;
@@ -3339,7 +3363,7 @@ a.download-attention {
   z-index: 60;
   max-width: min(90vw, 480px);
   padding: 10px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: var(--seat);
   color: var(--screen);
   font-size: var(--step--1);

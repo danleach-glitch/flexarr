@@ -1,6 +1,8 @@
 import { useDeferredValue, useState } from 'react'
 import { getLiveChannels, setChannelFineForKids, type LiveChannel, type LiveTvSettingsUpdate } from '../../api/client'
+import { FolderPicker } from '../../components/FolderPicker'
 import { useApi } from '../../hooks/useApi'
+import { useChoosesOnMac } from '../../hooks/useChoosesOnMac'
 import { useSession } from '../../hooks/sessionContext'
 import { errorText } from './useSettings'
 import { SaveStatus, SettingLink, SettingRow, SettingsGroup, SettingsHeader } from './shared'
@@ -147,18 +149,68 @@ function KidsChannels() {
   )
 }
 
-/** Where recordings go: saved when the field is left, if it changed. */
+/**
+ * Where recordings go: typed (saved when the field is left, if it changed) or chosen by browsing the server's folders.
+ * The Mac app can only reach a folder chosen in macOS's folder window, so there it's only chosen.
+ */
 function FolderRow({ saved, inUse, onSave }: { saved: string; inUse: string; onSave: (folder: string) => void }) {
   const [folder, setFolder] = useState(saved)
+  const [choosing, setChoosing] = useState(false)
+  const onMac = useChoosesOnMac()
+  const save = (path: string) => path !== saved && onSave(path)
+  const choose = (path: string) => {
+    setFolder(path)
+    setChoosing(false)
+    save(path)
+  }
+  const help = folder.trim() ? 'Recordings made from now on go here. Earlier ones stay where they are.' : `Empty for the default${inUse ? `: ${inUse}` : ''}.`
   return (
-    <SettingRow label="Folder" help={folder.trim() ? 'Recordings made from now on go here. Earlier ones stay where they are.' : `Empty for the default${inUse ? `: ${inUse}` : ''}.`}>
-      <input
-        type="text"
-        value={folder}
-        placeholder={inUse || 'A DVR folder on the drive your TV library is on'}
-        onChange={(e) => setFolder(e.target.value)}
-        onBlur={() => folder.trim() !== saved && onSave(folder.trim())}
-      />
-    </SettingRow>
+    <>
+      <SettingRow
+        as="div"
+        label="Folder"
+        help={
+          onMac ? (
+            <>
+              {folder ? help : 'The default, on the drive your TV library is on.'}
+              <code className="folder">{folder || inUse}</code>
+            </>
+          ) : (
+            help
+          )
+        }
+      >
+        <span className="folder-field">
+          {!onMac && (
+            <input
+              type="text"
+              value={folder}
+              aria-label="Recordings folder"
+              placeholder={inUse || 'A DVR folder on the drive your TV library is on'}
+              onChange={(e) => setFolder(e.target.value)}
+              onBlur={() => save(folder.trim())}
+            />
+          )}
+          {onMac && folder && (
+            <button type="button" className="button quiet small" onClick={() => choose('')}>
+              Use the default
+            </button>
+          )}
+          {!choosing && (
+            <button type="button" className="button quiet small" onClick={() => setChoosing(true)}>
+              {onMac ? 'Change' : 'Browse…'}
+            </button>
+          )}
+        </span>
+      </SettingRow>
+      {choosing && (
+        <div className="podcast-folder-picker">
+          <FolderPicker onPick={choose} />
+          <button type="button" className="text-button" onClick={() => setChoosing(false)}>
+            Cancel
+          </button>
+        </div>
+      )}
+    </>
   )
 }

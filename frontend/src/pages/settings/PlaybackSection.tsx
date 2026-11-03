@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { getPlaybackPreferences, setPlaybackPreferences, type PlaybackPreferences, type SubtitlePosition, type SubtitleSize } from '../../api/client'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
@@ -21,9 +21,10 @@ import { errorText } from './useSettings'
 /** The profile's own: auto-play and what to skip, saved as soon as they change (and followed by every device). */
 function WhileWatching({ name }: { name?: string }) {
   const loaded = useApi(getPlaybackPreferences, [])
-  const [preferences, setPreferences] = useState<PlaybackPreferences>()
+  // As changed here, else as loaded.
+  const [changed, setPreferences] = useState<PlaybackPreferences>()
+  const preferences = changed ?? loaded.data
   const [error, setError] = useState<string>()
-  useEffect(() => loaded.data && setPreferences(loaded.data), [loaded.data])
   if (!preferences) return loaded.error ? <SaveStatus error={errorText(loaded.error)} /> : null
 
   type Toggle = 'autoPlayNext' | 'skipIntros' | 'skipRecaps' | 'skipCredits'

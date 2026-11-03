@@ -273,7 +273,7 @@
   width: 40px;
   height: 40px;
   flex: none;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 .onboard-kind {
@@ -282,7 +282,7 @@
   flex: none;
   width: 40px;
   height: 40px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: color-mix(in srgb, var(--screen) 6%, transparent);
   color: var(--silver);
 }

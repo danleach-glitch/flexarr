@@ -547,13 +547,15 @@ describe('Search', () => {
 
     renderAt('/')
     fireEvent.keyDown(window, { key: 'k', metaKey: true })
-    fireEvent.change(await screen.findByRole('searchbox', { name: 'Search your library' }), { target: { value: 'nice' } })
+    const field = await screen.findByRole('searchbox', { name: 'Search your library' })
+    fireEvent.change(field, { target: { value: 'nice' } })
 
     const option = await screen.findByRole('option', { name: /The Nice Guys/ })
     expect(option).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('option', { name: /Ryan Gosling/ })).toBeInTheDocument()
 
-    fireEvent.keyDown(option, { key: 'Enter' })
+    // The focus stays in the field, which points at the highlighted result.
+    fireEvent.keyDown(field, { key: 'Enter' })
     expect(await screen.findByRole('heading', { level: 1, name: 'The Nice Guys' })).toBeInTheDocument()
   })
 })

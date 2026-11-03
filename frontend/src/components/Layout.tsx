@@ -158,11 +158,15 @@ export function Layout() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  useEffect(() => {
+  // A new page closes search and the drawer (while rendering, rather than in an effect that renders again) and starts
+  // at the top.
+  const [pagePath, setPagePath] = useState(location.pathname)
+  if (pagePath !== location.pathname) {
+    setPagePath(location.pathname)
     setSearching(false)
     setDrawer(false)
-    window.scrollTo(0, 0)
-  }, [location.pathname])
+  }
+  useEffect(() => window.scrollTo(0, 0), [location.pathname])
 
   return (
     <div className={['shell', rail && 'rail', bare && 'bare', nowPlaying && 'has-now-playing', kids && 'kids'].filter(Boolean).join(' ')}>

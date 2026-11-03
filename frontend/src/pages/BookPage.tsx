@@ -69,7 +69,9 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
   // Looked at for a moment, and not already the book playing: its session is got ready, so Play starts at once. Keyed
   // on the book alone: Play (which hands it over) and a refresh of the page mustn't let it go.
   const playingThis = useRef(false)
-  playingThis.current = player.current?.id === item.id
+  useEffect(() => {
+    playingThis.current = player.current?.id === item.id
+  })
   const hasBook = !!book
   useEffect(() => {
     if (!hasBook) return

@@ -46,7 +46,7 @@ public static class BackupEndpoints
         {
             var current = options.CurrentValue;
             var folder = update.Folder is null ? current.Backups.Folder : update.Folder.Trim() is { Length: > 0 } chosen ? chosen : null;
-            if (folder is not null && CheckFolder(folder) is { } problem)
+            if (folder is not null && WritableFolder.Problem(folder, PrivateFiles.CreateFolder) is { } problem)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["folder"] = [problem] });
             }
@@ -387,28 +387,6 @@ public static class BackupEndpoints
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
         {
             return "";
-        }
-    }
-
-    /// <summary>Why backups can't go in this folder, or null when they can (it's made if it isn't there).</summary>
-    private static string? CheckFolder(string folder)
-    {
-        if (!Path.IsPathFullyQualified(folder) || folder.Contains('\0', StringComparison.Ordinal))
-        {
-            return "Enter the folder’s full path.";
-        }
-
-        try
-        {
-            PrivateFiles.CreateFolder(folder);
-            var probe = Path.Combine(folder, $".flexarr-write-test-{Guid.NewGuid():N}");
-            File.WriteAllText(probe, "");
-            File.Delete(probe);
-            return null;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
-        {
-            return $"Flexarr can’t write to {folder}.";
         }
     }
 

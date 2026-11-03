@@ -22,9 +22,11 @@ import {
 } from '../../api/client'
 import { AsyncButton, IconButton } from '../../components/AsyncButton'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { FolderPicker } from '../../components/FolderPicker'
 import { Download, Restore } from '../../components/icons'
 import { icon } from '../../components/icons.generated'
 import { useApi } from '../../hooks/useApi'
+import { useChoosesOnMac } from '../../hooks/useChoosesOnMac'
 import { formatSize, libraryTypeLabel } from '../../lib/format'
 import { SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
@@ -76,6 +78,7 @@ export function BackupSection() {
   // Until /me answers, assume there's an admin PIN: asking for it beats a refusal from the server.
   const mainHasPin = me.data?.adminPinMissing !== true
   const [dialog, setDialog] = useState<Dialog>()
+  const [deleteError, setDeleteError] = useState<string>()
   const [error, setError] = useState<string>()
   const [restarting, setRestarting] = useState(false)
 
@@ -171,12 +174,21 @@ export function BackupSection() {
           title="Delete this backup?"
           confirmLabel="Delete"
           danger
+          error={deleteError}
           onConfirm={async () => {
-            await deleteBackup(dialog.backup.name)
-            setDialog(undefined)
-            backups.reload()
+            setDeleteError(undefined)
+            try {
+              await deleteBackup(dialog.backup.name)
+              setDialog(undefined)
+              backups.reload()
+            } catch (e) {
+              setDeleteError(errorText(e))
+            }
           }}
-          onClose={() => setDialog(undefined)}
+          onClose={() => {
+            setDialog(undefined)
+            setDeleteError(undefined)
+          }}
         >
           <p>
             {kindLabel[dialog.backup.kind]}, {when(dialog.backup.createdAt)}.
@@ -204,6 +216,9 @@ function Automatic({ nightly, keep, folder, folderInUse, onSaved }: { nightly: b
   const [path, setPath] = useState(folder ?? '')
   const [error, setError] = useState<string>()
   const [saved, setSaved] = useState<string>()
+  const [choosing, setChoosing] = useState(false)
+  // The Mac app reaches only folders chosen in macOS's folder window: there the folder is chosen, never typed.
+  const onMac = useChoosesOnMac()
 
   async function save(update: { folder?: string; nightly?: boolean }) {
     setError(undefined)
@@ -212,8 +227,10 @@ function Automatic({ nightly, keep, folder, folderInUse, onSaved }: { nightly: b
       setSaved('Saved')
       setTimeout(() => setSaved(undefined), 3000)
       onSaved()
+      return true
     } catch (e) {
       setError(errorText(e))
+      return false
     }
   }
 
@@ -230,18 +247,62 @@ function Automatic({ nightly, keep, folder, folderInUse, onSaved }: { nightly: b
         checked={nightly}
         onChange={(on) => void save({ nightly: on })}
       />
-      <form className="setting-row static backup-folder" onSubmit={(e) => void saveFolder(e)}>
-        <span className="setting-text">
-          <strong>Folder</strong>
-          <span className="muted">A folder on another drive, or a share, survives this one failing. Empty for the data folder.</span>
-        </span>
-        <span className="backup-folder-field">
-          <input type="text" value={path} onChange={(e) => setPath(e.target.value)} placeholder={folder ? undefined : folderInUse} aria-label="Backups folder" />
-          <AsyncButton type="submit" className="button quiet small" disabled={path.trim() === (folder ?? '')}>
-            Save
-          </AsyncButton>
-        </span>
-      </form>
+      {onMac ? (
+        <SettingRow
+          as="div"
+          label="Folder"
+          help={
+            <>
+              A folder on another drive, or a share, survives this one failing.
+              <code className="folder">{folder ?? folderInUse}</code>
+            </>
+          }
+        >
+          <span className="folder-field">
+            {folder && (
+              <button type="button" className="button quiet small" onClick={() => void save({ folder: '' })}>
+                Use the data folder
+              </button>
+            )}
+            {!choosing && (
+              <button type="button" className="button quiet small" onClick={() => setChoosing(true)}>
+                Change
+              </button>
+            )}
+          </span>
+        </SettingRow>
+      ) : (
+        <form className="setting-row static backup-folder" onSubmit={(e) => void saveFolder(e)}>
+          <span className="setting-text">
+            <strong>Folder</strong>
+            <span className="muted">A folder on another drive, or a share, survives this one failing. Empty for the data folder.</span>
+          </span>
+          <span className="backup-folder-field">
+            <input type="text" value={path} onChange={(e) => setPath(e.target.value)} placeholder={folder ? undefined : folderInUse} aria-label="Backups folder" />
+            {!choosing && (
+              <button type="button" className="button quiet small" onClick={() => setChoosing(true)}>
+                Browse…
+              </button>
+            )}
+            <AsyncButton type="submit" className="button quiet small" disabled={path.trim() === (folder ?? '')}>
+              Save
+            </AsyncButton>
+          </span>
+        </form>
+      )}
+      {choosing && (
+        <div className="podcast-folder-picker">
+          <FolderPicker
+            onPick={(picked) => {
+              setPath(picked)
+              void save({ folder: picked }).then((ok) => ok && setChoosing(false))
+            }}
+          />
+          <button type="button" className="text-button" onClick={() => setChoosing(false)}>
+            Cancel
+          </button>
+        </div>
+      )}
       {error && (
         <p className="error" role="alert">
           {error}

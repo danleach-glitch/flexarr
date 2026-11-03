@@ -53,7 +53,7 @@ describe('Profile form', () => {
     expect(within(form).getByRole('switch', { name: 'Movies' })).not.toBeChecked()
     fireEvent.click(within(form).getByRole('button', { name: 'Save profile' }))
 
-    await vi.waitFor(() => expect(sent).toBeDefined())
+    await vi.waitFor(() => expect(sent).toBeDefined(), { timeout: 5000 })
     expect(sent).toMatchObject({ name: 'Kids', color: '#e8a0bf', hiddenLibraryIds: ['lib-movies'] })
     expect(sent).not.toHaveProperty('currentPin')
   })

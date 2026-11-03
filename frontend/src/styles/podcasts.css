@@ -294,7 +294,7 @@
 .podcast-episode-kind {
   padding: 0 6px;
   border: 1px solid var(--aisle);
-  border-radius: 4px;
+  border-radius: var(--radius-art);
   font-size: var(--step--1);
 }
 

@@ -10,6 +10,19 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### iPhone and Apple TV
 - Long-press menus on posters use the same icons as a title's page, and Mark as watched and Mark as unwatched no longer look the same.
 
+### Mac app
+- The Live TV recordings folder, the backups folder and the server side of a path mapping are now chosen in macOS's folder window, so they're folders the Mac app can actually use.
+
+### Live TV
+- Settings now refuses a recordings folder Flexarr can't write to and says why, instead of saving it and letting every recording fail later. Its folder can also be picked by browsing.
+
+### Web
+- Settings › Backups lets you browse for the backups folder as well as typing it.
+- If Update now or Delete backup fails, the dialog now says why, instead of just re-enabling its buttons.
+- The search palette and Now Playing keep keyboard focus inside them. In the search palette, Enter on a Play or Remove button does what the button says, and the highlighted result scrolls into view as you arrow through it.
+- Film and show titles and summaries are easier to read over bright backdrops.
+- On a phone, a library's views (like All movies) stay on one line, genres scroll in a single row so the posters come sooner, and switches in Settings stay at the end of their row.
+
 ## 0.59.0 · 3 November 2026
 
 ### Playback

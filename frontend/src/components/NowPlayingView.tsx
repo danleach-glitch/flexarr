@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router'
 import { getPodcast, getPodcastChapters, getPodcastEpisode, imageUrl, setWatched } from '../api/client'
 import type { Podcast, PodcastChapter, PodcastEpisode } from '../api/types'
 import { useAudioPlayer, useAudioTime } from '../hooks/audioPlayerContext'
+import { trapTab } from '../hooks/useModal'
 import { useScrub } from '../hooks/useScrub'
 import { formatClock, formatDuration } from '../lib/format'
 import { useMusicSettings } from '../lib/musicSettings'
@@ -32,6 +33,7 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
   const time = useAudioTime()
   const { visualiser } = useMusicSettings()
   const closeButton = useRef<HTMLButtonElement>(null)
+  const view = useRef<HTMLDivElement>(null)
   const location = useLocation()
   const openedAt = useRef(location.pathname)
   const track = player.current
@@ -76,8 +78,11 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const onKey = (e: KeyboardEvent) => {
-      // Escape in a menu closes the menu, not the view.
-      if (e.key === 'Escape' && !e.defaultPrevented) onClose()
+      // Escape or Tab in a menu (or a dialog over the view) is the menu's, not the view's.
+      if (e.defaultPrevented) return
+      if (e.key === 'Escape') onClose()
+      // Tab stays in the view rather than walking into the page underneath (but not out of a dialog opened over it).
+      else if (view.current && (view.current.contains(document.activeElement) || document.activeElement === document.body)) trapTab(view.current, e)
     }
     document.addEventListener('keydown', onKey)
     return () => {
@@ -112,7 +117,7 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
   const style = { '--ambient': track.accentColor ?? `rgb(${r} ${g} ${b})`, '--glow': `rgb(${r} ${g} ${b})` } as CSSProperties
 
   return (
-    <div className="np-view" role="dialog" aria-modal="true" aria-label="Now playing" style={style}>
+    <div ref={view} className="np-view" role="dialog" aria-modal="true" aria-label="Now playing" style={style}>
       <Aurora colours={colours} analyser={player.analyser} playing={player.playing} still={!visualiser} />
       <div className="np-view-veil" aria-hidden="true" />
       <button ref={closeButton} className="icon-button np-view-close" onClick={onClose} aria-label="Close Now Playing">

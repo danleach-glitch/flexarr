@@ -22,6 +22,7 @@ export function UpdatesSection() {
   const [updates, setUpdates] = useState<Updates>()
   const [error, setError] = useState<string>()
   const [confirming, setConfirming] = useState(false)
+  const [installError, setInstallError] = useState<string>()
   const current = updates ?? loaded.data
 
   // While a download runs, follow it; once the server's restarting, the page waits for it instead.
@@ -46,8 +47,13 @@ export function UpdatesSection() {
   }
 
   async function install() {
-    setUpdates(await installUpdate())
-    setConfirming(false)
+    setInstallError(undefined)
+    try {
+      setUpdates(await installUpdate())
+      setConfirming(false)
+    } catch (e) {
+      setInstallError(errorText(e))
+    }
   }
 
   return (
@@ -134,7 +140,13 @@ export function UpdatesSection() {
       {current?.install === 'MacLaunchAgent' && !current.isDevelopment && <Automatic updates={current} onSaved={setUpdates} />}
 
       {confirming && current?.latest && (
-        <ConfirmDialog title={`Update to Flexarr ${current.latest.version}?`} confirmLabel={current.inUse.length ? 'Update anyway' : 'Update now'} onConfirm={install} onClose={() => setConfirming(false)}>
+        <ConfirmDialog title={`Update to Flexarr ${current.latest.version}?`} confirmLabel={current.inUse.length ? 'Update anyway' : 'Update now'} error={installError}
+          onConfirm={install}
+          onClose={() => {
+            setConfirming(false)
+            setInstallError(undefined)
+          }}
+        >
           <p>Flexarr downloads the update, then restarts to install it, which takes a minute or two. If the new version doesn’t start, the one you have now is put back.</p>
           {current.inUse.length > 0 && (
             <>

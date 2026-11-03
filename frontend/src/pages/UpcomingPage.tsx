@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { getDownloads, getUpcoming, imageUrl, type Download, type DownloadState, type UpcomingItem } from '../api/client'
 import { useApi } from '../hooks/useApi'
@@ -12,7 +12,8 @@ const DAYS = 30
 const dayKey = (d: Date) => d.toDateString()
 
 export function UpcomingPage() {
-  const today = new Date()
+  // The day the page opened: read once, so every render lays out the same days.
+  const [today] = useState(() => new Date())
   const calendarDays = Array.from({ length: DAYS }, (_, i) => new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1 + i))
   const daysAhead = Math.ceil((calendarDays[calendarDays.length - 1].getTime() - today.getTime()) / 86_400_000) + 1
   const upcoming = useApi((signal) => getUpcoming(daysAhead, signal), [daysAhead])

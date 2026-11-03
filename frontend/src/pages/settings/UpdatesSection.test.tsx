@@ -65,6 +65,19 @@ describe('Settings › Updates', () => {
     expect(await screen.findByText('Downloading Flexarr 0.51.0')).toBeVisible()
   })
 
+  it('says why an update couldn’t start, and keeps the dialog open', async () => {
+    open({
+      '/updates': updates(),
+      'POST /updates/install': () => new Response(JSON.stringify({ title: 'The download couldn’t start.' }), { status: 409, headers: { 'Content-Type': 'application/problem+json' } }),
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Update now' }))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Update now' }))
+
+    expect(await within(dialog).findByText('The download couldn’t start.')).toBeVisible()
+  })
+
   it('on Docker, says how to update instead, and offers no automatic install', async () => {
     open({ '/updates': updates({ install: 'Docker', canInstall: false }) })
 

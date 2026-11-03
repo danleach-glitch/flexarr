@@ -592,6 +592,38 @@
   margin-bottom: 12px;
 }
 
+/* The Mac app's server side of a mapping: chosen with the folder picker, not typed. */
+.mapping-chosen {
+  display: flex;
+  flex: 1 1 220px;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 700;
+  font-size: var(--step--1);
+}
+
+.mapping-chosen-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+}
+
+.mapping-chosen-row code {
+  overflow-wrap: anywhere;
+}
+
+.mapping-picker {
+  display: grid;
+  flex-basis: 100%;
+  justify-items: start;
+  gap: 8px;
+}
+
+.mapping-picker .folder-picker {
+  width: 100%;
+}
+
 .meter {
   display: grid;
   gap: 8px;
@@ -1700,6 +1732,11 @@
     gap: 10px 24px;
   }
 
+  /* A switch is small enough to stay at the end of its row, however long the text beside it. */
+  .setting-row:has(> .switch) {
+    flex-wrap: nowrap;
+  }
+
   .setting-row select {
     max-width: 100%;
   }
@@ -1771,7 +1808,7 @@
 /* ---------- Settings' controls: smaller corners, hairline borders and tighter controls than the browsing pages ---------- */
 
 .settings .panel {
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   padding: 4px 20px;
   border-color: color-mix(in srgb, var(--aisle) 85%, transparent);
 }
@@ -1791,11 +1828,11 @@
 }
 
 .settings .setting-link:first-child {
-  border-radius: 10px 10px 0 0;
+  border-radius: var(--radius-control) var(--radius-control) 0 0;
 }
 
 .settings .setting-link:last-child {
-  border-radius: 0 0 10px 10px;
+  border-radius: 0 0 var(--radius-control) var(--radius-control);
 }
 
 .settings .button {
@@ -2145,14 +2182,20 @@
   flex-wrap: wrap;
 }
 
-.backup-folder-field {
+.backup-folder-field,
+.folder-field {
   display: flex;
   gap: 8px;
   flex: 1 1 280px;
   max-width: 460px;
 }
 
-.backup-folder-field input {
+.folder-field {
+  justify-content: flex-end;
+}
+
+.backup-folder-field input,
+.folder-field input {
   flex: 1;
   min-width: 0;
 }
@@ -2550,7 +2593,7 @@
   overflow-x: auto;
   background: var(--seat);
   border: 1px solid var(--aisle);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   font-size: 0.82rem;
   line-height: 1.5;
   /* Wrapped rather than cut off at the right: the comments are meant to be read. */
@@ -2616,7 +2659,7 @@
   width: 168px;
   height: 168px;
   padding: 8px;
-  background: #fff;
+  background: var(--white);
   border-radius: var(--radius-panel);
 }
 

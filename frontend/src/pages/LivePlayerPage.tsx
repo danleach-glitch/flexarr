@@ -118,6 +118,7 @@ export default function LivePlayerPage() {
   )
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- starting the channel on the server is what this syncs with
     void start(id)
   }, [id, start])
 
