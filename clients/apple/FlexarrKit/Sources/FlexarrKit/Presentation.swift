@@ -244,6 +244,13 @@ public struct NextEpisodeTiming: Equatable, Sendable {
         self.closeAt = closeAt
     }
 
+    /// The timing once a seek or start landed past `nextAt` without counting down: the episode plays on with the button
+    /// up, and the countdown runs over its last 10 seconds, as with Skip credits off.
+    public func playingOn(duration: Double) -> NextEpisodeTiming {
+        guard nextAt != nil else { return self }
+        return NextEpisodeTiming(showAt: showAt, countdownFrom: max(0, duration - Self.countdownSeconds), nextAt: duration, closeAt: closeAt)
+    }
+
     /// Whole seconds left on the countdown at `time` (0...10), or nil when it isn't running.
     public func countdown(at time: Double) -> Int? {
         guard let countdownFrom, let nextAt, time >= countdownFrom else { return nil }

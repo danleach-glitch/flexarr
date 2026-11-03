@@ -163,6 +163,13 @@ struct NextEpisodeTimingTests {
         }
     }
 
+    @Test func seekingPastPlaysOnToTheEnd() {
+        let skipping = NextEpisodeTiming(showAt: 2792, countdownFrom: 2792, nextAt: 2802)
+        #expect(skipping.playingOn(duration: 2900) == NextEpisodeTiming(showAt: 2792, countdownFrom: 2890, nextAt: 2900))
+        let closing = NextEpisodeTiming(showAt: 2800, closeAt: 2800)
+        #expect(closing.playingOn(duration: 2900) == closing, "nothing to count down")
+    }
+
     @Test func countdownFollowsThePosition() {
         let t = NextEpisodeTiming(showAt: 2792, countdownFrom: 2792, nextAt: 2802)
         #expect(t.countdown(at: 2791) == nil)
