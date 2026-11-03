@@ -154,13 +154,15 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
         show()
     }
 
-    BackHandler(enabled = scrubTo != null || showing || audioSyncOpen) {
+    // Back during Next Episode's countdown is Cancel; a second Back then leaves as usual.
+    BackHandler(enabled = scrubTo != null || showing || audioSyncOpen || controller.countingDown) {
         when {
             audioSyncOpen -> {
                 audioSyncOpen = false
                 show()
             }
             scrubTo != null -> scrubTo = null
+            controller.countingDown -> controller.cancelNext()
             else -> controlsVisible = false
         }
     }
