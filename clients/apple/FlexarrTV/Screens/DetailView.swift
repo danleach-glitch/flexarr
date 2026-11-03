@@ -271,8 +271,9 @@ struct DetailView: View {
                 .confirmationDialog(item.title, isPresented: $showingMore) {
                     ForEach(menu, id: \.self) { entry in
                         switch entry {
-                        case .markUnwatched:
-                            Button("Mark as unwatched") { Task { await model.setWatched(item, false) } }
+                        case .button:
+                            // Only a phone's row runs out of room.
+                            EmptyView()
                         case .subtitles:
                             if let file = detail?.files.first {
                                 Button("Search for subtitles…") { subtitleSearchFile = SubtitleSearchFile(id: file.id) }

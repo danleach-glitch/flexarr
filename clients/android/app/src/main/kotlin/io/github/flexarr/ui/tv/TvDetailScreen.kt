@@ -395,10 +395,10 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
     if (more) {
         val entries = actions.menu.mapNotNull { entry ->
             when (entry) {
-                // Part way through: forget the place without marking it watched (it leaves Continue watching).
-                DetailActions.MenuItem.MARK_UNWATCHED -> MenuAction("Mark as unwatched") { navigator.setWatched(item, false) }
-                DetailActions.MenuItem.SUBTITLES -> file?.let { found -> MenuAction("Search for subtitles") { searchingSubtitlesFor = found.id } }
-                DetailActions.MenuItem.GO_TO_SHOW -> series?.let { show -> MenuAction("Go to show") { navigator.openItem(show.id) } }
+                // Only a phone's row runs out of room.
+                is DetailActions.MenuItem.Moved -> null
+                DetailActions.MenuItem.Subtitles -> file?.let { found -> MenuAction("Search for subtitles") { searchingSubtitlesFor = found.id } }
+                DetailActions.MenuItem.GoToShow -> series?.let { show -> MenuAction("Go to show") { navigator.openItem(show.id) } }
             }
         }
         TvItemMenu(item.displayTitle, entries, onDismiss = { more = false })

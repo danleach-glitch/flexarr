@@ -135,8 +135,6 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   // The order every client shares (docs/design.md › Platforms): Play, Start over, Shuffle, Trailer, Watched, Watchlist,
   // then the ellipsis for everything else, so the row doesn't wrap.
   const more: MenuAction[] = []
-  // Part way through: forget the place without marking it watched, which also takes it out of Continue Watching.
-  if (progress !== null && !item.userData.watched && !kids) more.push({ label: 'Mark as unwatched', run: () => markUnwatched() })
   // A child's profile has no collections and doesn't find subtitles.
   if ((item.kind === 'Movie' || item.kind === 'Series') && !kids) more.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
   if (detail.canSearchSubtitles && !kids) more.push({ label: 'Search for subtitles…', run: () => setFindingSubtitles(true) })
@@ -156,12 +154,6 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
     more.push({ label: 'Delete…', run: () => setDeleting(true), danger: true })
   }
   const best = detail.files[0]
-
-  async function markUnwatched() {
-    await setWatched(item.id, false)
-    announceWatched(item)
-    onChange()
-  }
 
   async function toggleWatched() {
     await setWatched(item.id, !item.userData.watched)

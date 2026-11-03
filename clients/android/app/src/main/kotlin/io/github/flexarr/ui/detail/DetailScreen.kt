@@ -369,6 +369,14 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
     }
     val file = detail.files.firstOrNull()
     val trailer = detail.trailerId
+    // Only what the server can put on a watchlist: films and shows, from servers that have one (0.56).
+    // What was tapped here (the row's button or ⋯), until the page loads again and the server says.
+    var watchlistChanged by remember(detail) { mutableStateOf<Boolean?>(null) }
+    val onWatchlist = detail.onWatchlist.takeIf { item.kind == MediaKind.Movie || item.kind == MediaKind.Series }?.let { watchlistChanged ?: it }
+    val toggleWatchlist = { on: Boolean ->
+        watchlistChanged = !on
+        navigator.setOnWatchlist(item, !on, onFailed = { watchlistChanged = on })
+    }
     val actions = DetailActions.of(
         DetailActions.Input(
             kind = kind,
@@ -380,6 +388,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
             platform = DetailActions.Platform.PHONE,
             canDownload = item.kind == MediaKind.Movie || item.kind == MediaKind.Episode,
             canSearchSubtitles = detail.canSearchSubtitles == true && file != null,
+            canWatchlist = onWatchlist != null,
         ),
     )
     // Another screen: a film or episode as it is, a show the episode that screen's profile is up to. The phone's own
@@ -390,9 +399,8 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
         if (playable != null) {
             ActionButton(playLabel(playable, item), onClick = { navigator.play(playable, from = from) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient, modifier = Modifier.fillMaxWidth())
         }
-        // Sharing the width, until large text or many actions would shrink the names to fit: then each its own size,
-        // scrolling sideways.
-        val crowded = LocalDensity.current.fontScale > 1.3f || buttons.size > 6
+        // Sharing the width, until large text would shrink the names to fit: then each its own size, scrolling sideways.
+        val crowded = LocalDensity.current.fontScale > 1.3f
         Row(if (crowded) Modifier.horizontalScroll(rememberScrollState()) else Modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val slot = if (crowded) Modifier.widthIn(min = 72.dp) else Modifier.weight(1f)
             buttons.forEach { button ->
@@ -403,31 +411,44 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                     }
                     DetailActions.Button.SHUFFLE -> if (item.childCount > 0) LabeledAction("Shuffle", FlexarrIcons.shuffle, { navigator.shuffle(item) }, slot)
                     DetailActions.Button.TRAILER -> LabeledAction("Trailer", FlexarrIcons.trailer, { showingTrailer = true }, slot)
-                    // Pressed in once it's watched ("Watched", a filled tick); pressing it again unmarks it.
+                    // A toggle like Download: the tick fills once it's watched, and the name stays put.
                     DetailActions.Button.WATCHED -> LabeledAction(
-                        if (watched) "Watched" else "Mark as watched",
+                        "Watched",
                         if (watched) FlexarrIcons.isWatched else FlexarrIcons.watched,
                         { navigator.setWatched(item, !watched) },
                         slot.semantics { contentDescription = if (watched) "Watched. Mark as unwatched" else "Mark as watched" },
                         maxLines = 2,
                     )
-                    // Only what the server can put on a watchlist: films and shows, from servers that have one (0.56).
-                    DetailActions.Button.WATCHLIST -> if (item.kind == MediaKind.Movie || item.kind == MediaKind.Series) {
-                        detail.onWatchlist?.let { saved -> WatchlistAction(item, saved, detail, slot) }
-                    }
+                    DetailActions.Button.WATCHLIST -> onWatchlist?.let { on -> WatchlistAction(on, { toggleWatchlist(on) }, slot) }
                     DetailActions.Button.DOWNLOAD -> DownloadAction(model, item, slot)
                     DetailActions.Button.MORE -> Box(slot) {
                         LabeledAction("More", FlexarrIcons.more, { more = true }, Modifier.fillMaxWidth())
                         DropdownMenu(more, onDismissRequest = { more = false }) {
                             actions.menu.forEach { entry ->
                                 when (entry) {
-                                    // Part way through: forget the place without marking it watched (it leaves Continue watching).
-                                    DetailActions.MenuItem.MARK_UNWATCHED ->
-                                        DropdownMenuItem(text = { Text("Mark as unwatched") }, onClick = { more = false; navigator.setWatched(item, false) })
-                                    DetailActions.MenuItem.SUBTITLES -> file?.let { found ->
+                                    is DetailActions.MenuItem.Moved -> when (entry.button) {
+                                        DetailActions.Button.SHUFFLE -> if (item.childCount > 0) {
+                                            DropdownMenuItem(text = { Text("Shuffle") }, onClick = { more = false; navigator.shuffle(item) })
+                                        }
+                                        DetailActions.Button.TRAILER ->
+                                            DropdownMenuItem(text = { Text("Trailer") }, onClick = { more = false; showingTrailer = true })
+                                        DetailActions.Button.WATCHED ->
+                                            DropdownMenuItem(
+                                                text = { Text(if (watched) "Mark as unwatched" else "Mark as watched") },
+                                                onClick = { more = false; navigator.setWatched(item, !watched) },
+                                            )
+                                        DetailActions.Button.WATCHLIST -> onWatchlist?.let { on ->
+                                            DropdownMenuItem(
+                                                text = { Text(if (on) "Remove from watchlist" else "Add to watchlist") },
+                                                onClick = { more = false; toggleWatchlist(on) },
+                                            )
+                                        }
+                                        else -> Unit
+                                    }
+                                    DetailActions.MenuItem.Subtitles -> file?.let { found ->
                                         DropdownMenuItem(text = { Text("Search for subtitles") }, onClick = { more = false; searchingSubtitlesFor = found.id })
                                     }
-                                    DetailActions.MenuItem.GO_TO_SHOW -> series?.let { show ->
+                                    DetailActions.MenuItem.GoToShow -> series?.let { show ->
                                         DropdownMenuItem(text = { Text("Go to show") }, onClick = { more = false; navigator.openItem(show.id) })
                                     }
                                 }
@@ -465,18 +486,11 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
 
 /** "Watchlist", its bookmark filled once it's there; tapping puts it on or takes it off. */
 @Composable
-private fun WatchlistAction(item: ItemSummary, saved: Boolean, detail: ItemDetail, modifier: Modifier) {
-    val navigator = LocalNavigator.current
-    // What was tapped here, until the page loads again and the server says.
-    var changed by remember(detail) { mutableStateOf<Boolean?>(null) }
-    val on = changed ?: saved
+private fun WatchlistAction(on: Boolean, onClick: () -> Unit, modifier: Modifier) {
     LabeledAction(
         "Watchlist",
         if (on) FlexarrIcons.onWatchlist else FlexarrIcons.watchlist,
-        {
-            changed = !on
-            navigator.setOnWatchlist(item, !on, onFailed = { changed = on })
-        },
+        onClick,
         modifier.semantics { contentDescription = if (on) "On watchlist. Remove from watchlist" else "Add to watchlist" },
     )
 }
