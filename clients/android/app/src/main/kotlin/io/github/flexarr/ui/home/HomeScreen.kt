@@ -23,8 +23,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -345,7 +343,7 @@ private fun HeroSlide(home: Home, item: ItemSummary, height: Dp) {
                     prominent = true,
                     ambient = glow,
                 )
-                ActionButton("More info", onClick = { navigator.openItem(item.id) }, icon = Icons.Filled.Info, ambient = glow)
+                ActionButton("More info", onClick = { navigator.openItem(item.id) }, icon = FlexarrIcons.details, ambient = glow)
             }
         }
     }

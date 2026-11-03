@@ -17,7 +17,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.automirrored.filled.VolumeDown
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -59,6 +58,7 @@ import io.github.flexarr.ui.music.MusicMenuSubject
 import io.github.flexarr.ui.music.musicMenuActions
 import io.github.flexarr.ui.podcasts.Tabular
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import io.github.flexarr.ui.theme.Tokens
@@ -145,7 +145,7 @@ fun TvTrackCard(model: AppModel, item: ItemSummary, onClick: () -> Unit) {
                     Modifier.align(Alignment.BottomEnd).padding(6.dp).size(22.dp).background(Flexarr.screen.copy(alpha = 0.92f), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(if (playing) Icons.AutoMirrored.Filled.VolumeUp else Icons.Filled.PlayArrow, contentDescription = null, tint = Flexarr.room, modifier = Modifier.size(12.dp))
+                    Icon(if (playing) Icons.AutoMirrored.Filled.VolumeUp else FlexarrIcons.play, contentDescription = null, tint = Flexarr.room, modifier = Modifier.size(12.dp))
                 }
             }
         },

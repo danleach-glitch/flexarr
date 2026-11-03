@@ -2,6 +2,14 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Android
+- The More button now shows the same three dots in a row everywhere (Podcasts, Downloads, Recordings and music downloads), and Download shows the same circled arrow as the rest of the app.
+
+### iPhone and Apple TV
+- Long-press menus on posters use the same icons as a title's page, and Mark as watched and Mark as unwatched no longer look the same.
+
 ## 0.59.0 · 3 November 2026
 
 ### Playback

@@ -33,7 +33,7 @@ struct BookDownloadButton: View {
             case .failed:
                 Label("Try again", systemImage: "exclamationmark.arrow.circlepath")
             case nil:
-                Label("Download", systemImage: "arrow.down.circle")
+                Label("Download", systemImage: Symbol.download)
             }
         }
         .confirmationDialog("Remove the download?", isPresented: $confirmRemove, titleVisibility: .visible) {

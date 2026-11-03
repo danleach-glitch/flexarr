@@ -1,6 +1,6 @@
 // Generated from design/tokens.json by `make tokens`. Don't edit; change the JSON.
 
-import { Antenna, Book, Bookmark, Calendar, CaptionsBubble, Check, CheckCircleFilled, DownloadCircle, Explicit, Film, Folder, Gear, History, Home, LayoutGrid, Microphone, More, MusicNote, Pause, Play, PlayStack, Playlist, Plus, Queue, Radio, Reset, Search, Shuffle, Sparkles, Stack, Trash, Tv, Users, Waveform } from './icons'
+import { Antenna, Book, Bookmark, Calendar, CaptionsBubble, Check, CheckCircleFilled, Close, DownloadCircle, Explicit, Film, Folder, Gear, History, Home, Info, LayoutGrid, Microphone, More, MusicNote, Pause, Play, PlayStack, Playlist, Plus, Queue, Radio, Reset, Search, Shuffle, Sparkles, Stack, Trash, Tv, Users, Waveform } from './icons'
 
 /** The icon for each action and place, the same idea on every client (design/tokens.json › icons). */
 export const icon = {
@@ -26,6 +26,8 @@ export const icon = {
   watchlist: Bookmark,
   /** On the watchlist */
   onWatchlist: Bookmark,
+  /** Remove from the watchlist */
+  offWatchlist: Bookmark,
   /** Request a title or an album */
   request: Plus,
   /** Asked for, on its way */
@@ -52,6 +54,10 @@ export const icon = {
   subtitles: CaptionsBubble,
   /** Go to the show */
   goToShow: PlayStack,
+  /** Go to a title's page (details, episode, book, podcast) */
+  details: Info,
+  /** Take something out of Continue watching or Up next */
+  removeFromRow: Close,
   /** More actions */
   more: More,
   /** Home */

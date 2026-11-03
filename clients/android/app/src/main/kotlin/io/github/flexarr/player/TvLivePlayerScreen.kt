@@ -34,8 +34,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.FastForward
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
@@ -73,6 +71,7 @@ import io.github.flexarr.core.LiveChannel
 import io.github.flexarr.core.LiveGuide
 import io.github.flexarr.core.liveChannels
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.marquee
 import io.github.flexarr.ui.tv.TvActionButton
 import io.github.flexarr.ui.tv.TvLayout
@@ -307,7 +306,7 @@ private fun LiveTimeline(controller: LiveTvController, focus: FocusRequester, on
             if (focused) Box(Modifier.offset(x = maxWidth * fraction - 8.dp).size(16.dp).background(Flexarr.screen, CircleShape))
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(if (controller.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (controller.isPlaying) "Playing" else "Paused", modifier = Modifier.size(16.dp))
+            Icon(if (controller.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, contentDescription = if (controller.isPlaying) "Playing" else "Paused", modifier = Modifier.size(16.dp))
             Spacer(Modifier.weight(1f))
             val behind = (duration - controller.position).coerceAtLeast(0.0)
             Text(

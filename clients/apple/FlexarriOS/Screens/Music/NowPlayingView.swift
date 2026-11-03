@@ -416,7 +416,7 @@ struct NowPlayingView: View {
 
     private var musicControls: some View {
         HStack(spacing: 0) {
-            Button { music.toggleShuffle() } label: { Label("Shuffle", systemImage: "shuffle") }
+            Button { music.toggleShuffle() } label: { Label("Shuffle", systemImage: Symbol.shuffle) }
                 .buttonStyle(TransportStyle(size: 44, active: music.isShuffled))
             Spacer()
             Button { music.previous() } label: { Label("Previous", systemImage: "backward.fill") }
@@ -501,11 +501,11 @@ struct NowPlayingView: View {
                             await model.setBookFinished(track, true)
                             music.stop()
                         }
-                    } label: { Label("Mark as Finished", systemImage: "checkmark.circle") }
+                    } label: { Label("Mark as Finished", systemImage: Symbol.watched) }
                 }
             }
         } label: {
-            Image(systemName: "ellipsis")
+            Image(systemName: Symbol.more)
                 .font(.system(size: 18, weight: .semibold))
                 .modifier(ExtraLabel(active: false))
         }
@@ -612,14 +612,14 @@ struct NowPlayingView: View {
                         // Played: on to what comes next, as if it had finished.
                         music.seek(to: max(0, music.duration - 0.5))
                     }
-                } label: { Label("Mark as played", systemImage: "checkmark.circle") }
+                } label: { Label("Mark as played", systemImage: Symbol.watched) }
                 if let download = downloads.entry(for: track.id) {
                     Button(role: .destructive) { downloads.remove(download.id) } label: {
                         Label(download.isDownloaded ? "Remove Download" : "Stop Download", systemImage: Symbol.delete)
                     }
                 } else if !music.isPlayingOffline {
                     Button { Task { try? await downloads.download(itemId: track.id, quality: .original) } } label: {
-                        Label("Download", systemImage: "arrow.down.circle")
+                        Label("Download", systemImage: Symbol.download)
                     }
                 }
                 if let link = playing.podcast?.link.flatMap(URL.init(string:)) {
@@ -627,7 +627,7 @@ struct NowPlayingView: View {
                 }
             }
         } label: {
-            Image(systemName: "ellipsis")
+            Image(systemName: Symbol.more)
                 .font(.system(size: 18, weight: .semibold))
                 .modifier(ExtraLabel(active: false))
         }

@@ -329,7 +329,7 @@ struct ExternalCard: View {
                 Button {
                     Task { if await model.setOnWatchlist(WatchlistKey(title), !onList) != nil { watchlistChanged = !onList } }
                 } label: {
-                    Label(onList ? "Remove from watchlist" : "Add to watchlist", systemImage: onList ? "bookmark.slash" : "bookmark")
+                    Label(onList ? "Remove from watchlist" : "Add to watchlist", systemImage: onList ? Symbol.offWatchlist : Symbol.watchlist)
                 }
             }
         }

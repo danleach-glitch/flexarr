@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -52,6 +51,7 @@ import io.github.flexarr.ui.components.MenuAction
 import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.itemActions
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import io.github.flexarr.ui.theme.Tokens
@@ -119,7 +119,7 @@ fun TvWideCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Modi
                 val still = if (item.kind == MediaKind.Episode) item.artwork.thumb ?: item.artwork.backdrop else item.artwork.backdrop ?: item.artwork.thumb
                 RemoteImage(still, 560, Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(glowColor(item.accentColor).copy(alpha = 0.4f), Flexarr.seat))), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Flexarr.screen.copy(alpha = 0.5f), modifier = Modifier.size(22.dp))
+                        Icon(FlexarrIcons.play, contentDescription = null, tint = Flexarr.screen.copy(alpha = 0.5f), modifier = Modifier.size(22.dp))
                     }
                 }
                 item.progress?.let {
@@ -188,7 +188,7 @@ fun TvEpisodeCard(episode: ItemSummary, overview: String?, isCurrent: Boolean, o
             Box(Modifier.size(width, width * 9f / 16f)) {
                 RemoteImage(episode.artwork.thumb ?: episode.artwork.backdrop, 500, Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().background(Flexarr.seat), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(20.dp))
+                        Icon(FlexarrIcons.play, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(20.dp))
                     }
                 }
                 episode.progress?.let {

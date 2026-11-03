@@ -38,13 +38,9 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.outlined.Bedtime
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Podcasts
@@ -130,6 +126,7 @@ import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.RepeatWhileShowing
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glow
 import io.github.flexarr.ui.theme.glowColor
@@ -169,13 +166,13 @@ fun NowPlayingBar(model: AppModel) {
         // On a Chromecast: its controls.
         val cast = Casting.shared?.takeIf { it.casts(Casting.Kind.Podcast) }
         if (cast != null) {
-            RoundButton(if (cast.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (cast.isPlaying) "Pause" else "Play", cast::togglePlayPause)
+            RoundButton(if (cast.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (cast.isPlaying) "Pause" else "Play", cast::togglePlayPause)
             ForwardButton(player.skipForward) { cast.skip(player.skipForward) }
         } else {
             if (player.isLoading) {
                 Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen, modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
             } else {
-                RoundButton(if (player.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (player.isPlaying) "Pause" else "Play", player::togglePlayPause)
+                RoundButton(if (player.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (player.isPlaying) "Pause" else "Play", player::togglePlayPause)
             }
             ForwardButton(player.skipForward) { player.skip(player.skipForward) }
         }
@@ -305,7 +302,7 @@ fun NowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                         Transport(Icons.Filled.Replay, "Back ${player.skipBack} seconds", badge = "${player.skipBack}") { player.skip(-player.skipBack) }
                         Box(Modifier.size(76.dp).clip(CircleShape).background(Flexarr.screen).pressable(player::togglePlayPause), contentAlignment = Alignment.Center) {
                             if (player.isLoading) CircularProgressIndicator(color = Flexarr.room, modifier = Modifier.size(28.dp))
-                            else Icon(if (player.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (player.isPlaying) "Pause" else "Play", tint = Flexarr.room, modifier = Modifier.size(32.dp))
+                            else Icon(if (player.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, contentDescription = if (player.isPlaying) "Pause" else "Play", tint = Flexarr.room, modifier = Modifier.size(32.dp))
                         }
                         if (player.skipForward == 30) Transport(Icons.Filled.Forward30, "Forward 30 seconds") { player.skip(30) }
                         else Transport(Icons.Filled.Replay, "Forward ${player.skipForward} seconds", badge = "${player.skipForward}", mirrored = true) { player.skip(player.skipForward) }
@@ -392,7 +389,7 @@ private fun ChapterList(player: PodcastPlayer, chapters: List<PodcastChapter>) {
                     color = if (offset == current) Flexarr.screen else Flexarr.screen.copy(alpha = if ((current ?: -1) > offset) 0.55f else 0.85f),
                 )
                 if (offset == current) {
-                    Icon(if (player.isPlaying) Icons.Filled.GraphicEq else Icons.Filled.Pause, contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(14.dp))
+                    Icon(if (player.isPlaying) Icons.Filled.GraphicEq else FlexarrIcons.pause, contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(14.dp))
                 }
             }
         }
@@ -604,11 +601,11 @@ private fun EpisodeMenu(model: AppModel, episode: PodcastEpisode, podcast: Podca
     var open by remember { mutableStateOf(false) }
     Box(modifier, contentAlignment = Alignment.Center) {
         ExtraLabel(false, "More", { open = true }) { tint ->
-            Icon(Icons.Filled.MoreHoriz, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
+            Icon(FlexarrIcons.more, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
         }
         DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
             MenuEntry("Go to podcast", Icons.Outlined.Podcasts) { open = false; goToPodcast() }
-            MenuEntry("Mark as played", Icons.Outlined.CheckCircle) {
+            MenuEntry("Mark as played", FlexarrIcons.watched) {
                 open = false
                 val client = model.client ?: return@MenuEntry
                 model.scope.launch {
@@ -620,12 +617,12 @@ private fun EpisodeMenu(model: AppModel, episode: PodcastEpisode, podcast: Podca
             }
             val download = model.downloads.entry(episode.id)
             if (download == null) {
-                MenuEntry("Download", Icons.Outlined.Download) {
+                MenuEntry("Download", FlexarrIcons.download) {
                     open = false
                     model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } }
                 }
             } else {
-                MenuEntry(if (download.isDownloaded) "Remove download" else "Stop download", Icons.Outlined.Delete) {
+                MenuEntry(if (download.isDownloaded) "Remove download" else "Stop download", FlexarrIcons.delete) {
                     open = false
                     model.downloads.delete(download.id)
                 }

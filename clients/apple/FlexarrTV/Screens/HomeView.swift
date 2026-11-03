@@ -213,7 +213,7 @@ struct HomeHero: View {
                     }
 
                     Button { router.push(.item(item)) } label: {
-                        Label("More info", systemImage: "info.circle")
+                        Label("More info", systemImage: Symbol.details)
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.glowColor))
                     .focused($focusedButton, equals: .info)

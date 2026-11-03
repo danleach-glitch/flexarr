@@ -320,7 +320,7 @@ struct OfflineCollectionView: View {
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient(collection), prominent: true))
                 Button { model.playTracks(tracks, shuffled: true, albums: [collection.album].compactMap { $0 }, showingNowPlaying: router) } label: {
-                    Label("Shuffle", systemImage: "shuffle")
+                    Label("Shuffle", systemImage: Symbol.shuffle)
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient(collection)))
                 .disabled(tracks.count < 2)

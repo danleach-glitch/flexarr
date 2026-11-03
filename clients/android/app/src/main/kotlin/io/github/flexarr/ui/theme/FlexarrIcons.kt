@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.outlined.ArrowCircleDown
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.BookmarkRemove
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Folder
@@ -30,10 +31,12 @@ import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.ImportContacts
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LocalMovies
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.MicNone
 import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.RemoveCircleOutline
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SettingsInputAntenna
@@ -67,6 +70,8 @@ object FlexarrIcons {
     val watchlist: ImageVector get() = Icons.Filled.BookmarkBorder
     /** On the watchlist. */
     val onWatchlist: ImageVector get() = Icons.Filled.Bookmark
+    /** Remove from the watchlist. */
+    val offWatchlist: ImageVector get() = Icons.Outlined.BookmarkRemove
     /** Request a title or an album. */
     val request: ImageVector get() = Icons.Filled.Add
     /** Asked for, on its way. */
@@ -93,6 +98,10 @@ object FlexarrIcons {
     val subtitles: ImageVector get() = Icons.Outlined.SpeakerNotes
     /** Go to the show. */
     val goToShow: ImageVector get() = Icons.Outlined.VideoLibrary
+    /** Go to a title's page (details, episode, book, podcast). */
+    val details: ImageVector get() = Icons.Outlined.Info
+    /** Take something out of Continue watching or Up next. */
+    val removeFromRow: ImageVector get() = Icons.Outlined.RemoveCircleOutline
     /** More actions. */
     val more: ImageVector get() = Icons.Filled.MoreHoriz
     /** Home. */

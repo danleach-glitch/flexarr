@@ -22,13 +22,9 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueuePlayNext
-import androidx.compose.material.icons.filled.RemoveCircleOutline
-import androidx.compose.material.icons.outlined.ArrowCircleDown
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
-import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -75,6 +71,7 @@ import io.github.flexarr.ui.components.SwipeAction
 import io.github.flexarr.ui.components.SwipeActions
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.delay
@@ -190,13 +187,13 @@ fun PodcastEpisodeRow(
     }
     val endSwipe = buildList {
         if (removeFromUpNext != null) {
-            add(SwipeAction("Remove from Up next", Icons.Filled.RemoveCircleOutline, Flexarr.danger, Flexarr.room, removeFromUpNext))
+            add(SwipeAction("Remove from Up next", FlexarrIcons.removeFromRow, Flexarr.danger, Flexarr.room, removeFromUpNext))
         } else {
             add(SwipeAction("Add to Up next", Icons.AutoMirrored.Filled.PlaylistAdd, Flexarr.silver, Flexarr.room) { model.addToUpNext(episode.id, next = false) })
             if (download == null) {
-                add(SwipeAction("Download", Icons.Outlined.ArrowCircleDown, Flexarr.aisle) { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } })
+                add(SwipeAction("Download", FlexarrIcons.download, Flexarr.aisle) { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } })
             } else {
-                add(SwipeAction(if (download.isDownloaded) "Remove download" else "Stop download", Icons.Outlined.Delete, Flexarr.danger, Flexarr.room) { model.downloads.delete(download.id) })
+                add(SwipeAction(if (download.isDownloaded) "Remove download" else "Stop download", FlexarrIcons.delete, Flexarr.danger, Flexarr.room) { model.downloads.delete(download.id) })
             }
         }
     }
@@ -245,7 +242,7 @@ fun EpisodePlayButton(model: AppModel, episode: PodcastEpisode) {
             drawArc(Flexarr.screen.copy(alpha = 0.25f), 0f, 360f, false, topLeft = androidx.compose.ui.geometry.Offset(inset, inset), size = arc, style = Stroke(stroke))
             if (fraction > 0) drawArc(Flexarr.screen, -90f, 360f * fraction.coerceIn(0f, 1f), false, topLeft = androidx.compose.ui.geometry.Offset(inset, inset), size = arc, style = Stroke(stroke, cap = StrokeCap.Round))
         }
-        Icon(if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (playing) "Pause" else "Play ${episode.title}", tint = Flexarr.screen, modifier = Modifier.size(16.dp))
+        Icon(if (playing) FlexarrIcons.pause else FlexarrIcons.play, contentDescription = if (playing) "Pause" else "Play ${episode.title}", tint = Flexarr.screen, modifier = Modifier.size(16.dp))
     }
 }
 
@@ -285,7 +282,7 @@ internal fun EpisodeSheet(model: AppModel, episode: PodcastEpisode, setPlayed: (
                             model.showsNowPlaying = true
                         }
                     },
-                    icon = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    icon = if (isPlaying) FlexarrIcons.pause else FlexarrIcons.play,
                     prominent = true,
                     ambient = glowColor(shown.accentColor),
                 )

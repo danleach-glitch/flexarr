@@ -23,7 +23,6 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -255,7 +254,7 @@ private fun MusicHeroSlide(home: Home, item: ItemSummary, height: Dp) {
                     ActionButton("Play", onClick = { navigator.playArtist(item, radio = false) }, icon = FlexarrIcons.play, prominent = true, ambient = glow)
                     ActionButton("Radio", onClick = { navigator.playArtist(item, radio = true) }, icon = FlexarrIcons.radio, ambient = glow)
                 }
-                ActionButton("More info", onClick = { navigator.open(item) }, icon = Icons.Filled.Info, ambient = glow)
+                ActionButton("More info", onClick = { navigator.open(item) }, icon = FlexarrIcons.details, ambient = glow)
             }
         }
     }

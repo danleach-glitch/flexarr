@@ -64,7 +64,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Replay30
@@ -108,6 +107,7 @@ import androidx.media3.ui.PlayerView
 import io.github.flexarr.ActivePlayback
 import io.github.flexarr.BuildConfig
 import io.github.flexarr.appModel
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.usesTvInterface
 import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
@@ -430,7 +430,7 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
                 if (controller.countingDown) {
                     Text("Cancel", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.glass(RoundedCornerShape(Tokens.radiusControl)).clickableNoRipple(controller::cancelNext).padding(horizontal = 18.dp, vertical = 12.dp))
                 }
-                ActionButton(title, onClick = controller::promptTapped, icon = if (title.startsWith("Skip")) Icons.Filled.SkipNext else Icons.Filled.PlayArrow, prominent = true)
+                ActionButton(title, onClick = controller::promptTapped, icon = if (title.startsWith("Skip")) Icons.Filled.SkipNext else FlexarrIcons.play, prominent = true)
             }
         }
         SleepPrompt(controller.sleep)
@@ -491,7 +491,7 @@ private fun Controls(controller: PlaybackController, onClose: () -> Unit, onPict
             val episode = info?.item?.kind == MediaKind.Episode
             if (episode) GlassButton(Icons.Filled.SkipPrevious, "Previous episode") { controller.playPrevious(); onInteract() }
             SkipButton(-controller.skipSeconds) { controller.skip(-controller.skipSeconds); onInteract() }
-            GlassButton(if (controller.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (controller.isPlaying) "Pause" else "Play", size = 76) {
+            GlassButton(if (controller.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (controller.isPlaying) "Pause" else "Play", size = 76) {
                 controller.togglePlayPause()
                 onInteract()
             }

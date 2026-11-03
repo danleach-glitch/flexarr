@@ -44,7 +44,7 @@ struct BookCard: View {
             Button { model.playBook(item) } label: { Label(item.isResumable ? "Resume" : "Play", systemImage: Symbol.play) }
             if !model.isKids {
                 if !item.userData.watched {
-                    Button { Task { await model.setBookFinished(item, true) } } label: { Label("Mark as finished", systemImage: "checkmark.circle") }
+                    Button { Task { await model.setBookFinished(item, true) } } label: { Label("Mark as finished", systemImage: Symbol.watched) }
                 }
                 // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
                 if item.userData.watched || item.isResumable, model.music.current?.id != item.id {

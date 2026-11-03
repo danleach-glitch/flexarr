@@ -23,13 +23,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.ArrowCircleDown
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.HourglassTop
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -80,6 +77,7 @@ import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.music.TrackRow
 import io.github.flexarr.ui.podcasts.Tabular
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
@@ -195,7 +193,7 @@ fun MusicDownloadButton(model: AppModel, source: MusicDownloadSource) {
 private fun CollectionStateIcon(status: CollectionStatus?, modifier: Modifier = Modifier) {
     Box(modifier.size(22.dp), contentAlignment = Alignment.Center) {
         when (status) {
-            null -> Icon(Icons.Filled.Download, contentDescription = null, tint = Flexarr.screen)
+            null -> Icon(FlexarrIcons.download, contentDescription = null, tint = Flexarr.screen)
             CollectionStatus.Preparing -> Icon(Icons.Filled.HourglassTop, contentDescription = null, tint = Flexarr.usher)
             is CollectionStatus.Downloading -> DownloadRing(status.fraction.toFloat())
             CollectionStatus.Downloaded -> Icon(Icons.Filled.ArrowCircleDown, contentDescription = null, tint = Flexarr.go)
@@ -278,7 +276,7 @@ fun CollectionRow(model: AppModel, collection: LocalCollection, onOpen: () -> Un
             CollectionStatusLine(model, collection)
         }
         Box {
-            IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More for ${collection.title}", tint = Flexarr.usher) }
+            IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = "More for ${collection.title}", tint = Flexarr.usher) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
                     text = { Text(if (store.status(collection) == CollectionStatus.Downloaded) "Remove download" else "Stop download", color = Flexarr.danger) },
@@ -343,8 +341,8 @@ fun OfflineCollectionScreen(model: AppModel, collectionId: String, onBack: () ->
                             FactsLine(CollectionRules.facts(collection, tracks))
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            ActionButton("Play", onClick = { music.play(tracks, albums = albums) }, icon = Icons.Filled.PlayArrow, prominent = true, ambient = ambient, enabled = tracks.isNotEmpty())
-                            ActionButton("Shuffle", onClick = { music.play(tracks, shuffled = true, albums = albums) }, icon = Icons.Filled.Shuffle, ambient = ambient, enabled = tracks.size >= 2)
+                            ActionButton("Play", onClick = { music.play(tracks, albums = albums) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient, enabled = tracks.isNotEmpty())
+                            ActionButton("Shuffle", onClick = { music.play(tracks, shuffled = true, albums = albums) }, icon = FlexarrIcons.shuffle, ambient = ambient, enabled = tracks.size >= 2)
                         }
                     }
                 }
@@ -376,7 +374,7 @@ fun OfflineCollectionScreen(model: AppModel, collectionId: String, onBack: () ->
             }
             if (collection != null) {
                 IconButton(onClick = { removing = true }, modifier = Modifier.clip(CircleShape).background(Flexarr.room.copy(alpha = 0.55f))) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Remove download", tint = Flexarr.screen)
+                    Icon(FlexarrIcons.delete, contentDescription = "Remove download", tint = Flexarr.screen)
                 }
             }
         }

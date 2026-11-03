@@ -16,8 +16,6 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,6 +54,7 @@ import io.github.flexarr.ui.components.SectionHeading
 import io.github.flexarr.ui.components.StatusView
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
 import android.content.Context
 import android.text.format.DateFormat
@@ -208,7 +207,7 @@ private fun RecordingRow(recording: Recording, action: String, onOpen: (() -> Un
 private fun RowMenu(label: String, onClick: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More", tint = Flexarr.usher) }
+        IconButton(onClick = { open = true }) { Icon(FlexarrIcons.more, contentDescription = "More", tint = Flexarr.usher) }
         DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
             DropdownMenuItem(text = { Text(label, color = Flexarr.danger) }, onClick = { open = false; onClick() })
         }

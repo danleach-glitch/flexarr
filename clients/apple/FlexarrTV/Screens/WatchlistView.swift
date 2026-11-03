@@ -141,7 +141,7 @@ struct WatchlistView: View {
             .contextMenu {
                 if let id = entry.libraryItemId {
                     Button(role: .destructive) { Task { await model.setOnWatchlist(.library(id), false) } } label: {
-                        Label("Remove from watchlist", systemImage: "bookmark.slash")
+                        Label("Remove from watchlist", systemImage: Symbol.offWatchlist)
                     }
                 }
             }

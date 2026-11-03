@@ -96,10 +96,10 @@ struct PodcastView: View {
                         order("Newest first", oldest: false)
                         order("Oldest first", oldest: true)
                     }
-                    Button { markingAllPlayed = true } label: { Label("Mark all as played", systemImage: "checkmark.circle") }
+                    Button { markingAllPlayed = true } label: { Label("Mark all as played", systemImage: Symbol.watched) }
                         .disabled(podcast.unplayedCount == 0)
                 } label: {
-                    Label("More", systemImage: "ellipsis")
+                    Label("More", systemImage: Symbol.more)
                 }
             }
         }

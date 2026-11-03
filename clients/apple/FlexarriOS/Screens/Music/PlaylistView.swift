@@ -206,7 +206,7 @@ struct PlaylistView: View {
                 }
                 .buttonStyle(ActionButtonStyle(prominent: true))
                 Button { model.playTracks(tracks, shuffled: true, showingNowPlaying: router) } label: {
-                    Label("Shuffle", systemImage: "shuffle")
+                    Label("Shuffle", systemImage: Symbol.shuffle)
                 }
                 .buttonStyle(ActionButtonStyle())
                 .disabled(tracks.count < 2)

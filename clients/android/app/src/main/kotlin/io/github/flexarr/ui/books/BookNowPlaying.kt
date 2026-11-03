@@ -34,14 +34,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Replay
-import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.BookmarkAdd
-import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.FormatListBulleted
 import androidx.compose.material3.AlertDialog
@@ -103,6 +100,7 @@ import io.github.flexarr.ui.components.RepeatWhileShowing
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.podcasts.Tabular
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
@@ -138,7 +136,7 @@ fun BookNowPlayingBar(model: AppModel) {
                 Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen, modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
             } else {
                 val playing = cast?.isPlaying ?: player.isPlaying
-                RoundButton(if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (playing) "Pause" else "Play") { cast?.togglePlayPause() ?: player.togglePlayPause() }
+                RoundButton(if (playing) FlexarrIcons.pause else FlexarrIcons.play, if (playing) "Pause" else "Play") { cast?.togglePlayPause() ?: player.togglePlayPause() }
             }
             SkipButton(player.listening.skipForwardSeconds, forward = true, size = 40) { cast?.skip(player.listening.skipForwardSeconds) ?: player.skipForward() }
         }
@@ -261,7 +259,7 @@ fun BookPlayerSheet(model: AppModel, onDismiss: () -> Unit) {
                         SkipButton(player.listening.skipBackSeconds, forward = false, onClick = player::skipBack)
                         Box(Modifier.size(76.dp).clip(CircleShape).background(Flexarr.screen).pressable(player::togglePlayPause), contentAlignment = Alignment.Center) {
                             if (player.isLoading) CircularProgressIndicator(color = Flexarr.room, modifier = Modifier.size(28.dp))
-                            else Icon(if (player.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (player.isPlaying) "Pause" else "Play", tint = Flexarr.room, modifier = Modifier.size(32.dp))
+                            else Icon(if (player.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, contentDescription = if (player.isPlaying) "Pause" else "Play", tint = Flexarr.room, modifier = Modifier.size(32.dp))
                         }
                         SkipButton(player.listening.skipForwardSeconds, forward = true, onClick = player::skipForward)
                     }
@@ -395,7 +393,7 @@ private fun ChaptersAndBookmarks(player: BookPlayer, modifier: Modifier, close: 
                         fontWeight = if (index == current) FontWeight.Bold else FontWeight.Normal,
                         color = Flexarr.screen.copy(alpha = if (index == current) 1f else if ((current ?: -1) > index) 0.55f else 0.85f),
                     )
-                    if (index == current) Icon(if (player.isPlaying) Icons.Filled.GraphicEq else Icons.Filled.Pause, contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(14.dp))
+                    if (index == current) Icon(if (player.isPlaying) Icons.Filled.GraphicEq else FlexarrIcons.pause, contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(14.dp))
                     Text(Format.timestamp(chapter.endSeconds - chapter.startSeconds), fontSize = 12.sp, color = Flexarr.usher, style = Tabular, modifier = Modifier.widthIn(min = 44.dp), textAlign = TextAlign.End)
                 }
             }
@@ -489,16 +487,16 @@ private fun BookMenu(model: AppModel, closeSheet: () -> Unit, modifier: Modifier
     val book = player.current ?: return
     var open by remember { mutableStateOf(false) }
     Box(modifier, contentAlignment = Alignment.Center) {
-        Extra(false, "More", { open = true }) { tint -> Icon(Icons.Filled.MoreHoriz, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp)) }
+        Extra(false, "More", { open = true }) { tint -> Icon(FlexarrIcons.more, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp)) }
         DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
             Entry("Go to book", Icons.AutoMirrored.Filled.MenuBook) { open = false; closeSheet(); navigator.openBook(book.id) }
-            Entry("Mark as finished", Icons.Outlined.CheckCircle) {
+            Entry("Mark as finished", FlexarrIcons.watched) {
                 open = false
                 navigator.setBookFinished(book, true)
                 player.stop()
             }
             val download = model.bookDownloads.entry(book.id)
-            if (download == null) Entry("Download", Icons.Outlined.Download) {
+            if (download == null) Entry("Download", FlexarrIcons.download) {
                 open = false
                 navigator.downloadBook(book)
             }
