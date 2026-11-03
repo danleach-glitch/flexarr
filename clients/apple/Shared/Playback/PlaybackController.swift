@@ -141,6 +141,8 @@ final class PlaybackController: NSObject {
     /// The next episode's session, started during the credits so it opens at once, and the request for it.
     @ObservationIgnored private var prepared: (request: PlaybackRequest, info: PlaybackInfo)?
     @ObservationIgnored private var preparing: Task<Void, Never>?
+    /// This title's start, timed until its first picture (see StartTiming).
+    @ObservationIgnored private var timing: StartTiming?
     /// A re-sync of the file's subtitles being followed: which title and file, and the polling.
     @ObservationIgnored private var subtitleSync: (itemId: String, fileId: String, task: Task<Void, Never>)?
     private static let countdownSeconds = 5
@@ -165,6 +167,7 @@ final class PlaybackController: NSObject {
         viewerSubtitleKey = subtitleKey.map { .some($0) }
         var request = request(for: itemId, startAt: startAt)
         if let subtitleKey { request.subtitleKey = subtitleKey }
+        timing = StartTiming(.video)
         start(request)
     }
 
@@ -172,6 +175,7 @@ final class PlaybackController: NSObject {
     func playOffline(_ info: PlaybackInfo) {
         guard !isStarting else { return }
         onWillStart?()
+        timing = nil
         shuffling = false
         origin = (nil, info.item.id)
         lastEnding = nil
@@ -199,8 +203,10 @@ final class PlaybackController: NSObject {
             defer { isStarting = false }
             do {
                 let info = try await client.startPlayback(request)
+                timing?.answered(info, warmed: false)
                 try present(info)
             } catch {
+                timing = nil
                 log.error("Couldn't start playback of \(request.itemId)", error: error)
                 show(error, retry: request)
             }
@@ -682,6 +688,10 @@ final class PlaybackController: NSObject {
             // Reported as soon as it's under way, so a remote on another device picks it up at once.
             let first = !hasPlayed
             if first { applyStartingRate(info) }
+            if first, let started = timing, started.isAnswered {
+                started.report(to: log, server: client?.baseURL)
+                timing = nil
+            }
             hasPlayed = true
             if reportedPaused || first { report(paused: false) }
         case .paused:
@@ -1066,6 +1076,7 @@ final class PlaybackController: NSObject {
         if recordsHistory, isPastCredits(current) { onWatchedToEnd?(false) }
         let finished = current.sessionId
         carriedRate = nil
+        timing = StartTiming(.video)
         Task {
             defer { isAdvancing = false }
             try? await client.stopPlayback(sessionId: finished)
@@ -1077,9 +1088,11 @@ final class PlaybackController: NSObject {
                     prepared = nil
                     log.info("Using the next episode got ready during the credits")
                     info = ready.info
+                    timing?.answered(info, warmed: true)
                 } else {
                     dropPrepared()
                     info = try await client.startPlayback(request)
+                    timing?.answered(info, warmed: false)
                 }
                 guard self.info?.sessionId == finished, let screen else { // Closed meanwhile.
                     try? await client.stopPlayback(sessionId: info.sessionId)

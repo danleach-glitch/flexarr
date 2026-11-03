@@ -26,6 +26,12 @@ struct FlexarrLog: Sendable {
         write(.information, message, error, properties)
     }
 
+    /// An Information entry the server gets by itself too, like a warning: for measurements (start timings) worth
+    /// seeing without asking for diagnostics.
+    func measured(_ message: String, _ properties: [String: String?] = [:]) {
+        write(.information, message, nil, properties, send: true)
+    }
+
     func warning(_ message: String, error: (any Error)? = nil, _ properties: [String: String?] = [:]) {
         write(.warning, message, error, properties)
     }
@@ -36,9 +42,9 @@ struct FlexarrLog: Sendable {
         if let error { ErrorReports.capture(error, category: category) }
     }
 
-    private func write(_ level: ClientLogLevel, _ message: String, _ error: (any Error)?, _ properties: [String: String?]) {
+    private func write(_ level: ClientLogLevel, _ message: String, _ error: (any Error)?, _ properties: [String: String?], send: Bool = false) {
         let entry = LogHub.shared.record(ClientLogEntry(level: level, category: category, message: message,
-                                                        error: error.map(Self.describe), properties: properties.compactMapValues { $0 }))
+                                                        error: error.map(Self.describe), properties: properties.compactMapValues { $0 }), send: send)
         var text = entry.message
         if let error = entry.error { text += " | error: \(error)" }
         for (key, value) in (entry.properties ?? [:]).sorted(by: { $0.key < $1.key }) { text += " | \(key)=\(value)" }
@@ -94,13 +100,13 @@ final class LogHub: Sendable {
         }
     }
 
-    /// Redacts the entry, writes it to the file and queues it for the server if it's a warning or error. Returns
+    /// Redacts the entry, writes it to the file and queues it for the server if it's a warning or error (or `send`). Returns
     /// it as it was kept.
     @discardableResult
-    func record(_ entry: ClientLogEntry) -> ClientLogEntry {
+    func record(_ entry: ClientLogEntry, send: Bool = false) -> ClientLogEntry {
         let entry = redactor.withLock { $0.redact(entry) }
         file.append(entry.line)
-        if entry.level.isSentAutomatically {
+        if entry.level.isSentAutomatically || send {
             let uploader = uploader
             Task.detached(priority: .utility) { await uploader.add(entry) }
         }

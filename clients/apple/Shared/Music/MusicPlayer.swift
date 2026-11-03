@@ -190,6 +190,8 @@ final class MusicPlayer {
     @ObservationIgnored private var lastNowPlayingTime = Date.distantPast
     /// Bumped by every track change, so a session that arrives for a track skipped past is ended rather than played.
     @ObservationIgnored private var generation = 0
+    /// A book's start, timed until its first sound (see StartTiming).
+    @ObservationIgnored private var bookTiming: StartTiming?
     /// Paused because a video started; Now Playing is handed back when it ends.
     @ObservationIgnored private var yieldedToVideo = false
     /// Which remote commands the lock screen has: music's previous and next, or a podcast's skips and speed.
@@ -800,11 +802,15 @@ final class MusicPlayer {
             isLoading = false
             return
         }
+        var timing = StartTiming(.book)
+        bookTiming = nil
         Task {
             do {
                 var request = PlaybackRequest(itemId: track.id, profile: Self.bookProfile, startPositionSeconds: requested)
                 request.deviceName = Self.deviceName
                 let info = try await client.startPlayback(request)
+                timing.answered(info, warmed: false)
+                bookTiming = timing
                 guard mine == generation else {
                     try? await client.stopPlayback(sessionId: info.sessionId)
                     return
@@ -1223,6 +1229,10 @@ final class MusicPlayer {
         let playing = status == .playing
         guard playing != isPlaying else { return }
         isPlaying = playing
+        if playing, isBook, let started = bookTiming {
+            started.report(to: log, server: client?.baseURL)
+            bookTiming = nil
+        }
         // When a book or episode was paused, for smart rewind.
         if isBook || isPodcast {
             if playing { bookPause = BookPause() } else { bookPause.paused(at: Date()) }
