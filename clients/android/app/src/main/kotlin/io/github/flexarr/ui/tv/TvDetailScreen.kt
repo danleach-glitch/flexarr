@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.ui.getsReadyOnFocus
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -344,7 +346,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
             actions.buttons.forEach { button ->
                 when (button) {
                     DetailActions.Button.PLAY -> target?.let { playable ->
-                        TvActionButton(playLabel(playable, item), onClick = { navigator.play(playable, from = from) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient, modifier = focusFirst())
+                        TvActionButton(playLabel(playable, item), onClick = { navigator.play(playable, from = from) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient, modifier = focusFirst().getsReadyOnFocus(playable))
                     }
                     DetailActions.Button.START_OVER -> target?.let { playable ->
                         TvActionButton("Start over", onClick = { navigator.play(playable, fromBeginning = true, from = from) }, icon = FlexarrIcons.startOver, ambient = ambient)

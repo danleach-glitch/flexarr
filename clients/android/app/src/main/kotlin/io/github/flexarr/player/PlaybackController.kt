@@ -378,8 +378,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     serverReadsTeletextPages = Teletext.canChoosePage(version)
                     DeviceCapabilities.withServer(deviceProfile, version)
                 }.also { serverProfile = it }
-                val started = startPlayback(request(profile), attempts) { !closed && mine == openGeneration } ?: return@launch
-                timing?.answered(started, warmed = false)
+                val asked = request(profile)
+                // Got ready on its page (or by a TV's focus) a moment ago, for exactly this: no wait for the server.
+                val ready = if (asked.replacesSessionId == null) model.warmUps.take(asked) else null
+                if (ready == null && asked.replacesSessionId == null) model.warmUps.drop()
+                val started = ready ?: startPlayback(asked, attempts) { !closed && mine == openGeneration } ?: return@launch
+                timing?.answered(started, warmed = ready != null)
                 if (closed || mine != openGeneration) {
                     runCatching { client.stopPlayback(started.sessionId) }
                     return@launch

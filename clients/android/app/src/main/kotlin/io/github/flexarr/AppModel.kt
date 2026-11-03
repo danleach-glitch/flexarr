@@ -14,6 +14,12 @@ import io.github.flexarr.core.requestRefusal
 import io.github.flexarr.core.requestStatus
 import io.github.flexarr.core.musicRequestStatus
 import io.github.flexarr.player.PlaybackEnding
+import io.github.flexarr.player.DeviceCapabilities
+import io.github.flexarr.core.PreparedStreams
+import io.github.flexarr.core.PlaybackRequest
+import io.github.flexarr.core.DeviceProfile
+import io.github.flexarr.core.ItemSummary
+import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.LiveTvStatus
 import io.github.flexarr.core.liveTvStatus
@@ -256,6 +262,48 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     /** Audiobooks, playing on under every screen; music, podcasts and books take turns. */
     val books = BookPlayer(context, this)
+
+    /** A film or episode got ready ahead of Play from its page or a TV's focus (docs/fast-start.md), taken over by the player. */
+    val warmUps = PreparedStreams(
+        scope,
+        start = { request -> requireNotNull(client).startPlayback(request) },
+        stop = { sessionId -> client?.stopPlayback(sessionId) },
+    )
+
+    /** The video profile the player asks with ([DeviceCapabilities.withServer]), worked out once per server. */
+    private var videoProfile: Pair<String, DeviceProfile>? = null
+
+    suspend fun videoProfile(): DeviceProfile? {
+        val client = client ?: return null
+        val server = client.baseUrl.toString()
+        videoProfile?.let { (forServer, profile) -> if (forServer == server) return profile }
+        val version = runCatching { client.systemStatus().version }.getOrNull()
+        return DeviceCapabilities.withServer(DeviceCapabilities.profile(context), version).also { videoProfile = server to it }
+    }
+
+    /**
+     * Gets what Play would start for [item] ready, so it opens at once (docs/fast-start.md): a film or episode as a
+     * video, a book in its player. Pages call this once looked at for a moment, the TV once Play or a card has focus.
+     */
+    fun getReady(item: ItemSummary) {
+        when (item.kind) {
+            MediaKind.Movie, MediaKind.Episode -> {
+                if (client == null || serverUnreachable || downloads.entry(item.id)?.isDownloaded == true) return
+                scope.launch {
+                    val profile = videoProfile() ?: return@launch
+                    warmUps.getReady(PlaybackRequest(itemId = item.id, profile = profile))
+                }
+            }
+            MediaKind.Audiobook -> books.getReady(item)
+            else -> Unit
+        }
+    }
+
+    /** What was got ready for [itemId] goes (its page left, the focus moved on), unless Play took it. */
+    fun dropReady(itemId: String) {
+        warmUps.drop(itemId)
+        books.dropReady(itemId)
+    }
 
     /** The book's Now Playing sheet is open. */
     var showsBookPlayer by mutableStateOf(false)
@@ -966,6 +1014,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     }
 
     fun signOut() {
+        warmUps.drop()
+        books.dropReady()
         // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way. Not
         // for a sign-in from the command line, which may be the server's own API key.
         val client = client
@@ -1574,6 +1624,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      * download coming in), so it doesn't keep the phone's radio busy. Anything that needs it later starts it again.
      */
     fun wentToBackground() {
+        warmUps.drop()
+        books.dropReady()
         // Offline mode doesn't keep trying in the background: coming back to the front checks.
         if (!inFront) {
             offlineRetry?.cancel()

@@ -49,6 +49,7 @@ import io.github.flexarr.logging.FlexarrLog
 import io.github.flexarr.player.DeviceCapabilities
 import io.github.flexarr.player.ShakeListener
 import io.github.flexarr.player.StartTiming
+import io.github.flexarr.core.PreparedStreams
 import io.github.flexarr.player.SleepTimer
 import io.github.flexarr.player.mediaSources
 import io.github.flexarr.widget.PodcastWidgets
@@ -243,6 +244,27 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         }
     }
 
+    // Getting ready ahead of Play
+
+    /** A book got ready ahead of Play from its page (docs/fast-start.md), taken over by [start]. */
+    private val warm = PreparedStreams(
+        scope,
+        start = { request -> requireNotNull(model.client).startPlayback(request) },
+        stop = { sessionId -> model.client?.stopPlayback(sessionId) },
+    )
+
+    private fun request(book: ItemSummary, from: Double?) =
+        PlaybackRequest(itemId = book.id, profile = profile, startPositionSeconds = from, deviceName = model.deviceName)
+
+    /** Gets [book] ready as Play would start it (from its place). Not a book loaded already, or one on this phone. */
+    fun getReady(book: ItemSummary) {
+        if (model.client == null || current?.id == book.id || model.bookDownloads.entry(book.id) != null) return
+        warm.getReady(request(book, from = null))
+    }
+
+    /** Lets the book got ready go; with [itemId], only if it's that book. */
+    fun dropReady(itemId: String? = null) = warm.drop(itemId)
+
     // Starting
 
     /**
@@ -301,8 +323,12 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         timing = null
         scope.launch {
             try {
-                val info = client.startPlayback(PlaybackRequest(itemId = book.id, profile = profile, startPositionSeconds = from, deviceName = model.deviceName))
-                started.answered(info, warmed = false)
+                val asked = request(book, from)
+                // Got ready on its page a moment ago: no wait for the server.
+                val ready = warm.take(asked)
+                if (ready == null) warm.drop()
+                val info = ready ?: client.startPlayback(asked)
+                started.answered(info, warmed = ready != null)
                 timing = started
                 if (mine != generation) {
                     runCatching { client.stopPlayback(info.sessionId) }
