@@ -11,6 +11,7 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
@@ -339,6 +340,39 @@ public sealed class LiveTvTests : IDisposable
         Assert.Empty((await client.GetFromJsonAsync<JsonElement>(Api("livetv/recordings"))).GetProperty("upcoming").EnumerateArray());
         Assert.Equal(JsonValueKind.Null, (await GuideProgrammeAsync(client, "Doctor Who")).GetProperty("recording").ValueKind);
         Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync(Api("livetv/recordings"), new { programmeId = 999999 })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Stopping_a_recording_the_scheduler_hasnt_carried_on_since_a_restart_stops_it()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        var doctorWho = (await GuideProgrammeAsync(client, "Doctor Who")).GetProperty("id").GetInt64();
+        var scheduled = await (await client.PostAsJsonAsync(Api("livetv/recordings"), new { programmeId = doctorWho })).Content.ReadFromJsonAsync<JsonElement>();
+        var id = Guid.Parse(scheduled.GetProperty("id").GetString()!);
+        // As a restart leaves it: still marked Recording, but nothing running it.
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>();
+            var recording = await db.Recordings.SingleAsync(r => r.Id == id);
+            recording.State = Flexarr.Core.LiveTv.RecordingState.Recording;
+            await db.SaveChangesAsync();
+        }
+
+        Assert.Equal(HttpStatusCode.Accepted, (await client.DeleteAsync(Api($"livetv/recordings/{id}"))).StatusCode);
+
+        var dvr = _server.Services.GetRequiredService<DvrService>();
+        for (var i = 0; i < 100 && dvr.Active.Count > 0; i++)
+        {
+            await Task.Delay(50);
+        }
+
+        Assert.Empty(dvr.Active);
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>();
+            Assert.NotEqual(Flexarr.Core.LiveTv.RecordingState.Recording, (await db.Recordings.AsNoTracking().SingleAsync(r => r.Id == id)).State);
+        }
     }
 
     [Fact]
