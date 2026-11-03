@@ -400,6 +400,29 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task A_recordings_folder_flexarr_cant_write_to_isnt_saved()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        // A file where the folder would go: it can't be made, as a folder the sandbox never let it reach can't.
+        var blocker = Path.Combine(Path.GetTempPath(), $"flexarr-dvr-blocker-{Guid.NewGuid():N}");
+        await File.WriteAllTextAsync(blocker, "");
+        try
+        {
+            var response = await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, dvrFolder = Path.Combine(blocker, "DVR") } });
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Contains("can’t write", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+            response = await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, dvrFolder = "DVR" } });
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+        finally
+        {
+            File.Delete(blocker);
+        }
+    }
+
+    [Fact]
     public async Task Homes_live_tv_row_starts_with_the_channel_watched_last()
     {
         var client = Client();

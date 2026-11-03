@@ -26,6 +26,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { CopyButton } from '../../components/CopyButton'
 import { FolderPicker } from '../../components/FolderPicker'
 import { useApi } from '../../hooks/useApi'
+import { useChoosesOnMac } from '../../hooks/useChoosesOnMac'
 import { usePolling } from '../../hooks/usePolling'
 import { appLogos } from '../../lib/apps'
 import { OpenApp, SaveStatus, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
@@ -973,6 +974,10 @@ function titlesAgreeing(kind: ArrKind, agreeing: number, compared: number) {
 function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMappings']; save: Save }) {
   const [editing, setEditing] = useState(false)
   const [mappings, setMappings] = useState(saved)
+  // The mapping whose server folder is being chosen. The Mac app reaches only folders chosen in macOS's folder window,
+  // so there the server's side is chosen, never typed.
+  const [choosing, setChoosing] = useState<number>()
+  const onMac = useChoosesOnMac()
   const changed = JSON.stringify(mappings) !== JSON.stringify(saved)
   const set = (i: number, change: Partial<Settings['pathMappings'][number]>) => setMappings(mappings.map((x, j) => (j === i ? { ...x, ...change } : x)))
 
@@ -1004,11 +1009,47 @@ function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMapp
             Path in the app
             <input type="text" value={m.from} placeholder="/data" onChange={(e) => set(i, { from: e.target.value })} />
           </label>
-          <label className="grow">
-            Path on this server
-            <input type="text" value={m.to} placeholder="/Volumes/Media/data" onChange={(e) => set(i, { to: e.target.value })} />
-          </label>
-          <IconButton label="Remove" aria-label={`Remove the mapping for ${m.from || 'this path'}`} icon={<icon.delete />} className="button quiet small icon danger-icon" onClick={() => setMappings(mappings.filter((_, j) => j !== i))} />
+          {onMac ? (
+            <div className="grow mapping-chosen">
+              Path on this server
+              <span className="mapping-chosen-row">
+                <code>{m.to || 'None chosen'}</code>
+                {choosing !== i && (
+                  <button type="button" className="button quiet small" onClick={() => setChoosing(i)}>
+                    {m.to ? 'Change' : 'Choose…'}
+                  </button>
+                )}
+              </span>
+            </div>
+          ) : (
+            <label className="grow">
+              Path on this server
+              <input type="text" value={m.to} placeholder="/Volumes/Media/data" onChange={(e) => set(i, { to: e.target.value })} />
+            </label>
+          )}
+          <IconButton
+            label="Remove"
+            aria-label={`Remove the mapping for ${m.from || 'this path'}`}
+            icon={<icon.delete />}
+            className="button quiet small icon danger-icon"
+            onClick={() => {
+              setMappings(mappings.filter((_, j) => j !== i))
+              setChoosing(undefined)
+            }}
+          />
+          {choosing === i && (
+            <div className="mapping-picker">
+              <FolderPicker
+                onPick={(to) => {
+                  set(i, { to })
+                  setChoosing(undefined)
+                }}
+              />
+              <button type="button" className="text-button" onClick={() => setChoosing(undefined)}>
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
       ))}
       <div className="form-actions">

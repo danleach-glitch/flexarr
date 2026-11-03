@@ -166,6 +166,14 @@ public static class SettingsEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["podcasts"] = [$"Apple has no podcast charts for “{country}”."] });
             }
 
+            // A new recordings folder must be one Flexarr can write to now: otherwise every recording fails later (in the Mac
+            // app's sandbox, a typed path it was never given).
+            if (update.LiveTv is { BaseUrl.Length: > 0, DvrFolder: { } dvr } && dvr.Trim() is { Length: > 0 } dvrFolder
+                && dvrFolder != current.LiveTv?.DvrFolder && WritableFolder.Problem(dvrFolder) is { } dvrProblem)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["liveTv"] = [dvrProblem] });
+            }
+
             // The file watcher reloads options shortly after the write; the response waits for the reload of this write
             // (a fixed pause was too short on slower machines, and the reply showed the old settings).
             await ServerConfigStore.UpdateAndWaitAsync(options, current.DataDirectory, config =>

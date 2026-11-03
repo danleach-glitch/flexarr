@@ -592,6 +592,38 @@
   margin-bottom: 12px;
 }
 
+/* The Mac app's server side of a mapping: chosen with the folder picker, not typed. */
+.mapping-chosen {
+  display: flex;
+  flex: 1 1 220px;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 700;
+  font-size: var(--step--1);
+}
+
+.mapping-chosen-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+}
+
+.mapping-chosen-row code {
+  overflow-wrap: anywhere;
+}
+
+.mapping-picker {
+  display: grid;
+  flex-basis: 100%;
+  justify-items: start;
+  gap: 8px;
+}
+
+.mapping-picker .folder-picker {
+  width: 100%;
+}
+
 .meter {
   display: grid;
   gap: 8px;
@@ -2145,14 +2177,20 @@
   flex-wrap: wrap;
 }
 
-.backup-folder-field {
+.backup-folder-field,
+.folder-field {
   display: flex;
   gap: 8px;
   flex: 1 1 280px;
   max-width: 460px;
 }
 
-.backup-folder-field input {
+.folder-field {
+  justify-content: flex-end;
+}
+
+.backup-folder-field input,
+.folder-field input {
   flex: 1;
   min-width: 0;
 }
