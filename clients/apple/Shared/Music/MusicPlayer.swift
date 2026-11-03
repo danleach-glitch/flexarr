@@ -187,6 +187,8 @@ final class MusicPlayer {
     @ObservationIgnored private var interruptionObserver: NSObjectProtocol?
     @ObservationIgnored private let nowPlaying = NowPlaying()
     @ObservationIgnored private var lastReport = Date.distantPast
+    /// The progress reports sent so far, one after another, so they reach the server in order.
+    @ObservationIgnored private var reports: Task<Void, Never>?
     @ObservationIgnored private var lastNowPlayingTime = Date.distantPast
     /// Bumped by every track change, so a session that arrives for a track skipped past is ended rather than played.
     @ObservationIgnored private var generation = 0
@@ -1173,7 +1175,7 @@ final class MusicPlayer {
         // A book whose session the server forgot: its last place goes to the book's own progress.
         if reporting, sessionId == nil, let bookId = expiredBookId, bookId == current?.id, position > 0, !isPlayingOffline, recordsHistory, let client {
             let update = BookProgressUpdate(positionSeconds: position, device: Self.deviceName, recordedAt: Date(), ended: false)
-            Task { try? await client.reportBookProgress(itemId: bookId, update) }
+            sendInOrder { try? await client.reportBookProgress(itemId: bookId, update) }
         }
         expiredBookId = nil
         guard let client, let sessionId else { return }
@@ -1181,9 +1183,22 @@ final class MusicPlayer {
         let position = self.position
         let record = recordsHistory && reporting
         let bookId = sessionBookId
-        Task {
+        sendInOrder {
             if record { await Self.send(client, session: sessionId, book: bookId, position: position, paused: true) }
             try? await client.stopPlayback(sessionId: sessionId)
+        }
+    }
+
+    /// Sends `request` after whatever was sent before it, with time to finish if the app goes to the background
+    /// meanwhile: pausing from the lock screen or taking AirPods out would otherwise let iOS suspend the app before the
+    /// last place reached the server.
+    private func sendInOrder(_ request: @escaping @MainActor () async -> Void) {
+        let previous = reports
+        let background = BackgroundTime(named: "Listening progress")
+        reports = Task {
+            await previous?.value
+            await request()
+            background.end()
         }
     }
 
@@ -1195,17 +1210,17 @@ final class MusicPlayer {
         if sessionId == nil, isBook, !isPlayingOffline, let track = current, expiredBookId == track.id {
             // The session's gone: the place goes to the book's own progress, as a download's does.
             lastReport = Date()
-            Task { try? await client.reportBookProgress(itemId: track.id, BookProgressUpdate(positionSeconds: position, device: Self.deviceName, recordedAt: Date(), ended: ended)) }
+            sendInOrder { try? await client.reportBookProgress(itemId: track.id, BookProgressUpdate(positionSeconds: position, device: Self.deviceName, recordedAt: Date(), ended: ended)) }
             return
         }
         guard let sessionId else { return }
         lastReport = Date()
         let bookId = sessionBookId
-        Task {
+        sendInOrder {
             if await Self.send(client, session: sessionId, book: bookId, position: position, paused: paused, ended: ended), self.sessionId == sessionId {
                 // Forgotten by the server (12 hours without a report): later reports go to the book's progress.
                 self.sessionId = nil
-                expiredBookId = bookId
+                self.expiredBookId = bookId
             }
         }
     }
