@@ -137,7 +137,8 @@ fun ItemSummary.facts(scores: Boolean = true): List<String> =
 
 /**
  * When Next Episode shows, when its countdown runs and what happens after (docs/next-episode-timing.md), in seconds
- * into the episode. Null means no button before the end: no credits marker and an episode of 2 minutes or less.
+ * into the episode. Null means no button before the end: no known length, or no credits marker and an episode of 2
+ * minutes or less.
  */
 data class NextEpisodeTiming(
     /** Next Episode appears. */
@@ -171,6 +172,8 @@ data class NextEpisodeTiming(
 }
 
 fun nextEpisodeTiming(markers: List<Marker>, duration: Double, skipCredits: Boolean, autoPlayNext: Boolean): NextEpisodeTiming? {
+    // No known length: nothing to time against, credits or not.
+    if (duration <= 0) return null
     val countdown = NextEpisodeTiming.COUNTDOWN_SECONDS.toDouble()
     val credits = markers.firstOrNull { it.type == MarkerType.Credits }?.start
     if (credits == null) {
@@ -182,7 +185,7 @@ fun nextEpisodeTiming(markers: List<Marker>, duration: Double, skipCredits: Bool
         skipCredits && autoPlayNext -> {
             val from = (credits - NextEpisodeTiming.SKIP_CREDITS_LEAD).coerceAtLeast(0.0)
             val next = credits + NextEpisodeTiming.SKIP_CREDITS_INTO
-            NextEpisodeTiming(from, from, if (duration > 0) minOf(next, duration) else next, null)
+            NextEpisodeTiming(from, from, minOf(next, duration), null)
         }
         autoPlayNext -> {
             // Credits inside the last 10 seconds: the countdown (and so the button) starts first.

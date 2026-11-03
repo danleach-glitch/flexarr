@@ -1,8 +1,14 @@
 package io.github.flexarr.core
 
+import java.io.File
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.double
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.serializer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -108,60 +114,43 @@ class PresentationTest {
         assertEquals(PlaybackPrompt.NextEpisode, PlaybackPrompt.at(2771.0, emptyList(), 2831.0, hasNext = true))
     }
 
+    /**
+     * Every case in docs/next-episode-timing.json, the cases FlexarrKit and the web test against too, so the three
+     * can't drift. Found from the test's working directory (the module's), up to the repo root.
+     */
+    @Test
+    fun `next episode timing matches the shared cases`() {
+        val file = generateSequence(File("").absoluteFile) { it.parentFile }
+            .map { File(it, "docs/next-episode-timing.json") }
+            .firstOrNull { it.isFile } ?: error("docs/next-episode-timing.json not found above ${File("").absolutePath}")
+        val cases = FlexarrClient.json.parseToJsonElement(file.readText()).jsonObject.getValue("cases").jsonArray
+        assertTrue(cases.isNotEmpty())
+        for (element in cases) {
+            val case = element.jsonObject
+            val name = case.getValue("name").jsonPrimitive.content
+            val duration = case.getValue("duration").jsonPrimitive.double
+            val markers = case["credits"]?.jsonPrimitive?.doubleOrNull?.let { listOf(Marker(MarkerType.Credits, it, duration)) } ?: emptyList()
+            val actual = nextEpisodeTiming(
+                markers, duration,
+                skipCredits = case.getValue("skipCredits").jsonPrimitive.boolean,
+                autoPlayNext = case.getValue("autoPlayNext").jsonPrimitive.boolean,
+            )
+            val expect = case["expect"]?.takeIf { it !is JsonNull }?.jsonObject
+            if (expect == null) {
+                assertNull(name, actual)
+                continue
+            }
+            fun field(key: String) = expect[key]?.jsonPrimitive?.double
+            val expected = NextEpisodeTiming(field("showAt")!!, field("countdownFrom"), field("nextAt"), field("closeAt"))
+            assertEquals(name, expected, actual)
+        }
+    }
+
     private val credits = listOf(Marker(MarkerType.Credits, 1300.0, 1400.0))
 
     @Test
-    fun `credits, skip credits and auto-play`() {
-        // Shows 8s before the credits and counts down to 2s into them, then the next episode plays.
-        assertEquals(NextEpisodeTiming(1292.0, 1292.0, 1302.0, null), nextEpisodeTiming(credits, 1400.0, skipCredits = true, autoPlayNext = true))
-    }
-
-    @Test
-    fun `credits and auto-play without skip credits`() {
-        // Shows at the credits; the last 10s count down to the end.
-        assertEquals(NextEpisodeTiming(1300.0, 1390.0, 1400.0, null), nextEpisodeTiming(credits, 1400.0, skipCredits = false, autoPlayNext = true))
-    }
-
-    @Test
-    fun `credits and skip credits without auto-play`() {
-        // Shows at the credits, no countdown, and the player closes there.
-        assertEquals(NextEpisodeTiming(1300.0, null, null, 1300.0), nextEpisodeTiming(credits, 1400.0, skipCredits = true, autoPlayNext = false))
-    }
-
-    @Test
-    fun `credits with neither`() {
-        // Shows at the credits; the player closes at the end.
-        assertEquals(NextEpisodeTiming(1300.0, null, null, null), nextEpisodeTiming(credits, 1400.0, skipCredits = false, autoPlayNext = false))
-    }
-
-    @Test
-    fun `no credits with auto-play`() {
-        // A minute before the end, either way Skip credits is set; the last 10s count down.
-        for (skip in listOf(true, false)) {
-            assertEquals(NextEpisodeTiming(1340.0, 1390.0, 1400.0, null), nextEpisodeTiming(emptyList(), 1400.0, skipCredits = skip, autoPlayNext = true))
-        }
-    }
-
-    @Test
-    fun `no credits without auto-play`() {
-        for (skip in listOf(true, false)) {
-            assertEquals(NextEpisodeTiming(1340.0, null, null, null), nextEpisodeTiming(emptyList(), 1400.0, skipCredits = skip, autoPlayNext = false))
-        }
-    }
-
-    @Test
-    fun `credits starting under 8 seconds in`() {
-        val early = listOf(Marker(MarkerType.Credits, 5.0, 60.0))
-        assertEquals(NextEpisodeTiming(0.0, 0.0, 7.0, null), nextEpisodeTiming(early, 60.0, skipCredits = true, autoPlayNext = true))
-        assertEquals(7, nextEpisodeTiming(early, 60.0, skipCredits = true, autoPlayNext = true)!!.secondsLeft(0.0))
-    }
-
-    @Test
-    fun `short episode without credits shows no button`() {
-        assertNull(nextEpisodeTiming(emptyList(), 120.0, skipCredits = false, autoPlayNext = true))
-        assertNull(nextEpisodeTiming(emptyList(), 90.0, skipCredits = true, autoPlayNext = false))
+    fun `no button before the end of a short episode without credits`() {
         assertEquals(PlaybackPrompt.None, PlaybackPrompt.at(119.0, emptyList(), 120.0, hasNext = true))
-        assertEquals(NextEpisodeTiming(61.0, 111.0, 121.0, null), nextEpisodeTiming(emptyList(), 121.0, skipCredits = false, autoPlayNext = true))
     }
 
     @Test
@@ -175,6 +164,8 @@ class PresentationTest {
         assertEquals(0, timing.secondsLeft(1302.0))
         assertEquals(0, timing.secondsLeft(1310.0))
         assertNull(nextEpisodeTiming(credits, 1400.0, skipCredits = true, autoPlayNext = false)!!.secondsLeft(1350.0))
+        // Credits under 8 seconds in: a shorter countdown from the start.
+        assertEquals(7, nextEpisodeTiming(listOf(Marker(MarkerType.Credits, 5.0, 60.0)), 60.0, skipCredits = true, autoPlayNext = true)!!.secondsLeft(0.0))
     }
 
     @Test
