@@ -284,8 +284,11 @@ final class AppModel {
         #if DEBUG
         // `-FlexarrPlay <id>` plays a title once the app's up (as flexarr://play/<id>, without tvOS asking first).
         if let play = defaults.string(forKey: "FlexarrPlay") {
+            // `-FlexarrPlayDelay <seconds>`: later than 3 s, say after `-FlexarrOpen` has had its page up a while
+            // (a warm-up to take over, docs/fast-start.md).
+            let delay = defaults.double(forKey: "FlexarrPlayDelay")
             Task { @MainActor in
-                try? await Task.sleep(for: .seconds(3))
+                try? await Task.sleep(for: .seconds(delay > 0 ? delay : 3))
                 if let url = URL(string: "flexarr://play/\(play)") { open(url: url) }
             }
         }
