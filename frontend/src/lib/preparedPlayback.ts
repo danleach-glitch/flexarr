@@ -6,8 +6,11 @@ import { dropStream, prepareStream, type PlaybackInfo, type PlaybackRequest } fr
  * stream, and otherwise it's let go.
  */
 
-/** A warm-up older than this isn't used: its resume point may have moved on meanwhile. */
-export const MAX_AGE_MS = 5 * 60_000
+/** A warm-up older than this isn't used: its resume point may have moved on meanwhile (another device, say). */
+export const MAX_AGE_MS = 2 * 60_000
+
+/** A hand-over Play didn't take up within this (it never reached the player) lapses, so the page can let it go. */
+export const HAND_OVER_MS = 10_000
 
 /** How long a page is looked at before its title is got ready. */
 export const PAGE_DELAY_MS = 2000
@@ -47,6 +50,7 @@ interface Slot {
 let slot: Slot | null = null
 /** The title Play is opening: the page going away leaves its warm-up for the player. */
 let handedTo: string | null = null
+let handedAt = 0
 
 /** Starts getting `request` ready, unless that's already under way; anything else got ready is let go. */
 export function getReady(request: PlaybackRequest, start: typeof prepareStream = prepareStream) {
@@ -105,11 +109,12 @@ export function drop() {
 /** Play is opening `itemId`: its warm-up stays for the player when the page it was got ready on goes. */
 export function handOver(itemId: string) {
   handedTo = itemId
+  handedAt = Date.now()
 }
 
 /** The page that got `itemId` ready is going: its warm-up goes too, unless Play is opening it. */
 export function leave(itemId: string) {
-  if (handedTo === itemId || slot?.itemId !== itemId) return
+  if ((handedTo === itemId && Date.now() - handedAt < HAND_OVER_MS) || slot?.itemId !== itemId) return
   drop()
 }
 

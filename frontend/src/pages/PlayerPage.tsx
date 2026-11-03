@@ -50,7 +50,7 @@ import { cueLine, pictureIn } from '../lib/subtitlePlacement'
 import { unmarkedCreditsSeconds } from '../lib/upNext'
 import { dialogueBoostChoices, isShaping, nightModeChoices, readSoundSettings, shapingFor, speakerChoices, timeOfDay, unshaped, useSoundSettings, useSoundShaping, writeSoundSettings } from '../lib/soundSettings'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
-import { reportStart, type StartTiming } from '../lib/startTiming'
+import { EARLY_STALL_MS, reportEarlyStall, reportStart, type StartTiming } from '../lib/startTiming'
 import { drop as dropPrepared, getReady, holds as holdsPrepared, take as takePrepared } from '../lib/preparedPlayback'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
 
@@ -199,6 +199,8 @@ export function PlayerPage() {
   const requests = useRef(0)
   /** This title's start, timed until its first picture (see lib/startTiming). */
   const timing = useRef<StartTiming | null>(null)
+  /** When this title's first picture came, and its playback id, to note a stall soon after (see lib/startTiming). */
+  const started = useRef<{ at: number; id?: string } | null>(null)
 
   const [info, setInfo] = useState<PlaybackInfo>()
   // How the attached stream is played, set as it's attached: an error can come before the render that brings `info`.
@@ -530,11 +532,19 @@ export function PlayerPage() {
     }
     const onPlay = () => setPlaying(true)
     const onPause = () => setPlaying(false)
-    const onWaiting = () => setWaiting(true)
+    const onWaiting = () => {
+      setWaiting(true)
+      const first = started.current
+      // A seek (Skip intro, say) waits too: only a stall counts, and only the first.
+      if (el.seeking) return
+      if (first && performance.now() - first.at < EARLY_STALL_MS) reportEarlyStall(first.id, performance.now() - first.at)
+      started.current = null
+    }
     const onPlaying = () => setWaiting(false)
     const onFirstPicture = () => {
       if (timing.current?.answeredAt === undefined) return
       reportStart(timing.current)
+      started.current = { at: performance.now(), id: timing.current.playbackId }
       timing.current = null
     }
     const onVolume = () => {

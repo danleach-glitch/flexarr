@@ -47,3 +47,16 @@ export function reportStart(timing: StartTiming, firstAt: number = performance.n
     },
   })
 }
+
+/** How soon after the first picture a stall still counts as part of starting. */
+export const EARLY_STALL_MS = 30_000
+
+/** The picture stopped to wait for more within [EARLY_STALL_MS] of starting: one entry, beside the start's. */
+export function reportEarlyStall(playbackId: string | undefined, afterMs: number, report = errorReporter.report) {
+  report({
+    level: 'Information',
+    category: 'playback',
+    message: `Playback ${playbackId ?? 'unknown'} stalled soon after starting`,
+    properties: { afterMs: String(Math.round(afterMs)), remote: String(looksRemote()), playbackId: playbackId ?? '' },
+  })
+}
