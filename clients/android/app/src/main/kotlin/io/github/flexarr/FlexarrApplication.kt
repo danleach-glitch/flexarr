@@ -70,5 +70,5 @@ val Context.appModel: AppModel get() = (applicationContext as FlexarrApplication
 val Context.isTelevision: Boolean
     get() = getSystemService(UiModeManager::class.java).currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
 
-/** The TV interface (ui/tv) rather than the phone's: on a TV, in the builds that have it so far ([BuildConfig.TV_UI]). */
-val Context.usesTvInterface: Boolean get() = BuildConfig.TV_UI && isTelevision
+/** The TV interface (ui/tv) rather than the phone's: on a TV. */
+val Context.usesTvInterface: Boolean get() = isTelevision
