@@ -331,14 +331,19 @@ private struct SidebarVersion: ViewModifier {
                 HStack(alignment: .center, spacing: 12) {
                     HStack(alignment: .center, spacing: 6) {
                         BrandMark(size: 26)
+                        // Its full width, always: the footer otherwise squeezes it to "fle…" beside a longer version.
                         Text("flexarr")
                             .font(.marquee(22, weight: .black))
                             .foregroundStyle(Color.screen.opacity(0.8))
+                            .lineLimit(1)
+                            .fixedSize()
                     }
                     Text(Bundle.main.shortVersion)
                         .font(.system(size: 20, weight: .medium))
                         .foregroundStyle(Color.usher.opacity(0.7))
                         .monospacedDigit()
+                        .lineLimit(1)
+                        .fixedSize()
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Flexarr \(Bundle.main.shortVersion)")
