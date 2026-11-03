@@ -20,7 +20,8 @@ import {
   type Settings,
 } from '../../api/client'
 import { AsyncButton, IconButton } from '../../components/AsyncButton'
-import { Check, Close, Film, Pencil, Plus, Refresh, Trash } from '../../components/icons'
+import { Check, Close, Film, Pencil, Plus, Refresh } from '../../components/icons'
+import { icon } from '../../components/icons.generated'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { CopyButton } from '../../components/CopyButton'
 import { FolderPicker } from '../../components/FolderPicker'
@@ -437,7 +438,7 @@ function ArrRow({
           <div className="form-actions">
             {onRemove &&
               (others ? (
-                <IconButton label="Remove" aria-label={`Remove ${connection.name}`} icon={<Trash />} className="button quiet small icon danger-icon form-actions-start" onClick={() => confirm(`Remove ${connection.name}?`) && onRemove()} />
+                <IconButton label="Remove" aria-label={`Remove ${connection.name}`} icon={<icon.delete />} className="button quiet small icon danger-icon form-actions-start" onClick={() => confirm(`Remove ${connection.name}?`) && onRemove()} />
               ) : (
                 <AsyncButton className="button danger small form-actions-start" aria-label={`Disconnect ${connection.name}`} onClick={() => (confirm(`Disconnect ${connection.name}? Its titles stay in your libraries.`) ? onRemove() : undefined)}>
                   Disconnect
@@ -1007,7 +1008,7 @@ function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMapp
             Path on this server
             <input type="text" value={m.to} placeholder="/Volumes/Media/data" onChange={(e) => set(i, { to: e.target.value })} />
           </label>
-          <IconButton label="Remove" aria-label={`Remove the mapping for ${m.from || 'this path'}`} icon={<Trash />} className="button quiet small icon danger-icon" onClick={() => setMappings(mappings.filter((_, j) => j !== i))} />
+          <IconButton label="Remove" aria-label={`Remove the mapping for ${m.from || 'this path'}`} icon={<icon.delete />} className="button quiet small icon danger-icon" onClick={() => setMappings(mappings.filter((_, j) => j !== i))} />
         </div>
       ))}
       <div className="form-actions">

@@ -22,7 +22,8 @@ import {
   type RequestDestination,
 } from '../../api/client'
 import { AsyncButton, IconButton } from '../../components/AsyncButton'
-import { Crown, Pencil, Trash } from '../../components/icons'
+import { Crown, Pencil } from '../../components/icons'
+import { icon } from '../../components/icons.generated'
 import { Avatar } from '../../components/ProfilePicker'
 import { useApi } from '../../hooks/useApi'
 import { usePreviewUrl } from '../../hooks/usePreviewUrl'
@@ -115,7 +116,7 @@ export function ProfilesSection() {
                   <IconButton
                     label="Remove"
                     aria-label={`Remove ${p.name}`}
-                    icon={<Trash />}
+                    icon={<icon.delete />}
                     className="button quiet small icon danger-icon"
                     onClick={() => confirm(`Remove ${p.name}’s profile? Their watch history goes with it.`) && deleteProfile(p.id).then(reload)}
                   />

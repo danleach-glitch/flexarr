@@ -22,7 +22,8 @@ import {
 } from '../../api/client'
 import { AsyncButton, IconButton } from '../../components/AsyncButton'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
-import { Download, Restore, Trash } from '../../components/icons'
+import { Download, Restore } from '../../components/icons'
+import { icon } from '../../components/icons.generated'
 import { useApi } from '../../hooks/useApi'
 import { formatSize, libraryTypeLabel } from '../../lib/format'
 import { SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
@@ -140,7 +141,7 @@ export function BackupSection() {
             <div className="library-row-actions">
               <IconButton label="Download" icon={<Download />} onClick={() => setDialog({ kind: 'download', backup: b })} />
               <IconButton label="Restore" icon={<Restore />} onClick={() => setDialog({ kind: 'restore', createdAt: b.createdAt, name: b.name })} />
-              <IconButton label="Delete" icon={<Trash />} className="button quiet small icon danger-icon" onClick={() => setDialog({ kind: 'delete', backup: b })} />
+              <IconButton label="Delete" icon={<icon.delete />} className="button quiet small icon danger-icon" onClick={() => setDialog({ kind: 'delete', backup: b })} />
             </div>
           </div>
         ))}
