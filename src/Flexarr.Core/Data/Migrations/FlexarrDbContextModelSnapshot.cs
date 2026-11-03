@@ -1319,6 +1319,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<bool>("IsKids")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Language")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Layout")
                         .HasColumnType("TEXT");
 
