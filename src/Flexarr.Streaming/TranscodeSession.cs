@@ -73,7 +73,12 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         _logger = logger;
         _reserve = reserve;
         Directory = System.IO.Directory.CreateDirectory(Path.Combine(settings.CacheDirectory, "transcodes", id)).FullName;
+        // Settled once: a fall back to software mid-session mustn't change where the segments start.
+        Opening = FfmpegCommand.HasOpening(plan, settings);
     }
+
+    /// <summary>The segments start with short ones (<see cref="FfmpegCommand.OpeningSegments"/>), for the whole session.</summary>
+    public bool Opening { get; }
 
     public string Id { get; }
 
@@ -83,14 +88,14 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     public double DurationSeconds { get; }
     public TranscodePlan Plan { get; }
     public string Directory { get; }
-    public int SegmentCount => Plan.Repackage?.SegmentStarts.Count ?? FfmpegCommand.SegmentCount(DurationSeconds, FfmpegCommand.HasOpening(Plan));
+    public int SegmentCount => Plan.Repackage?.SegmentStarts.Count ?? FfmpegCommand.SegmentCount(DurationSeconds, Opening);
 
     /// <summary>The segment playing at <paramref name="seconds"/>.</summary>
     public int SegmentAt(double seconds)
     {
         if (Plan.Repackage is not { } repackage)
         {
-            return Math.Clamp(FfmpegCommand.SegmentAtSeconds(seconds, FfmpegCommand.HasOpening(Plan)), 0, SegmentCount - 1);
+            return Math.Clamp(FfmpegCommand.SegmentAtSeconds(seconds, Opening), 0, SegmentCount - 1);
         }
 
         var starts = repackage.SegmentStarts;
@@ -124,7 +129,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 
     public string MediaPlaylist() => Plan.Repackage is { } repackage
         ? FfmpegCommand.MediaPlaylist(repackage.SegmentStarts, DurationSeconds, StartSeconds)
-        : FfmpegCommand.MediaPlaylist(DurationSeconds, StartSeconds, Plan.Fmp4, FfmpegCommand.HasOpening(Plan));
+        : FfmpegCommand.MediaPlaylist(DurationSeconds, StartSeconds, Plan.Fmp4, Opening);
 
     private string SegmentExtension => Plan.Fmp4 ? ".m4s" : ".ts";
 
@@ -251,7 +256,12 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 
             if (_disposed || DateTime.UtcNow > deadline || died)
             {
-                LogSegmentFailed(Id, index, _lastError ?? (_disposed ? "stopped" : "timed out"));
+                // Ended on purpose (closed, or got ready ahead of Play and made way for a stream): not a failure.
+                if (!_disposed)
+                {
+                    LogSegmentFailed(Id, index, _lastError ?? "timed out");
+                }
+
                 return null;
             }
 
@@ -431,7 +441,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     /// <summary>Call with the gate held.</summary>
     private Task StartAsync(int segment)
     {
-        if (FfmpegCommand.HasOpening(Plan) && segment < FfmpegCommand.OpeningSegments)
+        if (Opening && segment < FfmpegCommand.OpeningSegments)
         {
             segment = 0; // ffmpeg makes the short opening segments from the start (see FfmpegCommand.Hls).
         }
@@ -443,7 +453,9 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         DeleteSegments();
 
         var start = new ProcessStartInfo(_settings.FfmpegPath) { UseShellExecute = false, RedirectStandardError = true, RedirectStandardInput = false };
-        foreach (var arg in FfmpegCommand.Hls(Input, Plan, segment, Directory, _settings))
+        // Got ready ahead of Play: a short burst, enough to open on (the rest comes at playing speed once it's used).
+        var burst = Warming ? FfmpegCommand.WarmingRunAheadSeconds : FfmpegCommand.RunAheadSeconds;
+        foreach (var arg in FfmpegCommand.Hls(Input, Plan, segment, Directory, _settings, Opening, burst))
         {
             start.ArgumentList.Add(arg);
         }
@@ -487,7 +499,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 
     /// <summary>When segment <paramref name="index"/> starts in the film.</summary>
     private double SegmentStart(int index) =>
-        Plan.Repackage is { } repackage ? repackage.SegmentStarts[index] : FfmpegCommand.SegmentStartSeconds(index, FfmpegCommand.HasOpening(Plan));
+        Plan.Repackage is { } repackage ? repackage.SegmentStarts[index] : FfmpegCommand.SegmentStartSeconds(index, Opening);
 
     /// <summary>Deletes the segments more than <see cref="KeptBehind"/> before <paramref name="watching"/>.</summary>
     private async Task PruneAsync(int watching, CancellationToken ct)

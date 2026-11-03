@@ -181,6 +181,15 @@ public class FfmpegCommandTests
         Assert.Contains("-hls_time 6 ", later, StringComparison.Ordinal);
         Assert.Contains("-force_key_frames expr:gte(t,n_forced*6)", later, StringComparison.Ordinal);
 
+        // Encoders that may add keyframes of their own (Quick Sync, VA-API) keep even segments throughout.
+        var qsv = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 0, "/out", Settings(HardwareAcceleration.Qsv)));
+        Assert.Contains("-hls_time 6 ", qsv, StringComparison.Ordinal);
+        Assert.Contains("-force_key_frames expr:gte(t,n_forced*6)", qsv, StringComparison.Ordinal);
+
+        // Got ready ahead of Play: a short burst.
+        var warming = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 0, "/out", Settings(HardwareAcceleration.VideoToolbox), burstSeconds: FfmpegCommand.WarmingRunAheadSeconds));
+        Assert.Contains("-readrate_initial_burst 30 ", warming, StringComparison.Ordinal);
+
         // Music (no picture) is cut on its sound and stays even.
         var music = string.Join(' ', FfmpegCommand.Hls("/in.flac", Plan with { VideoStreamIndex = -1 }, 0, "/out", Settings(HardwareAcceleration.None)));
         Assert.Contains("-hls_time 6 ", music, StringComparison.Ordinal);
