@@ -865,6 +865,27 @@ public sealed class TraktTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AHeldFilm_AppliesWhenARefreshMatchesIt_AndOtherHoldsWait()
+    {
+        var film = Film("Arrival", "0");
+        film.TmdbId = null;
+        await SeedAsync(db => db.AddRange(Films, film));
+        await SeedAsync(db => db.TraktHistoryHolds.AddRange(
+            new TraktHistoryHold { ProfileId = Owner, Kind = MediaKind.Movie, TmdbId = "329865", WatchedAt = DateTime.UtcNow.AddDays(-2) },
+            new TraktHistoryHold { ProfileId = Owner, Kind = MediaKind.Movie, TmdbId = "11", WatchedAt = DateTime.UtcNow.AddDays(-2) }));
+        TraktHolds.LookAgain();
+        Assert.Equal(0, await InDbAsync(db => TraktHolds.ApplyAsync(db, default)));
+
+        // A refresh finds its TMDB id.
+        await InDbAsync(db => db.MediaItems.Where(i => i.Id == film.Id)
+            .ExecuteUpdateAsync(u => u.SetProperty(i => i.TmdbId, "329865").SetProperty(i => i.MetadataUpdatedAt, DateTime.UtcNow)));
+        var applied = await InDbAsync(db => TraktHolds.ApplyAsync(db, default));
+
+        Assert.Equal(1, applied);
+        Assert.Equal(["11"], await InDbAsync(db => db.TraktHistoryHolds.Select(h => h.TmdbId!).ToListAsync()));
+    }
+
+    [Fact]
     public async Task ANewerScrobble_KeepsAnotherTitlesFinish_AsHistory()
     {
         await ConnectAsync();
