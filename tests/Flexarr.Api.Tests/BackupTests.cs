@@ -497,6 +497,39 @@ public class BackupTests
     }
 
     [Fact]
+    public async Task ABrowser_DownloadsABackupOrExportsSettings_OnlyWithTheAdminPin()
+    {
+        await using var factory = new FlexarrApiFactory();
+        var admin = Client(factory);
+        await admin.PostAsJsonAsync(Api("/admin/pin"), new { pin = "5319" });
+        var name = (await (await admin.PostAsync(Api("/backups"), null)).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("name").GetString()!;
+        var browser = factory.CreateClient();
+        using (var signIn = new HttpRequestMessage(HttpMethod.Post, Api("/session")))
+        {
+            signIn.Headers.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+            browser.DefaultRequestHeaders.Add("Cookie", Assert.Single((await browser.SendAsync(signIn)).Headers.GetValues("Set-Cookie")).Split(';')[0]);
+            browser.DefaultRequestHeaders.Add("X-Requested-With", "flexarr");
+        }
+
+        // A plain link, without the PIN, gets nothing; a link the PIN bought works once.
+        Assert.Equal(HttpStatusCode.Forbidden, (await browser.GetAsync(Api($"/backups/{name}/download"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await browser.PostAsJsonAsync(Api($"/backups/{name}/download-link"), new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await browser.PostAsJsonAsync(Api($"/backups/{name}/download-link"), new { pin = "0000" })).StatusCode);
+        var link = await (await browser.PostAsJsonAsync(Api($"/backups/{name}/download-link"), new { pin = "5319" })).Content.ReadFromJsonAsync<JsonElement>();
+        var url = new Uri(link.GetProperty("url").GetString()!, UriKind.Relative);
+        var first = await browser.GetAsync(url);
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal("application/zip", first.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(HttpStatusCode.Forbidden, (await browser.GetAsync(url)).StatusCode);
+
+        // With a passphrase, the PIN comes with it.
+        Assert.Equal(HttpStatusCode.Forbidden, (await browser.PostAsJsonAsync(Api($"/backups/{name}/download"), new { passphrase = "correct horse" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await browser.PostAsJsonAsync(Api($"/backups/{name}/download"), new { passphrase = "correct horse", pin = "5319" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await browser.PostAsJsonAsync(Api("/backups/settings-export"), new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await browser.PostAsJsonAsync(Api("/backups/settings-export"), new { pin = "5319" })).StatusCode);
+    }
+
+    [Fact]
     public void StagedRestore_FoundLongAfter_IsDropped()
     {
         var data = Directory.CreateTempSubdirectory("flexarr-restore-").FullName;

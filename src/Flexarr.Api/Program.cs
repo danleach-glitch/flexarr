@@ -177,6 +177,7 @@ builder.Services.AddSingleton<PersonImages>();
 builder.Services.AddSingleton<PersonLookups>();
 builder.Services.AddSingleton<BackupStore>();
 builder.Services.AddSingleton<BackupUploads>();
+builder.Services.AddSingleton<DownloadLinks>();
 builder.Services.AddSingleton<IServerRestart, ServerRestart>();
 builder.Services.AddHostedService<BackupWorker>();
 // New releases from GitHub (Settings › Updates), and installing them on a Mac. The release lookup is small; a build is

@@ -165,7 +165,10 @@ export function BackupSection() {
       {(dialog?.kind === 'download' || dialog?.kind === 'export') && (
         <PassphraseDialog
           title={dialog.kind === 'export' ? 'Export settings' : 'Download this backup'}
-          onSave={(passphrase) => (dialog.kind === 'export' ? exportSettings(passphrase) : downloadBackup(dialog.backup.name, passphrase))}
+          mainHasPin={mainHasPin}
+          onSave={(confirmation, passphrase) =>
+            dialog.kind === 'export' ? exportSettings(confirmation, passphrase) : downloadBackup(dialog.backup.name, confirmation, passphrase)
+          }
           onClose={() => setDialog(undefined)}
         />
       )}
@@ -312,18 +315,30 @@ function Automatic({ nightly, keep, folder, folderInUse, onSaved }: { nightly: b
   )
 }
 
-/** Asks for an optional passphrase before saving a file that holds the server's keys. */
-function PassphraseDialog({ title, onSave, onClose }: { title: string; onSave: (passphrase?: string) => Promise<void>; onClose: () => void }) {
+/** Asks for an optional passphrase, and the admin PIN when it has one, before saving a file that holds the server's keys. */
+function PassphraseDialog({
+  title,
+  mainHasPin,
+  onSave,
+  onClose,
+}: {
+  title: string
+  mainHasPin: boolean
+  onSave: (confirmation: { pin?: string; confirm: boolean }, passphrase?: string) => Promise<void>
+  onClose: () => void
+}) {
   const [passphrase, setPassphrase] = useState('')
   const [again, setAgain] = useState('')
+  const [pin, setPin] = useState('')
   const [error, setError] = useState<string>()
 
   async function save() {
     if (passphrase && passphrase.length < 8) return setError('Use a passphrase of at least 8 characters, or none.')
     if (passphrase !== again) return setError('The passphrases don’t match.')
+    if (mainHasPin && !pin) return setError('Enter the admin PIN.')
     setError(undefined)
     try {
-      await onSave(passphrase || undefined)
+      await onSave({ pin: pin || undefined, confirm: true }, passphrase || undefined)
       onClose()
     } catch (e) {
       setError(errorText(e))
@@ -347,6 +362,12 @@ function PassphraseDialog({ title, onSave, onClose }: { title: string; onSave: (
         </label>
       )}
       {passphrase && <p className="muted">Without it the file can’t be opened, by anyone. Flexarr doesn’t keep it.</p>}
+      {mainHasPin && (
+        <label className="field">
+          <span className="field-label">Admin PIN</span>
+          <input type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value)} />
+        </label>
+      )}
     </ConfirmDialog>
   )
 }
