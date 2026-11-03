@@ -490,7 +490,7 @@ app.MapGroup("/api/v1")
 app.MapMcp("/api/v1/mcp").RequireAuthorization();
 
 // Artwork and media are fetched by <img>/<video> tags and native players, which can't send the API key header.
-app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapLiveTvStreamEndpoints().MapProfileImageEndpoints().MapPairingDeviceEndpoints().MapFirstRunEndpoints().MapGuestRedeemEndpoints();
+app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapLiveTvStreamEndpoints().MapProfileImageEndpoints().MapPairingDeviceEndpoints().MapFirstRunEndpoints().MapGuestRedeemEndpoints().MapLanguageEndpoints();
 
 // Emby/Jellyfin-compatible endpoints for the *arr apps' built-in connection.
 app.MapMediaBrowserEndpoints();
