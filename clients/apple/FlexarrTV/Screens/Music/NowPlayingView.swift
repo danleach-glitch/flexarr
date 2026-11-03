@@ -150,7 +150,7 @@ struct NowPlayingView: View {
 
     private var controls: some View {
         HStack(spacing: 36) {
-            Button { music.toggleShuffle() } label: { Label("Shuffle", systemImage: "shuffle") }
+            Button { music.toggleShuffle() } label: { Label("Shuffle", systemImage: Symbol.shuffle) }
                 .buttonStyle(RoundControlStyle(size: 84, active: music.isShuffled))
                 .focused($focusedControl, equals: .shuffle)
             Button { music.previous() } label: { Label("Previous", systemImage: "backward.fill") }

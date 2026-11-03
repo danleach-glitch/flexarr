@@ -164,7 +164,7 @@ struct PodcastEpisodeRow: View {
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: removeFromUpNext != nil) {
             if let removeFromUpNext {
-                Button(role: .destructive, action: removeFromUpNext) { Label("Remove from Up next", systemImage: "minus.circle") }
+                Button(role: .destructive, action: removeFromUpNext) { Label("Remove from Up next", systemImage: Symbol.removeFromRow) }
             } else {
                 Button { Task { await model.addToUpNext(episode.id, next: false) } } label: {
                     Label("Add to Up next", systemImage: "text.line.last.and.arrowtriangle.forward")
@@ -182,10 +182,10 @@ struct PodcastEpisodeRow: View {
                 Label("Add to Up next", systemImage: "text.line.last.and.arrowtriangle.forward")
             }
             if let removeFromUpNext {
-                Button(role: .destructive, action: removeFromUpNext) { Label("Remove from Up next", systemImage: "minus.circle") }
+                Button(role: .destructive, action: removeFromUpNext) { Label("Remove from Up next", systemImage: Symbol.removeFromRow) }
             }
             Button { togglePlayed() } label: {
-                Label(episode.isPlayed ? "Mark as unplayed" : "Mark as played", systemImage: episode.isPlayed ? "circle" : "checkmark.circle")
+                Label(episode.isPlayed ? "Mark as unplayed" : "Mark as played", systemImage: episode.isPlayed ? Symbol.markUnwatched : Symbol.watched)
             }
             // Part way through: unplayed forgets the place, so it leaves the listening list.
             if episode.progress != nil {
@@ -207,7 +207,7 @@ struct PodcastEpisodeRow: View {
                 }
             } else {
                 Button { Task { try? await downloads.download(itemId: episode.id, quality: .original) } } label: {
-                    Label("Download", systemImage: "arrow.down.circle")
+                    Label("Download", systemImage: Symbol.download)
                 }
                 .tint(Color.aisle)
             }

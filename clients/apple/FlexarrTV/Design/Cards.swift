@@ -247,13 +247,13 @@ struct ItemContextMenu: View {
             Label(item.isResumable ? "Resume" : "Play", systemImage: Symbol.play)
         }
         if item.kind == .audiobook {
-            Button { goToDetails() } label: { Label("Go to book", systemImage: "info.circle") }
+            Button { goToDetails() } label: { Label("Go to book", systemImage: Symbol.details) }
             if !model.isKids {
                 Button {
                     leavesRow?(item.id)
                     Task { await model.setBookFinished(item, true) }
                 } label: {
-                    Label("Mark as finished", systemImage: "checkmark.circle")
+                    Label("Mark as finished", systemImage: Symbol.watched)
                 }
             }
         }
@@ -262,7 +262,7 @@ struct ItemContextMenu: View {
             leavesRow?(item.id)
             Task { await model.removeFromContinueWatching(item) }
         } label: {
-            Label("Remove", systemImage: "minus.circle")
+            Label("Remove", systemImage: Symbol.removeFromRow)
         }
     }
 
@@ -280,7 +280,7 @@ struct ItemContextMenu: View {
         }
         if showsDetails {
             Button { goToDetails() } label: {
-                Label(item.kind == .episode ? "Go to episode" : "Go to details", systemImage: "info.circle")
+                Label(item.kind == .episode ? "Go to episode" : "Go to details", systemImage: Symbol.details)
             }
         }
         let watched = item.userData.watched || item.userData.unwatchedCount == 0
@@ -291,13 +291,13 @@ struct ItemContextMenu: View {
                 leavesRow?(item.id)
                 Task { await model.setWatched(item, !watched) }
             } label: {
-                Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? Symbol.markUnwatched : "checkmark.circle")
+                Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? Symbol.markUnwatched : Symbol.watched)
             }
         }
         if model.hasWatchlist, item.kind == .movie || item.kind == .series {
             let onList = model.watchlistItems.contains(item.id)
             Button { Task { await model.setOnWatchlist(.library(item.id), !onList) } } label: {
-                Label(onList ? "Remove from watchlist" : "Add to watchlist", systemImage: onList ? "bookmark.slash" : Symbol.watchlist)
+                Label(onList ? "Remove from watchlist" : "Add to watchlist", systemImage: onList ? Symbol.offWatchlist : Symbol.watchlist)
             }
         }
         // Part way through: unwatched forgets the place, which takes it out of Continue Watching.
@@ -313,7 +313,7 @@ struct ItemContextMenu: View {
                 leavesRow?(item.id)
                 Task { await model.removeFromContinueWatching(item) }
             } label: {
-                Label("Remove", systemImage: "minus.circle")
+                Label("Remove", systemImage: Symbol.removeFromRow)
             }
         }
         if marks, item.kind == .episode, item.seriesId != nil, let show = item.seriesTitle {
@@ -321,7 +321,7 @@ struct ItemContextMenu: View {
                 leavesRow?(item.id)
                 Task { await model.setShowWatched(of: item) }
             } label: {
-                Label("Mark \(show) as watched", systemImage: "checkmark.circle.fill")
+                Label("Mark \(show) as watched", systemImage: Symbol.watched)
             }
         }
     }

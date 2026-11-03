@@ -156,7 +156,7 @@ private struct WatchlistCard: View {
             .contextMenu {
                 if let key {
                     Button(role: .destructive) { Task { await model.setOnWatchlist(key, false) } } label: {
-                        Label("Remove from watchlist", systemImage: "bookmark.slash")
+                        Label("Remove from watchlist", systemImage: Symbol.offWatchlist)
                     }
                 }
             }

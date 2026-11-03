@@ -83,7 +83,7 @@ struct UpcomingCard: View {
             .contextMenu {
                 if let id = item.libraryItemId {
                     Button { router.push(.itemID(id)) } label: {
-                        Label(item.kind == .movie ? "Go to movie" : item.kind == .audiobook ? "Go to book" : "Go to show", systemImage: "info.circle")
+                        Label(item.kind == .movie ? "Go to movie" : item.kind == .audiobook ? "Go to book" : "Go to show", systemImage: Symbol.details)
                     }
                 }
                 if !(item.overview ?? "").isEmpty {
