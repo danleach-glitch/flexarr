@@ -390,6 +390,7 @@ public sealed class PlaybackService(
             BookParts = parts,
             PlaysBooks = request.DeviceName is not null,
             Warming = request.Prepare,
+            Title = book.Title,
             // The name the device was given when it signed in ("Dan's iPhone") says which one better than its model.
             DeviceName = (profile.SignInId is { } signIn ? signIns?.List().FirstOrDefault(s => s.Id == signIn)?.Name : null) ?? request.DeviceName,
         });
