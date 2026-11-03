@@ -205,6 +205,49 @@ public class CollectionTests(FlexarrApiFactory factory) : IClassFixture<FlexarrA
         Assert.Equal([franchise + 4], JsonSerializer.Deserialize<List<Flexarr.Api.Collections.MissingFilm>>(collection.MissingJson!, Flexarr.Api.Collections.FranchiseSync.Json)!.Select(m => m.TmdbId));
     }
 
+    [Fact]
+    public async Task FranchiseSync_OneRadarrDown_DoesntStopTheOthers_AndAShareFranchiseCountsOnce()
+    {
+        var franchise = Random.Shared.Next(2_000_000, 3_000_000);
+        var arr = new FakeArr();
+        var body = $$"""
+            [{"id":1,"title":"Pair Collection","tmdbId":{{franchise}},"movies":[
+              {"tmdbId":{{franchise + 1}},"title":"One","year":2001},
+              {"tmdbId":{{franchise + 2}},"title":"Two","year":2003}]}]
+            """;
+        arr.Responses["GET //radarr.test/api/v3/collection"] = body;
+        arr.Responses["GET //radarr-hd.test/api/v3/collection"] = body;
+        using var app = arr.Serve(factory).WithWebHostBuilder(builder =>
+        {
+            // The first Radarr asked doesn't answer (anything not in Responses is a 404).
+            foreach (var (name, host, i) in new[] { ("Radarr 4K", "radarr-4k", 1), ("Radarr", "radarr", 2), ("Radarr HD", "radarr-hd", 3) })
+            {
+                builder.UseSetting($"Flexarr:Arr:{i}:Name", name);
+                builder.UseSetting($"Flexarr:Arr:{i}:Kind", "Radarr");
+                builder.UseSetting($"Flexarr:Arr:{i}:BaseUrl", $"http://{host}.test");
+                builder.UseSetting($"Flexarr:Arr:{i}:ApiKey", "key");
+            }
+        });
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies };
+            db.Add(library);
+            db.AddRange(Enumerable.Range(1, 2).Select(n => new MediaItem
+            {
+                LibraryId = library.Id, Kind = MediaKind.Movie, Title = $"Film {n}", SortTitle = $"film {n}", TmdbId = (franchise + n).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            }));
+            await db.SaveChangesAsync();
+        }
+
+        await app.Services.GetRequiredService<Flexarr.Api.Collections.FranchiseSync>().SyncAsync(default);
+
+        using var check = app.Services.CreateScope();
+        var collections = check.ServiceProvider.GetRequiredService<FlexarrDbContext>().Collections.Where(c => c.TmdbCollectionId == franchise).ToList();
+        Assert.Single(collections);
+        Assert.Contains(arr.Requests, r => r == "GET /api/v3/collection");
+    }
+
     private async Task<string[]> Titles(string? id) =>
         (await Client().GetFromJsonAsync<JsonElement>(Api($"/collections/{id}"))).GetProperty("items").EnumerateArray().Select(i => i.GetProperty("title").GetString()!).ToArray();
 

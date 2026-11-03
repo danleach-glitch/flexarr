@@ -71,53 +71,65 @@ public sealed partial class FranchiseSync(IServiceScopeFactory scopes, ILogger<F
             }
 
             var existing = await db.Collections.Include(c => c.Items).Where(c => c.Kind == CollectionKind.Franchise).ToDictionaryAsync(c => c.TmdbCollectionId!.Value, ct);
-            var count = 0;
+            // Each Radarr on its own: a 4K one being down doesn't stop the HD one. A franchise both have counts once.
+            var all = new List<RadarrCollection>();
+            var seen = new HashSet<int>();
             foreach (var radarr in options.Arr.Where(a => a.Kind == ArrKind.Radarr))
             {
-                foreach (var series in await arr.GetCollectionsAsync(radarr, ct))
+                try
                 {
-                    var ordered = series.Movies.OrderBy(m => m.Year == 0 ? int.MaxValue : m.Year).ThenBy(m => m.Title, StringComparer.Ordinal).ToList();
-                    var owned = ordered.Where(m => films.ContainsKey(m.TmdbId)).ToList();
-                    var onDisk = owned.Count(m => present.Contains(m.TmdbId));
-                    existing.TryGetValue(series.TmdbId, out var collection);
-                    if (onDisk < 2 && collection is null)
-                    {
-                        continue;
-                    }
-
-                    count += onDisk >= 2 ? 1 : 0;
-                    if (collection is null)
-                    {
-                        collection = new Collection { Name = Name(series.Title), Kind = CollectionKind.Franchise, TmdbCollectionId = series.TmdbId };
-                        db.Collections.Add(collection);
-                        existing[series.TmdbId] = collection;
-                    }
-
-                    collection.Description ??= series.Overview;
-                    collection.PosterUrl = Image(series.Images, "poster") ?? collection.PosterUrl;
-                    collection.BackdropUrl = Image(series.Images, "fanart") ?? collection.BackdropUrl;
-                    collection.MissingJson = JsonSerializer.Serialize(
-                        // Not yet announced properly ("Untitled James Bond Film", no year): nothing to request.
-                        ordered.Where(m => !films.ContainsKey(m.TmdbId) && m.Year > 0)
-                            .Select(m => new MissingFilm(m.TmdbId, m.Title, m.Year == 0 ? null : m.Year, m.Overview, Image(m.Images, "poster"))).ToList(), Json);
-
-                    // Items follow release order; a film that left the library leaves the collection.
-                    var wanted = owned.Select((m, i) => (Id: films[m.TmdbId], Position: i)).ToList();
-                    collection.Items.RemoveAll(i => wanted.All(w => w.Id != i.MediaItemId));
-                    foreach (var (id, position) in wanted)
-                    {
-                        if (collection.Items.FirstOrDefault(i => i.MediaItemId == id) is { } item)
-                        {
-                            item.Position = position;
-                        }
-                        else
-                        {
-                            collection.Items.Add(new CollectionItem { MediaItemId = id, Position = position });
-                        }
-                    }
-
-                    collection.UpdatedAt = DateTime.UtcNow;
+                    all.AddRange((await arr.GetCollectionsAsync(radarr, ct)).Where(c => seen.Add(c.TmdbId)));
                 }
+                catch (Exception ex) when (ex is HttpRequestException or JsonException or IOException or InvalidOperationException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
+                {
+                    LogRadarrFailed(ex, radarr.Name);
+                }
+            }
+
+            var count = 0;
+            foreach (var series in all)
+            {
+                var ordered = series.Movies.OrderBy(m => m.Year == 0 ? int.MaxValue : m.Year).ThenBy(m => m.Title, StringComparer.Ordinal).ToList();
+                var owned = ordered.Where(m => films.ContainsKey(m.TmdbId)).ToList();
+                var onDisk = owned.Count(m => present.Contains(m.TmdbId));
+                existing.TryGetValue(series.TmdbId, out var collection);
+                if (onDisk < 2 && collection is null)
+                {
+                    continue;
+                }
+
+                count += onDisk >= 2 ? 1 : 0;
+                if (collection is null)
+                {
+                    collection = new Collection { Name = Name(series.Title), Kind = CollectionKind.Franchise, TmdbCollectionId = series.TmdbId };
+                    db.Collections.Add(collection);
+                    existing[series.TmdbId] = collection;
+                }
+
+                collection.Description ??= series.Overview;
+                collection.PosterUrl = Image(series.Images, "poster") ?? collection.PosterUrl;
+                collection.BackdropUrl = Image(series.Images, "fanart") ?? collection.BackdropUrl;
+                collection.MissingJson = JsonSerializer.Serialize(
+                    // Not yet announced properly ("Untitled James Bond Film", no year): nothing to request.
+                    ordered.Where(m => !films.ContainsKey(m.TmdbId) && m.Year > 0)
+                        .Select(m => new MissingFilm(m.TmdbId, m.Title, m.Year == 0 ? null : m.Year, m.Overview, Image(m.Images, "poster"))).ToList(), Json);
+
+                // Items follow release order; a film that left the library leaves the collection.
+                var wanted = owned.Select((m, i) => (Id: films[m.TmdbId], Position: i)).ToList();
+                collection.Items.RemoveAll(i => wanted.All(w => w.Id != i.MediaItemId));
+                foreach (var (id, position) in wanted)
+                {
+                    if (collection.Items.FirstOrDefault(i => i.MediaItemId == id) is { } item)
+                    {
+                        item.Position = position;
+                    }
+                    else
+                    {
+                        collection.Items.Add(new CollectionItem { MediaItemId = id, Position = position });
+                    }
+                }
+
+                collection.UpdatedAt = DateTime.UtcNow;
             }
 
             await db.SaveChangesAsync(ct);
@@ -139,6 +151,9 @@ public sealed partial class FranchiseSync(IServiceScopeFactory scopes, ILogger<F
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Franchise collections synced: {Count} in the library")]
     private partial void LogSynced(int count);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't get franchise collections from {Radarr}")]
+    private partial void LogRadarrFailed(Exception exception, string radarr);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't sync franchise collections from Radarr")]
     private partial void LogFailed(Exception exception);
