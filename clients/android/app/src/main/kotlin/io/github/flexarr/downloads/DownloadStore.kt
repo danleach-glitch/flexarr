@@ -1,5 +1,7 @@
 package io.github.flexarr.downloads
 
+import android.Manifest
+import android.content.pm.PackageManager
 import io.github.flexarr.logging.FlexarrLog
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -103,6 +105,21 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** Fetch the next episode by itself. */
     var downloadsNext: Boolean by mutableStateOf(prefs.getBoolean(NEXT, true))
         private set
+
+    /**
+     * Android 13 on asks before the app may show notifications, and nothing asked until someone turned on push
+     * notifications, so a download's progress (and its Stop download) went unseen. The first download asked for by
+     * hand asks ([MainActivity] shows Android's question), once.
+     */
+    var asksNotificationPermission by mutableStateOf(false)
+
+    private fun offerNotifications() {
+        if (Build.VERSION.SDK_INT < 33 || prefs.getBoolean(ASKED_NOTIFICATIONS, false)) return
+        prefs.edit().putBoolean(ASKED_NOTIFICATIONS, true).apply()
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            asksNotificationPermission = true
+        }
+    }
 
     /** Downloads the phone starts by itself wait for Wi-Fi (on unless turned off in Settings). */
     var automaticOnWiFiOnly: Boolean by mutableStateOf(prefs.getBoolean(WIFI_ONLY, true))
@@ -449,6 +466,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             delete(existing.id)
         }
         val remote = client.requestDownload(itemId, quality)
+        if (!automatic) offerNotifications()
         val local = LocalDownload(
             id = remote.id,
             profileId = profileId,
@@ -870,6 +888,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         private const val QUALITY = "quality"
         private const val NEXT = "next"
         private const val WIFI_ONLY = "wifiOnly"
+        private const val ASKED_NOTIFICATIONS = "askedNotifications"
         private const val DECLINED = "declinedEpisodes"
         private const val UNSENT_DELETES = "unsentDeletes"
         /** The server whose downloads were kept when it refused this device's sign-in. */

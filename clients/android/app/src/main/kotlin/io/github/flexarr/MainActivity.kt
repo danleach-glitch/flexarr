@@ -2,7 +2,13 @@ package io.github.flexarr
 
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import io.github.flexarr.logging.FlexarrLog
+import android.Manifest
 import android.content.Intent
+import android.os.Build
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.snapshotFlow
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.filter
 import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.os.Bundle
@@ -24,6 +30,9 @@ import io.github.flexarr.ui.tv.TvRoot
 private val flexarrLog = FlexarrLog("launch")
 
 class MainActivity : ComponentActivity() {
+    /** Android's question about notifications, asked by the first download (DownloadStore.asksNotificationPermission). */
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
@@ -41,6 +50,14 @@ class MainActivity : ComponentActivity() {
         setContent {
             FlexarrTheme {
                 if (usesTvInterface) TvRoot(appModel) else FlexarrRoot(appModel)
+            }
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            lifecycleScope.launch {
+                snapshotFlow { appModel.downloads.asksNotificationPermission }.filter { it }.collect {
+                    appModel.downloads.asksNotificationPermission = false
+                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
             }
         }
     }
