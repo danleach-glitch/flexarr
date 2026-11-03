@@ -558,10 +558,14 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         preferences = started.preferences ?: PlaybackPreferences()
         prompt = PlaybackPrompt.None
         autoSkipped.clear()
-        isFinishing = false
-        nextCancelled = false
-        landedPastNext = false
-        countdown = null
+        // The same title opened again (another audio track, a recovery, the converted stream): Cancel and the countdown
+        // hold for the rest of the episode.
+        if (!sameTitle) {
+            isFinishing = false
+            nextCancelled = false
+            landedPastNext = false
+            countdown = null
+        }
         countdownJob?.cancel()
         updatePrompt()
         duration = started.durationSeconds
