@@ -180,13 +180,28 @@ final class PlayerControlsView: UIView {
         promptTakesFocus = takesFocus
         if let title {
             UIView.performWithoutAnimation {
+                // Counting down, the pill keeps its "in 10" width, so it doesn't twitch as the number changes or goes.
+                if countingDown, promptWidthHold == nil, title.hasPrefix("Next episode") {
+                    promptButton.configuration?.title = "Next episode in 10"
+                    promptButton.configuration?.image = UIImage(systemName: "forward.fill")
+                    let width = promptButton.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).width
+                    promptWidthHold = promptButton.widthAnchor.constraint(greaterThanOrEqualToConstant: width)
+                    promptWidthHold?.isActive = true
+                }
                 promptButton.configuration?.title = title
                 let symbol = title.hasPrefix("Skip") ? "forward.end.fill" : title == "Back to live" ? "dot.radiowaves.left.and.right" : "forward.fill"
                 promptButton.configuration?.image = UIImage(systemName: symbol)
                 promptButton.layoutIfNeeded()
             }
         }
+        if title == nil {
+            promptWidthHold?.isActive = false
+            promptWidthHold = nil
+        }
         let wasHidden = promptButton.alpha == 0
+        if cancelButton.isHidden == countingDown { cancelButton.isHidden = !countingDown }
+        promptButton.layer.maskedCorners = countingDown ? [.layerMinXMinYCorner, .layerMinXMaxYCorner]
+            : [.layerMinXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMinYCorner, .layerMaxXMaxYCorner]
         UIView.animate(withDuration: 0.2) {
             self.promptButton.alpha = title == nil ? 0 : 1
             self.cancelButton.alpha = countingDown ? 1 : 0
@@ -199,6 +214,9 @@ final class PlayerControlsView: UIView {
     }
 
     var promptShown: Bool { promptButton.alpha > 0 }
+    private var promptWidthHold: NSLayoutConstraint?
+
+
     /// Whether a showing pill takes focus (Select presses it). Not after Cancel, so Select pauses as usual.
     private(set) var promptTakesFocus = true
     var promptOffersFocus: Bool { promptShown && promptTakesFocus }
@@ -295,13 +313,16 @@ final class PlayerControlsView: UIView {
         let titles = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel]) // the detail sits bottom-left
         titles.axis = .vertical
         titles.spacing = 3
-        let prompts = UIStackView(arrangedSubviews: [cancelButton, promptButton])
+        let prompts = UIStackView(arrangedSubviews: [promptButton, cancelButton])
         promptRow = prompts
         prompts.axis = .horizontal
-        prompts.alignment = .center
-        prompts.spacing = 10
+        prompts.alignment = .fill
+        prompts.spacing = 2
         promptButton.alpha = 0
         cancelButton.alpha = 0
+        cancelButton.isHidden = true
+        promptButton.clipsToBounds = true
+        cancelButton.clipsToBounds = true
         promptButton.isUserInteractionEnabled = false
         cancelButton.isUserInteractionEnabled = false
 
@@ -571,24 +592,40 @@ final class PlayerControlsView: UIView {
     /// panels use them too.
     static func pill(filled: Bool) -> UIButton {
         var configuration = UIButton.Configuration.filled()
-        configuration.baseBackgroundColor = filled ? UIColor(Color.screen).withAlphaComponent(0.95) : UIColor.black.withAlphaComponent(0.55)
-        configuration.baseForegroundColor = filled ? UIColor(Color.room) : .white
-        configuration.cornerStyle = .capsule
+        // Next Episode and its X are the two halves of one pill (`PillButton` rounds their outer ends).
+        configuration.baseBackgroundColor = UIColor(Color.screen).withAlphaComponent(0.95)
+        configuration.baseForegroundColor = UIColor(Color.room)
+        configuration.cornerStyle = .fixed
+        configuration.background.cornerRadius = 0
         configuration.imagePadding = 8
         #if os(tvOS)
         configuration.contentInsets = NSDirectionalEdgeInsets(top: 16, leading: 28, bottom: 16, trailing: 30)
-        let font = UIFont.systemFont(ofSize: 26, weight: .semibold)
+        let font = UIFont.monospacedDigitSystemFont(ofSize: 26, weight: .semibold)
         #else
         configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 18, bottom: 12, trailing: 20)
-        let font = UIFont.systemFont(ofSize: 16, weight: .semibold)
+        let font = UIFont.monospacedDigitSystemFont(ofSize: 16, weight: .semibold)
         #endif
         configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
             var attributes = attributes
             attributes.font = font
             return attributes
         }
-        if !filled { configuration.title = "Cancel" }
-        return UIButton(configuration: configuration)
+        guard !filled else { return PillButton.focusable(configuration) }
+        // Cancel: a round X beside the pill, named Cancel for VoiceOver.
+        #if os(tvOS)
+        let side: CGFloat = 22
+        #else
+        let side: CGFloat = 13
+        #endif
+        configuration.image = UIImage(systemName: "xmark", withConfiguration: UIImage.SymbolConfiguration(pointSize: side, weight: .bold))
+        // With nothing focused (a phone), the X half rests grey beside the white Next Episode half, as on a TV.
+        configuration.baseBackgroundColor = UIColor(Color.aisle).withAlphaComponent(0.85)
+        configuration.baseForegroundColor = UIColor(Color.screen)
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: side, leading: side * 0.8, bottom: side, trailing: side * 1.2)
+        let button = PillButton.focusable(configuration)
+        button.layer.maskedCorners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
+        button.accessibilityLabel = "Cancel"
+        return button
     }
 
     #if os(tvOS)
@@ -671,4 +708,27 @@ final class GradientView: UIView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
+/// A button whose rounded ends (`layer.maskedCorners`) stay half its height however wide it grows.
+final class PillButton: UIButton {
+    /// On Apple TV each half shows whether it has focus, as the system's buttons do: white with dark text when focused,
+    /// grey with light text when not. On a phone, Next Episode is white and its X grey.
+    static func focusable(_ configuration: UIButton.Configuration) -> PillButton {
+        let button = PillButton(configuration: configuration)
+        #if os(tvOS)
+        button.configurationUpdateHandler = { button in
+            guard var configuration = button.configuration else { return }
+            configuration.baseBackgroundColor = button.isFocused ? UIColor(Color.screen) : UIColor(Color.aisle).withAlphaComponent(0.85)
+            configuration.baseForegroundColor = button.isFocused ? UIColor(Color.room) : UIColor(Color.screen)
+            button.configuration = configuration
+        }
+        #endif
+        return button
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        layer.cornerRadius = bounds.height / 2
+    }
 }

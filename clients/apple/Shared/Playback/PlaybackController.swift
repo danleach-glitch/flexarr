@@ -1218,8 +1218,9 @@ final class PlaybackController: NSObject {
         isAdvancing = true
         // Moving on from Next Episode (or its countdown) finishes this one, however short it is.
         let finishedIt = isPastCredits(current) || isFinishing || prompt == .nextEpisode
-        // The old picture stops now rather than playing on while the next one opens.
+        // The old picture stops now rather than playing on while the next one opens, and the pill goes as it is.
         transport?.pause()
+        prompt = .none
         endFinishing()
         report(paused: false, ended: leavingTrail && finishedIt)
         if recordsHistory, finishedIt { onWatchedToEnd?(false) }
