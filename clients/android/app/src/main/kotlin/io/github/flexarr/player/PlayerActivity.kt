@@ -422,16 +422,12 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
             )
         }
         // The pill stays up with or without the controls: it's how you skip.
-        controller.promptTitle?.takeIf { !asleep }?.let { title ->
-            Row(
-                Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(end = 24.dp, bottom = if (controlsVisible) 132.dp else 32.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                if (controller.countingDown) {
-                    Text("Cancel", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.glass(RoundedCornerShape(Tokens.radiusControl)).clickableNoRipple(controller::cancelNext).padding(horizontal = 18.dp, vertical = 12.dp))
-                }
-                ActionButton(title, onClick = controller::promptTapped, icon = if (title.startsWith("Skip")) Icons.Filled.SkipNext else FlexarrIcons.play, prominent = true)
-            }
+        FadingPrompt(
+            controller.promptTitle?.takeIf { !asleep },
+            controller.countingDown,
+            Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(end = 24.dp, bottom = if (controlsVisible) 132.dp else 32.dp),
+        ) { title, countingDown, held ->
+            PromptPill(title, countingDown, held, onTap = controller::promptTapped, onCancel = controller::cancelNext)
         }
         SleepPrompt(controller.sleep)
         ShakeForSleep(controller.sleep)

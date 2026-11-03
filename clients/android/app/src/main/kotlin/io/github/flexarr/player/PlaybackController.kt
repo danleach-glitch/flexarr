@@ -170,6 +170,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private val autoSkipped = mutableSetOf<String>()
     private var lastReport = 0L
     private var isFinishing = false
+    /** On to the next episode: the pill goes as it is until the next one begins, rather than turning into "Next episode". */
+    private var movingOn = false
     private var nextCancelled = false
     /**
      * A seek or start landed past the countdown's end with no countdown running: the episode plays on with Next Episode
@@ -557,6 +559,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         retryLabel = null
         preferences = started.preferences ?: PlaybackPreferences()
         prompt = PlaybackPrompt.None
+        movingOn = false
         autoSkipped.clear()
         // The same title opened again (another audio track, a recovery, the converted stream): Cancel and the countdown
         // hold for the rest of the episode.
@@ -752,6 +755,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         val current = info ?: return
         val next = current.next ?: return
         if (isOpening) return
+        movingOn = true
+        updatePrompt()
         // Moved on from the credits: watched, as on iPhone.
         val finished = watched || isPastCredits(current, player.currentPosition / 1000.0)
         report(paused = true, ended = finished)
@@ -908,6 +913,11 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     }
 
     private fun updatePrompt() {
+        if (movingOn) {
+            promptTitle = null
+            countingDown = false
+            return
+        }
         // "Next Episode in 4" (on shuffle too: the next one just happens to be random).
         val nextTitle = countdown?.let { "Next episode in $it" } ?: "Next episode"
         promptTitle = if (isFinishing) nextTitle else when (val current = prompt) {

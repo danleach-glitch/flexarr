@@ -240,30 +240,22 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
             }, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 40.dp))
         }
         // The pill stays up with or without the controls: it's how you skip.
-        controller.promptTitle?.takeIf { promptUp }?.let { title ->
-            Row(
-                Modifier.align(Alignment.BottomEnd).padding(end = 40.dp, bottom = if (showing) 120.dp else 40.dp)
-                    .onFocusChanged { promptFocused = it.hasFocus }
-                    .onKeyEvent { event ->
-                        // Up and down bring the controls, as they do from the picture.
-                        if (event.type != KeyEventType.KeyDown || showing) return@onKeyEvent false
-                        when (event.nativeKeyEvent.keyCode) {
-                            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> show().let { true }
-                            else -> false
-                        }
-                    },
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                if (controller.countingDown) TvActionButton("Cancel", onClick = controller::cancelNext)
-                TvActionButton(
-                    title,
-                    onClick = controller::promptTapped,
-                    icon = if (title.startsWith("Skip")) Icons.Filled.SkipNext else FlexarrIcons.play,
-                    prominent = true,
-                    ambient = Flexarr.screen,
-                    modifier = Modifier.focusRequester(prompt),
-                )
-            }
+        FadingPrompt(
+            controller.promptTitle?.takeIf { promptUp },
+            controller.countingDown,
+            Modifier.align(Alignment.BottomEnd).padding(end = 40.dp, bottom = if (showing) 120.dp else 40.dp)
+                .onFocusChanged { promptFocused = it.hasFocus }
+                .onKeyEvent { event ->
+                    // Up and down bring the controls, as they do from the picture.
+                    if (event.type != KeyEventType.KeyDown || showing) return@onKeyEvent false
+                    when (event.nativeKeyEvent.keyCode) {
+                        KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> show().let { true }
+                        else -> false
+                    }
+                },
+        ) { title, countingDown, held ->
+            // Left and right move between Next and its X; Back is Cancel too while counting down.
+            TvPromptPill(title, countingDown, held, onTap = controller::promptTapped, onCancel = controller::cancelNext, nextModifier = Modifier.focusRequester(prompt))
         }
         controller.subtitleSearchFile?.let { fileId ->
             controller.info?.let { info ->
