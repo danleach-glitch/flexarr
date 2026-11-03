@@ -97,3 +97,21 @@ public class MacAppTranscodingTests
         Assert.Equal(HardwareAcceleration.None, options.Transcoding.HardwareAcceleration);
     }
 }
+
+public class MacAppPlexAvatarTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFactory>
+{
+    [Fact]
+    public async Task InTheMacApp_PlexPictures_SayWhyTheyCantBeBroughtOver_RatherThanRunAnything()
+    {
+        using var app = factory.WithWebHostBuilder(b => b.UseSetting("Flexarr:MacApp:Port", "1").UseSetting("Flexarr:MacApp:Token", "t"));
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        // Plex's database where macOS keeps it: no Preferences.xml beside it, so its sign-in is in macOS's settings.
+        var database = Path.Combine(Path.GetTempPath(), $"plex-{Guid.NewGuid():N}", "Plug-in Support", "Databases", "com.plexapp.plugins.library.db");
+
+        var response = await client.PostAsync(new Uri($"/api/v1/import/plex/avatars?path={Uri.EscapeDataString(database)}", UriKind.Relative), null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Contains("The Mac app can’t read Plex’s sign-in", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+}
