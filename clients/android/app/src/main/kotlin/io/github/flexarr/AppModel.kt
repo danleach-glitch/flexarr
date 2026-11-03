@@ -342,6 +342,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** What's new, from the server through Firebase. */
     val notifications = PushNotifications(context)
 
+    /**
+     * Google Play's in-app updates, one for the whole launch: kept here rather than on a screen, so rotating, a font-size
+     * change or dark mode doesn't ask about the same update again.
+     */
+    val appUpdates: AppUpdates by lazy { AppUpdates.create(context.applicationContext) }
+
     /** Films, episodes and podcast episodes kept on this phone to play with no connection. */
     val downloads = DownloadStore(context, this)
 
@@ -399,6 +405,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     /** The live channel being started, for its card to show a spinner. */
     var liveStartingChannel: String? by mutableStateOf(null)
+
+    /**
+     * The channel ids the live player steps through with Previous and Next, as the screen listed them. Kept here rather
+     * than in the player's intent: a line-up of thousands would overflow what an intent can carry.
+     */
+    var liveChannelOrder: List<String> = emptyList()
 
     val hasLiveTv: Boolean get() = liveTvStatus?.let { it.configured && it.channels > 0 } ?: false
 
@@ -840,7 +852,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             }
         }
         // The server's address for away from home comes with its status; it's kept beside this one.
-        credentials = credentials!!.copy(remoteAddress = remoteAddress(status!!, credentials.address))
+        credentials = credentials!!.copy(remoteAddress = remoteAddress(status!!, credentials.address), serverId = status.serverId)
         credentials = withOwnToken(credentials)
         store.save(credentials)
         saved = true
@@ -1033,13 +1045,22 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         val remote = remoteAddress(status, credentials.address, kept = credentials.remoteAddress)
         // Who's watching may have been chosen meanwhile: what matters is that it's still the same sign-in.
         val now = this.credentials ?: return
-        if (remote == now.remoteAddress || now.address != credentials.address || now.apiKey != credentials.apiKey) return
-        if (saved) store.saveRemoteAddress(remote)
-        phase = Phase.SignedIn(now.copy(remoteAddress = remote))
+        if (now.address != credentials.address || now.apiKey != credentials.apiKey) return
+        // A sign-in from before the app kept the server's id learns it now; one it knows already keeps it (a different
+        // answer from home was already turned away before the sign-in was sent).
+        val serverId = now.serverId ?: status.serverId
+        if (remote == now.remoteAddress && serverId == now.serverId) return
+        if (saved) {
+            store.saveRemoteAddress(remote)
+            store.saveServerId(serverId)
+        }
+        phase = Phase.SignedIn(now.copy(remoteAddress = remote, serverId = serverId))
     }
 
     fun signOut() {
         dropAllReady()
+        // The headset's play button has nothing of this sign-in's to pick up again.
+        io.github.flexarr.audio.LastHeard.clear(context)
         // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way. Not
         // for a sign-in from the command line, which may be the server's own API key.
         val client = client

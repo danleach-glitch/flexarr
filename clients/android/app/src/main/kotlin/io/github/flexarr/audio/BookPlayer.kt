@@ -314,6 +314,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         if (model.podcasts.current != null) model.podcasts.stop()
         // The Continue listening widget shows this book, until an episode is played.
         PodcastWidgets.heard(context, bookId = book.id)
+        LastHeard.save(context, LastHeard("book:${book.id}", book.title, book.book?.authors, book.artwork.poster))
         AudioService.start(context)
         if (startDownloaded(book, from)) return
         val client = client ?: run {

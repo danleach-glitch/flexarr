@@ -36,6 +36,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import io.github.flexarr.ui.theme.Tokens
 import androidx.compose.ui.graphics.toArgb
 
@@ -212,11 +213,19 @@ class FlexarrMessagingService : FirebaseMessagingService() {
         private fun activity(context: Context, request: Int, link: AppLink): PendingIntent =
             PendingIntent.getActivity(context, request, link.intent(context), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
-        /** The artwork, fetched now (Firebase gives the service a few seconds); none if it doesn't come. */
+        /**
+         * The artwork, fetched now; none if it doesn't come within [ARTWORK_WAIT_MS]. Firebase gives the service only a
+         * few seconds, and the shared connection's own timeouts are far longer, so waiting on them could lose the
+         * notification itself.
+         */
         private fun artwork(context: Context, url: String): Bitmap? = runBlocking {
-            val request = ImageRequest.Builder(context).data(url).size(512).allowHardware(false).build()
-            (context.imageLoader.execute(request) as? SuccessResult)?.image?.toBitmap()
+            withTimeoutOrNull(ARTWORK_WAIT_MS) {
+                val request = ImageRequest.Builder(context).data(url).size(512).allowHardware(false).build()
+                (context.imageLoader.execute(request) as? SuccessResult)?.image?.toBitmap()
+            }
         }
+
+        private const val ARTWORK_WAIT_MS = 4_000L
     }
 }
 

@@ -2,7 +2,13 @@ package io.github.flexarr
 
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import io.github.flexarr.logging.FlexarrLog
+import android.Manifest
 import android.content.Intent
+import android.os.Build
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.os.Bundle
@@ -41,6 +47,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             FlexarrTheme {
                 if (usesTvInterface) TvRoot(appModel) else FlexarrRoot(appModel)
+                DownloadNotificationsQuestion(appModel)
             }
         }
     }
@@ -109,5 +116,18 @@ class MainActivity : ComponentActivity() {
                 startActivity(player)
             }
         }
+    }
+}
+
+/** Android's question about notifications, asked by the first download (DownloadStore.asksNotificationPermission). */
+@Composable
+private fun DownloadNotificationsQuestion(model: AppModel) {
+    if (Build.VERSION.SDK_INT < 33) return
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    val asks = model.downloads.asksNotificationPermission
+    LaunchedEffect(asks) {
+        if (!asks) return@LaunchedEffect
+        model.downloads.asksNotificationPermission = false
+        permission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 }

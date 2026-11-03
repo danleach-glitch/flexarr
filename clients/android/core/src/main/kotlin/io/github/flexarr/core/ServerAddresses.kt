@@ -1,5 +1,10 @@
 package io.github.flexarr.core
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import okhttp3.HttpUrl
 
 /**
@@ -11,6 +16,10 @@ import okhttp3.HttpUrl
  *
  * Shared by every client made for the same sign-in (see [shared]), so what one request learns, the next one uses. As
  * FlexarrKit's ServerAddresses.
+ *
+ * A plain-http home address is only a private address, which another network (a hotel's, say) may use too. So once the
+ * server's id is known ([serverId]), the sign-in goes to home only after home has answered, without the sign-in, with
+ * that id on the network in use now ([checkHome]); a new network ([networkChanged]) or leaving home asks again.
  */
 class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
     val remote: HttpUrl? = remote?.takeIf { it != home }
@@ -18,6 +27,44 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
     @Volatile
     private var _current: HttpUrl = home
     private var homeCheckedAt: Long? = null
+
+    /**
+     * The server's own id ([SystemStatus.serverId]), once known: what home must answer with before it's sent the
+     * sign-in. Null (a server before 0.55, or a sign-in that hasn't learnt it yet) sends it as before.
+     */
+    @Volatile
+    var serverId: String? = null
+
+    @Volatile
+    private var homeVerified = false
+    private var homeCheck: Deferred<Boolean>? = null
+
+    /** Whether home may be sent the sign-in now without asking it first. */
+    val homeTrustedNow: Boolean get() = homeVerified || serverId == null || home.isHttps
+
+    /**
+     * Whether home may be sent the sign-in, asking it with [verify] (once at a time, however many requests wait) when
+     * that's not yet known on this network.
+     */
+    internal suspend fun checkHome(verify: suspend () -> Boolean): Boolean {
+        if (homeTrustedNow) return true
+        val check = synchronized(this) {
+            homeCheck?.takeIf { it.isActive } ?: checks.async { verify() }.also { homeCheck = it }
+        }
+        val ok = runCatching { check.await() }.getOrDefault(false)
+        if (ok) homeVerified = true
+        return ok
+    }
+
+    /** Home answered with the server's id just now. */
+    internal fun homeVerified() {
+        homeVerified = true
+    }
+
+    /** Another network: whatever answers at home there has to show it's this server again. */
+    fun networkChanged() {
+        homeVerified = false
+    }
 
     /** The address requests go to now. */
     val current: HttpUrl get() = _current
@@ -35,7 +82,10 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
     @Synchronized
     fun reached(url: HttpUrl) {
         // Leaving home starts the clock for trying it again.
-        if (url != home && _current == home) homeCheckedAt = System.currentTimeMillis()
+        if (url != home && _current == home) {
+            homeCheckedAt = System.currentTimeMillis()
+            homeVerified = false
+        }
         _current = url
     }
 
@@ -58,7 +108,19 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
         /** While away, how often home is tried again. */
         const val HOME_CHECK_INTERVAL_MS = 5 * 60_000L
 
+        /** How long home has to answer with the server's id before the sign-in goes elsewhere. */
+        const val HOME_PROBE_MS = 2_000L
+
         private val registry = mutableMapOf<String, ServerAddresses>()
+
+        /** Where [checkHome]'s questions run, so one caller giving up doesn't cancel it for the others waiting. */
+        private val checks = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+        /** The device moved to another network: every server's home has to show it's that server again. */
+        @Synchronized
+        fun networkChangedEverywhere() {
+            registry.values.forEach { it.networkChanged() }
+        }
 
         /** The one instance for this pair of addresses, so clients made at different times share what they've learnt. */
         @Synchronized

@@ -6,6 +6,13 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Android
 - The More button now shows the same three dots in a row everywhere (Podcasts, Downloads, Recordings and music downloads), and Download shows the same circled arrow as the rest of the app.
+- Connecting a game controller or keyboard while something plays no longer restarts the film or channel.
+- Google Play's update prompt no longer comes back after you turn the phone or change the font size or dark mode.
+- Notifications with artwork always show, even when the picture is slow to arrive.
+- A TV left on the connect screen stops asking to connect while Flexarr is in the background.
+- Download notifications open Downloads when tapped, have a Stop download button, and your first download asks to show them, so you can see progress.
+- Albums no longer stall between tracks with the screen off.
+- After Flexarr has been closed, your headset's play button and Android's recent media controls pick up your last audiobook or podcast episode where you left off.
 
 ### iPhone and Apple TV
 - Long-press menus on posters use the same icons as a title's page, and Mark as watched and Mark as unwatched no longer look the same.
@@ -32,6 +39,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Security
 - The setup guide hides Radarr, Sonarr and Lidarr API keys as you type them, like Settings › Connections does, and a kids profile no longer briefly opens adult-only pages before going Home.
+- On Android, away from home, your sign-in goes to your server's home address only after it has shown it's your server, so another network using the same address never receives it.
+- On Android, a server found on your network is reached only at its home-network address, never at an address somewhere else that it advertises.
 
 ## 0.59.0 · 3 November 2026
 

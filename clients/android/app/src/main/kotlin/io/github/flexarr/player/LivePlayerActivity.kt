@@ -163,7 +163,8 @@ class LivePlayerActivity : ComponentActivity() {
         val controller = controller ?: return
         val client = controller.client
         val channelId = intent.getStringExtra(EXTRA_CHANNEL) ?: return
-        val order = intent.getStringArrayExtra(EXTRA_ORDER).orEmpty().toList()
+        // Gone if the process was restarted since: then every channel, in the server's order.
+        val order = appModel.liveChannelOrder
         loading?.cancel()
         loading = appModel.scope.launch {
             val all = runCatching { client.liveChannels() }.getOrDefault(emptyList()).associateBy { it.id }
@@ -218,13 +219,15 @@ class LivePlayerActivity : ComponentActivity() {
 
     companion object {
         private const val EXTRA_CHANNEL = "channelId"
-        private const val EXTRA_ORDER = "order"
 
-        /** Watches [channel]; Previous and Next go through [order], as the screen listed them. */
-        fun intent(context: Context, channel: LiveChannel, order: List<LiveChannel>): Intent =
-            Intent(context, LivePlayerActivity::class.java)
-                .putExtra(EXTRA_CHANNEL, channel.id)
-                .putExtra(EXTRA_ORDER, order.map { it.id }.toTypedArray())
+        /**
+         * Watches [channel]; Previous and Next go through [order], as the screen listed them. The order waits on
+         * [AppModel.liveChannelOrder], since a big line-up is too much for the intent itself.
+         */
+        fun intent(context: Context, channel: LiveChannel, order: List<LiveChannel>): Intent {
+            context.appModel.liveChannelOrder = order.map { it.id }
+            return Intent(context, LivePlayerActivity::class.java).putExtra(EXTRA_CHANNEL, channel.id)
+        }
     }
 }
 

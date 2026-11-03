@@ -119,7 +119,7 @@
         <activity
             android:name=".player.PlayerActivity"
             android:autoRemoveFromRecents="true"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode"
             android:exported="false"
             android:launchMode="singleTask"
             android:resizeableActivity="true"
@@ -131,7 +131,7 @@
         <activity
             android:name=".player.LivePlayerActivity"
             android:autoRemoveFromRecents="true"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode"
             android:exported="false"
             android:launchMode="singleTask"
             android:resizeableActivity="true"
@@ -151,6 +151,16 @@
             </intent-filter>
         </service>
 
+        <!-- The headset's play button with the app closed: AudioService picks up the last book or episode
+             (CarLibrary.onPlaybackResumption). -->
+        <receiver
+            android:name="androidx.media3.session.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
         <!-- Notifications from the server, through Firebase (docs/notifications.md). -->
         <service
             android:name=".notifications.FlexarrMessagingService"
@@ -160,6 +170,7 @@
             </intent-filter>
         </service>
         <receiver android:name=".notifications.DownloadReceiver" android:exported="false" />
+        <receiver android:name=".downloads.StopDownloadReceiver" android:exported="false" />
         <receiver android:name=".notifications.PairingReceiver" android:exported="false" />
         <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="new" />
 
