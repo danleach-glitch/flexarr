@@ -1010,14 +1010,14 @@ final class MusicPlayer {
                 self.sessionId = nil
                 let length = duration
                 let bookId = track.id
-                Task {
+                sendInOrder {
                     await Self.send(client, session: sessionId, book: bookId, position: length, paused: true, ended: true)
                     try? await client.stopPlayback(sessionId: sessionId)
                 }
             } else if let client, expiredBookId == track.id {
                 expiredBookId = nil // reported as ended: nothing more to send for it
                 let bookId = track.id, length = duration
-                Task { try? await client.reportBookProgress(itemId: bookId, BookProgressUpdate(positionSeconds: length, device: Self.deviceName, recordedAt: Date(), ended: true)) }
+                sendInOrder { try? await client.reportBookProgress(itemId: bookId, BookProgressUpdate(positionSeconds: length, device: Self.deviceName, recordedAt: Date(), ended: true)) }
             }
         }
         BookPlaces.forget(track.id)
