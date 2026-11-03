@@ -120,3 +120,5 @@ You'll find them in **Settings › Backup & restore**. If an update goes wrong, 
 - **Web:** the web app comes with the server, so it's up to date as soon as the server is. Reload any open tabs.
 
 It's best to keep the server and the apps roughly in step. When a release adds something to both, the app's side of it only works once the server has it too.
+
+The apps work with servers from 0.50.0 on. If an app says **Update your Flexarr server**, the server is older than that: update it as above. Until you do, the app won't connect to it for the first time, and one that's connected already may not work properly.

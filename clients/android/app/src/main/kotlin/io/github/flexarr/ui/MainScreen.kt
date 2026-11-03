@@ -266,6 +266,13 @@ fun MainScreen(model: AppModel) {
                 is AppLink.Join -> Unit
             } } }
         }
+        // "Update your Flexarr server": signed in to a server older than the app supports. Said once, then cleared.
+        LaunchedEffect(model.serverUpdateNotice) {
+            val notice = model.serverUpdateNotice ?: return@LaunchedEffect
+            // Cleared once it's gone: clearing it first would restart this effect and cancel the snackbar.
+            navigator.notices.showSnackbar(notice, withDismissAction = true)
+            model.serverUpdateNotice = null
+        }
         // Opened offline: straight to what can be watched, if there's anything. Going offline later leaves you where you are.
         LaunchedEffect(Unit) {
             if (model.serverUnreachable && model.hasDownloads && currentTab == Tab.Home) select(Tab.Downloads)

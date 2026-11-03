@@ -328,12 +328,23 @@ final class AppModel {
     }
 
     /// Asks the server whether it wants error reports now (after signing in, and each time the app comes to the
-    /// front), and starts or stops them to match.
+    /// front), and starts or stops them to match. Its version comes with the answer: too old, and a banner says so.
     func refreshErrorReports() async {
         guard let credentials, let client else { return }
         guard let status = try? await client.systemStatus(), self.credentials?.address == credentials.address else { return }
+        noteServerAge(status.version, of: credentials.address)
         errorReports = status.errorReports
         ErrorReports.apply(status.errorReports, server: credentials.address)
+    }
+
+    /// "Update your Flexarr server": a banner after signing in to a server older than the apps support
+    /// (`ServerSupport.minimumVersion`). Said once per server each time the app starts.
+    var serverUpdateNotice: String?
+    @ObservationIgnored private var toldToUpdate: Set<URL> = []
+
+    private func noteServerAge(_ version: String, of address: URL) {
+        guard ServerSupport.isTooOld(version), toldToUpdate.insert(address).inserted else { return }
+        serverUpdateNotice = ServerSupport.updateMessage
     }
 
     var currentProfile: Profile? { profiles.first(where: \.isCurrent) }
@@ -393,6 +404,8 @@ final class AppModel {
         } catch {
             throw ConnectionError(error)
         }
+        // Older than the apps support: not signed in to, and the connect screen says to update it.
+        guard !ServerSupport.isTooOld(status.version) else { throw ServerTooOld() }
         // The server's address for away from home comes with its status; it's kept beside this one.
         credentials.remoteAddress = await Self.remoteAddress(for: status, address: url)
         let typed = credentials
@@ -456,6 +469,7 @@ final class AppModel {
         // A guest leaving leaves its host's tailnet too: nothing of the tunnel stays on the device.
         if stoppingTunnel, credentials?.isGuest == true { GuestTunnel.shared.stop(forget: true) }
         tunnelProblem = nil
+        serverUpdateNotice = nil
         leaveOfflineMode()
         store.clear()
         libraries = []
@@ -1786,6 +1800,11 @@ final class AppModel {
 }
 
 /// Turns transport errors into sentences that say what happened and what to do.
+/// The server is older than the apps support (`ServerSupport.minimumVersion`).
+struct ServerTooOld: LocalizedError {
+    var errorDescription: String? { ServerSupport.updateMessage }
+}
+
 struct ConnectionError: LocalizedError {
     let message: String
 
