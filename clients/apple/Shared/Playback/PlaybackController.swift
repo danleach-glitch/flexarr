@@ -132,13 +132,17 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var preferencesSave: Task<Void, Never>?
     /// Intros and recaps already skipped by themselves, so seeking back to watch one isn't overruled.
     @ObservationIgnored private var autoSkipped: Set<String> = []
-    /// The episode is over (it ended, or its credits started with Skip credits on): counting down to the next
-    /// (`countdown` seconds left), or waiting to be asked with auto-play off (nil).
+    /// Counting down to the next episode (`countdown` seconds left; docs/next-episode-timing.md). The countdown
+    /// follows the picture, which plays on under it; only when the file ended before it began does `countdownTask` run
+    /// it on the clock instead. With auto-play off and nothing counting, `countdown` is nil.
     @ObservationIgnored private var isFinishing = false
     @ObservationIgnored private var countdown: Int?
     @ObservationIgnored private var countdownTask: Task<Void, Never>?
     /// Cancel was chosen: no more offers of the next episode for this one.
     @ObservationIgnored private var nextCancelled = false
+    /// A seek or start landed past where the countdown would have ended without counting down: this episode plays on
+    /// and counts down over its last seconds instead (`NextEpisodeTiming.playingOn`).
+    @ObservationIgnored private var playingOn = false
     /// The next episode's session, started during the credits so it opens at once, and the request for it.
     @ObservationIgnored private var prepared: (request: PlaybackRequest, info: PlaybackInfo, at: Date)?
     @ObservationIgnored private var preparing: Task<Void, Never>?
@@ -157,7 +161,7 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var timing: StartTiming?
     /// A re-sync of the file's subtitles being followed: which title and file, and the polling.
     @ObservationIgnored private var subtitleSync: (itemId: String, fileId: String, task: Task<Void, Never>)?
-    private static let countdownSeconds = 5
+    private static let countdownSeconds = Int(NextEpisodeTiming.countdownSeconds)
     private static let reportInterval: TimeInterval = 10
     private static let takenOverMessage = "Someone started watching on another screen, so this one had to stop."
 
@@ -405,6 +409,8 @@ final class PlaybackController: NSObject {
         // Never the session id, which is the stream URLs' only credential: the playback id stands for it.
         log.info("Playing \(info.item.title): \(info.method.rawValue) from \(Int(info.startPositionSeconds))s",
                  ["playbackId": info.playbackId, "reasons": info.reasons.isEmpty ? nil : info.reasons.joined(separator: "; ")])
+        // The same title opened again (another audio track, a recovered stream): Cancel and the countdown carry over.
+        let sameTitle = self.info?.item.id == info.item.id
         self.info = info
         if soundObserver == nil {
             soundObserver = NotificationCenter.default.addObserver(forName: SoundSettings.changed, object: nil, queue: .main) { [weak self] _ in
@@ -416,8 +422,11 @@ final class PlaybackController: NSObject {
         prompt = .none
         preferences = info.preferences ?? .standard
         autoSkipped = []
-        nextCancelled = false
-        endFinishing()
+        if !sameTitle {
+            nextCancelled = false
+            playingOn = false
+            endFinishing()
+        }
         lastReport = Date()
         // A new session on the server knows nothing yet: its first report tells remotes the tracks and sound.
         reportedTracks = nil
@@ -744,9 +753,10 @@ final class PlaybackController: NSObject {
     }
 
     private func tick(_ seconds: Double) {
-        guard let info, seconds.isFinite, hasPlayed else { return }
+        // Moving on to the next episode: this one's last ticks mustn't start its countdown again.
+        guard let info, seconds.isFinite, hasPlayed, !isAdvancing else { return }
         lastPosition = seconds
-        let next = info.prompt(at: seconds)
+        let next = info.prompt(at: seconds, preferences: preferences)
         // Skip intros and recaps by themselves when the profile asks, once each.
         if case .skip(let type, let end) = next, type == .intro ? preferences.skipIntros : preferences.skipRecaps,
            autoSkipped.insert("\(type.rawValue)@\(end)").inserted {
@@ -756,17 +766,26 @@ final class PlaybackController: NSObject {
         }
         // The sleep timer stops this episode at its end (or has run out): it doesn't go on to the next by itself.
         let sleepHolds = screen?.sleepHoldsEpisode == true
-        // Skip credits: the episode is over as soon as they start. With auto-play off, that closes the player.
-        if preferences.skipCredits, info.next != nil, !nextCancelled, !isFinishing, !sleepHolds,
-           let credits = info.markers.first(where: { $0.type == .credits }), seconds >= credits.start {
-            transport?.pause()
-            report(paused: true, ended: true)
-            if preferences.autoPlayNext {
-                beginFinishing()
-            } else {
+        // The sleep timer took the episode over mid-countdown: it stops here instead.
+        if sleepHolds, isFinishing, countdownTask == nil { endFinishing() }
+        if var timing = info.nextEpisodeTiming(preferences), !nextCancelled, !sleepHolds, countdownTask == nil {
+            // Skip credits with auto-play off: the episode is over as the credits start, which closes the player.
+            if let close = timing.closeAt, seconds >= close {
                 log.info("Credits started with auto-play off: closing", ["playbackId": info.playbackId])
+                report(paused: true, ended: true)
                 dismissPlayer()
                 return
+            }
+            // Landed past the countdown's end without counting (a seek into the credits, a resume): play on to the end.
+            if let from = timing.countdownFrom, let at = timing.nextAt {
+                if seconds < from { playingOn = false } else if seconds >= at, !isFinishing { playingOn = true }
+            }
+            if playingOn { timing = timing.playingOn(duration: info.durationSeconds) }
+            // The countdown, following the picture: pausing holds it, and at 0 the next episode plays.
+            if let left = timing.countdown(at: seconds) {
+                if !isFinishing { beginFinishing(following: true) }
+                if countdown != left { countdown = left; updatePrompt() }
+                if left == 0 { advance(); return }
             }
         }
         if next != prompt {
@@ -774,7 +793,7 @@ final class PlaybackController: NSObject {
             prompt = next
             updatePrompt()
             reportForRemotes()
-            // The credits started: get the next episode ready. Back out of them: let it go.
+            // Next Episode showed: get it ready. Back out before it: let it go.
             if next == .nextEpisode { if !sleepHolds { prepareNext() } } else if !isFinishing { dropPrepared() }
         }
         if Date().timeIntervalSince(lastReport) >= Self.reportInterval, transport?.phase == .playing {
@@ -919,7 +938,8 @@ final class PlaybackController: NSObject {
         if info?.isOffline == true {
             return dismissPlayer { self.show(.other, message: reason, retry: nil) }
         }
-        guard !isRecovering, let client, let current = info, let screen else { return }
+        // Moving on stops this stream: its failing then is expected, not a reason to open it again.
+        guard !isRecovering, !isAdvancing, let client, let current = info, let screen else { return }
         let failed = current.sessionId
         let retry = reopenRequest(current)
         guard Date().timeIntervalSince(lastRecovery) > 60 else {
@@ -1050,13 +1070,17 @@ final class PlaybackController: NSObject {
         Task { try? await client.stopPlayback(sessionId: prepared.info.sessionId) }
     }
 
-    /// The episode is over (with auto-play on): count down to the next one.
-    private func beginFinishing() {
+    /// Count down to the next episode (with auto-play on): `following` the picture as it plays on, or on the clock
+    /// over the last frame when the file ended before the countdown began.
+    private func beginFinishing(following: Bool = false) {
         guard info?.next != nil, !isFinishing else { return }
         isFinishing = true
         prepareNext()
         countdownTask?.cancel()
-        if preferences.autoPlayNext {
+        countdownTask = nil
+        if following {
+            countdown = Self.countdownSeconds
+        } else if preferences.autoPlayNext {
             countdown = Self.countdownSeconds
             countdownTask = Task { [weak self] in
                 while let self, let left = self.countdown, left > 0 {
@@ -1081,13 +1105,14 @@ final class PlaybackController: NSObject {
         updatePrompt()
     }
 
-    /// Not now: stop counting, and if the credits were skipped, let them play.
+    /// Not now: stop counting and play on; the player closes at the end unless Next Episode is chosen.
     private func cancelNext() {
         nextCancelled = true
         dropPrepared()
         let ended = transport?.phase == .ended
         endFinishing()
-        if !ended { transport?.play() }
+        // Over already: nothing left to play on to.
+        if ended { dismissPlayer() }
     }
 
     /// "Next episode in 4" (on shuffle too: the next one just happens to be random).
@@ -1106,7 +1131,8 @@ final class PlaybackController: NSObject {
             case .nextEpisode: screen?.sleepHoldsEpisode == true ? nil : nextTitle
             }
         }
-        screen?.setPrompt(title, countingDown: isFinishing && countdown != nil)
+        // After Cancel the button stays, but Select pauses as usual rather than pressing it.
+        screen?.setPrompt(title, countingDown: isFinishing && countdown != nil, takesFocus: !nextCancelled)
     }
 
     private func promptTapped() {
@@ -1133,7 +1159,10 @@ final class PlaybackController: NSObject {
             screen.sleepAtEndOfEpisode()
             return
         }
-        if info?.next != nil, !nextCancelled, preferences.autoPlayNext {
+        // Counting down as it played: the countdown was all but done.
+        if isFinishing, countdownTask == nil, !nextCancelled {
+            advance()
+        } else if info?.next != nil, !nextCancelled, preferences.autoPlayNext {
             beginFinishing()
         } else {
             dismissPlayer()
@@ -1187,9 +1216,14 @@ final class PlaybackController: NSObject {
         guard !isAdvancing, let client else { return }
         log.info("Moving on to \(target.title)", ["playbackId": current.playbackId])
         isAdvancing = true
+        // Moving on from Next Episode (or its countdown) finishes this one, however short it is.
+        let finishedIt = isPastCredits(current) || isFinishing || prompt == .nextEpisode
+        // The old picture stops now rather than playing on while the next one opens, and the pill goes as it is.
+        transport?.pause()
+        prompt = .none
         endFinishing()
-        report(paused: false, ended: leavingTrail && isPastCredits(current))
-        if recordsHistory, isPastCredits(current) { onWatchedToEnd?(false) }
+        report(paused: false, ended: leavingTrail && finishedIt)
+        if recordsHistory, finishedIt { onWatchedToEnd?(false) }
         let finished = current.sessionId
         carriedRate = nil
         timing = StartTiming(.video)
@@ -1428,8 +1462,10 @@ extension PlaybackController: PlayerScreenDelegate {
     func playerScreen(_ screen: PlayerViewController, didSeekTo seconds: Double) {
         lastPosition = seconds
         reportForRemotes(at: seconds)
-        if isFinishing, seconds < (info?.durationSeconds ?? 0) - 1 {
-            // Scrubbed back out of the end: not finishing after all.
+        let timing = info.flatMap { info in info.nextEpisodeTiming(preferences).map { playingOn ? $0.playingOn(duration: info.durationSeconds) : $0 } }
+        let from = countdownTask == nil ? timing?.countdownFrom : nil
+        if isFinishing, seconds < from ?? (info?.durationSeconds ?? 0) - 1 {
+            // Scrubbed back before the countdown (or out of the end): not finishing after all.
             nextCancelled = false
             endFinishing()
         }
@@ -1500,6 +1536,7 @@ extension PlaybackController: PlayerScreenDelegate {
     }
 
     func playerScreenSleepChanged(_ screen: PlayerViewController) {
+        if screen.sleepHoldsEpisode, isFinishing, countdownTask == nil { endFinishing() }
         updatePrompt()
     }
 

@@ -105,33 +105,80 @@ struct PlaybackPromptTests {
     ]
 
     @Test func offersSkipInsideIntroAndRecap() {
-        #expect(PlaybackInfo.prompt(at: 10, markers: markers, duration: 2831, hasNext: true) == .skip(.recap, to: 45))
-        #expect(PlaybackInfo.prompt(at: 220, markers: markers, duration: 2831, hasNext: true) == .skip(.intro, to: 234.34))
-        #expect(PlaybackInfo.prompt(at: 234, markers: markers, duration: 2831, hasNext: true) == .none, "not in the final second")
-        #expect(PlaybackInfo.prompt(at: 1000, markers: markers, duration: 2831, hasNext: true) == .none)
+        #expect(PlaybackInfo.prompt(at: 10, markers: markers, nextAt: 2811.72) == .skip(.recap, to: 45))
+        #expect(PlaybackInfo.prompt(at: 220, markers: markers, nextAt: 2811.72) == .skip(.intro, to: 234.34))
+        #expect(PlaybackInfo.prompt(at: 234, markers: markers, nextAt: 2811.72) == .none, "not in the final second")
+        #expect(PlaybackInfo.prompt(at: 1000, markers: markers, nextAt: 2811.72) == .none)
     }
 
-    @Test func offersNextEpisodeOnceCreditsStart() {
-        #expect(PlaybackInfo.prompt(at: 2811, markers: markers, duration: 2831, hasNext: true) == .none)
-        #expect(PlaybackInfo.prompt(at: 2812, markers: markers, duration: 2831, hasNext: true) == .nextEpisode)
-        #expect(PlaybackInfo.prompt(at: 2812, markers: markers, duration: 2831, hasNext: false) == .none)
-    }
-
-    @Test func fallsBackToTheEndWithoutCreditsMarker() {
-        // 3% of a 47-minute episode: the last 85 seconds.
-        #expect(PlaybackInfo.prompt(at: 2740, markers: [], duration: 2831, hasNext: true) == .none)
-        #expect(PlaybackInfo.prompt(at: 2750, markers: [], duration: 2831, hasNext: true) == .nextEpisode)
-        // Never less than 30 seconds, nor more than 2 minutes.
-        #expect(PlaybackInfo.unmarkedCreditsSeconds(duration: 600) == 30)
-        #expect(PlaybackInfo.unmarkedCreditsSeconds(duration: 7200) == 120)
+    @Test func offersNextEpisodeFromItsMoment() {
+        #expect(PlaybackInfo.prompt(at: 2811, markers: markers, nextAt: 2811.72) == .none)
+        #expect(PlaybackInfo.prompt(at: 2812, markers: markers, nextAt: 2811.72) == .nextEpisode)
+        #expect(PlaybackInfo.prompt(at: 2812, markers: markers, nextAt: nil) == .none, "no next episode")
     }
 
     @Test func realPlaybackFixture() throws {
         let info = try Fixture.decode(PlaybackInfo.self, "playback")
-        #expect(info.prompt(at: 216) == .skip(.intro, to: 234.34))
-        #expect(info.prompt(at: 2820) == .nextEpisode)
+        #expect(info.prompt(at: 216, preferences: .standard) == .skip(.intro, to: 234.34))
+        #expect(info.prompt(at: 2820, preferences: .standard) == .nextEpisode)
     }
 }
+
+/// docs/next-episode-timing.json: the cases every platform tests against.
+struct NextEpisodeTimingTests {
+    struct Cases: Decodable {
+        struct Case: Decodable {
+            var name: String
+            var credits: Double?
+            var duration: Double
+            var skipCredits: Bool
+            var autoPlayNext: Bool
+            var expect: Expect?
+        }
+        struct Expect: Decodable {
+            var showAt: Double
+            var countdownFrom: Double?
+            var nextAt: Double?
+            var closeAt: Double?
+        }
+        var cases: [Case]
+    }
+
+    static func cases() throws -> [Cases.Case] {
+        // Tests/FlexarrKitTests → FlexarrKit → apple → clients → the repository.
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let data = try Data(contentsOf: root.appendingPathComponent("docs/next-episode-timing.json"))
+        return try JSONDecoder().decode(Cases.self, from: data).cases
+    }
+
+    @Test func sharedCases() throws {
+        let cases = try Self.cases()
+        #expect(cases.count >= 10)
+        for c in cases {
+            let markers = c.credits.map { [Marker(type: .credits, start: $0, end: c.duration)] } ?? []
+            let timing = NextEpisodeTiming.of(markers: markers, duration: c.duration, skipCredits: c.skipCredits, autoPlayNext: c.autoPlayNext)
+            let expected = c.expect.map { NextEpisodeTiming(showAt: $0.showAt, countdownFrom: $0.countdownFrom, nextAt: $0.nextAt, closeAt: $0.closeAt) }
+            #expect(timing == expected, "\(c.name)")
+        }
+    }
+
+    @Test func seekingPastPlaysOnToTheEnd() {
+        let skipping = NextEpisodeTiming(showAt: 2792, countdownFrom: 2792, nextAt: 2802)
+        #expect(skipping.playingOn(duration: 2900) == NextEpisodeTiming(showAt: 2792, countdownFrom: 2890, nextAt: 2900))
+        let closing = NextEpisodeTiming(showAt: 2800, closeAt: 2800)
+        #expect(closing.playingOn(duration: 2900) == closing, "nothing to count down")
+    }
+
+    @Test func countdownFollowsThePosition() {
+        let t = NextEpisodeTiming(showAt: 2792, countdownFrom: 2792, nextAt: 2802)
+        #expect(t.countdown(at: 2791) == nil)
+        #expect(t.countdown(at: 2792) == 10)
+        #expect(t.countdown(at: 2797.5) == 5)
+        #expect(t.countdown(at: 2802) == 0)
+    }
+}
+
 
 struct DeviceProfileTests {
     @Test func iPhoneAndIPadPlayWhatAppleTVPlays() {

@@ -473,11 +473,70 @@
   line-height: 1.25;
 }
 
-.up-next-actions {
+/* Fixed-width digits, so the line doesn't twitch as the countdown ticks. */
+.up-next-count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Play now and its X: two buttons touching as one pill. The X half is 40px and the gap 2px, so a lone Play now
+   pads out by those 42px and the pill keeps its width when the X goes. */
+.up-next-pill {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-self: flex-start;
+  gap: 2px;
   margin-top: auto;
+}
+
+.up-next-pill button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  border: 0;
+  background: var(--screen);
+  color: var(--room);
+  font: inherit;
+  font-size: var(--step--1);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.up-next-pill button svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.up-next-pill .up-next-play {
+  padding: 0 35px;
+  border-radius: 999px;
+}
+
+.up-next-pill.counting .up-next-play {
+  padding: 0 14px;
+  border-radius: 999px 0 0 999px;
+}
+
+.up-next-pill .up-next-cancel {
+  width: 40px;
+  padding: 0 4px 0 0;
+  border-radius: 0 999px 999px 0;
+  background: color-mix(in srgb, var(--aisle) 85%, transparent);
+  color: var(--screen);
+}
+
+/* The half you're on is white with dark content, the other grey. */
+.up-next-pill .up-next-cancel:is(:hover, :focus-visible) {
+  background: var(--screen);
+  color: var(--room);
+}
+
+.up-next-pill:has(.up-next-cancel:is(:hover, :focus-visible)) .up-next-play:not(:focus-visible) {
+  background: color-mix(in srgb, var(--aisle) 85%, transparent);
+  color: var(--screen);
 }
 
 .player-spinner {

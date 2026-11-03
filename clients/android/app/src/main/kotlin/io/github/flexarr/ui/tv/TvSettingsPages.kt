@@ -223,9 +223,9 @@ internal fun TvPlaybackSettings(model: AppModel) {
             item { TvSettingsGroupLabel(model.currentProfile?.let { "${it.name}, on every device" } ?: "Your profile, on every device") }
             item {
                 TvSettingsToggle(
-                    "Auto-play next episode", current.autoPlayNext, { save(current.copy(autoPlayNext = !current.autoPlayNext), current) },
+                    "Auto-play the next episode", current.autoPlayNext, { save(current.copy(autoPlayNext = !current.autoPlayNext), current) },
                     modifier = Modifier.focusFor(null), icon = Icons.Filled.SkipNext,
-                    help = "When an episode ends, the next one starts after a five-second countdown.",
+                    help = "The next episode starts after a 10-second countdown.",
                 )
             }
             item {
@@ -243,7 +243,7 @@ internal fun TvPlaybackSettings(model: AppModel) {
             item {
                 TvSettingsToggle(
                     "Skip credits", current.skipCredits, { save(current.copy(skipCredits = !current.skipCredits), current) }, icon = Icons.Filled.Theaters,
-                    help = "Ends the episode when the credits start, rather than when they end.",
+                    help = "Ends the episode as the credits start.",
                 )
             }
             item {

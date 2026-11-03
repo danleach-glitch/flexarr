@@ -13,6 +13,8 @@ WORKDIR /src/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
+# Shared test cases the build type-checks along with the web tests.
+COPY docs/next-episode-timing.json /src/docs/
 RUN npm run build
 
 # ---- Server ----

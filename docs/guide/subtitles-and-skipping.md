@@ -95,13 +95,18 @@ By default, a **Skip intro** or **Skip Recap** button appears when one starts. O
 
 - **Skip intros**: jumps past the opening titles.
 - **Skip recaps**: jumps past "Previously on…".
-- **Skip credits**: ends the episode as the credits start, rather than when they end.
+- **Skip credits**: ends the episode as the credits start.
 
 They're your profile's own, on every device.
 
 ## Up next
 
-When the credits start, a **Next Episode** card offers the next one. For a show with no credits found, it comes a little before the end instead: up to two minutes for an hour-long episode. When the episode ends, a five-second countdown starts the next one. Press **Cancel** to stop it. Flexarr gets the next episode ready while the credits play, so it starts straight away. If the server is busy with other people's streams, it starts the usual way instead.
+A **Next Episode** card comes as the credits start, or a minute before the end if none were found. A 10-second countdown then starts the next one, while the episode keeps playing:
+
+- With **Skip credits** on, the countdown starts just before the credits, and the next episode starts as they begin.
+- With **Skip credits** off, the credits play to the end, and the countdown runs over their last 10 seconds.
+
+Pausing holds the countdown. Press the **✕** beside it (or Back on a TV) to stop it: the episode plays on to the end, and the player closes unless you press **Next Episode**. Skipping ahead into the credits plays them on, and the countdown comes over their last 10 seconds. Flexarr gets the next episode ready while the credits play, so it starts straight away. If the server is busy with other people's streams, it starts the usual way instead.
 
 Turn the countdown off with **Auto-play the next episode** in **Settings › Playback**: the player then closes when the episode ends, or as the credits start with **Skip credits** on. If you watch a special in the middle of a season, Up next carries on with the regular episodes afterwards. When you're shuffling a show, the countdown plays another random episode.
 
