@@ -995,6 +995,25 @@ export function beaconProgress(sessionId: string, positionSeconds: number) {
   navigator.sendBeacon?.(`/api/v1/playback/${sessionId}/progress`, body)
 }
 
+/**
+ * Gets a title ready ahead of Play (`prepare`): like startPlayback, but nothing anyone sees has changed yet, so the
+ * cached answers stay. Refused (503) when the server is busy.
+ */
+export async function prepareStream(body: PlaybackRequest): Promise<PlaybackInfo> {
+  const response = await fetch('/api/v1/playback', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, prepare: true }),
+  })
+  if (!response.ok) throw await failure(response)
+  return JSON.parse(await response.text(), asUtc) as PlaybackInfo
+}
+
+/** Lets a stream got ready ahead of Play go (best effort, and it outlives the page), leaving the cache alone. */
+export function dropStream(sessionId: string) {
+  return fetch(`/api/v1/playback/${sessionId}`, { method: 'DELETE', headers: authHeaders(), keepalive: true }).catch(() => undefined)
+}
+
 export function stopPlayback(sessionId: string) {
   clearApiCache()
   return fetch(`/api/v1/playback/${sessionId}`, { method: 'DELETE', keepalive: true }).catch(() => undefined)

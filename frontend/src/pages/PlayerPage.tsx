@@ -51,6 +51,7 @@ import { unmarkedCreditsSeconds } from '../lib/upNext'
 import { dialogueBoostChoices, isShaping, nightModeChoices, readSoundSettings, shapingFor, speakerChoices, timeOfDay, unshaped, useSoundSettings, useSoundShaping, writeSoundSettings } from '../lib/soundSettings'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
 import { reportStart, type StartTiming } from '../lib/startTiming'
+import { drop as dropPrepared, getReady, holds as holdsPrepared, take as takePrepared } from '../lib/preparedPlayback'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
 
 type Quality = 'auto' | 1080 | 720 | 480
@@ -67,17 +68,6 @@ const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const
 /** The countdown between one episode finishing and the next starting. */
 const UP_NEXT_SECONDS = 5
 
-/**
- * The next episode's session, started during the credits so it opens at once. Kept outside the page so it survives
- * the move to the next episode's address, which is the same page with another id.
- */
-let prepared: { itemId: string; info: PlaybackInfo } | null = null
-
-/** Lets the prepared session go (best effort): it wasn't wanted, or something else is playing. */
-function dropPrepared() {
-  if (prepared) void stopPlayback(prepared.info.sessionId).catch(() => undefined)
-  prepared = null
-}
 
 const defaultPreferences: PlaybackPreferences = { autoPlayNext: true, skipIntros: false, skipRecaps: false, skipCredits: false, subtitleSize: 'Standard' }
 
@@ -257,7 +247,6 @@ export function PlayerPage() {
   const blackBars = preferences.subtitlesInBlackBars ?? false
   const [notice, setNotice] = useState<string>()
   // The latest request to get the next episode ready, so an older answer arriving late is let go.
-  const preparing = useRef<{ itemId: string } | null>(null)
   // Intros and recaps already skipped by themselves, so seeking back into one to watch it isn't overruled.
   const autoSkipped = useRef(new Set<string>())
 
@@ -346,22 +335,21 @@ export function PlayerPage() {
       const request = ++requests.current
       const replaces = session.current
       try {
-        // The next episode, got ready during the last one's credits, opens straight away.
-        const ready = !options.audioStreamIndex && !options.subtitleKey && !options.forceTranscode && !replaces && prepared?.itemId === id ? prepared.info : null
-        if (ready) prepared = null
-        else dropPrepared()
-        const playback = ready ?? await startPlayback({
+        const wanted = {
           itemId: playingItem.current ?? id,
           shuffle: shuffleRef.current || undefined,
-          profile: detectProfile(),
           audioStreamIndex: options.audioStreamIndex,
           subtitleKey: options.subtitleKey,
           startPositionSeconds: options.startPositionSeconds,
           maxHeight: q === 'auto' ? undefined : q,
           maxBitrate: preset?.bitrate,
           forceTranscode: options.forceTranscode || q !== 'auto' || undefined,
-          replacesSessionId: replaces,
-        })
+        }
+        // Got ready ahead of time (the next episode during the credits, or on the title's page) for exactly this
+        // stream: it opens straight away. Anything else got ready is let go.
+        const ready = replaces ? null : await takePrepared(wanted)
+        if (replaces) dropPrepared()
+        const playback = ready ?? await startPlayback({ ...wanted, profile: detectProfile(), replacesSessionId: replaces })
         if (!life.alive || life !== lifetime.current || request !== requests.current) {
           void stopPlayback(playback.sessionId)
           // Nothing left for this request to do: a newer one (or none, the page has moved on) is in charge.
@@ -935,15 +923,14 @@ export function PlayerPage() {
     const next = info?.next
     if (!next) return
     if (!showUpNext) {
-      if (prepared && !finished) dropPrepared()
+      if (holdsPrepared(next.id) && !finished) dropPrepared()
       return
     }
-    if (prepared?.itemId === next.id) return
-    dropPrepared()
+    // As the next episode's page will ask for it: from the start (see playNext). A busy server says no, and it starts
+    // the usual way.
     const q = quality
     const preset = qualities.find((x) => x.value === q)
-    const claim = { itemId: next.id }
-    void startPlayback({
+    getReady({
       itemId: next.id,
       profile: detectProfile(),
       startPositionSeconds: 0,
@@ -951,15 +938,7 @@ export function PlayerPage() {
       maxBitrate: preset?.bitrate,
       forceTranscode: q !== 'auto' || undefined,
       shuffle: shuffle || undefined,
-      prepare: true,
     })
-      .then((ready) => {
-        // Still wanted? (Not if the card went away, or another episode is being got ready, meanwhile.)
-        if (prepared === null && claim === preparing.current) prepared = { itemId: next.id, info: ready }
-        else void stopPlayback(ready.sessionId).catch(() => undefined)
-      })
-      .catch(() => undefined) // A busy server: the next episode starts the usual way.
-    preparing.current = claim
   }, [showUpNext, info, finished, quality, shuffle])
 
   // Leaving the player lets an unused next episode go.
