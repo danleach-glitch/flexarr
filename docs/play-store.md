@@ -1,6 +1,6 @@
 # Publishing the Android app
 
-One app (`clients/android`) covers Android phones and tablets. It's listed on Google Play as "Flexarr: Personal
+One app (`clients/android`) covers Android phones, tablets and TVs (Android TV and Google TV; docs/android-tv.md). It's listed on Google Play as "Flexarr: Personal
 Streaming" with the application ID `com.danleach.flexarr`, which can never change once it's on Play.
 
 ## Signing
@@ -20,10 +20,13 @@ at another properties file. Without one, `bundleRelease` builds an unsigned bund
     make android-listing                # the store listing below
 
 Uploads use Gradle Play Publisher. It signs in to Play Console with a service account's JSON key, at
-`~/.flexarr-release/play-service-account.json` (or its contents in `ANDROID_PUBLISHER_CREDENTIALS`). To make one:
-Google Cloud › the Play Console's project › IAM › Service accounts › create, then Keys › Add key › JSON. Then invite its
-email in Play Console › Users and permissions, with Release and Store presence permissions for the app. Without a key the
-plugin stays off, and `android-bundle` still works.
+`~/.flexarr-release/play-service-account.json` (or its contents in `ANDROID_PUBLISHER_CREDENTIALS`), also in 1Password
+as "Flexarr Play service account (play-publisher)". The account is `play-publisher` in the Firebase project's Google
+Cloud project (`flexarr-e963e`, with the Google Play Android Developer API on). In Play Console › Users and
+permissions it can edit the draft app, release to testing tracks, manage testers and edit the store presence, but not
+release to production: production rollouts stay in Play Console, by hand. Without a key the plugin stays off, and
+`android-bundle` still works; with it, every release build (including `/devices`' `assembleRelease`) asks Play for the
+next free version code.
 
 The version is the server's (`Directory.Build.props`): 0.54.0 is versionName `0.54.0`, versionCode 54000. Play refuses
 a version code it has seen before, so with the key present a taken one is raised past the highest on Play. Builds from
@@ -34,6 +37,9 @@ Create release, then drop in the `.aab`). Play only lets the API upload once the
 
 ## Listing
 
+The listing is in English (UK) and English (US): `listings/en-GB` and `listings/en-US` (movies, color). Graphics live
+under en-GB only; Play shows the default language's graphics for the other.
+
 The text and graphics live in `clients/android/app/src/main/play` (Gradle Play Publisher's layout), in English (UK):
 `listings/en-GB/title.txt` (30 characters), `short-description.txt` (80), `full-description.txt` (4,000), and
 `graphics/icon` (512×512) and `graphics/feature-graphic` (1024×500). `release-notes/en-GB/default.txt` goes with each
@@ -42,6 +48,8 @@ upload. As on the App Store, the listing pitches your own streaming service, and
 - **Category:** Entertainment. **Price:** free, in every country Play offers. **Contains ads:** no.
 - **Contact:** website https://flexarr.io; the email is set in Play Console only, so it stays out of this repo.
 - **Privacy policy:** https://flexarr.io/privacy.
+- **Android TV:** the 1280×720 banner and 1920×1080 screenshots in `graphics/tv-banner` and `graphics/tv-screenshots`,
+  from the `Flexarr_Google_TV` emulator on the same Showcase profile.
 - **Screenshots:** phone (1080×1920, 9:16; Play refuses anything longer than 2:1, so not a modern phone's full
   screen), 7" tablet (1200×1920) and 10" tablet (1600×2560), in `graphics/phone-screenshots`, `seven-inch-screenshots`
   and `ten-inch-screenshots`, numbered in the order shown. They're from the real library on the Mini's Showcase
@@ -74,9 +82,14 @@ Keep this in step with `site/privacy.html` and the App Store's App Privacy.
   (the same reasoning as the App Store's 4+). It lets no users talk to each other and shares no location.
 - **Target audience:** 18 and over is the simplest (anything younger brings the Families policy). The app is for
   everyone in a household, but children reach it through a parent's server.
-- **App access:** reviewers need a sign-in. Use the App Review demo server from `docs/app-store.md`, with the same
-  steps: "Enter an address instead", the server's address, "Connecting from outside your home? Use an API key", the
-  key, then the "App Review" profile.
+- **App access** (now "Sign-in details"): reviewers need a sign-in. It's the App Review demo server from
+  `docs/app-store.md` (keep it on a current release: it ran 0.12.1 until the Play launch moved it to 0.58.0), with
+  the same steps: "Enter an address instead", the server's address, "Connecting from outside your home? Use an API
+  key", the key, then the "App Review" profile. The address is the username and the key the password.
+- **Content rating:** "All other app types", every question No, "online content" included: like VLC or Kodi, the app
+  plays only what's on the user's own server. Rated Everyone / PEGI 3.
+- **Automatic protection** (Play's installer check) is off, so the Play build still runs when sideloaded, on a Fire TV
+  say.
 - **Foreground services** (Policy › App content): Play asks why each type is used, with a short video.
   - *Media playback:* podcasts and music play on with the screen off, with controls in the notification and on the
     lock screen. Video: play a podcast episode, lock the phone, show the lock screen controls.
@@ -96,15 +109,31 @@ Keep this in step with `site/privacy.html` and the App Store's App Privacy.
   through Google's own Android Auto review, which can take longer than the app's.
 - **News app, health, financial features, government app:** no.
 
+## In-app updates
+
+Builds installed from Play check for a newer one at launch and whenever the app comes back to the front
+(`AppUpdates`, Play's flexible flow): it downloads in the background, then the phone shows a snackbar and the TV a
+dialog with **Restart to update**. Debug builds and copies installed some other way never ask.
+
 ## Testing before production
 
 A personal developer account created since November 2023 must run a **closed test with at least 12 testers, opted in
 for 14 days in a row**, before it can apply for production access. Testers join with a Google account, from a Google
 Group or an email list, and need the opt-in link. Start it the day the account is approved:
 
+The closed test (`alpha`) is open in every country to the Google Group of **Testers Community**
+(testerscommunity.com, a paid service: 15 testers for the 14 days, and answers for Google's production questions).
+Its testers sign in to the demo server with their own sign-in, a "Testers" profile (`~/flexarr-demo/testers-key.txt`
+on the maintainer's server, made by `testers.py`), so they can be cut off without touching the reviewers'. Feedback
+goes to GitHub Discussions.
+
 1. Upload to internal testing first (up to 100 testers, no review) to check the build installs from Play.
 2. Create the closed test (`alpha` track), add the testers, and upload to it: `make android-upload TRACK=alpha`.
 3. After 14 days with 12 opted in, apply for production in the Dashboard. Google asks a few questions about the test.
 
-When the closed test opens, `site/apps.json` can move Android to `beta` with its opt-in link (see CLAUDE.md, *The apps
-page*).
+The closed test isn't advertised on flexarr.io (the maintainer's choice): `site/apps.json` moves Android to available
+once it reaches production.
+
+After the first upload, add Play App Signing's SHA-1 (Test and release › App integrity) to the restrictions of the
+Firebase API key in `google-services.json` (`gcloud services api-keys update`), or notifications break for Play
+installs.
