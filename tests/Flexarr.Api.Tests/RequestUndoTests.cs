@@ -250,6 +250,30 @@ public sealed class RequestUndoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AWholeShow_KeepsASeasonOnDiskMissingOnlyAnUnmonitoredEpisode_AndStopsOneMissingAnUndatedEpisode()
+    {
+        var (seasons, episodes) = AShow(8005, 9, """[{"id":6,"status":2,"type":"tv","seasons":[{"seasonNumber":1},{"seasonNumber":2},{"seasonNumber":3}]}]""",
+            """[{"seasonNumber":1,"monitored":true},{"seasonNumber":2,"monitored":true},{"seasonNumber":3,"monitored":true}]""",
+            """
+            [{"id":101,"seasonNumber":1,"episodeNumber":1,"hasFile":true,"monitored":true,"airDateUtc":"2020-01-01T00:00:00Z"},
+             {"id":102,"seasonNumber":1,"episodeNumber":2,"hasFile":false,"monitored":false,"airDateUtc":"2020-01-08T00:00:00Z"},
+             {"id":201,"seasonNumber":2,"episodeNumber":1,"hasFile":true,"monitored":true},
+             {"id":202,"seasonNumber":2,"episodeNumber":2,"hasFile":false,"monitored":true},
+             {"id":301,"seasonNumber":3,"episodeNumber":1,"hasFile":true,"monitored":true,"airDateUtc":"2022-01-01T00:00:00Z"},
+             {"id":302,"seasonNumber":3,"episodeNumber":2,"hasFile":false,"monitored":true,"airDateUtc":"2999-01-01T00:00:00Z"}]
+            """);
+        Deletes("/api/v1/request/6");
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "tv", tmdbId = 8005 });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Contains("DELETE /api/v1/request/6", _arr.Requests);
+        Assert.Equal(new Dictionary<int, bool> { [1] = true, [2] = false, [3] = true }, seasons());
+        var unmonitored = JsonDocument.Parse(episodes()!).RootElement.GetProperty("episodeIds").EnumerateArray().Select(e => e.GetInt32()).Order();
+        Assert.Equal([202], unmonitored);
+    }
+
+    [Fact]
     public async Task NothingToTakeBack_IsDone_AndChangesNothing()
     {
         _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7003"] = "[]";

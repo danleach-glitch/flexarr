@@ -156,10 +156,11 @@ public static class RequestUndo
         var episodes = await Call("Sonarr", () => arr.GetEpisodesAsync(sonarr, series.Id, ct));
         var seasonsWithFiles = episodes.Where(e => e.HasFile).Select(e => e.SeasonNumber).ToHashSet();
 
-        // A season is on disk only when every episode that has aired has its file: one still part way through keeps
-        // downloading otherwise, while its request closes.
+        // A season is on disk only when every wanted episode that has aired has its file: one still part way through
+        // keeps downloading otherwise, while its request closes. An episode the admin unmonitored doesn't count against
+        // it, and one with no air date counts as aired, since its season (it has files) has started.
         var now = DateTime.UtcNow;
-        var complete = seasonsWithFiles.Where(n => episodes.All(e => e.SeasonNumber != n || e.HasFile || e.AirDateUtc is not { } aired || aired > now)).ToHashSet();
+        var complete = seasonsWithFiles.Where(n => episodes.All(e => e.SeasonNumber != n || e.HasFile || !e.Monitored || e.AirDateUtc > now)).ToHashSet();
         var scope = chosen ?? [.. (asked ?? series.Seasons.Select(s => s.SeasonNumber)).Where(n => n > 0 && !complete.Contains(n))];
 
         var missing = episodes.Where(e => scope.Contains(e.SeasonNumber) && !e.HasFile && e.Monitored).Select(e => e.Id).ToList();
