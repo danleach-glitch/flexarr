@@ -1222,6 +1222,19 @@ describe('Player', () => {
     expect(requests[1]).toMatchObject({ forceTranscode: true, audioStreamIndex: 3, subtitleKey: 'off' })
   })
 
+  it('lets go of the seek bar when the browser takes a touch drag over for scrolling', async () => {
+    mockApi({ '/libraries': [], 'POST /playback': transcode('t1'), 'DELETE /playback/t1': undefined })
+    window.HTMLElement.prototype.setPointerCapture = vi.fn()
+
+    renderAt('/play/e1')
+    const seek = await screen.findByRole('slider', { name: 'Seek' })
+    seek.getBoundingClientRect = () => ({ left: 0, width: 100, top: 0, height: 10, right: 100, bottom: 10, x: 0, y: 0, toJSON: () => ({}) })
+    fireEvent.pointerDown(seek, { clientX: 50, pointerId: 1 })
+    expect(document.querySelector('.scrubber-tooltip')).not.toBeNull()
+    fireEvent.pointerCancel(seek, { pointerId: 1 })
+    expect(document.querySelector('.scrubber-tooltip')).toBeNull()
+  })
+
   it('says another screen took over, and Watch here instead starts afresh rather than being refused again', async () => {
     const requests: { replacesSessionId?: string }[] = []
     mockApi({

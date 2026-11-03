@@ -1769,6 +1769,11 @@ function Scrubber({
         onSeek(at(e))
         setHover(null)
       }}
+      // A touch drag the browser takes over (it turned into a scroll) ends without a seek.
+      onPointerCancel={() => {
+        setDragging(false)
+        setHover(null)
+      }}
     >
       <div className="scrubber-track">
         <span className="scrubber-buffered" style={{ width: pct(bufferedTo) }} />
