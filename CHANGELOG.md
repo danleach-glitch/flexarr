@@ -11,7 +11,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Notifications with artwork always show, even when the picture is slow to arrive.
 - A TV left on the connect screen stops asking to connect while Flexarr is in the background.
 - Download notifications open Downloads when tapped, have a Stop download button, and your first download asks to show them, so you can see progress.
-- Albums no longer stall between tracks with the screen off.
+- Albums play without a gap between tracks: the next track is got ready a few seconds before the current one ends, so music also no longer stalls between tracks with the screen off.
 - After Flexarr has been closed, your headset's play button and Android's recent media controls pick up your last audiobook or podcast episode where you left off.
 
 ### iPhone and Apple TV
