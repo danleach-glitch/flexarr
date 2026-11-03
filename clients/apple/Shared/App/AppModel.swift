@@ -410,6 +410,8 @@ final class AppModel {
     }
 
     func signOut() {
+        player.dropReady()
+        music.dropReadyBook()
         // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way.
         let guest = credentials?.isGuest == true
         var told: Task<Void, Never>?
@@ -1252,6 +1254,23 @@ final class AppModel {
             return
         }
         player.play(itemId: item.id, preview: item, startAt: fromBeginning ? 0 : nil, client: client, from: from)
+    }
+
+    /// Gets what Play would start for `item` ready, so it opens at once (docs/fast-start.md): a film or episode as a
+    /// video, a book in the audio player. Pages call this once they've been looked at for a moment.
+    func getReady(_ item: ItemSummary) {
+        guard let client else { return }
+        switch item.kind {
+        case .movie, .episode: player.getReady(itemId: item.id, client: client)
+        case .audiobook: music.getReadyBook(item, client: client)
+        default: break
+        }
+    }
+
+    /// The page that got `item` ready is going (or its focus moved on): what it got ready goes too, unless Play took it.
+    func dropReady(_ item: ItemSummary) {
+        player.dropReady(itemId: item.id)
+        music.dropReadyBook(itemId: item.id)
     }
 
     /// Plays a movie or episode directly; for a series or season, plays its next-up episode

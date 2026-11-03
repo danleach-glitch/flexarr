@@ -39,8 +39,12 @@ struct DetailView: View {
     @FocusState private var focusedEpisode: String?
     /// The round action button in focus, by name, to show it under the row.
     @FocusState private var focusedAction: String?
+    /// Play has focus: after a moment, what it starts is got ready (docs/fast-start.md).
+    @FocusState private var playFocused: Bool
 
     private var item: ItemSummary? { detail?.item ?? (preview?.kind == .season ? nil : preview) }
+    /// What Play would start here, got ready once Play has had focus for a moment.
+    private var warmTarget: ItemSummary? { item.flatMap(playTarget) }
     private var series: ItemSummary? {
         guard let item else { return nil }
         return item.kind == .series ? item : detail?.ancestors.first(where: { $0.kind == .series })
@@ -103,9 +107,20 @@ struct DetailView: View {
             await load()
         }
         .onAppear { isVisible = true }
-        .onDisappear { isVisible = false }
+        .onDisappear {
+            isVisible = false
+            if let warmTarget { model.dropReady(warmTarget) }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, isVisible, Freshness.isStale(loadedAt) { Task { await load() } }
+            if phase == .background, let warmTarget { model.dropReady(warmTarget) }
+        }
+        .onChange(of: playFocused) { _, focused in
+            if !focused, let warmTarget { model.dropReady(warmTarget) }
+        }
+        .task(id: playFocused ? warmTarget?.id : nil) {
+            guard playFocused, let warmTarget, (try? await Task.sleep(for: .seconds(1))) != nil else { return }
+            model.getReady(warmTarget)
         }
     }
 
@@ -220,6 +235,7 @@ struct DetailView: View {
                 }
                 .buttonStyle(ActionButtonStyle(ambient: item.ambientColor ?? series?.ambientColor, prominent: true))
                 .monospacedDigit()
+                .focused($playFocused)
                 .takesFocusFromLink()
             }
         case .startOver:

@@ -41,6 +41,8 @@ struct DetailView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     private var item: ItemSummary? { detail?.item ?? (preview?.kind == .season ? nil : preview) }
+    /// What Play would start here, got ready after a moment on the page.
+    private var warmTarget: ItemSummary? { item.flatMap(playTarget) }
     private var series: ItemSummary? {
         guard let item else { return nil }
         return item.kind == .series ? item : detail?.ancestors.first(where: { $0.kind == .series })
@@ -102,9 +104,18 @@ struct DetailView: View {
             await load()
         }
         .onAppear { isVisible = true }
-        .onDisappear { isVisible = false }
+        .onDisappear {
+            isVisible = false
+            if let warmTarget { model.dropReady(warmTarget) }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, isVisible, Freshness.isStale(loadedAt) { Task { await load() } }
+            if phase == .background, let warmTarget { model.dropReady(warmTarget) }
+        }
+        .task(id: warmTarget?.id) {
+            // Looked at for a moment: what Play would start is got ready, so it opens at once (docs/fast-start.md).
+            guard let warmTarget, (try? await Task.sleep(for: .seconds(2))) != nil else { return }
+            model.getReady(warmTarget)
         }
     }
 
