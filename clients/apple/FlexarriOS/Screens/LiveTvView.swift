@@ -6,6 +6,7 @@ import SwiftUI
 /// or remove a favourite.
 struct LiveTvView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     @State private var channels: [LiveChannel]?
     @State private var error: String?
     /// Something to say about a recording just set.
@@ -58,7 +59,9 @@ struct LiveTvView: View {
             }
         }
         // What's on moves on: fetched again each minute while the screen is up.
-        .task {
+        // Only while the app is in front: with music keeping it alive in the background, it would go on asking.
+        .task(id: scenePhase == .active) {
+            guard scenePhase == .active else { return }
             while !Task.isCancelled {
                 await load()
                 try? await Task.sleep(for: .seconds(60))

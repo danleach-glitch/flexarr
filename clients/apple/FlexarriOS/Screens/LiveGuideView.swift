@@ -6,6 +6,7 @@ import SwiftUI
 /// now; holding a programme adds its channel to Favourites or takes it off.
 struct LiveGuideView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
     let channels: [LiveChannel]
     let order: [LiveChannel]
@@ -57,7 +58,9 @@ struct LiveGuideView: View {
                 }
             }
         }
-        .task {
+        // Only while the app is in front: with music keeping it alive in the background, it would go on asking.
+        .task(id: scenePhase == .active) {
+            guard scenePhase == .active else { return }
             while !Task.isCancelled {
                 await load()
                 now = Date()
