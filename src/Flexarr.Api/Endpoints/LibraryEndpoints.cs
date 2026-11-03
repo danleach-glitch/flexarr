@@ -100,11 +100,19 @@ public static class LibraryEndpoints
             library.Folders.RemoveAll(removed.Contains);
             library.Folders.AddRange(added);
 
-            // Items from a folder that's no longer part of the library go with it.
+            // Items from a folder that's no longer part of the library go with it: its files (missing ones too), then
+            // whatever that leaves empty, artists and videos straight in the folder included.
             foreach (var folder in removed)
             {
-                var prefix = folder.Path + "/";
-                await db.MediaItems.Where(i => i.LibraryId == id && i.ParentId == null && i.Path != null && i.Path.StartsWith(prefix)).ExecuteDeleteAsync(ct);
+                var prefix = folder.Path.TrimEnd('/') + "/";
+                await db.MediaFiles.IgnoreQueryFilters()
+                    .Where(f => f.MediaItem!.LibraryId == id && (f.Path == folder.Path || f.Path.StartsWith(prefix)))
+                    .ExecuteDeleteAsync(ct);
+            }
+
+            if (removed.Count > 0)
+            {
+                await LibraryScanner.PruneEmptyItemsAsync(db, id, ct);
             }
 
             await db.SaveChangesAsync(ct);

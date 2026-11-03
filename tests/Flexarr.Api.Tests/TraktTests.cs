@@ -481,6 +481,35 @@ public sealed class TraktTests : IAsyncLifetime
         Assert.False(await InDbAsync(db => db.TraktHistoryHolds.AnyAsync()));
     }
 
+    [Fact]
+    public async Task TheImport_WaitsForARegularSyncToFinish()
+    {
+        await SeedAsync(db => db.Add(Films));
+        await ConnectAsync(importedAt: DateTime.UtcNow.AddDays(-1));
+        Activities();
+        var syncing = new TaskCompletionSource();
+        var release = new TaskCompletionSource();
+        _trakt.Before = async key =>
+        {
+            if (key == "GET /sync/last_activities")
+            {
+                syncing.TrySetResult();
+                await release.Task;
+            }
+        };
+
+        var sync = InScopeAsync(s => s.GetRequiredService<TraktSync>().SyncAsync(Owner, default));
+        await syncing.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var import = InScopeAsync(s => s.GetRequiredService<TraktSync>().ImportAsync(Owner, apply: true, default));
+        await Task.Delay(200);
+        var fetchedDuringSync = _trakt.Count("GET /sync/watched/movies");
+        release.SetResult();
+        await Task.WhenAll(sync, import).WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(0, fetchedDuringSync);
+        Assert.True(_trakt.Count("GET /sync/watched/movies") > 0);
+    }
+
     // ---- The regular sync ----
 
     private Task SyncAsync() => InScopeAsync(s => s.GetRequiredService<TraktSync>().SyncAsync(Owner, default));
@@ -833,6 +862,27 @@ public sealed class TraktTests : IAsyncLifetime
 
         Assert.Equal(1, applied);
         Assert.True((await InDbAsync(db => db.PlaybackStates.SingleAsync(p => p.MediaItemId == second.Id))).Watched);
+    }
+
+    [Fact]
+    public async Task AHeldFilm_AppliesWhenARefreshMatchesIt_AndOtherHoldsWait()
+    {
+        var film = Film("Arrival", "0");
+        film.TmdbId = null;
+        await SeedAsync(db => db.AddRange(Films, film));
+        await SeedAsync(db => db.TraktHistoryHolds.AddRange(
+            new TraktHistoryHold { ProfileId = Owner, Kind = MediaKind.Movie, TmdbId = "329865", WatchedAt = DateTime.UtcNow.AddDays(-2) },
+            new TraktHistoryHold { ProfileId = Owner, Kind = MediaKind.Movie, TmdbId = "11", WatchedAt = DateTime.UtcNow.AddDays(-2) }));
+        TraktHolds.LookAgain();
+        Assert.Equal(0, await InDbAsync(db => TraktHolds.ApplyAsync(db, default)));
+
+        // A refresh finds its TMDB id.
+        await InDbAsync(db => db.MediaItems.Where(i => i.Id == film.Id)
+            .ExecuteUpdateAsync(u => u.SetProperty(i => i.TmdbId, "329865").SetProperty(i => i.MetadataUpdatedAt, DateTime.UtcNow)));
+        var applied = await InDbAsync(db => TraktHolds.ApplyAsync(db, default));
+
+        Assert.Equal(1, applied);
+        Assert.Equal(["11"], await InDbAsync(db => db.TraktHistoryHolds.Select(h => h.TmdbId!).ToListAsync()));
     }
 
     [Fact]

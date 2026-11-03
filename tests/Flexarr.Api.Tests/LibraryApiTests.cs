@@ -6,6 +6,7 @@ using Flexarr.Api.Endpoints;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
@@ -58,6 +59,46 @@ public class LibraryApiTests(FlexarrApiFactory factory) : IClassFixture<FlexarrA
             new { name = "Kids' films", type = "Movies", folders = new[] { folder, extra } });
 
         Assert.Equal([extra], factory.ScanQueue.Requests.Skip(before).Select(r => r.Path));
+    }
+
+    [Fact]
+    public async Task RemovingAFolder_TakesItsArtistsAndMissingFilesWithIt()
+    {
+        var gone = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, "music-" + Guid.NewGuid())).FullName;
+        var kept = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, "music-" + Guid.NewGuid())).FullName;
+        var created = await (await Client().PostAsJsonAsync(new Uri("/api/v1/libraries", UriKind.Relative),
+            new { name = $"Music {Guid.NewGuid():N}", type = "Music", folders = new[] { gone, kept } })).Content.ReadFromJsonAsync<LibraryDto>(Json);
+        var id = created!.Id;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            MediaItem Track(string folder, string artistName, bool missing)
+            {
+                var artist = new MediaItem { LibraryId = id, Kind = MediaKind.Artist, Title = artistName, SortTitle = artistName };
+                var album = new MediaItem { LibraryId = id, Kind = MediaKind.Album, Title = "Album", SortTitle = "album", ParentId = artist.Id, Path = $"{folder}/{artistName}/Album" };
+                var track = new MediaItem { LibraryId = id, Kind = MediaKind.Track, Title = "Song", SortTitle = "song", ParentId = album.Id, Path = $"{folder}/{artistName}/Album/01.flac" };
+                track.Files.Add(new MediaFile { Path = track.Path, MissingSince = missing ? DateTime.UtcNow : null });
+                db.AddRange(artist, album, track);
+                return artist;
+            }
+
+            Track(gone, "Leaving", missing: false);
+            Track(gone, "Already missing", missing: true);
+            Track(kept, "Staying", missing: false);
+            await db.SaveChangesAsync();
+        }
+
+        var response = await Client().PutAsJsonAsync(new Uri($"/api/v1/libraries/{id}", UriKind.Relative),
+            new { name = created.Name, type = "Music", folders = new[] { kept } });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var left = await db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == id).Select(i => i.Title).ToListAsync();
+            Assert.Equal(["Album", "Song", "Staying"], left.Order(StringComparer.Ordinal));
+            Assert.False(await db.MediaFiles.IgnoreQueryFilters().AnyAsync(f => f.Path.StartsWith(gone + "/")));
+        }
     }
 
     [Fact]

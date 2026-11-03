@@ -675,6 +675,60 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AFolderThatCantBeRead_KeepsItsFiles()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var root = Touch("movies/Heat (1995)/Heat (1995).mkv", "movies/Alien (1979)/Alien (1979).mkv");
+        var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
+        await Scanner().ScanAsync(library, null, default);
+        var locked = Path.Combine(root, "movies/Heat (1995)");
+        var mode = File.GetUnixFileMode(locked);
+        File.SetUnixFileMode(locked, UnixFileMode.None);
+        try
+        {
+            var result = await Scanner().ScanAsync(library, null, default);
+
+            Assert.Equal(0, result.Missing);
+            Assert.False(await _db.MediaFiles.IgnoreQueryFilters().AnyAsync(f => f.MissingSince != null));
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked, mode);
+        }
+    }
+
+    [Fact]
+    public async Task Music_AnUpgradedOrRenamedTrack_KeepsItsTrack()
+    {
+        var root = Touch("music/Radiohead/OK Computer (1997)/01 - Airbag.mp3", "music/Radiohead/OK Computer (1997)/02 - Paranoid Android.mp3");
+        _probe.Tags["01 - Airbag.mp3"] = new() { ["artist"] = "Radiohead", ["album"] = "OK Computer", ["title"] = "Airbag", ["track"] = "1" };
+        _probe.Tags["02 - Paranoid Android.mp3"] = new() { ["artist"] = "Radiohead", ["album"] = "OK Computer", ["title"] = "Paranoid Android", ["track"] = "2" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+        await Scanner().ScanAsync(library, null, default);
+        var before = await _db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Track).ToDictionaryAsync(i => i.Title, i => i.Id);
+
+        // Lidarr swaps the MP3 for a FLAC (and renames the other) in one import.
+        File.Delete(Path.Combine(root, "music/Radiohead/OK Computer (1997)/01 - Airbag.mp3"));
+        File.Delete(Path.Combine(root, "music/Radiohead/OK Computer (1997)/02 - Paranoid Android.mp3"));
+        Touch("music/Radiohead/OK Computer (1997)/01 - Airbag.flac", "music/Radiohead/OK Computer (1997)/02 Paranoid Android.mp3");
+        _probe.Tags["01 - Airbag.flac"] = _probe.Tags["01 - Airbag.mp3"];
+        _probe.Tags["02 Paranoid Android.mp3"] = _probe.Tags["02 - Paranoid Android.mp3"];
+        await Scanner().ScanAsync(library, Path.Combine(root, "music/Radiohead/OK Computer (1997)"), default);
+
+        _db.ChangeTracker.Clear();
+        var tracks = await _db.MediaItems.IgnoreQueryFilters().Include(i => i.Files).Where(i => i.Kind == MediaKind.Track).ToListAsync();
+        Assert.Equal(2, tracks.Count);
+        Assert.All(tracks, t => Assert.Equal(before[t.Title], t.Id));
+        Assert.All(tracks, t => Assert.Null(t.MissingSince));
+        Assert.EndsWith("01 - Airbag.flac", tracks.Single(t => t.Title == "Airbag").Path, StringComparison.Ordinal);
+        Assert.All(tracks, t => Assert.Single(t.Files, f => f.MissingSince == null));
+    }
+
+    [Fact]
     public async Task Music_AFollowedArtistWithNothingYet_IsKept_ThenFilledInByTheirFirstAlbum()
     {
         var root = Touch("music/Radiohead/OK Computer (1997)/01 - Airbag.flac");

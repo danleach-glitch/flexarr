@@ -108,6 +108,31 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RadarrDown_LeavesItsFilmsLinked_AndDue()
+    {
+        await AddMovieAsync("Dune", DateTime.UtcNow.AddDays(-30), poster: "https://image.test/dune.jpg", arrId: 7);
+        _radarr.Unreachable.Add("/api/v3/movie");
+
+        var result = await Refresher().RefreshLibraryAsync(_library, force: false, default);
+
+        var dune = await _db.MediaItems.AsNoTracking().SingleAsync();
+        Assert.Equal(new MetadataRefreshResult(0, 0, 0), result);
+        Assert.Equal((7, "Radarr"), (dune.ArrId!.Value, dune.MetadataSource!));
+        Assert.True(dune.MetadataUpdatedAt < DateTime.UtcNow.AddDays(-29)); // still due next time
+    }
+
+    [Fact]
+    public async Task RadarrAnsweringWithoutTheFilm_StillRefreshesIt()
+    {
+        await AddMovieAsync("Dune", DateTime.UtcNow.AddDays(-30), poster: "https://image.test/dune.jpg", arrId: 7);
+
+        await Refresher().RefreshLibraryAsync(_library, force: false, default); // Radarr answered: it has nothing
+
+        var dune = await _db.MediaItems.AsNoTracking().SingleAsync();
+        Assert.True(dune.MetadataUpdatedAt > DateTime.UtcNow.AddMinutes(-1));
+    }
+
+    [Fact]
     public async Task ArtworkDroppedMidDownload_DoesNotEndTheRefresh()
     {
         await AddMovieAsync("Dune", null, poster: null);

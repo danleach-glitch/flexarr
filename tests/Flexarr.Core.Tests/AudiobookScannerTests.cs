@@ -326,6 +326,25 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AScanOfOneFolder_OnlyLooksAtArtworkInIt()
+    {
+        Touch("A/One/01.mp3", "A/One/cover.jpg", "B/Two/01.mp3", "B/Two/cover.jpg");
+        await ScanAsync();
+        await ScanAsync();
+
+        File.WriteAllText(Path.Combine(Books, "A/One/cover.jpg"), "a new picture");
+        File.WriteAllText(Path.Combine(Books, "B/Two/cover.jpg"), "another new picture");
+        await ScanAsync(Path.Combine(Books, "A/One"));
+
+        var books = await _db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Audiobook).ToDictionaryAsync(i => i.Title);
+        Assert.NotNull(books["One"].ArtworkChangedAt);
+        Assert.Null(books["Two"].ArtworkChangedAt); // noticed at the next full scan
+
+        await ScanAsync();
+        Assert.NotNull((await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Title == "Two")).ArtworkChangedAt);
+    }
+
+    [Fact]
     public async Task AScan_NeverMovesTheLookUpDate()
     {
         // As PathMappingFinder.RematchAsync leaves it, to have the next refresh link the title again.
@@ -502,7 +521,7 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
     private async Task<List<string>> AuthorsAsync(Guid bookId) =>
         await _db.Credits.Where(c => c.MediaItemId == bookId && c.Role == CreditRole.Author).OrderBy(c => c.Order).Select(c => c.Person!.Name).ToListAsync();
 
-    private async Task<ScanResult> ScanAsync()
+    private async Task<ScanResult> ScanAsync(string? scope = null)
     {
         var library = await _db.Libraries.Include(l => l.Folders).FirstOrDefaultAsync();
         if (library is null)
@@ -512,7 +531,7 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
             await _db.SaveChangesAsync();
         }
 
-        return await new LibraryScanner(_db, _probe, new ScanProgress(), NullLogger<LibraryScanner>.Instance).ScanAsync(library, null, default);
+        return await new LibraryScanner(_db, _probe, new ScanProgress(), NullLogger<LibraryScanner>.Instance).ScanAsync(library, scope, default);
     }
 
     private void Touch(params string[] files)

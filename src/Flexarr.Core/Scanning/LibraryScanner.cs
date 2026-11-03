@@ -147,7 +147,9 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 released = true;
             }
 
-            var onDisk = MediaFileEnumerator.Enumerate(root, target, audio: library.Type == LibraryType.Music, books: library.Type == LibraryType.Audiobooks, everything: library.Type == LibraryType.HomeVideos)
+            var unreadable = new List<string>();
+            var onDisk = MediaFileEnumerator.Enumerate(root, target, audio: library.Type == LibraryType.Music, books: library.Type == LibraryType.Audiobooks,
+                    everything: library.Type == LibraryType.HomeVideos, unreadable: unreadable)
                 .Where(f => PathComparison.IsUnder(f.FullName, root))
                 .ToList();
             var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -186,6 +188,19 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 {
                     work.Add((file, match));
                 }
+            }
+
+            if (library.Type == LibraryType.Music && work.Any(w => w.Existing is null))
+            {
+                // Lidarr upgrading a track (MP3 to FLAC) or renaming it swaps one file for another: the new file goes to
+                // the old track, so it keeps its place in playlists and its plays, rather than a new track taking over
+                // while the old one is deleted with them a day later.
+                var goneIds = existing.Values.Concat(duplicates).Where(f => !seen.Contains(PathComparison.Key(f.Path)) && !Unreadable(f))
+                    .Select(f => f.Id).ToList();
+                state.OfferReplacedTracks(await db.MediaItems.IgnoreQueryFilters()
+                    .Where(i => i.LibraryId == library.Id && i.Kind == MediaKind.Track && i.ParentId != null
+                        && i.Files.Any() && i.Files.All(f => f.MissingSince != null || goneIds.Contains(f.Id)))
+                    .ToListAsync(cancellationToken).ConfigureAwait(false));
             }
 
             progress.Begin(library.Id, target, work.Count);
@@ -269,9 +284,14 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 progress.Advance(batch.Length);
             }
 
+            // Files in a folder that couldn't be read weren't seen, but that's no sign they've gone.
             var gone = existing.Values.Where(f => !seen.Contains(PathComparison.Key(f.Path))).Concat(duplicates)
-                .Where(f => f.MissingSince is null)
+                .Where(f => f.MissingSince is null && !Unreadable(f))
                 .ToList();
+            if (unreadable.Count > 0)
+            {
+                LogUnreadable(root, unreadable.Count, PathComparison.Printable(unreadable[0]));
+            }
             var holding = false;
             if (!released && full && existing.Count >= MassRemovalMinimum && gone.Count * 2 > existing.Count)
             {
@@ -302,6 +322,8 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             }
 
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            bool Unreadable(MediaFile file) => unreadable.Any(d => PathComparison.IsUnder(file.Path, d));
         }
 
         if (!held)
@@ -309,7 +331,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             removed = await RemoveExpiredAsync(library.Id, cancellationToken).ConfigureAwait(false);
         }
 
-        await PruneEmptyItemsAsync(library.Id, cancellationToken).ConfigureAwait(false);
+        await PruneEmptyItemsAsync(db, library.Id, cancellationToken).ConfigureAwait(false);
         await MarkMissingItemsAsync(library.Id, cancellationToken).ConfigureAwait(false);
         if (library.Type == LibraryType.HomeVideos)
         {
@@ -328,7 +350,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
         // Ids from folder names are known now; those from Radarr/Sonarr after the metadata refresh, which does this again.
         await WatchHistoryCarryOver.CarryOverAsync(db, cancellationToken).ConfigureAwait(false);
-        await NoticeReplacedArtworkAsync(library.Id, cancellationToken).ConfigureAwait(false);
+        await NoticeReplacedArtworkAsync(library.Id, scope is null ? null : targets.Select(t => t.Scope).ToList(), cancellationToken).ConfigureAwait(false);
 
         library.LastScannedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -539,9 +561,10 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
     /// from last time's sets <see cref="MediaItem.ArtworkChangedAt"/>. Artwork addresses carry it, so apps and browsers
     /// fetch the new picture rather than keep the one they cached. A replacement keeping an older date (a Finder copy)
     /// still counts. A first stamp is only recorded, and <see cref="MediaItem.MetadataUpdatedAt"/> is never touched:
-    /// that says when the title was last looked up.
+    /// that says when the title was last looked up. A scan of part of the library (a webhook's) only looks at artwork
+    /// in the folders it scanned, rather than every artwork file in the library.
     /// </summary>
-    private async Task NoticeReplacedArtworkAsync(Guid libraryId, CancellationToken ct)
+    private async Task NoticeReplacedArtworkAsync(Guid libraryId, IReadOnlyList<string>? within, CancellationToken ct)
     {
         var local = await db.MediaItems
             .Where(i => i.LibraryId == libraryId
@@ -551,7 +574,8 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     || (i.ThumbUrl != null && (i.ThumbUrl.StartsWith("file://") || i.ThumbUrl.StartsWith("embedded://")))))
             .Select(i => new { i.Id, i.ArtworkStamp, Urls = new[] { i.PosterUrl, i.BackdropUrl, i.LogoUrl, i.ThumbUrl } })
             .ToListAsync(ct).ConfigureAwait(false);
-        var changed = local.Select(i => (i.Id, Old: i.ArtworkStamp, New: ArtworkStamp(i.Urls)))
+        var changed = local.Where(i => within is null || i.Urls.Any(u => LocalPath(u) is { } path && within.Any(w => PathComparison.IsUnder(path, w))))
+            .Select(i => (i.Id, Old: i.ArtworkStamp, New: ArtworkStamp(i.Urls)))
             .Where(i => i.New != i.Old)
             .ToDictionary(i => i.Id, i => (i.Old, i.New));
         if (changed.Count == 0)
@@ -584,10 +608,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         var text = new System.Text.StringBuilder();
         foreach (var url in urls)
         {
-            var path = url is null ? null
-                : url.StartsWith("file://", StringComparison.Ordinal) ? url["file://".Length..]
-                : url.StartsWith("embedded://", StringComparison.Ordinal) ? url["embedded://".Length..]
-                : null;
+            var path = LocalPath(url);
             if (path is null)
             {
                 continue;
@@ -603,6 +624,13 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text.ToString()));
         return Convert.ToHexStringLower(hash.AsSpan(0, 8));
     }
+
+    /// <summary>The file a local artwork address (file:// or embedded://) reads; null for any other.</summary>
+    private static string? LocalPath(string? url) =>
+        url is null ? null
+        : url.StartsWith("file://", StringComparison.Ordinal) ? url["file://".Length..]
+        : url.StartsWith("embedded://", StringComparison.Ordinal) ? url["embedded://".Length..]
+        : null;
 
     /// <summary>Removes files missing for longer than <see cref="MissingGracePeriod"/>.</summary>
     private async Task<int> RemoveExpiredAsync(Guid libraryId, CancellationToken ct)
@@ -675,8 +703,13 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
-    private async Task PruneEmptyItemsAsync(Guid libraryId, CancellationToken ct)
+    /// <summary>
+    /// Removes a library's playable items left without files, then the seasons/albums and series/artists left empty
+    /// (their history kept a while, by id, as a scan does).
+    /// </summary>
+    public static async Task PruneEmptyItemsAsync(FlexarrDbContext db, Guid libraryId, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(db);
         // Missing files still count: their items wait out the grace period with them.
         // Their history and collections are kept a while, by id, in case the title comes back under a new path.
         var items = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == libraryId);
@@ -707,6 +740,9 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
     [LoggerMessage(Level = LogLevel.Information, Message = "No longer holding {Root}: hiding {Missing} of its {Known} files, as {Why}")]
     private partial void LogHoldReleased(string root, int missing, int known, string why);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Count} folders in {Root} couldn't be read (first: {Folder}); keeping their files as they were")]
+    private partial void LogUnreadable(string root, int count, string folder);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Could not probe {Path}: {Error}")]
     private partial void LogProbeFailed(string path, string error);
@@ -890,6 +926,19 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
             artist.PosterUrl ??= album.PosterUrl; // No artist photo: show their first album's cover.
 
+            var trackArtist = info.TrackArtist is { } tagged && !IsNamed(artist, tagged) ? tagged : null;
+            if (TakeReplaced(album.Id, info.Disc, info.Track, info.Title) is { } replaced)
+            {
+                replaced.Title = info.Title;
+                replaced.SortTitle = SortTitle.ForNumber(((info.Disc ?? 1) * 1000) + (info.Track ?? 0));
+                replaced.Year = info.Year;
+                replaced.DiscNumber = info.Disc;
+                replaced.TrackNumber = info.Track;
+                replaced.TrackArtist = trackArtist;
+                replaced.Path = filePath;
+                return replaced;
+            }
+
             return Add(new MediaItem
             {
                 LibraryId = library.Id,
@@ -902,9 +951,45 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 TrackNumber = info.Track,
                 // The track's own artist only when it isn't the album's, under either of the artist's names (the
                 // tags' or Lidarr's): a compilation's tracks, a featured artist.
-                TrackArtist = info.TrackArtist is { } tagged && !IsNamed(artist, tagged) ? tagged : null,
+                TrackArtist = trackArtist,
                 Path = filePath,
             });
+        }
+
+        private readonly Dictionary<Guid, List<MediaItem>> _replaced = [];
+
+        /// <summary>
+        /// Tracks whose files have all gone (this scan or before): a new file of the same album, disc and track
+        /// number (or, untracked, the same title) is taken to replace theirs.
+        /// </summary>
+        public void OfferReplacedTracks(IEnumerable<MediaItem> tracks)
+        {
+            foreach (var track in tracks)
+            {
+                var pool = _replaced.TryGetValue(track.ParentId!.Value, out var list) ? list : _replaced[track.ParentId.Value] = [];
+                if (!pool.Any(t => t.Id == track.Id))
+                {
+                    pool.Add(track);
+                }
+            }
+        }
+
+        private MediaItem? TakeReplaced(Guid albumId, int? disc, int? number, string title)
+        {
+            if (!_replaced.TryGetValue(albumId, out var pool))
+            {
+                return null;
+            }
+
+            var match = number is { } n
+                ? pool.FirstOrDefault(t => t.TrackNumber == n && (t.DiscNumber ?? 1) == (disc ?? 1))
+                : pool.FirstOrDefault(t => t.TrackNumber is null && Fold(t.Title) == Fold(title));
+            if (match is not null)
+            {
+                pool.Remove(match);
+            }
+
+            return match;
         }
 
         /// <summary>Books whose files were added, changed or went missing in this scan: <see cref="BookAssembler"/> puts them together after.</summary>

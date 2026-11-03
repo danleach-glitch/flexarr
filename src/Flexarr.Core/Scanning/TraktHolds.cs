@@ -149,14 +149,26 @@ public sealed class LibraryTitles
 /// <summary>
 /// Plays on Trakt of titles the server didn't have (see <see cref="TraktHistoryHold"/>), applied when they arrive: after
 /// a library scan has finished. Cheap when nothing has changed: it remembers what the library and the holds looked like
-/// last time and only looks again when either has moved.
+/// last time and only looks again when either has moved; and then, as most moves are a refresh restamping titles, only
+/// at the holds that are new or name a title added or refreshed since (with a full look once a day, to catch the rest).
 /// </summary>
 public static class TraktHolds
 {
     private static readonly SemaphoreSlim Gate = new(1, 1);
     private static (int Titles, DateTime? Newest, DateTime? Matched, int Holds, long LastHold)? lastLook;
+    private static DateTime lastLookAt;
+    private static DateTime lastFullLookAt;
 
-    /// <summary>Forgets what was seen last time, so the next call looks (tests).</summary>
+    /// <summary>How often every hold is looked at again, not only those a change since the last look could match.</summary>
+    private static readonly TimeSpan FullLookEvery = TimeSpan.FromDays(1);
+
+    /// <summary>
+    /// How far before the last look a title's change still counts as new: a refresh stamps a title before saving it,
+    /// so one saved just after a look can carry a stamp from just before it.
+    /// </summary>
+    private static readonly TimeSpan Overlap = TimeSpan.FromHours(6);
+
+    /// <summary>Forgets what was seen last time, so the next call looks at every hold (tests).</summary>
     public static void LookAgain() => lastLook = null;
 
     /// <summary>Applies every hold whose title is in the library now; returns how many were applied.</summary>
@@ -185,8 +197,17 @@ public static class TraktHolds
                 return 0;
             }
 
-            var applied = await ApplyAllAsync(db, ct).ConfigureAwait(false);
+            var now = DateTime.UtcNow;
+            var full = lastLook is null || now - lastFullLookAt > FullLookEvery;
+            var only = full ? null : await ChangedSinceAsync(db, lastLookAt - Overlap, lastLook!.Value.LastHold, ct).ConfigureAwait(false);
+            var applied = await ApplyAllAsync(db, only, ct).ConfigureAwait(false);
             lastLook = applied == 0 ? look : null;
+            lastLookAt = now;
+            if (full)
+            {
+                lastFullLookAt = now;
+            }
+
             return applied;
         }
         finally
@@ -195,15 +216,36 @@ public static class TraktHolds
         }
     }
 
-    private static async Task<int> ApplyAllAsync(FlexarrDbContext db, CancellationToken ct)
+    /// <summary>The holds that are new since the last look, or carry an id of a title added or refreshed since <paramref name="since"/>.</summary>
+    private static async Task<IQueryable<TraktHistoryHold>> ChangedSinceAsync(FlexarrDbContext db, DateTime since, long lastHold, CancellationToken ct)
+    {
+        var changed = db.MediaItems.IgnoreQueryFilters()
+            .Where(i => i.MissingSince == null && (i.AddedAt > since || i.FirstSeenAt > since || i.MetadataUpdatedAt > since));
+        // An episode arriving (or refreshed) is looked for by its show's ids.
+        var titles = changed.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series)
+            .Union(db.MediaItems.IgnoreQueryFilters().Where(s => s.Kind == MediaKind.Series
+                && changed.Any(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId == s.Id)));
+        var ids = await titles.Select(i => new { i.TmdbId, i.TvdbId, i.ImdbId }).ToListAsync(ct).ConfigureAwait(false);
+        var tmdb = ids.Where(i => i.TmdbId != null).Select(i => i.TmdbId!).Distinct().ToList();
+        var tvdb = ids.Where(i => i.TvdbId != null).Select(i => i.TvdbId!).Distinct().ToList();
+        var imdb = ids.Where(i => i.ImdbId != null).Select(i => i.ImdbId!).Distinct().ToList();
+        return db.TraktHistoryHolds.Where(h => h.Id > lastHold
+            || (h.TmdbId != null && tmdb.Contains(h.TmdbId)) || (h.TvdbId != null && tvdb.Contains(h.TvdbId)) || (h.ImdbId != null && imdb.Contains(h.ImdbId)));
+    }
+
+    /// <param name="db">The database.</param>
+    /// <param name="only">The holds that could have a match now; null for every one.</param>
+    /// <param name="ct">Stops the pass.</param>
+    private static async Task<int> ApplyAllAsync(FlexarrDbContext db, IQueryable<TraktHistoryHold>? only, CancellationToken ct)
     {
         var titles = await LibraryTitles.LoadAsync(db, ct).ConfigureAwait(false);
         var applied = 0;
         // In pages, as an import can leave thousands; read untracked, and only matches are touched.
         long after = 0;
+        var holds = (only ?? db.TraktHistoryHolds).AsNoTracking();
         while (true)
         {
-            var page = await db.TraktHistoryHolds.AsNoTracking().Where(h => h.Id > after).OrderBy(h => h.Id).Take(500).ToListAsync(ct).ConfigureAwait(false);
+            var page = await holds.Where(h => h.Id > after).OrderBy(h => h.Id).Take(500).ToListAsync(ct).ConfigureAwait(false);
             if (page.Count == 0)
             {
                 break;
