@@ -18,7 +18,8 @@ import { ScanProgress } from '../../components/ScanProgress'
 import { useLibraries } from '../../hooks/librariesContext'
 import { useSession } from '../../hooks/sessionContext'
 import { AsyncButton, IconButton } from '../../components/AsyncButton'
-import { Film, Pencil, Picture, Refresh, Trash } from '../../components/icons'
+import { Film, Pencil, Picture, Refresh } from '../../components/icons'
+import { icon } from '../../components/icons.generated'
 import { libraryIcons } from '../../components/libraryIcons'
 import { useApi } from '../../hooks/useApi'
 import { libraryTypeLabel, relativeTime } from '../../lib/format'
@@ -256,7 +257,7 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
             icon={<Picture />}
             onClick={() => scanLibrary(library.id, true).then(() => setMessage('Refreshing artwork and details from Sonarr and Radarr. This takes a few minutes.'))}
           />
-          <IconButton label="Remove" icon={<Trash />} className="button quiet small icon danger-icon" onClick={remove} />
+          <IconButton label="Remove" icon={<icon.delete />} className="button quiet small icon danger-icon" onClick={remove} />
         </div>
       )}
     </div>

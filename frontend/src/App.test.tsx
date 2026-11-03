@@ -1611,6 +1611,33 @@ describe('Library grid', () => {
     expect(screen.queryByText('More couldn’t be loaded.')).toBeNull()
   })
 
+  it('says by the rail when a letter fails to load, and tries that letter again', async () => {
+    let fail = true
+    const pages: number[] = []
+    mockApi({
+      '/libraries': [{ ...movies, scan: null, itemCount: films.length }],
+      '/libraries/lib-movies/genres': [],
+      '/libraries/lib-movies/items': (_: RequestInit | undefined, url: URL) => {
+        const skip = Number(url.searchParams.get('skip') ?? 0)
+        pages.push(skip)
+        if (skip > 0 && fail) return new Response('', { status: 500 })
+        return { total: films.length, items: films.slice(skip, skip + Number(url.searchParams.get('take'))) }
+      },
+    })
+    renderAt('/library/lib-movies?view=all')
+
+    const rail = await screen.findByRole('navigation', { name: 'Jump to letter' })
+    fireEvent.click(within(rail).getByRole('button', { name: 'G' }))
+    expect(await within(rail).findByRole('alert')).toHaveTextContent('G couldn’t be loaded.')
+    expect(screen.queryByText('More couldn’t be loaded.')).toBeNull()
+    fail = false
+    fireEvent.click(within(rail).getByRole('button', { name: 'Try again' }))
+
+    expect(await screen.findByRole('link', { name: 'Film 209' })).toBeInTheDocument()
+    expect(pages).toEqual([0, 200, 200])
+    expect(within(rail).queryByRole('alert')).toBeNull()
+  })
+
   it('dims letters with nothing to jump to, once the grid has loaded past them', async () => {
     grid()
     renderAt('/library/lib-movies?view=all')

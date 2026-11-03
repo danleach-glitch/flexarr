@@ -229,7 +229,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
     const timer = setTimeout(() => setQuery(search.trim()), 250)
     return () => clearTimeout(timer)
   }, [search])
-  const { items, total, error, moreError, busy, jumping, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
+  const { items, total, error, moreError, busy, jumping, jumpFailed, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
     snapshotKey: `books-${view} ${library.id} ${key}`,
     query,
     pageSize: PAGE_SIZE,
@@ -294,7 +294,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
       )}
       {total === 0 && <p className="page-message muted">{query ? `Nothing in ${library.name} matches “${query}”.` : filtered ? 'No books match.' : 'No books yet.'}</p>}
       <div className="library-body">
-        {letters && <AlphaPicker jump={(l) => void jump(l)} jumping={jumping} empty={empty} />}
+        {letters && <AlphaPicker jump={(l) => void jump(l)} jumping={jumping} failed={jumpFailed} empty={empty} />}
         <div className="poster-grid square" aria-busy={total === undefined} ref={grid} onClick={onGridClick}>
           {items.map((item) => (
             <div key={item.id} data-id={item.id}>
@@ -302,7 +302,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
             </div>
           ))}
         </div>
-        {letters && <AlphaRail jump={(l) => void jump(l)} jumping={jumping} empty={empty} />}
+        {letters && <AlphaRail jump={(l) => void jump(l)} jumping={jumping} failed={jumpFailed} empty={empty} />}
       </div>
       <ShowMore loaded={items.length} total={total} pageSize={PAGE_SIZE} busy={busy} error={moreError} onMore={() => void loadMore()} />
     </>

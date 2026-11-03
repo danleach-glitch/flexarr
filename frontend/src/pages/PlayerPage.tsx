@@ -40,7 +40,7 @@ import { usePolling } from '../hooks/usePolling'
 import { hasSoundGraph, MAX_AUDIO_DELAY_SECONDS, useSoundChain } from '../hooks/soundChain'
 import { useAgeLimits } from '../hooks/sessionContext'
 import { announceWatched } from '../hooks/watched'
-import { clearEnding, isWatched, recordEnding, sendingFinalReport, type PlaybackEnding, type PlayState } from '../hooks/playbackEnding'
+import { clearEnding, isWatched, recordEnding, sendingFinalReport, whenBrowserBack, type PlaybackEnding, type PlayState } from '../hooks/playbackEnding'
 import { episodeCode, formatClock } from '../lib/format'
 import { belongsToFocused } from '../lib/focusedKeys'
 import { mediaErrorRecovery } from '../lib/hlsRecovery'
@@ -734,7 +734,7 @@ export function PlayerPage() {
     return { from: origin.current, startedWith: startedWith.current, stoppedOn: playing.item.id, watched: over || isWatched(at, length, creditsStart), next: playing.next?.id ?? null }
   }
   // Leaving by the browser's Back (or a swipe) counts as closing too. It's recorded as the history moves, before the
-  // page Play was pressed on renders, so that page moves on at once; unmounting catches any other way out.
+  // router renders the page Play was pressed on (see browserMoved), so that page moves on at once; unmounting catches any other way out.
   useEffect(
     () => {
       const record = () => {
@@ -746,9 +746,9 @@ export function PlayerPage() {
         record()
         leaving.current = true
       }
-      window.addEventListener('popstate', onBack)
+      whenBrowserBack(onBack)
       return () => {
-        window.removeEventListener('popstate', onBack)
+        whenBrowserBack(undefined, onBack)
         record()
       }
     },
