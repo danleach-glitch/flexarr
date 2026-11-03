@@ -13,6 +13,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Download notifications open Downloads when tapped, have a Stop download button, and your first download asks to show them, so you can see progress.
 - Albums play without a gap between tracks: the next track is got ready a few seconds before the current one ends, so music also no longer stalls between tracks with the screen off.
 - After Flexarr has been closed, your headset's play button and Android's recent media controls pick up your last audiobook or podcast episode where you left off.
+- If your Flexarr server is older than 0.50.0, the phone and TV apps now say "Update your Flexarr server" when you try to connect, and show the same message after you sign in.
 
 ### iPhone and Apple TV
 - Long-press menus on posters use the same icons as a title's page, and Mark as watched and Mark as unwatched no longer look the same.
@@ -20,6 +21,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Your place in music, podcasts and audiobooks is saved even when you pause from the lock screen or take your AirPods out.
 - Changing subtitle size or position while watching no longer turns back autoplay or skip settings you changed on another device.
 - The podcast and audiobook widget clears when you sign out or switch profiles, so it no longer shows the last person's episode.
+- If your Flexarr server is older than 0.50.0, the app now says "Update your Flexarr server" when you try to connect, and shows the same message after you sign in.
 
 ### Mac app
 - The Live TV recordings folder, the backups folder and the server side of a path mapping are now chosen in macOS's folder window, so they're folders the Mac app can actually use.
