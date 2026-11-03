@@ -72,6 +72,43 @@ public sealed class TranscodeSessionTests : IDisposable
         Assert.Equal(2, File.ReadAllLines(runs).Length);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AStreamGotReadyAheadOfPlay_StopsOnceItCanOpen_UnlessAPlayerTookItUp(bool takenUp)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        // Writes two minutes of segments at once, then keeps going (as ffmpeg would at playing speed).
+        var args = Path.Combine(_cache, "args");
+        var ffmpeg = Path.Combine(_cache, "fake-ffmpeg");
+        File.WriteAllText(ffmpeg, $$"""
+            #!/bin/sh
+            echo "$*" > "{{args}}"
+            for last; do :; done
+            dir=$(dirname "$last")
+            printf '#EXTM3U\n' > "$dir/list"
+            i=0; while [ $i -lt 20 ]; do echo x > "$dir/seg$i.ts"; echo "seg$i.ts" >> "$dir/list"; i=$((i+1)); done
+            mv "$dir/list" "$last"
+            sleep 30
+            """);
+        File.SetUnixFileMode(ffmpeg, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        await using var manager = Manager(limit: 0, ffmpeg);
+        var session = await manager.CreateAsync("a", "/in.mkv", 600, Plan, preparing: true);
+        Assert.NotNull(await session.GetSegmentAsync(0, CancellationToken.None));
+        session.Warming = !takenUp;
+
+        await manager.SweepAsync();
+
+        // Started with the full run-ahead, so one taken up while it's still going keeps building it.
+        Assert.Contains($"-readrate_initial_burst {FfmpegCommand.RunAheadSeconds}", File.ReadAllText(args), StringComparison.Ordinal);
+        Assert.Equal(takenUp, session.IsRunning);
+        Assert.NotNull(await session.GetSegmentAsync(1, CancellationToken.None));
+    }
+
     [Fact]
     public async Task WithoutASoftwareEncoder_AFailingHardwareEncoderJustFails()
     {

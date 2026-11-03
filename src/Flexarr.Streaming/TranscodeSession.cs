@@ -372,6 +372,48 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         }
     }
 
+    /// <summary>The longest a run got ready ahead of Play keeps going, whether or not it has made its opening yet.</summary>
+    internal static readonly TimeSpan WarmRunLimit = TimeSpan.FromSeconds(45);
+
+    /// <summary>
+    /// Got ready ahead of Play and not taken up: stops ffmpeg once it has made <see cref="FfmpegCommand.WarmingRunAheadSeconds"/>
+    /// (or after <see cref="WarmRunLimit"/>), keeping what it made, so a glance at a page doesn't encode minutes nobody
+    /// may watch. A player that takes it up later plays what's there, and the first segment past it starts ffmpeg again
+    /// with the full run-ahead. True when it stopped ffmpeg.
+    /// </summary>
+    public async Task<bool> StopWarmRunAsync()
+    {
+        if (!Warming || !IsRunning)
+        {
+            return false;
+        }
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (!Warming || _disposed || !IsRunning
+                || (MadeSeconds() < FfmpegCommand.WarmingRunAheadSeconds && DateTime.UtcNow - StartedAt < WarmRunLimit))
+            {
+                return false;
+            }
+
+            StopProcess();
+            return true;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>How much of the film the current run has made, from where it started.</summary>
+    private double MadeSeconds()
+    {
+        var next = HighestComplete() + 1;
+        var madeTo = next >= SegmentCount ? DurationSeconds : SegmentStart(next);
+        return madeTo - SegmentStart(Math.Min(_startSegment, SegmentCount - 1));
+    }
+
     /// <summary>
     /// Stops ffmpeg but keeps finished segments (a paused viewer may come back). With <paramref name="ifIdleFor"/>,
     /// only if nothing has asked for a segment for that long, checked once nothing else is starting or stopping it.
@@ -487,9 +529,9 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         DeleteSegments();
 
         var start = new ProcessStartInfo(_settings.FfmpegPath) { UseShellExecute = false, RedirectStandardError = true, RedirectStandardInput = false };
-        // Got ready ahead of Play: a short burst, enough to open on (the rest comes at playing speed once it's used).
-        var burst = Warming ? FfmpegCommand.WarmingRunAheadSeconds : FfmpegCommand.RunAheadSeconds;
-        foreach (var arg in FfmpegCommand.Hls(Input, Plan, segment, Directory, _settings, Opening, burst))
+        // The full burst even when got ready ahead of Play: the sweep stops that run once it has enough to open on (see
+        // StopWarmRunAsync), and one taken up while it's still going keeps the whole run-ahead.
+        foreach (var arg in FfmpegCommand.Hls(Input, Plan, segment, Directory, _settings, Opening, FfmpegCommand.RunAheadSeconds))
         {
             start.ArgumentList.Add(arg);
         }

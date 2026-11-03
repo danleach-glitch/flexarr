@@ -240,6 +240,12 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
         {
             try
             {
+                // Got ready ahead of Play: only enough to open on, unless a player takes it up.
+                if (session.Warming)
+                {
+                    await session.StopWarmRunAsync().ConfigureAwait(false);
+                }
+
                 var idle = now - session.LastAccess;
                 if (idle > ReleaseAfterIdle)
                 {
