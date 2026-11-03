@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -42,7 +43,6 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
-import io.github.flexarr.ui.theme.FlexarrIcons
 
 // Skip Intro or Next Episode, the pill above the timeline. Counting down to the next episode, its X (Cancel) is the
 // pill's right half: "Next episode in 7 | X", the halves 2dp apart with square inner edges. Each half is its own
@@ -83,7 +83,8 @@ internal fun FadingPrompt(title: String?, countingDown: Boolean, modifier: Modif
     }
 }
 
-private fun promptIcon(title: String): ImageVector = if (title.startsWith("Skip")) Icons.Filled.SkipNext else FlexarrIcons.play
+// Next episode shows ▶▶, as on Apple; Skip intro and recap their skip-ahead.
+private fun promptIcon(title: String): ImageVector = if (title.startsWith("Skip")) Icons.Filled.SkipNext else Icons.Filled.FastForward
 
 /** The Next half's shape: a capsule by itself, its left end only with the X beside it. */
 private fun nextShape(countingDown: Boolean) = if (countingDown) RoundedCornerShape(topStartPercent = 50, bottomStartPercent = 50) else RoundedCornerShape(percent = 50)
@@ -108,21 +109,22 @@ internal fun PromptPill(title: String, countingDown: Boolean, held: Boolean, onT
     // Both halves as tall as the taller (the label's), so they meet as one pill.
     Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(
-            Modifier.fillMaxHeight().clip(nextShape(countingDown)).background(Flexarr.screen.copy(alpha = 0.95f)).pressable(onTap)
-                .padding(horizontal = 13.dp, vertical = 8.dp),
+            // Taps land up to 8dp above and below the pill, so it's easy to hit while staying compact.
+            Modifier.fillMaxHeight().pressable(onTap).padding(vertical = 8.dp).clip(nextShape(countingDown))
+                .background(Flexarr.screen.copy(alpha = 0.95f)).padding(horizontal = 13.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(promptIcon(title), contentDescription = null, tint = Flexarr.room, modifier = Modifier.size(11.dp))
+            Icon(promptIcon(title), contentDescription = null, tint = Flexarr.room, modifier = Modifier.size(14.dp))
             PromptLabel(title, held, Flexarr.room, 14.sp)
         }
         if (countingDown) {
             Box(
-                Modifier.fillMaxHeight().clip(xShape).background(restingFill).pressable(onCancel).semantics { contentDescription = "Cancel" }
-                    .padding(start = 10.dp, end = 13.dp),
+                Modifier.fillMaxHeight().pressable(onCancel).semantics { contentDescription = "Cancel" }.padding(vertical = 8.dp)
+                    .clip(xShape).background(restingFill).padding(start = 11.dp, end = 14.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.Close, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(10.dp))
+                Icon(Icons.Filled.Close, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(13.dp))
             }
         }
     }

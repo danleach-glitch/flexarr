@@ -734,4 +734,11 @@ final class PillButton: UIButton {
         super.layoutSubviews()
         layer.cornerRadius = bounds.height / 2
     }
+
+    #if os(iOS)
+    /// Taps land up to 8 points above and below the compact pill, so it's easy to hit.
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        bounds.insetBy(dx: 0, dy: -8).contains(point)
+    }
+    #endif
 }
