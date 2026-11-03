@@ -429,6 +429,10 @@ public static partial class HealthEndpoints
         var albumsBefore = kind != MediaKind.Artist ? [] : await db.MediaItems.AsNoTracking()
             .Where(i => i.Kind == MediaKind.Album && i.ParentId != null && (i.ParentId == keep.Id || otherIds.Contains(i.ParentId.Value)))
             .Select(i => new AlbumBefore(i.Id, i.ParentId!.Value, i.Title, i.Year, i.Children.Count)).ToListAsync(ct);
+        var albumIds = albumsBefore.Select(a => (Guid?)a.Id).ToList();
+        var trackPlaces = (await db.MediaItems.AsNoTracking().Where(t => albumIds.Contains(t.ParentId))
+                .Select(t => new { Album = t.ParentId!.Value, t.DiscNumber, t.TrackNumber }).ToListAsync(ct))
+            .ToLookup(t => t.Album, t => t.TrackNumber is { } n ? (t.DiscNumber ?? 1, n) : ((int, int)?)null);
         var aliases = new List<string>();
         foreach (var other in items.Where(i => i.Id != keep.Id))
         {
@@ -476,7 +480,7 @@ public static partial class HealthEndpoints
         await transaction.CommitAsync(ct);
         if (kind == MediaKind.Artist)
         {
-            await MergeSameAlbumsAsync(db, keep.Id, albumsBefore, ct);
+            await MergeSameAlbumsAsync(db, keep.Id, albumsBefore, trackPlaces, ct);
         }
 
         return Results.NoContent();
@@ -487,15 +491,18 @@ public static partial class HealthEndpoints
     /// <summary>
     /// After an artist merge, the albums both spellings had (one title, case, accents and punctuation aside, and no
     /// two years) become one, as merging them by hand would: the kept artist's copy stays, or else the fullest. Titles
-    /// one spelling has twice (two "Live" albums) are left for Library health to show.
+    /// one spelling has twice (two "Live" albums), and two copies with a track in the same place (a full MP3 and a full
+    /// FLAC: merged, every track would show twice), are left for Library health to show.
     /// </summary>
-    private static async Task MergeSameAlbumsAsync(FlexarrDbContext db, Guid keptArtist, List<AlbumBefore> albums, CancellationToken ct)
+    private static async Task MergeSameAlbumsAsync(FlexarrDbContext db, Guid keptArtist, List<AlbumBefore> albums, ILookup<Guid, (int Disc, int Track)?> trackPlaces,
+        CancellationToken ct)
     {
         foreach (var same in albums.GroupBy(a => MusicNames.Normalise(a.Title)).Where(g => g.Key.Length > 0))
         {
             var group = same.ToList();
             if (group.Select(a => a.ArtistId).Distinct().Count() < 2 || group.GroupBy(a => a.ArtistId).Any(g => g.Count() > 1)
-                || group.Where(a => a.Year is not null).Select(a => a.Year).Distinct().Count() > 1)
+                || group.Where(a => a.Year is not null).Select(a => a.Year).Distinct().Count() > 1
+                || Overlap(group.Select(a => trackPlaces[a.Id])))
             {
                 continue;
             }
@@ -504,6 +511,29 @@ public static partial class HealthEndpoints
             db.ChangeTracker.Clear();
             await MergeAsync(db, new MergeRequest(keep.Id, group.Select(a => a.Id).ToList()), MediaKind.Album, ct);
         }
+    }
+
+    /// <summary>Whether two albums' tracks share a disc and track number; a track without a number could be anywhere.</summary>
+    private static bool Overlap(IEnumerable<IEnumerable<(int Disc, int Track)?>> albums)
+    {
+        var seen = new HashSet<(int, int)>();
+        foreach (var places in albums)
+        {
+            var list = places.ToList();
+            if (list.Any(p => p is null))
+            {
+                return true;
+            }
+
+            if (list.Any(p => seen.Contains(p!.Value)))
+            {
+                return true;
+            }
+
+            seen.UnionWith(list.Select(p => p!.Value));
+        }
+
+        return false;
     }
 
     private static async Task<List<HeldFolderDto>> HeldAsync(FlexarrDbContext db, CancellationToken ct)
