@@ -72,7 +72,7 @@ public static class RemoteAccessEndpoints
             var language = string.IsNullOrWhiteSpace(choice.Language) ? null : choice.Language.Trim();
             if (language is not null && !Flexarr.Core.Localization.LanguageCode.IsValid(language))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["language"] = [Flexarr.Core.Localization.Loc.T("That isn't a language code.")] });
+                return Localization.Problems.Field("That isn't a language code.", field: "language");
             }
 
             if (await db.Profiles.FindAsync([profile.Id], ct) is not { } found)

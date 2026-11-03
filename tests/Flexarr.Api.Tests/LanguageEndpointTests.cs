@@ -77,7 +77,9 @@ public sealed class LanguageEndpointTests(FlexarrApiFactory factory) : IClassFix
         await client.PutAsJsonAsync("/api/v1/me/language", new { language = (string?)null });
 
         var refused = await client.PutAsJsonAsync("/api/v1/me/language", new { language = "not a code" });
-        Assert.Contains("Ţĥàţ", await refused.Content.ReadAsStringAsync());
+        var body = await refused.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        Assert.Contains("Ţĥàţ", body.GetProperty("errors").GetProperty("language")[0].GetString());
+        Assert.Equal("That isn't a language code.", body.GetProperty("code").GetString());
 
         // The profile's own choice wins over the app's.
         await client.PutAsJsonAsync("/api/v1/me/language", new { language = "en" });

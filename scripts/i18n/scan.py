@@ -1,5 +1,5 @@
 """Finds every string the code looks up (docs/languages.md, *Writing a string*): t('…'), t.rich('…') and tk('…') on
-the web, t("…") and tk("…") in Swift and Kotlin, Loc.T("…") and Loc.Mark("…") in C#. A call whose first argument
+the web, t("…") and tk("…") in Swift and Kotlin, Loc.T("…"), Loc.Mark("…"), Problems.Of("…") and Problems.Field("…") in C#. A call whose first argument
 isn't a string literal is a lookup of something already marked (tk / Loc.Mark), so it's skipped; a literal that
 interpolates is an error, because its English can't be known."""
 import re
@@ -31,7 +31,7 @@ SOURCES = [
            re.compile(SKIP_COMMON + r"|Tests/|/Tools/")),
     Source("android", "clients/android", (".kt",), re.compile(r"(?<![\w.])(?:t|tk)\(\s*"), "kotlin",
            re.compile(SKIP_COMMON + r"|/src/test/|/src/androidTest/|/baselineprofile/")),
-    Source("server", "src", (".cs",), re.compile(r"\bLoc\.(?:T|Mark)\(\s*"), "cs",
+    Source("server", "src", (".cs",), re.compile(r"\b(?:Loc\.(?:T|Mark)|Problems\.(?:Of|Field))\(\s*"), "cs",
            re.compile(SKIP_COMMON + r"|/Migrations/")),
 ]
 
