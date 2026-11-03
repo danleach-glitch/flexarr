@@ -1,7 +1,6 @@
 using Flexarr.Api.Endpoints;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
-using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 
 namespace Flexarr.Api.Search;
@@ -11,23 +10,30 @@ namespace Flexarr.Api.Search;
 /// since the database can only match them exactly. Rebuilt when they change. It holds every library: what a profile
 /// may see is left to the queries that turn its matches into results.
 /// </summary>
-public sealed class SearchIndex : IDisposable
+public sealed class SearchIndex(TimeProvider clock) : IDisposable
 {
     public enum Group { Title, Album, Person, Genre, Book }
 
     /// <param name="Rank">Breaks ties between equally close matches: popularity for titles, credits for people.</param>
     private sealed record Entry(Group Group, Guid Id, string Name, SearchText.Candidate[] Texts, double Rank);
 
-    private sealed record Snapshot((int Items, DateTime? Added, DateTime? Updated, int People, int Genres) Stamp, IReadOnlyList<Entry> Entries);
+    /// <param name="Version">The <see cref="CatalogVersion"/> when <paramref name="Stamp"/> was last confirmed.</param>
+    /// <param name="CheckedAt">When <paramref name="Stamp"/> was last confirmed, as a <see cref="TimeProvider"/> timestamp.</param>
+    private sealed record Snapshot((int Items, DateTime? Added, DateTime? Updated, int People, int Genres) Stamp, IReadOnlyList<Entry> Entries,
+        long Version, long CheckedAt);
+
+    /// <summary>
+    /// How long a confirmed stamp is trusted while no save has touched the catalog. Saves are seen straight away;
+    /// this only bounds how late bulk updates and deletes (which skip the change tracker) are noticed.
+    /// </summary>
+    internal static readonly TimeSpan Fresh = TimeSpan.FromSeconds(30);
 
     private readonly SemaphoreSlim gate = new(1, 1);
     private Snapshot? snapshot;
+    private int stampChecks;
 
-    /// <summary>
-    /// Each request's stamp, looked up once: a search asks the index up to five times (titles, books, albums, people,
-    /// genres), and the stamp reads the whole items table.
-    /// </summary>
-    private readonly ConditionalWeakTable<FlexarrDbContext, StrongBox<(int, DateTime?, DateTime?, int, int)>> stamps = new();
+    /// <summary>How many times the stamp has been read from the database, for tests.</summary>
+    internal int StampChecks => Volatile.Read(ref stampChecks);
 
     /// <summary>A match: the item's or person's id (empty for a genre), and the genre's name.</summary>
     public sealed record Match(Guid Id, string Name);
@@ -79,16 +85,19 @@ public sealed class SearchIndex : IDisposable
 
     private async Task<Snapshot> CurrentAsync(FlexarrDbContext db, CancellationToken ct)
     {
-        if (!stamps.TryGetValue(db, out var box))
+        // Read before the stamp, so a save landing while it's read moves the version on and is checked next time.
+        var version = CatalogVersion.Current;
+        if (snapshot is { } trusted && trusted.Version == version && clock.GetElapsedTime(trusted.CheckedAt) < Fresh)
         {
-            box = new StrongBox<(int, DateTime?, DateTime?, int, int)>(await StampAsync(db, ct));
-            stamps.AddOrUpdate(db, box);
+            return trusted;
         }
 
-        var stamp = box.Value;
+        var checkedAt = clock.GetTimestamp();
+        Interlocked.Increment(ref stampChecks);
+        var stamp = await StampAsync(db, ct);
         if (snapshot is { } current && current.Stamp == stamp)
         {
-            return current;
+            return snapshot = current with { Version = version, CheckedAt = checkedAt };
         }
 
         await gate.WaitAsync(ct);
@@ -96,10 +105,10 @@ public sealed class SearchIndex : IDisposable
         {
             if (snapshot is { } built && built.Stamp == stamp)
             {
-                return built;
+                return snapshot = built with { Version = version, CheckedAt = checkedAt };
             }
 
-            snapshot = new Snapshot(stamp, await BuildAsync(db, ct));
+            snapshot = new Snapshot(stamp, await BuildAsync(db, ct), version, checkedAt);
             return snapshot;
         }
         finally

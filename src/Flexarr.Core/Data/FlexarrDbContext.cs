@@ -497,6 +497,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         var detects = ChangeTracker.AutoDetectChangesEnabled;
         ChangeTracker.DetectChanges();
         ChangeTracker.AutoDetectChangesEnabled = false;
+        var catalog = CatalogVersion.Touches(ChangeTracker);
         try
         {
             var rated = Rate();
@@ -523,6 +524,11 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         finally
         {
             ChangeTracker.AutoDetectChangesEnabled = detects;
+            // Moved on even if the save failed part-way: a needless re-check costs less than a stale cache.
+            if (catalog)
+            {
+                CatalogVersion.Bump();
+            }
         }
     }
 
