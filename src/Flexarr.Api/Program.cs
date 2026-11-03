@@ -400,6 +400,7 @@ app.Use((http, next) =>
     return next(http);
 });
 app.UseForwardedHeaders();
+app.UseFlexarrDeviceLanguage();
 app.UseFlexarrGuestGate();
 app.UseFlexarrLogging();
 app.UseFlexarrSecurityHeaders();

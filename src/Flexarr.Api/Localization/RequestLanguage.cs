@@ -40,17 +40,24 @@ public sealed class ProfileLanguages(IServiceScopeFactory scopes, TimeProvider c
 /// </summary>
 public static class RequestLanguage
 {
+    /// <summary>Before sign-in is known: the app's Accept-Language, so even the earliest answers (the guest gate) are in it.</summary>
+    public static IApplicationBuilder UseFlexarrDeviceLanguage(this IApplicationBuilder app) =>
+        app.Use((http, next) =>
+        {
+            Loc.Language = FromHeader(http.Request.Headers.AcceptLanguage, Loc.Catalog);
+            return next(http);
+        });
+
+    /// <summary>After sign-in: the profile's own choice, where it made one, wins.</summary>
     public static IApplicationBuilder UseFlexarrRequestLanguage(this IApplicationBuilder app) =>
         app.Use(async (http, next) =>
         {
-            string? language = null;
-            if (http.User.FindFirst(FlexarrClaims.Profile)?.Value is { } profileId)
+            if (http.User.FindFirst(FlexarrClaims.Profile)?.Value is { } profileId
+                && await http.RequestServices.GetRequiredService<ProfileLanguages>().OfAsync(profileId, http.RequestAborted) is { } chosen)
             {
-                language = await http.RequestServices.GetRequiredService<ProfileLanguages>().OfAsync(profileId, http.RequestAborted);
+                Loc.Language = chosen;
             }
 
-            language ??= FromHeader(http.Request.Headers.AcceptLanguage, Loc.Catalog);
-            Loc.Language = language;
             if (http.Request.Path.StartsWithSegments("/api", StringComparison.Ordinal))
             {
                 // The same address answers in different languages, so nothing between may hand one person's to another.
