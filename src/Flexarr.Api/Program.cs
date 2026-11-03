@@ -156,11 +156,14 @@ builder.Services.AddSingleton<LiveTvRefreshSignal>();
 builder.Services.AddSingleton<LiveTvViewers>();
 builder.Services.AddScoped<LiveTvGuide>();
 builder.Services.AddHostedService<LiveTvGuideWorker>();
-// Live channels and films share the one transcode limit: each counts the other's (resolved when asked, as each needs the other).
+// Live channels and films share the one transcode limit: each counts the other's (resolved when asked, as each needs the other),
+// under one lock, so simultaneous starts on both sides can't go over it.
+var transcodeSlots = new Lock();
 builder.Services.AddSingleton(sp => new Flexarr.Streaming.Live.LiveStreams(
     () => PlaybackEndpoints.TranscodeSettingsFor(sp.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue),
     sp.GetRequiredService<ILoggerFactory>(),
-    () => sp.GetRequiredService<TranscodeManager>().ActiveCount));
+    () => sp.GetRequiredService<TranscodeManager>().ActiveCount,
+    transcodeSlots));
 builder.Services.AddHostedService<LiveTvSweeper>();
 builder.Services.AddSingleton<DvrSignal>();
 builder.Services.AddSingleton<DvrService>();
@@ -273,7 +276,8 @@ builder.Services.AddScoped<LibraryScanner>();
 builder.Services.AddSingleton(sp => new TranscodeManager(
     () => PlaybackEndpoints.TranscodeSettingsFor(sp.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue),
     sp.GetRequiredService<ILoggerFactory>(),
-    () => sp.GetRequiredService<Flexarr.Streaming.Live.LiveStreams>().ConvertingCount));
+    () => sp.GetRequiredService<Flexarr.Streaming.Live.LiveStreams>().ConvertingCount,
+    transcodeSlots));
 builder.Services.AddSingleton<PlaybackSessions>();
 builder.Services.AddSingleton<MarkerQueue>();
 builder.Services.AddSingleton<TrickplayQueue>();
@@ -304,6 +308,8 @@ builder.Services.AddSingleton<GuestTvCodes>();
 builder.Services.AddScoped<GuestLinks>();
 builder.Services.AddHostedService<GuestPolicyWatcher>();
 builder.Services.AddHostedService<PlaybackSweeper>();
+builder.Services.AddSingleton<CacheJanitor>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<CacheJanitor>());
 builder.Services.AddHostedService<MarkerDetectionWorker>();
 
 builder.Services.AddSingleton<ILibraryScanQueue, LibraryScanQueue>();

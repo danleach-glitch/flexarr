@@ -19,6 +19,45 @@ public static class FfmpegFilters
     public static bool HasDecoder(string ffmpegPath, string decoder) =>
         Known.GetOrAdd(ffmpegPath + "|-decoders", _ => new Lazy<IReadOnlySet<string>?>(() => Ask(ffmpegPath, "-decoders"))).Value?.Contains(decoder) ?? false;
 
+    /// <summary>
+    /// Whether the movie filter takes <c>format_opts</c> (FFmpeg 7 and later), through which the file it opens is held to
+    /// local files like every other input; false when it can't be asked.
+    /// </summary>
+    public static bool MovieTakesFormatOptions(string ffmpegPath) =>
+        Known.GetOrAdd(ffmpegPath + "|movie", _ => new Lazy<IReadOnlySet<string>?>(() => AskMovie(ffmpegPath))).Value?.Contains("format_opts") ?? false;
+
+    private static HashSet<string>? AskMovie(string ffmpegPath)
+    {
+        try
+        {
+            var start = new ProcessStartInfo(ffmpegPath) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+            foreach (var arg in new[] { "-hide_banner", "-h", "filter=movie" })
+            {
+                start.ArgumentList.Add(arg);
+            }
+
+            using var process = Process.Start(start)!;
+            _ = process.StandardError.ReadToEndAsync();
+            var output = process.StandardOutput.ReadToEndAsync();
+            if (!process.WaitForExit(10_000))
+            {
+                ProcessSignals.KillTree(process);
+                return null;
+            }
+
+            // "   format_opts       <dictionary> ..FVA...... set format options for the opened file"
+            return output.Result.Split('\n')
+                .Select(line => line.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                .Where(parts => parts.Length >= 2 && parts[1].StartsWith('<'))
+                .Select(parts => parts[0])
+                .ToHashSet(StringComparer.Ordinal);
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
     private static HashSet<string>? Ask(string ffmpegPath, string list)
     {
         try

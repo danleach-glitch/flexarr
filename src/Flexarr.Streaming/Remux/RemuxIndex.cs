@@ -31,7 +31,11 @@ public sealed record VideoFacts(
     double? FrameRate = null);
 
 /// <summary>A video's keyframe times (where a copied stream can be cut) and its facts.</summary>
-public sealed record RemuxInfo(IReadOnlyList<double> Keyframes, VideoFacts Video);
+/// <param name="FactsVersion">
+/// Which reading of the facts this is (<see cref="RemuxIndex.FactsVersion"/>): one remembered by an older server is read
+/// again once, rather than every time a fact it lacks (a frame rate, an HEVC record) is simply missing from the file.
+/// </param>
+public sealed record RemuxInfo(IReadOnlyList<double> Keyframes, VideoFacts Video, int FactsVersion = 0);
 
 /// <summary>
 /// Finds and remembers each file's <see cref="RemuxInfo"/>. MKVs index their keyframes, which is read in milliseconds;
@@ -44,6 +48,9 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
     private readonly ConcurrentDictionary<string, bool> _scanning = new();
     private readonly ConcurrentDictionary<(string Key, int Stream), double?> _firstPackets = new();
     private readonly SemaphoreSlim _scan = new(1, 1);
+
+    /// <summary>The facts as this server reads them: with the HEVC record and the frame rate.</summary>
+    public const int FactsVersion = 1;
 
     public void Dispose() => _scan.Dispose();
 
@@ -58,11 +65,11 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
 
         if (_known.TryGetValue(key, out var known) || TryLoad(key) is { } loaded && _known.TryAdd(key, known = loaded))
         {
-            // Indexed before the hvcC record was kept: probe the facts again (the keyframes still stand).
-            if ((known.Video.FrameRate is null || known.Video.Codec == "hevc" && known.Video.HevcConfig is null)
-                && await ProbeAsync(path, ct).ConfigureAwait(false) is { } refreshed)
+            // Indexed before the hvcC record and frame rate were kept: probe the facts again, once (the keyframes still
+            // stand). A file that has neither stays without them.
+            if (known.FactsVersion < FactsVersion && await ProbeAsync(path, ct).ConfigureAwait(false) is { } refreshed)
             {
-                known = Remember(key, known with { Video = refreshed });
+                known = Remember(key, known with { Video = refreshed, FactsVersion = FactsVersion });
             }
 
             return known;
@@ -76,7 +83,7 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
         }
 
         var facts = await ProbeAsync(path, ct).ConfigureAwait(false);
-        return facts is null ? null : Remember(key, new RemuxInfo(keyframes, facts));
+        return facts is null ? null : Remember(key, new RemuxInfo(keyframes, facts, FactsVersion));
     }
 
     /// <summary>
@@ -142,7 +149,7 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
                 if (await ScanKeyframesAsync(path).ConfigureAwait(false) is { Count: > 1 } keyframes
                     && await ProbeAsync(path, CancellationToken.None).ConfigureAwait(false) is { } facts)
                 {
-                    Remember(key, new RemuxInfo(keyframes, facts));
+                    Remember(key, new RemuxInfo(keyframes, facts, FactsVersion));
                     LogScanned(Path.GetFileName(path), keyframes.Count, started.Elapsed.TotalSeconds);
                 }
             }

@@ -199,9 +199,24 @@ public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaPr
 
             return await stdout.ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
-            process.Kill(entireProcessTree: true);
+            // Timed out, or the caller gave up (a cancelled scan, the server stopping): either way ffprobe mustn't carry
+            // on alone, stuck on a share that's stopped answering.
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                // Exited meanwhile.
+            }
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+
             throw new MediaProbeException($"ffprobe timed out after {Timeout.TotalSeconds}s");
         }
     }

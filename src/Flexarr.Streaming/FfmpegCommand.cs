@@ -56,8 +56,10 @@ public static class FfmpegCommand
     public static readonly string[] LocalFile = ["-protocol_whitelist", "file"];
 
     /// <summary>
-    /// A stream got ready ahead of Play makes this much in its burst rather than <see cref="RunAheadSeconds"/>: enough to
-    /// open on, without encoding minutes of a title nobody may play.
+    /// A stream got ready ahead of Play makes this much, then stops until a player takes it up: enough to open on,
+    /// without encoding minutes of a title nobody may play. It starts with the full <see cref="RunAheadSeconds"/> burst,
+    /// so a player that takes it up while it's still going gets the whole run-ahead (see
+    /// <see cref="TranscodeSession.StopWarmRunAsync"/>).
     /// </summary>
     public const int WarmingRunAheadSeconds = 30;
 

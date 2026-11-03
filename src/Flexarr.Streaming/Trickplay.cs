@@ -22,6 +22,39 @@ public static class Trickplay
 
     public static string DirectoryFor(string cacheDirectory, Guid fileId) => Path.Combine(cacheDirectory, "trickplay", fileId.ToString("N"));
 
+    private static string FailurePath(string cacheDirectory, Guid fileId) => Path.Combine(cacheDirectory, "trickplay", fileId.ToString("N") + ".failed");
+
+    /// <summary>
+    /// Previews couldn't be made from the file as it is (<paramref name="version"/>: its size and time, say): noted, so
+    /// every play doesn't decode the film again to fail the same way. A changed file is tried afresh.
+    /// </summary>
+    public static void NoteFailure(string cacheDirectory, Guid fileId, string version)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(cacheDirectory, "trickplay"));
+            File.WriteAllText(FailurePath(cacheDirectory, fileId), version);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Tried again next time, which is all that's lost.
+        }
+    }
+
+    /// <summary>Making previews from this version of the file has failed before.</summary>
+    public static bool Failed(string cacheDirectory, Guid fileId, string version)
+    {
+        try
+        {
+            var path = FailurePath(cacheDirectory, fileId);
+            return File.Exists(path) && File.ReadAllText(path) == version;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
     public static TrickplayManifest? Read(string cacheDirectory, Guid fileId)
     {
         var path = Path.Combine(DirectoryFor(cacheDirectory, fileId), "manifest.json");
@@ -91,6 +124,7 @@ public static class Trickplay
         }
 
         Directory.Move(working, directory);
+        File.Delete(FailurePath(settings.CacheDirectory, fileId));
         return manifest;
     }
 

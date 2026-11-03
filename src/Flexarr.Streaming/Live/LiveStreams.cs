@@ -8,8 +8,14 @@ namespace Flexarr.Streaming.Live;
 /// after their last leaves (so flicking away and back doesn't lose the rewind window).
 /// </summary>
 /// <param name="transcoding">How many films and episodes are being converted, for the server's one transcode limit.</param>
-public sealed class LiveStreams(Func<TranscodeSettings> settings, ILoggerFactory loggers, Func<int>? transcoding = null) : IAsyncDisposable
+/// <param name="slots">
+/// Held while either side counts the other and takes a slot (shared with <see cref="TranscodeManager"/>), so a channel
+/// and a film starting at the same moment can't both take the last one.
+/// </param>
+public sealed class LiveStreams(Func<TranscodeSettings> settings, ILoggerFactory loggers, Func<int>? transcoding = null, Lock? slots = null) : IAsyncDisposable
 {
+    private readonly Lock _slots = slots ?? new();
+
     /// <summary>Segments a new channel has before its first viewer is given it: enough not to stall straight away.</summary>
     private const int SegmentsToStart = 2;
 
@@ -86,15 +92,21 @@ public sealed class LiveStreams(Func<TranscodeSettings> settings, ILoggerFactory
                 await StopIdleAsync().ConfigureAwait(false);
                 // A channel that has to be converted takes a slot like a film does; copying the stream as it is costs
                 // next to nothing and doesn't.
-                var limit = settings().MaxConcurrentTranscodes;
-                if (!made!.CopyVideo && limit > 0 && ConvertingCount + (transcoding?.Invoke() ?? 0) >= limit)
+                var current = settings();
+                var limit = current.MaxConcurrentTranscodes;
+                lock (_slots)
                 {
-                    throw new LiveStreamException("Flexarr is busy playing on other screens. Try again when one of them finishes.");
+                    if (!made!.CopyVideo && limit > 0 && ConvertingCount + (transcoding?.Invoke() ?? 0) >= limit)
+                    {
+                        throw new LiveStreamException("Flexarr is busy playing on other screens. Try again when one of them finishes.");
+                    }
+
+                    // Counted from here, before its ffmpeg starts, so a film starting meanwhile sees the slot taken.
+                    running = new LiveSession(channelKey, source, made, rewind, current, _logger);
+                    _sessions[channelKey] = running;
                 }
 
-                running = new LiveSession(channelKey, source, made!, rewind, settings(), _logger);
                 running.Start();
-                _sessions[channelKey] = running;
             }
 
             session = running;

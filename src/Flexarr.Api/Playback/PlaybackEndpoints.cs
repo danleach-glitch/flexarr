@@ -516,6 +516,11 @@ public static partial class PlaybackEndpoints
             return Missing(transcodes, sid);
         }
 
+        if (segment < 0 || segment >= transcode.SegmentCount)
+        {
+            return Results.NotFound(); // not in the playlist: nothing to convert
+        }
+
         sessions.Used(session);
         string? path;
         try

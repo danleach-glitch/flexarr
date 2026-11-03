@@ -162,6 +162,20 @@ public sealed class PlaybackSessionTests : IDisposable
         Assert.Contains(await WatchingAsync(client), s => s.SessionId == id && !s.Warming);
     }
 
+    [Fact]
+    public async Task ASegmentOutsideThePlaylist_IsNotFound()
+    {
+        var movie = await AddMovieAsync();
+        var client = Client();
+        var session = await StartAsync(client, movie);
+
+        foreach (var segment in new[] { -1, 100_000 })
+        {
+            var response = await client.GetAsync(new Uri($"/api/v1/playback/{session}/{segment}.ts", UriKind.Relative));
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+    }
+
     private static async Task<List<ActivityStream>> WatchingAsync(HttpClient client) =>
         (await client.GetFromJsonAsync<ActivityStreams>(new Uri("/api/v1/system/activity", UriKind.Relative)))!.Streams;
 

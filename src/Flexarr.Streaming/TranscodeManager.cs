@@ -10,7 +10,9 @@ public sealed class TranscodeLimitException(string? message = null)
 
 /// <summary>Owns all transcode sessions: creation, lookup, throttling and cleanup.</summary>
 /// <param name="otherWork">Live TV channels being converted, which take slots of the same limit but can't be taken over.</param>
-public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, ILoggerFactory loggers, Func<int>? otherWork = null) : IAsyncDisposable
+/// <param name="slots">Shared with Live TV (see <see cref="Live.LiveStreams"/>): held while counting both and taking a slot.</param>
+public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, ILoggerFactory loggers, Func<int>? otherWork = null, Lock? slots = null)
+    : IAsyncDisposable
 {
     private static readonly TimeSpan StopAfterIdle = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan ReleaseAfterIdle = TimeSpan.FromMinutes(30);
@@ -24,7 +26,7 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
 
     private readonly ConcurrentDictionary<string, TranscodeSession> _sessions = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, (string Reason, DateTime At)> _endedForOthers = new(StringComparer.Ordinal);
-    private readonly Lock _createLock = new();
+    private readonly Lock _createLock = slots ?? new();
     private readonly ILogger _logger = loggers.CreateLogger<TranscodeSession>();
 
     public IEnumerable<TranscodeSession> Sessions => _sessions.Values;
@@ -240,6 +242,12 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
         {
             try
             {
+                // Got ready ahead of Play: only enough to open on, unless a player takes it up.
+                if (session.Warming)
+                {
+                    await session.StopWarmRunAsync().ConfigureAwait(false);
+                }
+
                 var idle = now - session.LastAccess;
                 if (idle > ReleaseAfterIdle)
                 {

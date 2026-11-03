@@ -220,6 +220,18 @@ public sealed partial class DvrService(IServiceScopeFactory scopes, IOptionsMoni
         return true;
     }
 
+    /// <summary>
+    /// Stops a recording that's marked as under way but isn't running here: the server has just restarted and the
+    /// scheduler hasn't carried it on yet. It's started already stopped, so what it recorded before the restart is saved
+    /// (or, with nothing, it ends), rather than the scheduler carrying it on moments later.
+    /// </summary>
+    public void StopResumed(Recording recording)
+    {
+        ArgumentNullException.ThrowIfNull(recording);
+        Start(recording, recording.ChannelId);
+        Stop(recording.Id);
+    }
+
     private async Task RunAsync(Guid id, ActiveRecording active)
     {
         try

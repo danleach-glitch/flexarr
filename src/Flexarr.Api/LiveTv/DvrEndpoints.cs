@@ -105,8 +105,12 @@ public static class DvrEndpoints
                     recording.State = RecordingState.Cancelled;
                     break;
                 case RecordingState.Recording:
-                    // Stopped now, keeping what's recorded.
-                    dvr.Stop(id);
+                    // Stopped now, keeping what's recorded (also one the scheduler hasn't carried on since a restart).
+                    if (!dvr.Stop(id))
+                    {
+                        dvr.StopResumed(recording);
+                    }
+
                     return Results.Accepted();
                 default:
                     if (recording.FilePath is { } path && File.Exists(path))
