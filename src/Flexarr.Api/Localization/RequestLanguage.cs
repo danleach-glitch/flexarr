@@ -51,6 +51,16 @@ public static class RequestLanguage
 
             language ??= FromHeader(http.Request.Headers.AcceptLanguage, Loc.Catalog);
             Loc.Language = language;
+            if (http.Request.Path.StartsWithSegments("/api", StringComparison.Ordinal))
+            {
+                // The same address answers in different languages, so nothing between may hand one person's to another.
+                http.Response.OnStarting(() =>
+                {
+                    http.Response.Headers.Append(HeaderNames.Vary, "Accept-Language");
+                    return Task.CompletedTask;
+                });
+            }
+
             await next(http);
         });
 

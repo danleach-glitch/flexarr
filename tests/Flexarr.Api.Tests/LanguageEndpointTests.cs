@@ -93,4 +93,11 @@ public sealed class LanguageEndpointTests(FlexarrApiFactory factory) : IClassFix
     [InlineData("zh-hans-cn", "zh-Hans-CN")]
     [InlineData("EN", "en")]
     public void Normalises_language_tags(string tag, string expected) => Assert.Equal(expected, RequestLanguage.Normalise(tag));
+
+    [Fact]
+    public async Task Api_answers_vary_by_language()
+    {
+        var response = await factory.CreateClient().GetAsync("/api/v1/languages");
+        Assert.Contains("Accept-Language", response.Headers.Vary);
+    }
 }
