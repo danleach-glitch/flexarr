@@ -30,6 +30,11 @@ public enum PinCheck
 /// so throwing away its cookie doesn't earn a guesser fresh attempts. Only browsers that gave the admin PIN are remembered,
 /// so knowing a profile's PIN doesn't let anyone crowd the owner's browser out of the list.
 /// </para>
+/// <para>
+/// A caller that keeps changing address starts afresh each time, so the admin PIN (which guards the API key) also has
+/// a daily allowance of wrong guesses from callers that can't manage the server: once it's spent, none of them may try
+/// the admin PIN until the day is out. Callers that may manage the server still get in.
+/// </para>
 /// </summary>
 public sealed class PinGuard(TimeProvider clock)
 {
@@ -48,6 +53,9 @@ public sealed class PinGuard(TimeProvider clock)
     /// <summary>Once a profile has had several wrong PINs, from anyone: the most often it's tried.</summary>
     public static readonly TimeSpan ProfileThrottle = TimeSpan.FromSeconds(5);
 
+    /// <summary>Wrong admin PINs a day from callers that can't manage the server, after which none of them may try it.</summary>
+    public const int AdminDailyAllowance = 100;
+
     /// <summary>After this long without a wrong PIN (once any lockout is over), half the strikes are forgotten.</summary>
     public static readonly TimeSpan QuietPeriod = TimeSpan.FromMinutes(30);
 
@@ -59,6 +67,9 @@ public sealed class PinGuard(TimeProvider clock)
 
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, Strikes> _strikes = new(StringComparer.Ordinal);
+
+    /// <summary>The day's wrong admin PINs from callers that can't manage the server (only touched inside the admin PIN's gate).</summary>
+    private (DateTime Since, int Count) _adminDaily;
 
     /// <summary>Browsers that have given the right admin PIN, and when they last did.</summary>
     private readonly ConcurrentDictionary<string, DateTime> _knownBrowsers = new(StringComparer.Ordinal);
@@ -106,6 +117,17 @@ public sealed class PinGuard(TimeProvider clock)
             var wait = callerKeys.Select(k => HeldOff(k, now, throttleOnly: false)).Max();
             var shared = mayManage ? HeldOff(managersKey, now, throttleOnly: false) : HeldOff(profileKey, now, throttleOnly: true);
             wait = shared > wait ? shared : wait;
+            var daily = !mayManage && profileId == AdminKey;
+            if (daily && now - _adminDaily.Since >= TimeSpan.FromDays(1))
+            {
+                _adminDaily = (now, 0);
+            }
+
+            if (daily && _adminDaily.Count >= AdminDailyAllowance && _adminDaily.Since + TimeSpan.FromDays(1) - now is var dayOut && dayOut > wait)
+            {
+                wait = dayOut;
+            }
+
             if (wait > TimeSpan.Zero)
             {
                 return (PinCheck.LockedOut, wait);
@@ -132,6 +154,10 @@ public sealed class PinGuard(TimeProvider clock)
             }
 
             _ = Strike(mayManage ? managersKey : profileKey, now, mayManage ? ManagersFreeAttempts : FreeAttempts);
+            if (daily)
+            {
+                _adminDaily.Count++;
+            }
 
             // Inside the gate, so guesses at one profile can't run side by side.
             await Task.Delay(TimeSpan.FromSeconds(1), clock, ct);

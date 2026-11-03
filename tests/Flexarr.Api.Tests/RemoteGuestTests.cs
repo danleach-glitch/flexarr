@@ -369,6 +369,59 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
     }
 
     [Fact]
+    public async Task A_guest_assistant_sees_nothing_of_whats_playing_in_the_household()
+    {
+        Guid film;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Flexarr.Core.Libraries.Library { Name = $"Films {Guid.NewGuid():N}", Type = Flexarr.Core.Libraries.LibraryType.Movies };
+            var movie = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Something private", SortTitle = "something private" };
+            db.AddRange(library, movie);
+            await db.SaveChangesAsync();
+            film = movie.Id;
+        }
+
+        factory.Services.GetRequiredService<Flexarr.Api.Playback.PlaybackSessions>().Add(new Flexarr.Api.Playback.PlaybackSession
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            ItemId = film,
+            ProfileId = PlaybackState.DefaultUser,
+            FileId = Guid.NewGuid(),
+            FilePath = "",
+            Container = null,
+            DurationSeconds = 600,
+            Method = Flexarr.Streaming.PlaybackMethod.DirectPlay,
+            Subtitles = [],
+            CreditsStart = null,
+        });
+
+        async Task<string> NowPlayingAsync(HttpClient http, string apiKey)
+        {
+            var options = new ModelContextProtocol.Client.HttpClientTransportOptions
+            {
+                Endpoint = new Uri(http.BaseAddress!, "/api/v1/mcp"),
+                TransportMode = ModelContextProtocol.Client.HttpTransportMode.StreamableHttp,
+                AdditionalHeaders = new Dictionary<string, string> { ["X-Api-Key"] = apiKey },
+            };
+            await using var client = await ModelContextProtocol.Client.McpClient.CreateAsync(
+                new ModelContextProtocol.Client.HttpClientTransport(options, http, ownsHttpClient: false));
+            var result = await client.CallToolAsync("now_playing", new Dictionary<string, object?>());
+            Assert.NotEqual(true, result.IsError);
+            return string.Concat(result.Content.OfType<ModelContextProtocol.Protocol.TextContentBlock>().Select(t => t.Text));
+        }
+
+        using (var admin = factory.Admin())
+        {
+            Assert.Contains("Something private", await NowPlayingAsync(admin, FlexarrApiFactory.ApiKey), StringComparison.Ordinal);
+        }
+
+        var (_, key) = await JoinAsync("Gran10");
+        using var guest = factory.From(RemoteGuestFactory.Guest, key);
+        Assert.DoesNotContain("Something private", await NowPlayingAsync(guest, key), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task A_guest_device_cant_ask_for_a_pairing_code()
     {
         using var guest = factory.From(RemoteGuestFactory.Guest);

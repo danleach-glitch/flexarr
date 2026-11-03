@@ -128,9 +128,10 @@ builder.Services.AddHttpClient<MusicBrainzClient>(c =>
 builder.Services.AddSingleton<Flexarr.Api.Endpoints.MusicRequests.MusicCatalog>();
 builder.Services.AddScoped<Flexarr.Api.Endpoints.MusicRequests.MusicRequestContext>();
 builder.Services.AddHttpClient<TvMazeClient>(c => c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr/0.1 (+https://github.com/danleach-glitch/flexarr)"));
-// ImageCache follows redirects itself, only to https on the same site, so an artwork host can't bounce it elsewhere.
+// ImageCache follows redirects itself, only to https on the same site, so an artwork host can't bounce it elsewhere,
+// and reaches only the internet unless it's fetching from a configured Lidarr (see PodcastFetcher.CreateArtworkHandler).
 builder.Services.AddHttpClient<ImageCache>(c => c.Timeout = TimeSpan.FromSeconds(30))
-    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+    .ConfigurePrimaryHttpMessageHandler(PodcastFetcher.CreateArtworkHandler);
 builder.Services.AddHttpClient<PlexAvatars>(c => c.Timeout = TimeSpan.FromSeconds(30));
 // Podcast feeds and episodes come from anywhere on the internet, and only from the internet (see PodcastFetcher).
 // No overall timeout: a relayed episode streams for as long as it's listened to.
@@ -176,6 +177,7 @@ builder.Services.AddSingleton<PersonImages>();
 builder.Services.AddSingleton<PersonLookups>();
 builder.Services.AddSingleton<BackupStore>();
 builder.Services.AddSingleton<BackupUploads>();
+builder.Services.AddSingleton<DownloadLinks>();
 builder.Services.AddSingleton<IServerRestart, ServerRestart>();
 builder.Services.AddHostedService<BackupWorker>();
 // New releases from GitHub (Settings › Updates), and installing them on a Mac. The release lookup is small; a build is

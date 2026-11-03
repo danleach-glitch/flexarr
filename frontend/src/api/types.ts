@@ -598,6 +598,8 @@ export interface Settings {
   traktApp?: { clientId: string; hasSecret: boolean } | null
   /** Whether music can be requested through Lidarr. Absent from servers before 0.59. */
   allowMusicRequests?: boolean | null
+  /** The server runs in a container (Docker). Absent from servers before 0.60. */
+  inContainer?: boolean | null
 }
 
 export interface SettingsUpdate {
@@ -618,6 +620,9 @@ export interface SettingsUpdate {
   /** An empty client id goes back to Flexarr's own app; a blank secret keeps the saved one. */
   traktApp?: { clientId: string; clientSecret?: string }
   allowMusicRequests?: boolean
+  /** Letting devices at home in without the key asks again: the admin PIN, or a yes when it has none. */
+  pin?: string
+  confirm?: boolean
 }
 
 export interface ArrStatus {

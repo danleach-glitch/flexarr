@@ -43,7 +43,10 @@ public sealed record SettingsDto(
     bool AskPinForMainProfile = false,
     TraktAppDto? TraktApp = null,
     // Whether music can be requested through Lidarr (absent from servers before 0.59).
-    bool? AllowMusicRequests = null);
+    bool? AllowMusicRequests = null,
+    // The server runs in a container, where Docker's port forwarding can make visitors from the internet look like
+    // they're at home, so "only away from home" lets them in (absent from servers before 0.60).
+    bool? InContainer = null);
 
 /// <summary>The admin's own Trakt app, used instead of Flexarr's; the secret is never sent back, only whether there is one.</summary>
 public sealed record TraktAppDto(string ClientId, bool HasSecret);
@@ -89,7 +92,11 @@ public sealed record SettingsUpdate(
     // Ignored since 0.57: the main profile has a PIN of its own, set in Profiles like anyone's.
     bool? AskPinForMainProfile = null,
     TraktAppUpdate? TraktApp = null,
-    bool? AllowMusicRequests = null);
+    bool? AllowMusicRequests = null,
+    // Letting devices at home in without the key asks again, as showing the key does (see ConfirmKeyAsync): the admin
+    // PIN when it has one, otherwise a yes. Absent from web apps before 0.60.
+    string? Pin = null,
+    bool? Confirm = null);
 
 /// <param name="ApiKey">TMDB's API key or read access token; empty to remove it.</param>
 public sealed record TmdbKeyUpdate(string ApiKey);
@@ -132,9 +139,18 @@ public static class SettingsEndpoints
                 await MainHasOwnPinAsync(db, ct)));
 
         group.MapPut("/", async (SettingsUpdate update, IOptionsMonitor<FlexarrOptions> options, LiveTv.LiveTvRefreshSignal liveTvRefresh, FlexarrDbContext db,
-            ILibraryScanQueue scans, CancellationToken ct) =>
+            ILibraryScanQueue scans, HttpContext http, CurrentProfile profile, PinGuard guard, CancellationToken ct) =>
         {
             var current = options.CurrentValue;
+            // Devices at home getting in without the key hands every one of them the main profile, so it asks again,
+            // as importing the access settings from a file does.
+            if (update.AuthenticationRequired == AuthenticationRequired.DisabledForLocalAddresses && current.AuthenticationRequired != AuthenticationRequired.DisabledForLocalAddresses
+                && await ConfirmKeyAsync(new KeyRequest(update.Pin, update.Confirm == true), http, db, profile, guard, ct,
+                    "let devices at home in without the key") is { } refused)
+            {
+                return refused;
+            }
+
             if (update.LiveTv is { BaseUrl.Length: > 0 } badLive && (WebAddress(badLive.BaseUrl) is null || string.IsNullOrWhiteSpace(badLive.Username)))
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["liveTv"] = ["Enter Dispatcharr's http or https address and a user name."] });
@@ -502,7 +518,8 @@ public static class SettingsEndpoints
         o.Bazarr is { BaseUrl.Length: > 0 } b ? new BazarrConnectionDto(b.BaseUrl, b.ApiKey.Length > 0) : null,
         mainHasOwnPin,
         o.Trakt.ClientId.Length > 0 ? new TraktAppDto(o.Trakt.ClientId, o.Trakt.ClientSecret.Length > 0) : null,
-        o.MusicRequests.Enabled);
+        o.MusicRequests.Enabled,
+        Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true");
 
     /// <summary>
     /// This machine's name on the network ("Dans-Mac-Mini"), which the web app puts in place of localhost in links to

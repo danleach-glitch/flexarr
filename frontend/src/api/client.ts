@@ -1180,19 +1180,22 @@ export const saveBackupSettings = (update: { folder?: string; nightly?: boolean 
 export const backUpNow = () => request<Backup>('POST', '/backups')
 export const deleteBackup = (name: string) => request<void>('DELETE', `/backups/${encodeURIComponent(name)}`)
 /**
- * Saves a backup to this computer, protected with `passphrase` when there is one. Without one it's a plain link, so the
- * browser writes it straight to disk rather than holding it all in the page first.
+ * Saves a backup to this computer, protected with `passphrase` when there is one. Without one it's a plain link (bought
+ * with the admin PIN, as the file holds every key), so the browser writes it straight to disk rather than holding it
+ * all in the page first.
  */
-export async function downloadBackup(name: string, passphrase?: string) {
-  if (passphrase) return download(`/backups/${encodeURIComponent(name)}/download`, { passphrase }, name)
+export async function downloadBackup(name: string, confirmation: KeyConfirmation, passphrase?: string) {
+  if (passphrase) return download(`/backups/${encodeURIComponent(name)}/download`, { passphrase, ...confirmation }, name)
+  const { url } = await request<{ url: string }>('POST', `/backups/${encodeURIComponent(name)}/download-link`, confirmation)
   const link = document.createElement('a')
-  link.href = `/api/v1/backups/${encodeURIComponent(name)}/download`
+  link.href = url
   link.download = name
   document.body.append(link)
   link.click()
   link.remove()
 }
-export const exportSettings = (passphrase?: string) => download('/backups/settings-export', { passphrase }, 'flexarr-settings.json')
+export const exportSettings = (confirmation: KeyConfirmation, passphrase?: string) =>
+  download('/backups/settings-export', { passphrase, ...confirmation }, 'flexarr-settings.json')
 /** Puts a backup kept on the server back in place; the server restarts to do it. */
 export const restoreBackup = (name: string, confirmation: KeyConfirmation) =>
   request<void>('POST', `/backups/${encodeURIComponent(name)}/restore`, confirmation)

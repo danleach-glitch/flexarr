@@ -52,6 +52,8 @@ targets:
         # A menu bar app: no Dock icon or main window.
         LSUIElement: true
         NSLocalNetworkUsageDescription: Flexarr Server shares your media with the Flexarr apps and browsers on your network.
+        # The app announces the server on the network (ServerProcess.swift), so apps list it.
+        NSBonjourServices: [_flexarr._tcp]
         ITSAppUsesNonExemptEncryption: false
     postBuildScripts:
       # The .NET server (Tools/publish-server.sh) goes in Contents/Helpers and Resources/Server, each binary signed to inherit the app's

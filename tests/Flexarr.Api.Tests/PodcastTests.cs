@@ -731,4 +731,23 @@ public sealed class PodcastTests : IDisposable
     [InlineData("2001:0:4136:e378::1", false)] // Teredo
     public void OnlyTheInternet_IsFetchedFrom(string address, bool allowed) =>
         Assert.Equal(allowed, PodcastFetcher.IsPublic(IPAddress.Parse(address)));
+
+    [Fact]
+    public async Task Artwork_ReachesTheHomeNetwork_OnlyFromAConfiguredServer()
+    {
+        // Something listening on this machine: a feed's artwork mayn't reach it, a configured Lidarr's may.
+        using var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        using var client = new HttpClient(PodcastFetcher.CreateArtworkHandler()) { Timeout = TimeSpan.FromSeconds(5) };
+
+        var refused = await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync(new Uri($"http://127.0.0.1:{port}/poster.jpg")));
+        Assert.Contains("isn't on the internet", refused.Message, StringComparison.Ordinal);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri($"http://127.0.0.1:{port}/api/v1/MediaCover/1/poster.jpg"));
+        request.Options.Set(Flexarr.Metadata.ImageCache.FromConfiguredServer, true);
+        _ = client.SendAsync(request);
+        using var accepted = await listener.AcceptTcpClientAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(accepted.Connected);
+    }
 }

@@ -419,6 +419,28 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task APhoneOnAProfileWithAnAgeLimit_IsntToldTitlesPastIt()
+    {
+        // No rating, so past any age limit (unrated is hidden from kids), in a library the profile can see.
+        var show = await SeedAsync("Industry", ("S01E01", 1, 1));
+        var created = await (await Admin().PostAsJsonAsync(Api("/profiles"), new { name = $"Kid {Guid.NewGuid():N}", maxRatingAge = 8 }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        var (tvId, _) = await DeviceAsync("Parents' TV");
+        var (_, phone) = await DeviceAsync("Kid's phone");
+        Assert.True((await phone.PostAsJsonAsync(Api($"/profiles/{created.GetProperty("id").GetString()}/select"), new { })).IsSuccessStatusCode);
+        var (response, reader) = await ListenAsync(phone, "?nowPlaying=true");
+        using var publisher = await StartPublisherAsync();
+
+        factory.Services.GetRequiredService<PlaybackSessions>().Add(Session(tvId, show.Episodes["S01E01"]));
+        var playing = (await NextNowPlayingAsync(reader, tvId)).GetProperty("nowPlaying");
+        Assert.Equal(Flexarr.Api.Profiles.LibraryVisibility.PrivateTitle, playing.GetProperty("item").GetProperty("title").GetString());
+        Assert.Equal(Guid.Empty, playing.GetProperty("item").GetProperty("id").GetGuid());
+        Assert.Equal(0, playing.GetProperty("durationSeconds").GetDouble());
+        response.Dispose();
+        await publisher.StopAsync(default);
+    }
+
+    [Fact]
     public async Task APhoneThatSwitchesProfile_WhileListening_IsToldTitlesAsTheNewProfileMaySeeThem()
     {
         var show = await SeedAsync("The Bear", ("S01E01", 1, 1));

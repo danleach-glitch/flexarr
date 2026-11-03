@@ -555,24 +555,25 @@ public static class DeviceEndpoints
     private static async Task StreamAsync(HttpContext http, CurrentProfile current, DeviceCommands commands, Pairings pairings, NowPlayingFeed feed,
         FlexarrDbContext db, SignIns signIns, string? accepts, bool? nowPlaying, CancellationToken ct)
     {
-        // Titles from libraries hidden from this device's profile are told as playing, but not what they are. Looked up
-        // again every few seconds: the profile chosen on the device, or what it hides, can change while it listens.
-        var hidden = db.HiddenLibraryIds.ToHashSet();
-        var hiddenAt = DateTime.UtcNow;
-        async Task<HashSet<Guid>> HiddenAsync()
+        // Titles this device's profile mayn't see (a hidden library, or past its age limit) are told as playing, but not
+        // what they are, as GET /events tells them. Looked up again every few seconds, and at once when an age limit
+        // changes: the profile chosen on the device, or what it may see, can change while it listens.
+        var kidsSettings = LibraryVisibility.KidsSettingsVersion;
+        var appliedAt = DateTime.UtcNow;
+        async Task<bool> HidesAsync(ItemSummaryDto item)
         {
-            if (DateTime.UtcNow - hiddenAt < HiddenRecheck || current.SignInId is not { } signInId)
+            if (current.SignInId is { } signInId && (DateTime.UtcNow - appliedAt >= HiddenRecheck || kidsSettings != LibraryVisibility.KidsSettingsVersion))
             {
-                return hidden;
+                kidsSettings = LibraryVisibility.KidsSettingsVersion;
+                // The profile chosen on the device; one since deleted watches as the main profile, as at sign-in.
+                var chosen = signIns.List().FirstOrDefault(s => s.Id == signInId)?.ProfileId;
+                var profile = chosen is not null && await db.Profiles.AnyAsync(p => p.Id == chosen, ct) ? chosen : PlaybackState.DefaultUser;
+                await LibraryVisibility.ApplyAsync(db, profile, ct);
+                appliedAt = DateTime.UtcNow;
             }
 
-            // The profile chosen on the device; one since deleted watches as the main profile, as at sign-in.
-            var profile = signIns.List().FirstOrDefault(s => s.Id == signInId)?.ProfileId ?? PlaybackState.DefaultUser;
-            var ids = await db.Profiles.AsNoTracking().Where(p => p.Id == profile).Select(p => p.HiddenLibraryIds).FirstOrDefaultAsync(ct)
-                ?? await db.Profiles.AsNoTracking().Where(p => p.Id == PlaybackState.DefaultUser).Select(p => p.HiddenLibraryIds).FirstOrDefaultAsync(ct);
-            hidden = (ids ?? []).ToHashSet();
-            hiddenAt = DateTime.UtcNow;
-            return hidden;
+            return item.Id != Guid.Empty && (db.HiddenLibraryIds.Contains(item.LibraryId)
+                || db.IsLimited() && !await LibraryVisibility.CanSeeAsync(db, item.LibraryId, item.Id, ct));
         }
 
         if (http.User.FindFirst(FlexarrClaims.Method)?.Value != ApiKeyAuthenticationHandler.Methods.Device || current.SignInId is not { } deviceId)
@@ -661,7 +662,7 @@ public static class DeviceEndpoints
 
                 while (watching is not null && watching.Changes.TryRead(out var change))
                 {
-                    if (change.NowPlaying is { Item: var item } playing && (await HiddenAsync()).Contains(item.LibraryId))
+                    if (change.NowPlaying is { Item: var item } playing && await HidesAsync(item))
                     {
                         change = change with { NowPlaying = Private(playing) };
                     }

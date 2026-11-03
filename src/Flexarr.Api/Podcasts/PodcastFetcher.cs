@@ -37,6 +37,36 @@ public sealed class PodcastFetcher(HttpClient http)
         ConnectCallback = ConnectPubliclyAsync,
     };
 
+    /// <summary>
+    /// The handler artwork is fetched through (see <see cref="Flexarr.Metadata.ImageCache"/>): redirects followed by hand, and
+    /// connections only to the internet, as artwork addresses come from feeds and other places anyone can write, except
+    /// for requests marked <see cref="Flexarr.Metadata.ImageCache.FromConfiguredServer"/> (a Lidarr the admin set up, usually at
+    /// home), which may go anywhere.
+    /// </summary>
+    public static SocketsHttpHandler CreateArtworkHandler() => new()
+    {
+        AllowAutoRedirect = false,
+        ConnectCallback = (context, ct) =>
+            context.InitialRequestMessage.Options.TryGetValue(Flexarr.Metadata.ImageCache.FromConfiguredServer, out var configured) && configured
+                ? ConnectAsync(context.DnsEndPoint, ct)
+                : ConnectPubliclyAsync(context, ct),
+    };
+
+    private static async ValueTask<Stream> ConnectAsync(DnsEndPoint endPoint, CancellationToken ct)
+    {
+        var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+        try
+        {
+            await socket.ConnectAsync(endPoint, ct).ConfigureAwait(false);
+            return new NetworkStream(socket, ownsSocket: true);
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
+        }
+    }
+
     private static async ValueTask<Stream> ConnectPubliclyAsync(SocketsHttpConnectionContext context, CancellationToken ct)
     {
         var host = context.DnsEndPoint.Host;
