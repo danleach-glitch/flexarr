@@ -24,6 +24,9 @@ public sealed class FakePodcastHost : HttpMessageHandler
 
     public ConcurrentQueue<HttpRequestMessage> Requests { get; } = new();
 
+    /// <summary>URLs whose fetch fails in a way no HTTP error handling expects.</summary>
+    public ConcurrentDictionary<string, bool> Broken { get; } = new();
+
     public void Feed(string url, string xml) => Files[url] = (Encoding.UTF8.GetBytes(xml), "application/rss+xml");
 
     public void Json(string url, string json) => Files[url] = (Encoding.UTF8.GetBytes(json), "application/json");
@@ -34,6 +37,11 @@ public sealed class FakePodcastHost : HttpMessageHandler
     {
         Requests.Enqueue(request);
         var url = request.RequestUri!.AbsoluteUri;
+        if (Broken.ContainsKey(url))
+        {
+            throw new InvalidOperationException("Something unexpected");
+        }
+
         if (Redirects.TryGetValue(url, out var redirect))
         {
             var moved = new HttpResponseMessage((HttpStatusCode)redirect.Status);
@@ -677,6 +685,38 @@ public sealed class PodcastTests : IDisposable
 
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(Api($"podcasts/{kept}"))).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(Api($"podcasts/{dropped}"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task AFeedThatFailsUnexpectedly_BacksOff_AndTheOthersStillRefresh()
+    {
+        await AddLibraryAsync();
+        var client = Client();
+        var broken = (await AddPodcastAsync(client)).GetProperty("id").GetString()!;
+        _host.Feed("https://feeds.example.com/other", Feed(1, "Another Show"));
+        var fine = (await AddPodcastAsync(client, "https://feeds.example.com/other")).GetProperty("id").GetString()!;
+        await client.PutAsJsonAsync(Api($"podcasts/{broken}/subscription"), new { });
+        await client.PutAsJsonAsync(Api($"podcasts/{fine}/subscription"), new { });
+        using (var scope = _server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            await db.PodcastFeeds.ExecuteUpdateAsync(u => u.SetProperty(f => f.NextCheckAt, DateTime.UtcNow.AddMinutes(-5)));
+            // The broken one is first in line.
+            await db.PodcastFeeds.Where(f => f.MediaItemId == Guid.Parse(broken)).ExecuteUpdateAsync(u => u.SetProperty(f => f.NextCheckAt, DateTime.UtcNow.AddMinutes(-10)));
+        }
+
+        _host.Broken[FeedUrl] = true;
+        var worker = ActivatorUtilities.CreateInstance<PodcastRefreshWorker>(_server.Services);
+        await worker.RunOnceAsync(CancellationToken.None);
+
+        using (var scope = _server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var feeds = await db.PodcastFeeds.AsNoTracking().ToDictionaryAsync(f => f.MediaItemId);
+            Assert.Equal(1, feeds[Guid.Parse(broken)].Failures);
+            Assert.True(feeds[Guid.Parse(broken)].NextCheckAt > DateTime.UtcNow);
+            Assert.True(feeds[Guid.Parse(fine)].NextCheckAt > DateTime.UtcNow);
+        }
     }
 
     [Fact]

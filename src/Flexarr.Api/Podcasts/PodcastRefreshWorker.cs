@@ -65,13 +65,23 @@ public sealed partial class PodcastRefreshWorker(IServiceScopeFactory scopes, Po
 
         foreach (var id in due.Distinct())
         {
-            // Each in a scope of its own, so one feed's thousands of episodes don't stay tracked for the next.
-            await using var feedScope = scopes.CreateAsyncScope();
-            var library = feedScope.ServiceProvider.GetRequiredService<PodcastLibrary>();
-            var added = await library.RefreshAsync(id, ct);
-            if (added > 0)
+            try
             {
-                LogNewEpisodes(id, added);
+                // Each in a scope of its own, so one feed's thousands of episodes don't stay tracked for the next.
+                await using var feedScope = scopes.CreateAsyncScope();
+                var library = feedScope.ServiceProvider.GetRequiredService<PodcastLibrary>();
+                var added = await library.RefreshAsync(id, ct);
+                if (added > 0)
+                {
+                    LogNewEpisodes(id, added);
+                }
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                // One feed going wrong (an odd episode, a database clash) mustn't be first in line every minute,
+                // holding up the rest: it backs off like a feed whose host fails.
+                LogFeedFailed(ex, id);
+                await RecordFailureAsync(id, ex, now, ct);
             }
         }
 
@@ -80,6 +90,22 @@ public sealed partial class PodcastRefreshWorker(IServiceScopeFactory scopes, Po
             _prunedAt = now;
             await PruneAsync(db, now, ct);
         }
+    }
+
+    private async Task RecordFailureAsync(Guid id, Exception ex, DateTime now, CancellationToken ct)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        if (await db.PodcastFeeds.FirstOrDefaultAsync(f => f.MediaItemId == id, ct) is not { } feed)
+        {
+            return;
+        }
+
+        feed.CheckedAt = now;
+        feed.Error = ex.Message;
+        feed.Failures++;
+        feed.NextCheckAt = now + PodcastLibrary.NextCheckIn(feed, now);
+        await db.SaveChangesAsync(ct);
     }
 
     private async Task PruneAsync(FlexarrDbContext db, DateTime now, CancellationToken ct)
@@ -102,6 +128,9 @@ public sealed partial class PodcastRefreshWorker(IServiceScopeFactory scopes, Po
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Removed {Count} podcasts nobody subscribes to")]
     private partial void LogPruned(int count);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Refreshing podcast {Id} failed")]
+    private partial void LogFeedFailed(Exception exception, Guid id);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Refreshing podcasts failed")]
     private partial void LogFailed(Exception exception);
