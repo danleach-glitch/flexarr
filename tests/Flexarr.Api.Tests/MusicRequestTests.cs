@@ -259,7 +259,7 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RequestingAnAlbum_ByAnArtistLidarrHasUnmonitored_MonitorsThemButNotTheirNewReleases()
+    public async Task RequestingAnAlbum_ByAnArtistLidarrHasUnmonitored_LeavesThem_AndSearchesForTheAlbum()
     {
         await MusicLibraryAsync();
         _lidarr.Responses["GET /api/v1/artist"] = $$"""[{"id":3,"artistName":"Wet Leg","foreignArtistId":"{{WetLeg}}","monitored":false,"monitorNewItems":"none"}]""";
@@ -271,8 +271,8 @@ public sealed class MusicRequestTests : IAsyncLifetime
         var response = await Client().PostAsJsonAsync(Api("/requests/music"), new { kind = "album", deezerId = 730000661 });
 
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
-        var artist = _sent.Single(s => s.Request == "PUT /api/v1/artist/3").Body!;
-        Assert.Equal((true, "none"), (artist["monitored"]!.GetValue<bool>(), artist["monitorNewItems"]!.GetValue<string>()));
+        Assert.DoesNotContain(_sent, s => s.Request == "PUT /api/v1/artist/3"); // or their other monitored albums would start again
+        Assert.Equal("AlbumSearch", _sent.Single(s => s.Request == "POST /api/v1/command").Body!["name"]!.GetValue<string>());
         Assert.Equal([9], _sent.Single(s => s.Request == "PUT /api/v1/album/monitor").Body!["albumIds"]!.AsArray().Select(n => n!.GetValue<int>()));
     }
 

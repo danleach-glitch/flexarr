@@ -257,19 +257,6 @@ public sealed class ArrClient(HttpClient httpClient)
     }
 
     /// <summary>
-    /// Has Lidarr monitor an artist it had unmonitored, so its RSS sync and Wanted › Missing look for the albums asked
-    /// for, but none of their future albums: asking for one album isn't following them, and an unmonitored artist's
-    /// monitorNewItems was never acted on.
-    /// </summary>
-    public async Task MonitorArtistAsync(ArrInstance lidarr, int artistId, CancellationToken ct = default)
-    {
-        var artist = await GetAsync<JsonObject>(lidarr, $"artist/{artistId}", ct).ConfigureAwait(false);
-        artist["monitored"] = true;
-        artist["monitorNewItems"] = "none";
-        await SendAsync<JsonObject>(lidarr, HttpMethod.Put, $"artist/{artistId}", artist, ct).ConfigureAwait(false);
-    }
-
-    /// <summary>
     /// Has Lidarr stop watching for an artist's new releases. The artist stays monitored, so albums already asked for
     /// still download.
     /// </summary>
