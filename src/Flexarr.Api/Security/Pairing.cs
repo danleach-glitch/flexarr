@@ -8,6 +8,7 @@ using Flexarr.Api.Profiles;
 using Flexarr.Core.Paths;
 using Microsoft.Extensions.Options;
 using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Security;
 
@@ -376,7 +377,7 @@ public static class PairingEndpoints
 
             if (Pairings.UnfitName(request.DeviceName))
             {
-                return Results.Problem(UnfitNameMessage, statusCode: 400);
+                return UnfitName();
             }
 
             if (pairings.Start(request.DeviceName, zone, http.Connection.RemoteIpAddress?.ToString(), out var announced, DeviceTypes.Of(http.Request),
@@ -421,19 +422,20 @@ public static class PairingEndpoints
         {
             if (Pairings.UnfitName(approval.DeviceName))
             {
-                return Results.Problem(UnfitNameMessage, statusCode: 400);
+                return UnfitName();
             }
 
             return pairings.Approve(code, approval.DeviceName, out var retryAfter) switch
             {
                 PairingApproval.Approved => Results.NoContent(),
                 PairingApproval.TooMany => ProfileEndpoints.TryAgainLater(http, retryAfter,
-                    when => $"Ten TVs have been connected in the last hour, which is as many as Flexarr allows. Try again in {when}."),
+                    when => Loc.T("Ten TVs have been connected in the last hour, which is as many as Flexarr allows. Try again in {when}.", new { when })),
                 _ => Problems.Of("That code isn't waiting to connect. It may have expired; the TV shows a new one.", status: 404),
             };
         });
         return api;
     }
 
-    private const string UnfitNameMessage = "That name has a line break or a hidden character in it. Use letters, numbers and spaces.";
+    private static IResult UnfitName() =>
+        Problems.Of("That name has a line break or a hidden character in it. Use letters, numbers and spaces.", status: 400);
 }

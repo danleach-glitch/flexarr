@@ -11,6 +11,7 @@ using Flexarr.Core.Media;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Devices;
 
@@ -399,12 +400,12 @@ public static class DeviceEndpoints
         ArgumentNullException.ThrowIfNull(current);
         if (Find(signIns, deviceId) is not { } device)
         {
-            return new PlayOutcome(null, false, "No device with that id is signed in.", 404);
+            return new PlayOutcome(null, false, Loc.T("No device with that id is signed in."), 404);
         }
 
         if (request.ProfileId is { } asked && !await db.Profiles.AnyAsync(p => p.Id == asked, ct))
         {
-            return new PlayOutcome(null, false, "There's no profile with that id.", 404);
+            return new PlayOutcome(null, false, Loc.T("There's no profile with that id."), 404);
         }
 
         // The profile asked for, or the one chosen on the device: the next episode is theirs.
@@ -412,21 +413,21 @@ public static class DeviceEndpoints
         var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == request.ItemId, ct);
         if (item is null)
         {
-            return new PlayOutcome(null, false, "There's no title with that id.", 404);
+            return new PlayOutcome(null, false, Loc.T("There's no title with that id."), 404);
         }
 
         var target = await PlayableAsync(item, profileId, db, playback, ct);
         if (target is null)
         {
-            return new PlayOutcome(null, false, $"\"{item.Title}\" has nothing that can be played.", 409);
+            return new PlayOutcome(null, false, Loc.T("\"{title}\" has nothing that can be played.", new { title = item.Title }), 409);
         }
 
         // An app from before books would play one as a video: only its first file, and finish the whole book at its end.
         if (target.Kind == MediaKind.Audiobook && !commands.Takes(device.Id, DeviceCommandKind.Book))
         {
             return new PlayOutcome(null, false, commands.Accepts(device.Id) is null && !commands.IsOnline(device.Id)
-                ? $"Open Flexarr on {device.Name} first, so it can say whether it plays audiobooks."
-                : $"The Flexarr app on {device.Name} can't play audiobooks yet: update it.", StatusCodes.Status409Conflict);
+                ? Loc.T("Open Flexarr on {name} first, so it can say whether it plays audiobooks.", new { name = device.Name })
+                : Loc.T("The Flexarr app on {name} can't play audiobooks yet: update it.", new { name = device.Name }), StatusCodes.Status409Conflict);
         }
 
         // Shuffling a show: the device is handed the show itself and asks for random episodes as it goes.
@@ -457,7 +458,7 @@ public static class DeviceEndpoints
 
         if (await db.LiveChannels.AsNoTracking().FirstOrDefaultAsync(c => c.Id == channelId, ct) is not { } channel)
         {
-            return new PlayOutcome(null, false, "There's no such channel.", StatusCodes.Status404NotFound);
+            return new PlayOutcome(null, false, Loc.T("There's no such channel."), StatusCodes.Status404NotFound);
         }
 
         var command = new DeviceCommand(DeviceCommand.NewId(), DeviceCommandKind.Watch, null, false, SenderName(signIns, current), DateTime.UtcNow,

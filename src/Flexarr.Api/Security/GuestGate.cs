@@ -1,6 +1,7 @@
 using Flexarr.Api.Authentication;
 using Flexarr.Api.Configuration;
 using Microsoft.Extensions.Options;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Security;
 
@@ -66,13 +67,13 @@ public static class GuestGate
             // it waits rather than being let in; answers are kept, so this only happens before the first one.
             http.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             http.Response.Headers.RetryAfter = "5";
-            await http.Response.WriteAsJsonAsync(new { title = "Flexarr couldn't check this device just now. Try again in a moment.", status = 503 }, http.RequestAborted);
+            await http.Response.WriteAsJsonAsync(new { title = Loc.T("Flexarr couldn't check this device just now. Try again in a moment."), status = 503 }, http.RequestAborted);
             return;
         }
 
         http.Response.StatusCode = StatusCodes.Status403Forbidden;
         // guestRemoved lets the apps tell this from any other refusal, and sign out rather than show an error.
-        await http.Response.WriteAsJsonAsync(new { title = "This device was removed from the server. Ask its owner for a new invite.", status = 403, guestRemoved = true },
+        await http.Response.WriteAsJsonAsync(new { title = Loc.T("This device was removed from the server. Ask its owner for a new invite."), status = 403, guestRemoved = true },
             http.RequestAborted);
     });
 }

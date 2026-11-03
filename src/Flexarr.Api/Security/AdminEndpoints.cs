@@ -7,6 +7,7 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.Extensions.Options;
 using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Security;
 
@@ -140,9 +141,9 @@ public static class AdminEndpoints
 
             if (!withKey && !first)
             {
-                return Results.Problem(main.AdminPinHash is null
-                    ? "Choose an admin PIN from a browser or device you signed in, or with the API key."
-                    : "Enter the current admin PIN, or the server's API key (it's in config.json in the server's data folder).", statusCode: 403);
+                return main.AdminPinHash is null
+                    ? Problems.Of("Choose an admin PIN from a browser or device you signed in, or with the API key.", status: 403)
+                    : Problems.Of("Enter the current admin PIN, or the server's API key (it's in config.json in the server's data folder).", status: 403);
             }
 
             var replacing = main.AdminPinHash is not null;
@@ -187,7 +188,7 @@ public static class AdminEndpoints
     internal static bool IsPin(string? pin) => pin is { Length: >= 4 and <= 8 } && pin.All(char.IsAsciiDigit);
 
     /// <summary>409 with <c>pinMissing</c>, so apps know to offer setting one rather than asking for it.</summary>
-    internal static IResult PinMissing() => Results.Problem("The server needs an admin PIN before its settings can be unlocked.", statusCode: 409,
+    internal static IResult PinMissing() => Results.Problem(detail: Loc.T("The server needs an admin PIN before its settings can be unlocked."), statusCode: 409,
         extensions: new Dictionary<string, object?> { ["pinMissing"] = true });
 
     private static bool IsApiKey(string provided, string? key) =>

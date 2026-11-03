@@ -7,6 +7,7 @@ using Flexarr.Api.Authentication;
 using Flexarr.Api.Configuration;
 using Flexarr.Core.Paths;
 using Microsoft.Extensions.Options;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Security;
 
@@ -294,7 +295,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         var settings = options.CurrentValue.RemoteGuests;
         if (!settings.Enabled)
         {
-            throw new InviteException("Family invites aren't turned on.", StatusCodes.Status404NotFound);
+            throw new InviteException(Loc.T("Family invites aren't turned on."), StatusCodes.Status404NotFound);
         }
 
         // Counted with those being made right now, so two made at once can't both take the last place.
@@ -302,7 +303,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         {
             if (Loaded().Count + _making >= MaxWaiting)
             {
-                throw new InviteException($"{MaxWaiting} invites are already waiting. Cancel some first.");
+                throw new InviteException(Loc.T("{count, plural, one {# invite is already waiting. Cancel it first.} other {# invites are already waiting. Cancel some first.}}", new { count = MaxWaiting }));
             }
 
             _making++;
@@ -330,12 +331,12 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         var check = await policy.CheckAsync(ct);
         if (!check.Safe)
         {
-            throw new InviteException((check.Problems.Count > 0 ? check.Problems[0] : null) ?? "The tailnet policy doesn't confine guests to Flexarr yet.");
+            throw new InviteException((check.Problems.Count > 0 ? check.Problems[0] : null) ?? Loc.T("The tailnet policy doesn't confine guests to Flexarr yet."));
         }
 
         if (await tailnet.SnapshotAsync(ct) is not { Running: true, Address: { } address })
         {
-            throw new InviteException("Tailscale isn't running on the server.");
+            throw new InviteException(Loc.T("Tailscale isn't running on the server."));
         }
 
         var now = clock.GetUtcNow().UtcDateTime;
@@ -351,7 +352,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         }
         catch (HttpRequestException ex)
         {
-            throw new InviteException($"Couldn't reach Tailscale ({ex.Message}).", StatusCodes.Status502BadGateway);
+            throw new InviteException(Loc.T("Couldn't reach Tailscale ({error}).", new { error = ex.Message }), StatusCodes.Status502BadGateway);
         }
 
         var token = Base64Url(RandomNumberGenerator.GetBytes(32));
@@ -412,7 +413,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     {
         if (string.IsNullOrEmpty(token) || token.Length > 128)
         {
-            throw new InviteException("That invite isn't valid.", StatusCodes.Status400BadRequest);
+            throw new InviteException(Loc.T("That invite isn't valid."), StatusCodes.Status400BadRequest);
         }
 
         var hash = Hash(token);
@@ -439,7 +440,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
                 }
                 else
                 {
-                    throw new InviteException("This invite has been used, cancelled or has expired. Ask for a new one.", StatusCodes.Status410Gone);
+                    throw new InviteException(Loc.T("This invite has been used, cancelled or has expired. Ask for a new one."), StatusCodes.Status410Gone);
                 }
             }
             else
@@ -454,7 +455,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         // redeemed in the same moment): nothing to sign in as.
         if (profileExists is not null && !profileExists(invite.ProfileId))
         {
-            throw new InviteException("This invite has been used, cancelled or has expired. Ask for a new one.", StatusCodes.Status410Gone);
+            throw new InviteException(Loc.T("This invite has been used, cancelled or has expired. Ask for a new one."), StatusCodes.Status410Gone);
         }
 
         var name = invite.Name.Length > 0 ? invite.Name : DeviceName(profileNameFor?.Invoke(invite.ProfileId), deviceType);

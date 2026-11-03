@@ -10,6 +10,7 @@ using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Profiles;
 
@@ -76,7 +77,7 @@ public sealed record ForgotPinRequest(string? AdminPin);
 
 public static partial class ProfileEndpoints
 {
-    private const string HiddenDestination = "That library is hidden from this profile.";
+    private static readonly string HiddenDestination = Loc.Mark("That library is hidden from this profile.");
 
     public static RouteGroupBuilder MapProfileEndpoints(this RouteGroupBuilder api)
     {
@@ -133,7 +134,7 @@ public static partial class ProfileEndpoints
             // mustn't quietly change the main profile's own PIN instead.
             if (profile.IsMain && (!string.IsNullOrEmpty(request.CurrentPin) || !string.IsNullOrEmpty(request.ApiKey)))
             {
-                return Results.Problem("The admin PIN is changed with POST /admin/pin now (Settings › Security). The main profile's PIN here is its own.",
+                return Results.Problem(detail: Loc.T("The admin PIN is changed with POST /admin/pin now (Settings › Security). The main profile's PIN here is its own."),
                     statusCode: 409, extensions: new Dictionary<string, object?> { ["adminPinMoved"] = true });
             }
 
@@ -261,7 +262,7 @@ public static partial class ProfileEndpoints
 
             if (result == PinCheck.Wrong)
             {
-                return Results.Problem("That isn't the admin PIN.", statusCode: 403, extensions: new Dictionary<string, object?> { ["parentPin"] = true });
+                return Results.Problem(detail: Loc.T("That isn't the admin PIN."), statusCode: 403, extensions: new Dictionary<string, object?> { ["parentPin"] = true });
             }
 
             profile.SetPin(null);
@@ -308,20 +309,20 @@ public static partial class ProfileEndpoints
                 libraryId is not { } chosen || await db.Libraries.IgnoreQueryFilters().AnyAsync(l => l.Id == chosen && l.Type == type, ct);
             if (!await IsAsync(request.ShowsLibraryId, LibraryType.TvShows))
             {
-                errors["showsLibraryId"] = ["That isn’t a TV library."];
+                errors["showsLibraryId"] = [Loc.T("That isn’t a TV library.")];
             }
             else if (request.ShowsLibraryId is { } shows && profile.HiddenLibraryIds.Contains(shows))
             {
-                errors["showsLibraryId"] = [HiddenDestination];
+                errors["showsLibraryId"] = [Loc.T(HiddenDestination)];
             }
 
             if (!await IsAsync(request.FilmsLibraryId, LibraryType.Movies))
             {
-                errors["filmsLibraryId"] = ["That isn’t a movie library."];
+                errors["filmsLibraryId"] = [Loc.T("That isn’t a movie library.")];
             }
             else if (request.FilmsLibraryId is { } films && profile.HiddenLibraryIds.Contains(films))
             {
-                errors["filmsLibraryId"] = [HiddenDestination];
+                errors["filmsLibraryId"] = [Loc.T(HiddenDestination)];
             }
 
             if (errors.Count > 0)
@@ -356,7 +357,7 @@ public static partial class ProfileEndpoints
 
             if (request.LibraryId is { } music && profile.HiddenLibraryIds.Contains(music))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["libraryId"] = [HiddenDestination] });
+                return Problems.Field("That library is hidden from this profile.", field: "libraryId");
             }
 
             profile.RequestMusicLibraryId = request.LibraryId;
@@ -414,7 +415,7 @@ public static partial class ProfileEndpoints
 
             if (request.Hidden is null || request.Hidden.Any(h => !NavigationRequest.Items.Contains(h)))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["hidden"] = [$"Choose from {string.Join(", ", NavigationRequest.Items)}."] });
+                return Problems.Field("Choose from {items}.", field: "hidden", args: new { items = string.Join(", ", NavigationRequest.Items) });
             }
 
             if (await db.Profiles.FindAsync([id], ct) is not { } profile)
@@ -513,7 +514,7 @@ public static partial class ProfileEndpoints
             // but the chosen profile's own. (`parentPin`, from apps that asked for it before, is accepted and not needed.)
             if (!profile.IsKids && signIns.ById(current.SignInId)?.KidsLock == true)
             {
-                return Results.Problem("Child lock is on for this device.", statusCode: 403, extensions: new Dictionary<string, object?> { ["kidsLock"] = true });
+                return Results.Problem(detail: Loc.T("Child lock is on for this device."), statusCode: 403, extensions: new Dictionary<string, object?> { ["kidsLock"] = true });
             }
 
             // Choosing the main profile asks for its own PIN, if it has one; the admin PIN does too (it can change the
@@ -563,7 +564,7 @@ public static partial class ProfileEndpoints
                 if (result == PinCheck.Wrong)
                 {
                     // `ownPin`: the PIN for this choice was the wrong one (apps from before also sent a parent's).
-                    return Results.Problem("That PIN isn't right.", statusCode: 403, extensions: new Dictionary<string, object?> { ["ownPin"] = true });
+                    return Results.Problem(detail: Loc.T("That PIN isn't right."), statusCode: 403, extensions: new Dictionary<string, object?> { ["ownPin"] = true });
                 }
 
                 // The same digits may be both PINs (as they are on a server upgraded with the PIN asked for).
@@ -658,7 +659,7 @@ public static partial class ProfileEndpoints
 
     /// <summary>A 429 saying how long to wait, with Retry-After.</summary>
     internal static IResult TooManyPins(HttpContext http, TimeSpan retryAfter) =>
-        TryAgainLater(http, retryAfter, when => $"Too many wrong PINs. Try again in {when}.");
+        TryAgainLater(http, retryAfter, when => Loc.T("Too many wrong PINs. Try again in {when}.", new { when }));
 
     /// <summary>
     /// A 429 whose message says how long to wait, with Retry-After and the same number of seconds as
@@ -671,7 +672,10 @@ public static partial class ProfileEndpoints
         var seconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
         http.Response.Headers.RetryAfter = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
         var minutes = (int)Math.Ceiling(seconds / 60.0);
-        var when = seconds < 60 ? $"{seconds} second{(seconds == 1 ? "" : "s")}" : minutes <= 1 ? "a minute" : $"{minutes} minutes";
+        // How long, in the request's language, for the message to drop in as {when}.
+        var when = seconds < 60 ? Loc.T("{count, plural, one {# second} other {# seconds}}", new { count = seconds })
+            : minutes <= 1 ? Loc.T("a minute")
+            : Loc.T("{count, plural, one {# minute} other {# minutes}}", new { count = minutes });
         return Results.Problem(message(when), statusCode: 429, extensions: new Dictionary<string, object?> { ["retryAfterSeconds"] = seconds });
     }
 
@@ -697,9 +701,10 @@ public static partial class ProfileEndpoints
         var other = await db.Profiles.AsNoTracking().Where(p => p.IsKids && p.Id != profileId).OrderBy(p => p.CreatedAt).Select(p => p.Id).FirstOrDefaultAsync(ct);
         if (other is null)
         {
-            return Results.Problem(locked.Count == 1
-                ? $"{locked[0].Name} is locked to this profile. Unlock it in Settings › Devices first."
-                : $"{locked.Count} devices are locked to this profile. Unlock them in Settings › Devices first.", statusCode: 409);
+            return locked.Count == 1
+                ? Problems.Of("{name} is locked to this profile. Unlock it in Settings › Devices first.", new { name = locked[0].Name }, status: 409)
+                : Problems.Of("{count, plural, one {# device is locked to this profile. Unlock it in Settings › Devices first.} other {# devices are locked to this profile. Unlock them in Settings › Devices first.}}",
+                    new { count = locked.Count }, status: 409);
         }
 
         foreach (var signIn in locked)
@@ -757,7 +762,7 @@ public static partial class ProfileEndpoints
         if (string.IsNullOrEmpty(pin))
         {
             // Apps from before kids profiles show this as it is: they can choose the main profile and give its PIN.
-            return Results.Problem("Choose the main profile and enter the admin PIN.", statusCode: 403, extensions: parent);
+            return Results.Problem(detail: Loc.T("Choose the main profile and enter the admin PIN."), statusCode: 403, extensions: parent);
         }
 
         var (callers, browser) = PinCaller(http, current);
@@ -766,7 +771,7 @@ public static partial class ProfileEndpoints
         {
             PinCheck.Right => null,
             PinCheck.LockedOut => TooManyPins(http, retryAfter),
-            _ => Results.Problem("That PIN isn't right.", statusCode: 403, extensions: parent),
+            _ => Results.Problem(detail: Loc.T("That PIN isn't right."), statusCode: 403, extensions: parent),
         };
     }
 
@@ -775,17 +780,17 @@ public static partial class ProfileEndpoints
         var errors = new Dictionary<string, string[]>();
         if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 60)
         {
-            errors["name"] = ["Give the profile a name (up to 60 characters)."];
+            errors["name"] = [Loc.T("Give the profile a name (up to 60 characters).")];
         }
 
         if (!string.IsNullOrEmpty(request.Pin) && (request.Pin.Length is < 4 or > 8 || !request.Pin.All(char.IsAsciiDigit)))
         {
-            errors["pin"] = ["A PIN is 4 to 8 digits."];
+            errors["pin"] = [Loc.T("A PIN is 4 to 8 digits.")];
         }
 
         if (request.Color is { } c && !HexColour().IsMatch(c))
         {
-            errors["color"] = ["Colours look like #a9c2ec."];
+            errors["color"] = [Loc.T("Colours look like #a9c2ec.")];
         }
 
         return errors.Count > 0 ? Results.ValidationProblem(errors) : null;

@@ -5,6 +5,7 @@ using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Security;
 
@@ -239,7 +240,9 @@ public static class RemoteGuestEndpoints
 
             if (await tailnet.SetRelayPortAsync(port, ct) is { } problem)
             {
-                return Results.Problem($"Tailscale couldn't {(request.Enabled ? "start" : "stop")} the relay: {problem}", statusCode: 502);
+                return request.Enabled
+                    ? Problems.Of("Tailscale couldn't start the relay: {problem}", new { problem }, status: 502)
+                    : Problems.Of("Tailscale couldn't stop the relay: {problem}", new { problem }, status: 502);
             }
 
             settings.RemoteGuests.RelayPort = port;
@@ -331,10 +334,10 @@ public static class RemoteGuestEndpoints
         var snapshot = await tailnet.SnapshotAsync(ct);
         var problem = kind switch
         {
-            Updates.InstallKind.Docker => "Family invites need Tailscale on the server, which Flexarr in Docker can't use yet.",
-            Updates.InstallKind.MacApp => "Family invites aren't in the Mac app yet.",
-            _ when snapshot is null => "Install Tailscale on the server and sign in to it.",
-            _ when !snapshot.Running => "Tailscale is installed but not connected. Sign in to Tailscale on the server.",
+            Updates.InstallKind.Docker => Loc.T("Family invites need Tailscale on the server, which Flexarr in Docker can't use yet."),
+            Updates.InstallKind.MacApp => Loc.T("Family invites aren't in the Mac app yet."),
+            _ when snapshot is null => Loc.T("Install Tailscale on the server and sign in to it."),
+            _ when !snapshot.Running => Loc.T("Tailscale is installed but not connected. Sign in to Tailscale on the server."),
             _ => null,
         };
         var snippet = snapshot?.Address is { } address ? GuestPolicy.Snippet(settings.Tag, address, policy.FlexarrPort, settings.RelayPort is not null) : null;
@@ -345,7 +348,7 @@ public static class RemoteGuestEndpoints
 
     internal static RelayDto RelayStatus(int? port, TailnetSnapshot? snapshot) =>
         new(port, port is not null && snapshot?.RelayPort == port,
-            port is not null && snapshot is not null && snapshot.RelayPort != port ? "Tailscale on the server isn't relaying yet. It needs Tailscale 1.86 or newer." : null);
+            port is not null && snapshot is not null && snapshot.RelayPort != port ? Loc.T("Tailscale on the server isn't relaying yet. It needs Tailscale 1.86 or newer.") : null);
 
     /// <summary>Guests' devices with how each reaches this server now, matched to the tailnet by address.</summary>
     internal static List<GuestDeviceDto> Describe(IEnumerable<SignIn> guests, TailnetSnapshot? snapshot, IReadOnlyDictionary<string, string> profileNames, int flexarrPort = 0)
