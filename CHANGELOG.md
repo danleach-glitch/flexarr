@@ -4,6 +4,11 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Playback
+- The picture no longer pauses when **Next Episode** counts down. The episode keeps playing under a 10-second countdown, on every app and the web. With **Skip credits** on, the countdown starts just before the credits, so the next episode begins as they do. With it off, the credits play in full and the next episode follows straight on.
+- For shows with no credits found, **Next Episode** appears a minute before the end, and nothing is cut off.
+- Pausing holds the countdown, and **Cancel** lets the episode play to the end.
+
 ### iPhone and Android
 - A film's or show's page fits its buttons on one row, like an episode's: Trailer and Watchlist before you start, Start over and Watched once you have, with the rest in More. Watched keeps its name and fills its tick, like Download.
 

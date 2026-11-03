@@ -18,7 +18,7 @@ struct PlaybackSettingsView: View {
             if let preferences {
                 SettingsGroupLabel(model.currentProfile.map { "\($0.name), on every device" } ?? "Your profile, on every device")
                 SettingsRow.toggle("Auto-play next episode", isOn: preferences.autoPlayNext, symbol: "forward.end",
-                                   help: "When an episode ends, the next one starts after a five-second countdown.") {
+                                   help: "The next episode starts after a 10-second countdown at the end.") {
                     change(\.autoPlayNext)
                 }
                 SettingsRow.toggle("Skip intros", isOn: preferences.skipIntros, symbol: "forward",

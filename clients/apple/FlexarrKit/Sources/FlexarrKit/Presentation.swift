@@ -214,36 +214,86 @@ public enum PlaybackPrompt: Equatable, Sendable {
     case none
     /// Inside an intro or recap: offer to jump to `to`.
     case skip(MarkerType, to: Double)
-    /// The credits have started and there is a next episode.
+    /// Time to offer the next episode (see `NextEpisodeTiming`).
     case nextEpisode
 }
 
-extension PlaybackInfo {
-    public func prompt(at time: Double) -> PlaybackPrompt {
-        Self.prompt(at: time, markers: markers, duration: durationSeconds, hasNext: next != nil)
+/// When the player offers the next episode, counts down to it, plays it or closes (docs/next-episode-timing.md). The
+/// countdown follows the playing position, so it holds when paused and goes when scrubbed back before it.
+public struct NextEpisodeTiming: Equatable, Sendable {
+    /// Next Episode shows from here.
+    public var showAt: Double
+    /// With auto-play on: the countdown runs from here to `nextAt`, where the next episode plays.
+    public var countdownFrom: Double?
+    public var nextAt: Double?
+    /// Skip credits with auto-play off: the player closes here, as the credits start.
+    public var closeAt: Double?
+
+    /// The countdown's length, in seconds.
+    public static let countdownSeconds: Double = 10
+    /// With Skip credits and auto-play on, the countdown starts this long before the credits (so the next episode
+    /// plays two seconds into them).
+    public static let skipCreditsLead: Double = 8
+    /// With no credits found, Next Episode shows this long before the end.
+    public static let unmarkedLead: Double = 60
+
+    public init(showAt: Double, countdownFrom: Double? = nil, nextAt: Double? = nil, closeAt: Double? = nil) {
+        self.showAt = showAt
+        self.countdownFrom = countdownFrom
+        self.nextAt = nextAt
+        self.closeAt = closeAt
     }
 
-    /// Pure version of `prompt(at:)` so it can be tested without a full PlaybackInfo.
-    public static func prompt(at time: Double, markers: [Marker], duration: Double, hasNext: Bool) -> PlaybackPrompt {
+    /// Whole seconds left on the countdown at `time` (0...10), or nil when it isn't running.
+    public func countdown(at time: Double) -> Int? {
+        guard let countdownFrom, let nextAt, time >= countdownFrom else { return nil }
+        return Int(min(Self.countdownSeconds, max(0, (nextAt - time).rounded(.up))))
+    }
+
+    /// The timing for an episode with a next one; nil offers no button before the end (no credits found in an episode
+    /// of two minutes or less).
+    public static func of(markers: [Marker], duration: Double, skipCredits: Bool, autoPlayNext: Bool) -> NextEpisodeTiming? {
+        if let credits = markers.first(where: { $0.type == .credits })?.start {
+            switch (skipCredits, autoPlayNext) {
+            case (true, true):
+                let from = max(0, credits - skipCreditsLead)
+                let next = from + countdownSeconds
+                return NextEpisodeTiming(showAt: from, countdownFrom: from, nextAt: duration > 0 ? min(next, duration) : next)
+            case (false, true):
+                return NextEpisodeTiming(showAt: credits, countdownFrom: max(credits, duration - countdownSeconds), nextAt: max(credits, duration))
+            case (true, false):
+                return NextEpisodeTiming(showAt: credits, closeAt: credits)
+            case (false, false):
+                return NextEpisodeTiming(showAt: credits)
+            }
+        }
+        guard duration > 120 else { return nil }
+        let show = duration - unmarkedLead
+        return autoPlayNext ? NextEpisodeTiming(showAt: show, countdownFrom: duration - countdownSeconds, nextAt: duration) : NextEpisodeTiming(showAt: show)
+    }
+}
+
+extension PlaybackInfo {
+    public func nextEpisodeTiming(_ preferences: PlaybackPreferences) -> NextEpisodeTiming? {
+        guard next != nil else { return nil }
+        return NextEpisodeTiming.of(markers: markers, duration: durationSeconds, skipCredits: preferences.skipCredits, autoPlayNext: preferences.autoPlayNext)
+    }
+
+    public func prompt(at time: Double, preferences: PlaybackPreferences) -> PlaybackPrompt {
+        Self.prompt(at: time, markers: markers, nextAt: nextEpisodeTiming(preferences)?.showAt)
+    }
+
+    /// Pure version of `prompt(at:preferences:)` so it can be tested without a full PlaybackInfo. `nextAt` is when Next
+    /// Episode shows (`NextEpisodeTiming.showAt`), nil for never.
+    public static func prompt(at time: Double, markers: [Marker], nextAt: Double?) -> PlaybackPrompt {
         for marker in markers where marker.type == .intro || marker.type == .recap {
             // Stop offering the skip in the last second so it doesn't flash as the marker ends.
             if time >= marker.start && time < marker.end - 1 {
                 return .skip(marker.type, to: marker.end)
             }
         }
-        guard hasNext else { return .none }
-        if let credits = markers.first(where: { $0.type == .credits }) {
-            return time >= credits.start ? .nextEpisode : .none
-        }
-        // No credits marker detected: offer the next episode for the end of it, where credits usually are.
-        if duration > 120 && time >= duration - unmarkedCreditsSeconds(duration: duration) { return .nextEpisode }
+        if let nextAt, time >= nextAt { return .nextEpisode }
         return .none
-    }
-
-    /// How long before the end the next episode is offered when no credits were found: 3% of the episode, between
-    /// 30 seconds and 2 minutes (about 40 seconds of a half-hour show, 100 of an hour-long one).
-    public static func unmarkedCreditsSeconds(duration: Double) -> Double {
-        min(max(duration * 0.03, 30), 120)
     }
 }
 

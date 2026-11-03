@@ -105,33 +105,72 @@ struct PlaybackPromptTests {
     ]
 
     @Test func offersSkipInsideIntroAndRecap() {
-        #expect(PlaybackInfo.prompt(at: 10, markers: markers, duration: 2831, hasNext: true) == .skip(.recap, to: 45))
-        #expect(PlaybackInfo.prompt(at: 220, markers: markers, duration: 2831, hasNext: true) == .skip(.intro, to: 234.34))
-        #expect(PlaybackInfo.prompt(at: 234, markers: markers, duration: 2831, hasNext: true) == .none, "not in the final second")
-        #expect(PlaybackInfo.prompt(at: 1000, markers: markers, duration: 2831, hasNext: true) == .none)
+        #expect(PlaybackInfo.prompt(at: 10, markers: markers, nextAt: 2811.72) == .skip(.recap, to: 45))
+        #expect(PlaybackInfo.prompt(at: 220, markers: markers, nextAt: 2811.72) == .skip(.intro, to: 234.34))
+        #expect(PlaybackInfo.prompt(at: 234, markers: markers, nextAt: 2811.72) == .none, "not in the final second")
+        #expect(PlaybackInfo.prompt(at: 1000, markers: markers, nextAt: 2811.72) == .none)
     }
 
-    @Test func offersNextEpisodeOnceCreditsStart() {
-        #expect(PlaybackInfo.prompt(at: 2811, markers: markers, duration: 2831, hasNext: true) == .none)
-        #expect(PlaybackInfo.prompt(at: 2812, markers: markers, duration: 2831, hasNext: true) == .nextEpisode)
-        #expect(PlaybackInfo.prompt(at: 2812, markers: markers, duration: 2831, hasNext: false) == .none)
-    }
-
-    @Test func fallsBackToTheEndWithoutCreditsMarker() {
-        // 3% of a 47-minute episode: the last 85 seconds.
-        #expect(PlaybackInfo.prompt(at: 2740, markers: [], duration: 2831, hasNext: true) == .none)
-        #expect(PlaybackInfo.prompt(at: 2750, markers: [], duration: 2831, hasNext: true) == .nextEpisode)
-        // Never less than 30 seconds, nor more than 2 minutes.
-        #expect(PlaybackInfo.unmarkedCreditsSeconds(duration: 600) == 30)
-        #expect(PlaybackInfo.unmarkedCreditsSeconds(duration: 7200) == 120)
+    @Test func offersNextEpisodeFromItsMoment() {
+        #expect(PlaybackInfo.prompt(at: 2811, markers: markers, nextAt: 2811.72) == .none)
+        #expect(PlaybackInfo.prompt(at: 2812, markers: markers, nextAt: 2811.72) == .nextEpisode)
+        #expect(PlaybackInfo.prompt(at: 2812, markers: markers, nextAt: nil) == .none, "no next episode")
     }
 
     @Test func realPlaybackFixture() throws {
         let info = try Fixture.decode(PlaybackInfo.self, "playback")
-        #expect(info.prompt(at: 216) == .skip(.intro, to: 234.34))
-        #expect(info.prompt(at: 2820) == .nextEpisode)
+        #expect(info.prompt(at: 216, preferences: .standard) == .skip(.intro, to: 234.34))
+        #expect(info.prompt(at: 2820, preferences: .standard) == .nextEpisode)
     }
 }
+
+/// docs/next-episode-timing.md, row by row.
+struct NextEpisodeTimingTests {
+    let credits = [Marker(type: .credits, start: 2800, end: 2900)]
+    func timing(_ markers: [Marker], _ duration: Double = 2900, skip: Bool, auto: Bool) -> NextEpisodeTiming? {
+        NextEpisodeTiming.of(markers: markers, duration: duration, skipCredits: skip, autoPlayNext: auto)
+    }
+
+    @Test func skipCreditsWithAutoPlayCountsDownFromEightSecondsBefore() throws {
+        let t = try #require(timing(credits, skip: true, auto: true))
+        #expect(t == NextEpisodeTiming(showAt: 2792, countdownFrom: 2792, nextAt: 2802))
+        #expect(t.countdown(at: 2791) == nil)
+        #expect(t.countdown(at: 2792) == 10)
+        #expect(t.countdown(at: 2797.5) == 5)
+        #expect(t.countdown(at: 2802) == 0)
+    }
+
+    @Test func creditsWithAutoPlayPlayOutAndCountDownOverTheLastTen() {
+        #expect(timing(credits, skip: false, auto: true) == NextEpisodeTiming(showAt: 2800, countdownFrom: 2890, nextAt: 2900))
+    }
+
+    @Test func skipCreditsWithoutAutoPlayClosesAsTheyStart() {
+        #expect(timing(credits, skip: true, auto: false) == NextEpisodeTiming(showAt: 2800, closeAt: 2800))
+    }
+
+    @Test func creditsWithoutAutoPlayOnlyShowTheButton() {
+        #expect(timing(credits, skip: false, auto: false) == NextEpisodeTiming(showAt: 2800))
+    }
+
+    @Test func noCreditsShowsAMinuteBeforeTheEnd() {
+        for skip in [true, false] {
+            #expect(timing([], skip: skip, auto: true) == NextEpisodeTiming(showAt: 2840, countdownFrom: 2890, nextAt: 2900))
+            #expect(timing([], skip: skip, auto: false) == NextEpisodeTiming(showAt: 2840))
+        }
+    }
+
+    @Test func edges() {
+        // Credits from the very start: the countdown can't start before 0.
+        #expect(timing([Marker(type: .credits, start: 3, end: 60)], 60, skip: true, auto: true) == NextEpisodeTiming(showAt: 0, countdownFrom: 0, nextAt: 10))
+        // Credits in the last few seconds: the countdown starts with them.
+        #expect(timing([Marker(type: .credits, start: 2895, end: 2900)], skip: false, auto: true) == NextEpisodeTiming(showAt: 2895, countdownFrom: 2895, nextAt: 2900))
+        // Skip credits right at the end never plays the next one after the end.
+        #expect(timing([Marker(type: .credits, start: 2898, end: 2900)], skip: true, auto: true)?.nextAt == 2900)
+        // A short clip with no credits: no button before the end.
+        #expect(timing([], 120, skip: false, auto: true) == nil)
+    }
+}
+
 
 struct DeviceProfileTests {
     @Test func iPhoneAndIPadPlayWhatAppleTVPlays() {
