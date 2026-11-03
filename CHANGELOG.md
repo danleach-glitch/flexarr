@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.59.0 · 3 November 2026
 
 ### Playback
 - Movies, episodes and audiobooks start sooner, especially away from home: a title gets ready while its page is open (on the Apple TV and Android TV, while **Play** or a **Continue watching** card is selected).
