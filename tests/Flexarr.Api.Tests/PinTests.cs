@@ -291,6 +291,33 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
         await factory.SetMainPinAsync(null);
     }
 
+    [Fact]
+    public async Task AGuesserChangingAddress_RunsOutOfAdminPinGuessesForTheDay_ButTheOwnerStillGetsIn()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        // A fresh address for every guess, each past the profile's throttle.
+        for (var i = 0; i < PinGuard.AdminDailyAllowance; i++)
+        {
+            var (wrong, _) = await guard.CheckAsync(PinGuard.AdminKey, $"address:10.1.{i / 250}.{i % 250}", () => false, CancellationToken.None);
+            Assert.Equal(PinCheck.Wrong, wrong);
+            clock.Now += PinGuard.ProfileThrottle;
+        }
+
+        var (spent, retryAfter) = await guard.CheckAsync(PinGuard.AdminKey, "address:10.2.0.1", () => true, CancellationToken.None);
+        var owner = await guard.CheckAsync(PinGuard.AdminKey, "sign-in:owners-laptop", () => true, CancellationToken.None, mayManage: true);
+        // Other profiles' PINs aren't held up.
+        var kid = await guard.CheckAsync("kid", "address:10.2.0.1", () => true, CancellationToken.None);
+        clock.Now += retryAfter;
+        var tomorrow = await guard.CheckAsync(PinGuard.AdminKey, "address:10.2.0.1", () => true, CancellationToken.None);
+
+        Assert.Equal(PinCheck.LockedOut, spent);
+        Assert.True(retryAfter > TimeSpan.FromHours(23));
+        Assert.Equal(PinCheck.Right, owner.Result);
+        Assert.Equal(PinCheck.Right, kid.Result);
+        Assert.Equal(PinCheck.Right, tomorrow.Result);
+    }
+
     private sealed class ManualClock : TimeProvider
     {
         public DateTimeOffset Now { get; set; } = DateTimeOffset.UtcNow;
