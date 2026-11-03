@@ -4,7 +4,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App, { Shell } from './App'
 import { TrailerDialog } from './components/TrailerDialog'
 import { usePolling } from './hooks/usePolling'
-import { clearApiCache, deleteItem } from './api/client'
+import { clearApiCache, deleteItem, getLibraries } from './api/client'
 import { WATCHED_CHANGED } from './hooks/watched'
 import { detail, mockApi, movies, status, summary } from './test/mockApi'
 
@@ -325,6 +325,26 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
     expect(authorized).toBe(true)
     expect(localStorage.length).toBe(0)
+  })
+
+  it('goes back to the sign-in form when this browser is signed out while using it', async () => {
+    let authorized = true
+    const gone = () => new Response('', { status: 401 })
+    mockApi({
+      '/system/status': () => (authorized ? status : gone()),
+      '/libraries': () => (authorized ? [] : gone()),
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
+
+    // Signed out from another browser: the next request is refused.
+    authorized = false
+    clearApiCache()
+    await act(() => getLibraries().catch(() => undefined))
+
+    expect(await screen.findByLabelText('API key')).toBeInTheDocument()
   })
 
   it('sets up a new server from the first browser with its setup code, without a key', async () => {

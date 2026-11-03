@@ -262,6 +262,15 @@ export async function unlockFirst() {
   return askToUnlock()
 }
 
+/** Told the app this browser isn't signed in any more (the key changed, or it was signed out from elsewhere). */
+export const SIGNED_OUT_EVENT = 'flexarr:signed-out'
+
+/** A 401 means the sign-in itself has gone; not for signing in, setup, or a PIN, whose refusals are about what was typed. */
+function signedOut(path: string) {
+  if (/^\/(session|setup)(\/|$)/.test(path) || path.startsWith('/admin/') || /^\/profiles\/[^/]+\/select$/.test(path) || path.includes('/api-key/')) return
+  window.dispatchEvent(new Event(SIGNED_OUT_EVENT))
+}
+
 async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal, retried = false): Promise<T> {
   const headers = authHeaders()
   // Files (profile pictures) go up as they are; everything else is JSON.
@@ -287,6 +296,7 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
     lapsedListeners.forEach((listener) => listener())
     throw new ApiError(403, 'Forbidden', ['Settings are locked here. Unlock them to see this.'])
   }
+  if (response.status === 401) signedOut(path)
   if (!response.ok) throw await failure(response)
   if (response.status === 202 || response.status === 204) {
     return undefined as T

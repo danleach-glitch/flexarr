@@ -12,6 +12,7 @@ import {
   profileToken,
   saveProfileToken,
   setupStatus,
+  SIGNED_OUT_EVENT,
   signIn,
   UnauthorizedError,
   type InstallKind,
@@ -190,6 +191,18 @@ export default function App() {
     window.addEventListener(PICK_PROFILE_EVENT, again)
     return () => window.removeEventListener(PICK_PROFILE_EVENT, again)
   }, [])
+  // Signed out while using it (the key changed, "Sign out every other browser", an expired cookie): every request
+  // fails from then on, so look again, which finds the sign-in form.
+  const ready = state.kind === 'ready'
+  useEffect(() => {
+    if (!ready) return
+    const out = () => {
+      setState({ kind: 'loading' })
+      setAttempt((n) => n + 1)
+    }
+    window.addEventListener(SIGNED_OUT_EVENT, out)
+    return () => window.removeEventListener(SIGNED_OUT_EVENT, out)
+  }, [ready])
   const [setupInstall, setSetupInstall] = useState<InstallKind>()
   // Once the linked code turns out wrong (a new one since), the code box stays, whatever happens next.
   const [linkedCode, setLinkedCode] = useState(takeLinkedSetupCode)
