@@ -261,7 +261,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
     /** Gets [book] ready as Play would start it (from its place). Not a book loaded already, or one on this phone. */
     fun getReady(book: ItemSummary) {
         if (model.client == null || current?.id == book.id || model.bookDownloads.entry(book.id) != null) return
-        warm.getReady(request(book, from = null))
+        warm.getReady(request(book, from = null), owner = model.client?.profileToken)
     }
 
     /** Lets the book got ready go; with [itemId], only if it's that book. */
@@ -327,7 +327,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
             try {
                 val asked = request(book, from)
                 // Got ready on its page a moment ago: no wait for the server.
-                val ready = warm.take(asked)
+                val ready = warm.take(asked, owner = model.client?.profileToken)
                 if (ready == null) warm.drop()
                 val info = ready ?: client.startPlayback(asked)
                 started.answered(info, warmed = ready != null)

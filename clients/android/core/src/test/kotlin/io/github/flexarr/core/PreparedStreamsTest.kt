@@ -50,6 +50,18 @@ class PreparedStreamsTest {
     }
 
     @Test
+    fun anotherProfileNeverTakesItOver() = runTest {
+        val answers = mutableListOf<CompletableDeferred<PlaybackInfo>>()
+        val streams = streams(answers, mutableListOf())
+        streams.getReady(PlaybackRequest(itemId = "ep", profile = profile), owner = "dad")
+        runCurrent()
+        answers.single().complete(info("s1"))
+        runCurrent()
+        assertNull(streams.take(PlaybackRequest(itemId = "ep", profile = profile), owner = "kid"))
+        assertEquals("s1", streams.take(PlaybackRequest(itemId = "ep", profile = profile), owner = "dad")?.sessionId)
+    }
+
+    @Test
     fun anOldOneIsntUsed() = runTest {
         var clock = 0L
         val answers = mutableListOf<CompletableDeferred<PlaybackInfo>>()

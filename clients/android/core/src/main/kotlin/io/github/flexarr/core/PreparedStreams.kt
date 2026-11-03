@@ -16,17 +16,20 @@ class PreparedStreams(
     private val stop: suspend (String) -> Unit,
     private val now: () -> Long = System::currentTimeMillis,
 ) {
-    private class Ready(val request: PlaybackRequest, val info: PlaybackInfo, val at: Long)
+    private class Ready(val request: PlaybackRequest, val info: PlaybackInfo, val at: Long, val owner: String?)
 
     private var ready: Ready? = null
-    private var warming: Pair<PlaybackRequest, Deferred<Ready?>>? = null
+    private var warming: Triple<PlaybackRequest, String?, Deferred<Ready?>>? = null
     /** The warm-up still wanted; a different (or no) token means its answer is let go. */
     private var token: Any? = null
 
-    /** Starts getting [request] ready, unless it is already (or is on its way); anything else got ready is let go. */
-    fun getReady(request: PlaybackRequest) {
-        ready?.let { if (same(it.request, request) && now() - it.at < MAX_AGE_MS) return }
-        warming?.let { if (same(it.first, request)) return }
+    /**
+     * Starts getting [request] ready for [owner] (the profile's token: another profile never takes it over), unless it is
+     * already (or is on its way); anything else got ready is let go.
+     */
+    fun getReady(request: PlaybackRequest, owner: String? = null) {
+        ready?.let { if (it.owner == owner && same(it.request, request) && now() - it.at < MAX_AGE_MS) return }
+        warming?.let { if (it.second == owner && same(it.first, request)) return }
         drop()
         val mine = Any()
         token = mine
@@ -37,24 +40,24 @@ class PreparedStreams(
                 runCatching { stop(info.sessionId) }
                 return@async null
             }
-            Ready(request, info, now()).also {
+            Ready(request, info, now(), owner).also {
                 ready = it
                 warming = null
             }
         }
-        warming = request to asking
+        warming = Triple(request, owner, asking)
     }
 
     /** The stream got ready for exactly [wanted], taken over (waiting for it if it's on its way), or null. */
-    suspend fun take(wanted: PlaybackRequest): PlaybackInfo? {
+    suspend fun take(wanted: PlaybackRequest, owner: String? = null): PlaybackInfo? {
         ready?.let { got ->
-            if (same(got.request, wanted) && now() - got.at < MAX_AGE_MS) {
+            if (got.owner == owner && same(got.request, wanted) && now() - got.at < MAX_AGE_MS) {
                 ready = null
                 return got.info
             }
         }
-        val (request, asking) = warming ?: return null
-        if (!same(request, wanted)) return null
+        val (request, by, asking) = warming ?: return null
+        if (by != owner || !same(request, wanted)) return null
         val got = asking.await() ?: return null
         if (ready !== got) return null
         ready = null
@@ -75,8 +78,11 @@ class PreparedStreams(
     }
 
     companion object {
-        /** A warm-up older than this isn't used: its resume point may have moved on meanwhile. */
-        const val MAX_AGE_MS = 5 * 60_000L
+        /** A warm-up older than this isn't used: its resume point may have moved on meanwhile (another device, say). */
+        const val MAX_AGE_MS = 2 * 60_000L
+
+        /** A next episode got ready during the credits is used for this long (it starts from the beginning anyway). */
+        const val NEXT_EPISODE_MAX_AGE_MS = 30 * 60_000L
 
         /** The same stream: everything asked for matches but how it was asked. */
         fun same(a: PlaybackRequest, b: PlaybackRequest): Boolean = key(a) == key(b)

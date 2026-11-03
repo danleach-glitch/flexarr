@@ -2,8 +2,9 @@ package io.github.flexarr.core
 
 /**
  * How fast data reaches this device from the server lately, for the start request's `measuredBitrate`
- * (docs/fast-start.md): each big enough transfer (a stream's, as the players' bandwidth meter counts it) is a sample
- * of its bytes over the time they took. The median of the last few, for half an hour.
+ * (docs/fast-start.md): each big enough segment of a video stream is a sample of its bytes over the time they took.
+ * Not audio, and not a file played as it is (one long download paced by the player, which measures what was played,
+ * not the link). With a few samples, the upper quartile of the last several, for half an hour; with fewer, nothing.
  */
 class LinkSpeed(private val now: () -> Long = System::currentTimeMillis) {
     private class Sample(val bitsPerSecond: Long, val at: Long)
@@ -25,13 +26,16 @@ class LinkSpeed(private val now: () -> Long = System::currentTimeMillis) {
     fun current(): Long? {
         val at = now()
         val fresh = samples.filter { at - it.at < FRESH_MS }.map { it.bitsPerSecond }.sorted()
-        return fresh.getOrNull(fresh.size / 2)
+        return if (fresh.size >= MIN_SAMPLES) fresh[(fresh.size * 3) / 4] else null
     }
 
     companion object {
         /** Transfers smaller than this are mostly the round trip, not the speed. */
         const val MIN_SAMPLE_BYTES = 200_000L
-        const val KEPT = 8
+        const val KEPT = 12
+
+        /** Fewer samples than this say nothing. */
+        const val MIN_SAMPLES = 3
         const val FRESH_MS = 30 * 60_000L
     }
 }

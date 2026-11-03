@@ -45,8 +45,12 @@ fun Modifier.getsReadyOnFocus(item: ItemSummary?): Modifier {
         model.getReady(item)
     }
     DisposableEffect(id) { onDispose { if (id != null) model.dropReady(id) } }
-    return onFocusChanged { state ->
-        if (focused && !state.hasFocus && id != null) model.dropReady(id)
-        focused = state.hasFocus
+    // The same modifier while the title stays, rather than a new one each time the card recomposes.
+    val watching = remember(id) {
+        Modifier.onFocusChanged { state ->
+            if (focused && !state.hasFocus && id != null) model.dropReady(id)
+            focused = state.hasFocus
+        }
     }
+    return then(watching)
 }
