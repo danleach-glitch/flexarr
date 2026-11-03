@@ -42,7 +42,8 @@ Don't use **Tailscale Funnel** for Flexarr. Funnel publishes an address to the w
 Hotel Wi-Fi and phone data are slower than your home network, and so is the upload speed of most home broadband.
 
 - **Live TV** comes in a reduced version away from home: at most 720p, at about 2.5 Mbps, in stereo. At home, channels play as they come.
-- **Movies and shows** play as they do at home unless you set a limit. In **Settings › Streaming**, **Limit each stream to** caps every stream; **4 Mbps** is a good choice for watching away. The limit applies at home too.
+- **Movies, shows and audiobooks** are converted to fit when the file needs more than your connection carries. Each app measures how fast things arrive and tells the server when you press Play; a file that fits plays as it is. **Settings › Streaming › Away from home** set to **Original quality** turns this off. At home nothing changes.
+- **Limit each stream to**, also in **Settings › Streaming**, caps every stream, at home too. It's there if your home internet's upload is very slow.
 - **On the web**, the player's quality menu lets you choose 1080p, 720p or 480p for one viewing.
 - **On iPhone and iPad**, downloading before you leave avoids the question altogether. See [Downloads](downloads.md).
 
