@@ -285,6 +285,24 @@ describe('App', () => {
     expect(within(screen.getByRole('menu')).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Resume', 'Remove'])
   })
 
+  it('sends a child following a link to Podcasts Home, without opening Podcasts first', async () => {
+    let answerMe: (value: unknown) => void = () => undefined
+    const fetchMock = mockApi({
+      '/libraries': [],
+      '/me': () => new Promise((resolve) => (answerMe = resolve)),
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+    const podcastCalls = () => fetchMock.mock.calls.filter(([input]) => new URL(String(input), 'http://localhost').pathname.startsWith('/api/v1/podcasts')).length
+
+    renderAt('/podcasts')
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)))
+    expect(podcastCalls()).toBe(0)
+
+    await act(async () => answerMe({ profileId: 'c1', method: 'session', zone: 'Local', isAdmin: false, tailscaleLogin: null, isKids: true }))
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
+    expect(podcastCalls()).toBe(0)
+  })
+
   it('toggles watched from the tick on a poster', async () => {
     const posted: unknown[] = []
     mockApi({

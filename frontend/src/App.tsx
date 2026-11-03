@@ -24,7 +24,7 @@ import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
 import { LibrariesProvider } from './hooks/libraries'
 import { SessionProvider } from './hooks/session'
-import { useAgeLimits } from './hooks/sessionContext'
+import { useAgeLimits, useSession } from './hooks/sessionContext'
 import { CollectionPage, CollectionsPage } from './pages/CollectionsPage'
 import { DiscoverPage } from './pages/DiscoverPage'
 import { ExternalTitlePage } from './pages/ExternalTitlePage'
@@ -99,9 +99,14 @@ type ConnectionState =
   | { kind: 'unauthorized'; wrongKey?: boolean; setupOpen?: boolean; wrongCode?: boolean; pinMismatch?: boolean; badPin?: string }
   | { kind: 'error'; message: string }
 
-/** Pages a child's profile doesn't have (podcasts, the watchlist, collections, Live TV): a link to one goes Home. */
+/**
+ * Pages a child's profile doesn't have (podcasts, the watchlist, collections, Live TV): a link to one goes Home. Nothing
+ * shows (or is asked for) until it's known who's watching.
+ */
 function NotForKids() {
   const { kids } = useAgeLimits()
+  const { meLoaded } = useSession()
+  if (!meLoaded) return null
   return kids ? <Navigate to="/" replace /> : <Outlet />
 }
 
