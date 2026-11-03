@@ -49,7 +49,7 @@ stop the warm-up (best effort; the web uses a keepalive request).
   its stream is first asked for or it reports progress;
 - never takes a slot from a real stream: it doesn't count towards the transcode limit for a real start, and when a slot
   is needed, warm-ups are ended first, without telling anyone their stream was taken;
-- ends after three minutes if nobody uses it, rather than the twelve hours of an ordinary session.
+- ends after ten minutes if nobody uses it (long credits, a while on the page), rather than the twelve hours of an ordinary session.
 
 ## Converting sooner
 

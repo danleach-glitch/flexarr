@@ -435,7 +435,7 @@ public static class SettingsEndpoints
             var episodes = db.MediaFiles.Where(f => f.MediaItem!.Kind == MediaKind.Episode && f.ProbeError == null);
             var topLevel = db.MediaItems.Where(i => i.ParentId == null);
             var streams = new List<StreamActivityDto>();
-            foreach (var session in sessions.Active.Where(s => DateTime.UtcNow - s.LastSeen < TimeSpan.FromMinutes(2)))
+            foreach (var session in sessions.Playing.Where(s => DateTime.UtcNow - s.LastSeen < TimeSpan.FromMinutes(2)))
             {
                 var item = await db.MediaItems.Where(i => i.Id == session.ItemId).Summaries(session.ProfileId).FirstOrDefaultAsync(ct);
                 if (item is null)

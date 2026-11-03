@@ -103,6 +103,12 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         return index;
     }
     public DateTime Created { get; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Got ready ahead of Play (a page being looked at, the next episode during the credits) and not yet asked for by a
+    /// player: it gives way to any real stream that needs its slot (see <see cref="TranscodeManager.CreateAsync"/>).
+    /// </summary>
+    public bool Warming { get; set; }
     public DateTime LastAccess { get; internal set; } = DateTime.UtcNow;
     public int LastRequested { get; private set; }
     public bool IsRunning => _process is { } process && IsAlive(process);

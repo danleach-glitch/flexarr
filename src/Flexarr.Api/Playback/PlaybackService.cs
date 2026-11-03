@@ -171,6 +171,7 @@ public sealed class PlaybackService(
             // over to the next episode): remembering their language would turn the full subtitles on next time.
             SubtitleLanguage = decision.Subtitle is { IsForced: true } ? null : decision.Subtitle?.Language,
             AudioIsAtmos = decision.Audio?.Profile?.Contains("Atmos", StringComparison.OrdinalIgnoreCase) == true,
+            Warming = request.Prepare,
         });
 
         var start = request.StartPositionSeconds
@@ -181,10 +182,11 @@ public sealed class PlaybackService(
             transcode.StartSeconds = Math.Max(0, start);
         }
 
-        if (request.Prepare && transcode is { } warming)
+        if (transcode is { } warming)
         {
             // ffmpeg starts with the first segment asked for: ask now for the one playback opens at, so it's ready
-            // when the player is.
+            // when the player is. Any start, not only a prepared one: the player first reads two playlists (and an
+            // init segment), each a round trip that ffmpeg's start-up now overlaps.
             var segment = warming.SegmentAt(start);
             _ = Task.Run(async () =>
             {
@@ -344,6 +346,7 @@ public sealed class PlaybackService(
             CreditsStart = null,
             BookParts = parts,
             PlaysBooks = request.DeviceName is not null,
+            Warming = request.Prepare,
             // The name the device was given when it signed in ("Dan's iPhone") says which one better than its model.
             DeviceName = (profile.SignInId is { } signIn ? signIns?.List().FirstOrDefault(s => s.Id == signIn)?.Name : null) ?? request.DeviceName,
         });

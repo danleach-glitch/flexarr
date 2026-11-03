@@ -56,7 +56,10 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
     /// the problem to another screen, whose own restart would take the next.
     /// </summary>
     /// <exception cref="TranscodeLimitException">Every slot is in use and nobody has to give one up.</exception>
-    /// <param name="preparing">Getting the next episode ready: like a restart, it never takes anyone's place.</param>
+    /// <param name="preparing">
+    /// Getting a stream ready ahead of Play (the next episode, a page being looked at): it never takes anyone's place,
+    /// and gives way to any other start that needs its slot.
+    /// </param>
     public async Task<TranscodeSession> CreateAsync(string profileId, string input, double durationSeconds, TranscodePlan plan, bool restarting = false,
         bool preparing = false)
     {
@@ -64,10 +67,24 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
         var limit = current.MaxConcurrentTranscodes;
         TranscodeSession session;
         List<TranscodeSession> ended = [];
+        List<TranscodeSession> yielded = [];
         lock (_createLock)
         {
             var active = _sessions.Values.Where(s => s.IsActive).ToList();
             var others = otherWork?.Invoke() ?? 0;
+            if (limit > 0 && !preparing && active.Count + others >= limit)
+            {
+                // Streams got ready ahead of Play give way first, oldest first, and without a word: their ffmpeg
+                // stops, and starts again (if there's room) should a player ask for them after all.
+                var needed = active.Count + others - limit + 1;
+                foreach (var warm in active.Where(s => s.Warming).OrderBy(s => s.Created).Take(needed).ToList())
+                {
+                    warm.StartedAt = DateTime.MinValue;
+                    active.Remove(warm);
+                    yielded.Add(warm);
+                }
+            }
+
             if (limit > 0 && active.Count + others >= limit)
             {
                 if (restarting)
@@ -78,7 +95,7 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
 
                 if (preparing)
                 {
-                    throw new TranscodeLimitException("Flexarr is busy playing on other screens, so the next episode wasn't got ready.");
+                    throw new TranscodeLimitException("Flexarr is busy playing on other screens, so this wasn't got ready ahead of time.");
                 }
 
                 var share = PerProfileLimit;
@@ -101,8 +118,14 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
             }
 
             var id = NewId();
-            session = new TranscodeSession(id, input, durationSeconds, plan, current, _logger, Reserve) { ProfileId = profileId };
+            session = new TranscodeSession(id, input, durationSeconds, plan, current, _logger, Reserve) { ProfileId = profileId, Warming = preparing };
             _sessions[id] = session;
+        }
+
+        foreach (var warm in yielded)
+        {
+            LogYielded(warm.Id);
+            await warm.StopProcessAsync().ConfigureAwait(false);
         }
 
         foreach (var old in ended)
@@ -216,6 +239,9 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Transcode {Session} for profile {Profile} ended to make way for another")]
     private partial void LogTakenOver(string session, string profile);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Transcode {Session}, got ready ahead of Play, stopped to make way for a stream being watched")]
+    private partial void LogYielded(string session);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Transcode {Session}: cleanup failed")]
     private partial void LogSweepFailed(Exception ex, string session);

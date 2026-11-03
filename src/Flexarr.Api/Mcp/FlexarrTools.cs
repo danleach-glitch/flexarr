@@ -306,7 +306,7 @@ public static class FlexarrTools
         var names = await db.Profiles.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);
         var devices = signIns.List().ToDictionary(s => s.Id, s => s.Name, StringComparer.Ordinal);
         var list = new List<McpNowPlaying>();
-        foreach (var session in sessions.Active.Where(s => DateTime.UtcNow - s.LastSeen < TimeSpan.FromMinutes(15)).OrderByDescending(s => s.LastSeen))
+        foreach (var session in sessions.Playing.Where(s => DateTime.UtcNow - s.LastSeen < TimeSpan.FromMinutes(15)).OrderByDescending(s => s.LastSeen))
         {
             if (await LibraryVisibility.PlayingAsync(db, session.ItemId, session.ProfileId, ct) is { } item)
             {

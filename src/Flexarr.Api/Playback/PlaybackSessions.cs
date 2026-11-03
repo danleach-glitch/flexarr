@@ -54,6 +54,15 @@ public sealed class PlaybackSession
     /// <summary>The stream's soundtrack carries Dolby Atmos (E-AC-3 with JOC): the master playlist says so.</summary>
     public bool AudioIsAtmos { get; init; }
     public DateTime LastSeen { get; set; } = DateTime.UtcNow;
+    public DateTime Created { get; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Got ready ahead of Play (<see cref="PlaybackRequest.Prepare"/>) and not yet used by a player: not shown as
+    /// playing anywhere, and ended after <see cref="PlaybackSessions.WarmingExpiry"/> if nobody takes it up. A player's
+    /// first progress report, or its first request for a converted stream's playlists or segments, ends it (a request
+    /// for a file played as it is doesn't: Apple's engine fetches a file's opening bytes ahead of time too).
+    /// </summary>
+    public bool Warming { get; set; }
     public double LastPosition { get; set; }
     public bool Paused { get; set; }
 
@@ -121,6 +130,31 @@ public sealed partial class PlaybackSessions
 
     public IEnumerable<PlaybackSession> Active => _sessions.Values;
 
+    /// <summary>The playbacks a player is using: <see cref="Active"/> without those only got ready ahead of Play.</summary>
+    public IEnumerable<PlaybackSession> Playing => _sessions.Values.Where(s => !s.Warming);
+
+    /// <summary>A playback got ready ahead of Play that no player took up within this is ended.</summary>
+    public static readonly TimeSpan WarmingExpiry = TimeSpan.FromMinutes(10);
+
+    /// <summary>A player is using <paramref name="session"/>: if it was only got ready ahead of Play, it now counts as playing.</summary>
+    public void Used(PlaybackSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        if (!session.Warming)
+        {
+            return;
+        }
+
+        session.Warming = false;
+        session.LastSeen = DateTime.UtcNow;
+        if (session.Transcode is { } transcode)
+        {
+            transcode.Warming = false;
+        }
+
+        nowPlaying?.Notice(session);
+    }
+
     /// <summary>
     /// Notes that a device (by its sign-in) just said where it is in a book it plays without a playback here: a phone
     /// playing a downloaded book reports its place, and nothing else.
@@ -149,6 +183,7 @@ public sealed partial class PlaybackSessions
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(progress);
+        Used(session);
         session.LastPosition = progress.PositionSeconds;
         session.Paused = progress.Paused;
         session.ReportedAt = DateTime.UtcNow;
@@ -171,7 +206,7 @@ public sealed partial class PlaybackSessions
     public static bool Shows(PlaybackSession session, DateTime now)
     {
         ArgumentNullException.ThrowIfNull(session);
-        return now - session.LastSeen < NowPlayingStaleness && (session.Paused || now - HeardAt(session) < PlaybackEvents.PlayingSilence);
+        return !session.Warming && now - session.LastSeen < NowPlayingStaleness && (session.Paused || now - HeardAt(session) < PlaybackEvents.PlayingSilence);
     }
 
     /// <summary>
@@ -251,7 +286,7 @@ public sealed partial class PlaybackSessions
             session.Shown = shows;
         }
 
-        foreach (var session in _sessions.Values.Where(s => DateTime.UtcNow - s.LastSeen > Expiry).ToList())
+        foreach (var session in _sessions.Values.Where(s => DateTime.UtcNow - s.LastSeen > Expiry || (s.Warming && DateTime.UtcNow - s.Created > WarmingExpiry)).ToList())
         {
             try
             {

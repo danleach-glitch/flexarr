@@ -16,7 +16,7 @@ public sealed class ServerActivity(PlaybackSessions playback, LiveTvViewers live
     public async Task<IReadOnlyList<string>> InUseAsync(CancellationToken ct)
     {
         var reasons = new List<string>();
-        var streams = playback.Active.Count(s => !s.Finished);
+        var streams = playback.Playing.Count(s => !s.Finished);
         if (streams > 0)
         {
             reasons.Add(streams == 1 ? "Something is playing." : $"{streams} things are playing.");

@@ -303,22 +303,23 @@ public static partial class PlaybackEndpoints
 
         group.MapGet("/master.m3u8", (string sid, bool? subtitles, PlaybackSessions sessions, TranscodeManager transcodes, HttpContext http) =>
             sessions.Get(sid) is { Transcode: not null } session
-                ? Playlist(http, PlaybackService.MasterPlaylist(session, subtitles != false))
+                ? Playlist(http, PlaybackService.MasterPlaylist(Used(sessions, session), subtitles != false))
                 : Missing(transcodes, sid));
 
         group.MapGet("/main.m3u8", (string sid, PlaybackSessions sessions, TranscodeManager transcodes, HttpContext http) =>
-            sessions.Get(sid) is { Transcode: { } transcode }
-                ? Playlist(http, transcode.MediaPlaylist())
+            sessions.Get(sid) is { Transcode: { } transcode } session
+                ? Playlist(http, Used(sessions, session).Transcode!.MediaPlaylist())
                 : Missing(transcodes, sid));
 
         // Fragmented MP4 (Apple's players): the initialisation segment, then .m4s segments served like .ts ones.
         group.MapGet("/init.mp4", async (string sid, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct) =>
         {
-            if (sessions.Get(sid) is not { Transcode: { } transcode })
+            if (sessions.Get(sid) is not { Transcode: { } transcode } session)
             {
                 return Missing(transcodes, sid);
             }
 
+            sessions.Used(session);
             try
             {
                 return await transcode.GetInitBytesAsync(ct) is { } init ? Results.Bytes(init, "video/mp4") : Results.NotFound();
@@ -498,11 +499,12 @@ public static partial class PlaybackEndpoints
     /// <summary>A transcode segment (.ts or fragmented MP4 .m4s), converted if it hasn't been yet.</summary>
     private static async Task<IResult> Segment(string sid, int segment, string contentType, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct)
     {
-        if (sessions.Get(sid) is not { Transcode: { } transcode })
+        if (sessions.Get(sid) is not { Transcode: { } transcode } session)
         {
             return Missing(transcodes, sid);
         }
 
+        sessions.Used(session);
         string? path;
         try
         {
@@ -518,6 +520,13 @@ public static partial class PlaybackEndpoints
         return path is not null ? Results.File(path, contentType)
             : transcodes.TakenOverReason(sid) is { } reason ? TakenOver(reason) // ended while this request waited
             : Results.Problem("The segment couldn't be converted.", statusCode: 500);
+    }
+
+    /// <summary>A player asked for a converted stream's playlist or segments: a session got ready ahead of Play is now in use.</summary>
+    private static PlaybackSession Used(PlaybackSessions sessions, PlaybackSession session)
+    {
+        sessions.Used(session);
+        return session;
     }
 
     /// <summary>A transcode that's gone: 410 with the reason when it was ended for another viewer, else 404.</summary>
