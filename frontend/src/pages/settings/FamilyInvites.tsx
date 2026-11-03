@@ -26,6 +26,7 @@ import { freeColour } from '../../lib/profileColours'
 import { usePolling } from '../../hooks/usePolling'
 import { describeGuest } from '../../lib/guests'
 import { relativeTime } from '../../lib/format'
+import { webLink } from '../../lib/links'
 import { deviceTypeName } from '../../lib/deviceTypes'
 import { Avatar } from '../../components/ProfilePicker'
 import { DeviceTypeIcon } from '../../components/DeviceTypeIcon'
@@ -498,7 +499,7 @@ export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void;
       {removed && (
         <p className="settings-note" role="status">
           {removed.name} can’t reach Flexarr any more. To free its place on your tailnet, delete it in{' '}
-          <a href={removed.tailscaleAdminUrl}>Tailscale’s Machines</a>.
+          <a href={webLink(removed.tailscaleAdminUrl)}>Tailscale’s Machines</a>.
         </p>
       )}
       {confirming && (

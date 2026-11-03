@@ -21,6 +21,7 @@ import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
 import { relativeTime } from '../../lib/format'
+import { webLink } from '../../lib/links'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 
 /** Why a connect ended without connecting. */
@@ -104,7 +105,7 @@ function Connect({ status, reload }: { status: TraktStatus; reload: () => void }
           help={
             <>
               Enter this code at{' '}
-              <a href={pending.verificationUrl} target="_blank" rel="noreferrer">
+              <a href={webLink(pending.verificationUrl)} target="_blank" rel="noreferrer">
                 {where}
               </a>
               .
