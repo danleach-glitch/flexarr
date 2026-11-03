@@ -7,3 +7,5 @@ local.properties
 captures/
 .externalNativeBuild/
 .cxx/
+# The listing's contact email, copied in by make android-listing (docs/play-store.md)
+/app/src/main/play/contact-email.txt

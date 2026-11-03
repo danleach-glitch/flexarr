@@ -162,8 +162,7 @@ class PlayerActivity : ComponentActivity() {
         setContent {
             FlexarrTheme {
                 if (pictureInPicture == null) {
-                    // Behind the constant, so a release build (which has no TV interface yet) leaves the TV player out.
-                    if (BuildConfig.TV_UI) TvPlayerScreen(controller, onClose = ::finish)
+                    TvPlayerScreen(controller, onClose = ::finish)
                     return@FlexarrTheme
                 }
                 // The corner window keeps the picture's shape, and goes there by itself only while playing.

@@ -174,7 +174,11 @@ android-bundle: tunnel-android ## Build the signed Android app bundle for Google
 	$(ANDROID_GRADLE) :app:bundleRelease
 android-upload: tunnel-android ## Upload the Android app to a Google Play testing track
 	$(ANDROID_GRADLE) -Pflexarr.track=$(TRACK) :app:publishReleaseBundle
+# The listing's contact email is public on Play but kept out of this repo: it's copied in from ~/.flexarr-release.
+PLAY_CONTACT_EMAIL ?= $(HOME)/.flexarr-release/play-contact-email.txt
 android-listing: ## Publish the Android app's Google Play listing
+	@test -f "$(PLAY_CONTACT_EMAIL)" || { echo "Missing $(PLAY_CONTACT_EMAIL) (the listing's contact email; docs/play-store.md)" >&2; exit 1; }
+	cp "$(PLAY_CONTACT_EMAIL)" clients/android/app/src/main/play/contact-email.txt
 	$(ANDROID_GRADLE) :app:publishReleaseListing
 
 docker: ## Build the container image

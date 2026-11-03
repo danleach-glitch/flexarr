@@ -33,7 +33,7 @@ object ErrorReports {
     private const val TAG = "Flexarr.errorreports"
 
     /** What Settings › Server says under the error-reports row. */
-    const val PRIVACY_NOTE = "Set on your server, in Settings › Logs on the web. When on, crashes and errors go to Sentry, the error tracker Flexarr uses: what went wrong and where in the code, the app version, the Android version and phone model, and a random id. Never titles, file names, what you watch, names, addresses or keys."
+    const val PRIVACY_NOTE = "Set on your server, in Settings › Logs on the web. When on, crashes and errors go to Sentry, the error tracker Flexarr uses: what went wrong and where in the code, the app version, the Android version and device model, and a random id. Never titles, file names, what you watch, names, addresses or keys."
 
     private lateinit var context: Context
 

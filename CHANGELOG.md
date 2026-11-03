@@ -88,6 +88,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Look and feel
 - On the Apple TV, the Flexarr name at the foot of the menu shows in full beside the version, rather than cut short.
 
+### Android
+- Flexarr on **Android TV and Google TV**: the Android app now has its TV layout in every build, ready for Google Play. It's laid out like the Apple TV app: Home, your libraries, search, live TV and music, all with the remote.
+- The Android app offers **Restart to update** once Google Play has downloaded a newer version, on phones and TVs.
+
 ## 0.58.0 · 2 November 2026
 
 ### Libraries

@@ -1,6 +1,6 @@
-Flexarr is your own streaming service: the films, TV, music and podcasts you love, on your phone and tablet, with no ads, no tracking and no subscription.
+Flexarr is your own streaming service: the films, TV, music and podcasts you love, on your phone, tablet and TV, with no ads, no tracking and no subscription.
 
-It connects to Flexarr, the free media server you run at home on a Mac, a NAS or any computer. Everyone in the household gets their own profile, with their own Continue Watching and progress, kept in step with Flexarr on the TV and the web.
+It connects to Flexarr, the free media server you run at home on a Mac, a NAS or any computer. Everyone in the household gets their own profile, with their own Continue Watching and progress, kept in step between every screen in the house and the web.
 
 FILMS AND TV
 • Home picks up where you left off, with the next episode ready and what's new in your libraries.
@@ -19,6 +19,10 @@ MUSIC AND PODCASTS
 
 LIVE TV
 • Watch live channels and see what's on next, when your server has a TV source connected.
+
+ON THE TV
+• Flexarr for Android TV and Google TV, laid out for the remote: Home, your libraries, search, live TV and music on the big screen.
+• No typing to sign in: approve the TV from your phone.
 
 AT HOME AND AWAY
 • Finds your server on your home network by itself, and connects from anywhere once remote access is set up.

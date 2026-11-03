@@ -16,6 +16,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- One app for phones and TVs (docs/android-tv.md): phones need a touchscreen, TVs have a remote, and neither is
+         required. -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+
     <!-- On a TV, a trailer opens in the YouTube app: the Trailer button shows only when it's there. -->
     <queries>
         <package android:name="com.google.android.youtube.tv" />
@@ -26,11 +31,12 @@
     </queries>
 
     <!-- Back is predictive (Android 13 on: the screen behind shows as you swipe); every Back goes through Compose's
-         BackHandler, which takes part. The app is upright on phones (MainActivity says so, so tablets can turn); the player turns sideways. Home servers answer over plain http on the local network (network_security_config). The sign-in isn't backed
+         BackHandler, which takes part. The app is upright on phones (MainActivity says so, so tablets and TVs can turn); the player turns sideways. Home servers answer over plain http on the local network (network_security_config). The sign-in isn't backed
          up: its key lives in this device's Keystore and would be no use anywhere else. -->
     <application
         android:name=".FlexarrApplication"
         android:allowBackup="false"
+        android:banner="@drawable/tv_banner"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -61,6 +67,11 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- The TV's launcher, which shows the banner. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
             <!-- flexarr:// links from other apps and the browser, as the iPhone app takes them. AppLink.received keeps
                  them from playing anything or skipping "Who's watching?" by themselves. -->
