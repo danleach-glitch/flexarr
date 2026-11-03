@@ -49,6 +49,11 @@ public static class RequestRequested
 
     private static CancellationTokenSource _changed = new();
 
+    /// <summary>How long a Radarr or Sonarr that didn't answer is left alone.</summary>
+    private static readonly TimeSpan DownFor = TimeSpan.FromMinutes(2);
+
+    private static string DownKey(ArrInstance instance) => $"requested-down:{instance.BaseUrl}";
+
     /// <summary>A request or an unrequest changed what Seerr is waiting for.</summary>
     public static void Forget() => Interlocked.Exchange(ref _changed, new CancellationTokenSource()).Cancel();
 
@@ -98,12 +103,15 @@ public static class RequestRequested
 
         var radarrs = options.Arr.Where(a => a.Kind == ArrKind.Radarr).ToList();
         var sonarrs = options.Arr.Where(a => a.Kind == ArrKind.Sonarr).ToList();
-        // One that doesn't answer (a sleeping NAS) is asked once, not once per title, each waiting out the timeout.
-        var down = new HashSet<ArrInstance>();
+        // One that doesn't answer (a sleeping NAS) is asked once, not once per title, each waiting out the timeout; and
+        // not again for a couple of minutes, or every refresh of the list would wait on it.
+        var wasDown = radarrs.Concat(sonarrs).Where(i => cache.TryGetValue(DownKey(i), out _)).ToList();
+        var down = wasDown.ToHashSet();
         var queues = new Dictionary<ArrInstance, IReadOnlyList<ArrQueueItem>>();
         foreach (var instance in radarrs.Concat(sonarrs).Where(i => titles.Any(t => (t.Type == "movie") == (i.Kind == ArrKind.Radarr))))
         {
-            var queue = await Cached(cache, $"requested-queue:{instance.BaseUrl}", ListsFor, t => arr.GetQueueAsync(instance, t), ct);
+            var queue = down.Contains(instance) ? null
+                : await Cached(cache, $"requested-queue:{instance.BaseUrl}", ListsFor, t => arr.GetQueueAsync(instance, t), ct);
             if (queue is null)
             {
                 down.Add(instance);
@@ -163,6 +171,11 @@ public static class RequestRequested
 
             listed.Add(new TitleRequestedDto(title.Type, title.TmdbId, found.Title, found.Year, found.Poster, found.ReleaseDate, found.State, found.Progress, title.Seasons,
                 itemId));
+        }
+
+        foreach (var instance in down.Except(wasDown)) // from when it first failed, so it's asked again after
+        {
+            cache.Set(DownKey(instance), true, DownFor);
         }
 
         // What's moving first, then what's being looked for, then what's coming (soonest first); as music's.
