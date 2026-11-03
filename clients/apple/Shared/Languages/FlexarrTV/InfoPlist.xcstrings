@@ -1,0 +1,9 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "NSLocalNetworkUsageDescription": {
+      "extractionState": "manual"
+    }
+  },
+  "version": "1.0"
+}

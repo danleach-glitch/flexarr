@@ -147,6 +147,9 @@ def build(now=None, write_check=False):
     rules = plurals.load()
 
     found, scan_errors = scan.scan()
+    import native  # noqa: E402  (the text the operating systems read themselves)
+    for key, scopes in native.collect().items():
+        found.setdefault(key, set()).update(scopes)
     for e in scan_errors:
         problems.append(e)
     english = validate_english(found, problems)
@@ -218,7 +221,6 @@ def build(now=None, write_check=False):
     for folder in (APPLE_PACKS, ANDROID_PACKS, SERVER_PACKS, SITE):
         out[folder / ".gitkeep"] = ""
 
-    import native  # noqa: E402  (the OS-read files; tool-11)
     out.update(native.outputs(found, built, registry))
     return out, problems
 

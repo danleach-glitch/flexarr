@@ -1,0 +1,174 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "Action": {
+      "extractionState": "manual"
+    },
+    "Add a podcast to Up next": {
+      "extractionState": "manual"
+    },
+    "Add to Up next": {
+      "extractionState": "manual"
+    },
+    "Add to watchlist": {
+      "extractionState": "manual"
+    },
+    "As": {
+      "extractionState": "manual"
+    },
+    "Book": {
+      "extractionState": "manual"
+    },
+    "Continue watching": {
+      "extractionState": "manual"
+    },
+    "Control playback": {
+      "extractionState": "manual"
+    },
+    "Device": {
+      "extractionState": "manual"
+    },
+    "Dialogue boost": {
+      "extractionState": "manual"
+    },
+    "From the beginning": {
+      "extractionState": "manual"
+    },
+    "Movie or show": {
+      "extractionState": "manual"
+    },
+    "Movie, show or podcast": {
+      "extractionState": "manual"
+    },
+    "Next episode": {
+      "extractionState": "manual"
+    },
+    "Night mode": {
+      "extractionState": "manual"
+    },
+    "On": {
+      "extractionState": "manual"
+    },
+    "On or off": {
+      "extractionState": "manual"
+    },
+    "Pauses the audiobook playing when its chapter ends.": {
+      "extractionState": "manual"
+    },
+    "Pauses, resumes or stops what Flexarr is playing, skips the intro, moves on to the next episode, or skips back or forward, here or on another device.": {
+      "extractionState": "manual"
+    },
+    "Picks up the book or podcast episode you listened to last.": {
+      "extractionState": "manual"
+    },
+    "Picks up the movie or episode you were in the middle of most recently.": {
+      "extractionState": "manual"
+    },
+    "Play Up next": {
+      "extractionState": "manual"
+    },
+    "Play a book": {
+      "extractionState": "manual"
+    },
+    "Play a movie or show": {
+      "extractionState": "manual"
+    },
+    "Play a podcast's latest episode": {
+      "extractionState": "manual"
+    },
+    "Play a video": {
+      "extractionState": "manual"
+    },
+    "Play the latest episode": {
+      "extractionState": "manual"
+    },
+    "Plays a movie, or the next episode of a show: here, or on another device signed in to your Flexarr server.": {
+      "extractionState": "manual"
+    },
+    "Plays a show's episodes in a random order: here, or on another device signed in to your Flexarr server.": {
+      "extractionState": "manual"
+    },
+    "Plays an audiobook from where you left it.": {
+      "extractionState": "manual"
+    },
+    "Plays the newest episode you haven't heard of a podcast you follow.": {
+      "extractionState": "manual"
+    },
+    "Plays the podcast episodes in your Up next, from the first.": {
+      "extractionState": "manual"
+    },
+    "Podcast": {
+      "extractionState": "manual"
+    },
+    "Profile": {
+      "extractionState": "manual"
+    },
+    "Puts a movie or show on your watchlist, to watch later, whether you have it yet or not.": {
+      "extractionState": "manual"
+    },
+    "Puts the next episode of a podcast you follow at the end of Up next.": {
+      "extractionState": "manual"
+    },
+    "Resume listening": {
+      "extractionState": "manual"
+    },
+    "Says the newest episodes you haven't heard of the podcasts you follow.": {
+      "extractionState": "manual"
+    },
+    "Search Flexarr": {
+      "extractionState": "manual"
+    },
+    "Search for": {
+      "extractionState": "manual"
+    },
+    "Seconds": {
+      "extractionState": "manual"
+    },
+    "Sets how much voices are lifted over music and effects.": {
+      "extractionState": "manual"
+    },
+    "Show": {
+      "extractionState": "manual"
+    },
+    "Shuffle a show": {
+      "extractionState": "manual"
+    },
+    "Skip back": {
+      "extractionState": "manual"
+    },
+    "Skip forward": {
+      "extractionState": "manual"
+    },
+    "Skip intro": {
+      "extractionState": "manual"
+    },
+    "Sleep at the end of the chapter": {
+      "extractionState": "manual"
+    },
+    "Subtitles": {
+      "extractionState": "manual"
+    },
+    "Title": {
+      "extractionState": "manual"
+    },
+    "Turn off subtitles": {
+      "extractionState": "manual"
+    },
+    "Turn on subtitles": {
+      "extractionState": "manual"
+    },
+    "Turns night mode on or off: loud scenes quieter, quiet ones easier to hear.": {
+      "extractionState": "manual"
+    },
+    "Turns subtitles on (in your language where there are some) or off for what's playing, here or on another device.": {
+      "extractionState": "manual"
+    },
+    "What's new in my podcasts": {
+      "extractionState": "manual"
+    },
+    "What's new in podcasts": {
+      "extractionState": "manual"
+    }
+  },
+  "version": "1.0"
+}

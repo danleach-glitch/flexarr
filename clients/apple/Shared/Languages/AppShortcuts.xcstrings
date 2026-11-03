@@ -1,0 +1,147 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "${action} ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "${action} in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "${action} playback in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "${applicationName} ${action}": {
+      "extractionState": "manual"
+    },
+    "${applicationName} save ${title}": {
+      "extractionState": "manual"
+    },
+    "${applicationName} save ${title} for later": {
+      "extractionState": "manual"
+    },
+    "Add ${podcast} to Up Next in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Add ${podcast} to my Up Next in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Add ${title} to ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Add something to my ${applicationName} watchlist": {
+      "extractionState": "manual"
+    },
+    "Add to my watchlist in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Any new podcasts in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Ask ${applicationName} to ${action}": {
+      "extractionState": "manual"
+    },
+    "Continue listening in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Continue watching in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Continue watching with ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Night mode ${state} in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Pick up where I left off in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Play ${title} in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Play ${title} on shuffle in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Play ${title} with ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Play something in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Play the latest ${podcast} in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Play the latest episode of ${podcast} in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Play the newest ${podcast} in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Play the next ${title} episode in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Play the next ${title} in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Play the next episode of ${title} in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Put on ${title} in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Resume listening in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Resume my audiobook in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Resume my book in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Resume my podcast in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Resume what I was watching in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Save ${title} for later in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Save ${title} in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Save something in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Shuffle ${title} in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Shuffle ${title} with ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Shuffle a show in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Shuffle episodes of ${title} in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Turn ${state} night mode in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Turn on subtitles …": {
+      "extractionState": "manual"
+    },
+    "Use ${applicationName} to ${action}": {
+      "extractionState": "manual"
+    },
+    "Watch ${title} in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "What's new in my ${applicationName} podcasts": {
+      "extractionState": "manual"
+    },
+    "What's new in my podcasts in ${applicationName}": {
+      "extractionState": "manual"
+    }
+  },
+  "version": "1.0"
+}
