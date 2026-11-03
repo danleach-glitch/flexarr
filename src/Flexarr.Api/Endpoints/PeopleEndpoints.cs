@@ -5,6 +5,7 @@ using Flexarr.Core.Media;
 using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -70,7 +71,7 @@ public static class PeopleEndpoints
                 var found = await FindCandidatesAsync(person, authors, memory, ct);
                 if (found.Photos.FirstOrDefault(p => p.Source == source) is not { Image: { } image })
                 {
-                    return Results.Problem("That photo’s gone. Choose again.", statusCode: 409);
+                    return Problems.Of("That photo’s gone. Choose again.", status: 409);
                 }
 
                 PersonSources.SetPhoto(person, image, source == AuthorInfo.Current ? person.PhotoSource : source, now);
@@ -129,12 +130,12 @@ public static class PeopleEndpoints
 
             if (http.ContentLength is not > 0 || http.ContentLength > PersonImages.MaxUploadBytes)
             {
-                return Results.Problem("Photos can be up to 10 MB.", statusCode: 413);
+                return Problems.Of("Photos can be up to 10 MB.", status: 413);
             }
 
             if (!await images.SaveAsync(id, http.Body, ct))
             {
-                return Results.Problem("That file isn't a picture Flexarr can read. Try a JPEG or PNG.", statusCode: 400);
+                return Problems.Of("That file isn't a picture Flexarr can read. Try a JPEG or PNG.", status: 400);
             }
 
             // Always a new ?v=: the file is replaced in place, so the URL alone wouldn't change.

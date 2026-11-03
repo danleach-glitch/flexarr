@@ -8,6 +8,7 @@ using Flexarr.Integrations.Arr;
 using Flexarr.Integrations.Arr.Webhooks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -60,7 +61,7 @@ public static class WebhookEndpoints
                 var requests = ArrWebhookTranslator.ToScanRequests(kind, payload);
                 if (requests.Any(r => PathComparison.HasControlCharacters(r.Path)))
                 {
-                    return Results.Problem("A path in the webhook holds a control, line-separator or text-direction character.", statusCode: 400);
+                    return Problems.Of("A path in the webhook holds a control, line-separator or text-direction character.", status: 400);
                 }
 
                 var mappings = options.CurrentValue.PathMappings;

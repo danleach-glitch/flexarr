@@ -7,6 +7,7 @@ using Flexarr.Core.Paths;
 using Flexarr.Core.Scanning;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -47,7 +48,7 @@ public static class LibraryEndpoints
         {
             if (request.Type == LibraryType.Podcasts)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["type"] = ["Podcasts are built in: their folder is in Settings › Libraries."] });
+                return Problems.Field("Podcasts are built in: their folder is in Settings › Libraries.", field: "type");
             }
 
             if (await ValidateAsync(request, null, db, ct) is { } problem)
@@ -80,7 +81,7 @@ public static class LibraryEndpoints
 
             if (request.Type != library.Type)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["type"] = ["A library's type can't be changed."] });
+                return Problems.Field("A library's type can't be changed.", field: "type");
             }
 
             if (await ValidateAsync(request, id, db, ct) is { } problem)
@@ -131,7 +132,7 @@ public static class LibraryEndpoints
             await db.Libraries.IgnoreQueryFilters().Where(l => l.Id == id).Select(l => (LibraryType?)l.Type).FirstOrDefaultAsync(ct) switch
             {
                 null => Results.NotFound(),
-                LibraryType.Podcasts => Results.ValidationProblem(new Dictionary<string, string[]> { ["type"] = ["Podcasts can't be removed."] }),
+                LibraryType.Podcasts => Problems.Field("Podcasts can't be removed.", field: "type"),
                 _ => await db.Libraries.IgnoreQueryFilters().Where(l => l.Id == id).ExecuteDeleteAsync(ct) > 0 ? Results.NoContent() : Results.NotFound(),
             })
             .RequireAuthorization(FlexarrClaims.AdminPolicy);

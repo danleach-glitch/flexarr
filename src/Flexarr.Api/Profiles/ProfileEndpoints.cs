@@ -9,6 +9,7 @@ using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Profiles;
 
@@ -194,26 +195,26 @@ public static partial class ProfileEndpoints
         {
             if (current.IsGuest)
             {
-                return Results.Problem("A guest's device stays on the profile it was invited to.", statusCode: 403);
+                return Problems.Of("A guest's device stays on the profile it was invited to.", status: 403);
             }
 
             if (current.SignInId is not { } signInId)
             {
-                return Results.Problem("Child lock needs a browser or device that's signed in.", statusCode: 409);
+                return Problems.Of("Child lock needs a browser or device that's signed in.", status: 409);
             }
 
             var kids = await db.Profiles.AsNoTracking().Where(p => p.IsKids).OrderBy(p => p.CreatedAt).ToListAsync(ct);
             var chosen = request.ProfileId is { } wanted ? kids.FirstOrDefault(p => p.Id == wanted) : kids.FirstOrDefault(p => p.Id == current.Id) ?? kids.FirstOrDefault();
             if (chosen is null)
             {
-                return request.ProfileId is null ? Results.Problem("Add a kids profile first.", statusCode: 409) : Results.NotFound();
+                return request.ProfileId is null ? Problems.Of("Add a kids profile first.", status: 409) : Results.NotFound();
             }
 
             // Locked already, moving to another kids profile goes through Who's watching, which asks for whatever PIN it takes.
             var alreadyLocked = signIns.ById(signInId)?.KidsLock == true;
             if (alreadyLocked && chosen.Id != current.Id)
             {
-                return Results.Problem($"Choose {chosen.Name} in Who’s watching.", statusCode: 409);
+                return Problems.Of("Choose {name} in Who’s watching.", new { name = chosen.Name }, status: 409);
             }
 
             // The main profile turns it on without its PIN (turning it off takes it); anyone else needs it, so nobody
@@ -238,7 +239,7 @@ public static partial class ProfileEndpoints
             // A family guest has no say over anyone's PIN, and no tries at the admin PIN to spend.
             if (current.IsGuest)
             {
-                return Results.Problem("Guests can't change PINs.", statusCode: 403);
+                return Problems.Of("Guests can't change PINs.", status: 403);
             }
 
             if (await db.Profiles.FindAsync([id], ct) is not { } profile)
@@ -293,7 +294,7 @@ public static partial class ProfileEndpoints
         {
             if (id != current.Id && !current.IsAdmin)
             {
-                return Results.Problem("Only the main profile can choose for someone else.", statusCode: 403);
+                return Problems.Of("Only the main profile can choose for someone else.", status: 403);
             }
 
             if (await db.Profiles.FindAsync([id], ct) is not { } profile)
@@ -340,7 +341,7 @@ public static partial class ProfileEndpoints
         {
             if (id != current.Id && !current.IsAdmin)
             {
-                return Results.Problem("Only the main profile can choose for someone else.", statusCode: 403);
+                return Problems.Of("Only the main profile can choose for someone else.", status: 403);
             }
 
             if (await db.Profiles.FindAsync([id], ct) is not { } profile)
@@ -350,7 +351,7 @@ public static partial class ProfileEndpoints
 
             if (request.LibraryId is { } chosen && !await db.Libraries.IgnoreQueryFilters().AnyAsync(l => l.Id == chosen && l.Type == LibraryType.Music, ct))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["libraryId"] = ["That isn’t a music library."] });
+                return Problems.Field("That isn’t a music library.", field: "libraryId");
             }
 
             if (request.LibraryId is { } music && profile.HiddenLibraryIds.Contains(music))
@@ -380,12 +381,12 @@ public static partial class ProfileEndpoints
         {
             if (id != current.Id && !current.IsAdmin)
             {
-                return Results.Problem("Only the main profile can choose for someone else.", statusCode: 403);
+                return Problems.Of("Only the main profile can choose for someone else.", status: 403);
             }
 
             if (request.Order is null || request.Order.Count > 500 || request.Order.Any(e => string.IsNullOrWhiteSpace(e) || e.Length > 64))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["order"] = ["List the libraries by id."] });
+                return Problems.Field("List the libraries by id.", field: "order");
             }
 
             if (await db.Profiles.FindAsync([id], ct) is not { } profile)
@@ -403,12 +404,12 @@ public static partial class ProfileEndpoints
         {
             if (id != current.Id && !current.IsAdmin)
             {
-                return Results.Problem("Only the main profile can choose for someone else.", statusCode: 403);
+                return Problems.Of("Only the main profile can choose for someone else.", status: 403);
             }
 
             if (await db.Profiles.AsNoTracking().AnyAsync(p => p.Id == id && p.IsKids, ct))
             {
-                return Results.Problem("A kids profile has the standard menu.", statusCode: 403);
+                return Problems.Of("A kids profile has the standard menu.", status: 403);
             }
 
             if (request.Hidden is null || request.Hidden.Any(h => !NavigationRequest.Items.Contains(h)))
@@ -431,7 +432,7 @@ public static partial class ProfileEndpoints
         {
             if (id == PlaybackState.DefaultUser)
             {
-                return Results.Problem("The main profile can't be removed.", statusCode: 409);
+                return Problems.Of("The main profile can't be removed.", status: 409);
             }
 
             // A device locked to it would be left as nobody in particular: it moves to another kids profile, if there is one.
@@ -465,12 +466,12 @@ public static partial class ProfileEndpoints
 
             if (http.ContentLength is not > 0 || http.ContentLength > ProfileImages.MaxUploadBytes)
             {
-                return Results.Problem("Pictures can be up to 15 MB.", statusCode: 413);
+                return Problems.Of("Pictures can be up to 15 MB.", status: 413);
             }
 
             if (!await images.SaveAsync(id, http.Body, ct))
             {
-                return Results.Problem("That file isn't a picture Flexarr can read. Try a JPEG or PNG.", statusCode: 400);
+                return Problems.Of("That file isn't a picture Flexarr can read. Try a JPEG or PNG.", status: 400);
             }
 
             profile.ImageUpdatedAt = DateTime.UtcNow;
@@ -504,7 +505,7 @@ public static partial class ProfileEndpoints
             // A family guest keeps the profile its invite gave it.
             if (current.IsGuest && profile.Id != current.Id)
             {
-                return Results.Problem("Guests stay on the profile they were invited to.", statusCode: 403);
+                return Problems.Of("Guests stay on the profile they were invited to.", status: 403);
             }
 
             // Child lock is what keeps a child in kids profiles: a device with it on offers nothing else, and only the admin
@@ -522,7 +523,7 @@ public static partial class ProfileEndpoints
             var adminPinOnly = profile.IsMain && current.TakesAdminPinForMain;
             if (adminPinOnly && profile.AdminPinHash is null)
             {
-                return Results.Problem("The main profile can only be chosen here once there's an admin PIN.", statusCode: 403);
+                return Problems.Of("The main profile can only be chosen here once there's an admin PIN.", status: 403);
             }
 
             var pinGiven = !string.IsNullOrEmpty(request.Pin);
@@ -718,22 +719,22 @@ public static partial class ProfileEndpoints
     {
         if (request.MaxRatingAge is { } age && !RatingAges.Steps.Contains(age))
         {
-            return Results.ValidationProblem(new Dictionary<string, string[]> { ["maxRatingAge"] = ["An age limit is U (0), PG (8), 12, 15 or 18."] });
+            return Problems.Field("An age limit is U (0), PG (8), 12, 15 or 18.", field: "maxRatingAge");
         }
 
         if (request.IsKids && request.MaxRatingAge is null)
         {
-            return Results.ValidationProblem(new Dictionary<string, string[]> { ["maxRatingAge"] = ["A kids profile needs an age limit."] });
+            return Problems.Field("A kids profile needs an age limit.", field: "maxRatingAge");
         }
 
         if (isMain && (request.IsKids || request.MaxRatingAge is not null))
         {
-            return Results.Problem("The main profile can't have an age limit: it manages the server.", statusCode: 409);
+            return Problems.Of("The main profile can't have an age limit: it manages the server.", status: 409);
         }
 
         if (request.IsKids && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.AdminPinHash == null, ct))
         {
-            return Results.Problem("Choose an admin PIN first: it's what keeps children in their profiles.", statusCode: 409);
+            return Problems.Of("Choose an admin PIN first: it's what keeps children in their profiles.", status: 409);
         }
 
         return null;

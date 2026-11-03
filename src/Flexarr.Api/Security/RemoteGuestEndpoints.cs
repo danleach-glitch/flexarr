@@ -4,6 +4,7 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Security;
 
@@ -76,7 +77,7 @@ public static class RemoteGuestEndpoints
                 : id == settings.RemoteGuests.ClientId ? settings.RemoteGuests.ClientSecret : "";
             if (id.Length > 0 && secret.Length == 0)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["clientSecret"] = ["Paste the client's secret too."] });
+                return Problems.Field("Paste the client's secret too.", field: "clientSecret");
             }
 
             // Tried before it's kept: a client Tailscale refuses, or one that can do more than Flexarr needs, never stays.
@@ -159,7 +160,7 @@ public static class RemoteGuestEndpoints
         {
             if (GuestTvCodes.Normalize(request.Code) is not { } code)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["code"] = ["Type the 8 letters and numbers their device shows."] });
+                return Problems.Field("Type the 8 letters and numbers their device shows.", field: "code");
             }
 
             var (profile, owner, problem) = await ProfileForInviteAsync(db, request.ProfileId, ct);
@@ -173,7 +174,7 @@ public static class RemoteGuestEndpoints
             {
                 if (await tvCodes.TvKeyAsync(code, ct) is not { } tvKey)
                 {
-                    return Results.Problem("That code isn’t showing on any device. Codes change every 10 minutes: check the one on their screen now.", statusCode: 404);
+                    return Problems.Of("That code isn’t showing on any device. Codes change every 10 minutes: check the one on their screen now.", status: 404);
                 }
 
                 (invite, var payload) = await invites.CreateAsync(request.Name, profile!.Id, profile.Name, owner, InviteVia.TvCode, ct);
@@ -185,8 +186,7 @@ public static class RemoteGuestEndpoints
                 {
                     // It may have reached the relay (and the TV): kept, so its key still works; it goes by itself after
                     // GuestInvites.CodeLifetime if nobody uses it.
-                    return Results.Problem("Flexarr's relay was slow to answer. If their screen asks to join, that's it; if not, try again.",
-                        statusCode: 502);
+                    return Problems.Of("Flexarr's relay was slow to answer. If their screen asks to join, that's it; if not, try again.", status: 502);
                 }
 
                 return Results.Ok(ToDto(invite, new Dictionary<string, string> { [profile.Id] = profile.Name }));
@@ -209,7 +209,7 @@ public static class RemoteGuestEndpoints
                     await invites.CancelAsync(invite.Id, CancellationToken.None);
                 }
 
-                return Results.Problem("Couldn't reach Flexarr's relay. Try again in a minute.", statusCode: 502);
+                return Problems.Of("Couldn't reach Flexarr's relay. Try again in a minute.", status: 502);
             }
             catch (OperationCanceledException) when (invite is not null)
             {
@@ -234,7 +234,7 @@ public static class RemoteGuestEndpoints
             int? port = request.Enabled ? request.Port ?? settings.RemoteGuests.RelayPort ?? DefaultRelayPort : null;
             if (port is < 1024 or > 65535)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["port"] = ["Choose a port from 1024 to 65535."] });
+                return Problems.Field("Choose a port from 1024 to 65535.", field: "port");
             }
 
             if (await tailnet.SetRelayPortAsync(port, ct) is { } problem)
@@ -274,12 +274,12 @@ public static class RemoteGuestEndpoints
             // Only a guest device on the tailnet: the invite's key put it there, tagged, so it can reach nothing else.
             if (await GuestDevices.AddressOfAsync(http, whois, settings) is not { } address)
             {
-                return Results.Problem("An invite can only be used by the app that joined with it.", statusCode: 403);
+                return Problems.Of("An invite can only be used by the app that joined with it.", status: 403);
             }
 
             if (!(await policy.CheckAsync(ct)).Safe)
             {
-                return Results.Problem("Family invites are paused on this server. Ask its owner to check Settings › Remote access.", statusCode: 503);
+                return Problems.Of("Family invites are paused on this server. Ask its owner to check Settings › Remote access.", status: 503);
             }
 
             try
@@ -312,12 +312,12 @@ public static class RemoteGuestEndpoints
         var profile = profiles.FirstOrDefault(p => p.Id == profileId);
         if (profile is null)
         {
-            return (null, owner, Results.ValidationProblem(new Dictionary<string, string[]> { ["profileId"] = ["Choose one of your profiles."] }));
+            return (null, owner, Problems.Field("Choose one of your profiles.", field: "profileId"));
         }
 
         if (profile.Id == PlaybackState.DefaultUser)
         {
-            return (null, owner, Results.ValidationProblem(new Dictionary<string, string[]> { ["profileId"] = ["Guests can't have the main profile. Make them a profile of their own."] }));
+            return (null, owner, Problems.Field("Guests can't have the main profile. Make them a profile of their own.", field: "profileId"));
         }
 
         return (profile, owner, null);

@@ -8,6 +8,7 @@ using Flexarr.Core.Paths;
 using Flexarr.Core.Scanning;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -64,7 +65,7 @@ public static class MediaBrowserEndpoints
             var updates = request.Updates.Where(u => !string.IsNullOrWhiteSpace(u.Path)).ToList();
             if (updates.Any(u => PathComparison.HasControlCharacters(u.Path) || u.UpdateType is { } type && PathComparison.HasControlCharacters(type)))
             {
-                return Results.Problem("A path in the update holds a control, line-separator or text-direction character.", statusCode: 400);
+                return Problems.Of("A path in the update holds a control, line-separator or text-direction character.", status: 400);
             }
 
             foreach (var update in updates)

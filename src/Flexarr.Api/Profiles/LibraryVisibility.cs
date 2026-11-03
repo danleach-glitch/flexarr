@@ -3,6 +3,7 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Profiles;
 
@@ -58,7 +59,7 @@ public static class LibraryVisibility
     {
         builder.AddEndpointFilter(async (context, next) =>
             context.HttpContext.RequestServices.GetRequiredService<FlexarrDbContext>().IsLimited()
-                ? Results.Problem("That isn't available on a profile with an age limit.", statusCode: 403)
+                ? Problems.Of("That isn't available on a profile with an age limit.", status: 403)
                 : await next(context));
         return builder;
     }
@@ -71,7 +72,7 @@ public static class LibraryVisibility
     {
         builder.AddEndpointFilter(async (context, next) =>
             context.HttpContext.RequestServices.GetRequiredService<FlexarrDbContext>().ServesKids
-                ? Results.Problem("That isn't available on a kids profile.", statusCode: 403)
+                ? Problems.Of("That isn't available on a kids profile.", status: 403)
                 : await next(context));
         return builder;
     }

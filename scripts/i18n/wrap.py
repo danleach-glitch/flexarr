@@ -3,7 +3,10 @@
 Only the safe shapes are changed; everything else it finds is listed for doing by hand (plurals, sentences built from
 pieces, interpolation).
 
-    python3 scripts/i18n/wrap.py ts|swift|kotlin <file or folder>... [--dry-run]
+    python3 scripts/i18n/wrap.py cs|ts|swift|kotlin <file or folder>... [--dry-run]
+
+cs:     Results.Problem("…"/$"…", statusCode: …) as Problems.Of, and one-message ValidationProblems as
+        Problems.Field, naming each interpolated value after its variable or property.
 
 ts:     JSX text that is an element's whole content, and aria-label/title/placeholder/alt/label/help/description
         attributes with a plain string.
@@ -99,7 +102,168 @@ def wrap_kotlin(src):
     return out, manual
 
 
-WRAPPERS = {"ts": (wrap_ts, (".tsx", ".ts")), "swift": (wrap_swift, (".swift",)), "kotlin": (wrap_kotlin, (".kt",))}
+# ---- C# -----------------------------------------------------------------------------------------------------------
+
+CS_PROBLEM = re.compile(r"\bResults\.Problem\(\s*(?=\$?\")")
+CS_FIELD = re.compile(r"\bResults\.ValidationProblem\(\s*new Dictionary<string, string\[\]>\s*\{\s*\[\"(\w+)\"\]\s*=\s*\[\s*(?=\$?\")")
+CS_STATUS = re.compile(r"\s*(?:,\s*statusCode:\s*(StatusCodes\.\w+|\d{3}))?\s*\)")
+
+
+def cs_literal(src, pos):
+    """(segments, end) for the C# string literal at pos: segments are ('text', str) and ('hole', expr). None when
+    it's a shape this doesn't handle (verbatim, raw, format specifiers)."""
+    interp = src[pos] == "$"
+    if interp:
+        pos += 1
+    if src[pos] != '"' or src.startswith('"""', pos):
+        return None
+    i, text, segs = pos + 1, [], []
+    esc = {"n": "\n", "t": "\t", '"': '"', "\\": "\\", "'": "'", "0": "\0"}
+    while i < len(src):
+        c = src[i]
+        if c == '"':
+            if text:
+                segs.append(("text", "".join(text)))
+            return segs, i + 1
+        if c == "\\":
+            nxt = src[i + 1]
+            if nxt == "u":
+                text.append(chr(int(src[i + 2:i + 6], 16)))
+                i += 6
+                continue
+            if nxt not in esc:
+                return None
+            text.append(esc[nxt])
+            i += 2
+            continue
+        if interp and c == "{":
+            if src.startswith("{{", i):
+                text.append("{")
+                i += 2
+                continue
+            depth, j = 1, i + 1
+            while j < len(src) and depth:
+                if src[j] == "{":
+                    depth += 1
+                elif src[j] == "}":
+                    depth -= 1
+                elif src[j] == '"':
+                    return None
+                j += 1
+            if text:
+                segs.append(("text", "".join(text)))
+                text = []
+            segs.append(("hole", src[i + 1:j - 1].strip()))
+            i = j
+            continue
+        if interp and src.startswith("}}", i):
+            text.append("}")
+            i += 2
+            continue
+        if c == "\n":
+            return None
+        text.append(c)
+        i += 1
+    return None
+
+
+def cs_name(expr):
+    if re.fullmatch(r"[A-Za-z_]\w*", expr):
+        return expr[0].lower() + expr[1:]
+    if re.fullmatch(r"[A-Za-z_][\w.]*\w", expr):
+        segs = expr.split(".")
+        last = segs[-1]
+        if last in ("Count", "Length") and len(segs) > 1:
+            last = segs[-2] + "Count"
+        return last[0].lower() + last[1:]
+    return None
+
+
+def cs_icu(segs):
+    """(ICU English, [(name, expr)]) or None when a hole can't be named."""
+    out, values = [], []
+    for idx, (kind, value) in enumerate(segs):
+        if kind == "text":
+            before_hole = idx + 1 < len(segs) and segs[idx + 1][0] == "hole"
+            t = []
+            for k, ch in enumerate(value):
+                nxt = value[k + 1] if k + 1 < len(value) else ("{" if before_hole else "")
+                if ch in "{}":
+                    t.append(f"'{ch}'")
+                elif ch == "'" and nxt in ("{", "}"):
+                    t.append("''")
+                else:
+                    t.append(ch)
+            out.append("".join(t))
+        else:
+            name = cs_name(value)
+            if name is None:
+                return None
+            known = dict(values)
+            if name in known and known[name] != value:
+                return None
+            if name not in known:
+                values.append((name, value))
+            out.append("{" + name + "}")
+    return "".join(out), values
+
+
+def cs_quote(s):
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") + '"'
+
+
+def cs_args(values):
+    if not values:
+        return ""
+    parts = [n if n == e else f"{n} = {e}" for n, e in values]
+    return ", new { " + ", ".join(parts) + " }"
+
+
+def wrap_cs(src):
+    import icu
+    manual, out, pos = [], [], 0
+    for m in sorted(list(CS_PROBLEM.finditer(src)) + list(CS_FIELD.finditer(src)), key=lambda m: m.start()):
+        if m.start() < pos:
+            continue
+        line = src.count("\n", 0, m.start()) + 1
+        lit = cs_literal(src, m.end())
+        conv = cs_icu(lit[0]) if lit else None
+        if conv:
+            try:
+                icu.parse(conv[0])
+            except icu.MessageError:
+                conv = None
+        if not conv:
+            manual.append((line, "a message this can't convert: use Problems.Of / Problems.Field by hand"))
+            continue
+        english, values = conv
+        end = lit[1]
+        if m.re is CS_FIELD:
+            tail = re.match(r"\s*\]\s*\}\s*\)", src[end:])
+            if not tail:
+                manual.append((line, "a validation answer with more than one message"))
+                continue
+            args = cs_args(values).replace(", new", ", args: new") if values else ""
+            new = f'Problems.Field({cs_quote(english)}, field: "{m.group(1)}"{args})'
+        else:
+            tail = CS_STATUS.match(src[end:])
+            if not tail:
+                manual.append((line, "Results.Problem with other arguments"))
+                continue
+            status = tail.group(1) or "500"
+            new = f"Problems.Of({cs_quote(english)}{cs_args(values)}, status: {status})"
+        out.append(src[pos:m.start()])
+        out.append(new)
+        pos = end + tail.end()
+    out.append(src[pos:])
+    result = "".join(out)
+    if result != src and "using Flexarr.Api.Localization;" not in result and "namespace Flexarr.Api.Localization" not in result:
+        result = re.sub(r"^(namespace )", "using Flexarr.Api.Localization;\n\n\\1", result, count=1, flags=re.M) \
+            if not re.search(r"^using ", result, re.M) else re.sub(r"^(using [^\n]+\n)(?!using )", "\\1using Flexarr.Api.Localization;\n", result, count=1, flags=re.M)
+    return result, manual
+
+
+WRAPPERS = {"cs": (wrap_cs, (".cs",)), "ts": (wrap_ts, (".tsx", ".ts")), "swift": (wrap_swift, (".swift",)), "kotlin": (wrap_kotlin, (".kt",))}
 
 
 def main(argv):
@@ -116,7 +280,7 @@ def main(argv):
         files += sorted(q for q in p.rglob("*") if q.suffix in suffixes) if p.is_dir() else [p]
     changed = 0
     for f in files:
-        if re.search(r"\.(test|generated)\.|Tests/|/test/", f.as_posix()):
+        if re.search(r"\.(test|generated)\.|Tests/|/test/|/Migrations/", f.as_posix()):
             continue
         src = f.read_text(encoding="utf-8")
         out, manual = fn(src)

@@ -5,6 +5,7 @@ using Flexarr.Api.Updates;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Security;
 
@@ -97,7 +98,7 @@ public static class RemoteAccessEndpoints
             var error = toggle.Enabled ? await tailscale.EnableAsync(port, ct) : await tailscale.DisableAsync(ct);
             if (error is not null)
             {
-                return Results.Problem($"Tailscale said: {error}", statusCode: 502);
+                return Problems.Of("Tailscale said: {error}", new { error }, status: 502);
             }
 
             // First time on: your own Tailscale account signs in as the main profile.
@@ -117,7 +118,7 @@ public static class RemoteAccessEndpoints
             // Tagged devices (family guests among them) all share this login: linking it would give every one a profile.
             if (string.Equals(request.Login.Trim(), "tagged-devices", StringComparison.OrdinalIgnoreCase))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["login"] = ["Tagged devices can't be linked to a profile. Invite guests from Family invites instead."] });
+                return Problems.Field("Tagged devices can't be linked to a profile. Invite guests from Family invites instead.", field: "login");
             }
 
             // One profile per Tailscale account: unlink it wherever it was first.

@@ -10,6 +10,7 @@ using Flexarr.Core.Notifications;
 using Flexarr.Integrations.Arr;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -254,12 +255,12 @@ public static partial class RequestEndpoints
 
             if (options.CurrentValue.Seerr?.Instance is not { } instance)
             {
-                return Results.Problem("Requests need a Seerr server. Add one under Settings › Connections.", statusCode: 409);
+                return Problems.Of("Requests need a Seerr server. Add one under Settings › Connections.", status: 409);
             }
 
             if (request.MediaType is not ("movie" or "tv"))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["mediaType"] = ["Use \"movie\" or \"tv\"."] });
+                return Problems.Field("Use \"movie\" or \"tv\".", field: "mediaType");
             }
 
             try
@@ -311,7 +312,7 @@ public static partial class RequestEndpoints
 
             return await RequestRequested.ListAsync(instance, seerr, arr, options.CurrentValue, db, cache, library, ct) is { } listed
                 ? Results.Ok(listed)
-                : Results.Problem("Seerr isn't answering. Try again later.", statusCode: 502);
+                : Problems.Of("Seerr isn't answering. Try again later.", status: 502);
         });
 
         // Take a film or show request back, for the household: Seerr's request goes, Radarr or Sonarr stop wanting it.
@@ -320,7 +321,7 @@ public static partial class RequestEndpoints
         {
             if (body.MediaType is not ("movie" or "tv"))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["mediaType"] = ["Use \"movie\" or \"tv\"."] });
+                return Problems.Field("Use \"movie\" or \"tv\".", field: "mediaType");
             }
 
             if ((await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(KindOf(body.MediaType)))
@@ -330,7 +331,7 @@ public static partial class RequestEndpoints
 
             if (options.CurrentValue.Seerr?.Instance is not { } instance)
             {
-                return Results.Problem("Requests need a Seerr server. Add one under Settings › Connections.", statusCode: 409);
+                return Problems.Of("Requests need a Seerr server. Add one under Settings › Connections.", status: 409);
             }
 
             if (MusicRequestEndpoints.UndoRefused(current, cache, "Guests can't undo requests.") is { } refused)
@@ -348,8 +349,8 @@ public static partial class RequestEndpoints
                 var status = (int?)(ex.InnerException as HttpRequestException)?.StatusCode;
                 LogUndoRefused(loggers.CreateLogger("Flexarr.Requests"), ex.InnerException!, ex.Service, status);
                 return status is >= 400 and < 500
-                    ? Results.Problem($"{ex.Service} turned that down.", statusCode: 502)
-                    : Results.Problem($"{ex.Service} isn't answering. Try again later.", statusCode: 502);
+                    ? Problems.Of("{service} turned that down.", new { service = ex.Service }, status: 502)
+                    : Problems.Of("{service} isn't answering. Try again later.", new { service = ex.Service }, status: 502);
             }
         });
 

@@ -10,6 +10,7 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Devices;
 
@@ -124,16 +125,15 @@ public static class DeviceEndpoints
 
             if (request.IsEmpty)
             {
-                return Results.Problem("Say what to change: dialogueBoost, nightMode or speakers.", statusCode: StatusCodes.Status400BadRequest);
+                return Problems.Of("Say what to change: dialogueBoost, nightMode or speakers.", status: StatusCodes.Status400BadRequest);
             }
 
             return SetSound(id, request, signIns, commands, current) switch
             {
                 null => Results.NotFound(),
                 { Delivered: true } result => Results.Ok(result),
-                { } result when commands.IsOnline(id) => Results.Problem($"The Flexarr app on {result.DeviceName} can't do that yet: update it.",
-                    statusCode: StatusCodes.Status409Conflict),
-                { } result => Results.Problem($"Flexarr isn't open on {result.DeviceName}.", statusCode: StatusCodes.Status409Conflict),
+                { } result when commands.IsOnline(id) => Problems.Of("The Flexarr app on {deviceName} can't do that yet: update it.", new { deviceName = result.DeviceName }, status: StatusCodes.Status409Conflict),
+                { } result => Problems.Of("Flexarr isn't open on {deviceName}.", new { deviceName = result.DeviceName }, status: StatusCodes.Status409Conflict),
             };
         });
 
@@ -158,24 +158,24 @@ public static class DeviceEndpoints
         group.MapPost("/{id}/seek", (string id, DeviceSeekRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
             double.IsFinite(request.PositionSeconds) && request.PositionSeconds >= 0
                 ? Remote(id, DeviceCommandKind.Seek, signIns, commands, current, seconds: request.PositionSeconds)
-                : Results.Problem("Say where to go, in seconds from the start.", statusCode: StatusCodes.Status400BadRequest));
+                : Problems.Of("Say where to go, in seconds from the start.", status: StatusCodes.Status400BadRequest));
         group.MapPost("/{id}/skip", (string id, DeviceSkipRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
             double.IsFinite(request.Seconds) && request.Seconds != 0
                 ? Remote(id, DeviceCommandKind.Skip, signIns, commands, current, seconds: request.Seconds)
-                : Results.Problem("Say how many seconds to jump: negative goes back.", statusCode: StatusCodes.Status400BadRequest));
+                : Problems.Of("Say how many seconds to jump: negative goes back.", status: StatusCodes.Status400BadRequest));
         group.MapPost("/{id}/audio", (string id, DeviceTrackRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
             request.TrackId is not { Length: > 0 and <= MaxTrackId }
-                ? Results.Problem("Say which soundtrack.", statusCode: StatusCodes.Status400BadRequest)
+                ? Problems.Of("Say which soundtrack.", status: StatusCodes.Status400BadRequest)
                 : Remote(id, DeviceCommandKind.AudioTrack, signIns, commands, current, trackId: request.TrackId));
         group.MapPost("/{id}/subtitles", (string id, DeviceTrackRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
             request.TrackId is { Length: > MaxTrackId }
-                ? Results.Problem("That isn't one of the player's subtitles.", statusCode: StatusCodes.Status400BadRequest)
+                ? Problems.Of("That isn't one of the player's subtitles.", status: StatusCodes.Status400BadRequest)
                 : Remote(id, DeviceCommandKind.SubtitleTrack, signIns, commands, current, trackId: string.IsNullOrEmpty(request.TrackId) ? null : request.TrackId));
         // Past 2× only for a book: apps play films and episodes no faster.
         group.MapPost("/{id}/rate", (string id, DeviceRateRequest request, SignIns signIns, DeviceCommands commands, PlaybackSessions sessions, CurrentProfile current) =>
             request.Rate is >= 0.5 and <= 2 || (request.Rate is > 2 and <= 3.5 && PlayingBook(sessions, id))
                 ? Remote(id, DeviceCommandKind.Rate, signIns, commands, current, rate: request.Rate)
-                : Results.Problem("The speed is between 0.5 and 2 (3.5 for an audiobook).", statusCode: StatusCodes.Status400BadRequest));
+                : Problems.Of("The speed is between 0.5 and 2 (3.5 for an audiobook).", status: StatusCodes.Status400BadRequest));
         group.MapPost("/{id}/sleep", (string id, DeviceSleepRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
             Sleep(id, request, signIns, commands, current));
         foreach (var (path, kind) in new[] { ("next", DeviceCommandKind.Next), ("previous", DeviceCommandKind.Previous), ("skip-segment", DeviceCommandKind.SkipSegment) })
@@ -199,24 +199,24 @@ public static class DeviceEndpoints
 
             if (!LiveActivities.IsToken(request.Token) || request.Environment is not ("production" or "sandbox") || request.ItemId == Guid.Empty)
             {
-                return Results.Problem("Send the activity's push token (hex) and environment (production or sandbox).", statusCode: StatusCodes.Status400BadRequest);
+                return Problems.Of("Send the activity's push token (hex) and environment (production or sandbox).", status: StatusCodes.Status400BadRequest);
             }
 
             if (!relay.IsEnabled)
             {
-                return Results.Problem("Notifications are turned off on this server.", statusCode: StatusCodes.Status409Conflict);
+                return Problems.Of("Notifications are turned off on this server.", status: StatusCodes.Status409Conflict);
             }
 
             // Only a title the caller may see: following one it mayn't would tell it whether the TV is playing it.
             var library = await db.MediaItems.AsNoTracking().Where(i => i.Id == request.ItemId).Select(i => (Guid?)i.LibraryId).FirstOrDefaultAsync(ct);
             if (library is not { } libraryId || db.HiddenLibraryIds.Contains(libraryId))
             {
-                return Results.Problem("There's no title with that id.", statusCode: StatusCodes.Status404NotFound);
+                return Problems.Of("There's no title with that id.", status: StatusCodes.Status404NotFound);
             }
 
             return activities.Start(id, request, Owner(current, http))
                 ? Results.NoContent()
-                : Results.Problem("Too many Live Activities.", statusCode: StatusCodes.Status429TooManyRequests);
+                : Problems.Of("Too many Live Activities.", status: StatusCodes.Status429TooManyRequests);
         });
         group.MapDelete("/{id}/activity/{token}", (string id, string token, LiveActivities activities, CurrentProfile current, HttpContext http) =>
         {
@@ -242,7 +242,7 @@ public static class DeviceEndpoints
         ArgumentNullException.ThrowIfNull(request);
         if (request.Minutes is { } minutes && !(double.IsFinite(minutes) && minutes is >= 1 and <= 600))
         {
-            return Results.Problem("Sleep in 1 to 600 minutes, or at the end of the chapter.", statusCode: StatusCodes.Status400BadRequest);
+            return Problems.Of("Sleep in 1 to 600 minutes, or at the end of the chapter.", status: StatusCodes.Status400BadRequest);
         }
 
         return Remote(deviceId, DeviceCommandKind.Sleep, signIns, commands, current, seconds: request.EndOfChapter ? null : request.Minutes * 60,
@@ -266,19 +266,19 @@ public static class DeviceEndpoints
         // Not open first: what a device takes is only known once it has listened since the server started.
         if (!commands.IsOnline(device.Id))
         {
-            return Results.Problem($"Flexarr isn't open on {device.Name}.", statusCode: StatusCodes.Status409Conflict);
+            return Problems.Of("Flexarr isn't open on {name}.", new { name = device.Name }, status: StatusCodes.Status409Conflict);
         }
 
         if (!commands.Takes(device.Id, kind))
         {
-            return Results.Problem($"The Flexarr app on {device.Name} can't do that yet: update it.", statusCode: StatusCodes.Status409Conflict);
+            return Problems.Of("The Flexarr app on {name} can't do that yet: update it.", new { name = device.Name }, status: StatusCodes.Status409Conflict);
         }
 
         var command = new DeviceCommand(DeviceCommand.NewId(), kind, null, false, SenderName(signIns, current), DateTime.UtcNow, Seconds: seconds, TrackId: trackId,
             Rate: rate, EndOfChapter: endOfChapter);
         return commands.Send(device.Id, command, keep: false)
             ? Results.Ok(new DeviceCommandResultDto(true, device.Name, null))
-            : Results.Problem($"Flexarr isn't open on {device.Name}.", statusCode: StatusCodes.Status409Conflict);
+            : Problems.Of("Flexarr isn't open on {name}.", new { name = device.Name }, status: StatusCodes.Status409Conflict);
     }
 
     private const int MaxTrackId = 64;
@@ -303,7 +303,7 @@ public static class DeviceEndpoints
     private static string? Owner(CurrentProfile current, HttpContext http) =>
         current.SignInId ?? (http.User.FindFirst(FlexarrClaims.Method)?.Value is { } method and not ApiKeyAuthenticationHandler.Methods.ApiKey ? $"{method}:{current.Id}" : null);
 
-    private static IResult Forbidden() => Results.Problem("Only a signed-in browser or device, or the API key, can play on other devices.", statusCode: 403);
+    private static IResult Forbidden() => Problems.Of("Only a signed-in browser or device, or the API key, can play on other devices.", status: 403);
 
     /// <summary>Every device signed in (Apple TVs, iPhones, iPads), the ones that would take a command now first.</summary>
     public static async Task<List<DeviceDto>> ListAsync(SignIns signIns, DeviceCommands commands, PlaybackSessions sessions, FlexarrDbContext db, CurrentProfile current,
@@ -578,7 +578,7 @@ public static class DeviceEndpoints
 
         if (http.User.FindFirst(FlexarrClaims.Method)?.Value != ApiKeyAuthenticationHandler.Methods.Device || current.SignInId is not { } deviceId)
         {
-            await Results.Problem("Only a device signed in with its own token (an Apple TV, iPhone or iPad connected to this server) can listen for commands.", statusCode: 403)
+            await Problems.Of("Only a device signed in with its own token (an Apple TV, iPhone or iPad connected to this server) can listen for commands.", status: 403)
                 .ExecuteAsync(http);
             return;
         }

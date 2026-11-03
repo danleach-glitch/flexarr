@@ -5,6 +5,7 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -52,7 +53,7 @@ public static class LayoutEndpoints
 
             if (me.IsKids)
             {
-                return Results.Problem("A kids profile has the standard Home.", statusCode: 403);
+                return Problems.Of("A kids profile has the standard Home.", status: 403);
             }
 
             var before = Parse(me.Layout) ?? options.CurrentValue.Layout;

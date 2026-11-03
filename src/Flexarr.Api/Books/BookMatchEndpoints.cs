@@ -6,6 +6,7 @@ using Flexarr.Core.Probing;
 using Flexarr.Metadata;
 using Flexarr.Metadata.Books;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Books;
 
@@ -80,7 +81,7 @@ public static class BookMatchEndpoints
             chosen ??= (await providers.SearchAsync(request.Query, request.Author, ct)).FirstOrDefault(m => m.Provider == request.Provider && m.Id == request.Id);
             if (chosen is null)
             {
-                return Results.Problem("That result can't be found any more. Search again.", statusCode: 409);
+                return Problems.Of("That result can't be found any more. Search again.", status: 409);
             }
 
             var details = book.Book ??= new BookDetails { MediaItemId = book.Id };
@@ -127,7 +128,7 @@ public static class BookMatchEndpoints
             if (edits.Count == 0 || edits.Any(c => string.IsNullOrWhiteSpace(c.Title) || c.Title.Length > 500 || !double.IsFinite(c.StartSeconds) || c.StartSeconds < 0)
                 || edits.Select(c => c.StartSeconds).Distinct().Count() != edits.Count)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["chapters"] = ["Each chapter needs a title and its own start in the book."] });
+                return Problems.Field("Each chapter needs a title and its own start in the book.", field: "chapters");
             }
 
             await SaveAsync(db, id, details, [.. edits.Select(e => new BookChapter(e.Title.Trim(), e.StartSeconds, 0))], ChapterSource.Edited, ct);
@@ -143,7 +144,7 @@ public static class BookMatchEndpoints
 
             if (!double.IsFinite(request.Seconds) || Math.Abs(request.Seconds) > 600)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["seconds"] = ["Shift by up to ten minutes either way."] });
+                return Problems.Field("Shift by up to ten minutes either way.", field: "seconds");
             }
 
             var chapters = await db.MediaChapters.Where(c => c.MediaItemId == id).OrderBy(c => c.Index).ToListAsync(ct);
@@ -163,7 +164,7 @@ public static class BookMatchEndpoints
 
             if (details.Asin is not { } asin)
             {
-                return Results.Problem("This book has no Audible id. Fix match to find it on Audible first.", statusCode: 409);
+                return Problems.Of("This book has no Audible id. Fix match to find it on Audible first.", status: 409);
             }
 
             if (BadShift(shiftSeconds ?? 0) is { } bad)
@@ -173,7 +174,7 @@ public static class BookMatchEndpoints
 
             return await refresher.AudibleChaptersAsync(details, asin, shiftSeconds ?? 0, ct, force: true) is { } chapters
                 ? Results.Ok(chapters.Select((c, i) => new BookChapterDto(i, c.Title, c.StartSeconds, c.EndSeconds)).ToList())
-                : Results.Problem("Audible has no chapters for this book.", statusCode: 404);
+                : Problems.Of("Audible has no chapters for this book.", status: 404);
         });
 
         item.MapPost("/chapters/audible", async (Guid id, AudibleChaptersRequest request, FlexarrDbContext db, MetadataRefresher refresher, CancellationToken ct) =>
@@ -185,7 +186,7 @@ public static class BookMatchEndpoints
 
             if (details.Asin is not { } asin)
             {
-                return Results.Problem("This book has no Audible id. Fix match to find it on Audible first.", statusCode: 409);
+                return Problems.Of("This book has no Audible id. Fix match to find it on Audible first.", status: 409);
             }
 
             if (BadShift(request.ShiftSeconds) is { } bad)
@@ -195,7 +196,7 @@ public static class BookMatchEndpoints
 
             if (!await refresher.UseAudibleChaptersAsync(id, details, asin, request.ShiftSeconds, ct, force: true))
             {
-                return Results.Problem("Audible has no chapters for this book.", statusCode: 404);
+                return Problems.Of("Audible has no chapters for this book.", status: 404);
             }
 
             await db.SaveChangesAsync(ct);
@@ -207,7 +208,7 @@ public static class BookMatchEndpoints
 
     /// <summary>A shift that isn't a number, or is more than ten minutes either way: refused, as <c>/chapters/shift</c> does.</summary>
     private static IResult? BadShift(double seconds) => !double.IsFinite(seconds) || Math.Abs(seconds) > 600
-        ? Results.ValidationProblem(new Dictionary<string, string[]> { ["shiftSeconds"] = ["Shift by up to ten minutes either way."] })
+        ? Problems.Field("Shift by up to ten minutes either way.", field: "shiftSeconds")
         : null;
 
     private const int MaxNames = 20;

@@ -9,6 +9,7 @@ using Flexarr.Integrations.Arr.Models;
 using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -118,13 +119,13 @@ public static class MusicMatchEndpoints
                 || !int.TryParse(request.Id, NumberStyles.None, CultureInfo.InvariantCulture, out var lidarrId) && request.Provider == "lidarr"
                 || !long.TryParse(request.Id, NumberStyles.None, CultureInfo.InvariantCulture, out var deezerId) && request.Provider == "deezer")
             {
-                return Results.Problem("That match isn't one Flexarr can use. Search again.", statusCode: 400);
+                return Problems.Of("That match isn't one Flexarr can use. Search again.", status: 400);
             }
 
             if (request.Cover is { } wanted && wanted != KeepCover && ArtworkUrl.TrustedRemote(wanted) is null
                 && !(ArtworkUrl.TryParseArr(wanted, out var coverInstance, out _) && options.CurrentValue.Arr.Any(a => a.Kind == ArrKind.Lidarr && a.Name == coverInstance)))
             {
-                return Results.Problem("That cover can't be used. Choose another.", statusCode: 400);
+                return Problems.Of("That cover can't be used. Choose another.", status: 400);
             }
 
             var current = entity.MatchLocked && (request.Provider == "deezer" ? entity.DeezerId == request.Id
@@ -157,11 +158,11 @@ public static class MusicMatchEndpoints
             }
             catch (HttpRequestException ex) when (ex.StatusCode is System.Net.HttpStatusCode.NotFound)
             {
-                return Results.Problem("That match can't be found any more. Search again.", statusCode: 404);
+                return Problems.Of("That match can't be found any more. Search again.", status: 404);
             }
             catch (DeezerException)
             {
-                return Results.Problem("Deezer doesn't have that any more. Search again.", statusCode: 404);
+                return Problems.Of("Deezer doesn't have that any more. Search again.", status: 404);
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
             {

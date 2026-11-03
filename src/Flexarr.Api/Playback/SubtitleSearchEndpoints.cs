@@ -9,6 +9,7 @@ using Flexarr.Integrations.Arr;
 using Flexarr.Streaming;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Playback;
 
@@ -70,7 +71,7 @@ public static partial class SubtitleSearchEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Results.Problem($"Bazarr couldn't search: {ex.Message}", statusCode: StatusCodes.Status502BadGateway);
+                return Problems.Of("Bazarr couldn't search: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway);
             }
         });
 
@@ -89,7 +90,7 @@ public static partial class SubtitleSearchEndpoints
                 chosen = Decode(token);
                 if (chosen is null)
                 {
-                    return Results.Problem("That search result isn't one Flexarr knows. Search again.", statusCode: StatusCodes.Status400BadRequest);
+                    return Problems.Of("That search result isn't one Flexarr knows. Search again.", status: StatusCodes.Status400BadRequest);
                 }
             }
             else
@@ -100,12 +101,12 @@ public static partial class SubtitleSearchEndpoints
                 }
                 catch (HttpRequestException ex)
                 {
-                    return Results.Problem($"Bazarr couldn't search: {ex.Message}", statusCode: StatusCodes.Status502BadGateway);
+                    return Problems.Of("Bazarr couldn't search: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway);
                 }
 
                 if (chosen is null)
                 {
-                    return Results.Problem("No subtitles were found for this.", statusCode: StatusCodes.Status404NotFound);
+                    return Problems.Of("No subtitles were found for this.", status: StatusCodes.Status404NotFound);
                 }
             }
 
@@ -125,7 +126,7 @@ public static partial class SubtitleSearchEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Results.Problem($"Bazarr couldn't download it: {ex.Message}", statusCode: StatusCodes.Status502BadGateway);
+                return Problems.Of("Bazarr couldn't download it: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway);
             }
 
             if (saved is null)
@@ -149,7 +150,7 @@ public static partial class SubtitleSearchEndpoints
 
             if (Subtitles.For(found.File!).FirstOrDefault(t => t.Key == request.Key) is not { ExternalPath: { } path } track)
             {
-                return Results.Problem("Only subtitles saved beside the video can be re-synced.", statusCode: StatusCodes.Status400BadRequest);
+                return Problems.Of("Only subtitles saved beside the video can be re-synced.", status: StatusCodes.Status400BadRequest);
             }
 
             // Bazarr sees the file beside its own path for the video; it may have indexed it with its language and flags.
@@ -160,7 +161,7 @@ public static partial class SubtitleSearchEndpoints
                 ?? new BazarrSubtitleFile(Languages.Tag(track.Language), bazarrPath, track.IsForced, track.Title == "SDH");
             if (subtitle.Code2 is not { Length: 2 })
             {
-                return Results.Problem("Bazarr can only re-sync subtitles whose language it knows.", statusCode: StatusCodes.Status400BadRequest);
+                return Problems.Of("Bazarr can only re-sync subtitles whose language it knows.", status: StatusCodes.Status400BadRequest);
             }
 
             var log = logs.CreateLogger(typeof(SubtitleSearchEndpoints));
@@ -195,7 +196,7 @@ public static partial class SubtitleSearchEndpoints
             });
             return started
                 ? Results.Accepted(value: new SubtitleSyncDto("running", track.Key))
-                : Results.Problem("A re-sync of this video is already running.", statusCode: StatusCodes.Status409Conflict);
+                : Problems.Of("A re-sync of this video is already running.", status: StatusCodes.Status409Conflict);
         });
 
         group.MapGet("/sync", async (Guid id, Guid? fileId, FlexarrDbContext db, SubtitleSyncs syncs, CancellationToken ct) =>
@@ -269,7 +270,7 @@ public static partial class SubtitleSearchEndpoints
     {
         if (options.CurrentValue.Bazarr?.Instance is not { } instance)
         {
-            return new Found(Results.Problem("Bazarr isn't set up. Add it in Settings › Connections.", statusCode: StatusCodes.Status404NotFound));
+            return new Found(Problems.Of("Bazarr isn't set up. Add it in Settings › Connections.", status: StatusCodes.Status404NotFound));
         }
 
         var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct);
@@ -280,7 +281,7 @@ public static partial class SubtitleSearchEndpoints
 
         if (item.Kind is not (MediaKind.Movie or MediaKind.Episode))
         {
-            return new Found(Results.Problem("Subtitles can be found for movies and episodes.", statusCode: StatusCodes.Status400BadRequest));
+            return new Found(Problems.Of("Subtitles can be found for movies and episodes.", status: StatusCodes.Status400BadRequest));
         }
 
         if (item.ArrId is not { } arrId)
@@ -291,7 +292,7 @@ public static partial class SubtitleSearchEndpoints
 
         if (Choose(await PlayableFilesAsync(db, id, ct), fileId) is not { } file)
         {
-            return new Found(Results.Problem("This has no file to find subtitles for.", statusCode: StatusCodes.Status404NotFound));
+            return new Found(Problems.Of("This has no file to find subtitles for.", status: StatusCodes.Status404NotFound));
         }
 
         try
@@ -299,8 +300,7 @@ public static partial class SubtitleSearchEndpoints
             var media = item.Kind == MediaKind.Movie ? await bazarr.MovieAsync(instance, arrId, ct) : await bazarr.EpisodeAsync(instance, arrId, ct);
             if (media is null)
             {
-                return new Found(Results.Problem("Bazarr doesn't have this yet. It picks up new titles from Sonarr and Radarr every so often.",
-                    statusCode: StatusCodes.Status409Conflict));
+                return new Found(Problems.Of("Bazarr doesn't have this yet. It picks up new titles from Sonarr and Radarr every so often.", status: StatusCodes.Status409Conflict));
             }
 
             // Subtitles land beside Bazarr's copy, so they'd be no use to another one.
@@ -314,8 +314,7 @@ public static partial class SubtitleSearchEndpoints
             {
                 if (await bazarr.ProfilesAsync(instance, ct) is not [var profile, ..])
                 {
-                    return new Found(Results.Problem("Add a languages profile in Bazarr first: it searches only in the languages a profile lists.",
-                        statusCode: StatusCodes.Status409Conflict));
+                    return new Found(Problems.Of("Add a languages profile in Bazarr first: it searches only in the languages a profile lists.", status: StatusCodes.Status409Conflict));
                 }
 
                 await bazarr.SetProfileAsync(instance, media, profile, ct);
@@ -326,7 +325,7 @@ public static partial class SubtitleSearchEndpoints
         }
         catch (HttpRequestException ex)
         {
-            return new Found(Results.Problem($"Bazarr can't be reached: {ex.Message}", statusCode: StatusCodes.Status502BadGateway));
+            return new Found(Problems.Of("Bazarr can't be reached: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway));
         }
     }
 

@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Serilog.Events;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Logging;
 
@@ -38,7 +39,7 @@ public static class LogEndpoints
         {
             if (update.Areas?.FirstOrDefault(a => LogAreas.Find(a.Key) is null) is { } unknown)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["areas"] = [$"There's no area called “{unknown.Key}”."] });
+                return Problems.Field("There's no area called “{key}”.", field: "areas", args: new { key = unknown.Key });
             }
 
             var current = options.CurrentValue;
@@ -130,7 +131,7 @@ public static class LogEndpoints
         {
             if (batch.Entries is not { Count: > 0 and <= ClientLogs.MaxBatch })
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["entries"] = [$"Send between 1 and {ClientLogs.MaxBatch} entries."] });
+                return Problems.Field("Send between 1 and {maxBatch} entries.", field: "entries", args: new { maxBatch = ClientLogs.MaxBatch });
             }
 
             return clients.Write(await IdentifyAsync(http, signIns, profile, db, ct), batch)
@@ -149,14 +150,13 @@ public static class LogEndpoints
         {
             if (http.Request.ContentLength > ClientLogs.MaxUploadBytes * 2L)
             {
-                return Results.Problem("Diagnostics are limited to 5 MB.", statusCode: StatusCodes.Status413PayloadTooLarge);
+                return Problems.Of("Diagnostics are limited to 5 MB.", status: StatusCodes.Status413PayloadTooLarge);
             }
 
             var who = await IdentifyAsync(http, signIns, profile, db, ct);
             if (!clients.TryStartUpload(who))
             {
-                return Results.Problem($"This device has sent diagnostics {ClientLogs.MaxUploadsPerHour} times this hour. Try again later.",
-                    statusCode: StatusCodes.Status429TooManyRequests);
+                return Problems.Of("This device has sent diagnostics {maxUploadsPerHour} times this hour. Try again later.", new { maxUploadsPerHour = ClientLogs.MaxUploadsPerHour }, status: StatusCodes.Status429TooManyRequests);
             }
 
             var upload = await clients.SaveUploadAsync(who, platform, appVersion, note, http.Request.Body, ct);

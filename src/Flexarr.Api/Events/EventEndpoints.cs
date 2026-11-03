@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Flexarr.Api.Profiles;
 using Microsoft.AspNetCore.Http.Features;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Events;
 
@@ -32,7 +33,7 @@ public static class EventEndpoints
         var kidsSettings = LibraryVisibility.KidsSettingsVersion;
         if (!current.IsTrusted)
         {
-            await Results.Problem("Only the API key or a signed-in browser or device can follow what's playing.", statusCode: 403).ExecuteAsync(http);
+            await Problems.Of("Only the API key or a signed-in browser or device can follow what's playing.", status: 403).ExecuteAsync(http);
             return;
         }
 

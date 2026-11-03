@@ -5,6 +5,7 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -265,7 +266,7 @@ public static class ItemEndpoints
         {
             if (!Enum.IsDefined(request.Override))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["override"] = ["Choose none, allow or block."] });
+                return Problems.Field("Choose none, allow or block.", field: "override");
             }
 
             if (await db.MediaItems.IgnoreQueryFilters().FirstOrDefaultAsync(i => i.Id == id && i.MissingSince == null, ct) is not { } item)
@@ -275,7 +276,7 @@ public static class ItemEndpoints
 
             if (item.ParentId is not null)
             {
-                return Results.Problem("Allow or block the whole title: its seasons and episodes follow it.", statusCode: 409);
+                return Problems.Of("Allow or block the whole title: its seasons and episodes follow it.", status: 409);
             }
 
             item.KidsOverride = request.Override;

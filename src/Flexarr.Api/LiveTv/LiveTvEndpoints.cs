@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.LiveTv;
 
@@ -138,7 +139,7 @@ public static partial class LiveTvEndpoints
             var settings = options.CurrentValue;
             if (settings.LiveTv is not { Account: { } account } liveTv)
             {
-                return Results.Problem("Live TV isn't set up. Connect Dispatcharr in Settings › Connections.", statusCode: StatusCodes.Status409Conflict);
+                return Problems.Of("Live TV isn't set up. Connect Dispatcharr in Settings › Connections.", status: StatusCodes.Status409Conflict);
             }
 
             if (await db.LiveChannels.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, ct) is not { } channel)

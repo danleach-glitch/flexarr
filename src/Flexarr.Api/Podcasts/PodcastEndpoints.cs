@@ -10,6 +10,7 @@ using Flexarr.Core.Podcasts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Podcasts;
 
@@ -163,7 +164,7 @@ public static class PodcastEndpoints
 
                 if (found?.FeedUrl is null)
                 {
-                    return Results.Problem("Apple's directory doesn't give a feed for this show, so it can't be added.", statusCode: StatusCodes.Status422UnprocessableEntity);
+                    return Problems.Of("Apple's directory doesn't give a feed for this show, so it can't be added.", status: StatusCodes.Status422UnprocessableEntity);
                 }
 
                 feedUrl = found.FeedUrl;
@@ -172,7 +173,7 @@ public static class PodcastEndpoints
 
             if (string.IsNullOrEmpty(feedUrl))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["feedUrl"] = ["Give the podcast's feed address."] });
+                return Problems.Field("Give the podcast's feed address.", field: "feedUrl");
             }
 
             var result = await library.AddAsync(feedUrl, request.ITunesId, artwork, ct);
@@ -522,7 +523,7 @@ public static class PodcastEndpoints
         {
             if (await library.LibraryAsync(ct) is null)
             {
-                return Results.Problem("Add a Podcasts library in Settings first.", statusCode: StatusCodes.Status409Conflict);
+                return Problems.Of("Add a Podcasts library in Settings first.", status: StatusCodes.Status409Conflict);
             }
 
             List<string> urls;
@@ -542,7 +543,7 @@ public static class PodcastEndpoints
             // (and its connection) up for a long while.
             if (!await OpmlImporting.WaitAsync(0, ct))
             {
-                return Results.Problem("Another podcast import is still running. Try again when it's finished.", statusCode: StatusCodes.Status429TooManyRequests);
+                return Problems.Of("Another podcast import is still running. Try again when it's finished.", status: StatusCodes.Status429TooManyRequests);
             }
 
             int added = 0, already = 0;

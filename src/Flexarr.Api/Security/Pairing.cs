@@ -7,6 +7,7 @@ using Flexarr.Api.Notifications;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Paths;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Security;
 
@@ -363,14 +364,14 @@ public static class PairingEndpoints
             var zone = NetworkZones.Of(http);
             if (zone == NetworkZone.Internet || !NetworkZones.AddressedToKnownHost(http, options.CurrentValue.KnownHosts))
             {
-                return Results.Problem("A device can only connect with a code from your home network or over Tailscale. Use the API key instead.", statusCode: 403);
+                return Problems.Of("A device can only connect with a code from your home network or over Tailscale. Use the API key instead.", status: 403);
             }
 
             // A family guest's device joins with its invite, never with a code it could ask the household to approve.
             // A device Tailscale can't identify just now could be a guest's: it asks again later rather than slipping through.
             if (zone == NetworkZone.Tailnet && (await GuestDevices.LookUpAsync(http, whois, options.CurrentValue.RemoteGuests)).Kind != GuestLookup.NotGuest)
             {
-                return Results.Problem("Guests join with an invite from the server's owner.", statusCode: 403);
+                return Problems.Of("Guests join with an invite from the server's owner.", status: 403);
             }
 
             if (Pairings.UnfitName(request.DeviceName))
@@ -381,7 +382,7 @@ public static class PairingEndpoints
             if (pairings.Start(request.DeviceName, zone, http.Connection.RemoteIpAddress?.ToString(), out var announced, DeviceTypes.Of(http.Request),
                     request.StopsWhenDeclined) is not { } started)
             {
-                return Results.Problem("Too many devices are waiting to connect. Try again in a few minutes.", statusCode: 429);
+                return Problems.Of("Too many devices are waiting to connect. Try again in a few minutes.", status: 429);
             }
 
             if (announced is not null)
@@ -394,7 +395,7 @@ public static class PairingEndpoints
         group.MapGet("/{id}", (string id, HttpContext http, Pairings pairings, IOptionsMonitor<FlexarrOptions> options) =>
             NetworkZones.AddressedToKnownHost(http, options.CurrentValue.KnownHosts)
                 ? Results.Ok(pairings.Status(id))
-                : Results.Problem("Connect to this server at its own address.", statusCode: 403));
+                : Problems.Of("Connect to this server at its own address.", status: 403));
         return api;
     }
 
@@ -406,7 +407,7 @@ public static class PairingEndpoints
         api.MapGet("/pairing/waiting", (Pairings pairings) => Results.Ok(pairings.Waiting()))
             .WithTags("Pairing").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
         api.MapGet("/pairing/code/{code}", (string code, Pairings pairings) =>
-            pairings.Find(code) is { } details ? Results.Ok(details) : Results.Problem("That code isn't waiting to connect. It may have expired; the TV shows a new one.", statusCode: 404))
+            pairings.Find(code) is { } details ? Results.Ok(details) : Problems.Of("That code isn't waiting to connect. It may have expired; the TV shows a new one.", status: 404))
             .WithTags("Pairing").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
         // Declining is harmless either way, so a missing code isn't an error.
         api.MapPost("/pairing/code/{code}/decline", (string code, Pairings pairings) =>
@@ -428,7 +429,7 @@ public static class PairingEndpoints
                 PairingApproval.Approved => Results.NoContent(),
                 PairingApproval.TooMany => ProfileEndpoints.TryAgainLater(http, retryAfter,
                     when => $"Ten TVs have been connected in the last hour, which is as many as Flexarr allows. Try again in {when}."),
-                _ => Results.Problem("That code isn't waiting to connect. It may have expired; the TV shows a new one.", statusCode: 404),
+                _ => Problems.Of("That code isn't waiting to connect. It may have expired; the TV shows a new one.", status: 404),
             };
         });
         return api;

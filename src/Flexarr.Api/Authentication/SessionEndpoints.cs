@@ -3,6 +3,7 @@ using Flexarr.Api.Security;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Authentication;
 
@@ -28,7 +29,7 @@ public static class SessionEndpoints
             // Only for the key itself: being on the home network or tailnet doesn't earn a cookie that works anywhere.
             if (!SignedInWithApiKey(http))
             {
-                return Results.Problem("Send the API key to sign in.", statusCode: 400);
+                return Problems.Of("Send the API key to sign in.", status: 400);
             }
 
             var (signIn, token) = signIns.Issue(SignInKind.Browser, ApiKeyAuthenticationHandler.BrowserName(http.Request), NetworkZones.Of(http),
@@ -66,7 +67,7 @@ public static class SessionEndpoints
         {
             if (!SignedInWithApiKey(http))
             {
-                return Results.Problem("Send the API key to sign in.", statusCode: 400);
+                return Problems.Of("Send the API key to sign in.", status: 400);
             }
 
             var (signIn, token) = signIns.Issue(SignInKind.Device, request.DeviceName ?? "", NetworkZones.Of(http),
@@ -108,9 +109,9 @@ public static class SessionEndpoints
         group.MapDelete("/{id}", (string id, SignIns signIns) => signIns.Revoke(id) ? Results.NoContent() : Results.NotFound());
 
         group.MapPatch("/{id}", (string id, SignInRename rename, SignIns signIns) =>
-            string.IsNullOrWhiteSpace(rename.Name) ? Results.Problem("Give it a name.", statusCode: 400)
+            string.IsNullOrWhiteSpace(rename.Name) ? Problems.Of("Give it a name.", status: 400)
             // A line break or hidden character could forge a log line or disguise the list, as for TV names.
-            : Pairings.UnfitName(rename.Name) ? Results.Problem("That name has a line break or a hidden character in it. Use letters, numbers and spaces.", statusCode: 400)
+            : Pairings.UnfitName(rename.Name) ? Problems.Of("That name has a line break or a hidden character in it. Use letters, numbers and spaces.", status: 400)
             : signIns.Rename(id, rename.Name) ? Results.NoContent() : Results.NotFound());
 
         // Everything but the browser asking (which may have no sign-in of its own, at home or with the API key).
