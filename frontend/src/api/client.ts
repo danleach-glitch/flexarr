@@ -271,6 +271,14 @@ function signedOut(path: string) {
   window.dispatchEvent(new Event(SIGNED_OUT_EVENT))
 }
 
+/** A live channel's heartbeat, or a place reported while playing on: nothing a cached page shows has changed. */
+function routineReport(path: string, body: unknown) {
+  if (/^\/livetv\/watch\/[^/]+\/heartbeat$/.test(path)) return true
+  if (!/^\/playback\/[^/]+\/progress$/.test(path)) return false
+  const report = body as { paused?: boolean; ended?: boolean } | undefined
+  return report?.paused === false && !report.ended
+}
+
 async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal, retried = false): Promise<T> {
   const headers = authHeaders()
   // Files (profile pictures) go up as they are; everything else is JSON.
@@ -278,8 +286,9 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   if (body !== undefined) headers['Content-Type'] = file ? body.type || 'application/octet-stream' : 'application/json'
 
   // Any change can show up in any cached answer (a watched tick in a library page, a renamed collection), so a
-  // change clears them all, before and after (anything cached while it was under way may predate it).
-  const changes = method !== 'GET'
+  // change clears them all, before and after (anything cached while it was under way may predate it). Not the reports
+  // sent every few seconds while something plays, or every Back would ask afresh: pausing, ending or stopping does.
+  const changes = method !== 'GET' && !routineReport(path, body)
   if (changes) clearApiCache()
   const response = await fetch(path.startsWith('/api/') ? path : `/api/v1${path}`, {
     method,
