@@ -81,7 +81,7 @@ final class PlayerControlsView: UIView {
     }
 
     override init(frame: CGRect) {
-        playButton = Self.button("play.fill", size: Self.symbolSize * 1.5)
+        playButton = Self.button(Symbol.play, size: Self.symbolSize * 1.5)
         backButton = Self.button("gobackward.10", size: Self.symbolSize)
         forwardButton = Self.button("goforward.10", size: Self.symbolSize)
         previousButton = Self.button("backward.end.fill", size: Self.symbolSize * 0.8)
@@ -121,7 +121,7 @@ final class PlayerControlsView: UIView {
     }
 
     func setPlaying(_ playing: Bool) {
-        playButton.configuration?.image = UIImage(systemName: playing ? "pause.fill" : "play.fill")
+        playButton.configuration?.image = UIImage(systemName: playing ? Symbol.pause : Symbol.play)
     }
 
     /// Live TV: the timeline is the rewind window, so the left label is the time of day at the playhead and the right

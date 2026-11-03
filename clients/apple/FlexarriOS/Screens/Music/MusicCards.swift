@@ -86,7 +86,7 @@ struct TrackCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 SquareArtwork(item: item)
                     .overlay(alignment: .bottomTrailing) {
-                        Image(systemName: model.music.current?.id == item.id && model.music.isPlaying ? "speaker.wave.2.fill" : "play.fill")
+                        Image(systemName: model.music.current?.id == item.id && model.music.isPlaying ? "speaker.wave.2.fill" : Symbol.play)
                             .font(.caption.weight(.bold))
                             .foregroundStyle(Color.room)
                             .frame(width: 28, height: 28)
