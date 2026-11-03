@@ -124,6 +124,19 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
             override fun seekToPrevious() = previous()
             override fun seekToPreviousMediaItem() = previous()
 
+            // Scrubbing from the lock screen, notification or a car goes through seek(), so going back from the
+            // last seconds drops the next track got ready behind (see dropUpcoming). Only the one track is seekable.
+            override fun seekTo(positionMs: Long) = seek(positionMs / 1000.0)
+            override fun seekTo(mediaItemIndex: Int, positionMs: Long) {
+                if (mediaItemIndex == player.currentMediaItemIndex) seek(positionMs / 1000.0)
+            }
+            override fun seekToDefaultPosition() = seek(0.0)
+            override fun seekToDefaultPosition(mediaItemIndex: Int) {
+                if (mediaItemIndex == player.currentMediaItemIndex) seek(0.0)
+            }
+            override fun seekBack() = seek((player.currentPosition - player.seekBackIncrement) / 1000.0)
+            override fun seekForward() = seek((player.currentPosition + player.seekForwardIncrement) / 1000.0)
+
             // Play with nothing loaded (it failed, or a video stopped it): ask for the track again.
             override fun play() = resume()
         }
@@ -565,7 +578,9 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         val client = next.client ?: return
         scope.launch {
             try {
-                val info = client.startPlayback(PlaybackRequest(itemId = track.id, profile = profile, startPositionSeconds = 0.0))
+                // Got ready ahead (prepare): it never ends the track still playing to make room for its conversion,
+                // and isn't shown as playing until the player takes it up.
+                val info = client.startPlayback(PlaybackRequest(itemId = track.id, profile = profile, startPositionSeconds = 0.0, prepare = true))
                 if (upcoming !== next) {
                     runCatching { client.stopPlayback(info.sessionId) } // Dropped before it arrived.
                     return@launch
