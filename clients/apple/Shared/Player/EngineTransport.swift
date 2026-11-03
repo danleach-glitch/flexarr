@@ -75,6 +75,8 @@ final class EngineTransport: PlayerTransport {
         var options = LoadOptions()
         options.prepareNativeSubtitles = true   // text subtitles as renditions too: Picture in Picture and AirPlay keep them
         options.serveIFramePlaylist = true
+        // Each segment is sent as it's written, so the picture starts on its first fragments over a slow link.
+        options.progressiveSegmentDelivery = true
         options.externalSubtitles = sidecars()
         options.initialSubtitleTrackID = trackID(forKey: subtitleKey ?? info.selectedSubtitleKey)
         // Surround as lossy Dolby Digital Plus (which any TV or bar takes), or lossless FLAC as multichannel PCM for a
