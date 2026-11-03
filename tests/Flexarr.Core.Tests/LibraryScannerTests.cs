@@ -675,6 +675,33 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AFolderThatCantBeRead_KeepsItsFiles()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var root = Touch("movies/Heat (1995)/Heat (1995).mkv", "movies/Alien (1979)/Alien (1979).mkv");
+        var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
+        await Scanner().ScanAsync(library, null, default);
+        var locked = Path.Combine(root, "movies/Heat (1995)");
+        var mode = File.GetUnixFileMode(locked);
+        File.SetUnixFileMode(locked, UnixFileMode.None);
+        try
+        {
+            var result = await Scanner().ScanAsync(library, null, default);
+
+            Assert.Equal(0, result.Missing);
+            Assert.False(await _db.MediaFiles.IgnoreQueryFilters().AnyAsync(f => f.MissingSince != null));
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked, mode);
+        }
+    }
+
+    [Fact]
     public async Task Music_AnUpgradedOrRenamedTrack_KeepsItsTrack()
     {
         var root = Touch("music/Radiohead/OK Computer (1997)/01 - Airbag.mp3", "music/Radiohead/OK Computer (1997)/02 - Paranoid Android.mp3");

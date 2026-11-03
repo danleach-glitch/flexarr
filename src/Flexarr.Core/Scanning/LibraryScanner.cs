@@ -147,7 +147,9 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 released = true;
             }
 
-            var onDisk = MediaFileEnumerator.Enumerate(root, target, audio: library.Type == LibraryType.Music, books: library.Type == LibraryType.Audiobooks, everything: library.Type == LibraryType.HomeVideos)
+            var unreadable = new List<string>();
+            var onDisk = MediaFileEnumerator.Enumerate(root, target, audio: library.Type == LibraryType.Music, books: library.Type == LibraryType.Audiobooks,
+                    everything: library.Type == LibraryType.HomeVideos, unreadable: unreadable)
                 .Where(f => PathComparison.IsUnder(f.FullName, root))
                 .ToList();
             var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -193,7 +195,8 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 // Lidarr upgrading a track (MP3 to FLAC) or renaming it swaps one file for another: the new file goes to
                 // the old track, so it keeps its place in playlists and its plays, rather than a new track taking over
                 // while the old one is deleted with them a day later.
-                var goneIds = existing.Values.Concat(duplicates).Where(f => !seen.Contains(PathComparison.Key(f.Path))).Select(f => f.Id).ToList();
+                var goneIds = existing.Values.Concat(duplicates).Where(f => !seen.Contains(PathComparison.Key(f.Path)) && !Unreadable(f))
+                    .Select(f => f.Id).ToList();
                 state.OfferReplacedTracks(await db.MediaItems.IgnoreQueryFilters()
                     .Where(i => i.LibraryId == library.Id && i.Kind == MediaKind.Track && i.ParentId != null
                         && i.Files.Any() && i.Files.All(f => f.MissingSince != null || goneIds.Contains(f.Id)))
@@ -281,9 +284,14 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 progress.Advance(batch.Length);
             }
 
+            // Files in a folder that couldn't be read weren't seen, but that's no sign they've gone.
             var gone = existing.Values.Where(f => !seen.Contains(PathComparison.Key(f.Path))).Concat(duplicates)
-                .Where(f => f.MissingSince is null)
+                .Where(f => f.MissingSince is null && !Unreadable(f))
                 .ToList();
+            if (unreadable.Count > 0)
+            {
+                LogUnreadable(root, unreadable.Count, PathComparison.Printable(unreadable[0]));
+            }
             var holding = false;
             if (!released && full && existing.Count >= MassRemovalMinimum && gone.Count * 2 > existing.Count)
             {
@@ -314,6 +322,8 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             }
 
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            bool Unreadable(MediaFile file) => unreadable.Any(d => PathComparison.IsUnder(file.Path, d));
         }
 
         if (!held)
@@ -724,6 +734,9 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
     [LoggerMessage(Level = LogLevel.Information, Message = "No longer holding {Root}: hiding {Missing} of its {Known} files, as {Why}")]
     private partial void LogHoldReleased(string root, int missing, int known, string why);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Count} folders in {Root} couldn't be read (first: {Folder}); keeping their files as they were")]
+    private partial void LogUnreadable(string root, int count, string folder);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Could not probe {Path}: {Error}")]
     private partial void LogProbeFailed(string path, string error);
