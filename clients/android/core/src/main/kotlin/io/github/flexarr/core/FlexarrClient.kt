@@ -498,8 +498,23 @@ class FlexarrClient(
         http: OkHttpClient,
     ): Response {
         val primary = addresses.current
+        var alternate = addresses.alternate(primary)
+        // Home is a private address another network may use too: the sign-in goes there only once it's shown it's this
+        // server, on this network. Until then, away it is.
+        if (primary == addresses.home && !homeTrusted(http)) {
+            val remote = alternate ?: throw ConnectException("Something else answers at the server's home address on this network.")
+            val response = http.newCall(request(method, path, query, body, remote)).await()
+            addresses.reached(remote)
+            return response
+        }
+        // Away, home is asked about separately (checkHomeIfDue) rather than sent the sign-in on a hunch.
+        if (alternate == addresses.home && !addresses.homeTrustedNow) alternate = null
         val first = request(method, path, query, body, primary)
-        val alternate = addresses.alternate(primary) ?: return http.newCall(first).await()
+        if (alternate == null) {
+            val response = http.newCall(first).await()
+            checkHomeIfDue(http)
+            return response
+        }
         val second = request(method, path, query, body, alternate)
         val (response, reached) = if (method == "GET" && racesAlternate) {
             race(http, first to primary, second to alternate)
@@ -555,14 +570,42 @@ class FlexarrClient(
         }
     }
 
-    /** While away, sees every few minutes whether home answers again, and goes back to it when it does. */
+    /**
+     * While away, sees every few minutes whether home answers again, and goes back to it when it does. Asked without the
+     * sign-in: whatever answers at home on this network has to show it's this server ([verifyHome]) before it's sent.
+     */
     private fun checkHomeIfDue(http: OkHttpClient) {
         if (!addresses.shouldCheckHome()) return
-        val probe = request("GET", "system/status", emptyMap(), null, addresses.home)
-        val quick = http.newBuilder().callTimeout(5, TimeUnit.SECONDS).build()
         background.launch {
-            runCatching { quick.newCall(probe).await().use { if (it.code == 200) addresses.reached(addresses.home) } }
+            if (verifyHome(http)) {
+                addresses.homeVerified()
+                addresses.reached(addresses.home)
+            }
         }
+    }
+
+    /** Whether home may be sent the sign-in on this network, asking it ([verifyHome]) when that isn't known yet. */
+    private suspend fun homeTrusted(http: OkHttpClient): Boolean = addresses.checkHome { verifyHome(http) }
+
+    /**
+     * Whether this server answers at home on the network in use, asked without the sign-in: with its id
+     * ([ServerAddresses.serverId]) when that's known, otherwise answering like a Flexarr server (as [isReachable]).
+     */
+    private suspend fun verifyHome(http: OkHttpClient): Boolean {
+        val quick = http.newBuilder().followRedirects(false).followSslRedirects(false)
+            .callTimeout(ServerAddresses.HOME_PROBE_MS, TimeUnit.MILLISECONDS).build()
+        val expected = addresses.serverId
+        return withTimeoutOrNull(ServerAddresses.HOME_PROBE_MS) {
+            runCatching {
+                if (expected != null) {
+                    serverIdAt(addresses.home, quick) == expected
+                } else {
+                    val probe = Request.Builder().url(addresses.home.newBuilder().addPathSegments("api/v1/system/status").build())
+                        .header("Accept", "application/json").build()
+                    quick.newCall(probe).await().use { it.code in setOf(200, 401) && it.header("Content-Type")?.contains("text/html") != true }
+                }
+            }.getOrDefault(false)
+        } ?: false
     }
 
     /** The answer's text, for callers in this module that read it themselves (an empty answer meaning none). */

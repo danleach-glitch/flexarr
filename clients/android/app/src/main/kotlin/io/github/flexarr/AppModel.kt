@@ -852,7 +852,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             }
         }
         // The server's address for away from home comes with its status; it's kept beside this one.
-        credentials = credentials!!.copy(remoteAddress = remoteAddress(status!!, credentials.address))
+        credentials = credentials!!.copy(remoteAddress = remoteAddress(status!!, credentials.address), serverId = status.serverId)
         credentials = withOwnToken(credentials)
         store.save(credentials)
         saved = true
@@ -1045,9 +1045,16 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         val remote = remoteAddress(status, credentials.address, kept = credentials.remoteAddress)
         // Who's watching may have been chosen meanwhile: what matters is that it's still the same sign-in.
         val now = this.credentials ?: return
-        if (remote == now.remoteAddress || now.address != credentials.address || now.apiKey != credentials.apiKey) return
-        if (saved) store.saveRemoteAddress(remote)
-        phase = Phase.SignedIn(now.copy(remoteAddress = remote))
+        if (now.address != credentials.address || now.apiKey != credentials.apiKey) return
+        // A sign-in from before the app kept the server's id learns it now; one it knows already keeps it (a different
+        // answer from home was already turned away before the sign-in was sent).
+        val serverId = now.serverId ?: status.serverId
+        if (remote == now.remoteAddress && serverId == now.serverId) return
+        if (saved) {
+            store.saveRemoteAddress(remote)
+            store.saveServerId(serverId)
+        }
+        phase = Phase.SignedIn(now.copy(remoteAddress = remote, serverId = serverId))
     }
 
     fun signOut() {

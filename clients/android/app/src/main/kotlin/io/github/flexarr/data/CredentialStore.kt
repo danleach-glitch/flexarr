@@ -43,11 +43,17 @@ data class ServerCredentials(
      * server's could be a home address that a machine on the guest's own network also answers at.
      */
     val guest: GuestTunnelInfo? = null,
+    /**
+     * The server's own id ([io.github.flexarr.core.SystemStatus.serverId]), once known: what the home address has to
+     * answer with, without the sign-in, before it's sent the sign-in ([ServerAddresses.serverId]).
+     */
+    val serverId: String? = null,
 ) {
     val isGuest: Boolean get() = guest != null
 
     fun client(onUnauthorized: (() -> Unit)? = null) = FlexarrClient(
-        addresses = ServerAddresses.shared(address.toHttpUrlOrNull()!!, remoteAddress?.toHttpUrlOrNull()?.takeIf { guest == null }),
+        addresses = ServerAddresses.shared(address.toHttpUrlOrNull()!!, remoteAddress?.toHttpUrlOrNull()?.takeIf { guest == null })
+            .also { addresses -> serverId?.takeIf { guest == null }?.let { addresses.serverId = it } },
         apiKey = apiKey.ifEmpty { null },
         profileToken = profileToken,
         onUnauthorized = onUnauthorized,
@@ -82,6 +88,7 @@ class CredentialStore internal constructor(context: Context, private val secrets
             prefs.getString(PROFILE, null),
             prefs.getString(REMOTE, null).takeIf { guest == null },
             guest,
+            prefs.getString(SERVER_ID, null).takeIf { guest == null },
         )
     }
 
@@ -96,6 +103,7 @@ class CredentialStore internal constructor(context: Context, private val secrets
             .putString(API_KEY, secrets.encrypt(credentials.apiKey))
             .putString(PROFILE, credentials.profileToken)
             .putString(REMOTE, credentials.remoteAddress.takeIf { guest == null })
+            .putString(SERVER_ID, credentials.serverId.takeIf { guest == null })
             .putString(GUEST_TARGET, guest?.target)
             .putString(GUEST_HOSTNAME, guest?.hostname)
             .putString(GUEST_OWNER, guest?.ownerName)
@@ -106,6 +114,12 @@ class CredentialStore internal constructor(context: Context, private val secrets
     fun saveRemoteAddress(address: String?) {
         if (prefs.getString(GUEST_TARGET, null) != null) return
         prefs.edit().putString(REMOTE, address).apply()
+    }
+
+    /** Keeps the server's id, learnt from its status. Never for a guest's sign-in. */
+    fun saveServerId(id: String?) {
+        if (prefs.getString(GUEST_TARGET, null) != null) return
+        prefs.edit().putString(SERVER_ID, id).apply()
     }
 
     /** The guest tunnel came up on another port than before: the sign-in's loopback address follows it. */
@@ -141,7 +155,7 @@ class CredentialStore internal constructor(context: Context, private val secrets
     fun savedKidsLock(): Boolean = prefs.getBoolean(KIDS_LOCK, false)
 
     fun clear() {
-        prefs.edit().remove(ADDRESS).remove(API_KEY).remove(PROFILE).remove(PROFILES).remove(KIDS_LOCK).remove(REMOTE)
+        prefs.edit().remove(ADDRESS).remove(API_KEY).remove(PROFILE).remove(PROFILES).remove(KIDS_LOCK).remove(REMOTE).remove(SERVER_ID)
             .remove(GUEST_TARGET).remove(GUEST_HOSTNAME).remove(GUEST_OWNER).apply()
     }
 
@@ -158,6 +172,7 @@ class CredentialStore internal constructor(context: Context, private val secrets
         const val PROFILES = "profiles"
         const val KIDS_LOCK = "kidsLock"
         const val REMOTE = "address.remote"
+        const val SERVER_ID = "serverId"
         const val GUEST_TARGET = "guest.target"
         const val GUEST_HOSTNAME = "guest.hostname"
         const val GUEST_OWNER = "guest.owner"
