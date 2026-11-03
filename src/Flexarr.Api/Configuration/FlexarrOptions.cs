@@ -152,6 +152,9 @@ public sealed class FlexarrOptions
 
     public UpdateOptions Updates { get; set; } = new();
 
+    /// <summary>Language packs downloaded between releases (see docs/languages.md).</summary>
+    public LanguageOptions Languages { get; set; } = new();
+
     /// <summary>Where the main profile is in the first-run setup guide (see <see cref="Endpoints.SetupGuideEndpoints"/>).</summary>
     public SetupGuideOptions SetupGuide { get; set; } = new();
 
@@ -180,6 +183,13 @@ public sealed class UpdateOptions
 
     /// <summary>GitHub's latest-release address for Flexarr's repository.</summary>
     public string ReleasesUrl { get; set; } = "https://api.github.com/repos/danleach-glitch/flexarr/releases/latest";
+}
+
+/// <summary>Language packs (see <see cref="Flexarr.Api.Localization.LanguageIndex"/> and docs/languages.md).</summary>
+public sealed class LanguageOptions
+{
+    /// <summary>The index of published packs; blank turns downloading off (the packs built into the server still work).</summary>
+    public string IndexUrl { get; set; } = "https://flexarr.io/languages/index.json";
 }
 
 /// <summary>Backups of the database and settings (see <see cref="Flexarr.Api.Backups.BackupStore"/>).</summary>

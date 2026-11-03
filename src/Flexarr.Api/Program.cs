@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Flexarr.Api.Authentication;
 using Flexarr.Api.Backups;
 using Flexarr.Api.Books;
+using Flexarr.Api.Localization;
 using Flexarr.Api.Collections;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Devices;
@@ -149,6 +150,14 @@ builder.Services.AddHttpClient(CommunityLogoIndex.ClientName, c =>
     c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr/0.1 (+https://github.com/danleach-glitch/flexarr)");
 });
 builder.Services.AddSingleton<CommunityLogoIndex>();
+// Language packs published at flexarr.io/languages, downloaded when a profile picks one (docs/languages.md).
+builder.Services.AddHttpClient(LanguageIndex.ClientName, c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(30);
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr (+https://github.com/danleach-glitch/flexarr)");
+});
+builder.Services.AddSingleton<LanguageIndex>();
+builder.Services.AddHostedService<LanguageWorker>();
 builder.Services.AddSingleton<SearchIndex>();
 builder.Services.AddSingleton<BookFileConverter>();
 builder.Services.AddHostedService<BookConversionWarmer>();
