@@ -329,6 +329,8 @@ struct RootView: View {
             NavigationStack { DownloadsView() }
         }
         .onChange(of: model.credentials == nil) { _, signedOut in if signedOut { showsDownloads = false } }
+        // "Update your Flexarr server": signed in to a server older than the app supports.
+        .banner(Binding(get: { model.serverUpdateNotice }, set: { model.serverUpdateNotice = $0 }), systemImage: "exclamationmark.triangle.fill")
         .animation(.easeInOut(duration: 0.3), value: model.phase)
         .animation(.easeInOut(duration: 0.3), value: welcomed)
         .animation(.easeInOut(duration: 0.3), value: model.needsProfileChoice)

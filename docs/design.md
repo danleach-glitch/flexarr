@@ -116,6 +116,7 @@ The same words on every client and in the guide:
 - **Watchlist**, **Continue watching**, **Up next**, **Coming soon**, **Discover**, **Cast and crew**, **More like this**.
 - Requests: **Request** (movies and shows), **Request album**, **Follow** and then **Following**, **Unrequest**, **Stop following**, **Requested**, **In your library**, **Partly in your library**, **Not in your library**, **Fans also like**. Discover's halves are **Movies and shows** and **Music**.
 - Episodes: **S1E3** where space is short, **Season 1, Episode 3** in headings. No zero padding, no pipes.
+- **Update your Flexarr server**, alone, when the server is older than the apps support (on the connect screen, and as the platform's notice after signing in). How to update is in the guide.
 - Facts sit side by side with space between them, never joined with middle dots.
 
 ## What each client has

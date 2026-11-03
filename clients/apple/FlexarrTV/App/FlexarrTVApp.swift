@@ -75,6 +75,24 @@ struct RootView: View {
                 }
             }
         }
+        // "Update your Flexarr server": signed in to a server older than the app supports. Goes by itself.
+        .overlay(alignment: .top) {
+            if let notice = model.serverUpdateNotice {
+                Label(notice, systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(Color.screen)
+                    .padding(.horizontal, 32)
+                    .padding(.vertical, 18)
+                    .background(Capsule().fill(Color.seat))
+                    .padding(.top, 40)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .task(id: notice) {
+                        try? await Task.sleep(for: .seconds(6))
+                        if model.serverUpdateNotice == notice { model.serverUpdateNotice = nil }
+                    }
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: model.serverUpdateNotice)
         .animation(.easeInOut(duration: 0.35), value: model.phase)
         .animation(.easeInOut(duration: 0.35), value: model.needsProfileChoice)
         .animation(.easeInOut(duration: 0.35), value: model.isOffline)

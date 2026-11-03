@@ -18,6 +18,8 @@ import io.github.flexarr.player.DeviceCapabilities
 import io.github.flexarr.core.PreparedStreams
 import io.github.flexarr.core.LinkSpeed
 import io.github.flexarr.core.ServerVersion
+import io.github.flexarr.core.ServerSupport
+import io.github.flexarr.core.ServerTooOldException
 import io.github.flexarr.core.PlaybackRequest
 import io.github.flexarr.core.DeviceProfile
 import io.github.flexarr.core.ItemSummary
@@ -851,6 +853,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 if (!tryNext || index == candidates.lastIndex) throw e
             }
         }
+        // Older than the apps support: not signed in to, and the connect screen says to update it.
+        if (ServerSupport.isTooOld(status!!.version)) throw ServerTooOldException()
         // The server's address for away from home comes with its status; it's kept beside this one.
         credentials = credentials!!.copy(remoteAddress = remoteAddress(status!!, credentials.address), serverId = status.serverId)
         credentials = withOwnToken(credentials)
@@ -1030,6 +1034,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     private var remoteChecked = false
 
     /**
+     * "Update your Flexarr server": signed in to a server older than the apps support ([ServerSupport.MINIMUM_VERSION]).
+     * Checked once per launch with the address for away from home; the main screens show it as a snackbar, then clear it.
+     */
+    var serverUpdateNotice: String? by mutableStateOf(null)
+
+    /**
      * Keeps the saved address for away from home in step with the server's (remote access turned on or off since, or
      * a sign-in from before the app kept one). Best effort, once per launch, after the profiles are up.
      */
@@ -1042,6 +1052,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         // A guest only ever reaches the server through its tunnel.
         if (credentials.isGuest) return
         val status = runCatching { credentials.client().systemStatus() }.getOrNull() ?: return
+        if (ServerSupport.isTooOld(status.version) && this.credentials?.address == credentials.address) serverUpdateNotice = ServerSupport.UPDATE_MESSAGE
         val remote = remoteAddress(status, credentials.address, kept = credentials.remoteAddress)
         // Who's watching may have been chosen meanwhile: what matters is that it's still the same sign-in.
         val now = this.credentials ?: return

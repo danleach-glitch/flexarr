@@ -43,6 +43,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -176,6 +177,13 @@ fun TvMainScreen(model: AppModel) {
     LaunchedEffect(model.credentials, model.isKids) { model.loadLiveTvStatus() }
     // Whether the server keeps watchlists, and what's on this profile's (the sidebar, cards' menus and title pages offer it).
     LaunchedEffect(model.credentials, model.isKids) { model.refreshWatchlist() }
+    // "Update your Flexarr server": signed in to a server older than the app supports. Said once, then cleared.
+    LaunchedEffect(model.serverUpdateNotice) {
+        val notice = model.serverUpdateNotice ?: return@LaunchedEffect
+        // Cleared once it's gone: clearing it first would restart this effect and cancel the snackbar.
+        navigator.notices.showSnackbar(notice, duration = SnackbarDuration.Long)
+        model.serverUpdateNotice = null
+    }
 
     fun closeSidebar() {
         sidebarOpen = false
