@@ -42,7 +42,7 @@ describe('Folder settings in the Mac app', () => {
     })
     render(<LiveTvSection />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Change' }, { timeout: 3000 }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
     expect(screen.queryByRole('textbox', { name: 'Recordings folder' })).not.toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: 'Choose a folder on the Mac…' }))
 
@@ -72,7 +72,7 @@ describe('Folder settings in the Mac app', () => {
     })
     render(<BackupSection />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Change' }, { timeout: 3000 }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
     expect(screen.queryByRole('textbox', { name: 'Backups folder' })).not.toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: 'Choose a folder on the Mac…' }))
 
