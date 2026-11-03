@@ -282,7 +282,10 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     /// </summary>
     private async Task<bool> FallBackToSoftwareAsync(Process failed, int index, CancellationToken ct)
     {
+        // A fragmented-MP4 player holds the init segment it was sent and never asks again, and software's wouldn't
+        // match the hardware run's: once it's gone out, the segment fails and the player's recovery starts afresh.
         if (!_settings.SoftwareFallback || _settings.Resolved == HardwareAcceleration.None || Plan.Repackage is not null
+            || (Plan.Fmp4 && _init is not null)
             || DateTime.UtcNow - StartedAt > TimeSpan.FromSeconds(20) || HighestComplete() >= _startSegment)
         {
             return false;
