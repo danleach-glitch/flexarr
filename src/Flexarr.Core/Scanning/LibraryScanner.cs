@@ -321,7 +321,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             removed = await RemoveExpiredAsync(library.Id, cancellationToken).ConfigureAwait(false);
         }
 
-        await PruneEmptyItemsAsync(library.Id, cancellationToken).ConfigureAwait(false);
+        await PruneEmptyItemsAsync(db, library.Id, cancellationToken).ConfigureAwait(false);
         await MarkMissingItemsAsync(library.Id, cancellationToken).ConfigureAwait(false);
         if (library.Type == LibraryType.HomeVideos)
         {
@@ -687,8 +687,13 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
-    private async Task PruneEmptyItemsAsync(Guid libraryId, CancellationToken ct)
+    /// <summary>
+    /// Removes a library's playable items left without files, then the seasons/albums and series/artists left empty
+    /// (their history kept a while, by id, as a scan does).
+    /// </summary>
+    public static async Task PruneEmptyItemsAsync(FlexarrDbContext db, Guid libraryId, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(db);
         // Missing files still count: their items wait out the grace period with them.
         // Their history and collections are kept a while, by id, in case the title comes back under a new path.
         var items = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == libraryId);
