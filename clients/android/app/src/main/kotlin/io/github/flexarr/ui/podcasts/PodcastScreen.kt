@@ -17,8 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -69,6 +67,7 @@ import io.github.flexarr.ui.components.PageTitle
 import io.github.flexarr.ui.components.StatusView
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
@@ -186,7 +185,7 @@ fun PodcastScreen(model: AppModel, id: String) {
             PageTitle("", onBack = navigator::back) {
                 if (show != null) {
                     Box {
-                        IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More", tint = Flexarr.screen) }
+                        IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = "More", tint = Flexarr.screen) }
                         DropdownMenu(menu, onDismissRequest = { menu = false }) {
                             Text("Order", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                             listOf("Newest first" to false, "Oldest first" to true).forEach { (label, oldest) ->
@@ -302,7 +301,7 @@ private fun Header(model: AppModel, podcast: Podcast, episodes: List<PodcastEpis
                 ActionButton(
                     if (next.progress != null) "Resume" else if (oldestFirst) "Play" else "Latest episode",
                     onClick = { model.podcasts.play(next) },
-                    icon = Icons.Filled.PlayArrow,
+                    icon = FlexarrIcons.play,
                     prominent = podcast.isSubscribed,
                     ambient = ambient,
                 )

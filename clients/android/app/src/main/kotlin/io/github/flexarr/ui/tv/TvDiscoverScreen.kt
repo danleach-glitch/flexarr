@@ -26,7 +26,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -694,7 +693,7 @@ internal val Availability.label: String?
 @Composable
 private fun LibraryBadge(modifier: Modifier = Modifier) {
     Box(modifier.size(18.dp).background(Flexarr.go, CircleShape), contentAlignment = Alignment.Center) {
-        Icon(Icons.Filled.PlayArrow, contentDescription = "In your library", tint = Flexarr.room, modifier = Modifier.size(13.dp).offset(x = 0.5.dp))
+        Icon(FlexarrIcons.play, contentDescription = "In your library", tint = Flexarr.room, modifier = Modifier.size(13.dp).offset(x = 0.5.dp))
     }
 }
 

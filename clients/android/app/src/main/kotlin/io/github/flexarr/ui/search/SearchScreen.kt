@@ -37,7 +37,6 @@ import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.BookmarkRemove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -456,7 +455,7 @@ private fun ExternalCard(model: AppModel, title: ExternalTitle) {
     val on = onWatchlist ?: title.onWatchlist ?: (title.key in model.watchlistTitles)
     val actions = buildList {
         if (model.hasWatchlist) {
-            add(MenuAction(if (on) "Remove from watchlist" else "Add to watchlist", if (on) Icons.Outlined.BookmarkRemove else FlexarrIcons.watchlist) {
+            add(MenuAction(if (on) "Remove from watchlist" else "Add to watchlist", if (on) FlexarrIcons.offWatchlist else FlexarrIcons.watchlist) {
                 onWatchlist = !on
                 navigator.watchlistChange(if (on) "Couldn’t remove this from your watchlist" else "Couldn’t add this to your watchlist") {
                     try {

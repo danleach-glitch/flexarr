@@ -25,8 +25,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.runtime.Composable
@@ -280,7 +278,7 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
                 TvActionButton(
                     "More info",
                     onClick = { if (item.kind.isMusic) navigator.open(item) else navigator.openItem(item.id) },
-                    icon = Icons.Outlined.Info,
+                    icon = FlexarrIcons.details,
                     ambient = glow,
                     modifier = Modifier.onPreviewKeyEvent { event ->
                         (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight && items.size > 1).also { if (it) step(1) }

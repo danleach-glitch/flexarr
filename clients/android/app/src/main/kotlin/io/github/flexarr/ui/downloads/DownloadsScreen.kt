@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
@@ -204,7 +203,7 @@ private fun BookDownloadRow(model: AppModel, book: io.github.flexarr.core.LocalB
             }
         }
         Box {
-            IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More for ${book.item.title}", tint = Flexarr.usher) }
+            IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = "More for ${book.item.title}", tint = Flexarr.usher) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
                 if (book.phase == LocalPhase.Failed) {
                     DropdownMenuItem(text = { Text("Try again") }, onClick = { menu = false; navigator.downloadBook(book.item) })
@@ -265,7 +264,7 @@ private fun DownloadListRow(
             DownloadStatusLine(model, download, doneLine)
         }
         Box {
-            IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More for $title", tint = Flexarr.usher) }
+            IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = "More for $title", tint = Flexarr.usher) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
                 if (download.phase == LocalPhase.Failed) {
                     DropdownMenuItem(text = { Text("Try again") }, onClick = {

@@ -41,18 +41,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.Theaters
 import androidx.compose.material.icons.filled.Cast
-import androidx.compose.material.icons.filled.ClosedCaption
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -617,7 +607,7 @@ private fun EpisodeRow(episode: ItemSummary, overview: String?, isCurrent: Boole
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.width(140.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat)) {
                     RemoteImage(episode.artwork.thumb ?: episode.artwork.backdrop, 400, Modifier.fillMaxSize()) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Flexarr.usher) }
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(FlexarrIcons.play, contentDescription = null, tint = Flexarr.usher) }
                     }
                     episode.progress?.let { ProgressBar(it, Modifier.align(Alignment.BottomCenter).padding(6.dp)) }
                     if (episode.userData.watched) WatchedBadge(Modifier.align(Alignment.TopEnd).padding(5.dp))

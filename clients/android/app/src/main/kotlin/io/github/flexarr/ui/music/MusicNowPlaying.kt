@@ -29,7 +29,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lyrics as LyricsIcon
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
@@ -92,6 +91,7 @@ import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.podcasts.Tabular
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.ambientColor
 import io.github.flexarr.ui.theme.marquee
 import kotlin.math.roundToInt
@@ -123,13 +123,13 @@ fun MusicNowPlayingBar(model: AppModel) {
             // On a Chromecast: its controls.
             val cast = Casting.shared?.takeIf { it.casts(Casting.Kind.Music) }
             if (cast != null) {
-                RoundButton(if (cast.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (cast.isPlaying) "Pause" else "Play", onClick = cast::togglePlayPause)
+                RoundButton(if (cast.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (cast.isPlaying) "Pause" else "Play", onClick = cast::togglePlayPause)
                 RoundButton(Icons.Filled.SkipNext, "Next", enabled = cast.hasNextTrack, onClick = cast::nextTrack)
             } else {
                 if (music.isLoading) {
                     Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen, modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
                 } else {
-                    RoundButton(if (music.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (music.isPlaying) "Pause" else "Play", onClick = music::togglePlayPause)
+                    RoundButton(if (music.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (music.isPlaying) "Pause" else "Play", onClick = music::togglePlayPause)
                 }
                 RoundButton(Icons.Filled.SkipNext, "Next", enabled = music.hasNext, onClick = music::next)
             }
@@ -292,11 +292,11 @@ private fun ScrubberAndControls(music: MusicPlayer, error: Boolean = false) {
 @Composable
 private fun Controls(music: MusicPlayer) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Transport(Icons.Filled.Shuffle, "Shuffle", size = 44, active = music.isShuffled, onClick = music::toggleShuffle)
+        Transport(FlexarrIcons.shuffle, "Shuffle", size = 44, active = music.isShuffled, onClick = music::toggleShuffle)
         Transport(Icons.Filled.SkipPrevious, "Previous", size = 56, onClick = music::previous)
         Box(Modifier.size(76.dp).clip(CircleShape).background(Flexarr.screen).pressable(music::togglePlayPause), contentAlignment = Alignment.Center) {
             if (music.isLoading) CircularProgressIndicator(color = Flexarr.room, modifier = Modifier.size(28.dp))
-            else Icon(if (music.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (music.isPlaying) "Pause" else "Play", tint = Flexarr.room, modifier = Modifier.size(32.dp))
+            else Icon(if (music.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, contentDescription = if (music.isPlaying) "Pause" else "Play", tint = Flexarr.room, modifier = Modifier.size(32.dp))
         }
         Transport(Icons.Filled.SkipNext, "Next", size = 56, enabled = music.hasNext, onClick = music::next)
         Transport(

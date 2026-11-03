@@ -20,7 +20,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PhoneAndroid
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
@@ -63,6 +62,7 @@ import io.github.flexarr.player.TimeStyle
 import io.github.flexarr.player.glass
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 /**
  * The Cast button: the system's list of Chromecasts to choose from, or (connected) the one in use, with Stop casting.
@@ -125,7 +125,7 @@ fun CastingScreen(casting: Casting, skipSeconds: Int, onClose: () -> Unit) {
                 if (casting.isLoading) {
                     Box(Modifier.size(76.dp).glass(CircleShape), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen, modifier = Modifier.size(28.dp)) }
                 } else {
-                    GlassButton(if (casting.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (casting.isPlaying) "Pause" else "Play", size = 76, onClick = casting::togglePlayPause)
+                    GlassButton(if (casting.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (casting.isPlaying) "Pause" else "Play", size = 76, onClick = casting::togglePlayPause)
                 }
                 GlassSkip(skipSeconds) { casting.skip(skipSeconds) }
             }
@@ -166,7 +166,7 @@ fun CastControls(casting: Casting) {
             }
             Box(Modifier.size(76.dp).clip(CircleShape).background(Flexarr.screen).pressable(casting::togglePlayPause), contentAlignment = Alignment.Center) {
                 if (casting.isLoading) CircularProgressIndicator(color = Flexarr.room, modifier = Modifier.size(28.dp))
-                else Icon(if (casting.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (casting.isPlaying) "Pause" else "Play", tint = Flexarr.room, modifier = Modifier.size(32.dp))
+                else Icon(if (casting.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, contentDescription = if (casting.isPlaying) "Pause" else "Play", tint = Flexarr.room, modifier = Modifier.size(32.dp))
             }
             if (music) {
                 Transport(Icons.Filled.SkipNext, "Next", enabled = casting.hasNextTrack, onClick = casting::nextTrack)

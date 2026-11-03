@@ -28,8 +28,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
@@ -64,6 +62,7 @@ import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.displayTitle
 import io.github.flexarr.core.episodeSubtitle
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.tv.TvActionButton
 import io.github.flexarr.ui.tv.TvTheme
 import kotlinx.coroutines.delay
@@ -257,7 +256,7 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
                 TvActionButton(
                     title,
                     onClick = controller::promptTapped,
-                    icon = if (title.startsWith("Skip")) Icons.Filled.SkipNext else Icons.Filled.PlayArrow,
+                    icon = if (title.startsWith("Skip")) Icons.Filled.SkipNext else FlexarrIcons.play,
                     prominent = true,
                     ambient = Flexarr.screen,
                     modifier = Modifier.focusRequester(prompt),
@@ -368,7 +367,7 @@ private fun Timeline(controller: PlaybackController, scrubTo: Double?, onScrub: 
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(if (controller.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (controller.isPlaying) "Playing" else "Paused", modifier = Modifier.size(16.dp))
+            Icon(if (controller.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, contentDescription = if (controller.isPlaying) "Playing" else "Paused", modifier = Modifier.size(16.dp))
             Text(Format.timestamp(shown), fontSize = 13.sp, style = TimeStyle, modifier = Modifier.padding(start = 6.dp).widthIn(min = 64.dp))
             Spacer(Modifier.weight(1f))
             Text("−" + Format.timestamp((controller.duration - shown).coerceAtLeast(0.0)), fontSize = 13.sp, style = TimeStyle, textAlign = TextAlign.End)

@@ -44,7 +44,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
@@ -89,6 +88,7 @@ import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
 import io.github.flexarr.ActivePlayback
 import io.github.flexarr.appModel
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.usesTvInterface
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.LiveChannel
@@ -346,7 +346,7 @@ private fun LiveControls(controller: LiveTvController, onClose: () -> Unit, onPi
             val many = controller.channels.size > 1
             GlassButton(Icons.Filled.KeyboardArrowUp, "Previous channel", enabled = many) { controller.step(-1); onInteract() }
             SkipButton(-controller.skipSeconds) { controller.skip(-controller.skipSeconds); onInteract() }
-            GlassButton(if (controller.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (controller.isPlaying) "Pause" else "Play", size = 76) {
+            GlassButton(if (controller.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (controller.isPlaying) "Pause" else "Play", size = 76) {
                 controller.togglePlayPause()
                 onInteract()
             }

@@ -48,7 +48,6 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import io.github.flexarr.ReviewPrompt
 import io.github.flexarr.ui.library.LibraryMenuEntry
 import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.SwapVert
@@ -99,6 +98,7 @@ import io.github.flexarr.ui.components.rememberLoader
 import io.github.flexarr.ui.profiles.ProfileAvatar
 import io.github.flexarr.ui.profiles.ProfilePicker
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -221,7 +221,7 @@ fun SettingsScreen(
             }
             item {
                 Group {
-                    SettingsLink("Playback", Icons.Filled.PlayArrow, value = null, onClick = onPlayback)
+                    SettingsLink("Playback", FlexarrIcons.play, value = null, onClick = onPlayback)
                     Divider()
                     val downloads = model.downloads
                     SettingsLink("Downloads", Icons.Filled.DownloadForOffline, value = if (downloads.bytesUsed > 0) Format.bytes(downloads.bytesUsed) else downloads.quality.shortLabel, onClick = onDownloads)

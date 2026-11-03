@@ -32,7 +32,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
@@ -82,6 +81,7 @@ import io.github.flexarr.ui.music.MusicAurora
 import io.github.flexarr.ui.music.rememberCoverColours
 import io.github.flexarr.ui.podcasts.Tabular
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
@@ -221,10 +221,10 @@ private fun Timeline(music: MusicPlayer) {
 @Composable
 private fun Controls(music: MusicPlayer, hasLyrics: Boolean, playPause: FocusRequester, lyricsControl: FocusRequester, onLyrics: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
-        TvRoundControl(Icons.Filled.Shuffle, "Shuffle", onClick = music::toggleShuffle, size = 42.dp, active = music.isShuffled)
+        TvRoundControl(FlexarrIcons.shuffle, "Shuffle", onClick = music::toggleShuffle, size = 42.dp, active = music.isShuffled)
         TvRoundControl(Icons.Filled.SkipPrevious, "Previous", onClick = music::previous, size = 48.dp)
         TvRoundControl(
-            if (music.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+            if (music.isPlaying) FlexarrIcons.pause else FlexarrIcons.play,
             if (music.isPlaying) "Pause" else "Play",
             onClick = music::togglePlayPause,
             size = 60.dp,

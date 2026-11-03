@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,6 +56,7 @@ import io.github.flexarr.ui.downloads.CardDownloadedMark
 import io.github.flexarr.ui.downloads.DownloadedMark
 import io.github.flexarr.ui.podcasts.Tabular
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import io.github.flexarr.ui.theme.Tokens
@@ -157,7 +157,7 @@ fun TrackCard(model: AppModel, item: ItemSummary, width: Dp, onClick: () -> Unit
                     Modifier.align(Alignment.BottomEnd).padding(6.dp).size(28.dp).clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.92f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(if (playing) Icons.AutoMirrored.Filled.VolumeUp else Icons.Filled.PlayArrow, contentDescription = null, tint = Flexarr.room, modifier = Modifier.size(16.dp))
+                    Icon(if (playing) Icons.AutoMirrored.Filled.VolumeUp else FlexarrIcons.play, contentDescription = null, tint = Flexarr.room, modifier = Modifier.size(16.dp))
                 }
             }
             CardCaption(item.title, item.artistName)
