@@ -145,6 +145,30 @@ public sealed class PlaybackSessionTests : IDisposable
         Assert.Equal(2, playing);
     }
 
+    [Fact]
+    public async Task GettingATitleReady_IsntWatching_UntilAPlayerAsksForItsStream()
+    {
+        var movie = await AddMovieAsync();
+        var client = Client();
+        var prepared = await client.PostAsJsonAsync(new Uri("/api/v1/playback", UriKind.Relative),
+            new { itemId = movie, profile = new { }, forceTranscode = true, prepare = true });
+        prepared.EnsureSuccessStatusCode();
+        var id = (await prepared.Content.ReadFromJsonAsync<StartedPlayback>())!.SessionId;
+
+        Assert.DoesNotContain(await WatchingAsync(client), s => s.SessionId == id && !s.Warming);
+
+        // The player opens it: now it's being watched.
+        Assert.True(await ExistsAsync(client, id));
+        Assert.Contains(await WatchingAsync(client), s => s.SessionId == id && !s.Warming);
+    }
+
+    private static async Task<List<ActivityStream>> WatchingAsync(HttpClient client) =>
+        (await client.GetFromJsonAsync<ActivityStreams>(new Uri("/api/v1/system/activity", UriKind.Relative)))!.Streams;
+
+    private sealed record ActivityStream(string SessionId, bool Warming);
+
+    private sealed record ActivityStreams(List<ActivityStream> Streams);
+
     private HttpClient Client(string? profileToken = null)
     {
         var client = _factory.CreateClient();

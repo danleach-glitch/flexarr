@@ -58,11 +58,18 @@ public sealed class PlaybackSession
 
     /// <summary>
     /// Got ready ahead of Play (<see cref="PlaybackRequest.Prepare"/>) and not yet used by a player: not shown as
-    /// playing anywhere, and ended after <see cref="PlaybackSessions.WarmingExpiry"/> if nobody takes it up. A player's
-    /// first progress report, or its first request for a converted stream's playlists or segments, ends it (a request
-    /// for a file played as it is doesn't: Apple's engine fetches a file's opening bytes ahead of time too).
+    /// playing anywhere, and its conversion gives way to any stream being watched. A player's first progress report, its
+    /// first request for a converted stream's playlists or segments, or reading the file it plays as it is once
+    /// <see cref="PlaybackSessions.WarmingGrace"/> has passed (Apple's engine fetches a file's opening bytes ahead of
+    /// time, straight away) ends it.
     /// </summary>
     public bool Warming { get; set; }
+
+    /// <summary>The title, for the log line once a playback got ready ahead of Play is taken up.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>Work put off while it was only got ready (previews, intro detection, subtitles), done once it's used.</summary>
+    public Action? OnUsed { get; set; }
     public double LastPosition { get; set; }
     public bool Paused { get; set; }
 
@@ -117,15 +124,19 @@ public sealed partial class PlaybackSessions
         this.events = events;
         this.nowPlaying = nowPlaying;
 
-        // A transcode ended to make way for another viewer takes its playback with it.
-        transcodes.TakenOver += id =>
+        // A transcode ended to make way for another viewer takes its playback with it; so does one got ready ahead of
+        // Play that made way (nobody was watching it, so there's nothing to tell).
+        void Remove(string id)
         {
             if (_sessions.TryRemove(id, out var session))
             {
                 events?.Removed(session);
                 nowPlaying?.Notice(session);
             }
-        };
+        }
+
+        transcodes.TakenOver += Remove;
+        transcodes.Yielded += Remove;
     }
 
     public IEnumerable<PlaybackSession> Active => _sessions.Values;
@@ -133,8 +144,8 @@ public sealed partial class PlaybackSessions
     /// <summary>The playbacks a player is using: <see cref="Active"/> without those only got ready ahead of Play.</summary>
     public IEnumerable<PlaybackSession> Playing => _sessions.Values.Where(s => !s.Warming);
 
-    /// <summary>A playback got ready ahead of Play that no player took up within this is ended.</summary>
-    public static readonly TimeSpan WarmingExpiry = TimeSpan.FromMinutes(10);
+    /// <summary>A file played as it is, still being read this long after it was got ready, is being played.</summary>
+    public static readonly TimeSpan WarmingGrace = TimeSpan.FromSeconds(30);
 
     /// <summary>A player is using <paramref name="session"/>: if it was only got ready ahead of Play, it now counts as playing.</summary>
     public void Used(PlaybackSession session)
@@ -152,7 +163,24 @@ public sealed partial class PlaybackSessions
             transcode.Warming = false;
         }
 
+        var deferred = session.OnUsed;
+        session.OnUsed = null;
+        deferred?.Invoke();
+        LogTakenUp(Logging.Redactor.ShortHash(session.Id), session.Title ?? "a title");
         nowPlaying?.Notice(session);
+    }
+
+    /// <summary>
+    /// The file <paramref name="session"/> plays as it is (or a book's) was asked for: in use, unless it's the opening
+    /// bytes fetched just after it was got ready.
+    /// </summary>
+    public void Streamed(PlaybackSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        if (session.Warming && DateTime.UtcNow - session.Created > WarmingGrace)
+        {
+            Used(session);
+        }
     }
 
     /// <summary>
@@ -286,7 +314,7 @@ public sealed partial class PlaybackSessions
             session.Shown = shows;
         }
 
-        foreach (var session in _sessions.Values.Where(s => DateTime.UtcNow - s.LastSeen > Expiry || (s.Warming && DateTime.UtcNow - s.Created > WarmingExpiry)).ToList())
+        foreach (var session in _sessions.Values.Where(s => DateTime.UtcNow - s.LastSeen > Expiry).ToList())
         {
             try
             {
@@ -300,6 +328,9 @@ public sealed partial class PlaybackSessions
 
         await transcodes.SweepAsync();
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Playback {PlaybackId} of {Title}: got ready ahead of Play, now playing")]
+    private partial void LogTakenUp(string playbackId, string title);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Couldn't end expired playback session {Session}")]
     private partial void LogExpireFailed(Exception ex, string session);

@@ -1,6 +1,3 @@
-using System.Net;
-using System.Net.Sockets;
-
 namespace Flexarr.Api.Playback;
 
 /// <summary>How a stream's quality is chosen for someone watching away from home (see docs/fast-start.md).</summary>
@@ -34,46 +31,17 @@ public static class AwayFromHome
             return null;
         }
 
+        // A file of unknown bitrate isn't capped: it may well fit, and capping it would give up repackaging.
         var fits = Math.Max(MinBitrate, (long)(measuredBitrate.Value * Headroom));
-        return fileBitrate is > 0 and var bitrate && bitrate <= fits ? null : fits;
+        return fileBitrate is > 0 and var bitrate && bitrate > fits ? fits : null;
     }
+
+    /// <summary>Why a file was converted when only the connection was too slow for it.</summary>
+    public const string Reason = "Your connection is slower than this file needs";
 
     /// <summary>
-    /// Away from home: the request (or, behind a proxy, the client it forwarded for) isn't from this machine or a
-    /// private network. Tailscale's addresses (100.64.0.0/10) count as away: those devices are anywhere.
+    /// Away from home: anything the server's own network rules don't count as the home network (<see cref="Security.NetworkZones"/>),
+    /// Tailscale included, as those devices may be anywhere.
     /// </summary>
-    public static bool IsRemote(HttpContext http)
-    {
-        ArgumentNullException.ThrowIfNull(http);
-        return !IsHome(http.Connection.RemoteIpAddress) || !IsHome(Security.RequestPeer.Of(http));
-    }
-
-    public static bool IsHome(IPAddress? address)
-    {
-        if (address is null)
-        {
-            return true; // A test host, an in-process call.
-        }
-
-        if (address.IsIPv4MappedToIPv6)
-        {
-            address = address.MapToIPv4();
-        }
-
-        if (IPAddress.IsLoopback(address))
-        {
-            return true;
-        }
-
-        if (address.AddressFamily == AddressFamily.InterNetworkV6)
-        {
-            return address.IsIPv6LinkLocal || address.IsIPv6UniqueLocal || address.IsIPv6SiteLocal;
-        }
-
-        var b = address.GetAddressBytes();
-        return b[0] == 10
-            || (b[0] == 172 && b[1] >= 16 && b[1] <= 31)
-            || (b[0] == 192 && b[1] == 168)
-            || (b[0] == 169 && b[1] == 254);
-    }
+    public static bool IsRemote(HttpContext http) => Security.NetworkZones.Of(http) != Security.NetworkZone.Local;
 }

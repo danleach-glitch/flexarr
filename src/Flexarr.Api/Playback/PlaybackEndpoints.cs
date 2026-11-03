@@ -35,8 +35,17 @@ public static partial class PlaybackEndpoints
                     return Results.NotFound();
                 }
 
-                // The first line of every playback's story: search the Logs page for its id to follow it.
-                LogStarted(logger, info.PlaybackId, info.Item.Title, info.Method, info.Reasons.Count > 0 ? $" ({string.Join("; ", info.Reasons)})" : "");
+                // The first line of every playback's story: search the Logs page for its id to follow it. One only got
+                // ready ahead of Play (a page looked at) doesn't name the title: browsing isn't watching.
+                if (request.Prepare)
+                {
+                    LogPrepared(logger, info.PlaybackId, info.Method);
+                }
+                else
+                {
+                    LogStarted(logger, info.PlaybackId, info.Item.Title, info.Method, info.Reasons.Count > 0 ? $" ({string.Join("; ", info.Reasons)})" : "");
+                }
+
                 return Results.Ok(info);
             }
             catch (TranscodeLimitException ex)
@@ -281,6 +290,7 @@ public static partial class PlaybackEndpoints
             }
 
             session.LastSeen = DateTime.UtcNow;
+            sessions.Streamed(session);
             return await Books.BookEndpoints.ServeAsync(parts[index], parts[index].Convert, converter, ct);
         });
 
@@ -290,6 +300,8 @@ public static partial class PlaybackEndpoints
             {
                 return Results.NotFound();
             }
+
+            sessions.Streamed(session);
 
             if (session.RemoteUrl is { } remote)
             {
@@ -554,6 +566,9 @@ public static partial class PlaybackEndpoints
         "mp3" => "audio/mpeg",
         _ => "application/octet-stream",
     };
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Playback {PlaybackId} got ready ahead of Play: {Method}")]
+    private static partial void LogPrepared(ILogger logger, string playbackId, PlaybackMethod method);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Playback {PlaybackId} of {Title}: {Method}{Reasons}")]
     private static partial void LogStarted(ILogger logger, string playbackId, string title, PlaybackMethod method, string reasons);
