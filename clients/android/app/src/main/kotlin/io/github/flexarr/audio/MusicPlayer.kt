@@ -5,6 +5,7 @@ import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.PowerManager
 import androidx.annotation.OptIn
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
@@ -166,6 +167,22 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
     private var lastReport = 0L
     private var ticker: Job? = null
 
+    /**
+     * Held from one track's end until the next starts playing. Each track is its own session, so between them the
+     * player is stopped (letting go of its own wake lock) while the next is asked for; with the screen off the phone
+     * could otherwise sleep part way through asking, and the album stall until the screen came on.
+     */
+    private val betweenTracks: PowerManager.WakeLock by lazy {
+        context.getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "flexarr:next-track")
+            .apply { setReferenceCounted(false) }
+    }
+
+    private fun holdAwakeForNextTrack() = runCatching { betweenTracks.acquire(BETWEEN_TRACKS_MS) }
+
+    private fun letSleep() {
+        if (betweenTracks.isHeld) runCatching { betweenTracks.release() }
+    }
+
     val current: ItemSummary? get() = queue.getOrNull(index)
     /** What plays after the current track, in order. */
     val upNext: List<ItemSummary> get() = queue.drop(index + 1)
@@ -178,6 +195,8 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(playing: Boolean) {
             isPlaying = playing
+            // The player keeps the phone awake itself from here.
+            if (playing) letSleep()
             if (playing) startTicking()
             if (!playing && sessionId != null && player.playbackState == Player.STATE_READY) report(paused = true)
         }
@@ -317,6 +336,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
             model.downloads.record(track.id, player.currentPosition / 1000.0, finished = false)
         }
         endSession()
+        letSleep()
         player.stop()
         player.clearMediaItems()
         queue = emptyList()
@@ -399,6 +419,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
                 if (mine != generation) return@launch
                 flexarrLog.warning("Couldn't start ${track.title}", e)
                 errorMessage = e.message
+                letSleep()
             } finally {
                 if (mine == generation) isLoading = false
             }
@@ -484,6 +505,8 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         val track = current
         if (isPlayingOffline && model.recordsHistory && track != null) model.downloads.record(track.id, 0.0, finished = true)
         report(paused = true, ended = true)
+        // Moving on: awake until the next track plays (see betweenTracks).
+        if (repeatMode == RepeatMode.One || index + 1 < queue.size || repeatMode == RepeatMode.All) holdAwakeForNextTrack()
         when {
             repeatMode == RepeatMode.One -> startCurrent()
             index + 1 < queue.size -> {
@@ -511,6 +534,8 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
 
     private companion object {
         const val REPORT_INTERVAL_MS = 10_000L
+        /** The most the phone is kept awake between tracks, should the next never start. */
+        const val BETWEEN_TRACKS_MS = 30_000L
         val QUEUE_COMMANDS = setOf(
             Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
             Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
