@@ -381,7 +381,7 @@ export function HealthSection() {
             score.missingArtwork === 0 && needsConnection > 0
               ? 'Artwork comes from Radarr and Sonarr. Connect them in Settings › Connections to fill it in.'
               : needsConnection > 0
-                ? `${needsConnection.toLocaleString()} need Radarr or Sonarr connected in Settings › Connections to fill it in. The rest aren’t found there: fix the match to choose the right title, or rename the folder to “Title (Year)”.`
+                ? `${needsConnection.toLocaleString()} ${needsConnection === 1 ? 'needs' : 'need'} Radarr or Sonarr connected in Settings › Connections to fill it in. The rest aren’t found there: fix the match to choose the right title, or rename the folder to “Title (Year)”.`
                 : 'Not found in Sonarr or Radarr. Fix the match to choose the right title, or rename the folder to “Title (Year)”.'
           }
         >
