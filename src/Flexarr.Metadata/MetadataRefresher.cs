@@ -143,7 +143,7 @@ public sealed partial class MetadataRefresher(
     {
         // Nothing due: don't download Radarr's whole library to find out.
         var also = await WithinAsync(libraryId, MediaKind.Movie, within, ct).ConfigureAwait(false);
-        var items = await Stale(libraryId, MediaKind.Movie, force, also).Include(i => i.Genres).Include(i => i.Credits).ToListAsync(ct).ConfigureAwait(false);
+        var items = await Stale(libraryId, MediaKind.Movie, force, also).Include(i => i.Genres).Include(i => i.Credits).AsSplitQuery().ToListAsync(ct).ConfigureAwait(false);
         if (items.Count == 0)
         {
             return new MetadataRefreshResult(0, 0, 0);
@@ -841,7 +841,7 @@ public sealed partial class MetadataRefresher(
     private async Task<MetadataRefreshResult> RefreshSeriesAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, int? tvdbId, CancellationToken ct)
     {
         var also = await WithinAsync(libraryId, MediaKind.Series, within, ct).ConfigureAwait(false);
-        var items = await Stale(libraryId, MediaKind.Series, force, also).Include(i => i.Genres).Include(i => i.Credits).ToListAsync(ct).ConfigureAwait(false);
+        var items = await Stale(libraryId, MediaKind.Series, force, also).Include(i => i.Genres).Include(i => i.Credits).AsSplitQuery().ToListAsync(ct).ConfigureAwait(false);
         if (items.Count == 0)
         {
             return new MetadataRefreshResult(0, 0, 0);
