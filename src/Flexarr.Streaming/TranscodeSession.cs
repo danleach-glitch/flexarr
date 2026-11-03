@@ -34,6 +34,10 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     // Held while ffmpeg is started or stopped. Never disposed: a request may still be waiting on it.
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Lock _playlistLock = new();
+
+    // Held while a repackaged segment's fragments are joined: the opening segment is asked for by the session's own
+    // start and by the player at once, and two joins writing one file would fail one of them.
+    private readonly SemaphoreSlim _joinGate = new(1, 1);
     private volatile Process? _process;
     private int _startSegment;
     private bool _released;
@@ -311,6 +315,21 @@ public sealed partial class TranscodeSession : IAsyncDisposable
             return path;
         }
 
+        await _joinGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            // Another request joined it while this one waited.
+            return File.Exists(path) ? path : await JoinAsync(index, path, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _joinGate.Release();
+        }
+    }
+
+    /// <summary>Call with the join gate held.</summary>
+    private async Task<string?> JoinAsync(int index, string path, CancellationToken ct)
+    {
         List<string> parts;
         lock (_playlistLock)
         {
