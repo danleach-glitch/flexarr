@@ -78,6 +78,7 @@ export function BackupSection() {
   // Until /me answers, assume there's an admin PIN: asking for it beats a refusal from the server.
   const mainHasPin = me.data?.adminPinMissing !== true
   const [dialog, setDialog] = useState<Dialog>()
+  const [deleteError, setDeleteError] = useState<string>()
   const [error, setError] = useState<string>()
   const [restarting, setRestarting] = useState(false)
 
@@ -173,12 +174,21 @@ export function BackupSection() {
           title="Delete this backup?"
           confirmLabel="Delete"
           danger
+          error={deleteError}
           onConfirm={async () => {
-            await deleteBackup(dialog.backup.name)
-            setDialog(undefined)
-            backups.reload()
+            setDeleteError(undefined)
+            try {
+              await deleteBackup(dialog.backup.name)
+              setDialog(undefined)
+              backups.reload()
+            } catch (e) {
+              setDeleteError(errorText(e))
+            }
           }}
-          onClose={() => setDialog(undefined)}
+          onClose={() => {
+            setDialog(undefined)
+            setDeleteError(undefined)
+          }}
         >
           <p>
             {kindLabel[dialog.backup.kind]}, {when(dialog.backup.createdAt)}.
