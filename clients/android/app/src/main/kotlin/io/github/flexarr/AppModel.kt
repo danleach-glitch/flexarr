@@ -406,6 +406,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** The live channel being started, for its card to show a spinner. */
     var liveStartingChannel: String? by mutableStateOf(null)
 
+    /**
+     * The channel ids the live player steps through with Previous and Next, as the screen listed them. Kept here rather
+     * than in the player's intent: a line-up of thousands would overflow what an intent can carry.
+     */
+    var liveChannelOrder: List<String> = emptyList()
+
     val hasLiveTv: Boolean get() = liveTvStatus?.let { it.configured && it.channels > 0 } ?: false
 
     /** The server keeps watchlists (0.56 and later), so titles offer one. */
