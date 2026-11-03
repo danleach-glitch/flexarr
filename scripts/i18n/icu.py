@@ -204,3 +204,34 @@ def _quote(t, in_plural):
     t = t.replace("'", "''")
     special = "{}#" if in_plural else "{}"
     return "".join(f"'{c}'" if c in special else c for c in t)
+
+
+def format_message(parts, locale, values, rules, number=None):
+    """The reference formatter. number(x) formats a number for the locale (plain digits by default)."""
+    import plurals
+
+    number = number or (lambda x: str(int(x)) if float(x) == int(x) else repr(float(x)))
+    out = []
+
+    def run(ps, pound):
+        for p in ps:
+            if isinstance(p, str):
+                out.append(p)
+            elif isinstance(p, Pound):
+                out.append(number(pound) if pound is not None else "#")
+            elif p.name not in values:
+                out.append("{" + p.name + "}")
+            elif p.kind in ("simple", "number"):
+                v = values[p.name]
+                out.append(number(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else str(v))
+            elif p.kind == "plural":
+                v = float(values[p.name])
+                exact = f"={int(v)}" if v == int(v) else None
+                cat = plurals.category(rules, locale, v)
+                chosen = p.options.get(exact) if exact in p.options else p.options.get(cat, p.options["other"])
+                run(chosen, values[p.name])
+            else:
+                run(p.options.get(str(values[p.name]), p.options["other"]), pound)
+
+    run(parts, None)
+    return "".join(out)

@@ -132,5 +132,23 @@ class TranslationTests(unittest.TestCase):
         self.assertEqual(strings.carry_over(["music::Play"], ["Play"], packs, {}), {})
 
 
+
+class FormatCaseTests(unittest.TestCase):
+    """The shared cases in languages/tests/format-cases.json, run on the reference formatter."""
+    cases = json.loads((strings.LANG / "tests" / "format-cases.json").read_text())
+
+    def test_format(self):
+        for c in self.cases["format"]:
+            if c.get("grouping"):
+                continue  # locale number formatting is each platform's own
+            got = icu.format_message(icu.parse(c["message"]), c["locale"], c["args"], RULES)
+            self.assertEqual(got, c["expect"], c["message"])
+
+    def test_errors(self):
+        for m in self.cases["errors"]:
+            with self.assertRaises(icu.MessageError, msg=m):
+                icu.parse(m)
+
+
 if __name__ == "__main__":
     unittest.main()
