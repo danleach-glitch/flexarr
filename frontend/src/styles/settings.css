@@ -1732,6 +1732,11 @@
     gap: 10px 24px;
   }
 
+  /* A switch is small enough to stay at the end of its row, however long the text beside it. */
+  .setting-row:has(> .switch) {
+    flex-wrap: nowrap;
+  }
+
   .setting-row select {
     max-width: 100%;
   }
