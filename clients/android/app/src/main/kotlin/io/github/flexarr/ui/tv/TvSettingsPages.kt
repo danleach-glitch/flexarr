@@ -223,7 +223,7 @@ internal fun TvPlaybackSettings(model: AppModel) {
             item { TvSettingsGroupLabel(model.currentProfile?.let { "${it.name}, on every device" } ?: "Your profile, on every device") }
             item {
                 TvSettingsToggle(
-                    "Auto-play next episode", current.autoPlayNext, { save(current.copy(autoPlayNext = !current.autoPlayNext), current) },
+                    "Auto-play the next episode", current.autoPlayNext, { save(current.copy(autoPlayNext = !current.autoPlayNext), current) },
                     modifier = Modifier.focusFor(null), icon = Icons.Filled.SkipNext,
                     help = "The next episode starts after a 10-second countdown.",
                 )
