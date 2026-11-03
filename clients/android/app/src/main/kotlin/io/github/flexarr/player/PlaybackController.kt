@@ -53,7 +53,6 @@ import io.github.flexarr.core.DownloadedSubtitles
 import io.github.flexarr.player.subtitles.StyledSubtitles
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.ItemSummary
-import io.github.flexarr.core.prompt
 import io.github.flexarr.core.startSubtitleSync
 import io.github.flexarr.core.subtitleSync
 import kotlinx.coroutines.Job
@@ -172,6 +171,14 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private var lastReport = 0L
     private var isFinishing = false
     private var nextCancelled = false
+    /**
+     * A seek or start landed past the countdown's end with no countdown running: the episode plays on with Next Episode
+     * up and counts down over its last 10 seconds, as with Skip credits off. Gone back before the countdown, it's over.
+     */
+    private var landedPastNext = false
+    /** This title's Next Episode timing, worked out once for its info and the player's own preferences. */
+    private var timingKey: Pair<PlaybackInfo, PlaybackPreferences>? = null
+    private var timingValue: NextEpisodeTiming? = null
     private var countdown: Int? = null
     private var countdownJob: Job? = null
     private var ticker: Job? = null
@@ -553,6 +560,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         autoSkipped.clear()
         isFinishing = false
         nextCancelled = false
+        landedPastNext = false
         countdown = null
         countdownJob?.cancel()
         updatePrompt()
@@ -634,7 +642,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         position = seconds
         if (player.duration > 0) duration = player.duration / 1000.0
         sleep.check(::untilEndOfEpisode)
-        val next = info.prompt(seconds)
+        val baseTiming = nextTiming(info)
+        val next = PlaybackPrompt.at(seconds, info.markers, if (info.next != null) baseTiming else null, info.next != null)
         // Skip intros and recaps by themselves when the profile asks, once each.
         if (next is PlaybackPrompt.Skip && (if (next.type == MarkerType.Intro) preferences.skipIntros else preferences.skipRecaps) &&
             autoSkipped.add("${next.type.raw}@${next.to}")
@@ -645,14 +654,19 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         // Next Episode's countdown follows the position (docs/next-episode-timing.md): the picture plays on under it,
         // pausing holds it and going back before it puts it away. Not after Cancel, nor while the sleep timer stops
         // this episode, nor once the file has ended (that's the wall-clock countdown's).
-        val timing = info.nextEpisodeTiming
         // Scrubbed back from the last frame: the wall-clock countdown gives way to the position's.
         if (countdownJob?.isActive == true && player.playbackState != Player.STATE_ENDED) {
             countdownJob?.cancel()
             endCountdown()
         }
         val wallClock = countdownJob?.isActive == true || player.playbackState == Player.STATE_ENDED
-        if (timing != null && info.next != null && !nextCancelled && !sleepHoldsEpisode && !wallClock) {
+        if (baseTiming != null && info.next != null && !nextCancelled && !sleepHoldsEpisode && !wallClock) {
+            val baseNextAt = baseTiming.nextAt
+            if (landedPastNext && seconds < (baseTiming.countdownFrom ?: 0.0)) landedPastNext = false
+            // Landed past the countdown's end without counting down (a seek into the credits, a start there): not on at
+            // once. Only playing into it while counting down moves on.
+            if (!landedPastNext && !isFinishing && baseNextAt != null && seconds >= baseNextAt) landedPastNext = true
+            val timing = if (landedPastNext) baseTiming.playingOn(info.durationSeconds) else baseTiming
             // Skip credits with auto-play off: the episode is over as the credits start, and the player closes.
             val closeAt = timing.closeAt
             if (closeAt != null && seconds >= closeAt) {
@@ -663,12 +677,13 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             val left = timing.secondsLeft(seconds)
             val nextAt = timing.nextAt
             if (left != null && nextAt != null) {
-                if (seconds >= nextAt) return playNext()
-                if (!isFinishing) {
+                // Played into it while counting down: on to the next. Landed at the very end: the file's end has it.
+                if (seconds >= nextAt && isFinishing) return playNext()
+                if (seconds < nextAt && !isFinishing) {
                     isFinishing = true
                     prepareNext()
                 }
-                if (countdown != left) {
+                if (isFinishing && countdown != left) {
                     countdown = left
                     updatePrompt()
                 }
@@ -691,6 +706,21 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             }
         }
         if (System.currentTimeMillis() - lastReport >= REPORT_INTERVAL_MS && player.isPlaying) report(paused = false)
+    }
+
+    private fun nextTiming(info: PlaybackInfo): NextEpisodeTiming? {
+        val key = timingKey
+        if (key == null || key.first !== info || key.second != preferences) {
+            timingValue = info.nextEpisodeTiming(preferences)
+            timingKey = info to preferences
+        }
+        return timingValue
+    }
+
+    /** The countdown over the last 10 seconds instead, as with Skip credits off, after landing past this timing's end. */
+    private fun NextEpisodeTiming.playingOn(duration: Double): NextEpisodeTiming {
+        val end = duration.takeIf { it > 0 } ?: return this
+        return copy(countdownFrom = (end - COUNTDOWN_SECONDS).coerceAtLeast(0.0), nextAt = end, closeAt = null)
     }
 
     private fun endCountdown() {

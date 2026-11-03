@@ -213,30 +213,30 @@ sealed interface PlaybackPrompt {
             hasNext: Boolean,
             skipCredits: Boolean = false,
             autoPlayNext: Boolean = true,
-        ): PlaybackPrompt {
+        ): PlaybackPrompt = at(time, markers, if (hasNext) nextEpisodeTiming(markers, duration, skipCredits, autoPlayNext) else null, hasNext)
+
+        /** The same, with the title's [timing] already worked out (once per title, not on every tick). */
+        fun at(time: Double, markers: List<Marker>, timing: NextEpisodeTiming?, hasNext: Boolean): PlaybackPrompt {
             for (marker in markers) {
                 if (marker.type != MarkerType.Intro && marker.type != MarkerType.Recap) continue
                 // Stop offering the skip in the last second so it doesn't flash as the marker ends.
                 if (time >= marker.start && time < marker.end - 1) return Skip(marker.type, marker.end)
             }
-            if (!hasNext) return None
-            val timing = nextEpisodeTiming(markers, duration, skipCredits, autoPlayNext) ?: return None
+            if (!hasNext || timing == null) return None
             return if (time >= timing.showAt) NextEpisode else None
         }
     }
 }
 
-/** This title's Next Episode timing, with the profile's Skip credits and auto-play. */
-val PlaybackInfo.nextEpisodeTiming: NextEpisodeTiming?
-    get() {
-        val prefs = preferences ?: PlaybackPreferences()
-        return nextEpisodeTiming(markers, durationSeconds, prefs.skipCredits, prefs.autoPlayNext)
-    }
+/**
+ * This title's Next Episode timing, with [preferences]' Skip credits and auto-play: the player's own, which it may have
+ * changed since the server sent [PlaybackInfo.preferences].
+ */
+fun PlaybackInfo.nextEpisodeTiming(preferences: PlaybackPreferences): NextEpisodeTiming? =
+    nextEpisodeTiming(markers, durationSeconds, preferences.skipCredits, preferences.autoPlayNext)
 
-fun PlaybackInfo.prompt(at: Double): PlaybackPrompt {
-    val prefs = preferences ?: PlaybackPreferences()
-    return PlaybackPrompt.at(at, markers, durationSeconds, next != null, prefs.skipCredits, prefs.autoPlayNext)
-}
+fun PlaybackInfo.prompt(at: Double, preferences: PlaybackPreferences = this.preferences ?: PlaybackPreferences()): PlaybackPrompt =
+    PlaybackPrompt.at(at, markers, if (next != null) nextEpisodeTiming(preferences) else null, next != null)
 
 /**
  * What Home says when it has nothing to show: no library yet, a first scan under way, or libraries whose folders hold
