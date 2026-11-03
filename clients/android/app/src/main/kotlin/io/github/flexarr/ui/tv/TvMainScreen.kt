@@ -100,6 +100,7 @@ import io.github.flexarr.ui.components.BrandMark
 import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.profiles.ProfileAvatar
+import io.github.flexarr.ui.TvAppUpdatePrompt
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.marquee
 import io.github.flexarr.ui.theme.Tokens
@@ -394,6 +395,8 @@ fun TvMainScreen(model: AppModel) {
                 showingNowPlaying = true
             }, onClose = ::closeSidebar, onFocusLeft = { sidebarOpen = false }, closesOnBack = !atTabRoot)
             SnackbarHost(navigator.notices, Modifier.align(Alignment.BottomCenter).padding(bottom = 30.dp))
+            // Google Play's updates: a downloaded one asks to restart (AppUpdates says when).
+            TvAppUpdatePrompt()
         }
         if (showingNowPlaying) {
             Box(Modifier.trapsFocus()) { TvNowPlayingScreen(model, onClose = { showingNowPlaying = false }) }

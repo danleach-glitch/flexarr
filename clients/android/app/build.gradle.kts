@@ -240,6 +240,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     // Google Play's in-app rating prompt (ReviewPrompt).
     implementation(libs.play.review)
+    // Google Play's in-app updates (AppUpdates).
+    implementation(libs.play.app.update)
     // Scan code for family invites: Google Play services' own scanner, so the app needs no camera permission.
     implementation(libs.kotlinx.coroutines.guava)
     implementation(libs.coil.compose)

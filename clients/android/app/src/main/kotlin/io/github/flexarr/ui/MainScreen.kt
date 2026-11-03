@@ -115,6 +115,7 @@ import io.github.flexarr.ui.settings.ListeningSettingsScreen
 import io.github.flexarr.ui.settings.ServerSettingsScreen
 import io.github.flexarr.ui.settings.SettingsScreen
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.mainButtonFill
 import io.github.flexarr.ui.theme.FlexarrIcons
 
 private enum class Tab(val route: String, val label: String) {
@@ -160,6 +161,8 @@ fun MainScreen(model: AppModel) {
         delay(1_500)
         ReviewPrompt.ask(activity)
     }
+    // Google Play's updates: a downloaded one offers a restart (AppUpdates says when).
+    AppUpdatePrompt(navigator.notices)
 
     CompositionLocalProvider(LocalClient provides client, LocalNavigator provides navigator, LocalOffline provides model.serverUnreachable) {
         // Back can leave a tab's page for another's: the lit tab follows whichever tab's page is showing.
@@ -272,7 +275,7 @@ fun MainScreen(model: AppModel) {
         Scaffold(
             containerColor = Flexarr.room,
             snackbarHost = {
-                SnackbarHost(navigator.notices) { Snackbar(it, containerColor = Flexarr.seat, contentColor = Flexarr.screen) }
+                SnackbarHost(navigator.notices) { Snackbar(it, containerColor = Flexarr.seat, contentColor = Flexarr.screen, actionColor = mainButtonFill(Flexarr.silver)) }
             },
             bottomBar = {
               Column {
