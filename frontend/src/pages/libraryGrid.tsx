@@ -325,11 +325,13 @@ interface AlphaProps {
   empty: Set<string>
 }
 
-/** Why a jump to `letter` failed, and Try again for that letter. */
-function JumpFailed({ letter, jump }: { letter: string; jump: (letter: string) => void }) {
+/** Why a jump to `letter` failed, and Try again for that letter. `short` words it to fit a phone's picker bar. */
+function JumpFailed({ letter, jump, short }: { letter: string; jump: (letter: string) => void; short?: boolean }) {
   return (
     <p className="alpha-failed" role="alert">
-      <span className="error">{letter === '#' ? 'Numbers and symbols' : letter} couldn’t be loaded.</span>
+      <span className="error">
+        {short ? `Couldn’t load ${letter}.` : `${letter === '#' ? 'Numbers and symbols' : letter} couldn’t be loaded.`}
+      </span>
       <button type="button" className="button quiet small" onClick={() => jump(letter)}>
         Try again
       </button>
@@ -341,7 +343,7 @@ function JumpFailed({ letter, jump }: { letter: string; jump: (letter: string) =
 export function AlphaPicker({ jump, jumping, failed, empty }: AlphaProps) {
   return (
     <div className="alpha-picker">
-      {failed && !jumping && <JumpFailed letter={failed} jump={jump} />}
+      {failed && !jumping && <JumpFailed letter={failed} jump={jump} short />}
       <label>
         <span className="visually-hidden">Jump to letter</span>
         <select
