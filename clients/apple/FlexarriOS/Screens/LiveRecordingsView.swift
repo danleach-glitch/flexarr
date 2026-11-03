@@ -5,6 +5,7 @@ import SwiftUI
 /// one off (or stop it, or delete a recording); tap a recording to play it. Programmes are set to record from the guide.
 struct LiveRecordingsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     @State private var recordings: Recordings?
     @State private var failed: String?
 
@@ -73,7 +74,9 @@ struct LiveRecordingsView: View {
         .background(RoomBackground(ambient: nil))
         .navigationTitle("Recordings")
         .refreshable { await load() }
-        .task {
+        // Only while the app is in front: with music keeping it alive in the background, it would go on asking.
+        .task(id: scenePhase == .active) {
+            guard scenePhase == .active else { return }
             while !Task.isCancelled {
                 await load()
                 try? await Task.sleep(for: .seconds(30))

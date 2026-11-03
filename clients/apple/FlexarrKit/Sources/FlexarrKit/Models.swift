@@ -878,6 +878,24 @@ public struct PlaybackPreferences: Codable, Sendable, Hashable {
 
     /// What a profile starts with, and what's assumed from a server that doesn't say.
     public static let standard = PlaybackPreferences()
+
+    private enum CodingKeys: String, CodingKey {
+        case autoPlayNext, skipIntros, skipRecaps, skipCredits, subtitleSize, subtitlePosition, subtitlesInBlackBars, listeningInContinue
+    }
+
+    /// A size or position from a newer server, read here as `unknown`, is left out (the server keeps the profile's own)
+    /// rather than sent back as "unknown", which the server refuses.
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(autoPlayNext, forKey: .autoPlayNext)
+        try container.encode(skipIntros, forKey: .skipIntros)
+        try container.encode(skipRecaps, forKey: .skipRecaps)
+        try container.encode(skipCredits, forKey: .skipCredits)
+        try container.encodeIfPresent(subtitleSize.flatMap { $0 == .unknown ? nil : $0 }, forKey: .subtitleSize)
+        try container.encodeIfPresent(subtitlePosition.flatMap { $0 == .unknown ? nil : $0 }, forKey: .subtitlePosition)
+        try container.encodeIfPresent(subtitlesInBlackBars, forKey: .subtitlesInBlackBars)
+        try container.encodeIfPresent(listeningInContinue, forKey: .listeningInContinue)
+    }
 }
 
 struct ProgressReport: Codable, Sendable {

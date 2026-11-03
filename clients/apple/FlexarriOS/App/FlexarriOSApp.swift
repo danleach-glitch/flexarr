@@ -340,7 +340,11 @@ struct RootView: View {
             model.onPodcastsChange = { [weak model] in if let model { WidgetBridge.publish(model) } }
             model.music.onChange = { [weak model] in if let model { WidgetBridge.publish(model) } }
             model.onWatchlistChange = { [weak model] in if let model { WidgetBridge.publishWatchlist(model) } }
-            model.onWatchlistForgotten = { WidgetBridge.forgetWatchlist() }
+            // Signed out or another profile: neither widget keeps the last one's titles.
+            model.onWatchlistForgotten = {
+                WidgetBridge.forgetWatchlist()
+                WidgetBridge.forgetListening()
+            }
             model.music.offlineLibrary = downloads
             CarPlaySceneDelegate.downloads = downloads
             downloads.isPlaying = { [weak model] id in model?.music.isPlayingFile(of: id) == true }

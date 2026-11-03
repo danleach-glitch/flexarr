@@ -129,6 +129,7 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var trail: [ItemSummary] = []
     /// The profile's auto-play and skip choices, from the session.
     @ObservationIgnored private var preferences = PlaybackPreferences.standard
+    @ObservationIgnored private var preferencesSave: Task<Void, Never>?
     /// Intros and recaps already skipped by themselves, so seeking back to watch one isn't overruled.
     @ObservationIgnored private var autoSkipped: Set<String> = []
     /// The episode is over (it ended, or its credits started with Skip credits on): counting down to the next
@@ -502,22 +503,35 @@ final class PlaybackController: NSObject {
     /// The profile's subtitle size, changed while watching: drawn at once, and saved for every device.
     func setSubtitleSize(_ size: SubtitleSize) {
         preferences.subtitleSize = size
-        savePreferences()
+        savePreferences { $0.subtitleSize = size }
     }
 
     /// Where the profile's subtitles sit, changed while watching: drawn at once, and saved for every device.
     func setSubtitlePlacement(_ placement: SubtitlePlacement) {
         preferences.subtitlePosition = placement.position
         preferences.subtitlesInBlackBars = placement.inBlackBars
-        savePreferences()
+        savePreferences {
+            $0.subtitlePosition = placement.position
+            $0.subtitlesInBlackBars = placement.inBlackBars
+        }
     }
 
-    private func savePreferences() {
-        if let client {
-            var saved = preferences
-            // Left out, so a switch flipped on another device since playback started isn't turned back.
+    /// Saves one change to the profile's preferences: applied to them as the server has them now, so auto-play and the
+    /// skip switches, changed on another device since playback began, aren't turned back. One save at a time, in order.
+    private func savePreferences(_ change: @escaping @Sendable (inout PlaybackPreferences) -> Void) {
+        guard let client else { return }
+        let previous = preferencesSave
+        preferencesSave = Task {
+            await previous?.value
+            guard var saved = try? await client.playbackPreferences() else { return }
+            change(&saved)
+            // Left out: the server keeps its own.
             saved.listeningInContinue = nil
-            Task { try? await client.setPlaybackPreferences(saved) }
+            do {
+                try await client.setPlaybackPreferences(saved)
+            } catch {
+                log.warning("Couldn't save the subtitle settings", error: error)
+            }
         }
     }
 
@@ -1495,26 +1509,5 @@ extension PlaybackController: PlayerScreenDelegate {
 
     func playerScreen(_ screen: PlayerViewController, resyncSubtitle key: String) {
         resyncSubtitles(key: key)
-    }
-}
-
-/// A little time from iOS to finish something after the app leaves the screen. Ended when the work is done, or by
-/// iOS when the time runs out.
-@MainActor
-private final class BackgroundTime {
-    private var id = UIBackgroundTaskIdentifier.invalid
-
-    init(named name: String) {
-        id = UIApplication.shared.beginBackgroundTask(withName: name) { [weak self] in
-            MainActor.assumeIsolated { self?.end() }
-        }
-    }
-
-    nonisolated func end() {
-        Task { @MainActor in
-            guard self.id != .invalid else { return }
-            UIApplication.shared.endBackgroundTask(self.id)
-            self.id = .invalid
-        }
     }
 }
