@@ -136,4 +136,26 @@ describe('SearchPalette', () => {
     expect(screen.queryByRole('group', { name: 'Recently opened' })).not.toBeInTheDocument()
     expect(forgotten).toHaveBeenLastCalledWith('')
   })
+
+  it('leaves Enter on a tabbed-to button to that button, keeps Tab inside, and closes on Escape', async () => {
+    mockApi({ '/search': { titles: [], episodes: [], people: [], genres: [], albums: [], tracks: [{ item: commonPeople, album: 'Different Class' }] } })
+    const { onClose } = renderPalette()
+    const field = screen.getByLabelText('Search your library')
+    fireEvent.change(field, { target: { value: 'common' } })
+    const play = await screen.findByRole('button', { name: 'Play Common People' })
+
+    // Enter on Play isn't the field's: the highlighted result doesn't open.
+    play.focus()
+    fireEvent.keyDown(play, { key: 'Enter' })
+    expect(screen.getByText('At /')).toBeInTheDocument()
+
+    // Tab from the last control comes back to the first, inside the palette.
+    fireEvent.keyDown(play, { key: 'Tab' })
+    expect(field).toHaveFocus()
+
+    fireEvent.keyDown(field, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(screen.getByText('At /item/dc')).toBeInTheDocument()
+  })
 })

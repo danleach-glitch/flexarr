@@ -19,6 +19,7 @@ import {
   type SearchResults,
 } from '../api/client'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
+import { useModal } from '../hooks/useModal'
 import { authorsLine, isBook } from '../lib/books'
 import { episodeCode, year } from '../lib/format'
 import { itemLink, libraryGenreLink } from '../lib/links'
@@ -232,6 +233,8 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate()
   const player = useAudioPlayer()
   const input = useRef<HTMLInputElement>(null)
+  // Escape closes it, Tab stays inside it, and the focus goes back to whatever opened it.
+  const dialog = useModal<HTMLDivElement>(onClose)
 
   useEffect(() => input.current?.focus(), [])
 
@@ -295,6 +298,12 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
     [query, found, outside, recent],
   )
 
+  // Arrowing past the bottom (or top) of the list brings the selection into view.
+  const activeKey = results[active]?.key
+  useEffect(() => {
+    if (activeKey) document.getElementById(`result-${activeKey}`)?.scrollIntoView?.({ block: 'nearest' })
+  }, [activeKey])
+
   const groups = useMemo(() => {
     const map = new Map<string, Result[]>()
     for (const r of results) map.set(r.group, [...(map.get(r.group) ?? []), r])
@@ -344,9 +353,10 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
     input.current?.focus()
   }
 
+  // From the search field only: Enter on a tabbed-to Play or Remove button is that button's.
   function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Escape') onClose()
-    else if (e.key === 'ArrowDown') {
+    if (e.target !== input.current) return
+    if (e.key === 'ArrowDown') {
       e.preventDefault()
       setActive((a) => Math.min(results.length - 1, a + 1))
     } else if (e.key === 'ArrowUp') {
@@ -362,7 +372,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="palette-backdrop" onMouseDown={onClose}>
-      <div className="palette" role="dialog" aria-modal="true" aria-label="Search" onMouseDown={(e) => e.stopPropagation()} onKeyDown={onKeyDown}>
+      <div ref={dialog} className="palette" role="dialog" aria-modal="true" aria-label="Search" onMouseDown={(e) => e.stopPropagation()} onKeyDown={onKeyDown}>
         <label className="palette-input">
           <Search />
           <input
