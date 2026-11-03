@@ -1,12 +1,13 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
+using Flexarr.Core.Localization;
 using Microsoft.Extensions.Logging;
 
 namespace Flexarr.Streaming;
 
 /// <summary>Thrown when starting a transcode would go over <see cref="TranscodeSettings.MaxConcurrentTranscodes"/>.</summary>
 public sealed class TranscodeLimitException(string? message = null)
-    : Exception(message ?? "Flexarr is busy playing on other screens. Try again when one of them finishes.");
+    : Exception(message ?? Loc.T("Flexarr is busy playing on other screens. Try again when one of them finishes."));
 
 /// <summary>Owns all transcode sessions: creation, lookup, throttling and cleanup.</summary>
 /// <param name="otherWork">Live TV channels being converted, which take slots of the same limit but can't be taken over.</param>
@@ -18,11 +19,14 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
     private static readonly TimeSpan ReleaseAfterIdle = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan RememberEndedFor = TimeSpan.FromHours(12);
 
-    /// <summary>Why a viewer's transcode was ended to make way for another, for that viewer's player to show.</summary>
-    public const string TakenOverBySameProfile =
-        "Someone started watching on another screen, so this one had to stop.";
-    public const string TakenOverByOtherProfile =
-        "Someone on another profile started watching on another screen, so this one had to stop.";
+    /// <summary>
+    /// Why a viewer's transcode was ended to make way for another, for that viewer's player to show. Kept in English
+    /// and translated with Loc.T when that player asks, in its own language.
+    /// </summary>
+    public static readonly string TakenOverBySameProfile =
+        Loc.Mark("Someone started watching on another screen, so this one had to stop.");
+    public static readonly string TakenOverByOtherProfile =
+        Loc.Mark("Someone on another profile started watching on another screen, so this one had to stop.");
 
     private readonly ConcurrentDictionary<string, TranscodeSession> _sessions = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, (string Reason, DateTime At)> _endedForOthers = new(StringComparer.Ordinal);
@@ -110,12 +114,12 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
                 if (restarting)
                 {
                     throw new TranscodeLimitException(
-                        "The stream stopped, and Flexarr is now busy playing on other screens. Try again when one of them finishes.");
+                        Loc.T("The stream stopped, and Flexarr is now busy playing on other screens. Try again when one of them finishes."));
                 }
 
                 if (preparing)
                 {
-                    throw new TranscodeLimitException("Flexarr is busy playing on other screens, so this wasn't got ready ahead of time.");
+                    throw new TranscodeLimitException(Loc.T("Flexarr is busy playing on other screens, so this wasn't got ready ahead of time."));
                 }
 
                 var share = PerProfileLimit;

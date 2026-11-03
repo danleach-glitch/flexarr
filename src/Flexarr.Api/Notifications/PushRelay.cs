@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Flexarr.Api.Configuration;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Notifications;
 using Microsoft.Extensions.Options;
 
@@ -55,7 +56,7 @@ public sealed partial class PushRelay(HttpClient http, IOptionsMonitor<FlexarrOp
         ArgumentNullException.ThrowIfNull(message);
         if (!IsEnabled || !Uri.TryCreate(options.CurrentValue.Notifications.RelayUrl, UriKind.Absolute, out var relay))
         {
-            return (PushOutcome.Failed, "Notifications are turned off on this server.");
+            return (PushOutcome.Failed, Loc.T("Notifications are turned off on this server."));
         }
 
         var payload = Seal(device.Key, JsonSerializer.SerializeToUtf8Bytes(message, Json));
@@ -72,12 +73,12 @@ public sealed partial class PushRelay(HttpClient http, IOptionsMonitor<FlexarrOp
             LogRefused((int)response.StatusCode, reason);
             return response.StatusCode == HttpStatusCode.Gone || reason is "BadDeviceToken" or "DeviceTokenNotForTopic"
                 ? (PushOutcome.Gone, reason)
-                : (PushOutcome.Failed, reason ?? $"The relay answered {(int)response.StatusCode}.");
+                : (PushOutcome.Failed, reason ?? Loc.T("The relay answered {status}.", new { status = ((int)response.StatusCode).ToString(System.Globalization.CultureInfo.InvariantCulture) }));
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {
             LogUnreachable(ex.Message);
-            return (PushOutcome.Failed, "Couldn't reach the notification relay.");
+            return (PushOutcome.Failed, Loc.T("Couldn't reach the notification relay."));
         }
     }
 

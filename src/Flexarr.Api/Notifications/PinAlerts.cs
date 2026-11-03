@@ -1,6 +1,8 @@
 using Flexarr.Api.Authentication;
+using Flexarr.Api.Localization;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
 
@@ -32,8 +34,12 @@ public sealed partial class PinAlerts(IServiceScopeFactory scopes, SignIns signI
                 return;
             }
 
-            var who = Describe(callers);
-            LogLockedOut(who);
+            // In English for the log; each phone's notice describes them again in its profile's language.
+            using (Loc.Use(null))
+            {
+                LogLockedOut(Describe(callers));
+            }
+
             var now = clock.GetUtcNow();
             lock (_sending)
             {
@@ -49,7 +55,7 @@ public sealed partial class PinAlerts(IServiceScopeFactory scopes, SignIns signI
             {
                 try
                 {
-                    await SendAsync(who, CancellationToken.None);
+                    await SendAsync(callers, CancellationToken.None);
                 }
                 catch (Exception ex)
                 {
@@ -59,7 +65,7 @@ public sealed partial class PinAlerts(IServiceScopeFactory scopes, SignIns signI
         };
     }
 
-    public async Task<int> SendAsync(string who, CancellationToken ct)
+    public async Task<int> SendAsync(IReadOnlyList<string> callers, CancellationToken ct)
     {
         using var scope = scopes.CreateScope();
         var relay = scope.ServiceProvider.GetRequiredService<PushRelay>();
@@ -75,11 +81,22 @@ public sealed partial class PinAlerts(IServiceScopeFactory scopes, SignIns signI
             return 0;
         }
 
-        return await scope.ServiceProvider.GetRequiredService<Notifier>().SendAsync(db, phones, Message(who), null, ct);
+        var languages = scope.ServiceProvider.GetRequiredService<ProfileLanguages>();
+        var notifier = scope.ServiceProvider.GetRequiredService<Notifier>();
+        var sent = 0;
+        foreach (var profile in phones.GroupBy(p => p.ProfileId))
+        {
+            using var language = Loc.Use(await languages.OfAsync(profile.Key, ct));
+            sent += await notifier.SendAsync(db, profile, Message(Describe(callers)), null, ct);
+        }
+
+        return sent;
     }
 
+    /// <summary>In the current language (<see cref="Loc.Use"/>).</summary>
     public static PushMessage Message(string who) =>
-        new("Someone's guessing your PIN", $"{who} got the admin PIN or your profile's PIN wrong too many times and has to wait. If it wasn't you, change them on the web, in Settings.",
+        new(Loc.T("Someone's guessing your PIN"),
+            Loc.T("{who} got the admin PIN or your profile's PIN wrong too many times and has to wait. If it wasn't you, change them on the web, in Settings.", new { who }),
             Category, Thread: Category);
 
     /// <summary>"Living Room TV", "the Tailscale account sam@example.com", or "a device at 192.168.1.20".</summary>
@@ -95,12 +112,12 @@ public sealed partial class PinAlerts(IServiceScopeFactory scopes, SignIns signI
 
         if (callers.FirstOrDefault(c => c.StartsWith("tailscale:", StringComparison.Ordinal)) is { } login)
         {
-            return $"The Tailscale account {login["tailscale:".Length..]}";
+            return Loc.T("The Tailscale account {login}", new { login = login["tailscale:".Length..] });
         }
 
         return callers.FirstOrDefault(c => c.StartsWith("address:", StringComparison.Ordinal)) is { } address
-            ? $"A device at {address["address:".Length..]}"
-            : "Someone";
+            ? Loc.T("A device at {address}", new { address = address["address:".Length..] })
+            : Loc.T("Someone");
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "{Who} got the admin PIN (or the main profile's own) wrong too many times and is locked out for a while")]

@@ -4,6 +4,7 @@ using System.Text.Json;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Media;
 using Flexarr.Integrations.Arr;
 using Flexarr.Streaming;
@@ -132,8 +133,8 @@ public static partial class SubtitleSearchEndpoints
             if (saved is null)
             {
                 LogNotSaved(logs.CreateLogger(typeof(SubtitleSearchEndpoints)), file.Path);
-                return Results.Problem("Bazarr didn't save the subtitles. The site may have refused the download (most allow only so many a day), or Bazarr " +
-                    "saved them somewhere Flexarr doesn't look; Bazarr's log says which.", statusCode: StatusCodes.Status502BadGateway);
+                return Problems.Of("Bazarr didn't save the subtitles. The site may have refused the download (most allow only so many a day), or Bazarr saved them somewhere Flexarr doesn't look; Bazarr's log says which.",
+                    status: StatusCodes.Status502BadGateway);
             }
 
             return Results.Ok(new SubtitleDownloadedDto(saved.Key, Languages.Label(saved.Language, saved.Title, saved.IsForced)));
@@ -179,7 +180,7 @@ public static partial class SubtitleSearchEndpoints
                     if (changed is null)
                     {
                         LogSyncUnchanged(log, path);
-                        return "Bazarr couldn't re-sync these subtitles. Its log says why.";
+                        return Loc.Mark("Bazarr couldn't re-sync these subtitles. Its log says why.");
                     }
 
                     return null;
@@ -191,7 +192,7 @@ public static partial class SubtitleSearchEndpoints
                 }
                 catch (TaskCanceledException) when (!stopping.IsCancellationRequested)
                 {
-                    return "Bazarr took too long.";
+                    return Loc.Mark("Bazarr took too long.");
                 }
             });
             return started
@@ -202,7 +203,10 @@ public static partial class SubtitleSearchEndpoints
         group.MapGet("/sync", async (Guid id, Guid? fileId, FlexarrDbContext db, SubtitleSyncs syncs, CancellationToken ct) =>
         {
             var files = await PlayableFilesAsync(db, id, ct);
-            return Choose(files, fileId) is { } file && syncs.Get(file.Id) is { } state ? Results.Ok(state) : Results.Ok(new SubtitleSyncDto("none"));
+            // A failure is kept in English (marked where it's written) and shown in the language of whoever asks.
+            return Choose(files, fileId) is { } file && syncs.Get(file.Id) is { } state
+                ? Results.Ok(state.Error is { } error ? state with { Error = Loc.T(error) } : state)
+                : Results.Ok(new SubtitleSyncDto("none"));
         });
 
         return api;
@@ -286,8 +290,8 @@ public static partial class SubtitleSearchEndpoints
 
         if (item.ArrId is not { } arrId)
         {
-            return new Found(Results.Problem($"Bazarr finds subtitles for what {(item.Kind == MediaKind.Movie ? "Radarr" : "Sonarr")} manages, and this isn't one of them.",
-                statusCode: StatusCodes.Status409Conflict));
+            return new Found(Problems.Of("Bazarr finds subtitles for what {app} manages, and this isn't one of them.",
+                new { app = item.Kind == MediaKind.Movie ? "Radarr" : "Sonarr" }, status: StatusCodes.Status409Conflict));
         }
 
         if (Choose(await PlayableFilesAsync(db, id, ct), fileId) is not { } file)
@@ -306,8 +310,8 @@ public static partial class SubtitleSearchEndpoints
             // Subtitles land beside Bazarr's copy, so they'd be no use to another one.
             if (!FileName(media.Path).Equals(Path.GetFileName(file.Path), StringComparison.OrdinalIgnoreCase))
             {
-                return new Found(Results.Problem($"Bazarr finds subtitles for another copy of this ({FileName(media.Path)}). Play that one to get them.",
-                    statusCode: StatusCodes.Status409Conflict));
+                return new Found(Problems.Of("Bazarr finds subtitles for another copy of this ({file}). Play that one to get them.",
+                    new { file = FileName(media.Path) }, status: StatusCodes.Status409Conflict));
             }
 
             if (media.ProfileId is null)

@@ -1,3 +1,5 @@
+using Flexarr.Core.Localization;
+
 namespace Flexarr.Api.Playback;
 
 /// <summary>How a stream's quality is chosen for someone watching away from home (see docs/fast-start.md).</summary>
@@ -37,7 +39,7 @@ public static class AwayFromHome
     }
 
     /// <summary>Why a file was converted when only the connection was too slow for it.</summary>
-    public const string Reason = "Your connection is slower than this file needs";
+    public static readonly string Reason = Loc.Mark("Your connection is slower than this file needs");
 
     /// <summary>
     /// Away from home: anything the server's own network rules don't count as the home network (<see cref="Security.NetworkZones"/>),

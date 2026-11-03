@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
+using Flexarr.Api.Localization;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Notifications;
 using Microsoft.EntityFrameworkCore;
 
@@ -52,30 +54,30 @@ public static partial class NotificationEndpoints
             var platform = request.Platform ?? NotificationPlatforms.Apple;
             if (platform is not (NotificationPlatforms.Apple or NotificationPlatforms.Android))
             {
-                errors["platform"] = ["Use \"apple\" or \"android\"."];
+                errors["platform"] = [Loc.T("Use \"apple\" or \"android\".")];
             }
             else if (platform == NotificationPlatforms.Apple && !HexToken().IsMatch(request.Token ?? ""))
             {
-                errors["token"] = ["Use the device token Apple gave, in hex."];
+                errors["token"] = [Loc.T("Use the device token Apple gave, in hex.")];
             }
             else if (platform == NotificationPlatforms.Android && !FirebaseToken().IsMatch(request.Token ?? ""))
             {
-                errors["token"] = ["Use the registration token Firebase gave."];
+                errors["token"] = [Loc.T("Use the registration token Firebase gave.")];
             }
 
             if (request.Environment is not ("production" or "sandbox"))
             {
-                errors["environment"] = ["Use \"production\" or \"sandbox\"."];
+                errors["environment"] = [Loc.T("Use \"production\" or \"sandbox\".")];
             }
 
             if (key.Length != 32)
             {
-                errors["key"] = ["Use 32 random bytes, in base64."];
+                errors["key"] = [Loc.T("Use 32 random bytes, in base64.")];
             }
 
             if (request.UpcomingHour is < 0 or > 23)
             {
-                errors["upcomingHour"] = ["Use an hour from 0 to 23."];
+                errors["upcomingHour"] = [Loc.T("Use an hour from 0 to 23.")];
             }
 
             if (errors.Count > 0)
@@ -129,14 +131,21 @@ public static partial class NotificationEndpoints
             return Results.NoContent();
         });
 
-        group.MapPost("/test", async (CurrentProfile current, FlexarrDbContext db, PushRelay relay, CancellationToken ct) =>
+        group.MapPost("/test", async (CurrentProfile current, FlexarrDbContext db, PushRelay relay, ProfileLanguages languages, CancellationToken ct) =>
         {
             if (await FindAsync(db, current, ct) is not { } device)
             {
                 return Results.NotFound();
             }
 
-            var (outcome, reason) = await relay.SendAsync(device, new PushMessage("Notifications are on", "This is how Flexarr will tell you something new is ready.", "flexarr.test"), null, ct);
+            // In the language the phone's notifications will come in: its profile's, else this request's.
+            PushMessage test;
+            using (Loc.Use(await languages.OfAsync(device.ProfileId, ct) ?? Loc.Language))
+            {
+                test = new PushMessage(Loc.T("Notifications are on"), Loc.T("This is how Flexarr will tell you something new is ready."), "flexarr.test");
+            }
+
+            var (outcome, reason) = await relay.SendAsync(device, test, null, ct);
             if (outcome == PushOutcome.Gone)
             {
                 db.NotificationDevices.Remove(device);
@@ -146,7 +155,9 @@ public static partial class NotificationEndpoints
             var service = device.Platform == NotificationPlatforms.Android ? "Google" : "Apple";
             return outcome == PushOutcome.Sent
                 ? Results.Accepted()
-                : Results.Problem(outcome == PushOutcome.Gone ? $"{service} no longer recognises this phone. Turn notifications off and on again." : reason, statusCode: 502);
+                : outcome == PushOutcome.Gone
+                    ? Problems.Of("{service} no longer recognises this phone. Turn notifications off and on again.", new { service }, status: 502)
+                    : Results.Problem(reason, statusCode: 502); // in this request's language already (PushRelay)
         });
 
         return api;

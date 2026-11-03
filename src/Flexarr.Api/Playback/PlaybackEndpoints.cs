@@ -4,6 +4,7 @@ using Flexarr.Api.Events;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Media;
 using Flexarr.Streaming;
 using Microsoft.EntityFrameworkCore;
@@ -51,7 +52,7 @@ public static partial class PlaybackEndpoints
             }
             catch (TranscodeLimitException ex)
             {
-                return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: "The server is busy");
+                return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: Loc.T("The server is busy"));
             }
             catch (PlaybackTakenOverException ex)
             {
@@ -339,7 +340,7 @@ public static partial class PlaybackEndpoints
             }
             catch (TranscodeLimitException ex)
             {
-                return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: "The server is busy");
+                return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: Loc.T("The server is busy"));
             }
         });
         group.MapGet("/{segment:int}.m4s", (string sid, int segment, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct) =>
@@ -532,7 +533,7 @@ public static partial class PlaybackEndpoints
         {
             // Back from a long pause to find the others using every slot. The player gives up and its recovery
             // asks for a new session, which is refused with this same message for the viewer to see.
-            return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: "The server is busy");
+            return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: Loc.T("The server is busy"));
         }
 
         return path is not null ? Results.File(path, contentType)
@@ -552,8 +553,9 @@ public static partial class PlaybackEndpoints
         transcodes.TakenOverReason(sid) is { } reason ? TakenOver(reason) : Results.NotFound();
 
     // Players show this rather than trying to get the stream back, which would only take it from the other screen.
+    // The reason is kept in English (TranscodeManager marks it) and put in this player's language here.
     private static IResult TakenOver(string reason) =>
-        Results.Problem(reason, statusCode: StatusCodes.Status410Gone, title: "Playing somewhere else");
+        Results.Problem(Loc.T(reason), statusCode: StatusCodes.Status410Gone, title: Loc.T("Playing somewhere else"));
 
     private static IResult Playlist(HttpContext http, string body)
     {
