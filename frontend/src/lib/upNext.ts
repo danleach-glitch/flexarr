@@ -13,7 +13,7 @@ const SHORTEST_UNMARKED_SECONDS = 120
 /**
  * When Next Episode shows, and what follows, on the episode's timeline (seconds). `countdownFrom` and `nextAt` come
  * together: the countdown runs between them and the next episode plays at `nextAt`. `closeAt` is where the player
- * closes instead (auto-play off).
+ * closes before the end (Skip credits on, auto-play off, credits found); without it, the end closes the player.
  */
 export interface NextEpisodeTiming {
   showAt: number
@@ -42,7 +42,7 @@ export function nextEpisodeTiming({
   if (credits === undefined) {
     if (duration <= SHORTEST_UNMARKED_SECONDS) return null
     const showAt = duration - UNMARKED_LEAD_SECONDS
-    return autoPlayNext ? { showAt, ...lastSeconds() } : { showAt, closeAt: duration }
+    return autoPlayNext ? { showAt, ...lastSeconds() } : { showAt }
   }
   if (skipCredits && autoPlayNext) {
     // Always 2 seconds into the credits (never past the end): credits in the first seconds get a shorter countdown.
@@ -55,7 +55,8 @@ export function nextEpisodeTiming({
     // Credits in the last 10 seconds: the button comes with the countdown.
     return { showAt: Math.min(credits, counting.countdownFrom), ...counting }
   }
-  return { showAt: credits, closeAt: skipCredits ? credits : duration }
+  // Auto-play off: Skip credits ends the episode (closing the player) as the credits start; otherwise the end does.
+  return skipCredits ? { showAt: credits, closeAt: credits } : { showAt: credits }
 }
 
 /** Whole seconds left on a countdown that ends at `nextAt`, at position `time`: 0 to 10. */
