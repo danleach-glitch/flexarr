@@ -1508,25 +1508,29 @@ kbd {
   margin-top: -6px;
 }
 
-/* On a phone: the status chips scroll in one row, and kind and sort share the next. */
+/*
+ * On a phone, chips (a library's genres, the watchlist's statuses) scroll in one row rather than pushing the first
+ * posters below the fold; on the watchlist, kind and sort share the next.
+ */
 @media (max-width: 600px) {
-  .watchlist-page .genre-chips {
+  .genre-chips {
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
     /* Fades at the edge, so it's plain there's more to scroll to. */
-    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to right, var(--black) calc(100% - 32px), transparent);
     margin-inline: calc(var(--edge) * -1);
     padding-inline: var(--edge);
   }
 
   /* The scrolling rows mustn't widen the header (and push sort off the screen). */
-  .watchlist-page .library-header,
-  .watchlist-page .library-header > * {
+  .library-header,
+  .library-header > * {
     min-width: 0;
     max-width: 100%;
   }
 
+  .genre-chips .chip,
   .watchlist-page .chip,
   .watchlist-page .external-state {
     flex: none;
@@ -2353,7 +2357,9 @@ a.upcoming-row:hover strong {
 }
 
 .view-switch a {
+  flex: none;
   padding: 6px 16px;
+  white-space: nowrap;
   border-radius: 999px;
   font-weight: 700;
   font-size: var(--step--1);
@@ -2368,6 +2374,15 @@ a.upcoming-row:hover strong {
 .view-switch a[aria-current='page'] {
   background: var(--screen);
   color: var(--room);
+}
+
+/* On a phone the views scroll rather than squeeze a label onto two lines. */
+@media (max-width: 600px) {
+  .view-switch {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
 }
 
 /* ---------- Coming soon: a row per day ---------- */
