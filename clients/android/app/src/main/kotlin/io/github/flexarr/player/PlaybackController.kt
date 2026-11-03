@@ -678,7 +678,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             val nextAt = timing.nextAt
             if (left != null && nextAt != null) {
                 // Played into it while counting down: on to the next. Landed at the very end: the file's end has it.
-                if (seconds >= nextAt && isFinishing) return playNext()
+                if (seconds >= nextAt && isFinishing) return playNext(watched = true)
                 if (seconds < nextAt && !isFinishing) {
                     isFinishing = true
                     prepareNext()
@@ -739,13 +739,17 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         keepTicking()
     }
 
-    /** Ignored while a session is being asked for, so a second tap (or the countdown running out) doesn't open two. */
-    fun playNext() {
+    /**
+     * Ignored while a session is being asked for, so a second tap (or the countdown running out) doesn't open two.
+     * [watched]: moved on from Next Episode or its countdown, which counts the episode as watched whatever its length.
+     * The transport's Next (skipping mid-episode) counts it only once past the credits.
+     */
+    fun playNext(watched: Boolean = false) {
         val current = info ?: return
         val next = current.next ?: return
         if (isOpening) return
         // Moved on from the credits: watched, as on iPhone.
-        val finished = isPastCredits(current, player.currentPosition / 1000.0)
+        val finished = watched || isPastCredits(current, player.currentPosition / 1000.0)
         report(paused = true, ended = finished)
         if (finished && model.recordsHistory) ReviewPrompt.titleFinished(closing = false)
         if (isOffline) {
@@ -846,10 +850,10 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     }
 
     fun promptTapped() {
-        if (isFinishing) return playNext()
+        if (isFinishing) return playNext(watched = true)
         when (val current = prompt) {
             is PlaybackPrompt.Skip -> seekTo(current.to)
-            PlaybackPrompt.NextEpisode -> playNext()
+            PlaybackPrompt.NextEpisode -> playNext(watched = true)
             PlaybackPrompt.None -> Unit
         }
     }
@@ -872,7 +876,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         when {
             sleepHoldsEpisode -> sleep.fallAsleep()
             // The file ended before the countdown had run (it was shorter than the server said): on at once.
-            isFinishing && countdownJob?.isActive != true && info?.next != null && !nextCancelled -> playNext()
+            isFinishing && countdownJob?.isActive != true && info?.next != null && !nextCancelled -> playNext(watched = true)
             info?.next != null && !nextCancelled && preferences.autoPlayNext -> beginFinishing()
             else -> onClose()
         }
@@ -893,7 +897,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     if (!isFinishing) return@launch
                     countdown = (countdown ?: 1) - 1
                 }
-                if (isFinishing) playNext()
+                if (isFinishing) playNext(watched = true)
             }
         }
         updatePrompt()
