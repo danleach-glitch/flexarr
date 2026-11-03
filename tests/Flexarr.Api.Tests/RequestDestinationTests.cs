@@ -76,6 +76,24 @@ public class RequestDestinationTests(FlexarrApiFactory factory) : IClassFixture<
     }
 
     [Fact]
+    public async Task ALibraryHiddenFromAProfile_IsntWhereItsRequestsGo()
+    {
+        var shows = await AddLibraryAsync("Grown-ups' TV", LibraryType.TvShows);
+        var films = await AddLibraryAsync("Grown-ups' Films", LibraryType.Movies);
+        var music = await AddLibraryAsync("Grown-ups' Music", LibraryType.Music);
+        var teen = (await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = $"Teen {Guid.NewGuid():N}", hiddenLibraryIds = new[] { shows, films, music } }))
+            .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+
+        var tv = await Client().PutAsJsonAsync(Api($"/profiles/{teen}/request-libraries"), new { showsLibraryId = shows, filmsLibraryId = (Guid?)null });
+        var film = await Client().PutAsJsonAsync(Api($"/profiles/{teen}/request-libraries"), new { showsLibraryId = (Guid?)null, filmsLibraryId = films });
+        var album = await Client().PutAsJsonAsync(Api($"/profiles/{teen}/request-music-library"), new { libraryId = music });
+
+        Assert.Equal(HttpStatusCode.BadRequest, tv.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, film.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, album.StatusCode);
+    }
+
+    [Fact]
     public async Task WithoutSeerr_ThereAreNoDestinations()
     {
         var destinations = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/destinations"));

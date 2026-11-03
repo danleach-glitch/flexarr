@@ -75,6 +75,8 @@ public sealed record ForgotPinRequest(string? AdminPin);
 
 public static partial class ProfileEndpoints
 {
+    private const string HiddenDestination = "That library is hidden from this profile.";
+
     public static RouteGroupBuilder MapProfileEndpoints(this RouteGroupBuilder api)
     {
         var group = api.MapGroup("/profiles").WithTags("Profiles");
@@ -299,6 +301,7 @@ public static partial class ProfileEndpoints
                 return Results.NotFound();
             }
 
+            // Any library of the kind, as the admin may be choosing for someone else, but not one hidden from the profile.
             var errors = new Dictionary<string, string[]>();
             async Task<bool> IsAsync(Guid? libraryId, LibraryType type) =>
                 libraryId is not { } chosen || await db.Libraries.IgnoreQueryFilters().AnyAsync(l => l.Id == chosen && l.Type == type, ct);
@@ -306,10 +309,18 @@ public static partial class ProfileEndpoints
             {
                 errors["showsLibraryId"] = ["That isn’t a TV library."];
             }
+            else if (request.ShowsLibraryId is { } shows && profile.HiddenLibraryIds.Contains(shows))
+            {
+                errors["showsLibraryId"] = [HiddenDestination];
+            }
 
             if (!await IsAsync(request.FilmsLibraryId, LibraryType.Movies))
             {
                 errors["filmsLibraryId"] = ["That isn’t a movie library."];
+            }
+            else if (request.FilmsLibraryId is { } films && profile.HiddenLibraryIds.Contains(films))
+            {
+                errors["filmsLibraryId"] = [HiddenDestination];
             }
 
             if (errors.Count > 0)
@@ -340,6 +351,11 @@ public static partial class ProfileEndpoints
             if (request.LibraryId is { } chosen && !await db.Libraries.IgnoreQueryFilters().AnyAsync(l => l.Id == chosen && l.Type == LibraryType.Music, ct))
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["libraryId"] = ["That isn’t a music library."] });
+            }
+
+            if (request.LibraryId is { } music && profile.HiddenLibraryIds.Contains(music))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["libraryId"] = [HiddenDestination] });
             }
 
             profile.RequestMusicLibraryId = request.LibraryId;
