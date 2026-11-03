@@ -530,6 +530,13 @@ final class PlayerViewController: UIViewController {
         hideTask?.cancel()
         #if os(iOS)
         if isInPictureInPicture { pictureInPicture?.stopPictureInPicture() }
+        #else
+        // Closed mid-scan (Stop from the iPhone remote, the sleep timer, another device taking over): the display link
+        // holds this screen and would keep firing.
+        scan?.link.invalidate()
+        scan = nil
+        holdTask?.cancel()
+        holdTask = nil
         #endif
         guard presentingViewController != nil else { completion?(); return }
         dismiss(animated: true) { completion?() }
