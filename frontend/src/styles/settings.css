@@ -1803,7 +1803,7 @@
 /* ---------- Settings' controls: smaller corners, hairline borders and tighter controls than the browsing pages ---------- */
 
 .settings .panel {
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   padding: 4px 20px;
   border-color: color-mix(in srgb, var(--aisle) 85%, transparent);
 }
@@ -1823,11 +1823,11 @@
 }
 
 .settings .setting-link:first-child {
-  border-radius: 10px 10px 0 0;
+  border-radius: var(--radius-control) var(--radius-control) 0 0;
 }
 
 .settings .setting-link:last-child {
-  border-radius: 0 0 10px 10px;
+  border-radius: 0 0 var(--radius-control) var(--radius-control);
 }
 
 .settings .button {
@@ -2588,7 +2588,7 @@
   overflow-x: auto;
   background: var(--seat);
   border: 1px solid var(--aisle);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   font-size: 0.82rem;
   line-height: 1.5;
   /* Wrapped rather than cut off at the right: the comments are meant to be read. */
@@ -2654,7 +2654,7 @@
   width: 168px;
   height: 168px;
   padding: 8px;
-  background: #fff;
+  background: var(--white);
   border-radius: var(--radius-panel);
 }
 

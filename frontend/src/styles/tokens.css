@@ -3,6 +3,8 @@
 :root {
   --field-line: color-mix(in srgb, var(--screen) 22%, transparent);
   --black: #000;
+  /* Subtitles and QR codes: pure white, where contrast matters more than the warmth of --screen. */
+  --white: #fff;
   /* Something to see to, short of an error: a pale coral rather than an amber, which design.md rules out. */
   --warn: color-mix(in srgb, var(--danger) 55%, var(--screen));
   /* Logs, file paths and API keys. */

@@ -798,7 +798,7 @@
   justify-content: space-between;
   gap: 14px;
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: var(--seat-raised);
 }
 
@@ -826,7 +826,7 @@
   padding: 1px 5px;
   border-radius: 999px;
   background: var(--record);
-  color: #fff;
+  color: var(--screen);
   font-size: 0.7em;
   font-weight: 800;
   letter-spacing: 0.04em;
