@@ -189,7 +189,18 @@ struct DetailView: View {
                              watched: isWatched(item), hasTrailer: trailer != nil, isKids: model.isKids,
                              platform: .phone, canPlayTrailers: canPlayTrailers,
                              canDownload: item.kind == .movie || item.kind == .episode,
-                             canSearchSubtitles: detail?.canSearchSubtitles == true && detail?.files.first != nil)
+                             canSearchSubtitles: detail?.canSearchSubtitles == true && detail?.files.first != nil,
+                             canWatchlist: watchlistState(item) != nil)
+    }
+
+    /// Whether it's on the watchlist, or nil when it can't go on one here: only films and shows, from servers that have one.
+    private func watchlistState(_ item: ItemSummary) -> Bool? {
+        guard model.hasWatchlist, item.kind == .movie || item.kind == .series else { return nil }
+        return onWatchlist ?? detail?.onWatchlist
+    }
+
+    private func setOnWatchlist(_ item: ItemSummary, _ on: Bool) {
+        Task { if await model.setOnWatchlist(.library(item.id), on) != nil { onWatchlist = on } }
     }
 
     private func isWatched(_ item: ItemSummary) -> Bool { item.userData.watched || item.userData.unwatchedCount == 0 }
@@ -244,17 +255,15 @@ struct DetailView: View {
         case .trailer:
             Button { showingTrailer = true } label: { Label("Trailer", systemImage: Symbol.trailer) }
         case .watched:
+            // A toggle like Download: the tick fills once it's watched, and the name stays put.
             Button { Task { await model.setWatched(item, !watched) } } label: {
-                Label(watched ? "Watched" : "Mark as watched", systemImage: watched ? Symbol.isWatched : Symbol.watched)
+                Label("Watched", systemImage: watched ? Symbol.isWatched : Symbol.watched)
             }
             .accessibilityLabel(watched ? "Mark as unwatched" : "Mark as watched")
             .accessibilityAddTraits(watched ? .isSelected : [])
         case .watchlist:
-            // Only what the server can put on a watchlist: films and shows, from servers that have one.
-            if model.hasWatchlist, item.kind == .movie || item.kind == .series, let onList = onWatchlist ?? detail?.onWatchlist {
-                Button {
-                    Task { if await model.setOnWatchlist(.library(item.id), !onList) != nil { onWatchlist = !onList } }
-                } label: {
+            if let onList = watchlistState(item) {
+                Button { setOnWatchlist(item, !onList) } label: {
                     Label("Watchlist", systemImage: onList ? Symbol.onWatchlist : Symbol.watchlist)
                 }
                 .accessibilityLabel(onList ? "Remove from watchlist" : "Add to watchlist")
@@ -265,10 +274,26 @@ struct DetailView: View {
             Menu {
                 ForEach(menu, id: \.self) { entry in
                     switch entry {
-                    case .markUnwatched:
-                        Button { Task { await model.setWatched(item, false) } } label: {
-                            Label("Mark as unwatched", systemImage: Symbol.markUnwatched)
+                    case .button(.shuffle):
+                        if item.childCount > 0 {
+                            Button { model.shuffle(item) } label: { Label("Shuffle", systemImage: Symbol.shuffle) }
                         }
+                    case .button(.trailer):
+                        Button { showingTrailer = true } label: { Label("Trailer", systemImage: Symbol.trailer) }
+                    case .button(.watched):
+                        Button { Task { await model.setWatched(item, !watched) } } label: {
+                            Label(watched ? "Mark as unwatched" : "Mark as watched",
+                                  systemImage: watched ? Symbol.markUnwatched : Symbol.watched)
+                        }
+                    case .button(.watchlist):
+                        if let onList = watchlistState(item) {
+                            Button { setOnWatchlist(item, !onList) } label: {
+                                Label(onList ? "Remove from watchlist" : "Add to watchlist",
+                                      systemImage: onList ? Symbol.offWatchlist : Symbol.watchlist)
+                            }
+                        }
+                    case .button:
+                        EmptyView()
                     case .subtitles:
                         if let file = detail?.files.first {
                             Button { subtitleSearchFile = SubtitleSearchFile(id: file.id) } label: {

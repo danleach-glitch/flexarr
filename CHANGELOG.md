@@ -4,6 +4,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### iPhone and Android
+- A film's or show's page fits its buttons on one row, like an episode's: Trailer and Watchlist before you start, Start over and Watched once you have, with the rest in More. Watched keeps its name and fills its tick, like Download.
+
 ### Android
 - The More button now shows the same three dots in a row everywhere (Podcasts, Downloads, Recordings and music downloads), and Download shows the same circled arrow as the rest of the app.
 - Connecting a game controller or keyboard while something plays no longer restarts the film or channel.
