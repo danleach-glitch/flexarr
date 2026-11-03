@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.connect
 
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.flow.first
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
@@ -281,7 +284,9 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
     var attempt by remember { mutableIntStateOf(0) }
     // Try again after "Don't allow" starts over with a code they're asked about.
     val session = remember(server, attempt) { PairingSession() }
-    LaunchedEffect(session) { session.run(model, server) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    // Asks only while the app is in front: nobody's there to read the code otherwise.
+    LaunchedEffect(session) { session.run(model, server) { lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.STARTED) } } }
     val declined = session.declined
     val needsSetup = session.needsSetup
     val setupNeedsCode = session.setupNeedsCode

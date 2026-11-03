@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.tv
 
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.flow.first
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
@@ -282,7 +285,9 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
     var attempt by remember { mutableIntStateOf(0) }
     // Try again after "Don't allow" starts over with a code they're asked about.
     val session = remember(server, attempt) { PairingSession() }
-    LaunchedEffect(session) { session.run(model, server) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    // Asks only while the app is in front: nobody's there to read the code otherwise.
+    LaunchedEffect(session) { session.run(model, server) { lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.STARTED) } } }
     val back = remember { FocusRequester() }
     val tryAgain = remember { FocusRequester() }
     LaunchedEffect(session.declined) { runCatching { if (session.declined) tryAgain.requestFocus() else back.requestFocus() } }

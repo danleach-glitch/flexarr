@@ -40,11 +40,16 @@ class PairingSession {
     var error: String? by mutableStateOf(null)
         private set
 
-    /** Gets a code, then asks until it's approved (and signs in) or turned away; runs until then or until cancelled. */
-    suspend fun run(model: AppModel, server: DiscoveredServer) {
+    /**
+     * Gets a code, then asks until it's approved (and signs in) or turned away; runs until then or until cancelled. It
+     * asks only while [inFront] lets it (it waits there while the app is in the background), so a device left on the
+     * connect screen doesn't keep a request open for the main profile, or renew the code, with nobody there to read it.
+     */
+    suspend fun run(model: AppModel, server: DiscoveredServer, inFront: suspend () -> Unit = {}) {
         val client = FlexarrClient(FlexarrClient.normalizeAddress(server.address)!!)
         while (true) {
             try {
+                inFront()
                 val started = client.startPairing(model.deviceName)
                 val setup = client.setupStatus()
                 needsSetup = setup?.open ?: false
@@ -55,6 +60,7 @@ class PairingSession {
                 var since = 0
                 // Asked straight away: a new server lets its first device in without anyone approving it.
                 while (true) {
+                    inFront()
                     // A failed check (the device asleep, or the Wi-Fi blinking) asks again about the same code rather
                     // than starting another: the one on screen may already be approved, and the server keeps only three waiting.
                     val status = try {
