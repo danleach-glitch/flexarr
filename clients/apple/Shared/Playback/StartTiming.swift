@@ -6,6 +6,9 @@ import Foundation
 struct StartTiming {
     enum Kind: String { case video, book }
 
+    /// How soon after the first picture a stall still counts as part of starting.
+    static let earlyStall: TimeInterval = 30
+
     let kind: Kind
     let pressedAt = ContinuousClock.now
     private(set) var answeredAt: ContinuousClock.Instant?

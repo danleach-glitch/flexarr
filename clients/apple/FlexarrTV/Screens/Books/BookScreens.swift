@@ -417,7 +417,8 @@ struct BookView: View {
             model.getReady(item)
         }
         .onChange(of: playFocused) { _, focused in
-            if !focused, let item { model.dropReady(item) }
+            // Play itself moves focus (Now Playing opens): the book starting takes what was got ready.
+            if !focused, let item, model.music.current?.id != item.id { model.dropReady(item) }
         }
         .onDisappear { if let item { model.dropReady(item) } }
     }

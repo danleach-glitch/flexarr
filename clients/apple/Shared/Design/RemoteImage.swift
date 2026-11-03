@@ -1,4 +1,3 @@
-import FlexarrKit
 import SwiftUI
 import UIKit
 
@@ -66,7 +65,7 @@ actor ImageLoader {
     /// is asked again after its Retry-After, twice at most, for as long as someone is still waiting for it.
     private static func fetch(_ url: URL) async -> Data? {
         for attempt in 0..<3 {
-            guard let (data, response) = try? await URLSession.shared.data(from: url, delegate: LinkSpeedSampler.shared),
+            guard let (data, response) = try? await URLSession.shared.data(from: url),
                   let http = response as? HTTPURLResponse else { return nil }
             if http.statusCode == 200 { return data }
             guard http.statusCode == 503, attempt < 2 else { return nil }

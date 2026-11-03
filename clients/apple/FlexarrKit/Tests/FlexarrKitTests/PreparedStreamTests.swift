@@ -23,6 +23,12 @@ import Testing
         #expect(!ready.serves(PlaybackRequest(itemId: "ep", profile: profile, shuffle: true)))
     }
 
+    @Test func anotherProfileNeverTakesItOver() throws {
+        let ready = PreparedStream(request: PlaybackRequest(itemId: "ep", profile: profile), info: try info(), owner: "dad")
+        #expect(ready.serves(PlaybackRequest(itemId: "ep", profile: profile), owner: "dad"))
+        #expect(!ready.serves(PlaybackRequest(itemId: "ep", profile: profile), owner: "kid"))
+    }
+
     @Test func anOldOneIsntUsed() throws {
         let ready = PreparedStream(request: PlaybackRequest(itemId: "ep", profile: profile), info: try info(), at: Date(timeIntervalSinceNow: -PreparedStream.maxAge - 1))
         #expect(!ready.serves(PlaybackRequest(itemId: "ep", profile: profile)))

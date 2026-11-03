@@ -511,7 +511,8 @@ struct HomeRowView: View {
             // A Continue watching card focused for a moment: what it plays is got ready (docs/fast-start.md).
             guard row.id == "continue", let id = focusedCard, let item = row.items.first(where: { $0.id == id }),
                   (try? await Task.sleep(for: .seconds(1))) != nil else { return }
-            model.getReady(item)
+            // The session only: not the opening bytes of every card the remote passes over.
+            model.getReady(item, prewarmBytes: false)
         }
         .onChange(of: row.items.map(\.id)) { old, new in
             let gone = [leaving, lastFocused].compactMap(\.self).first { old.contains($0) && !new.contains($0) }

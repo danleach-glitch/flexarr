@@ -139,7 +139,7 @@ final class PlaybackController: NSObject {
     /// Cancel was chosen: no more offers of the next episode for this one.
     @ObservationIgnored private var nextCancelled = false
     /// The next episode's session, started during the credits so it opens at once, and the request for it.
-    @ObservationIgnored private var prepared: (request: PlaybackRequest, info: PlaybackInfo)?
+    @ObservationIgnored private var prepared: (request: PlaybackRequest, info: PlaybackInfo, at: Date)?
     @ObservationIgnored private var preparing: Task<Void, Never>?
     /// A title got ready ahead of Play from its page, or a focused card on the TV (docs/fast-start.md), and the one on
     /// its way: Play takes it over when it asks for exactly that stream.
@@ -148,6 +148,10 @@ final class PlaybackController: NSObject {
     /// The engine holds the warm-up's opening bytes (or the next episode's): let go with it.
     @ObservationIgnored private var warmPrewarmed = false
     @ObservationIgnored private var nextPrewarmed = false
+    /// The title last closed, and when: its page coming back into view isn't a reason to get it ready again.
+    @ObservationIgnored private var lastClosed: (itemId: String, at: Date)?
+    /// When this title's first picture came, to note a stall soon after (see StartTiming).
+    @ObservationIgnored private var firstPicture: (at: Date, position: Double, playbackId: String?)?
     /// This title's start, timed until its first picture (see StartTiming).
     @ObservationIgnored private var timing: StartTiming?
     /// A re-sync of the file's subtitles being followed: which title and file, and the polling.
@@ -311,11 +315,15 @@ final class PlaybackController: NSObject {
     /// Gets `itemId` ready as Play would start it (from the server's resume point), so Play opens it at once: the
     /// session, and for a file the engine plays itself, its opening bytes. Only with nothing playing here; anything
     /// else got ready is let go. A busy server says no, and Play starts the usual way.
-    func getReady(itemId: String, client: FlexarrClient) {
+    /// `prewarmBytes`: also fetch a played-as-it-is file's opening bytes (from a detail page; not for every card a
+    /// remote passes over, which would download the start of each).
+    func getReady(itemId: String, client: FlexarrClient, prewarmBytes: Bool) {
         guard info == nil, screen == nil, !isStarting else { return }
+        if let lastClosed, lastClosed.itemId == itemId, Date().timeIntervalSince(lastClosed.at) < 60 { return }
         self.client = client
+        let owner = client.profileToken
         let wanted = request(for: itemId, startAt: nil, shuffle: false)
-        if let warm, warm.serves(wanted) { return }
+        if let warm, warm.serves(wanted, owner: owner) { return }
         if let warming, PreparedStream.same(warming.request, wanted) { return }
         dropReady()
         var asking = wanted
@@ -326,13 +334,14 @@ final class PlaybackController: NSObject {
                 try? await client.stopPlayback(sessionId: ready.sessionId)
                 return nil
             }
-            let stream = PreparedStream(request: wanted, info: ready)
+            let stream = PreparedStream(request: wanted, info: ready, owner: owner)
             self.warm = stream
             self.warming = nil
-            log.info("Got ready ahead of Play: \(ready.item.title)", ["playbackId": ready.playbackId])
+            // No title: browsing isn't watching.
+            log.info("Got ready ahead of Play", ["playbackId": ready.playbackId])
             #if canImport(AetherEngine)
             // The same URL the engine will open, with no headers, as it opens it: anything else isn't adopted.
-            if Self.usesEngine, ready.method == .directPlay, let url = client.url(for: ready.url) {
+            if prewarmBytes, Self.usesEngine, ready.method == .directPlay, let url = client.url(for: ready.url) {
                 self.warmPrewarmed = true
                 _ = await AetherEngine.prewarm(url: url)
             }
@@ -358,14 +367,15 @@ final class PlaybackController: NSObject {
 
     /// The warm-up for exactly `wanted`, taken over (waiting for it if it's on its way), or nil.
     private func takeReady(_ wanted: PlaybackRequest) async -> PlaybackInfo? {
-        if let warm, warm.serves(wanted) {
+        let owner = client?.profileToken
+        if let warm, warm.serves(wanted, owner: owner) {
             self.warm = nil
             warmPrewarmed = false // the engine adopts what it holds
             return warm.info
         }
         guard let warming, PreparedStream.same(warming.request, wanted) else { return nil }
         let stream = await warming.task.value
-        guard let stream, warm?.info.sessionId == stream.info.sessionId else { return nil }
+        guard let stream, stream.owner == owner, warm?.info.sessionId == stream.info.sessionId else { return nil }
         warm = nil
         warmPrewarmed = false
         return stream.info
@@ -767,12 +777,24 @@ final class PlaybackController: NSObject {
             if first { applyStartingRate(info) }
             if first, let started = timing, started.isAnswered {
                 started.report(to: log, server: client?.baseURL)
+                firstPicture = (Date(), position, info.playbackId)
                 timing = nil
             }
             hasPlayed = true
             if reportedPaused || first { report(paused: false) }
         case .paused:
             if hasPlayed { report(paused: true) }
+        case .buffering:
+            // A stall soon after the first picture: its own entry beside the start's. Not a seek (Skip intro, say),
+            // which moves the place well past where playing alone would have got to.
+            if let first = firstPicture {
+                firstPicture = nil
+                let after = Date().timeIntervalSince(first.at)
+                if after < StartTiming.earlyStall, abs(position - first.position - after) < 3 {
+                    log.measured("Playback \(first.playbackId ?? "unknown") stalled soon after starting",
+                                 ["afterMs": String(Int(after * 1000)), "remote": String(StartTiming.looksRemote(client?.baseURL)), "playbackId": first.playbackId])
+                }
+            }
         case .ended:
             itemEnded()
         case .failed(let reason):
@@ -988,7 +1010,7 @@ final class PlaybackController: NSObject {
                 return
             }
             log.info("Next episode ready: \(ready.item.title)", ["playbackId": ready.playbackId])
-            prepared = (request, ready)
+            prepared = (request, ready, Date())
             #if canImport(AetherEngine)
             // The same URL the engine will open, with no headers, as it opens it: anything else isn't adopted.
             if Self.usesEngine, ready.method == .directPlay, let url = client.url(for: ready.url) {
@@ -1164,7 +1186,9 @@ final class PlaybackController: NSObject {
                 let request = nextRequest(target, after: current)
                 viewerSubtitleKey = request.subtitleKey == "off" ? .some(nil) : nil
                 let info: PlaybackInfo
-                if let ready = prepared, ready.info.item.id == target.id, ready.request.subtitleKey == request.subtitleKey {
+                // Not after half an hour on the up-next card: the server may have let it go by then.
+                if let ready = prepared, ready.info.item.id == target.id, ready.request.subtitleKey == request.subtitleKey,
+                   Date().timeIntervalSince(ready.at) < PreparedStream.nextEpisodeMaxAge {
                     prepared = nil
                     log.info("Using the next episode got ready during the credits")
                     info = ready.info
@@ -1264,6 +1288,8 @@ final class PlaybackController: NSObject {
 
     /// `recording`: a real stop, so a downloaded file's position is kept (not when one session replaces another).
     private func stop(reportingTo client: FlexarrClient?, recording: Bool = false) {
+        if let info { lastClosed = (info.item.id, Date()) }
+        firstPicture = nil
         let watchedToEnd = recording && recordsHistory && info.map(isPastCredits) == true
         if recording, let info, let origin {
             // Watched as the server counts it, so the page moves on exactly when the server has it as watched.

@@ -784,7 +784,7 @@ final class MusicPlayer {
             // Finished (here, or before it was downloaded): it starts again from the beginning, as it does streamed.
             let finished = offlineLibrary?.isBookFinished(track.id) == true || downloaded.manifest.progress.finished
             let place = requested ?? (saved > 0 ? saved : finished ? 0 : local?.position ?? downloaded.manifest.progress.positionSeconds)
-            beginBook(downloaded.manifest, urls: downloaded.files, at: place)
+            beginBook(downloaded.manifest, urls: downloaded.files, at: place, resuming: requested == nil)
             if artwork == nil { loadArtwork(for: track, generation: mine) }
             // With a connection, the server knows the speed, bookmarks and listening settings chosen since the download,
             // and maybe a newer place from another device: offered, not jumped to.
@@ -839,7 +839,7 @@ final class MusicPlayer {
                     start = local.position
                     jumpOffer = manifest.progress
                 }
-                beginBook(manifest, urls: urls, at: start)
+                beginBook(manifest, urls: urls, at: start, resuming: requested == nil && jumpOffer == nil)
             } catch {
                 guard mine == generation else { return }
                 isLoading = false
@@ -856,10 +856,11 @@ final class MusicPlayer {
     func getReadyBook(_ book: ItemSummary, client: FlexarrClient) {
         guard current?.id != book.id, offlineLibrary?.localBook(for: book.id) == nil else { return }
         if self.client == nil { self.client = client }
+        let owner = client.profileToken
         var wanted = PlaybackRequest(itemId: book.id, profile: Self.bookProfile)
         wanted.deviceName = Self.deviceName
         wanted.measuredBitrate = LinkSpeed.shared.current()
-        if let warmBook, warmBook.serves(wanted) { return }
+        if let warmBook, warmBook.serves(wanted, owner: owner) { return }
         if let warmingBook, PreparedStream.same(warmingBook.request, wanted) { return }
         dropReadyBook()
         var asking = wanted
@@ -870,10 +871,11 @@ final class MusicPlayer {
                 try? await client.stopPlayback(sessionId: ready.sessionId)
                 return nil
             }
-            let stream = PreparedStream(request: wanted, info: ready)
+            let stream = PreparedStream(request: wanted, info: ready, owner: owner)
             self.warmBook = stream
             self.warmingBook = nil
-            log.info("Got ready ahead of Play: \(ready.item.title)", ["playbackId": ready.playbackId])
+            // No title: browsing isn't listening.
+            log.info("Got ready ahead of Play", ["playbackId": ready.playbackId])
             let file = manifest.timeline.locate(ready.startPositionSeconds).file
             if manifest.files.indices.contains(file), let url = client.url(for: manifest.files[file].url) {
                 let type = Self.bookType(manifest.files[file])
@@ -899,18 +901,20 @@ final class MusicPlayer {
 
     /// The book got ready for exactly `wanted`, taken over (waiting for it if it's on its way), or nil.
     private func takeReadyBook(_ wanted: PlaybackRequest) async -> PlaybackInfo? {
-        if let warmBook, warmBook.serves(wanted) {
+        let owner = client?.profileToken
+        if let warmBook, warmBook.serves(wanted, owner: owner) {
             self.warmBook = nil
             return warmBook.info
         }
         guard let warmingBook, PreparedStream.same(warmingBook.request, wanted) else { return nil }
         let stream = await warmingBook.task.value
-        guard let stream, warmBook?.info.sessionId == stream.info.sessionId else { return nil }
+        guard let stream, stream.owner == owner, warmBook?.info.sessionId == stream.info.sessionId else { return nil }
         warmBook = nil
         return stream.info
     }
 
-    private func beginBook(_ manifest: BookManifest, urls: [URL], at place: Double) {
+    /// `resuming`: from the saved place (not a chapter, bookmark or jump), so landing within a second of it is as good.
+    private func beginBook(_ manifest: BookManifest, urls: [URL], at place: Double, resuming: Bool = false) {
         book = manifest
         bookmarks = manifest.bookmarks
         bookTimeline = manifest.timeline
@@ -922,7 +926,7 @@ final class MusicPlayer {
         bookPause = BookPause()
         bookFile = -1
         // Resuming: within a second of the place is as good, and a long MP3 doesn't have to be read up to it exactly.
-        loadBookFile(at: min(max(0, place), max(0, duration - 1)), play: true, tolerance: 1)
+        loadBookFile(at: min(max(0, place), max(0, duration - 1)), play: true, tolerance: resuming ? 1 : 0)
         isLoading = false
         pushNowPlaying()
     }

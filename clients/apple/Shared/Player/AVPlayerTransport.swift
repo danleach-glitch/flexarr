@@ -119,9 +119,10 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
     }
 
     func stop() {
-        // How fast the stream came, for the next start's measured speed (docs/fast-start.md).
-        for event in item.accessLog()?.events.suffix(3) ?? [] where event.transferDuration > 0 {
-            LinkSpeed.shared.sample(bytes: event.numberOfBytesTransferred, seconds: event.transferDuration)
+        // How fast the stream came, for the next start's measured speed (docs/fast-start.md): AVPlayer's own measure of
+        // its downloads' throughput, not bytes over the time spent, which includes waiting for the server to convert.
+        for event in item.accessLog()?.events.suffix(3) ?? [] where event.observedBitrate > 0 && event.numberOfBytesTransferred >= LinkSpeed.minSampleBytes {
+            LinkSpeed.shared.sample(bitsPerSecond: Int(event.observedBitrate))
         }
         player.pause()
         if let timeObserver { player.removeTimeObserver(timeObserver) }
@@ -197,6 +198,10 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
                 let message = item.error?.localizedDescription
                 Task { @MainActor in self?.statusChanged(status, message: message) }
             },
+            // Playing counts once there's a picture to show (with AVPlayer not waiting, it can start the clock first).
+            layerView.playerLayer.observe(\.isReadyForDisplay, options: [.new]) { [weak self] _, _ in
+                Task { @MainActor in self?.updatePhase() }
+            },
             player.observe(\.timeControlStatus, options: [.new]) { [weak self] _, _ in
                 Task { @MainActor in self?.updatePhase() }
             },
@@ -259,7 +264,7 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
         switch player.timeControlStatus {
         case .playing:
             if !player.automaticallyWaitsToMinimizeStalling { player.automaticallyWaitsToMinimizeStalling = true }
-            phase = .playing
+            phase = layerView.playerLayer.isReadyForDisplay || item.presentationSize == .zero ? .playing : .buffering
         case .waitingToPlayAtSpecifiedRate: phase = .buffering
         default: phase = pendingSeek > 0 ? .loading : .paused
         }

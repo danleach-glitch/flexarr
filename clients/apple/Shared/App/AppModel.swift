@@ -1047,6 +1047,9 @@ final class AppModel {
         let profile = selection.profile
         player.stop()
         music.stop()
+        // What the last profile got ready is theirs.
+        player.dropReady()
+        music.dropReadyBook()
         credentials.profileToken = selection.token
         store.saveProfile(selection.token)
         profiles = list.map { $0.marked(current: $0.id == profile.id) }
@@ -1264,14 +1267,28 @@ final class AppModel {
 
     /// Gets what Play would start for `item` ready, so it opens at once (docs/fast-start.md): a film or episode as a
     /// video, a book in the audio player. Pages call this once they've been looked at for a moment.
-    func getReady(_ item: ItemSummary) {
-        guard let client else { return }
+    /// `prewarmBytes`: also fetch a played-as-it-is file's opening bytes (a detail page; not a card focus passes over).
+    func getReady(_ item: ItemSummary, prewarmBytes: Bool = true) {
+        guard let client, let credentials, !isOffline else { return }
+        // A server before 0.59 would show the warm-up as playing and give it a transcode slot: only asked once per server.
+        guard let supported = warmUpsSupported[credentials.address] else {
+            Task {
+                let status = try? await client.systemStatus()
+                warmUpsSupported[credentials.address] = status.flatMap { ServerVersion.isAtLeast($0.version, major: 0, minor: 59) } ?? false
+                if warmUpsSupported[credentials.address] == true, self.credentials?.address == credentials.address { getReady(item, prewarmBytes: prewarmBytes) }
+            }
+            return
+        }
+        guard supported else { return }
         switch item.kind {
-        case .movie, .episode: player.getReady(itemId: item.id, client: client)
+        case .movie, .episode: player.getReady(itemId: item.id, client: client, prewarmBytes: prewarmBytes)
         case .audiobook: music.getReadyBook(item, client: client)
         default: break
         }
     }
+
+    /// Whether each server (by address) understands warm-ups (0.59 on).
+    @ObservationIgnored private var warmUpsSupported: [URL: Bool] = [:]
 
     /// The page that got `item` ready is going (or its focus moved on): what it got ready goes too, unless Play took it.
     func dropReady(_ item: ItemSummary) {
