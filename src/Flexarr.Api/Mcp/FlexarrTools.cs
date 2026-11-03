@@ -298,11 +298,21 @@ public static class FlexarrTools
     }
 
     [McpServerTool(Name = "now_playing", ReadOnly = true), Description("Everything playing right now across the household's screens: which device, whose profile, what, and how far in.")]
-    public static async Task<IReadOnlyList<McpNowPlaying>> NowPlayingAsync(SignIns signIns, PlaybackSessions sessions, FlexarrDbContext db, CancellationToken ct)
+    public static async Task<IReadOnlyList<McpNowPlaying>> NowPlayingAsync(SignIns signIns, PlaybackSessions sessions, FlexarrDbContext db, CurrentProfile profile,
+        CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(signIns);
         ArgumentNullException.ThrowIfNull(sessions);
         ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        // Everyone's watching, as GET /events tells it: only the API key or a trusted sign-in has it, and a family
+        // guest (never trusted) sees nothing of the household's screens.
+        if (!profile.IsTrusted || profile.IsGuest)
+        {
+            return [];
+        }
+
         var names = await db.Profiles.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);
         var devices = signIns.List().ToDictionary(s => s.Id, s => s.Name, StringComparer.Ordinal);
         var list = new List<McpNowPlaying>();
