@@ -813,6 +813,7 @@ final class MusicPlayer {
             do {
                 var request = PlaybackRequest(itemId: track.id, profile: Self.bookProfile, startPositionSeconds: requested)
                 request.deviceName = Self.deviceName
+                request.measuredBitrate = LinkSpeed.shared.current()
                 // Got ready on its page a moment ago: no wait for the server.
                 let ready = await takeReadyBook(request)
                 if ready == nil { dropReadyBook() }
@@ -857,6 +858,7 @@ final class MusicPlayer {
         if self.client == nil { self.client = client }
         var wanted = PlaybackRequest(itemId: book.id, profile: Self.bookProfile)
         wanted.deviceName = Self.deviceName
+        wanted.measuredBitrate = LinkSpeed.shared.current()
         if let warmBook, warmBook.serves(wanted) { return }
         if let warmingBook, PreparedStream.same(warmingBook.request, wanted) { return }
         dropReadyBook()
@@ -919,7 +921,8 @@ final class MusicPlayer {
         nextBookOffer = nil
         bookPause = BookPause()
         bookFile = -1
-        loadBookFile(at: min(max(0, place), max(0, duration - 1)), play: true)
+        // Resuming: within a second of the place is as good, and a long MP3 doesn't have to be read up to it exactly.
+        loadBookFile(at: min(max(0, place), max(0, duration - 1)), play: true, tolerance: 1)
         isLoading = false
         pushNowPlaying()
     }
@@ -950,7 +953,8 @@ final class MusicPlayer {
     }
 
     /// Puts the file holding `place` in the player (when it isn't already) and goes there in it.
-    private func loadBookFile(at place: Double, play: Bool) {
+    /// `tolerance`: how far from `place` (either way) the seek may land, in seconds; exact unless given.
+    private func loadBookFile(at place: Double, play: Bool, tolerance: Double = 0) {
         guard let timeline = bookTimeline, let manifest = book, !bookURLs.isEmpty else { return }
         let (file, offset) = timeline.locate(place)
         position = place
@@ -958,7 +962,8 @@ final class MusicPlayer {
             bookFile = file
             attach(item(url: bookURLs[file], type: Self.bookType(manifest.files[file])))
         }
-        player.seek(to: CMTime(seconds: offset, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        let slack = CMTime(seconds: tolerance, preferredTimescale: 600)
+        player.seek(to: CMTime(seconds: offset, preferredTimescale: 600), toleranceBefore: slack, toleranceAfter: slack)
         if play { player.play() }
     }
 
