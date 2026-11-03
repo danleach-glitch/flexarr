@@ -115,7 +115,7 @@ public sealed partial class MetadataRefresher(
         {
             var radarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Radarr).ToList();
             var known = (await KnownAsync(radarrs, only, i => i.TmdbId, arr.GetMoviesAsync, arr.GetMovieAsync, arr.GetMoviesByTmdbIdAsync, ct).ConfigureAwait(false))
-                .Select(k => (k.Instance, Movie: k.Entry)).ToList();
+                .Known.Select(k => (k.Instance, Movie: k.Entry)).ToList();
             result = await RefreshMovieAsync(item, Index(known, k => MapPath(k.Movie.Path)), Index(known, k => k.Movie.ImdbId),
                 Index(known, k => k.Movie.TmdbId > 0 ? k.Movie.TmdbId.ToString(CultureInfo.InvariantCulture) : null), radarrs, force: true, ct).ConfigureAwait(false);
         }
@@ -123,7 +123,7 @@ public sealed partial class MetadataRefresher(
         {
             var sonarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Sonarr).ToList();
             var known = (await KnownAsync(sonarrs, only, i => i.TvdbId, arr.GetSeriesAsync, arr.GetOneSeriesAsync, arr.GetSeriesByTvdbIdAsync, ct).ConfigureAwait(false))
-                .Select(k => (k.Instance, Series: k.Entry)).ToList();
+                .Known.Select(k => (k.Instance, Series: k.Entry)).ToList();
             result = await RefreshOneSeriesAsync(item, Index(known, k => MapPath(k.Series.Path)),
                 Index(known, k => k.Series.TvdbId > 0 ? k.Series.TvdbId.ToString(CultureInfo.InvariantCulture) : null), Index(known, k => k.Series.ImdbId),
                 sonarrs, force: true, ct).ConfigureAwait(false);
@@ -151,9 +151,9 @@ public sealed partial class MetadataRefresher(
 
         var radarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Radarr).ToList();
         var onlyWithin = !force && items.All(i => also.Contains(i.Id)); // Just the webhook's: ask for just those.
-        var known = (await KnownAsync(radarrs, onlyWithin ? items : null, Hinted(also, tmdbId, i => i.TmdbId),
-                arr.GetMoviesAsync, arr.GetMovieAsync, arr.GetMoviesByTmdbIdAsync, ct).ConfigureAwait(false))
-            .Select(k => (k.Instance, Movie: k.Entry)).ToList();
+        var (fetched, allAnswered) = await KnownAsync(radarrs, onlyWithin ? items : null, Hinted(also, tmdbId, i => i.TmdbId),
+            arr.GetMoviesAsync, arr.GetMovieAsync, arr.GetMoviesByTmdbIdAsync, ct).ConfigureAwait(false);
+        var known = fetched.Select(k => (k.Instance, Movie: k.Entry)).ToList();
 
         var byPath = Index(known, k => MapPath(k.Movie.Path));
         var byImdb = Index(known, k => k.Movie.ImdbId);
@@ -162,6 +162,13 @@ public sealed partial class MetadataRefresher(
 
         foreach (var item in items)
         {
+            // A Radarr that didn't answer (down, restarting, a timeout) isn't a film gone from it: leave its films as they
+            // are, still linked and still due, rather than re-sourcing them from TMDB unlinked for a week.
+            if (!allAnswered && Unconfirmed(item, known.Select(k => (k.Instance, k.Movie.Id))))
+            {
+                continue;
+            }
+
             try
             {
                 switch (await RefreshMovieAsync(item, byPath, byImdb, byTmdb, radarrs, force, ct).ConfigureAwait(false))
@@ -842,9 +849,9 @@ public sealed partial class MetadataRefresher(
 
         var sonarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Sonarr).ToList();
         var onlyWithin = !force && items.All(i => also.Contains(i.Id)); // Just the webhook's: ask for just those.
-        var known = (await KnownAsync(sonarrs, onlyWithin ? items : null, Hinted(also, tvdbId, i => i.TvdbId),
-                arr.GetSeriesAsync, arr.GetOneSeriesAsync, arr.GetSeriesByTvdbIdAsync, ct).ConfigureAwait(false))
-            .Select(k => (k.Instance, Series: k.Entry)).ToList();
+        var (fetched, allAnswered) = await KnownAsync(sonarrs, onlyWithin ? items : null, Hinted(also, tvdbId, i => i.TvdbId),
+            arr.GetSeriesAsync, arr.GetOneSeriesAsync, arr.GetSeriesByTvdbIdAsync, ct).ConfigureAwait(false);
+        var known = fetched.Select(k => (k.Instance, Series: k.Entry)).ToList();
 
         var byPath = Index(known, k => MapPath(k.Series.Path));
         var byTvdb = Index(known, k => k.Series.TvdbId > 0 ? k.Series.TvdbId.ToString(CultureInfo.InvariantCulture) : null);
@@ -853,6 +860,12 @@ public sealed partial class MetadataRefresher(
 
         foreach (var item in items)
         {
+            // As for films: a Sonarr that didn't answer leaves its shows linked and due, not re-sourced from TVmaze.
+            if (!allAnswered && Unconfirmed(item, known.Select(k => (k.Instance, k.Series.Id))))
+            {
+                continue;
+            }
+
             try
             {
                 switch (await RefreshOneSeriesAsync(item, byPath, byTvdb, byImdb, sonarrs, force, ct).ConfigureAwait(false))
@@ -1737,7 +1750,8 @@ public sealed partial class MetadataRefresher(
     /// <param name="byArrId">Fetches one title by the instance's own id.</param>
     /// <param name="byExternalId">Fetches the titles (none or one) with a TMDB or TVDB id.</param>
     /// <param name="ct">Stops the fetch.</param>
-    private async Task<List<(ArrInstance Instance, T Entry)>> KnownAsync<T>(
+    /// <returns>What they have, and whether every instance asked answered (a title gone from one, a 404, counts as an answer).</returns>
+    private async Task<(List<(ArrInstance Instance, T Entry)> Known, bool AllAnswered)> KnownAsync<T>(
         List<ArrInstance> instances,
         IReadOnlyList<MediaItem>? only,
         Func<MediaItem, string?> externalId,
@@ -1747,6 +1761,7 @@ public sealed partial class MetadataRefresher(
         CancellationToken ct)
     {
         var known = new List<(ArrInstance Instance, T Entry)>();
+        var allAnswered = true;
         if (only is not null && only.All(i => i.ArrId is not null && instances.Any(a => a.Name == i.MetadataSource) || ExternalId(i) is not null))
         {
             foreach (var item in only)
@@ -1762,6 +1777,7 @@ public sealed partial class MetadataRefresher(
                     {
                         // Gone from that instance (a 404), or it's down: try the other id.
                         LogArrUnavailable(source.Name, ex.Message);
+                        allAnswered &= ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound };
                     }
                 }
 
@@ -1779,11 +1795,12 @@ public sealed partial class MetadataRefresher(
                     catch (Exception ex) when (IsNetworkFailure(ex, ct))
                     {
                         LogArrUnavailable(instance.Name, ex.Message);
+                        allAnswered = false;
                     }
                 }
             }
 
-            return known;
+            return (known, allAnswered);
         }
 
         foreach (var instance in instances)
@@ -1795,14 +1812,22 @@ public sealed partial class MetadataRefresher(
             catch (Exception ex) when (IsNetworkFailure(ex, ct))
             {
                 LogArrUnavailable(instance.Name, ex.Message);
+                allAnswered = false;
             }
         }
 
-        return known;
+        return (known, allAnswered);
 
         int? ExternalId(MediaItem item) =>
             int.TryParse(externalId(item), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) && n > 0 ? n : null;
     }
+
+    /// <summary>
+    /// Whether a title linked to a Radarr or Sonarr entry is missing from what was fetched. When an instance didn't
+    /// answer, that may only mean it's down, so the title is left as it is (unstamped, so it's tried again next time).
+    /// </summary>
+    private static bool Unconfirmed(MediaItem item, IEnumerable<(ArrInstance Instance, int Id)> known) =>
+        item.ArrId is { } arrId && !known.Any(k => k.Id == arrId && k.Instance.Name == item.MetadataSource);
 
     private async Task SaveEveryAsync(int count, CancellationToken ct)
     {
