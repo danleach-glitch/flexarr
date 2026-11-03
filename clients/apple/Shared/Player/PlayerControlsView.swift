@@ -602,8 +602,10 @@ final class PlayerControlsView: UIView {
         configuration.contentInsets = NSDirectionalEdgeInsets(top: 16, leading: 28, bottom: 16, trailing: 30)
         let font = UIFont.monospacedDigitSystemFont(ofSize: 26, weight: .semibold)
         #else
-        configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 18, bottom: 12, trailing: 20)
-        let font = UIFont.monospacedDigitSystemFont(ofSize: 16, weight: .semibold)
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 13, bottom: 8, trailing: 14)
+        configuration.imagePadding = 6
+        configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+        let font = UIFont.monospacedDigitSystemFont(ofSize: 14, weight: .semibold)
         #endif
         configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
             var attributes = attributes
@@ -615,9 +617,10 @@ final class PlayerControlsView: UIView {
         #if os(tvOS)
         let side: CGFloat = 22
         #else
-        let side: CGFloat = 13
+        let side: CGFloat = 10
         #endif
-        configuration.image = UIImage(systemName: "xmark", withConfiguration: UIImage.SymbolConfiguration(pointSize: side, weight: .bold))
+        configuration.image = UIImage(systemName: "xmark")
+        configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: side, weight: .bold)
         // With nothing focused (a phone), the X half rests grey beside the white Next Episode half, as on a TV.
         configuration.baseBackgroundColor = UIColor(Color.aisle).withAlphaComponent(0.85)
         configuration.baseForegroundColor = UIColor(Color.screen)
