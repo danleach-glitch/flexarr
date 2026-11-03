@@ -402,7 +402,7 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
           </label>
           <label>
             <span>API key</span>
-            <input type="text" autoComplete="off" spellCheck={false} value={apiKey} required onChange={(e) => setApiKey(e.target.value)} />
+            <input type="password" autoComplete="off" spellCheck={false} value={apiKey} required onChange={(e) => setApiKey(e.target.value)} />
             <small>In {kind}: Settings › General</small>
           </label>
           {error && (
