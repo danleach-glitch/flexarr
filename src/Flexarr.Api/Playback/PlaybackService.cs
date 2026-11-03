@@ -24,7 +24,8 @@ public sealed class PlaybackService(
     IOptionsMonitor<FlexarrOptions> options,
     Security.GuestLinks guestLinks,
     Authentication.SignIns? signIns = null,
-    Books.BookFileConverter? bookConverter = null)
+    Books.BookFileConverter? bookConverter = null,
+    IHttpContextAccessor? http = null)
 {
     /// <summary>Within this distance of the end (or once the credits start) an item counts as watched.</summary>
     internal const double WatchedThreshold = 0.92;
@@ -97,7 +98,9 @@ public sealed class PlaybackService(
         var transcoding = options.CurrentValue.Transcoding;
         // A family guest on Tailscale's slow shared relays is held to what fits through them.
         var slowLink = await guestLinks.CapAsync(ct) ?? 0;
-        var maxBitrate = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate, slowLink }.Where(b => b > 0).DefaultIfEmpty(0).Min();
+        // Away from home, a file that needs more than the viewer's connection carries is converted to fit.
+        var away = AwayFromHome.Cap(transcoding.AwayFromHome, http?.HttpContext is { } context && AwayFromHome.IsRemote(context), request.MeasuredBitrate, file.Bitrate) ?? 0;
+        var maxBitrate = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate, slowLink, away }.Where(b => b > 0).DefaultIfEmpty(0).Min();
         var playbackOptions = new PlaybackOptions(audioIndex, subtitleKey, maxBitrate, request.MaxHeight, request.ForceTranscode, file.AudioDelaySeconds,
             request.Sound is { } sound ? sound with { MaxChannels = sound.MaxChannels is { } max ? Math.Clamp(max, 1, 8) : null } : null);
         var decision = PlaybackDecider.Decide(file, request.Profile, subtitles, playbackOptions);
