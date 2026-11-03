@@ -322,10 +322,14 @@ final class PlayerViewController: UIViewController {
         nowPlaying.setEpisodeNavigation(hasPrevious: hasPrevious, hasNext: hasNext)
     }
 
-    func setPrompt(_ title: String?, countingDown: Bool) {
-        controls.setPrompt(title, countingDown: countingDown)
+    func setPrompt(_ title: String?, countingDown: Bool, takesFocus: Bool = true) {
+        let focusChanged = controls.promptTakesFocus != takesFocus
+        controls.setPrompt(title, countingDown: countingDown, takesFocus: takesFocus)
         countingDownToNext = countingDown
         updateIdleTimer()
+        #if os(tvOS)
+        if focusChanged { setNeedsFocusUpdate(); updateFocusIfNeeded() }
+        #endif
 
     }
 
@@ -619,7 +623,7 @@ final class PlayerViewController: UIViewController {
     override var preferredFocusEnvironments: [UIFocusEnvironment] {
         if sleepPrompt.isAsking { return [sleepPrompt] }
         if audioSyncOpen { return [audioSyncPanel] }
-        return controlsVisible || controls.promptShown ? [controls] : [rootView]
+        return controlsVisible || controls.promptOffersFocus ? [controls] : [rootView]
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -671,7 +675,7 @@ final class PlayerViewController: UIViewController {
                     transport?.play()
                     return
                 }
-                if !controlsVisible && !controls.promptShown {
+                if !controlsVisible && !controls.promptOffersFocus {
                     togglePlayPause()
                     return
                 }
@@ -685,6 +689,11 @@ final class PlayerViewController: UIViewController {
                 if audioSyncOpen { return closeAudioSync() }
                 if controlsVisible {
                     hideControls()
+                    return
+                }
+                // Counting down to the next episode: Back is "not now", and a second Back leaves.
+                if countingDownToNext {
+                    delegate?.playerScreenCancelNext(self)
                     return
                 }
                 close()
@@ -709,6 +718,11 @@ final class PlayerViewController: UIViewController {
                         scan?.rate = 2
                     }
                     showScanRate()
+                    return
+                }
+                // Counting down with the controls hidden: the edges move between Cancel and Next Episode.
+                if countingDownToNext, !controlsVisible {
+                    super.pressesBegan(presses, with: event)
                     return
                 }
                 // The remote's edges skip when clicked and scan when held, unless focus is on a button row.
@@ -1022,6 +1036,8 @@ final class PlayerViewController: UIViewController {
         switch phase ?? transport?.phase {
         case .playing: UIApplication.shared.isIdleTimerDisabled = true
         case .loading, .buffering: break
+        // Paused mid-countdown, the countdown holds: the screen may sleep as for any pause.
+        case .paused: UIApplication.shared.isIdleTimerDisabled = false
         default: UIApplication.shared.isIdleTimerDisabled = countingDownToNext
         }
     }

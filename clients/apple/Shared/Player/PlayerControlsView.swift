@@ -176,7 +176,8 @@ final class PlayerControlsView: UIView {
     }
 
     /// The pill above the timeline: Skip Intro, Next Episode (counting down), with Cancel beside it while counting.
-    func setPrompt(_ title: String?, countingDown: Bool) {
+    func setPrompt(_ title: String?, countingDown: Bool, takesFocus: Bool = true) {
+        promptTakesFocus = takesFocus
         if let title {
             UIView.performWithoutAnimation {
                 promptButton.configuration?.title = title
@@ -198,6 +199,9 @@ final class PlayerControlsView: UIView {
     }
 
     var promptShown: Bool { promptButton.alpha > 0 }
+    /// Whether a showing pill takes focus (Select presses it). Not after Cancel, so Select pauses as usual.
+    private(set) var promptTakesFocus = true
+    var promptOffersFocus: Bool { promptShown && promptTakesFocus }
 
     /// Shows or fades everything but the Skip Intro / Next Episode pill, which shows whenever it's offered: fading this
     /// whole view took the pill with it, so Next Episode only appeared with the controls.
@@ -594,7 +598,7 @@ final class PlayerControlsView: UIView {
             self.focusNext = nil
             return [focusNext]
         }
-        return promptShown ? [promptButton] : [scrubber]
+        return promptOffersFocus ? [promptButton] : [scrubber]
     }
     #endif
 }
