@@ -518,8 +518,12 @@ export function getLibraryAlbums(
   return (options.take ?? 0) > 200 ? timedGet<Paged<ItemSummary>>(path, signal) : cachedGet<Paged<ItemSummary>>(path, signal)
 }
 
-/** A music library's genres counted by album (its own genres, or its artist's when it has none), with an artist's fanart. */
-export const getLibraryAlbumGenres = (id: string, signal?: AbortSignal) => cachedGet<{ name: string; count: number; backdrop?: string | null }[]>(`/libraries/${id}/album-genres`, signal)
+/**
+ * A music library's genres counted by album (its own genres, or its artist's when it has none), with an artist's
+ * fanart, or without any, `covers`: up to three of its albums' (absent from servers before 0.59).
+ */
+export const getLibraryAlbumGenres = (id: string, signal?: AbortSignal) =>
+  cachedGet<{ name: string; count: number; backdrop?: string | null; covers?: string[] | null }[]>(`/libraries/${id}/album-genres`, signal)
 
 /** Up to 200 of a genre's tracks in a music library, by artist and album, or shuffled by the server. */
 export const getGenreTracks = (id: string, genre: string, shuffle: boolean, signal?: AbortSignal) =>
@@ -649,7 +653,7 @@ export async function saveBookListening(changes: Partial<BookListening>) {
 
 /** A library's genres, biggest first; `backdrop` (from one of its titles) is absent from servers before 0.54. */
 export const getLibraryGenres = (id: string, signal?: AbortSignal) =>
-  cachedGet<{ name: string; count: number; backdrop?: string | null }[]>(`/libraries/${id}/genres`, signal)
+  cachedGet<{ name: string; count: number; backdrop?: string | null; covers?: string[] | null }[]>(`/libraries/${id}/genres`, signal)
 
 /**
  * Home. `listening` says what this app can open from the continue row besides films and episodes (books and podcast

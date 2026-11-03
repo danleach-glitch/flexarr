@@ -90,14 +90,15 @@ public static partial class MatchEndpoints
                 return Results.NotFound();
             }
 
-            // A different title than the one it is: its details edited by hand were about the old one, so they go.
-            var current = item.Kind == MediaKind.Movie ? item.TmdbId : item.TvdbId ?? item.TvMazeId;
-            var rematched = current != request.Id.ToString(CultureInfo.InvariantCulture);
-
             var config = options.CurrentValue;
             var kind = KindFor(item);
             var noun = item.Kind == MediaKind.Movie ? "movie" : "show";
             var instances = config.Arr.Where(a => a.Kind == kind).ToList();
+
+            // A different title than the one it is: its details edited by hand were about the old one, so they go. A
+            // show's id is a TVDB id with Sonarr, a TVmaze id without.
+            var current = item.Kind == MediaKind.Movie ? item.TmdbId : instances.Count > 0 ? item.TvdbId : item.TvMazeId;
+            var rematched = current != request.Id.ToString(CultureInfo.InvariantCulture);
             if (instances.Count == 0)
             {
                 if (OnlineUnavailable(item, config) is { } unavailable)

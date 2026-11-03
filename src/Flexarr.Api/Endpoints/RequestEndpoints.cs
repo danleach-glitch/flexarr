@@ -345,7 +345,7 @@ public static partial class RequestEndpoints
             }
             catch (RequestUndo.ServiceException ex)
             {
-                var status = (int?)((HttpRequestException)ex.InnerException!).StatusCode;
+                var status = (int?)(ex.InnerException as HttpRequestException)?.StatusCode;
                 LogUndoRefused(loggers.CreateLogger("Flexarr.Requests"), ex.InnerException!, ex.Service, status);
                 return status is >= 400 and < 500
                     ? Results.Problem($"{ex.Service} turned that down.", statusCode: 502)

@@ -95,10 +95,11 @@ extension AppModel {
         return album.isRequestable ? .requestable : .none
     }
 
-    /// Whether Lidarr watches for the artist's new releases (or the profile just asked it to).
+    /// Whether Lidarr watches for the artist's new releases (or the profile just asked it to). Servers from 0.59 say so
+    /// in `followed`, for library artists too; older ones only as a requested availability.
     func isFollowing(_ artist: MusicExternal, followed: Bool = false) -> Bool {
         if musicUndone.contains(artist.id) { return false }
-        return followed || artist.availability == .requested || musicAsked.contains(artist.id)
+        return followed || (artist.followed ?? (artist.availability == .requested)) || musicAsked.contains(artist.id)
     }
 
     func isFollowing(libraryArtist id: String, followed: Bool) -> Bool {

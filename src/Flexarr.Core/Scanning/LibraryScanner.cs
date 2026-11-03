@@ -1162,6 +1162,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         private MediaItem Add(MediaItem item)
         {
             item.AddedAt = _addedAt;
+            item.FirstSeenAt = DateTime.UtcNow;
             db.MediaItems.Add(item);
             Track(item);
             return item;

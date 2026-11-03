@@ -18,8 +18,9 @@ struct SearchView: View {
     @State private var outsideMusic: [MusicExternal] = []
     /// Whether music requests are on for this profile, and Lidarr answering; nil until asked.
     @State private var musicStatus: MusicRequestStatus?
+    /// The library's results are in, but Seerr's or the music search's aren't yet.
+    @State private var lookingFurther = false
 
-    private var looksForMusic: Bool { musicStatus?.configured == true }
     /// Lidarr isn't answering: music still shows, its requests wait.
     private var musicPaused: Bool { musicStatus?.configured == true && musicStatus?.reachable == false }
 
@@ -28,7 +29,8 @@ struct SearchView: View {
             VStack(alignment: .leading, spacing: 24) {
                 if let results {
                     if results.isEmpty && outside.isEmpty && outsideMusic.isEmpty {
-                        StatusView(state: .empty("Nothing matches \u{201C}\(query)\u{201D}."))
+                        // Nothing in the library yet: say so only once the searches beyond it have answered too.
+                        StatusView(state: lookingFurther ? .loading : .empty("Nothing matches \u{201C}\(query)\u{201D}."))
                             .frame(height: 240)
                     }
                     if !results.films.isEmpty {
@@ -250,24 +252,39 @@ struct SearchView: View {
             // Asked once, before the first search that needs it.
             looksOutside = (try? await client.requestStatus())?.configured == true
         }
-        if musicStatus == nil {
-            musicStatus = (try? await client.musicRequestStatus()) ?? .off
-        }
         do {
             async let beyond: [ExternalTitle] = looksOutside == true ? (try? await client.searchEverything(text)) ?? [] : []
-            async let music: MusicSearchResults = looksForMusic ? (try? await client.searchMusic(text)) ?? .empty : .empty
+            async let music = searchMusic(client, text)
             let found = try await client.search(text)
-            let more = await beyond
-            let moreMusic = await music
+            // The library's results show straight away; what's found beyond it joins them as it comes.
             guard text == query.trimmingCharacters(in: .whitespaces) else { return }
             results = found
+            outside = []
+            outsideMusic = []
+            error = nil
+            lookingFurther = true
+            let more = await beyond
+            guard text == query.trimmingCharacters(in: .whitespaces) else { return }
             // What the library has is already above.
             outside = more.filter { $0.libraryItemId == nil && $0.availability != .available }
+            let (status, moreMusic) = await music
+            guard text == query.trimmingCharacters(in: .whitespaces) else { return }
+            musicStatus = status
             outsideMusic = (moreMusic.artists + moreMusic.albums).filter { $0.libraryItemId == nil && $0.availability != .available }
-            error = nil
+            lookingFurther = false
         } catch {
             self.error = ConnectionError(error).message
+            lookingFurther = false
         }
+    }
+
+    /// Whether music can be asked for, then the music found when it can, beside the library search so a slow Lidarr
+    /// holds up only the music. Asked each search: the model keeps an answer for a minute, and not one that never came,
+    /// so a blip doesn't hide outside music for the rest of the visit.
+    private func searchMusic(_ client: FlexarrClient, _ text: String) async -> (MusicRequestStatus, MusicSearchResults) {
+        let status = await model.musicRequestStatus()
+        guard status.configured else { return (status, .empty) }
+        return (status, (try? await client.searchMusic(text)) ?? .empty)
     }
 
     /// Servers before 0.56 keep no recent searches, and one that can't be reached shows none: nothing to say either way.

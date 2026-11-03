@@ -25,12 +25,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.outlined.Book
-import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Downloading
 import androidx.compose.material.icons.outlined.SyncProblem
@@ -249,7 +245,7 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    icon = if (playingThis && player.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    icon = if (playingThis && player.isPlaying) FlexarrIcons.pause else FlexarrIcons.play,
                     prominent = true,
                     ambient = glowColor(item.accentColor),
                 )
@@ -264,11 +260,11 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                     actions.forEach { button ->
                         when (button) {
                             // A place in the book is asked about before it's lost.
-                            BookActions.Button.START_OVER -> LabeledAction("Start over", Icons.Filled.Replay, { if (position > 0 && !finished) confirmStartOver = true else startOver() })
+                            BookActions.Button.START_OVER -> LabeledAction("Start over", FlexarrIcons.startOver, { if (position > 0 && !finished) confirmStartOver = true else startOver() })
                             // Unread (no place, not finished, as if never started) in Finished's place once it's finished.
                             BookActions.Button.FINISHED ->
                                 if (finished) LabeledAction("Unread", Icons.Outlined.Book, { navigator.setBookFinished(item, false) })
-                                else LabeledAction("Finished", Icons.Outlined.CheckCircle, { navigator.setBookFinished(item, true) })
+                                else LabeledAction("Finished", FlexarrIcons.watched, { navigator.setBookFinished(item, true) })
                             BookActions.Button.DOWNLOAD -> BookDownloadAction(model, item)
                             BookActions.Button.MORE -> BookMoreAction(model, item)
                             BookActions.Button.PLAY -> Unit
@@ -524,7 +520,7 @@ private fun SeriesPage(model: AppModel, series: BookSeries, missing: List<Missin
                         "${if (next.userData.positionSeconds > 0) "Resume" else "Play"} ${next.title}",
                         onClick = { navigator.playBook(next) },
                         modifier = Modifier.fillMaxWidth(),
-                        icon = Icons.Filled.PlayArrow,
+                        icon = FlexarrIcons.play,
                         prominent = true,
                         ambient = glowColor(next.accentColor),
                     )

@@ -370,7 +370,7 @@ struct NowPlayingView: View {
                 music.acceptJump()
             } dismiss: { music.dismissJump() }
         } else if let next = music.nextBookOffer {
-            offerBar(text: next.title, action: "Play", icon: "play.fill") { music.playNextBook() } dismiss: { music.dismissNextBook() }
+            offerBar(text: next.title, action: "Play", icon: Symbol.play) { music.playNextBook() } dismiss: { music.dismissNextBook() }
         }
     }
 
@@ -408,7 +408,7 @@ struct NowPlayingView: View {
             if music.isLoading {
                 ProgressView().tint(Color.screen)
             } else {
-                Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? "pause.fill" : "play.fill")
+                Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? Symbol.pause : Symbol.play)
             }
         }
         .buttonStyle(TransportStyle(size: 76, filled: true))
@@ -554,7 +554,7 @@ struct NowPlayingView: View {
                 }
                 .buttonStyle(.plain)
                 .contextMenu {
-                    Button(role: .destructive) { Task { await music.deleteBookmark(mark) } } label: { Label("Delete", systemImage: "trash") }
+                    Button(role: .destructive) { Task { await music.deleteBookmark(mark) } } label: { Label("Delete", systemImage: Symbol.delete) }
                 }
             }
         }
@@ -615,7 +615,7 @@ struct NowPlayingView: View {
                 } label: { Label("Mark as played", systemImage: "checkmark.circle") }
                 if let download = downloads.entry(for: track.id) {
                     Button(role: .destructive) { downloads.remove(download.id) } label: {
-                        Label(download.isDownloaded ? "Remove Download" : "Stop Download", systemImage: "trash")
+                        Label(download.isDownloaded ? "Remove Download" : "Stop Download", systemImage: Symbol.delete)
                     }
                 } else if !music.isPlayingOffline {
                     Button { Task { try? await downloads.download(itemId: track.id, quality: .original) } } label: {

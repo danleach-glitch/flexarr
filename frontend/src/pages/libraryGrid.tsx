@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { useNavigationType } from 'react-router'
 import { forgetPage, freshly, getItem, keepPage, keptPage, wasDeleted, type ItemSummary, type Paged } from '../api/client'
+import { AsyncButton } from '../components/AsyncButton'
 import { useWatchedChanges, watchedSince } from '../hooks/watched'
 
 export const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
@@ -103,6 +104,10 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
   const gridKey = `${snapshotKey} ${query}`
   const [loadedFor, setLoadedFor] = useState(restored ? gridKey : undefined)
   const [error, setError] = useState<Error>()
+  // Show more that failed: the titles already loaded stay, and Show more tries again.
+  const [moreError, setMoreError] = useState<Error>()
+  // A letter whose titles failed to load: the rail (or picker) says so beside it, and tries that letter again.
+  const [jumpFailed, setJumpFailed] = useState<string>()
   const [busy, setBusy] = useState(false)
   // The letter being jumped to while the titles up to it load.
   const [jumping, setJumping] = useState<string>()
@@ -147,6 +152,8 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
         setLoadedCount(countAtLoad)
         setLoadedFor(loadingFor)
         setError(undefined)
+        setMoreError(undefined)
+        setJumpFailed(undefined)
       })
       .catch((e: unknown) => {
         if (!controller.signal.aborted) setError(e instanceof Error ? e : new Error(String(e)))
@@ -215,13 +222,14 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
     if (busy) return
     const run = generation.current
     setBusy(true)
+    setMoreError(undefined)
     try {
       const page = await loader.current({ skip: items.length, take: pageSize })
       if (run !== generation.current) return
       setItems((current) => append(current, [page.items]))
       setTotal(page.total)
     } catch (e) {
-      if (run === generation.current) setError(e instanceof Error ? e : new Error(String(e)))
+      if (run === generation.current) setMoreError(e instanceof Error ? e : new Error(String(e)))
     } finally {
       setBusy(false)
     }
@@ -238,6 +246,7 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
     }
     let loaded = items
     setBusy(true)
+    setJumpFailed(undefined)
     try {
       while (!loaded.some((i) => letterOf(i) === letter) && !passed(loaded) && total !== undefined && loaded.length < total) {
         setJumping(letter)
@@ -250,8 +259,8 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
         loaded = next
         setItems(loaded)
       }
-    } catch (e) {
-      if (run === generation.current) setError(e instanceof Error ? e : new Error(String(e)))
+    } catch {
+      if (run === generation.current) setJumpFailed(letter)
     } finally {
       setBusy(false)
       setJumping(undefined)
@@ -279,35 +288,84 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
   }
 
   return {
-    items, total, error, busy, jumping, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump,
+    items, total, error, moreError, busy, jumping, jumpFailed, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump,
     restart: () => setVersion((v) => v + 1),
   }
 }
 
-/** The A–Z picker for phones (no room for the rail), kept in reach while scrolling. */
-export function AlphaPicker({ jump, jumping, empty }: { jump: (letter: string) => void; jumping: string | undefined; empty: Set<string> }) {
+/** Show more under a grid, while there's more; after one that failed, why, and Try again. */
+export function ShowMore({ loaded, total, pageSize, busy, error, onMore }: {
+  loaded: number
+  total: number | undefined
+  pageSize: number
+  busy: boolean
+  error: Error | undefined
+  onMore: () => void
+}) {
+  if (total === undefined || loaded >= total) return null
   return (
-    <label className="alpha-picker">
-      <span className="visually-hidden">Jump to letter</span>
-      <select
-        value=""
-        onChange={(e) => {
-          if (e.target.value) jump(e.target.value)
-        }}
-      >
-        <option value="">{jumping ? 'Loading…' : 'Jump to…'}</option>
-        {LETTERS.map((l) => (
-          <option key={l} value={l} disabled={empty.has(l)}>
-            {l}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="load-more">
+      {error && (
+        <p className="error" role="alert">
+          More couldn’t be loaded.
+        </p>
+      )}
+      <AsyncButton className="button quiet" onClick={onMore} disabled={busy}>
+        {error ? 'Try again' : `Show ${Math.min(pageSize, total - loaded)} more`}
+      </AsyncButton>
+    </div>
+  )
+}
+
+interface AlphaProps {
+  jump: (letter: string) => void
+  jumping: string | undefined
+  /** The letter whose titles failed to load, if the last jump failed. */
+  failed?: string
+  empty: Set<string>
+}
+
+/** Why a jump to `letter` failed, and Try again for that letter. `short` words it to fit a phone's picker bar. */
+function JumpFailed({ letter, jump, short }: { letter: string; jump: (letter: string) => void; short?: boolean }) {
+  return (
+    <p className="alpha-failed" role="alert">
+      <span className="error">
+        {short ? `Couldn’t load ${letter}.` : `${letter === '#' ? 'Numbers and symbols' : letter} couldn’t be loaded.`}
+      </span>
+      <button type="button" className="button quiet small" onClick={() => jump(letter)}>
+        Try again
+      </button>
+    </p>
+  )
+}
+
+/** The A–Z picker for phones (no room for the rail), kept in reach while scrolling. */
+export function AlphaPicker({ jump, jumping, failed, empty }: AlphaProps) {
+  return (
+    <div className="alpha-picker">
+      {failed && !jumping && <JumpFailed letter={failed} jump={jump} short />}
+      <label>
+        <span className="visually-hidden">Jump to letter</span>
+        <select
+          value=""
+          onChange={(e) => {
+            if (e.target.value) jump(e.target.value)
+          }}
+        >
+          <option value="">{jumping ? 'Loading…' : 'Jump to…'}</option>
+          {LETTERS.map((l) => (
+            <option key={l} value={l} disabled={empty.has(l)}>
+              {l}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
   )
 }
 
 /** The A–Z rail beside a grid, and what it says to screen readers while a jump loads. */
-export function AlphaRail({ jump, jumping, empty }: { jump: (letter: string) => void; jumping: string | undefined; empty: Set<string> }) {
+export function AlphaRail({ jump, jumping, failed, empty }: AlphaProps) {
   return (
     <>
       <nav className="alpha-rail" aria-label="Jump to letter" aria-busy={jumping ? true : undefined}>
@@ -321,6 +379,11 @@ export function AlphaRail({ jump, jumping, empty }: { jump: (letter: string) => 
             )}
           </button>
         ))}
+        {failed && !jumping && (
+          <div className="alpha-failed-at" style={{ '--letter': LETTERS.indexOf(failed) } as CSSProperties}>
+            <JumpFailed letter={failed} jump={jump} />
+          </div>
+        )}
       </nav>
       <p className="visually-hidden" role="status">
         {jumping ? `Loading titles up to ${jumping === '#' ? 'numbers and symbols' : jumping}…` : ''}

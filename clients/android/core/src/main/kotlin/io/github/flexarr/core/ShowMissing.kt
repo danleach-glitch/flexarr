@@ -112,12 +112,14 @@ internal data class MissingSearchRequest(val seasonNumber: Int, val episodeNumbe
 
 private fun episodesLabel(count: Int) = if (count == 1) "1 episode" else "$count episodes"
 
-/** What a library show lacks; [ShowMissing.None] from servers before 0.59. */
+/** What a library show lacks; [ShowMissing.None] from servers before 0.59 (a 404, or their web page). */
 suspend fun FlexarrClient.showMissing(showId: String): ShowMissing =
     try {
         get("items/$showId/missing")
     } catch (e: FlexarrException.Http) {
         if (e.status == 404) ShowMissing.None else throw e
+    } catch (_: FlexarrException.UnexpectedResponse) {
+        ShowMissing.None
     }
 
 /** Asks Seerr for just these seasons of a show, by its TMDB id. */
@@ -130,10 +132,12 @@ suspend fun FlexarrClient.searchMissing(showId: String, seasonNumber: Int, episo
     send("POST", "items/$showId/missing/search", body = FlexarrClient.json.encodeToString(MissingSearchRequest.serializer(), MissingSearchRequest(seasonNumber, episodes)))
 }
 
-/** The books Audible lists in a series that the library lacks; none from servers before 0.59. */
+/** The books Audible lists in a series that the library lacks; none from servers before 0.59 (a 404, or their web page). */
 suspend fun FlexarrClient.bookSeriesMissing(seriesId: String): BookSeriesMissing =
     try {
         get("book-series/$seriesId/missing")
     } catch (e: FlexarrException.Http) {
         if (e.status == 404) BookSeriesMissing() else throw e
+    } catch (_: FlexarrException.UnexpectedResponse) {
+        BookSeriesMissing()
     }

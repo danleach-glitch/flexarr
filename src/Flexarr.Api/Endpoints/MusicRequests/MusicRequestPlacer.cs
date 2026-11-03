@@ -83,6 +83,8 @@ public static partial class MusicRequestPlacer
             return Results.Problem($"Lidarr can't find {title} by {artist.ArtistName}.", statusCode: 409);
         }
 
+        // An artist Lidarr has unmonitored stays so, and the album relies on the search now: monitoring the artist
+        // would restart every album of theirs still monitored, a discography the admin stopped on purpose.
         if (match.Id > 0)
         {
             await c.Client.SetAlbumsMonitoredAsync(lidarr, [match.Id], monitored: true, ct);

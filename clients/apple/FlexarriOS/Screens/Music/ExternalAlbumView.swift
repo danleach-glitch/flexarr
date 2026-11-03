@@ -153,7 +153,7 @@ private struct ExternalTrackRow: View {
                 .foregroundStyle(Color.screen)
                 .lineLimit(1)
             if track.explicit {
-                Image(systemName: "e.square.fill")
+                Image(systemName: Symbol.explicit)
                     .font(.caption)
                     .foregroundStyle(Color.usher)
                     .accessibilityLabel("Explicit")

@@ -78,6 +78,8 @@ export function MusicRequestButton({
   // A library artist can still be followed; a library album has nothing left to ask for.
   if (kind === 'album' && (libraryItemId || state === 'Available')) return <span className="external-state">In your library</span>
   const className = size === 'small' ? 'button small quiet' : 'button quiet'
+  // A grid of cards is a row of the same words to a screen reader: each says whose it is (a page's own needn't).
+  const named = (label: string) => (size === 'small' && title ? `${label} ${title}` : undefined)
   if (state === 'Requested' || state === 'PartlyAvailable') {
     const Icon = kind === 'artist' ? icon.following : icon.requested
     return (
@@ -85,6 +87,7 @@ export function MusicRequestButton({
         <AsyncButton
           className={className}
           aria-pressed
+          aria-label={named(kind === 'artist' ? 'Following' : 'Requested')}
           onClick={() => setAsking(true)}
           disabled={offline}
           title={offline ? 'Lidarr isn’t answering.' : kind === 'artist' ? 'Stop following' : 'Unrequest'}
@@ -126,6 +129,7 @@ export function MusicRequestButton({
       <AsyncButton
         className={className}
         onClick={send}
+        aria-label={named(state === 'failed' ? 'Try again' : kind === 'artist' ? 'Follow' : 'Request album')}
         busy={state === 'sending'}
         disabled={offline}
         title={offline ? 'Lidarr isn’t answering.' : message}

@@ -54,3 +54,23 @@ describe('HealthSection, music', () => {
     await waitFor(() => expect(merged).toEqual([{ keep: 'b2', merge: ['b1'] }]))
   })
 })
+
+describe('HealthSection, missing artwork', () => {
+  it('says one title needs Radarr or Sonarr, in the singular', async () => {
+    mockApi({
+      'GET /library-health': {
+        ...health,
+        score: { ...health.score, missingArtwork: 1, artworkNeedsConnection: 1 },
+        missingArtwork: [summary({ id: 'm1', kind: 'Movie', title: 'Heat' }), summary({ id: 'm2', kind: 'Movie', title: 'Ronin' })],
+      },
+      'GET /library-health/check': { running: false, checked: 0, total: 0, finishedAt: null, problems: [] },
+    })
+    render(
+      <MemoryRouter>
+        <HealthSection />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText(/^1 needs Radarr or Sonarr connected/)).toBeInTheDocument()
+  })
+})

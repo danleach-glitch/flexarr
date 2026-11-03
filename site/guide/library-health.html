@@ -172,7 +172,7 @@
 <ul>
 <li><strong>Albums without a cover</strong>: no cover file beside the tracks, none in them, and none from Lidarr. <strong>Fix match</strong> on the row finds the album, and its cover with it.</li>
 <li><strong>Albums twice</strong>: the same release more than once, usually two folders of one album. <strong>Merge</strong> asks which to keep, then moves the others&#39; tracks to it.</li>
-<li><strong>Artists under two names</strong>: one artist filed under different spellings, such as <em>Beyoncé</em> and <em>Beyonce</em>, usually because their files&#39; tags differ. <strong>Merge</strong> makes them one artist with all their albums.</li>
+<li><strong>Artists under two names</strong>: one artist filed under different spellings, such as <em>Beyoncé</em> and <em>Beyonce</em>, usually because their files&#39; tags differ. <strong>Merge</strong> makes them one artist with all their albums, and an album both spellings had becomes one album, unless both copies have the same tracks: those stay under <strong>Duplicate albums</strong>.</li>
 <li><strong>Tracks twice</strong>: an album with the same track more than once, usually two copies in one folder. Remove the spare in Lidarr or the Finder.</li>
 </ul>
 <p>Merging happens in Flexarr only: no files are moved or deleted, and nothing changes in Lidarr. New tracks under the merged name or in the merged folder land in the one you kept.</p>

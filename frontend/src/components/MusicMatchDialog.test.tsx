@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ItemDetail, MusicMatch } from '../api/client'
 import { mockApi } from '../test/mockApi'
-import { MusicMatchDialog } from './MusicMatchDialog'
+import { MusicMatchById, MusicMatchDialog } from './MusicMatchDialog'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -79,5 +79,18 @@ describe('MusicMatchDialog', () => {
     render(<MusicMatchDialog detail={album({ matchLocked: true })} onFixed={onFixed} onClose={() => undefined} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Match automatically again' }))
     await waitFor(() => expect(reset).toHaveBeenCalled())
+  })
+
+  it('shows a dialog while an album from Library health loads, and why when it has gone', async () => {
+    let answer: (r: Response) => void = () => undefined
+    mockApi({ 'GET /items/gone': () => new Promise<Response>((resolve) => (answer = resolve)) })
+    const onClose = vi.fn()
+    render(<MusicMatchById id="gone" onFixed={() => undefined} onClose={onClose} />)
+
+    expect(screen.getByRole('dialog', { name: 'Fix match' })).toHaveAttribute('aria-busy', 'true')
+    answer(new Response('', { status: 404 }))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(onClose).toHaveBeenCalled()
   })
 })

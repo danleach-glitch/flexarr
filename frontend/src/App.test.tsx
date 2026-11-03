@@ -983,6 +983,33 @@ describe('Settings', () => {
     expect(screen.getByRole('button', { name: 'Switch to the main profile' })).toBeInTheDocument()
   })
 
+  it('counts titles without artwork once, saying how many need Radarr or Sonarr', async () => {
+    const film = (id: string) => summary({ id, title: id })
+    mockApi({
+      '/libraries': [],
+      '/library-health': {
+        score: { score: 90, titles: 10, withProblems: 1, duplicates: 0, unreadable: 0, standardDefinition: 0, missingArtwork: 1, fileProblems: 0, artworkNeedsConnection: 2 },
+        duplicates: [],
+        reclaimableBytes: 0,
+        unreadable: [],
+        missingArtwork: [film('One'), film('Two'), film('Three')],
+        matchedByTitle: [],
+        standardDefinition: [],
+        standardDefinitionTotal: 0,
+        downloading: {},
+        held: [],
+      },
+      '/library-health/check': { running: false, checked: 0, total: 0, finishedAt: null, problems: [] },
+    })
+
+    renderAt('/settings/health')
+
+    const line = await screen.findByText(/without artwork/)
+    expect(line).toHaveTextContent('3 without artwork (connect Radarr or Sonarr to fill in 2)')
+    expect(screen.getAllByText(/without artwork/)).toHaveLength(1)
+    expect(screen.getByText(/2 need Radarr or Sonarr connected/)).toBeInTheDocument()
+  })
+
   it('names the library in a held folder’s removal, and closes on Escape', async () => {
     mockApi({
       '/libraries': [],
@@ -1556,6 +1583,62 @@ describe('Library grid', () => {
     expect(await screen.findByRole('link', { name: 'Film 209' })).toBeInTheDocument()
     expect(pages).toEqual([0, 200])
     expect(screen.getAllByRole('link', { name: /^Film \d+$/ })).toHaveLength(210)
+  })
+
+  it('keeps the titles loaded when Show more fails, and tries again from there', async () => {
+    let fail = true
+    const pages: number[] = []
+    mockApi({
+      '/libraries': [{ ...movies, scan: null, itemCount: films.length }],
+      '/libraries/lib-movies/genres': [],
+      '/libraries/lib-movies/items': (_: RequestInit | undefined, url: URL) => {
+        const skip = Number(url.searchParams.get('skip') ?? 0)
+        pages.push(skip)
+        if (skip > 0 && fail) return new Response('', { status: 500 })
+        return { total: films.length, items: films.slice(skip, skip + Number(url.searchParams.get('take'))) }
+      },
+    })
+    renderAt('/library/lib-movies?view=all')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Show 10 more' }))
+    expect(await screen.findByText('More couldn’t be loaded.')).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: /^Film \d+$/ })).toHaveLength(200)
+    fail = false
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+    expect(await screen.findByRole('link', { name: 'Film 209' })).toBeInTheDocument()
+    expect(pages).toEqual([0, 200, 200])
+    expect(screen.queryByText('More couldn’t be loaded.')).toBeNull()
+  })
+
+  it('says by the rail when a letter fails to load, and tries that letter again', async () => {
+    let fail = true
+    const pages: number[] = []
+    mockApi({
+      '/libraries': [{ ...movies, scan: null, itemCount: films.length }],
+      '/libraries/lib-movies/genres': [],
+      '/libraries/lib-movies/items': (_: RequestInit | undefined, url: URL) => {
+        const skip = Number(url.searchParams.get('skip') ?? 0)
+        pages.push(skip)
+        if (skip > 0 && fail) return new Response('', { status: 500 })
+        return { total: films.length, items: films.slice(skip, skip + Number(url.searchParams.get('take'))) }
+      },
+    })
+    renderAt('/library/lib-movies?view=all')
+
+    const rail = await screen.findByRole('navigation', { name: 'Jump to letter' })
+    fireEvent.click(within(rail).getByRole('button', { name: 'G' }))
+    expect(await within(rail).findByRole('alert')).toHaveTextContent('G couldn’t be loaded.')
+    expect(screen.queryByText('More couldn’t be loaded.')).toBeNull()
+    // The phone picker words it shorter, on its own line under the select.
+    const picker = screen.getByRole('combobox', { name: 'Jump to letter' }).closest<HTMLElement>('.alpha-picker')!
+    expect(within(picker).getByRole('alert')).toHaveTextContent('Couldn’t load G.')
+    fail = false
+    fireEvent.click(within(rail).getByRole('button', { name: 'Try again' }))
+
+    expect(await screen.findByRole('link', { name: 'Film 209' })).toBeInTheDocument()
+    expect(pages).toEqual([0, 200, 200])
+    expect(within(rail).queryByRole('alert')).toBeNull()
   })
 
   it('dims letters with nothing to jump to, once the grid has loaded past them', async () => {

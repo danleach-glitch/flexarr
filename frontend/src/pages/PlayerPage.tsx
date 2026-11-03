@@ -27,8 +27,6 @@ import {
   Fullscreen,
   Muted,
   Next,
-  Pause,
-  Play,
   Previous,
   Replay10,
   Reset,
@@ -36,12 +34,13 @@ import {
   Waveform,
   Volume,
 } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { SubtitleSearchDialog } from '../components/SubtitleSearchDialog'
 import { usePolling } from '../hooks/usePolling'
 import { hasSoundGraph, MAX_AUDIO_DELAY_SECONDS, useSoundChain } from '../hooks/soundChain'
 import { useAgeLimits } from '../hooks/sessionContext'
 import { announceWatched } from '../hooks/watched'
-import { clearEnding, isWatched, recordEnding, sendingFinalReport, type PlaybackEnding, type PlayState } from '../hooks/playbackEnding'
+import { clearEnding, isWatched, recordEnding, sendingFinalReport, whenBrowserBack, type PlaybackEnding, type PlayState } from '../hooks/playbackEnding'
 import { episodeCode, formatClock } from '../lib/format'
 import { belongsToFocused } from '../lib/focusedKeys'
 import { mediaErrorRecovery } from '../lib/hlsRecovery'
@@ -734,12 +733,24 @@ export function PlayerPage() {
     if (!playing || shuffleRef.current) return undefined
     return { from: origin.current, startedWith: startedWith.current, stoppedOn: playing.item.id, watched: over || isWatched(at, length, creditsStart), next: playing.next?.id ?? null }
   }
-  // Leaving by the browser's Back (or a swipe) counts as closing too.
+  // Leaving by the browser's Back (or a swipe) counts as closing too. It's recorded as the history moves, before the
+  // router renders the page Play was pressed on (see browserMoved), so that page moves on at once; unmounting catches any other way out.
   useEffect(
-    () => () => {
-      if (leaving.current) return
-      const ending = endingNow()
-      if (ending) recordEnding(ending)
+    () => {
+      const record = () => {
+        if (leaving.current) return
+        const ending = endingNow()
+        if (ending) recordEnding(ending)
+      }
+      const onBack = () => {
+        record()
+        leaving.current = true
+      }
+      whenBrowserBack(onBack)
+      return () => {
+        whenBrowserBack(undefined, onBack)
+        record()
+      }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- on leaving only; it reads the latest through refs
     [],
@@ -1321,7 +1332,7 @@ export function PlayerPage() {
             </strong>
             <div className="up-next-actions">
               <button className="button small" onClick={playNext}>
-                <Play /> Play now
+                <icon.play /> Play now
               </button>
               <button className="button quiet small" onClick={cancelUpNext}>
                 {finished ? 'Cancel' : 'Keep watching'}
@@ -1336,7 +1347,7 @@ export function PlayerPage() {
         <Scrubber time={time} duration={duration} bufferedTo={bufferedTo} markers={info?.markers ?? []} previews={previews} onSeek={seekTo} />
         <div className="player-buttons">
           <button className="icon-button" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
-            {playing ? <Pause /> : <Play />}
+            {playing ? <icon.pause /> : <icon.play />}
           </button>
           <button className="icon-button" onClick={() => seekBy(-10)} aria-label="Back 10 seconds">
             <Replay10 />

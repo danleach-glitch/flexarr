@@ -1274,6 +1274,31 @@ kbd {
   pointer-events: none;
 }
 
+/* A letter whose titles failed to load: why, and Try again, beside that letter (24px a letter, as above). */
+.alpha-failed-at {
+  position: absolute;
+  top: calc(var(--letter) * 24px + 12px);
+  right: calc(100% + 8px);
+  z-index: 2;
+  transform: translateY(-50%);
+}
+
+.alpha-failed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: var(--step--1);
+  white-space: nowrap;
+}
+
+.alpha-failed-at .alpha-failed {
+  padding: 4px 4px 4px 12px;
+  border-radius: 999px;
+  background: var(--seat-raised);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.4);
+}
+
 /* Phones get a letter picker instead of the rail. */
 .alpha-picker {
   display: none;
@@ -2224,10 +2249,26 @@ a.upcoming-row:hover strong {
     top: var(--nav-height);
     z-index: 5;
     display: flex;
+    align-items: center;
     justify-content: flex-end;
+    gap: 12px;
     margin: -8px 0 0;
     padding: 8px 0;
     background: var(--room);
+  }
+
+  /* A failed jump goes on its own line under the picker, wrapping if it must, so the bar never runs off the side. */
+  .alpha-picker {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .alpha-picker .alpha-failed {
+    order: 1;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    white-space: normal;
   }
 
   .library-body {

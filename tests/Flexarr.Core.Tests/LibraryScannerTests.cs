@@ -40,10 +40,12 @@ public sealed class LibraryScannerTests : IAsyncLifetime
             "movies/The Nice Guys (2016)/notes.nfo");
         var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
 
+        var scanned = DateTime.UtcNow;
         var result = await Scanner().ScanAsync(library, null, default);
 
         Assert.Equal(4, result.Added);
         var movies = await _db.MediaItems.Include(i => i.Files).OrderBy(i => i.SortTitle).ToListAsync();
+        Assert.All(movies, m => Assert.True(m.FirstSeenAt >= scanned)); // when it was found, whatever its file's date
         Assert.Equal(["All of You", "Forrest Gump", "The Nice Guys"], movies.Select(m => m.Title));
         Assert.Equal(2, movies[1].Files.Count);
         Assert.Equal("tt30852384", movies[0].ImdbId);

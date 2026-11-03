@@ -259,6 +259,24 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RequestingAnAlbum_ByAnArtistLidarrHasUnmonitored_LeavesThem_AndSearchesForTheAlbum()
+    {
+        await MusicLibraryAsync();
+        _lidarr.Responses["GET /api/v1/artist"] = $$"""[{"id":3,"artistName":"Wet Leg","foreignArtistId":"{{WetLeg}}","monitored":false,"monitorNewItems":"none"}]""";
+        _lidarr.Responses["GET /api/v1/artist/lookup?term=Wet%20Leg"] = $$"""[{"id":3,"artistName":"Wet Leg","foreignArtistId":"{{WetLeg}}"}]""";
+        _lidarr.Responses["GET /api/v1/artist/3"] = $$"""{"id":3,"artistName":"Wet Leg","foreignArtistId":"{{WetLeg}}","monitored":false,"monitorNewItems":"all"}""";
+        _lidarr.Responses["PUT /api/v1/artist/3"] = """{"id":3,"artistName":"Wet Leg"}""";
+        _lidarr.Responses["GET /api/v1/album?artistId=3"] = $$"""[{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{Moisturizer}}","monitored":false}]""";
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/music"), new { kind = "album", deezerId = 730000661 });
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        Assert.DoesNotContain(_sent, s => s.Request == "PUT /api/v1/artist/3"); // or their other monitored albums would start again
+        Assert.Equal("AlbumSearch", _sent.Single(s => s.Request == "POST /api/v1/command").Body!["name"]!.GetValue<string>());
+        Assert.Equal([9], _sent.Single(s => s.Request == "PUT /api/v1/album/monitor").Body!["albumIds"]!.AsArray().Select(n => n!.GetValue<int>()));
+    }
+
+    [Fact]
     public async Task FollowingAnArtist_GetsTheirLatestAlbum_AndNewReleases()
     {
         await MusicLibraryAsync();
@@ -411,6 +429,26 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AskingForOneAlbumAgainAndAgain_CountsTowardsTheDay()
+    {
+        await MusicLibraryAsync();
+        _lidarr.Responses["GET /api/v1/artist"] = $$"""[{"id":3,"artistName":"Wet Leg","foreignArtistId":"{{WetLeg}}","monitored":true,"monitorNewItems":"none"}]""";
+        _lidarr.Responses["GET /api/v1/artist/lookup?term=Wet%20Leg"] = $$"""[{"id":3,"artistName":"Wet Leg","foreignArtistId":"{{WetLeg}}"}]""";
+        _lidarr.Responses["GET /api/v1/album?artistId=3"] = $$"""[{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{Moisturizer}}","monitored":false}]""";
+        var client = Client();
+        for (var i = 0; i < 30; i++)
+        {
+            Assert.Equal(HttpStatusCode.Accepted, (await client.PostAsJsonAsync(Api("/requests/music"), new { kind = "album", deezerId = 730000661 })).StatusCode);
+        }
+
+        var response = await client.PostAsJsonAsync(Api("/requests/music"), new { kind = "album", deezerId = 730000661 });
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
+        Assert.Equal(30, _sent.Count(s => s.Request == "POST /api/v1/command"));
+        Assert.Single(await InDbAsync(db => db.MediaRequests.ToListAsync()));
+    }
+
+    [Fact]
     public async Task TheMusicDestination_IsAProfilesOwn_AndOnlyAMusicLibrary()
     {
         var (library, _, _) = await SeedOwnedAsync();
@@ -546,6 +584,20 @@ public sealed class MusicRequestTests : IAsyncLifetime
         Assert.NotNull((await InDbAsync(db => db.MediaRequests.SingleAsync())).FulfilledAt);
         var page = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/album/730000661"));
         Assert.Equal("None", page.GetProperty("availability").GetString());
+    }
+
+    [Fact]
+    public async Task Unrequesting_ADownloadThatJustLeftTheQueue_StillCancels()
+    {
+        await MusicLibraryAsync();
+        LidarrAwaitsMoisturizer();
+        _lidarr.Responses.TryRemove("DELETE /api/v1/queue/5?removeFromClient=true&blocklist=false", out _);
+        await AskedForMoisturizerAsync(addedArtist: false);
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/music/unrequest"), new { musicBrainzId = Moisturizer });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.NotNull((await InDbAsync(db => db.MediaRequests.SingleAsync())).FulfilledAt);
     }
 
     [Fact]

@@ -150,6 +150,10 @@ export function HealthSection() {
   }
 
   const score = data.score
+  // Without artwork, as the Missing artwork list has them: those not found, and those no Radarr or Sonarr is connected
+  // to fill in (which the score leaves out).
+  const needsConnection = score.artworkNeedsConnection ?? 0
+  const withoutArtwork = score.missingArtwork + needsConnection
   // Albums count as titles on servers that check music.
   const titlesNoun = score.albumsWithoutCover === undefined ? 'movies and episodes' : 'movies, episodes and albums'
   const breakdown = [
@@ -157,7 +161,6 @@ export function HealthSection() {
     [score.unreadable, 'unreadable'],
     [score.fileProblems, 'missing or empty files'],
     [score.standardDefinition, 'only in SD'],
-    [score.missingArtwork, 'without artwork'],
     [score.albumsWithoutCover ?? 0, 'albums without a cover'],
     [score.duplicateAlbums ?? 0, 'albums twice'],
     [score.albumsWithRepeatedTracks ?? 0, 'albums with tracks twice'],
@@ -199,10 +202,21 @@ export function HealthSection() {
                 <strong>{data.held.length.toLocaleString()}</strong> {data.held.length === 1 ? 'folder' : 'folders'} on hold
               </li>
             )}
-            {(score.artworkNeedsConnection ?? 0) > 0 && (
+            {withoutArtwork > 0 && (
               <li>
-                <strong>{score.artworkNeedsConnection!.toLocaleString()}</strong> without artwork:{' '}
-                <Link to="/settings/connections">connect Radarr or Sonarr</Link> to fill it in
+                <strong>{withoutArtwork.toLocaleString()}</strong> without artwork
+                {needsConnection === withoutArtwork ? (
+                  <>
+                    : <Link to="/settings/connections">connect Radarr or Sonarr</Link> to fill it in
+                  </>
+                ) : (
+                  needsConnection > 0 && (
+                    <>
+                      {' '}
+                      (<Link to="/settings/connections">connect Radarr or Sonarr</Link> to fill in {needsConnection.toLocaleString()})
+                    </>
+                  )
+                )}
               </li>
             )}
           </ul>
@@ -364,9 +378,11 @@ export function HealthSection() {
           title="Missing artwork"
           count={data.missingArtwork.length}
           lede={
-            score.missingArtwork === 0 && (score.artworkNeedsConnection ?? 0) > 0
+            score.missingArtwork === 0 && needsConnection > 0
               ? 'Artwork comes from Radarr and Sonarr. Connect them in Settings › Connections to fill it in.'
-              : 'Not found in Sonarr or Radarr. Fix the match to choose the right title, or rename the folder to “Title (Year)”.'
+              : needsConnection > 0
+                ? `${needsConnection.toLocaleString()} ${needsConnection === 1 ? 'needs' : 'need'} Radarr or Sonarr connected in Settings › Connections to fill it in. The rest aren’t found there: fix the match to choose the right title, or rename the folder to “Title (Year)”.`
+                : 'Not found in Sonarr or Radarr. Fix the match to choose the right title, or rename the folder to “Title (Year)”.'
           }
         >
           {data.missingArtwork.map((item) => (

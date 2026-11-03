@@ -172,7 +172,7 @@ struct BookView: View {
                 if playingThis { model.music.togglePlayPause() } else { model.playBook(item) }
             } label: {
                 Label(playingThis && model.music.isPlaying ? "Pause" : resumable ? "Resume from \(Format.timestamp(position))" : "Play",
-                      systemImage: playingThis && model.music.isPlaying ? "pause.fill" : "play.fill")
+                      systemImage: playingThis && model.music.isPlaying ? Symbol.pause : Symbol.play)
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
@@ -189,7 +189,7 @@ struct BookView: View {
                         Button {
                             if resumable { confirmingStartOver = true } else { Task { await model.listenAgain(item) } }
                         } label: {
-                            Label("Start over", systemImage: "arrow.counterclockwise")
+                            Label("Start over", systemImage: Symbol.startOver)
                         }
                         .confirmationDialog("Start over?", isPresented: $confirmingStartOver, titleVisibility: .visible) {
                             Button("Start over", role: .destructive) { Task { await model.listenAgain(item) } }
@@ -207,7 +207,7 @@ struct BookView: View {
                             Button { Task { await setFinished(false) } } label: { Label("Unread", systemImage: "book.closed") }
                                 .accessibilityLabel("Mark as unread")
                         } else {
-                            Button { Task { await setFinished(true) } } label: { Label("Finished", systemImage: "checkmark") }
+                            Button { Task { await setFinished(true) } } label: { Label("Finished", systemImage: Symbol.watched) }
                                 .accessibilityLabel("Mark as finished")
                         }
                     case .download:
@@ -378,7 +378,7 @@ struct BookView: View {
                 .buttonStyle(.plain)
                 .contextMenu {
                     Button { note = mark.note ?? ""; editing = mark } label: { Label("Edit note", systemImage: "pencil") }
-                    Button(role: .destructive) { delete(mark) } label: { Label("Delete", systemImage: "trash") }
+                    Button(role: .destructive) { delete(mark) } label: { Label("Delete", systemImage: Symbol.delete) }
                 }
             }
         }

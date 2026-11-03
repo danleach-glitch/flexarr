@@ -117,11 +117,14 @@ struct ExternalMusicCard: View {
             default: return nil
             }
         }
-        if item.libraryItemId != nil { return "In your library" }
-        return model.isFollowing(item) ? MusicWords.following : nil
+        if model.isFollowing(item) { return MusicWords.following }
+        return item.libraryItemId != nil ? "In your library" : nil
     }
 
-    private var canFollow: Bool { item.isArtist && item.libraryItemId == nil && item.hasPage && !model.isFollowing(item) }
+    /// A library artist can be followed too, on servers that say whether it is (0.59 on).
+    private var canFollow: Bool {
+        item.isArtist && (item.libraryItemId == nil || item.followed != nil) && item.hasPage && !model.isFollowing(item)
+    }
 
     @ViewBuilder private func menu(fromChooser: Bool) -> some View {
         if item.isAlbum, case .requestable = model.albumState(item), let target = MusicRequestTarget.album(item) {

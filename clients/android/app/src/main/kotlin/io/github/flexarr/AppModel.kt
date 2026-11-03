@@ -605,11 +605,22 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     var musicUnreachable by mutableStateOf(false)
         private set
 
+    /**
+     * The last answer from [musicStatus], for this server and profile, kept a minute so each artist page and search
+     * doesn't ask again first, as [offersMusicAlbums] is. Only one where Lidarr answered (or isn't set up): while it
+     * isn't answering, each page asks again.
+     */
+    private var musicStatusCache: Triple<String, Long, MusicRequestStatus>? = null
+
     /** Music requests' status for this profile, noting whether Lidarr answered ([musicUnreachable]). */
     suspend fun musicStatus(): MusicRequestStatus {
         val client = client ?: return MusicRequestStatus(configured = false, reachable = false)
+        val key = "${credentials?.address}|${client.profileToken}"
+        val now = System.currentTimeMillis()
+        musicStatusCache?.let { (cachedKey, at, status) -> if (cachedKey == key && now - at in 0L until 60_000L) return status }
         val status = client.musicRequestStatus()
         if (client.profileToken == this.client?.profileToken) musicUnreachable = status.configured && !status.reachable
+        musicStatusCache = if (!status.configured || status.reachable) Triple(key, now, status) else null
         return status
     }
 

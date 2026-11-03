@@ -82,6 +82,53 @@ public sealed class MusicHealthTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task MergingArtists_AlsoMergesTheAlbumBothSpellingsHad()
+    {
+        MediaItem beatles, abbeyRoad;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            beatles = await db.MediaItems.SingleAsync(i => i.Title == "Beatles");
+            abbeyRoad = Album(beatles, "Abbey road!", null, null);
+            db.AddRange(abbeyRoad, Track(abbeyRoad, 3), Album(beatles, "Let It Be", null, null));
+            await db.SaveChangesAsync();
+        }
+
+        var theBeatles = _repeated.ParentId!.Value;
+        var response = await Client().PostAsJsonAsync(new Uri("/api/v1/library-health/merge-artists", UriKind.Relative), new { keep = theBeatles, merge = new[] { beatles.Id } });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        using var check = _factory.Services.CreateScope();
+        var after = check.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        Assert.Equal(["Abbey Road", "Let It Be"], await after.MediaItems.Where(i => i.ParentId == theBeatles).Select(i => i.Title).OrderBy(t => t).ToListAsync());
+        Assert.False(await after.MediaItems.AnyAsync(i => i.Id == abbeyRoad.Id));
+        Assert.Equal(4, await after.MediaItems.CountAsync(i => i.ParentId == _repeated.Id));
+    }
+
+    [Fact]
+    public async Task MergingArtists_LeavesTwoFullCopiesOfAnAlbum_ForDuplicateAlbums()
+    {
+        MediaItem beatles, abbeyRoad;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            beatles = await db.MediaItems.SingleAsync(i => i.Title == "Beatles");
+            abbeyRoad = Album(beatles, "Abbey Road", null, null);
+            db.AddRange(abbeyRoad, Track(abbeyRoad, 1), Track(abbeyRoad, 2)); // the same tracks again, in another format
+            await db.SaveChangesAsync();
+        }
+
+        var theBeatles = _repeated.ParentId!.Value;
+        var response = await Client().PostAsJsonAsync(new Uri("/api/v1/library-health/merge-artists", UriKind.Relative), new { keep = theBeatles, merge = new[] { beatles.Id } });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        using var check = _factory.Services.CreateScope();
+        var after = check.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        Assert.Equal(2, await after.MediaItems.CountAsync(i => i.ParentId == theBeatles && i.Title == "Abbey Road"));
+        Assert.Equal(2, await after.MediaItems.CountAsync(i => i.ParentId == abbeyRoad.Id));
+    }
+
+    [Fact]
     public async Task MergingAlbums_MovesTheTracks_AndRemembersTheFolderAndTitle()
     {
         var response = await Client().PostAsJsonAsync(new Uri("/api/v1/library-health/merge-albums", UriKind.Relative), new { keep = _lemonade.Id, merge = new[] { _lemonadeAgain.Id } });

@@ -46,7 +46,7 @@ struct BookMoreMenu: View {
             }
         #else
         Menu {
-            Button(role: .destructive) { Task { await ask() } } label: { Label("Delete…", systemImage: "trash") }
+            Button(role: .destructive) { Task { await ask() } } label: { Label("Delete…", systemImage: Symbol.delete) }
         } label: {
             Label("More", systemImage: Symbol.more)
         }
@@ -66,9 +66,10 @@ struct BookMoreMenu: View {
     private func delete() async {
         guard let client = model.client else { return }
         do {
-            // Playing, it stops first, so its place isn't sent back for a book that's gone.
-            model.music.discard(item.id)
             try await client.deleteItem(item.id)
+            // Playing, it stops without sending its place back for a book that's gone. Only once it is gone: a delete
+            // that fails leaves it playing, its place kept.
+            model.music.discard(item.id)
             model.invalidate()
             dismiss()
         } catch {

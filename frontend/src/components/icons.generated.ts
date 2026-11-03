@@ -1,11 +1,13 @@
 // Generated from design/tokens.json by `make tokens`. Don't edit; change the JSON.
 
-import { Antenna, Book, Bookmark, Calendar, CaptionsBubble, Check, CheckCircleFilled, DownloadCircle, Film, Folder, Gear, History, Home, LayoutGrid, Microphone, More, MusicNote, Play, PlayStack, Playlist, Plus, Queue, Radio, Reset, Search, Shuffle, Sparkles, Stack, Tv, Users, Waveform } from './icons'
+import { Antenna, Book, Bookmark, Calendar, CaptionsBubble, Check, CheckCircleFilled, DownloadCircle, Explicit, Film, Folder, Gear, History, Home, LayoutGrid, Microphone, More, MusicNote, Pause, Play, PlayStack, Playlist, Plus, Queue, Radio, Reset, Search, Shuffle, Sparkles, Stack, Trash, Tv, Users, Waveform } from './icons'
 
 /** The icon for each action and place, the same idea on every client (design/tokens.json › icons). */
 export const icon = {
   /** Play or Resume */
   play: Play,
+  /** Pause */
+  pause: Pause,
   /** Start over */
   startOver: Reset,
   /** Shuffle a show, an artist or a genre */
@@ -42,6 +44,10 @@ export const icon = {
   addToPlaylist: Playlist,
   /** Download */
   download: DownloadCircle,
+  /** Delete a title, album, artist or book */
+  delete: Trash,
+  /** Explicit (a badge on a track or episode) */
+  explicit: Explicit,
   /** Search for subtitles */
   subtitles: CaptionsBubble,
   /** Go to the show */

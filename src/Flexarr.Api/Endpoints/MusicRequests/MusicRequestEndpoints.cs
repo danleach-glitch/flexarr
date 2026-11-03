@@ -288,9 +288,12 @@ public static partial class MusicRequestEndpoints
 
             var logger = loggers.CreateLogger("Flexarr.MusicRequests");
             // Lidarr adds and downloads straight away, with no approval: a cap keeps one profile (or a script with its
-            // key) from filling the disk.
+            // key) from filling the disk. Asking again for the same album reuses its request but still searches the
+            // indexers, so what's asked is counted too, not only the requests.
             var since = DateTime.UtcNow.AddDays(-1);
-            if (await c.Db.MediaRequests.CountAsync(r => r.ProfileId == current.Id && (r.Kind == MediaKind.Album || r.Kind == MediaKind.Artist) && r.RequestedAt > since, ct)
+            var asked = AskCount(current, c.Cache);
+            if (asked.Value >= DailyLimit
+                || await c.Db.MediaRequests.CountAsync(r => r.ProfileId == current.Id && (r.Kind == MediaKind.Album || r.Kind == MediaKind.Artist) && r.RequestedAt > since, ct)
                 >= DailyLimit)
             {
                 return Results.Problem("That's a lot of music for one day. Try again tomorrow.", statusCode: 429);
@@ -299,6 +302,11 @@ public static partial class MusicRequestEndpoints
             try
             {
                 var placed = await MusicRequestPlacer.PlaceAsync(c, current.Id, body, logger, ct);
+                if (placed is IStatusCodeHttpResult { StatusCode: < 400 })
+                {
+                    Interlocked.Increment(ref asked.Value);
+                }
+
                 if (placed is Microsoft.AspNetCore.Http.HttpResults.ProblemHttpResult { StatusCode: 409 } refused)
                 {
                     LogRequestRefused(logger, body.Kind, body.DeezerId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? body.MusicBrainzId ?? body.ArtistId?.ToString(), refused.ProblemDetails.Detail);
@@ -355,6 +363,14 @@ public static partial class MusicRequestEndpoints
 
         return result;
     }
+
+    /// <summary>The music requests this profile has placed in the last day, asking again included.</summary>
+    private static StrongBox<int> AskCount(CurrentProfile current, IMemoryCache cache) =>
+        cache.GetOrCreate($"music-ask:{current.Id}", entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(1);
+            return new StrongBox<int>();
+        })!;
 
     private static StrongBox<int> UndoCount(CurrentProfile current, IMemoryCache cache) =>
         cache.GetOrCreate($"music-undo:{current.Id}", entry =>

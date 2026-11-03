@@ -36,6 +36,8 @@ struct DetailView: View {
     @State private var showingTrailer = false
     /// A show's seasons and episodes the library lacks, and what's coming.
     @State private var gaps: ShowGaps = .none
+    /// Fetching `gaps`, on its own so a slow Sonarr or Seerr never holds up the page or a pull to refresh.
+    @State private var gapsTask: Task<Void, Never>?
     @Environment(\.scenePhase) private var scenePhase
 
     private var item: ItemSummary? { detail?.item ?? (preview?.kind == .season ? nil : preview) }
@@ -472,11 +474,22 @@ struct DetailView: View {
             error = nil
 
             let item = loaded.item
+            // After the page, on their own: Sonarr or Seerr being slow never holds up the season, More like this
+            // or the end of a reload.
+            gapsTask?.cancel()
+            if item.kind == .series, !model.isKids {
+                let showId = item.id
+                gapsTask = Task {
+                    guard let shown = await Self.fetchGaps(client, showId), !Task.isCancelled, detail?.item.id == showId else { return }
+                    gaps = shown
+                }
+            }
+            // Beside the season, not after it.
+            let similarClient = similar.isEmpty && item.kind != .episode ? client : nil
+            async let shownSimilar = Self.fetchSimilar(similarClient, item.id)
             switch item.kind {
             case .series:
                 nextUp = try? await client.nextUp(item.id)
-                // After the page: Sonarr or Seerr being slow never holds it up.
-                if !model.isKids { gaps = (try? await client.showGaps(item.id)) ?? gaps }
                 if selectedSeasonID == nil {
                     selectedSeasonID = nextUp?.parentId ?? loaded.children.first?.id
                 }
@@ -488,12 +501,22 @@ struct DetailView: View {
                 break
             }
             await loadSelectedSeason(force: true)
-            if similar.isEmpty, item.kind != .episode {
-                similar = (try? await client.similar(item.id)) ?? []
-            }
+            if let shown = await shownSimilar { similar = shown }
         } catch {
             if detail == nil { self.error = ConnectionError(error).message }
         }
+    }
+
+    /// What the show is missing, or nil without a client (not a show, or a kids' profile) or when it can't be had.
+    nonisolated private static func fetchGaps(_ client: FlexarrClient?, _ showId: String) async -> ShowGaps? {
+        guard let client else { return nil }
+        return try? await client.showGaps(showId)
+    }
+
+    /// More like this, or nil without a client (already shown, or an episode) or when it can't be had.
+    nonisolated private static func fetchSimilar(_ client: FlexarrClient?, _ id: String) async -> [ItemSummary]? {
+        guard let client else { return nil }
+        return try? await client.similar(id)
     }
 
     private func loadSelectedSeason(force: Bool = false) async {

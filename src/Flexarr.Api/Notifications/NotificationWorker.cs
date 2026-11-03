@@ -106,7 +106,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         var shows = await ShowsAsync(db, fresh, ct);
         fresh = await WithoutReplacementsAsync(db, fresh, shows, ct);
 
-        var answered = await RequestsAsync(db, to, now, ct);
+        var answered = await RequestsAsync(db, from, to, now, ct);
         answered.AddRange(await WatchlistArrivalsAsync(db, answered, to, now, ct));
         if (devices.Count == 0)
         {
@@ -291,11 +291,11 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     /// Requests whose film, or a new episode of whose show, is now in the library. Looked for every minute rather than
     /// among the minute's new items, since what's in the library may only learn its TMDB id a while after it lands.
     /// </summary>
-    private static async Task<List<Answered>> RequestsAsync(FlexarrDbContext db, DateTime settled, DateTime now, CancellationToken ct)
+    private static async Task<List<Answered>> RequestsAsync(FlexarrDbContext db, DateTime from, DateTime settled, DateTime now, CancellationToken ct)
     {
         var answered = new List<Answered>();
         var open = await db.MediaRequests.Where(r => r.FulfilledAt == null).ToListAsync(ct);
-        answered.AddRange(await MusicAnsweredAsync(db, open.Where(r => r.Kind is MediaKind.Album or MediaKind.Artist).ToList(), settled, now, ct));
+        answered.AddRange(await MusicAnsweredAsync(db, open.Where(r => r.Kind is MediaKind.Album or MediaKind.Artist).ToList(), from, settled, now, ct));
         foreach (var request in open.Where(r => r.Kind is not (MediaKind.Album or MediaKind.Artist)))
         {
 
@@ -337,16 +337,22 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     /// <summary>How far back music requests are looked for: an album Lidarr hasn't found in this long isn't coming.</summary>
     private static readonly TimeSpan MusicWaitsFor = TimeSpan.FromDays(90);
 
+    /// <summary>How far before the window music is looked at again, for an album the scan only matched up later.</summary>
+    private static readonly TimeSpan MusicLate = TimeSpan.FromHours(1);
+
     /// <summary>
     /// Music requests answered: the album asked for (by its release group, or by title under its artist when the scan
     /// hasn't learned the release group), or, for a followed artist, each new album of theirs: one released since the
     /// follow and added since the last notice. A follow stays open. Albums in a library hidden from whoever asked don't
-    /// count. One query a minute for all of them, compared by name here.
+    /// count. One query a minute for all of them, compared by name here: the albums added since the last window (and
+    /// a little before, for one whose artist or release group the scan learned late), not since the oldest follow.
     /// </summary>
-    private static async Task<List<Answered>> MusicAnsweredAsync(FlexarrDbContext db, List<MediaRequest> requests, DateTime settled, DateTime now, CancellationToken ct)
+    private static async Task<List<Answered>> MusicAnsweredAsync(FlexarrDbContext db, List<MediaRequest> requests, DateTime window, DateTime settled, DateTime now, CancellationToken ct)
     {
         var answered = new List<Answered>();
-        static DateTime From(MediaRequest r) => (r.LastAnsweredAt is { } last && last > r.RequestedAt ? last : r.RequestedAt).AddMinutes(-1);
+        // A follow's notice covers everything up to the window it was told in, so the next starts there; a request's
+        // own time gets a minute's slack for an album that landed as it was asked for.
+        static DateTime From(MediaRequest r) => r.LastAnsweredAt is { } last && last > r.RequestedAt.AddMinutes(-1) ? last : r.RequestedAt.AddMinutes(-1);
         var waiting = requests.Where(r => r.RequestedAt > now - MusicWaitsFor || r.Kind == MediaKind.Artist).ToList();
         if (waiting.Count == 0)
         {
@@ -354,12 +360,22 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         }
 
         var since = waiting.Min(From);
+        if (window - MusicLate > since)
+        {
+            since = window - MusicLate;
+        }
+
+        // When Flexarr first saw it, not its file's date: a manual import or an album only the 12-hourly scan found
+        // lands dated hours or days back. Albums from before Flexarr kept that have only their file's date. Two
+        // branches rather than FirstSeenAt ?? AddedAt, so each can use its index instead of scanning every item.
         var arrived = await db.MediaItems.AsNoTracking()
-            .Where(i => i.Kind == MediaKind.Album && i.Parent != null && i.AddedAt > since && i.AddedAt <= settled)
-            .OrderBy(i => i.AddedAt)
+            .Where(i => i.Kind == MediaKind.Album && i.Parent != null
+                && ((i.FirstSeenAt != null && i.FirstSeenAt > since && i.FirstSeenAt <= settled)
+                    || (i.FirstSeenAt == null && i.AddedAt > since && i.AddedAt <= settled)))
+            .OrderBy(i => i.FirstSeenAt ?? i.AddedAt)
             .Select(i => new
             {
-                i.Id, i.LibraryId, i.Title, i.MusicBrainzId, i.PosterUrl, i.AddedAt, i.ReleaseDate, i.Year,
+                i.Id, i.LibraryId, i.Title, i.MusicBrainzId, i.PosterUrl, AddedAt = i.FirstSeenAt ?? i.AddedAt, i.ReleaseDate, i.Year,
                 Artist = i.Parent!.Title, ArtistMusicBrainzId = i.Parent.MusicBrainzId,
             })
             .ToListAsync(ct);
@@ -389,7 +405,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
                     continue;
                 }
 
-                request.LastAnsweredAt = now;
+                request.LastAnsweredAt = settled;
                 var first = fresh[0];
                 var body = fresh.Count == 1 ? $"{first.Title} is in the library." : $"{first.Title} and {fresh.Count - 1} more are in the library.";
                 answered.Add(new Answered(request.ProfileId, new PushMessage($"New from {first.Artist}", body, "flexarr.music", $"item:{first.Id}", Artwork(first.PosterUrl),

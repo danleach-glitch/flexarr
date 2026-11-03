@@ -17,7 +17,8 @@ import {
 } from '../api/client'
 import { AsyncButton, IconButton } from '../components/AsyncButton'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { ChevronDown, ChevronUp, Close, Grip, More, Pencil, Play, Trash } from '../components/icons'
+import { ChevronDown, ChevronUp, Close, Grip, More, Pencil, Play } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { Menu, type MenuPoint } from '../components/ItemMenu'
 import { PlaylistCard, PlaylistCover } from '../components/PlaylistCover'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
@@ -255,7 +256,7 @@ export function PlaylistPage() {
           </p>
           <div className="detail-actions">
             <button className="button" onClick={() => player.play(tracks, 0, { openNowPlaying: true })} disabled={tracks.length === 0}>
-              <Play /> Play
+              <icon.play /> Play
             </button>
             <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0, { openNowPlaying: true })} disabled={tracks.length < 2}>
               Shuffle
@@ -269,7 +270,7 @@ export function PlaylistPage() {
                 setRenaming(true)
               }}
             />
-            <IconButton label="Delete" icon={<Trash />} className="button quiet icon danger-icon" onClick={() => setDeleting(true)} />
+            <IconButton label="Delete" icon={<icon.delete />} className="button quiet icon danger-icon" onClick={() => setDeleting(true)} />
             <MoreButton
               label={`More for ${summary.name}`}
               actions={[...queueActions(player, () => tracks), ...(summary.cover ? [{ label: 'Back to the mosaic cover', run: () => act(() => setPlaylistCover(summary.id, null)) }] : [])]}

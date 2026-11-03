@@ -19,7 +19,7 @@ import {
   type RemoteGuests,
 } from '../../api/client'
 import { AsyncButton, IconButton } from '../../components/AsyncButton'
-import { Trash } from '../../components/icons'
+import { icon } from '../../components/icons.generated'
 import { CopyButton } from '../../components/CopyButton'
 import { useApi } from '../../hooks/useApi'
 import { freeColour } from '../../lib/profileColours'
@@ -419,7 +419,7 @@ export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void;
             <IconButton
               label="Remove guest"
               aria-label={`Remove ${person.name}`}
-              icon={<Trash />}
+              icon={<icon.delete />}
               className="button quiet small icon danger-icon"
               onClick={() => setConfirming({ person })}
             />
@@ -446,7 +446,7 @@ export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void;
                   <IconButton
                     label="Remove"
                     aria-label={`Remove ${d.name}`}
-                    icon={<Trash />}
+                    icon={<icon.delete />}
                     className="button quiet small icon danger-icon"
                     onClick={() => setConfirming({ device: d, label: `${person.name}’s ${deviceLabel(d, person.name)}` })}
                   />

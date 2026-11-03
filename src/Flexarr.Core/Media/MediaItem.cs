@@ -74,7 +74,15 @@ public sealed class MediaItem
     public string? TmdbId { get; set; }
     public string? ImdbId { get; set; }
 
+    /// <summary>When its file was made (the scanner dates an item by its file), so it can be well before Flexarr saw it.</summary>
     public DateTime AddedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// When the scanner first put it in the library: what "it's arrived" means for a request, where <see cref="AddedAt"/>
+    /// can be days earlier (a manual import, an album only the 12-hourly scan picked up). Null for items from before 0.59.
+    /// </summary>
+    public DateTime? FirstSeenAt { get; set; }
+
     public List<MediaFile> Files { get; set; } = [];
 
     /// <summary>

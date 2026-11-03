@@ -7,7 +7,8 @@ import { episodeHeading, formatDuration, year } from '../lib/format'
 import { AsyncButton } from './AsyncButton'
 import { hasScores, scoresOf } from '../lib/scores'
 import { shuffled } from '../lib/shuffle'
-import { Info, Play, Radio } from './icons'
+import { Info } from './icons'
+import { icon } from './icons.generated'
 import { ScoreChips } from './ScoreChips'
 
 const ROTATE_MS = 10_000
@@ -170,7 +171,7 @@ export function Hero({ items, overviews, resume, resumes, top }: {
             <MusicActions item={item} resuming={resuming} />
           ) : (
             <AsyncButton className="button" onClick={() => (resuming ? navigate(`/play/${resuming.id}`) : play(item))}>
-              <Play /> {resuming ? (episode ? `Resume ${episode}` : 'Resume') : 'Play'}
+              <icon.play /> {resuming ? (episode ? `Resume ${episode}` : 'Resume') : 'Play'}
             </AsyncButton>
           )}
           <Link className="button quiet" to={`/item/${item.id}`}>
@@ -209,11 +210,11 @@ function MusicActions({ item, resuming }: { item: ItemSummary; resuming: ItemSum
   return (
     <>
       <AsyncButton className="button" onClick={() => playMusic()}>
-        <Play /> {resuming ? 'Resume' : 'Play'}
+        <icon.play /> {resuming ? 'Resume' : 'Play'}
       </AsyncButton>
       {item.kind === 'Artist' && (
         <AsyncButton className="button quiet" onClick={() => playMusic(true)}>
-          <Radio /> Radio
+          <icon.radio /> Radio
         </AsyncButton>
       )}
     </>
@@ -226,7 +227,7 @@ function BookPlay({ item }: { item: ItemSummary }) {
   const resumable = item.userData.positionSeconds > 0 && !item.userData.watched
   return (
     <AsyncButton className="button" onClick={() => player.play([item])}>
-      <Play /> {resumable ? 'Resume' : 'Play'}
+      <icon.play /> {resumable ? 'Resume' : 'Play'}
     </AsyncButton>
   )
 }

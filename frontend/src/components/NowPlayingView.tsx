@@ -13,7 +13,8 @@ import { EpisodeNotes } from './EpisodeNotes'
 import { authorsLine, chapterEnd, isBook } from '../lib/books'
 import { BookmarkList } from './BookmarkList'
 import { BookTools } from './BookTools'
-import { ChevronDown, ChevronLeft, ChevronRight, More, Next, Notes, Pause, Play, SkipBack, SkipForward } from './icons'
+import { ChevronDown, ChevronLeft, ChevronRight, More, Next, Notes, SkipBack, SkipForward } from './icons'
+import { icon } from './icons.generated'
 import { Menu, type MenuPoint } from './ItemMenu'
 import { PodcastTools } from './PodcastTools'
 
@@ -214,7 +215,7 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
               </button>
             )}
             <button className="icon-button np-view-toggle" onClick={player.toggle} aria-label={player.playing ? 'Pause' : 'Play'}>
-              {player.playing ? <Pause /> : <Play />}
+              {player.playing ? <icon.pause /> : <icon.play />}
             </button>
             {skips ? (
               <button className="icon-button np-view-skip" onClick={() => player.skipBy(forward)} aria-label={`Forward ${forward} seconds`}>

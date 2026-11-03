@@ -856,6 +856,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<int?>("EpisodeNumberEnd")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("FirstSeenAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("HandedOverAt")
                         .HasColumnType("TEXT");
 
@@ -973,6 +976,8 @@ namespace Flexarr.Core.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AddedAt");
+
+                    b.HasIndex("FirstSeenAt");
 
                     b.HasIndex("ImdbId");
 

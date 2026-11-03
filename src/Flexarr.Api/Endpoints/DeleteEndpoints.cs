@@ -124,6 +124,15 @@ public static partial class DeleteEndpoints
                             return Results.Problem($"{instance.Name} keeps this artist's files outside this library, so Flexarr won't delete them. Nothing was deleted.", statusCode: 409);
                         }
 
+                        // And that folder must be this artist's: matched to the wrong one of two same-named artists,
+                        // Lidarr would delete the other one's. Their album folders show where they really are.
+                        var artistFolder = PathMapper.Map(lidarrPath, options.CurrentValue.PathMappings);
+                        var albumFolders = await db.MediaItems.Where(i => i.ParentId == item.Id && i.Kind == MediaKind.Album && i.Path != null).Select(i => i.Path!).ToListAsync(ct);
+                        if (albumFolders.Count > 0 && !albumFolders.Any(f => PathComparison.IsUnder(f, artistFolder)))
+                        {
+                            return Results.Problem($"{instance.Name}'s folder for this artist doesn't hold their albums here, so it may be another artist's. Check Fix match, then try again. Nothing was deleted.", statusCode: 409);
+                        }
+
                         await arr.DeleteAsync(instance, $"artist/{arrId}?deleteFiles=true&addImportListExclusion=false", ct);
                         break;
                     case MediaKind.Album:
