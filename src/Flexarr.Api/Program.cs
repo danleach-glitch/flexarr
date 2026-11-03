@@ -157,6 +157,7 @@ builder.Services.AddHttpClient(LanguageIndex.ClientName, c =>
     c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr (+https://github.com/danleach-glitch/flexarr)");
 });
 builder.Services.AddSingleton<LanguageIndex>();
+builder.Services.AddSingleton<ProfileLanguages>();
 builder.Services.AddHostedService<LanguageWorker>();
 builder.Services.AddSingleton<SearchIndex>();
 builder.Services.AddSingleton<BookFileConverter>();
@@ -423,6 +424,7 @@ var webApp = new StaticFileOptions
 app.UseDefaultFiles();
 app.UseStaticFiles(webApp);
 app.UseAuthentication();
+app.UseFlexarrRequestLanguage();
 app.UseFlexarrRequestForgeryGuard();
 app.UseAuthorization();
 

@@ -66,7 +66,8 @@ public static class RemoteAccessEndpoints
         }).WithTags("Remote access");
 
         // Each profile's own, like its playback preferences: anyone signed in as it may change it, kids included.
-        api.MapPut("/me/language", async (LanguageChoice choice, FlexarrDbContext db, Flexarr.Api.Profiles.CurrentProfile profile, CancellationToken ct) =>
+        api.MapPut("/me/language", async (LanguageChoice choice, FlexarrDbContext db, Flexarr.Api.Profiles.CurrentProfile profile,
+            Localization.ProfileLanguages languages, CancellationToken ct) =>
         {
             var language = string.IsNullOrWhiteSpace(choice.Language) ? null : choice.Language.Trim();
             if (language is not null && !Flexarr.Core.Localization.LanguageCode.IsValid(language))
@@ -81,6 +82,7 @@ public static class RemoteAccessEndpoints
 
             found.Language = language;
             await db.SaveChangesAsync(ct);
+            languages.Changed(profile.Id, language);
             return Results.Ok(new LanguageChoice(language));
         }).WithTags("Languages");
 

@@ -9,7 +9,7 @@ namespace Flexarr.Api.Tests;
 public sealed class LanguageEndpointTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFactory>
 {
     // en-XA, the pseudo-language: harmless if other tests' requests ever saw it.
-    private const string Pack = """{"format":1,"code":"en-XA","name":"Pseudo (test)","direction":"ltr","version":7,"coverage":{"web":1},"messages":{"Play":"⟦Ƥĺàý~⟧","Only on Android":"⟦x⟧"},"scopes":{"Play":"wan","Only on Android":"n"}}""";
+    private const string Pack = """{"format":1,"code":"en-XA","name":"Pseudo (test)","direction":"ltr","version":7,"coverage":{"web":1},"messages":{"Play":"⟦Ƥĺàý~⟧","Only on Android":"⟦x⟧","That isn't a language code.":"⟦Ţĥàţ íšñ'ţ à ĺàñĝûàĝé çöđé.~~~~⟧"},"scopes":{"Play":"wan","Only on Android":"n","That isn't a language code.":"s"}}""";
 
     private void KeepPseudo()
     {
@@ -66,4 +66,29 @@ public sealed class LanguageEndpointTests(FlexarrApiFactory factory) : IClassFix
         await client.PutAsJsonAsync("/api/v1/me/language", new { language = (string?)null });
         Assert.Equal(System.Text.Json.JsonValueKind.Null, (await client.GetFromJsonAsync<System.Text.Json.JsonElement>("/api/v1/me")).GetProperty("language").ValueKind);
     }
+
+    [Fact]
+    public async Task Answers_in_the_apps_language_then_the_profiles()
+    {
+        KeepPseudo();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("fr;q=0.9, en-XA");
+        await client.PutAsJsonAsync("/api/v1/me/language", new { language = (string?)null });
+
+        var refused = await client.PutAsJsonAsync("/api/v1/me/language", new { language = "not a code" });
+        Assert.Contains("Ţĥàţ", await refused.Content.ReadAsStringAsync());
+
+        // The profile's own choice wins over the app's.
+        await client.PutAsJsonAsync("/api/v1/me/language", new { language = "en" });
+        refused = await client.PutAsJsonAsync("/api/v1/me/language", new { language = "not a code" });
+        Assert.Contains("That isn't a language code.", await refused.Content.ReadAsStringAsync());
+        await client.PutAsJsonAsync("/api/v1/me/language", new { language = (string?)null });
+    }
+
+    [Theory]
+    [InlineData("pt-br", "pt-BR")]
+    [InlineData("zh-hans-cn", "zh-Hans-CN")]
+    [InlineData("EN", "en")]
+    public void Normalises_language_tags(string tag, string expected) => Assert.Equal(expected, RequestLanguage.Normalise(tag));
 }
