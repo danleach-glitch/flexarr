@@ -70,7 +70,7 @@ struct BookContextMenu: View {
 
     var body: some View {
         Button { model.playBook(item) } label: {
-            Label(item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
+            Label(item.isResumable ? "Resume" : "Play", systemImage: Symbol.play)
         }
         Button { router.push(.item(item)) } label: { Label("Go to book", systemImage: "info.circle") }
         if !model.isKids {

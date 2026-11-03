@@ -36,7 +36,7 @@ struct BookSeriesView: View {
                 .padding(.horizontal, Layout.edge)
                 if let next {
                     Button { model.playBook(next) } label: {
-                        Label(next.isResumable ? "Resume \(next.title)" : "Play \(next.title)", systemImage: "play.fill")
+                        Label(next.isResumable ? "Resume \(next.title)" : "Play \(next.title)", systemImage: Symbol.play)
                             .lineLimit(1)
                             .frame(maxWidth: .infinity)
                     }

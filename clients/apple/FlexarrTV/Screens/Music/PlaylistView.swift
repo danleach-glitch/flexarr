@@ -202,7 +202,7 @@ struct PlaylistView: View {
                 FactsLine(facts: [summary.trackCountLabel, Format.runtime(seconds: summary.durationSeconds)].compactMap { $0 })
                 HStack(spacing: 26) {
                     Button { model.playTracks(tracks, showingNowPlaying: router) } label: {
-                        Label("Play", systemImage: "play.fill")
+                        Label("Play", systemImage: Symbol.play)
                     }
                     .buttonStyle(ActionButtonStyle(prominent: true))
                     Button { model.playTracks(tracks, shuffled: true, showingNowPlaying: router) } label: {
