@@ -122,9 +122,11 @@ export default function LivePlayerPage() {
     void start(id)
   }, [id, start])
 
-  // Let the channel go when the page closes; the server notices anyway if this never arrives.
+  // Let the channel go when the page closes; the server notices anyway if this never arrives. A channel still starting
+  // is let go when its answer comes (it no longer matches the latest start): providers often allow only a stream or two.
   useEffect(
     () => () => {
+      starts.current++
       hls.current?.destroy()
       hls.current = null
       if (viewer.current) void stopLiveChannel(viewer.current).catch(() => undefined)
