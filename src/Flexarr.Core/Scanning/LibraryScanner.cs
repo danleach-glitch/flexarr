@@ -188,6 +188,18 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 }
             }
 
+            if (library.Type == LibraryType.Music && work.Any(w => w.Existing is null))
+            {
+                // Lidarr upgrading a track (MP3 to FLAC) or renaming it swaps one file for another: the new file goes to
+                // the old track, so it keeps its place in playlists and its plays, rather than a new track taking over
+                // while the old one is deleted with them a day later.
+                var goneIds = existing.Values.Concat(duplicates).Where(f => !seen.Contains(PathComparison.Key(f.Path))).Select(f => f.Id).ToList();
+                state.OfferReplacedTracks(await db.MediaItems.IgnoreQueryFilters()
+                    .Where(i => i.LibraryId == library.Id && i.Kind == MediaKind.Track && i.ParentId != null
+                        && i.Files.Any() && i.Files.All(f => f.MissingSince != null || goneIds.Contains(f.Id)))
+                    .ToListAsync(cancellationToken).ConfigureAwait(false));
+            }
+
             progress.Begin(library.Id, target, work.Count);
 
             // A book's files are read once, chapters and all, and what they say is kept with them for BookAssembler.
@@ -890,6 +902,19 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
             artist.PosterUrl ??= album.PosterUrl; // No artist photo: show their first album's cover.
 
+            var trackArtist = info.TrackArtist is { } tagged && !IsNamed(artist, tagged) ? tagged : null;
+            if (TakeReplaced(album.Id, info.Disc, info.Track, info.Title) is { } replaced)
+            {
+                replaced.Title = info.Title;
+                replaced.SortTitle = SortTitle.ForNumber(((info.Disc ?? 1) * 1000) + (info.Track ?? 0));
+                replaced.Year = info.Year;
+                replaced.DiscNumber = info.Disc;
+                replaced.TrackNumber = info.Track;
+                replaced.TrackArtist = trackArtist;
+                replaced.Path = filePath;
+                return replaced;
+            }
+
             return Add(new MediaItem
             {
                 LibraryId = library.Id,
@@ -902,9 +927,45 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 TrackNumber = info.Track,
                 // The track's own artist only when it isn't the album's, under either of the artist's names (the
                 // tags' or Lidarr's): a compilation's tracks, a featured artist.
-                TrackArtist = info.TrackArtist is { } tagged && !IsNamed(artist, tagged) ? tagged : null,
+                TrackArtist = trackArtist,
                 Path = filePath,
             });
+        }
+
+        private readonly Dictionary<Guid, List<MediaItem>> _replaced = [];
+
+        /// <summary>
+        /// Tracks whose files have all gone (this scan or before): a new file of the same album, disc and track
+        /// number (or, untracked, the same title) is taken to replace theirs.
+        /// </summary>
+        public void OfferReplacedTracks(IEnumerable<MediaItem> tracks)
+        {
+            foreach (var track in tracks)
+            {
+                var pool = _replaced.TryGetValue(track.ParentId!.Value, out var list) ? list : _replaced[track.ParentId.Value] = [];
+                if (!pool.Any(t => t.Id == track.Id))
+                {
+                    pool.Add(track);
+                }
+            }
+        }
+
+        private MediaItem? TakeReplaced(Guid albumId, int? disc, int? number, string title)
+        {
+            if (!_replaced.TryGetValue(albumId, out var pool))
+            {
+                return null;
+            }
+
+            var match = number is { } n
+                ? pool.FirstOrDefault(t => t.TrackNumber == n && (t.DiscNumber ?? 1) == (disc ?? 1))
+                : pool.FirstOrDefault(t => t.TrackNumber is null && Fold(t.Title) == Fold(title));
+            if (match is not null)
+            {
+                pool.Remove(match);
+            }
+
+            return match;
         }
 
         /// <summary>Books whose files were added, changed or went missing in this scan: <see cref="BookAssembler"/> puts them together after.</summary>
