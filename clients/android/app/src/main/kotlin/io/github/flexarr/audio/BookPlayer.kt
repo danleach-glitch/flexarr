@@ -49,6 +49,7 @@ import io.github.flexarr.logging.FlexarrLog
 import io.github.flexarr.player.DeviceCapabilities
 import io.github.flexarr.player.ShakeListener
 import io.github.flexarr.player.StartTiming
+import io.github.flexarr.player.StartBuffer
 import io.github.flexarr.core.PreparedStreams
 import io.github.flexarr.player.SleepTimer
 import io.github.flexarr.player.mediaSources
@@ -76,6 +77,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         created = true
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(mediaSources(context))
+            .setLoadControl(StartBuffer.loadControl())
             .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), true)
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
