@@ -191,7 +191,7 @@ public static partial class DiscoveryEndpoints
             var genres = !On("genres") ? [] : await db.Genres.Select(g => new { g.Name, Count = g.Items.Count(i => i.ParentId == null) })
                 .Where(g => g.Count >= 12).OrderByDescending(g => g.Count).Take(12).ToListAsync(ct);
             var day = DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;
-            foreach (var genre in genres.OrderBy(g => (g.Name.GetHashCode(StringComparison.Ordinal) ^ day) & int.MaxValue).Take(3))
+            foreach (var genre in genres.OrderBy(g => DailyKey($"{me}:{g.Name}", day)).Take(3))
             {
                 var picks = await topLevel.Where(i => i.Genres.Any(g => g.Name == genre.Name) && !i.PlaybackStates.Any(p => p.UserId == me && p.Watched))
                     .OrderByDescending(i => i.CommunityRating).Take(RowSize).Summaries(me).ToListAsync(ct);
@@ -204,7 +204,7 @@ public static partial class DiscoveryEndpoints
                     await TopRated(unwatchedMovies).Skip(10).Take(RowSize).Summaries(me).ToListAsync(ct)));
             }
 
-            // Featured: well-rated things with full artwork, unwatched first, changing daily.
+            // Featured: well-rated things with full artwork, unseen first, a new handful daily.
             var rotation = await FeaturedAsync(topLevel, me, day, ct);
             (rotation, var resume) = await LeadWithContinueWatchingAsync(db, me, continueWatching, rotation, ct);
             var overviews = await OverviewsAsync(db, rotation, ct);
@@ -697,17 +697,52 @@ public static partial class DiscoveryEndpoints
     }
 
     /// <summary>
-    /// Well-rated titles with full artwork, unwatched first, five of them rotating daily. The ids are picked first,
-    /// so only the five shown are summarised.
+    /// Five well-rated titles with full artwork, a new handful each day. What this profile has seen (a film watched, a
+    /// show with every episode watched) only fills in when there aren't enough of the rest, and titles with a clear
+    /// logo come before those without. The order is a shuffle fixed for the profile and the day, so every device on
+    /// a profile shows the same five. The ids are picked first, so only the five shown are summarised.
     /// </summary>
     private static async Task<List<ItemSummaryDto>> FeaturedAsync(IQueryable<MediaItem> topLevel, string profileId, int day, CancellationToken ct)
     {
         var candidates = await topLevel.Where(i => i.BackdropUrl != null && i.Overview != null && i.CommunityRating >= 7.3)
-            .OrderBy(i => i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)).ThenByDescending(i => i.LogoUrl != null)
-            .Take(60).Select(i => i.Id).ToListAsync(ct);
-        var picks = candidates.OrderBy(id => (id.GetHashCode() ^ day) & int.MaxValue).Take(5).ToList();
+            .Select(i => new FeaturedCandidate(
+                i.Id,
+                i.Kind == MediaKind.Series
+                    ? i.Children.SelectMany(s => s.Children).Any()
+                        && !i.Children.SelectMany(s => s.Children).Any(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
+                    : i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched),
+                i.LogoUrl != null))
+            .ToListAsync(ct);
+        var picks = PickFeatured(candidates, profileId, day);
         var items = await topLevel.Where(i => picks.Contains(i.Id)).Summaries(profileId).ToDictionaryAsync(i => i.Id, ct);
         return picks.Where(items.ContainsKey).Select(id => items[id]).ToList();
+    }
+
+    /// <summary>A title the hero could feature: whether this profile has seen it all, and whether it has a clear logo.</summary>
+    internal sealed record FeaturedCandidate(Guid Id, bool Seen, bool HasLogo);
+
+    /// <summary>The five the hero shows on <paramref name="day"/> (a <see cref="DateOnly.DayNumber"/>): see <see cref="FeaturedAsync"/>.</summary>
+    internal static List<Guid> PickFeatured(IEnumerable<FeaturedCandidate> candidates, string profileId, int day) =>
+        candidates.OrderBy(c => c.Seen).ThenByDescending(c => c.HasLogo).ThenBy(c => DailyKey($"{profileId}:{c.Id:N}", day))
+            .Take(5).Select(c => c.Id).ToList();
+
+    /// <summary>
+    /// A sort key that's the same for <paramref name="text"/> all day, on every run of the server, and unrelated to
+    /// the next day's: FNV-1a over the text and the day, finished with SplitMix64 so neighbouring days scatter.
+    /// (string.GetHashCode changes with each run, and XORing in the day only nudges the low bits.)
+    /// </summary>
+    internal static ulong DailyKey(string text, int day)
+    {
+        var hash = 14695981039346656037UL;
+        foreach (var b in System.Text.Encoding.UTF8.GetBytes($"{text}#{day}"))
+        {
+            hash = (hash ^ b) * 1099511628211UL;
+        }
+
+        hash += 0x9E3779B97F4A7C15UL;
+        hash = (hash ^ (hash >> 30)) * 0xBF58476D1CE4E5B9UL;
+        hash = (hash ^ (hash >> 27)) * 0x94D049BB133111EBUL;
+        return hash ^ (hash >> 31);
     }
 
     private static async Task<Dictionary<Guid, string?>> OverviewsAsync(FlexarrDbContext db, List<ItemSummaryDto> items, CancellationToken ct)
