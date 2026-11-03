@@ -90,6 +90,10 @@ class ScanTests(unittest.TestCase):
         self.assertEqual(scan.scan_text('t("Play", ctx = "music")', "kotlin", scan.SOURCES[3].call)[0][0], "music::Play")
         self.assertEqual(scan.scan_text('Loc.T("Play", ctx: "music")', "cs", scan.SOURCES[4].call)[0][0], "music::Play")
 
+    def test_comments_are_skipped(self):
+        self.assertEqual(scan.scan_text('/// <c>Loc.T("Example")</c>\n * Loc.T("Doc")\nLoc.T("Real")', "cs", scan.SOURCES[4].call),
+                         [("Real", 3, None)])
+
     def test_escapes(self):
         self.assertEqual(scan.scan_text('t("Say \\"hi\\"\\u{2019}")', "swift", scan.SOURCES[1].call)[0][0], "Say \"hi\"’")
 
