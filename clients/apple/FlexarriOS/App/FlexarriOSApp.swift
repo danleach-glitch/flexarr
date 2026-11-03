@@ -374,6 +374,7 @@ struct RootView: View {
                 Task { await model.ensureGuestTunnel() }
                 // Offline mode ends (or starts) as soon as it's known whether the server answers now.
                 Task { await model.checkConnection() }
+                model.warmConnection()
                 Task { await downloads.catchUp() }
                 Task { await model.loadUpNext() }
                 notifications.refresh()

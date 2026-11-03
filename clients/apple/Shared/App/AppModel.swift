@@ -1256,6 +1256,12 @@ final class AppModel {
         player.play(itemId: item.id, preview: item, startAt: fromBeginning ? 0 : nil, client: client, from: from)
     }
 
+    /// Back in front: the connection to the server is set up again before Play needs it (docs/fast-start.md).
+    func warmConnection() {
+        guard let client, !isOffline else { return }
+        Task { await client.warmConnection() }
+    }
+
     /// Gets what Play would start for `item` ready, so it opens at once (docs/fast-start.md): a film or episode as a
     /// video, a book in the audio player. Pages call this once they've been looked at for a moment.
     func getReady(_ item: ItemSummary) {

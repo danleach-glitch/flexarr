@@ -252,6 +252,7 @@ final class PlaybackController: NSObject {
     private func request(for itemId: String, startAt: Double?, shuffle: Bool? = nil) -> PlaybackRequest {
         var request = PlaybackRequest(itemId: itemId, profile: Self.deviceProfile, startPositionSeconds: startAt, shuffle: (shuffle ?? shuffling) ? true : nil)
         request.sound = SoundSettings.current.requested(at: Date())
+        request.measuredBitrate = LinkSpeed.shared.current()
         #if canImport(AetherEngine)
         if Self.usesEngine, engineSuppressedItem != itemId {
             request.profile = Self.engineProfile
