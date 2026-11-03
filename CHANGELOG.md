@@ -16,9 +16,14 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### iPhone and Apple TV
 - Long-press menus on posters use the same icons as a title's page, and Mark as watched and Mark as unwatched no longer look the same.
+- Downloads no longer freeze at a percentage after the app is swiped away mid-download: they carry on from where they got to.
+- Your place in music, podcasts and audiobooks is saved even when you pause from the lock screen or take your AirPods out.
+- Changing subtitle size or position while watching no longer turns back autoplay or skip settings you changed on another device.
+- The podcast and audiobook widget clears when you sign out or switch profiles, so it no longer shows the last person's episode.
 
 ### Mac app
 - The Live TV recordings folder, the backups folder and the server side of a path mapping are now chosen in macOS's folder window, so they're folders the Mac app can actually use.
+- A library folder on a USB drive or NAS that wasn't mounted when the app started is no longer forgotten: it opens as soon as the drive mounts.
 
 ### Live TV
 - Settings now refuses a recordings folder Flexarr can't write to and says why, instead of saving it and letting every recording fail later. Its folder can also be picked by browsing.
