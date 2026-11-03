@@ -21,6 +21,18 @@ enum WidgetBridge {
         }
     }
 
+    /// Empties the podcast and book widget at once (signed out, another profile), pictures and all, and drops the
+    /// remembered episode to resume, so the next profile's is fetched afresh.
+    static func forgetListening() {
+        pending?.cancel()
+        resume = nil
+        resumeFetchedAt = .distantPast
+        guard PodcastSnapshot.folder != nil, PodcastSnapshot.load() != .empty else { return }
+        PodcastSnapshot.empty.save()
+        removeUnusedArtwork(keeping: .empty)
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
     private static func write(_ model: AppModel) async {
         guard PodcastSnapshot.folder != nil, let client = model.client else { return }
         let music = model.music
