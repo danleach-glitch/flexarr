@@ -2,9 +2,11 @@ package io.github.flexarr.audio
 
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
+import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import android.os.Process
+import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -63,7 +65,7 @@ private val log = FlexarrLog("car")
  * playlists, artists, albums and tracks that match.
  */
 @OptIn(UnstableApi::class)
-class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
+class CarLibrary(private val model: AppModel, private val context: Context) : MediaLibrarySession.Callback {
     private val scope = CoroutineScope(Dispatchers.Main.immediate)
 
     /** What the car was last shown, so playing one doesn't ask the server again. */
@@ -309,6 +311,22 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
                 }
             }.onFailure { log.warning("Couldn't play $mediaId from the car", it) }
         }
+    }
+
+    /**
+     * The headset's play button, or Android's recent media controls, with nothing loaded (the app was closed since): the
+     * last book or podcast episode started here, which [Router] then plays from where it was left.
+     */
+    override fun onPlaybackResumption(
+        mediaSession: MediaSession,
+        controller: MediaSession.ControllerInfo,
+        isForPlayback: Boolean,
+    ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+        val heard = LastHeard.load(context)
+            ?: return Futures.immediateFailedFuture(UnsupportedOperationException("Nothing to pick up again"))
+        val type = if (heard.mediaId.startsWith("book:")) MediaMetadata.MEDIA_TYPE_AUDIO_BOOK else MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE
+        val item = playable(heard.mediaId, heard.title, heard.subtitle, model.client?.imageUrl(heard.artwork, 400), type)
+        return Futures.immediateFuture(MediaSession.MediaItemsWithStartPosition(listOf(item), 0, C.TIME_UNSET))
     }
 
     /** "Play Flexarr": whichever of music or a podcast is loaded carries on. */

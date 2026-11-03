@@ -151,6 +151,16 @@
             </intent-filter>
         </service>
 
+        <!-- The headset's play button with the app closed: AudioService picks up the last book or episode
+             (CarLibrary.onPlaybackResumption). -->
+        <receiver
+            android:name="androidx.media3.session.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
         <!-- Notifications from the server, through Firebase (docs/notifications.md). -->
         <service
             android:name=".notifications.FlexarrMessagingService"

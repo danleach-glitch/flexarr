@@ -1059,6 +1059,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     fun signOut() {
         dropAllReady()
+        // The headset's play button has nothing of this sign-in's to pick up again.
+        io.github.flexarr.audio.LastHeard.clear(context)
         // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way. Not
         // for a sign-in from the command line, which may be the server's own API key.
         val client = client

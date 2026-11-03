@@ -28,7 +28,7 @@ class AudioService : MediaLibraryService() {
             Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        library = CarLibrary(appModel)
+        library = CarLibrary(appModel, applicationContext)
         session = MediaLibrarySession.Builder(this, library.Router(activePlayer()), library).setSessionActivity(open).build().also { addSession(it) }
     }
 
