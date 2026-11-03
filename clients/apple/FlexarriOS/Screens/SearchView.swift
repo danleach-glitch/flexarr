@@ -18,6 +18,8 @@ struct SearchView: View {
     @State private var outsideMusic: [MusicExternal] = []
     /// Whether music requests are on for this profile, and Lidarr answering; nil until asked.
     @State private var musicStatus: MusicRequestStatus?
+    /// The library's results are in, but Seerr's or the music search's aren't yet.
+    @State private var lookingFurther = false
 
     /// Lidarr isn't answering: music still shows, its requests wait.
     private var musicPaused: Bool { musicStatus?.configured == true && musicStatus?.reachable == false }
@@ -27,7 +29,8 @@ struct SearchView: View {
             VStack(alignment: .leading, spacing: 24) {
                 if let results {
                     if results.isEmpty && outside.isEmpty && outsideMusic.isEmpty {
-                        StatusView(state: .empty("Nothing matches \u{201C}\(query)\u{201D}."))
+                        // Nothing in the library yet: say so only once the searches beyond it have answered too.
+                        StatusView(state: lookingFurther ? .loading : .empty("Nothing matches \u{201C}\(query)\u{201D}."))
                             .frame(height: 240)
                     }
                     if !results.films.isEmpty {
@@ -253,17 +256,25 @@ struct SearchView: View {
             async let beyond: [ExternalTitle] = looksOutside == true ? (try? await client.searchEverything(text)) ?? [] : []
             async let music = searchMusic(client, text)
             let found = try await client.search(text)
-            let more = await beyond
-            let (status, moreMusic) = await music
-            musicStatus = status
+            // The library's results show straight away; what's found beyond it joins them as it comes.
             guard text == query.trimmingCharacters(in: .whitespaces) else { return }
             results = found
+            outside = []
+            outsideMusic = []
+            error = nil
+            lookingFurther = true
+            let more = await beyond
+            guard text == query.trimmingCharacters(in: .whitespaces) else { return }
             // What the library has is already above.
             outside = more.filter { $0.libraryItemId == nil && $0.availability != .available }
+            let (status, moreMusic) = await music
+            guard text == query.trimmingCharacters(in: .whitespaces) else { return }
+            musicStatus = status
             outsideMusic = (moreMusic.artists + moreMusic.albums).filter { $0.libraryItemId == nil && $0.availability != .available }
-            error = nil
+            lookingFurther = false
         } catch {
             self.error = ConnectionError(error).message
+            lookingFurther = false
         }
     }
 
