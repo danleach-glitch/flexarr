@@ -74,6 +74,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A download the hardware encoder can't convert is now converted again in software, instead of failing with "Converting this file didn't work."
 - A download whose conversion hits an unexpected error now says it failed, instead of staying at "Preparing 0%" until the server restarts.
 
+### Home
+- The big slides at the top of Home show a different set of films and shows each day, drawn from your whole library instead of the same few every time.
+- Films you've watched and shows you've finished stay off those slides while there's something you haven't seen, and the genre rows change daily too.
+
 ### Library
 - The server's cache no longer grows without limit: it now tidies away old scrubbing previews, subtitles and channel logos, and anything left by a crash.
 - If Sonarr or Radarr is down or restarting during a metadata refresh, films and shows stay linked to it. They no longer come unlinked for a week, which had let deleting them bypass Sonarr or Radarr.
