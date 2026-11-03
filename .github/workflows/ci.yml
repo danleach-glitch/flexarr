@@ -137,6 +137,17 @@ jobs:
       - run: python3 scripts/design/tokens.py --check
       - run: python3 -m unittest discover -s scripts/design
 
+  # Every string the code looks up is collected into languages/packs/en.json, and the plural rules, bundled packs and
+  # flexarr.io/languages are built from languages/; this fails when someone forgot `make strings`. It reads the whole
+  # codebase, so it always runs (it takes seconds).
+  strings:
+    name: Languages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: python3 scripts/i18n/strings.py --check
+      - run: python3 -m unittest discover -s scripts/i18n
+
   # The apps' notification relay (push.flexarr.io), deployed by Vercel when relay/ changes.
   relay:
     name: Push relay
@@ -279,7 +290,7 @@ jobs:
   # skipped matrix job never reports under its real name, so requiring them directly would block every merge.
   passed:
     name: CI passed
-    needs: [changes, server, web, guide, apps, tokens, relay, tunnel, apple, android]
+    needs: [changes, server, web, guide, apps, tokens, strings, relay, tunnel, apple, android]
     if: always()
     runs-on: ubuntu-latest
     steps:
