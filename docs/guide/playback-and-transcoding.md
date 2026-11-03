@@ -55,7 +55,7 @@ Converting video in software is demanding. A recent multi-core desktop processor
 
 Use it when your home internet's upload is slow and people watch [away from home](away-from-home.md). Bear in mind it applies to every stream, at home too, and anything converted to fit loses HDR and lossless sound. At home on a decent network, **No limit** is best.
 
-**Settings › Streaming › Away from home** handles most of this by itself. On **Automatic**, the apps measure how fast your connection is, and a file that needs more is converted to fit, but only for someone away from home. **Original quality** sends files as they are, as at home.
+**Settings › Streaming › Away from home** handles most of this by itself. On **Automatic**, the apps measure how fast your connection is, and a file that needs more is converted to fit (losing HDR and lossless sound), but only for someone away from home, and never past a quality chosen in the web player's menu. **Original quality** treats viewers away as at home: files go as they are, unless **Limit each stream to** or a family guest's connection says otherwise.
 
 > **Note**
 > Live TV is different: away from home, channels automatically come in a reduced version. See [Live TV and recording](live-tv.md).
