@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.60.0 · 3 November 2026
 
 ### Playback
 - The picture no longer pauses when **Next Episode** counts down. The episode keeps playing under a 10-second countdown, on every app and the web. With **Skip credits** on, the countdown starts just before the credits, so the next episode begins as they do. With it off, the credits play in full and the next episode follows straight on.
