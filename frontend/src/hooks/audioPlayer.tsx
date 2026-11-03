@@ -117,8 +117,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     try {
       // An untouched queue (epoch 0, nothing in it) is the state before a restore: leave what's stored for it to read.
       if (s.tracks.length === 0) {
-        if (s.epoch > 0) sessionStorage.removeItem(queueStorageKey)
-      } else sessionStorage.setItem(queueStorageKey, JSON.stringify(serializeQueue(s, at)))
+        if (s.epoch > 0) sessionStorage.removeItem(queueStorageKey())
+      } else sessionStorage.setItem(queueStorageKey(), JSON.stringify(serializeQueue(s, at)))
     } catch {
       // Storage blocked: the queue just won't survive a reload.
     }
@@ -295,7 +295,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let stored: StoredQueue | null
     try {
-      stored = readStoredQueue(sessionStorage.getItem(queueStorageKey))
+      stored = readStoredQueue(sessionStorage.getItem(queueStorageKey()))
     } catch {
       stored = null
     }

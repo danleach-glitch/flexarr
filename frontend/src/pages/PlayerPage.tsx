@@ -191,6 +191,7 @@ export function PlayerPage() {
   const session = useRef<string | undefined>(undefined)
   const hideTimer = useRef<number | undefined>(undefined)
   const recoverRef = useRef<() => Promise<void>>(async () => undefined)
+  const convertInsteadRef = useRef<() => void>(() => undefined)
   const recovering = useRef(false)
   const lastRecovery = useRef(0)
   // Ends when the item changes or the page closes, so a recovery in progress gives up.
@@ -435,8 +436,12 @@ export function PlayerPage() {
       recovering.current = false
     }
   }
+  // A browser that claimed it could play the file but can't: converted instead, on the audio and subtitles chosen.
+  const convertInstead = () =>
+    void restartHere({ forceTranscode: true, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
   useEffect(() => {
     recoverRef.current = recover
+    convertInsteadRef.current = convertInstead
   })
 
   useEffect(() => {
@@ -552,8 +557,7 @@ export function PlayerPage() {
       setMuted(el.muted)
     }
     const onError = () => {
-      // A browser that claimed it could play the file but can't: convert instead.
-      if (method.current === 'DirectPlay') void restartHere({ forceTranscode: true })
+      if (method.current === 'DirectPlay') convertInsteadRef.current()
       else if (method.current === 'Transcode') void recoverRef.current()
       else setError({ message: "This file couldn't be played.", kind: 'other' })
     }
@@ -1763,6 +1767,11 @@ function Scrubber({
       onPointerUp={(e) => {
         setDragging(false)
         onSeek(at(e))
+        setHover(null)
+      }}
+      // A touch drag the browser takes over (it turned into a scroll) ends without a seek.
+      onPointerCancel={() => {
+        setDragging(false)
         setHover(null)
       }}
     >

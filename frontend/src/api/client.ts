@@ -65,13 +65,13 @@ import type {
   SystemStatus,
   UpcomingItem,
 } from './types'
+import { PROFILE_STORAGE } from '../lib/profileScope'
 import { session } from '../lib/session'
 
 export type * from './types'
 
 // Where earlier versions kept the API key itself; it's traded for a session cookie and removed.
 const LEGACY_API_KEY_STORAGE = 'flexarr.apiKey'
-const PROFILE_STORAGE = 'flexarr.profile'
 
 /** Thrown when the server rejects the request for a missing or wrong API key. */
 export class UnauthorizedError extends Error {
@@ -262,6 +262,23 @@ export async function unlockFirst() {
   return askToUnlock()
 }
 
+/** Told the app this browser isn't signed in any more (the key changed, or it was signed out from elsewhere). */
+export const SIGNED_OUT_EVENT = 'flexarr:signed-out'
+
+/** A 401 means the sign-in itself has gone; not for signing in, setup, or a PIN, whose refusals are about what was typed. */
+function signedOut(path: string) {
+  if (/^\/(session|setup)(\/|$)/.test(path) || path.startsWith('/admin/') || /^\/profiles\/[^/]+\/select$/.test(path) || path.includes('/api-key/')) return
+  window.dispatchEvent(new Event(SIGNED_OUT_EVENT))
+}
+
+/** A live channel's heartbeat, or a place reported while playing on: nothing a cached page shows has changed. */
+function routineReport(path: string, body: unknown) {
+  if (/^\/livetv\/watch\/[^/]+\/heartbeat$/.test(path)) return true
+  if (!/^\/playback\/[^/]+\/progress$/.test(path)) return false
+  const report = body as { paused?: boolean; ended?: boolean } | undefined
+  return report?.paused === false && !report.ended
+}
+
 async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal, retried = false): Promise<T> {
   const headers = authHeaders()
   // Files (profile pictures) go up as they are; everything else is JSON.
@@ -269,8 +286,9 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   if (body !== undefined) headers['Content-Type'] = file ? body.type || 'application/octet-stream' : 'application/json'
 
   // Any change can show up in any cached answer (a watched tick in a library page, a renamed collection), so a
-  // change clears them all, before and after (anything cached while it was under way may predate it).
-  const changes = method !== 'GET'
+  // change clears them all, before and after (anything cached while it was under way may predate it). Not the reports
+  // sent every few seconds while something plays, or every Back would ask afresh: pausing, ending or stopping does.
+  const changes = method !== 'GET' && !routineReport(path, body)
   if (changes) clearApiCache()
   const response = await fetch(path.startsWith('/api/') ? path : `/api/v1${path}`, {
     method,
@@ -287,6 +305,7 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
     lapsedListeners.forEach((listener) => listener())
     throw new ApiError(403, 'Forbidden', ['Settings are locked here. Unlock them to see this.'])
   }
+  if (response.status === 401) signedOut(path)
   if (!response.ok) throw await failure(response)
   if (response.status === 202 || response.status === 204) {
     return undefined as T

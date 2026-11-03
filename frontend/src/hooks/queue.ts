@@ -1,4 +1,5 @@
 import type { ItemSummary } from '../api/types'
+import { profileKey } from '../lib/profileScope'
 
 /**
  * The play queue, kept as plain data so its rules can be tested without an <audio> element: the tracks in order,
@@ -117,7 +118,8 @@ export interface StoredQueue {
   position: number
 }
 
-export const queueStorageKey = 'flexarr.musicQueue'
+/** Kept per profile: Switch profile reloads the page, and the next profile mustn't find the last one's queue. */
+export const queueStorageKey = () => profileKey('flexarr.musicQueue')
 
 export function serializeQueue(state: QueueState, position: number): StoredQueue {
   return {

@@ -56,6 +56,15 @@ describe('Setup guide', () => {
     expect(sent(api, 'PUT', '/profiles/owner')).toMatchObject({ name: 'Dan', color: '#a9c2ec' })
   })
 
+  it('keeps an app’s API key hidden as it’s typed', async () => {
+    mockApi({ '/profiles': [main], '/settings': { arr: [], pathMappings: [] }, '/arr/discover': [], 'PUT /setup-guide': undefined })
+    renderAt('apps')
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Connect' }))[0])
+    const key = await screen.findByLabelText(/^API key/)
+    expect(key).toHaveAttribute('type', 'password')
+  })
+
   it('offers an app’s folder as a library, one of each kind, and adds it with Next', async () => {
     const api = mockApi({
       '/libraries': [podcasts],

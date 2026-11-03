@@ -653,12 +653,14 @@
   color: var(--usher);
 }
 
-.live-channel-row img,
-.live-logo-fallback {
+.live-channel-row .livetv-logo {
   flex: none;
   width: 48px;
   height: 30px;
-  object-fit: contain;
+}
+
+.live-channel-row .livetv-logo-text {
+  font-size: var(--step--1);
 }
 
 .live-channel-text {

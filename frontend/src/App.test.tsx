@@ -4,7 +4,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App, { Shell } from './App'
 import { TrailerDialog } from './components/TrailerDialog'
 import { usePolling } from './hooks/usePolling'
-import { clearApiCache, deleteItem } from './api/client'
+import { clearApiCache, deleteItem, getLibraries } from './api/client'
 import { WATCHED_CHANGED } from './hooks/watched'
 import { detail, mockApi, movies, status, summary } from './test/mockApi'
 
@@ -285,6 +285,24 @@ describe('App', () => {
     expect(within(screen.getByRole('menu')).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Resume', 'Remove'])
   })
 
+  it('sends a child following a link to Podcasts Home, without opening Podcasts first', async () => {
+    let answerMe: (value: unknown) => void = () => undefined
+    const fetchMock = mockApi({
+      '/libraries': [],
+      '/me': () => new Promise((resolve) => (answerMe = resolve)),
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+    const podcastCalls = () => fetchMock.mock.calls.filter(([input]) => new URL(String(input), 'http://localhost').pathname.startsWith('/api/v1/podcasts')).length
+
+    renderAt('/podcasts')
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)))
+    expect(podcastCalls()).toBe(0)
+
+    await act(async () => answerMe({ profileId: 'c1', method: 'session', zone: 'Local', isAdmin: false, tailscaleLogin: null, isKids: true }))
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
+    expect(podcastCalls()).toBe(0)
+  })
+
   it('toggles watched from the tick on a poster', async () => {
     const posted: unknown[] = []
     mockApi({
@@ -325,6 +343,26 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
     expect(authorized).toBe(true)
     expect(localStorage.length).toBe(0)
+  })
+
+  it('goes back to the sign-in form when this browser is signed out while using it', async () => {
+    let authorized = true
+    const gone = () => new Response('', { status: 401 })
+    mockApi({
+      '/system/status': () => (authorized ? status : gone()),
+      '/libraries': () => (authorized ? [] : gone()),
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
+
+    // Signed out from another browser: the next request is refused.
+    authorized = false
+    clearApiCache()
+    await act(() => getLibraries().catch(() => undefined))
+
+    expect(await screen.findByLabelText('API key')).toBeInTheDocument()
   })
 
   it('sets up a new server from the first browser with its setup code, without a key', async () => {
@@ -1175,6 +1213,45 @@ describe('Player', () => {
   })
   const problem = (status: number, detail: string) => new Response(JSON.stringify({ detail }), { status })
   const takenOver = 'Someone started watching on another screen, so this one had to stop.'
+
+  it('converts a file the browser can’t play after all, keeping the audio track chosen', async () => {
+    const requests: { forceTranscode?: boolean; audioStreamIndex?: number; subtitleKey?: string }[] = []
+    mockApi({
+      '/libraries': [],
+      'POST /playback': (init?: RequestInit) => {
+        requests.push(JSON.parse(String(init?.body)))
+        const sessionId = `d${requests.length}`
+        return requests.length === 1
+          ? { ...transcode(sessionId), method: 'DirectPlay', url: `/api/v1/playback/${sessionId}/stream`, selectedAudioIndex: 3 }
+          : { ...transcode(sessionId), selectedAudioIndex: 3 }
+      },
+      'DELETE /playback/d1': undefined,
+      'DELETE /playback/d2': undefined,
+    })
+
+    renderAt('/play/e1')
+    await screen.findByText('Pilot')
+    const video = document.querySelector('video')!
+    await vi.waitFor(() => expect(video.src).toContain('/playback/d1/'), { timeout: 5000 })
+    act(() => {
+      video.dispatchEvent(new Event('error'))
+    })
+    await vi.waitFor(() => expect(requests).toHaveLength(2), { timeout: 5000 })
+    expect(requests[1]).toMatchObject({ forceTranscode: true, audioStreamIndex: 3, subtitleKey: 'off' })
+  })
+
+  it('lets go of the seek bar when the browser takes a touch drag over for scrolling', async () => {
+    mockApi({ '/libraries': [], 'POST /playback': transcode('t1'), 'DELETE /playback/t1': undefined })
+    window.HTMLElement.prototype.setPointerCapture = vi.fn()
+
+    renderAt('/play/e1')
+    const seek = await screen.findByRole('slider', { name: 'Seek' })
+    seek.getBoundingClientRect = () => ({ left: 0, width: 100, top: 0, height: 10, right: 100, bottom: 10, x: 0, y: 0, toJSON: () => ({}) })
+    fireEvent.pointerDown(seek, { clientX: 50, pointerId: 1 })
+    expect(document.querySelector('.scrubber-tooltip')).not.toBeNull()
+    fireEvent.pointerCancel(seek, { pointerId: 1 })
+    expect(document.querySelector('.scrubber-tooltip')).toBeNull()
+  })
 
   it('says another screen took over, and Watch here instead starts afresh rather than being refused again', async () => {
     const requests: { replacesSessionId?: string }[] = []

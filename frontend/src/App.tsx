@@ -12,6 +12,7 @@ import {
   profileToken,
   saveProfileToken,
   setupStatus,
+  SIGNED_OUT_EVENT,
   signIn,
   UnauthorizedError,
   type InstallKind,
@@ -23,21 +24,11 @@ import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
 import { LibrariesProvider } from './hooks/libraries'
 import { SessionProvider } from './hooks/session'
-import { useAgeLimits } from './hooks/sessionContext'
-import { CollectionPage, CollectionsPage } from './pages/CollectionsPage'
-import { DiscoverPage } from './pages/DiscoverPage'
-import { ExternalTitlePage } from './pages/ExternalTitlePage'
-import { MusicExternalAlbumPage, MusicExternalArtistPage } from './pages/MusicExternalPages'
+import { useAgeLimits, useSession } from './hooks/sessionContext'
 import { HomePage } from './pages/HomePage'
 import { ItemPage } from './pages/ItemPage'
 import { LibraryPage } from './pages/LibraryPage'
-import { MixPage } from './pages/MixPage'
 import { PersonPage } from './pages/PersonPage'
-import { BookSeriesPage } from './pages/BookSeriesPage'
-import { PlaylistPage, PlaylistsPage } from './pages/PlaylistsPage'
-import { PodcastBrowsePage, PodcastEpisodePage, PodcastPage, PodcastsPage } from './pages/PodcastPages'
-import { UpcomingPage } from './pages/UpcomingPage'
-import { WatchlistPage } from './pages/WatchlistPage'
 import { LinkPage } from './pages/LinkPage'
 import { errorReporter } from './lib/errorReporter'
 import { configureSentry } from './lib/sentry'
@@ -89,6 +80,23 @@ const SettingsPage = lazyPage(() => import('./pages/settings/SettingsPage').then
 const SetupGuidePage = lazyPage(() => import('./pages/SetupGuidePage').then((m) => ({ default: m.SetupGuidePage })))
 const LiveTvPage = lazyPage(() => import('./pages/LiveTvPage'))
 const LivePlayerPage = lazyPage(() => import('./pages/LivePlayerPage'))
+// Pages fewer people open on the way in load on demand too: the first page needs only Home, a library and a title.
+const CollectionsPage = lazyPage(() => import('./pages/CollectionsPage').then((m) => ({ default: m.CollectionsPage })))
+const CollectionPage = lazyPage(() => import('./pages/CollectionsPage').then((m) => ({ default: m.CollectionPage })))
+const DiscoverPage = lazyPage(() => import('./pages/DiscoverPage').then((m) => ({ default: m.DiscoverPage })))
+const ExternalTitlePage = lazyPage(() => import('./pages/ExternalTitlePage').then((m) => ({ default: m.ExternalTitlePage })))
+const MusicExternalAlbumPage = lazyPage(() => import('./pages/MusicExternalPages').then((m) => ({ default: m.MusicExternalAlbumPage })))
+const MusicExternalArtistPage = lazyPage(() => import('./pages/MusicExternalPages').then((m) => ({ default: m.MusicExternalArtistPage })))
+const MixPage = lazyPage(() => import('./pages/MixPage').then((m) => ({ default: m.MixPage })))
+const BookSeriesPage = lazyPage(() => import('./pages/BookSeriesPage').then((m) => ({ default: m.BookSeriesPage })))
+const PlaylistsPage = lazyPage(() => import('./pages/PlaylistsPage').then((m) => ({ default: m.PlaylistsPage })))
+const PlaylistPage = lazyPage(() => import('./pages/PlaylistsPage').then((m) => ({ default: m.PlaylistPage })))
+const PodcastsPage = lazyPage(() => import('./pages/PodcastPages').then((m) => ({ default: m.PodcastsPage })))
+const PodcastPage = lazyPage(() => import('./pages/PodcastPages').then((m) => ({ default: m.PodcastPage })))
+const PodcastBrowsePage = lazyPage(() => import('./pages/PodcastPages').then((m) => ({ default: m.PodcastBrowsePage })))
+const PodcastEpisodePage = lazyPage(() => import('./pages/PodcastPages').then((m) => ({ default: m.PodcastEpisodePage })))
+const UpcomingPage = lazyPage(() => import('./pages/UpcomingPage').then((m) => ({ default: m.UpcomingPage })))
+const WatchlistPage = lazyPage(() => import('./pages/WatchlistPage').then((m) => ({ default: m.WatchlistPage })))
 
 type ConnectionState =
   | { kind: 'loading' }
@@ -98,9 +106,14 @@ type ConnectionState =
   | { kind: 'unauthorized'; wrongKey?: boolean; setupOpen?: boolean; wrongCode?: boolean; pinMismatch?: boolean; badPin?: string }
   | { kind: 'error'; message: string }
 
-/** Pages a child's profile doesn't have (podcasts, the watchlist, collections, Live TV): a link to one goes Home. */
+/**
+ * Pages a child's profile doesn't have (podcasts, the watchlist, collections, Live TV): a link to one goes Home. Nothing
+ * shows (or is asked for) until it's known who's watching.
+ */
 function NotForKids() {
   const { kids } = useAgeLimits()
+  const { meLoaded } = useSession()
+  if (!meLoaded) return null
   return kids ? <Navigate to="/" replace /> : <Outlet />
 }
 
@@ -190,6 +203,18 @@ export default function App() {
     window.addEventListener(PICK_PROFILE_EVENT, again)
     return () => window.removeEventListener(PICK_PROFILE_EVENT, again)
   }, [])
+  // Signed out while using it (the key changed, "Sign out every other browser", an expired cookie): every request
+  // fails from then on, so look again, which finds the sign-in form.
+  const ready = state.kind === 'ready'
+  useEffect(() => {
+    if (!ready) return
+    const out = () => {
+      setState({ kind: 'loading' })
+      setAttempt((n) => n + 1)
+    }
+    window.addEventListener(SIGNED_OUT_EVENT, out)
+    return () => window.removeEventListener(SIGNED_OUT_EVENT, out)
+  }, [ready])
   const [setupInstall, setSetupInstall] = useState<InstallKind>()
   // Once the linked code turns out wrong (a new one since), the code box stays, whatever happens next.
   const [linkedCode, setLinkedCode] = useState(takeLinkedSetupCode)

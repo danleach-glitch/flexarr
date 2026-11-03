@@ -15,6 +15,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Live TV
 - Settings now refuses a recordings folder Flexarr can't write to and says why, instead of saving it and letting every recording fail later. Its folder can also be picked by browsing.
+- Leaving a channel while it's still starting now lets the provider's stream go, so the next channel isn't refused. The channel list loads logos as you scroll and shows the channel's initials when a logo fails.
 
 ### Web
 - Settings › Backups lets you browse for the backups folder as well as typing it.
@@ -22,6 +23,15 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The search palette and Now Playing keep keyboard focus inside them. In the search palette, Enter on a Play or Remove button does what the button says, and the highlighted result scrolls into view as you arrow through it.
 - Film and show titles and summaries are easier to read over bright backdrops.
 - On a phone, a library's views (like All movies) stay on one line, genres scroll in a single row so the posters come sooner, and switches in Settings stay at the end of their row.
+- A browser that's been signed out while open (the API key changed, or Sign out every other browser was used) now goes back to the sign-in form instead of showing "API key required" on every page.
+- An audiobook's place saved in the browser, and the music queue, now belong to the profile that made them, so another profile on the same computer no longer starts at someone else's place or finds their queue after Switch profile.
+- Closing the tab partway through a podcast episode now saves where you got to.
+- When the browser can't play a file directly after all and Flexarr converts it instead, the audio track and subtitles you chose stay selected.
+- On touch screens, the seek bar no longer gets stuck mid-drag when the drag turns into a scroll.
+- The web app opens faster: pages people visit less often (Podcasts, Discover, Collections, playlists and others) load when they're opened, and going Back while something plays no longer reloads everything.
+
+### Security
+- The setup guide hides Radarr, Sonarr and Lidarr API keys as you type them, like Settings › Connections does, and a kids profile no longer briefly opens adult-only pages before going Home.
 
 ## 0.59.0 · 3 November 2026
 

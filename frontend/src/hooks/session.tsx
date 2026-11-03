@@ -12,6 +12,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const meState = useApi(getMe, [])
   const me = meState.data
   const reloadMe = meState.reload
+  const meLoaded = me !== undefined || !meState.loading
   const loaded = useApi(getProfiles, [])
   const profiles = loaded.data
   const reload = loaded.reload
@@ -31,6 +32,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const timer = window.setTimeout(reloadMe, Math.max(60_000, new Date(unlockedUntil).getTime() - Date.now() + 1000))
     return () => window.clearTimeout(timer)
   }, [unlockedUntil, reloadMe])
-  const value = useMemo(() => ({ me, profiles, reloadMe }), [me, profiles, reloadMe])
+  const value = useMemo(() => ({ me, profiles, reloadMe, meLoaded }), [me, profiles, reloadMe, meLoaded])
   return <SessionContext value={value}>{children}</SessionContext>
 }

@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router'
 import { ApiError, getLiveChannels, liveHeartbeat, removeRecording, stopLiveChannel, watchLiveChannel, type LiveChannel, type LiveWatch } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { FavouriteButton } from '../components/FavouriteButton'
+import { ChannelLogo } from '../components/LiveChannelCard'
 import { Back, ChevronDown, ChevronUp, ExitFullscreen, Fullscreen, Muted, Replay10, Forward10, Star, Tv, Volume } from '../components/icons'
 import { icon } from '../components/icons.generated'
 import { useFavourites } from '../hooks/useFavourites'
@@ -122,9 +123,11 @@ export default function LivePlayerPage() {
     void start(id)
   }, [id, start])
 
-  // Let the channel go when the page closes; the server notices anyway if this never arrives.
+  // Let the channel go when the page closes; the server notices anyway if this never arrives. A channel still starting
+  // is let go when its answer comes (it no longer matches the latest start): providers often allow only a stream or two.
   useEffect(
     () => () => {
+      starts.current++
       hls.current?.destroy()
       hls.current = null
       if (viewer.current) void stopLiveChannel(viewer.current).catch(() => undefined)
@@ -358,7 +361,7 @@ export default function LivePlayerPage() {
                   }}
                 >
                   <span className="live-channel-number">{c.number}</span>
-                  {c.logoUrl ? <img src={c.logoUrl} alt="" /> : <span className="live-logo-fallback" />}
+                  <ChannelLogo channel={c} />
                   <span className="live-channel-text">
                     <strong>
                       {c.name}
