@@ -174,7 +174,7 @@ struct PodcastEpisodeRow: View {
             }
         }
         .contextMenu {
-            Button { model.playEpisode(episode.summary) } label: { Label(episode.progress != nil ? "Resume" : "Play", systemImage: "play.fill") }
+            Button { model.playEpisode(episode.summary) } label: { Label(episode.progress != nil ? "Resume" : "Play", systemImage: Symbol.play) }
             Button { Task { await model.addToUpNext(episode.id, next: true) } } label: {
                 Label("Play next", systemImage: "text.line.first.and.arrowtriangle.forward")
             }
@@ -203,7 +203,7 @@ struct PodcastEpisodeRow: View {
     private var downloadSwipe: some View {
             if let download = downloads.entry(for: episode.id) {
                 Button(role: .destructive) { downloads.remove(download.id) } label: {
-                    Label(download.isDownloaded ? "Remove download" : "Stop download", systemImage: "trash")
+                    Label(download.isDownloaded ? "Remove download" : "Stop download", systemImage: Symbol.delete)
                 }
             } else {
                 Button { Task { try? await downloads.download(itemId: episode.id, quality: .original) } } label: {
@@ -342,7 +342,7 @@ struct EpisodePlayButton: View {
                     Circle().trim(from: 0, to: fraction).stroke(Color.screen, style: StrokeStyle(lineWidth: 2, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                 }
-                Image(systemName: playing ? "pause.fill" : "play.fill")
+                Image(systemName: playing ? Symbol.pause : Symbol.play)
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.screen)
             }
@@ -465,7 +465,7 @@ struct EpisodeSheet: View {
                         }
                     } label: {
                         Label(isPlaying ? "Pause" : isCurrent || shown.progress != nil ? "Resume" : "Play",
-                              systemImage: isPlaying ? "pause.fill" : "play.fill")
+                              systemImage: isPlaying ? Symbol.pause : Symbol.play)
                     }
                     .buttonStyle(ActionButtonStyle(ambient: podcastGlow(shown.accentColor), prominent: true))
                     let isPlayed = played ?? shown.isPlayed

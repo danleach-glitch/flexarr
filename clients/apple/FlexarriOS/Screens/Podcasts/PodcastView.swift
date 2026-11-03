@@ -157,7 +157,7 @@ struct PodcastView: View {
                 .buttonStyle(ActionButtonStyle(ambient: podcastGlow(podcast.accentColor), prominent: !podcast.isSubscribed))
                 if let next = page.nextToPlay {
                     Button { model.playEpisode(next.summary) } label: {
-                        Label(next.progress != nil ? "Resume" : page.oldestFirst ? "Play" : "Latest episode", systemImage: "play.fill")
+                        Label(next.progress != nil ? "Resume" : page.oldestFirst ? "Play" : "Latest episode", systemImage: Symbol.play)
                     }
                     .buttonStyle(ActionButtonStyle(ambient: podcastGlow(podcast.accentColor), prominent: podcast.isSubscribed))
                 }

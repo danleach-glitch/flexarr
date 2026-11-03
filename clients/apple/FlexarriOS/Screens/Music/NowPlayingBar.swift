@@ -56,7 +56,7 @@ struct NowPlayingBar: View {
                     ProgressView().tint(Color.screen).frame(width: 48, height: 48)
                 } else {
                     Button { music.togglePlayPause() } label: {
-                        Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? "pause.fill" : "play.fill")
+                        Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? Symbol.pause : Symbol.play)
                     }
                     .buttonStyle(RoundActionStyle(scales: false))
                     .frame(width: 48, height: 48)

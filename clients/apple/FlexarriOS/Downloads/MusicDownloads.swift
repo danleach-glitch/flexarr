@@ -190,7 +190,7 @@ struct CollectionRow: View {
         }
         .listRowBackground(Color.seat)
         .swipeActions {
-            Button(role: .destructive) { store.remove(collectionId: collection.id) } label: { Label("Delete", systemImage: "trash") }
+            Button(role: .destructive) { store.remove(collectionId: collection.id) } label: { Label("Delete", systemImage: Symbol.delete) }
         }
     }
 
@@ -280,7 +280,7 @@ struct OfflineCollectionView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             if collection != nil {
-                Button { removing = true } label: { Label("Remove download", systemImage: "trash") }
+                Button { removing = true } label: { Label("Remove download", systemImage: Symbol.delete) }
             }
         }
         .alert("Remove this download?", isPresented: $removing) {
@@ -316,7 +316,7 @@ struct OfflineCollectionView: View {
             }
             HStack(spacing: 12) {
                 Button { model.playTracks(tracks, albums: [collection.album].compactMap { $0 }, showingNowPlaying: router) } label: {
-                    Label("Play", systemImage: "play.fill")
+                    Label("Play", systemImage: Symbol.play)
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient(collection), prominent: true))
                 Button { model.playTracks(tracks, shuffled: true, albums: [collection.album].compactMap { $0 }, showingNowPlaying: router) } label: {

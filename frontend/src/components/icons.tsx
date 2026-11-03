@@ -443,6 +443,19 @@ export const Trash = (p: IconProps) => (
     <path d="M9 7V4h6v3" />
   </svg>
 )
+/** Explicit: an E in a solid square, as e.square.fill on the Apple apps. */
+export const Explicit = (p: IconProps) => {
+  const id = useId()
+  return (
+    <svg {...base} {...p}>
+      <mask id={id}>
+        <rect width="24" height="24" fill="white" stroke="none" />
+        <path d="M14.5 7.5h-5v9h5M9.5 12h4" stroke="black" />
+      </mask>
+      <rect x="3" y="3" width="18" height="18" rx="3" fill="currentColor" stroke="none" mask={`url(#${id})`} />
+    </svg>
+  )
+}
 /** Stop: a square. */
 export const Stop = (p: IconProps) => (
   <svg {...base} {...p} fill="currentColor" stroke="none">

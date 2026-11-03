@@ -157,7 +157,7 @@ struct NowPlayingView: View {
                 .buttonStyle(RoundControlStyle(size: 96))
                 .focused($focusedControl, equals: .previous)
             Button { music.togglePlayPause() } label: {
-                Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? "pause.fill" : "play.fill")
+                Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? Symbol.pause : Symbol.play)
             }
             .buttonStyle(RoundControlStyle(size: 120, active: true))
             .focused($focusedControl, equals: .playPause)

@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Explicit
 import androidx.compose.material.icons.filled.LocalMovies
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Pause
@@ -86,6 +87,8 @@ object FlexarrIcons {
     val download: ImageVector get() = Icons.Outlined.ArrowCircleDown
     /** Delete a title, album, artist or book. */
     val delete: ImageVector get() = Icons.Outlined.Delete
+    /** Explicit (a badge on a track or episode). */
+    val explicit: ImageVector get() = Icons.Filled.Explicit
     /** Search for subtitles. */
     val subtitles: ImageVector get() = Icons.Outlined.SpeakerNotes
     /** Go to the show. */

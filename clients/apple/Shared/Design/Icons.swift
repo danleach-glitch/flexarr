@@ -44,6 +44,8 @@ enum Symbol {
     static let download = "arrow.down.circle"
     /// Delete a title, album, artist or book.
     static let delete = "trash"
+    /// Explicit (a badge on a track or episode).
+    static let explicit = "e.square.fill"
     /// Search for subtitles.
     static let subtitles = "captions.bubble"
     /// Go to the show.
@@ -84,5 +86,5 @@ enum Symbol {
     static let homeVideos = "folder"
 
     /// Every name above, so a debug build can check each one exists on this system.
-    static let all = [play, pause, startOver, shuffle, radio, trailer, watched, isWatched, markUnwatched, watchlist, onWatchlist, request, requested, follow, following, goToArtist, playNext, addToQueue, addToPlaylist, download, delete, subtitles, goToShow, more, home, libraries, search, settings, downloads, discover, comingSoon, liveTv, collections, nowPlaying, movies, shows, music, podcasts, audiobooks, homeVideos]
+    static let all = [play, pause, startOver, shuffle, radio, trailer, watched, isWatched, markUnwatched, watchlist, onWatchlist, request, requested, follow, following, goToArtist, playNext, addToQueue, addToPlaylist, download, delete, explicit, subtitles, goToShow, more, home, libraries, search, settings, downloads, discover, comingSoon, liveTv, collections, nowPlaying, movies, shows, music, podcasts, audiobooks, homeVideos]
 }

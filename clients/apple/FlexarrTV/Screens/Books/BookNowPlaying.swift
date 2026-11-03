@@ -79,7 +79,7 @@ struct BookNowPlaying<Cover: View>: View {
             .focusSection()
         } else if let next = music.nextBookOffer {
             HStack(spacing: 24) {
-                Button { music.playNextBook() } label: { Label("Play \(next.title)", systemImage: "play.fill") }
+                Button { music.playNextBook() } label: { Label("Play \(next.title)", systemImage: Symbol.play) }
                     .buttonStyle(ActionButtonStyle(ambient: next.ambientColor, prominent: true))
                     .focused($focused, equals: .offer)
             }
@@ -129,7 +129,7 @@ struct BookNowPlaying<Cover: View>: View {
                 .buttonStyle(RoundControlStyle(size: 96))
                 .focused($focused, equals: .back)
             Button { music.togglePlayPause() } label: {
-                Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? "pause.fill" : "play.fill")
+                Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? Symbol.pause : Symbol.play)
             }
             .buttonStyle(RoundControlStyle(size: 120, active: true))
             .focused($focused, equals: .playPause)

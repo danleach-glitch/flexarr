@@ -41,7 +41,7 @@ struct BookCard: View {
             .frame(width: width, alignment: .leading)
         }
         .contextMenu {
-            Button { model.playBook(item) } label: { Label(item.isResumable ? "Resume" : "Play", systemImage: "play.fill") }
+            Button { model.playBook(item) } label: { Label(item.isResumable ? "Resume" : "Play", systemImage: Symbol.play) }
             if !model.isKids {
                 if !item.userData.watched {
                     Button { Task { await model.setBookFinished(item, true) } } label: { Label("Mark as finished", systemImage: "checkmark.circle") }

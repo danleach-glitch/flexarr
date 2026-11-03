@@ -378,7 +378,7 @@ struct BookView: View {
                 .buttonStyle(.plain)
                 .contextMenu {
                     Button { note = mark.note ?? ""; editing = mark } label: { Label("Edit note", systemImage: "pencil") }
-                    Button(role: .destructive) { delete(mark) } label: { Label("Delete", systemImage: "trash") }
+                    Button(role: .destructive) { delete(mark) } label: { Label("Delete", systemImage: Symbol.delete) }
                 }
             }
         }

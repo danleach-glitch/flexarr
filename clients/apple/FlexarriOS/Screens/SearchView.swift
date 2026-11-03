@@ -19,7 +19,6 @@ struct SearchView: View {
     /// Whether music requests are on for this profile, and Lidarr answering; nil until asked.
     @State private var musicStatus: MusicRequestStatus?
 
-    private var looksForMusic: Bool { musicStatus?.configured == true }
     /// Lidarr isn't answering: music still shows, its requests wait.
     private var musicPaused: Bool { musicStatus?.configured == true && musicStatus?.reachable == false }
 
@@ -250,15 +249,13 @@ struct SearchView: View {
             // Asked once, before the first search that needs it.
             looksOutside = (try? await client.requestStatus())?.configured == true
         }
-        // Asked each search: the model keeps an answer for a minute, and not one that never came, so a blip doesn't hide
-        // outside music for the rest of the visit.
-        musicStatus = await model.musicRequestStatus()
         do {
             async let beyond: [ExternalTitle] = looksOutside == true ? (try? await client.searchEverything(text)) ?? [] : []
-            async let music: MusicSearchResults = looksForMusic ? (try? await client.searchMusic(text)) ?? .empty : .empty
+            async let music = searchMusic(client, text)
             let found = try await client.search(text)
             let more = await beyond
-            let moreMusic = await music
+            let (status, moreMusic) = await music
+            musicStatus = status
             guard text == query.trimmingCharacters(in: .whitespaces) else { return }
             results = found
             // What the library has is already above.
@@ -268,6 +265,15 @@ struct SearchView: View {
         } catch {
             self.error = ConnectionError(error).message
         }
+    }
+
+    /// Whether music can be asked for, then the music found when it can, beside the library search so a slow Lidarr
+    /// holds up only the music. Asked each search: the model keeps an answer for a minute, and not one that never came,
+    /// so a blip doesn't hide outside music for the rest of the visit.
+    private func searchMusic(_ client: FlexarrClient, _ text: String) async -> (MusicRequestStatus, MusicSearchResults) {
+        let status = await model.musicRequestStatus()
+        guard status.configured else { return (status, .empty) }
+        return (status, (try? await client.searchMusic(text)) ?? .empty)
     }
 
     /// Servers before 0.56 keep no recent searches, and one that can't be reached shows none: nothing to say either way.
