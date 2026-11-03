@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { HardwareAcceleration, Settings } from '../../api/client'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { useSettings } from './useSettings'
@@ -15,12 +15,13 @@ const accelerationLabel: Record<HardwareAcceleration, string> = {
 /** Converting video for devices that can't play the file as it is. Each choice saves as it's made. */
 export function StreamingSection() {
   const { settings, save, saved, saveError, waiting } = useSettings()
-  const [draft, setDraft] = useState<Settings['transcoding']>()
-  useEffect(() => settings && setDraft(settings.transcoding), [settings])
+  // What's being changed, against the settings it started from: once they're loaded again (after a save), they show.
+  const [edit, setEdit] = useState<{ from: Settings['transcoding']; value: Settings['transcoding'] }>()
+  const draft = edit && edit.from === settings?.transcoding ? edit.value : settings?.transcoding
   if (!settings || !draft) return waiting
 
   function change(next: Settings['transcoding'], now = true) {
-    setDraft(next)
+    setEdit({ from: settings!.transcoding, value: next })
     if (now) void save({ transcoding: next })
   }
 
