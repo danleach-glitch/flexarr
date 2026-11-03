@@ -103,6 +103,12 @@ public sealed partial class PlaybackSessions
 {
     private static readonly TimeSpan Expiry = TimeSpan.FromHours(12);
 
+    /// <summary>
+    /// A playback got ready ahead of Play that no player has taken up is dropped after this long: longer than any app
+    /// keeps one to take up (half an hour for the next episode, got ready during the credits).
+    /// </summary>
+    public static readonly TimeSpan WarmingExpiry = TimeSpan.FromMinutes(35);
+
     /// <summary>A playback that hasn't been heard from for this long isn't shown as what its device is playing.</summary>
     public static readonly TimeSpan NowPlayingStaleness = TimeSpan.FromMinutes(15);
 
@@ -314,7 +320,7 @@ public sealed partial class PlaybackSessions
             session.Shown = shows;
         }
 
-        foreach (var session in _sessions.Values.Where(s => DateTime.UtcNow - s.LastSeen > Expiry).ToList())
+        foreach (var session in _sessions.Values.Where(s => now - s.LastSeen > Expiry || (s.Warming && now - s.Created > WarmingExpiry)).ToList())
         {
             try
             {

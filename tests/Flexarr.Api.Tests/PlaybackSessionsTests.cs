@@ -91,6 +91,29 @@ public class PlaybackSessionsTests
     }
 
     [Fact]
+    public async Task PlaybacksGotReadyAheadOfPlay_AndNeverTakenUp_GoOnceNoAppWouldTakeThem()
+    {
+        var cache = Directory.CreateTempSubdirectory("flexarr-sessions-").FullName;
+        await using var transcodes = new TranscodeManager(
+            () => new TranscodeSettings { CacheDirectory = cache, MaxConcurrentTranscodes = 3 }, NullLoggerFactory.Instance);
+        var sessions = new PlaybackSessions(transcodes, NullLogger<PlaybackSessions>.Instance);
+        var old = DateTime.UtcNow - PlaybackSessions.WarmingExpiry - TimeSpan.FromMinutes(1);
+        var stale = Direct(old);
+        var recent = Direct(DateTime.UtcNow - TimeSpan.FromMinutes(5));
+        var playing = Direct(old);
+        playing.Warming = false;
+        sessions.Add(stale);
+        sessions.Add(recent);
+        sessions.Add(playing);
+
+        await sessions.SweepAsync();
+
+        Assert.Null(sessions.Get(stale.Id));
+        Assert.NotNull(sessions.Get(recent.Id));
+        Assert.NotNull(sessions.Get(playing.Id));
+    }
+
+    [Fact]
     public async Task AStreamGotReadyAheadOfPlay_GivesWayToARealStart_AndItsPlaybackGoes()
     {
         var cache = Directory.CreateTempSubdirectory("flexarr-sessions-").FullName;
