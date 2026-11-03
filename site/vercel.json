@@ -23,6 +23,10 @@
       ]
     },
     {
+      "source": "/languages/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }]
+    },
+    {
       "source": "/shots/(.*)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
     }
