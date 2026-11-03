@@ -109,7 +109,7 @@ The same words on every client and in the guide:
 
 - **Movies** (never "Films"), **shows**, **episodes**. Library names people chose themselves are theirs.
 - **Play**, **Resume from 32:10**, **Resume S1E3**, **Start over** (never "Play from beginning" or "Play from the start").
-- **Skip intro**, **Skip recap**, **Next episode in 10**: sentence case, like every label.
+- **Skip intro**, **Skip recap**, **Next episode in 10**: sentence case, like every label. The countdown's Cancel is an ✕, the right half of the Next episode pill (labelled Cancel for screen readers).
 - Playback settings: **Auto-play the next episode** ("The next episode starts after a 10-second countdown."), **Skip credits** ("Ends the episode as the credits start.").
 - **Mark as watched** and **Mark as unwatched** for video, **Mark as played** for podcasts, **Mark as finished** and **Mark as unread** for books. **Mark season as watched**.
 - Sorting a library: **A–Z**, **Recently added**, **Year**, **Rating** (never "Title", "Newest first" or "Highest rated"). Audiobooks add **Author**, **Series**, **Length** and **Recently listened**, and have no Rating.

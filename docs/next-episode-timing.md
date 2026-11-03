@@ -29,6 +29,9 @@ the playing position, so pausing during it holds it, and scrubbing back before i
 - **Cancel** during the countdown lets the episode play on, with a plain Next Episode button still up (the web keeps
   the card with only Play now). It then closes at the end, unless Next Episode is pressed. Cancel holds for the rest of
   that episode, through an audio change or a stream reopened mid-play. There's no dismiss before the countdown.
+- Cancel is an **✕**, the right half of the Next Episode pill (named Cancel for screen readers). Each half is its own
+  button: on a TV the focused half is white and the other grey; elsewhere Next Episode is white and the ✕ grey. The
+  pill keeps its "in 10" width while counting (fixed-width digits), and fades out as it is when moving on.
 - On the TVs, Back during the countdown is Cancel, and the remote's left and right move between the countdown's
   buttons. After Cancel, Select pauses as usual.
 - Moving on from the Next Episode button (or the countdown) counts the episode as watched, whatever its length.

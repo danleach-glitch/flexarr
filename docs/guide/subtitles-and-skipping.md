@@ -106,7 +106,7 @@ A **Next Episode** card comes as the credits start, or a minute before the end i
 - With **Skip credits** on, the countdown starts just before the credits, and the next episode starts as they begin.
 - With **Skip credits** off, the credits play to the end, and the countdown runs over their last 10 seconds.
 
-Pausing holds the countdown. Press **Cancel** (or Back on a TV) to stop it: the episode plays on to the end, and the player closes unless you press **Next Episode**. Skipping ahead into the credits plays them on, and the countdown comes over their last 10 seconds. Flexarr gets the next episode ready while the credits play, so it starts straight away. If the server is busy with other people's streams, it starts the usual way instead.
+Pausing holds the countdown. Press the **✕** beside it (or Back on a TV) to stop it: the episode plays on to the end, and the player closes unless you press **Next Episode**. Skipping ahead into the credits plays them on, and the countdown comes over their last 10 seconds. Flexarr gets the next episode ready while the credits play, so it starts straight away. If the server is busy with other people's streams, it starts the usual way instead.
 
 Turn the countdown off with **Auto-play the next episode** in **Settings › Playback**: the player then closes when the episode ends, or as the credits start with **Skip credits** on. If you watch a special in the middle of a season, Up next carries on with the regular episodes afterwards. When you're shuffling a show, the countdown plays another random episode.
 

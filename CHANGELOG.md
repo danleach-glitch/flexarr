@@ -7,7 +7,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Playback
 - The picture no longer pauses when **Next Episode** counts down. The episode keeps playing under a 10-second countdown, on every app and the web. With **Skip credits** on, the countdown starts just before the credits, so the next episode begins as they do. With it off, the credits play in full and the next episode follows straight on.
 - For shows with no credits found, **Next Episode** appears a minute before the end.
-- Pausing holds the countdown. **Cancel** lets the episode play to the end, then the player closes. On a TV, Back cancels it too.
+- Pausing holds the countdown. The **✕** beside **Next Episode** lets the episode play to the end, then the player closes. On a TV, Back does the same.
+- The countdown keeps still as it counts, rather than changing width with each number.
 - Skipping ahead into the credits plays them on, rather than jumping to the next episode.
 
 ### iPhone and Android
