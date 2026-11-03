@@ -71,6 +71,19 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Library
 - The server's cache no longer grows without limit: it now tidies away old scrubbing previews, subtitles and channel logos, and anything left by a crash.
+- If Sonarr or Radarr is down or restarting during a metadata refresh, films and shows stay linked to it. They no longer come unlinked for a week, which had let deleting them bypass Sonarr or Radarr.
+- Removing a folder from a library now removes everything that came from it, artists and videos straight in the folder included, so adding that folder to another library scans cleanly.
+- A folder the scan can't read for a moment (a permissions glitch, a share having trouble) no longer counts as deleted, so its titles and their playlist entries aren't removed a day later.
+- If one of several Radarrs can't be reached, franchise collections still sync from the others.
+
+### Music
+- When Lidarr upgrades a track (say MP3 to FLAC) or renames it, the track keeps its place in playlists and its play history.
+
+### Podcasts
+- One podcast feed that keeps failing no longer stops the others from refreshing.
+
+### Trakt
+- A Trakt history import and the regular Trakt sync no longer run at the same time for a profile, so imported plays aren't delayed and the import no longer fails when they overlap.
 
 ## 0.59.0 · 3 November 2026
 
