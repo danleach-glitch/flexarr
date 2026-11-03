@@ -432,6 +432,32 @@ public sealed class NotificationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AnAlbumWhoseFileIsDaysOld_ScannedNow_AnswersItsRequest()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var library = OldLibrary(LibraryType.Music);
+        // Imported by hand days after it downloaded: the scanner dates it by its file, but only sees it now.
+        var (artist, album) = Album(library, "Wet Leg", "moisturizer", _clock.Now.AddDays(-3), releaseGroup: "rg");
+        album.FirstSeenAt = _clock.Now.AddMinutes(1);
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.MediaItems.AddRange(artist, album);
+            db.MediaRequests.Add(new MediaRequest
+            {
+                ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Album, MusicBrainzId = "rg", Title = "moisturizer", ArtistName = "Wet Leg", RequestedAt = _clock.Now.AddDays(-5),
+            });
+        });
+
+        var sent = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(5)));
+
+        Assert.Equal("Your request is ready", sent.GetProperty("t").GetString());
+        Assert.Equal(album.Id.ToString(), sent.GetProperty("u").GetProperty("item").GetString());
+    }
+
+    [Fact]
     public async Task AnAlbumInALibraryHiddenFromWhoAsked_DoesntAnswerTheirRequest()
     {
         var (_, phone) = await PhoneAsync();

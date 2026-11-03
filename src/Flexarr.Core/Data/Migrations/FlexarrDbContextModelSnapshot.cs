@@ -856,6 +856,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<int?>("EpisodeNumberEnd")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("FirstSeenAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("HandedOverAt")
                         .HasColumnType("TEXT");
 

@@ -365,12 +365,14 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             since = window - MusicLate;
         }
 
+        // When Flexarr first saw it, not its file's date: a manual import or an album only the 12-hourly scan found
+        // lands dated hours or days back. Albums from before Flexarr kept that have only their file's date.
         var arrived = await db.MediaItems.AsNoTracking()
-            .Where(i => i.Kind == MediaKind.Album && i.Parent != null && i.AddedAt > since && i.AddedAt <= settled)
-            .OrderBy(i => i.AddedAt)
+            .Where(i => i.Kind == MediaKind.Album && i.Parent != null && (i.FirstSeenAt ?? i.AddedAt) > since && (i.FirstSeenAt ?? i.AddedAt) <= settled)
+            .OrderBy(i => i.FirstSeenAt ?? i.AddedAt)
             .Select(i => new
             {
-                i.Id, i.LibraryId, i.Title, i.MusicBrainzId, i.PosterUrl, i.AddedAt, i.ReleaseDate, i.Year,
+                i.Id, i.LibraryId, i.Title, i.MusicBrainzId, i.PosterUrl, AddedAt = i.FirstSeenAt ?? i.AddedAt, i.ReleaseDate, i.Year,
                 Artist = i.Parent!.Title, ArtistMusicBrainzId = i.Parent.MusicBrainzId,
             })
             .ToListAsync(ct);
