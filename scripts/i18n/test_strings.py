@@ -165,5 +165,30 @@ class PseudoTests(unittest.TestCase):
         self.assertTrue(got.startswith("⟦Ŕéšûḿé ƒŕöḿ 1:00") and got.endswith("⟧"), got)
 
 
+
+class WrapTests(unittest.TestCase):
+    def test_ts(self):
+        import wrap
+        out, manual = wrap.wrap_ts('<b>Mark as watched</b> <i aria-label="Close">x</i> <p>Hi {name}</p>')
+        self.assertIn("<b>{t('Mark as watched')}</b>", out)
+        self.assertIn("aria-label={t('Close')}", out)
+        self.assertIn("<p>Hi {name}</p>", out)
+        self.assertTrue(manual)
+
+    def test_swift_skips_interpolation(self):
+        import wrap
+        out, manual = wrap.wrap_swift('Text("Play") Button("Resume \\(time)") { }')
+        self.assertIn('Text(t("Play"))', out)
+        self.assertIn('Button("Resume', out)
+        self.assertEqual(len(manual), 1)
+
+    def test_kotlin(self):
+        import wrap
+        out, _ = wrap.wrap_kotlin('Text("Play"); Icon(contentDescription = "Back"); Text("$n items")')
+        self.assertIn('Text(t("Play"))', out)
+        self.assertIn('contentDescription = t("Back")', out)
+        self.assertIn('Text("$n items")', out)
+
+
 if __name__ == "__main__":
     unittest.main()
