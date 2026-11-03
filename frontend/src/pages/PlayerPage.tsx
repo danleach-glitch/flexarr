@@ -305,7 +305,9 @@ export function PlayerPage() {
     setNativeHls(playback.method === 'Transcode' && !viaHlsJs)
     if (viaHlsJs) {
       // Subtitles are rendered as <track>s, so leave them out of the HLS manifest.
-      const player = new Hls({ startPosition: position, maxBufferLength: 60, backBufferLength: 90 })
+      // The first segment is fetched while the playlists load (not once the video element is ready), and there's only
+      // ever one quality, so no bandwidth test first.
+      const player = new Hls({ startPosition: position, maxBufferLength: 60, backBufferLength: 90, startFragPrefetch: true, testBandwidth: false })
       // Media errors get hls.js's own recovery first; one that keeps coming back asks the server for a fresh stream.
       const onMediaError = mediaErrorRecovery(player, () => void recoverRef.current())
       player.on(Hls.Events.ERROR, (_, data) => {
