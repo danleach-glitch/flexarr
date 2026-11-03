@@ -13,6 +13,8 @@ import {
   languageOptions,
   nextChapterStart,
   parseClock,
+  readLocalPlace,
+  saveLocalPlace,
   previousChapterStart,
   sleepReached,
   smartRewindSeconds,
@@ -184,6 +186,22 @@ describe('startDecision', () => {
   it('starts a finished book over, and a place asked for wins', () => {
     expect(startDecision(progress(0, now, 'x', true), { position: 500, savedAt: now - 10 * 60_000 })).toEqual({ start: 0, offer: null })
     expect(startDecision(progress(900, now), { position: 500, savedAt: now - 10 * 60_000 }, 60)).toEqual({ start: 60, offer: null })
+  })
+})
+
+describe("this browser's place in a book", () => {
+  it('is kept for each profile chosen here', () => {
+    saveLocalPlace('b', 600, 1000)
+    localStorage.setItem('flexarr.profile', 'kid-1.signature')
+    try {
+      expect(readLocalPlace('b')).toBeNull()
+      saveLocalPlace('b', 30, 2000)
+      expect(readLocalPlace('b')).toEqual({ position: 30, savedAt: 2000 })
+    } finally {
+      localStorage.removeItem('flexarr.profile')
+    }
+    expect(readLocalPlace('b')).toEqual({ position: 600, savedAt: 1000 })
+    localStorage.clear()
   })
 })
 

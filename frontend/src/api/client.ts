@@ -65,13 +65,13 @@ import type {
   SystemStatus,
   UpcomingItem,
 } from './types'
+import { PROFILE_STORAGE } from '../lib/profileScope'
 import { session } from '../lib/session'
 
 export type * from './types'
 
 // Where earlier versions kept the API key itself; it's traded for a session cookie and removed.
 const LEGACY_API_KEY_STORAGE = 'flexarr.apiKey'
-const PROFILE_STORAGE = 'flexarr.profile'
 
 /** Thrown when the server rejects the request for a missing or wrong API key. */
 export class UnauthorizedError extends Error {

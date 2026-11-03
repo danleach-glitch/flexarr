@@ -1,5 +1,6 @@
 import type { BookChapter, BookFile, BookProgress, BookSeriesRef, ItemSummary } from '../api/types'
 import { formatClock } from './format'
+import { profileKey } from './profileScope'
 
 /** A book, rather than a film, track or episode. */
 export const isBook = (item: Pick<ItemSummary, 'kind'> | undefined) => item?.kind === 'Audiobook'
@@ -205,7 +206,8 @@ export function startDecision(progress: BookProgress, local: LocalPlace | null, 
   return { start: local.position, offer: { position: server, device: progress.device } }
 }
 
-const placeKey = (bookId: string) => `flexarr.bookPlace.${bookId}`
+/** This browser's place in a book, for the profile chosen here (a child never starts at a parent's place). */
+const placeKey = (bookId: string) => profileKey(`flexarr.bookPlace.${bookId}`)
 
 export function readLocalPlace(bookId: string): LocalPlace | null {
   try {

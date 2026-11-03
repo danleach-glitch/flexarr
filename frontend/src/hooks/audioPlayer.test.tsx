@@ -73,7 +73,7 @@ function playbackApi(extra: Record<string, unknown> = {}) {
   return { requests, stopped, ended }
 }
 
-const stored = () => JSON.parse(sessionStorage.getItem(queueStorageKey) ?? 'null') as { ids: string[]; albums: string[]; index: number; position: number } | null
+const stored = () => JSON.parse(sessionStorage.getItem(queueStorageKey()) ?? 'null') as { ids: string[]; albums: string[]; index: number; position: number } | null
 
 /** The two elements, as the provider renders them. */
 const elements = () => Array.from(document.querySelectorAll('audio'))
@@ -154,7 +154,7 @@ describe('AudioPlayerProvider', () => {
     // Stopping forgets it.
     act(() => result.current.stop())
     expect(result.current.current).toBeUndefined()
-    expect(sessionStorage.getItem(queueStorageKey)).toBeNull()
+    expect(sessionStorage.getItem(queueStorageKey())).toBeNull()
   })
 
   it('opens Now Playing for Play and Shuffle, not for a track picked from a list', async () => {
@@ -172,7 +172,7 @@ describe('AudioPlayerProvider', () => {
   })
 
   it('brings a stored queue back paused after a reload, and Play picks up where it was', async () => {
-    sessionStorage.setItem(queueStorageKey, JSON.stringify({ ids: ['t1', 't2'], albums: ['album-1'], index: 1, position: 42 }))
+    sessionStorage.setItem(queueStorageKey(), JSON.stringify({ ids: ['t1', 't2'], albums: ['album-1'], index: 1, position: 42 }))
     const { requests } = playbackApi({ '/items/album-1': album })
     const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
 
@@ -188,8 +188,24 @@ describe('AudioPlayerProvider', () => {
     await waitFor(() => expect(requests).toEqual([{ itemId: 't2', profile: expect.anything(), startPositionSeconds: 42 }]))
   })
 
+  it("doesn't bring back another profile's queue after Switch profile", async () => {
+    sessionStorage.setItem(queueStorageKey(), JSON.stringify({ ids: ['t1', 't2'], albums: ['album-1'], index: 1, position: 42 }))
+    localStorage.setItem('flexarr.profile', 'kid-1.signature')
+    try {
+      const { requests } = playbackApi({ '/items/album-1': album })
+      const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      })
+      expect(result.current.queue).toEqual([])
+      expect(requests).toEqual([])
+    } finally {
+      localStorage.removeItem('flexarr.profile')
+    }
+  })
+
   it('drops stored tracks that no longer exist and forgets a queue with none left', async () => {
-    sessionStorage.setItem(queueStorageKey, JSON.stringify({ ids: ['gone', 't2'], albums: ['album-1'], index: 0, position: 5 }))
+    sessionStorage.setItem(queueStorageKey(), JSON.stringify({ ids: ['gone', 't2'], albums: ['album-1'], index: 0, position: 5 }))
     playbackApi({ '/items/album-1': album, '/items/gone': new Response('', { status: 404 }) })
     const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
 
@@ -199,7 +215,7 @@ describe('AudioPlayerProvider', () => {
   })
 
   it('a queue played before the restore finishes wins', async () => {
-    sessionStorage.setItem(queueStorageKey, JSON.stringify({ ids: ['t1'], albums: ['album-1'], index: 0, position: 5 }))
+    sessionStorage.setItem(queueStorageKey(), JSON.stringify({ ids: ['t1'], albums: ['album-1'], index: 0, position: 5 }))
     let answer: (value: unknown) => void = () => undefined
     playbackApi({ '/items/album-1': () => new Promise((resolve) => (answer = resolve)) })
     const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
