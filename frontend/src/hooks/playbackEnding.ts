@@ -35,6 +35,23 @@ export function endingFrom(key: string): PlaybackEnding | undefined {
   return last && last.from === key ? last : undefined
 }
 
+let onBrowserBack: (() => void) | undefined
+
+/** What the open player does as the browser's Back (or a swipe) leaves it: record how the sitting ended. The player
+ * passes undefined and its own handler as it closes, which clears it only if no other player has set one since. */
+export function whenBrowserBack(handler: (() => void) | undefined, replacing?: () => void) {
+  if (handler || onBrowserBack === replacing) onBrowserBack = handler
+}
+
+/** Runs on every `popstate`, ahead of React Router's own listener: it's added here as the app loads, before the router
+ * mounts, and in the capture phase, which runs first at the window. React renders the new route in a microtask between
+ * listeners, so an ending recorded any later lets the page Play was pressed on render without it. */
+export function browserMoved() {
+  onBrowserBack?.()
+}
+
+if (typeof window !== 'undefined') window.addEventListener('popstate', browserMoved, { capture: true })
+
 /** Where a page showing `shown` goes now: past an episode watched to its end, or on to the one the player had moved on
  * to and stopped part way through. Undefined to stay (a show's page, the last episode, stopped part way). */
 export function moveOn(ending: PlaybackEnding, shown: string): string | undefined {

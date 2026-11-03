@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clearEnding, endingFrom, isWatched, moveOn, recordEnding } from './playbackEnding'
+import { browserMoved, clearEnding, endingFrom, isWatched, moveOn, recordEnding, whenBrowserBack } from './playbackEnding'
 
 describe('playback ending', () => {
   it('moves on past a finished episode, to where it stopped, or nowhere', () => {
@@ -26,5 +26,36 @@ describe('playback ending', () => {
     expect(isWatched(85, 100, 84)).toBe(true)
     expect(isWatched(90, 100, undefined)).toBe(false)
     expect(isWatched(0, 0, undefined)).toBe(false)
+  })
+})
+
+describe('browser Back from the player', () => {
+  it("runs the player's handler before the router's popstate listener", () => {
+    const order: string[] = []
+    const router = () => order.push('router')
+    const player = () => order.push('player')
+    window.addEventListener('popstate', router)
+    whenBrowserBack(player)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+    window.removeEventListener('popstate', router)
+    whenBrowserBack(undefined, player)
+    expect(order).toEqual(['player', 'router'])
+  })
+
+  it('records the ending as the history moves, only while that player is open', () => {
+    clearEnding()
+    const onBack = () => recordEnding({ from: 'k1', startedWith: 'e2', stoppedOn: 'e2', watched: true, next: 'e3' })
+    whenBrowserBack(onBack)
+    browserMoved()
+    expect(endingFrom('k1')?.next).toBe('e3')
+    clearEnding()
+    // Another player's close doesn't clear this one's handler.
+    whenBrowserBack(undefined, () => undefined)
+    browserMoved()
+    expect(endingFrom('k1')).toBeDefined()
+    clearEnding()
+    whenBrowserBack(undefined, onBack)
+    browserMoved()
+    expect(endingFrom('k1')).toBeUndefined()
   })
 })
