@@ -150,5 +150,20 @@ class FormatCaseTests(unittest.TestCase):
                 icu.parse(m)
 
 
+
+class PseudoTests(unittest.TestCase):
+    def test_keeps_values_and_plurals_working(self):
+        import pseudo
+        pack = pseudo.build({"Resume from {time}": "Resume from {time}",
+                             "{n, plural, one {# season} other {# seasons}}": "{n, plural, one {# season} other {# seasons}}"},
+                            {})
+        for key, text in pack["messages"].items():
+            ok = strings.validate_translation("en-XA", key, text.replace("⟦", "").replace("⟧", ""), icu.parse(key), RULES,
+                                              strings.Problems())
+            self.assertTrue(ok, text)
+        got = icu.format_message(icu.parse(pack["messages"]["Resume from {time}"]), "en", {"time": "1:00"}, RULES)
+        self.assertTrue(got.startswith("⟦Ŕéšûḿé ƒŕöḿ 1:00") and got.endswith("⟧"), got)
+
+
 if __name__ == "__main__":
     unittest.main()

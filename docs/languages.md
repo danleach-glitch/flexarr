@@ -188,10 +188,10 @@ Staying English: the changelog and release notes, the MCP tools' text (read by A
 
 ## Testing
 
-`make strings pseudo=1` writes `languages/packs/qps.json` (git-ignored), a pseudo-language made from English: accented (*Ḿàŕķ àś
-ŵàţçĥéḍ*), 30% longer, and wrapped in ⟦ ⟧. It's never published or built into a release. Point a preview at it,
-and any plain English on screen is a string that hasn't been moved, and any clipping is a layout too tight for
-German.
+`python3 scripts/i18n/pseudo.py <data folder>/languages` writes a pseudo-language (`en-XA`, *Pseudo (test)*)
+into a server's pack folder, made from English: accented (*Ḿàŕķ àš ŵàţçĥéđ~~~~*), 30% longer, and wrapped in
+⟦ ⟧. It's never published or built into a release. Pick it in a preview, and any plain English on screen is a
+string that hasn't been moved, and any clipping is a layout too tight for German.
 
 ## Adding a language
 
