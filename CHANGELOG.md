@@ -24,6 +24,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Mac app
 - The Live TV recordings folder, the backups folder and the server side of a path mapping are now chosen in macOS's folder window, so they're folders the Mac app can actually use.
 - A library folder on a USB drive or NAS that wasn't mounted when the app started is no longer forgotten: it opens as soon as the drive mounts.
+- The Mac app announces the server on your network itself, so the Flexarr apps can find it.
+- Bringing Plex profile pictures over now says it can't be done in the Mac app, instead of saying Plex isn't signed in.
 
 ### Live TV
 - Settings now refuses a recordings folder Flexarr can't write to and says why, instead of saving it and letting every recording fail later. Its folder can also be picked by browsing.
@@ -48,6 +50,14 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The setup guide hides Radarr, Sonarr and Lidarr API keys as you type them, like Settings › Connections does, and a kids profile no longer briefly opens adult-only pages before going Home.
 - On Android, away from home, your sign-in goes to your server's home address only after it has shown it's your server, so another network using the same address never receives it.
 - On Android, a server found on your network is reached only at its home-network address, never at an address somewhere else that it advertises.
+- Downloading a backup or exporting settings now asks for the admin PIN, as showing the API key does: both files hold every key.
+- Switching "Ask for the API key" to "Only away from home" now asks for the admin PIN.
+- Playback events for Home Assistant no longer include anything that could be used to open someone else's stream.
+- A phone on a profile with an age limit no longer sees the title or artwork of a film past that limit playing on another screen.
+- The assistant's "what's playing" tool tells family guests nothing about the household's screens.
+- Podcast artwork can no longer make the server fetch from your home network.
+- Guessing the admin PIN from many addresses now runs out of tries for the day; signed-in admins still get in.
+- In Docker, Settings warns that "Only away from home" can let visitors from the internet in.
 
 ### Playback
 - A title got ready ahead of Play now builds its full run-ahead once you press Play, so skipping an intro or jumping ahead soon after starting no longer stalls while the server catches up.
