@@ -586,6 +586,24 @@ describe('AudioPlayerProvider', () => {
       vi.restoreAllMocks()
     })
 
+    it('send where the episode got to as the page closes', async () => {
+      podcastApi(null)
+      const beacon = vi.fn((_url: string, _body?: BodyInit | null) => true)
+      vi.stubGlobal('navigator', { ...navigator, sendBeacon: beacon })
+      const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+      act(() => result.current.play([first] as unknown as ItemSummary[], 0))
+      const [a] = elements()
+      await waitFor(() => expect(a.getAttribute('src')).toBe('/stream/e1'))
+      act(() => void a.dispatchEvent(new Event('loadedmetadata')))
+      a.currentTime = 412
+
+      act(() => void window.dispatchEvent(new Event('pagehide')))
+      expect(beacon).toHaveBeenCalledTimes(1)
+      const [url, body] = beacon.mock.calls[0]
+      expect(url).toBe('/api/v1/playback/session-e1/progress')
+      expect(JSON.parse(await (body as Blob).text())).toEqual({ positionSeconds: 412, paused: true })
+    })
+
     it('stop without saying where when taken out of Continue, and leave another episode playing', async () => {
       const { progress } = podcastApi(null)
       const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })

@@ -752,7 +752,12 @@ export function createEngine(host: EngineHost): AudioEngine {
     },
 
     beacon() {
-      if (!book) return
+      if (!book) {
+        // A podcast episode part way through: its place, as the tab closes, so the next play picks up there.
+        const c = current()
+        if (c?.session && isPodcast(c.track) && c.el.currentTime > 1 && !c.el.ended) beaconProgress(c.session, c.el.currentTime)
+        return
+      }
       saveLocalPlace(book.track.id, bookTime())
       markIfStale(book)
       if (book.expired) beaconBookProgress(book.track.id, bookTime(), deviceName())
