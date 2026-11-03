@@ -109,7 +109,9 @@ public sealed class EventTests : IDisposable
         await ReportAsync(session, 5);
         var started = await NextEventAsync(events);
         Assert.Equal("Started", started.GetProperty("kind").GetString());
-        Assert.Equal(session, started.GetProperty("sessionId").GetString());
+        // The public playback id, never the session id: that works as the password for the stream.
+        Assert.Equal(Flexarr.Api.Logging.Redactor.ShortHash(session), started.GetProperty("sessionId").GetString());
+        Assert.DoesNotContain(session, started.GetRawText(), StringComparison.Ordinal);
         Assert.Equal(deviceId, started.GetProperty("deviceId").GetString());
         Assert.Equal("Living room", started.GetProperty("deviceName").GetString());
         Assert.Equal("Heat", started.GetProperty("item").GetProperty("title").GetString());
@@ -151,7 +153,7 @@ public sealed class EventTests : IDisposable
         await ReportAsync(playing, 1);
         var first = await NextEventAsync(events);
         Assert.Equal("Started", first.GetProperty("kind").GetString());
-        Assert.Equal(playing, first.GetProperty("sessionId").GetString());
+        Assert.Equal(Flexarr.Api.Logging.Redactor.ShortHash(playing), first.GetProperty("sessionId").GetString());
     }
 
     [Fact]
