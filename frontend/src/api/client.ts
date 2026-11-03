@@ -1,3 +1,4 @@
+import { linkSpeed } from '../lib/linkSpeed'
 import type {
   Activity,
   LiveChannel,
@@ -958,7 +959,8 @@ export const getPodcastCountries = (signal?: AbortSignal) => cachedGet<PodcastCo
 export const importOpml = (file: Blob) => request<OpmlImport>('POST', '/podcasts/opml', file.type ? file : new Blob([file], { type: 'text/x-opml' }))
 export const opmlUrl = '/api/v1/podcasts/opml'
 
-export const startPlayback = (body: PlaybackRequest) => request<PlaybackInfo>('POST', '/playback', body)
+/** Starts playback, saying how fast this browser's connection has been lately (see lib/linkSpeed). */
+export const startPlayback = (body: PlaybackRequest) => request<PlaybackInfo>('POST', '/playback', { measuredBitrate: linkSpeed(), ...body })
 export const getPlaybackPreferences = (signal?: AbortSignal) => apiGet<PlaybackPreferences>('/me/playback-preferences', signal)
 export const setPlaybackPreferences = (preferences: PlaybackPreferences) => request<PlaybackPreferences>('PUT', '/me/playback-preferences', preferences)
 /**
@@ -1003,7 +1005,7 @@ export async function prepareStream(body: PlaybackRequest): Promise<PlaybackInfo
   const response = await fetch('/api/v1/playback', {
     method: 'POST',
     headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...body, prepare: true }),
+    body: JSON.stringify({ measuredBitrate: linkSpeed(), ...body, prepare: true }),
   })
   if (!response.ok) throw await failure(response)
   return JSON.parse(await response.text(), asUtc) as PlaybackInfo
