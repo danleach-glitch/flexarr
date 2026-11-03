@@ -308,6 +308,8 @@ builder.Services.AddSingleton<GuestTvCodes>();
 builder.Services.AddScoped<GuestLinks>();
 builder.Services.AddHostedService<GuestPolicyWatcher>();
 builder.Services.AddHostedService<PlaybackSweeper>();
+builder.Services.AddSingleton<CacheJanitor>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<CacheJanitor>());
 builder.Services.AddHostedService<MarkerDetectionWorker>();
 
 builder.Services.AddSingleton<ILibraryScanQueue, LibraryScanQueue>();
