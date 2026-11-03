@@ -1652,7 +1652,7 @@ export function PlayerPage() {
                 <div className="player-menu-column">
                   <h3>While watching</h3>
                   <MenuItem toggle selected={preferences.autoPlayNext} onClick={() => togglePreference('autoPlayNext')}>
-                    Auto-play next episode
+                    Auto-play the next episode
                   </MenuItem>
                   <MenuItem toggle selected={preferences.skipIntros} onClick={() => togglePreference('skipIntros')}>
                     Skip intros

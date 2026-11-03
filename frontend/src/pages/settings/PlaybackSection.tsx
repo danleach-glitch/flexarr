@@ -29,7 +29,7 @@ function WhileWatching({ name }: { name?: string }) {
 
   type Toggle = 'autoPlayNext' | 'skipIntros' | 'skipRecaps' | 'skipCredits'
   const options: { key: Toggle; label: string; help: string }[] = [
-    { key: 'autoPlayNext', label: 'Auto-play the next episode', help: 'A 10-second countdown, then the next episode starts.' },
+    { key: 'autoPlayNext', label: 'Auto-play the next episode', help: 'The next episode starts after a 10-second countdown.' },
     { key: 'skipIntros', label: 'Skip intros', help: 'Jumps past the opening titles by itself.' },
     { key: 'skipRecaps', label: 'Skip recaps', help: 'Jumps past “Previously on…” by itself.' },
     { key: 'skipCredits', label: 'Skip credits', help: 'Ends the episode as the credits start.' },
