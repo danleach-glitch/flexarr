@@ -75,13 +75,23 @@ public sealed partial class BookFileConverter : IDisposable
     /// Starts converting the parts a player is about to ask for that need it, the one at <paramref name="fromSeconds"/>
     /// first, so they're ready (or under way) by the time it does; no more than <see cref="MaxPrepared"/>.
     /// </summary>
-    public void Prepare(IEnumerable<BookPart> parts, double fromSeconds = 0)
+    public void Prepare(IEnumerable<BookPart> parts, double fromSeconds = 0) => Prepare(parts, fromSeconds, MaxPrepared);
+
+    /// <summary>
+    /// <see cref="Prepare(IEnumerable{BookPart}, double)"/>, no more than <paramref name="most"/> files; returns how many
+    /// it started (or found under way, or done).
+    /// </summary>
+    public int Prepare(IEnumerable<BookPart> parts, double fromSeconds, int most)
     {
         ArgumentNullException.ThrowIfNull(parts);
-        foreach (var part in parts.Where(p => p.Convert).OrderBy(p => p.OffsetSeconds + p.DurationSeconds <= fromSeconds).ThenBy(p => p.Index).Take(MaxPrepared))
+        var started = 0;
+        foreach (var part in parts.Where(p => p.Convert).OrderBy(p => p.OffsetSeconds + p.DurationSeconds <= fromSeconds).ThenBy(p => p.Index).Take(most))
         {
             _ = Start(part.FileId, part.Path);
+            started++;
         }
+
+        return started;
     }
 
     /// <summary>

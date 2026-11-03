@@ -234,7 +234,7 @@ public sealed class BookConversionTests : IDisposable
             Microsoft.Extensions.Logging.Abstractions.NullLogger<BookConversionWarmer>.Instance);
         Assert.Equal(1, await warmer.RunOnceAsync(CancellationToken.None));
 
-        await WaitForAsync(() => _started == 2); // both WMA files of the book in progress; nothing of the finished one
+        await WaitForAsync(() => _started == 2); // both WMA files of the book in progress (two at most); nothing of the finished one
         _gate.SetResult();
         var file = await Client().GetAsync(Url($"/api/v1/items/{book}/book/files/1?convert=aac"));
         Assert.Equal("converted", await file.Content.ReadAsStringAsync());
