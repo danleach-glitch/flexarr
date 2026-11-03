@@ -23,6 +23,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Live TV
 - Settings now refuses a recordings folder Flexarr can't write to and says why, instead of saving it and letting every recording fail later. Its folder can also be picked by browsing.
 - Leaving a channel while it's still starting now lets the provider's stream go, so the next channel isn't refused. The channel list loads logos as you scroll and shows the channel's initials when a logo fails.
+- Stopping a recording just after the server restarts now stops it and saves what was recorded.
+- Live TV and films starting at the same moment can no longer go over the server's limit on playback at once.
 
 ### Web
 - Settings › Backups lets you browse for the backups folder as well as typing it.
@@ -41,6 +43,19 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The setup guide hides Radarr, Sonarr and Lidarr API keys as you type them, like Settings › Connections does, and a kids profile no longer briefly opens adult-only pages before going Home.
 - On Android, away from home, your sign-in goes to your server's home address only after it has shown it's your server, so another network using the same address never receives it.
 - On Android, a server found on your network is reached only at its home-network address, never at an address somewhere else that it advertises.
+
+### Playback
+- A title got ready ahead of Play now builds its full run-ahead once you press Play, so skipping an intro or jumping ahead soon after starting no longer stalls while the server catches up.
+- Looking at a title page no longer keeps the server converting that title for minutes, so browsing doesn't fill the server's playback slots.
+- The first moments of an Apple TV stream no longer sometimes fail with "The segment couldn't be converted".
+- When the hardware encoder fails after a jump in a film, Apple players now restart the stream cleanly instead of playing a picture that doesn't match.
+
+### Downloads
+- A download the hardware encoder can't convert is now converted again in software, instead of failing with "Converting this file didn't work."
+- A download whose conversion hits an unexpected error now says it failed, instead of staying at "Preparing 0%" until the server restarts.
+
+### Library
+- The server's cache no longer grows without limit: it now tidies away old scrubbing previews, subtitles and channel logos, and anything left by a crash.
 
 ## 0.59.0 · 3 November 2026
 
