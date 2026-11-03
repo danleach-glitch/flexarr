@@ -621,12 +621,14 @@ export function PlayerPage() {
   }, [info])
 
   // Subtitles sit where the profile put them over the picture (or in the black bar below it), and rise above the
-  // controls while they're showing. Cues are placed by their top edge as a percentage of the video's height (Chrome
-  // ignores lineAlign), so each cue's own height (its lines at the ::cue font size in player.css) is allowed for and
-  // multi-line cues grow upwards. A track's cues (a
+  // controls (and the Next Episode card) while they're showing. Cues are placed by their top edge as a percentage of
+  // the video's height (Chrome ignores lineAlign), so each cue's own height (its lines at the ::cue font size in
+  // player.css) is allowed for and multi-line cues grow upwards. A track's cues (a
   // film has a thousand or two) are all placed once, when they've loaded or the space changes; after that each
   // cuechange touches only the cues on screen.
   const controls = useRef<HTMLElement>(null)
+  // The Next Episode card, while it shows: subtitles rise above it too.
+  const [upNextCard, setUpNextCard] = useState<HTMLElement | null>(null)
   useEffect(() => {
     const el = video.current
     const tracks = el?.textTracks
@@ -636,7 +638,8 @@ export function PlayerPage() {
       const box = el.getBoundingClientRect()
       const height = box.height || innerHeight
       const linePx = Math.min(32, Math.max(17.6, innerWidth * 0.024)) * scale * 1.3 + 2
-      const controlsLift = chrome && controls.current ? controls.current.getBoundingClientRect().height + 20 : 0
+      const card = upNextCard ? box.bottom - upNextCard.getBoundingClientRect().top + 12 : 0
+      const controlsLift = Math.max(chrome && controls.current ? controls.current.getBoundingClientRect().height + 20 : 0, card)
       const { top, picture, bar } = pictureIn(box.width || innerWidth, height, el.videoWidth, el.videoHeight)
       for (const track of Array.from(el.textTracks)) {
         if (track.mode !== 'showing' || !track.cues) continue
@@ -671,7 +674,7 @@ export function PlayerPage() {
       window.removeEventListener('resize', onResize)
       el.removeEventListener('resize', onResize)
     }
-  }, [chrome, subtitleKey, scale, position, blackBars])
+  }, [chrome, subtitleKey, scale, position, blackBars, upNextCard])
 
   // Styled subtitles (ASS/SSA) are drawn as authored, with their fonts, over the video, rather than as plain cues. If
   // that can't start (a browser without WebGL or WebAssembly), the plain version shows instead.
@@ -1401,7 +1404,7 @@ export function PlayerPage() {
       </div>
 
       {showUpNext && info?.next && !error && (
-        <aside className="up-next" aria-label="Next episode">
+        <aside className="up-next" ref={setUpNextCard} aria-label="Next episode">
           <div className="up-next-still">
             <img src={imageUrl(info.next.artwork.thumb ?? info.next.artwork.backdrop, 500)} alt="" />
             {counting && (
