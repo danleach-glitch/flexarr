@@ -6,9 +6,9 @@ import android.Manifest
 import android.content.Intent
 import android.os.Build
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.snapshotFlow
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.flow.filter
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.os.Bundle
@@ -30,9 +30,6 @@ import io.github.flexarr.ui.tv.TvRoot
 private val flexarrLog = FlexarrLog("launch")
 
 class MainActivity : ComponentActivity() {
-    /** Android's question about notifications, asked by the first download (DownloadStore.asksNotificationPermission). */
-    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
-
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
@@ -50,14 +47,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             FlexarrTheme {
                 if (usesTvInterface) TvRoot(appModel) else FlexarrRoot(appModel)
-            }
-        }
-        if (Build.VERSION.SDK_INT >= 33) {
-            lifecycleScope.launch {
-                snapshotFlow { appModel.downloads.asksNotificationPermission }.filter { it }.collect {
-                    appModel.downloads.asksNotificationPermission = false
-                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
+                DownloadNotificationsQuestion(appModel)
             }
         }
     }
@@ -126,5 +116,18 @@ class MainActivity : ComponentActivity() {
                 startActivity(player)
             }
         }
+    }
+}
+
+/** Android's question about notifications, asked by the first download (DownloadStore.asksNotificationPermission). */
+@Composable
+private fun DownloadNotificationsQuestion(model: AppModel) {
+    if (Build.VERSION.SDK_INT < 33) return
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    val asks = model.downloads.asksNotificationPermission
+    LaunchedEffect(asks) {
+        if (!asks) return@LaunchedEffect
+        model.downloads.asksNotificationPermission = false
+        permission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 }
