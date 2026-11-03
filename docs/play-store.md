@@ -46,7 +46,9 @@ The text and graphics live in `clients/android/app/src/main/play` (Gradle Play P
 upload. As on the App Store, the listing pitches your own streaming service, and the server is put positively.
 
 - **Category:** Entertainment. **Price:** free, in every country Play offers. **Contains ads:** no.
-- **Contact:** website https://flexarr.io; the email is set in Play Console only, so it stays out of this repo.
+- **Contact:** website https://flexarr.io (`contact-website.txt`). Play needs an email too, and every listing upload
+  sends one, but it stays out of this repo: `make android-listing` copies it from
+  `~/.flexarr-release/play-contact-email.txt` into `contact-email.txt`, which git ignores.
 - **Privacy policy:** https://flexarr.io/privacy.
 - **Android TV:** the 1280×720 banner and 1920×1080 screenshots in `graphics/tv-banner` and `graphics/tv-screenshots`,
   from the `Flexarr_Google_TV` emulator on the same Showcase profile.
