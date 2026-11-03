@@ -1395,8 +1395,13 @@ export function PlayerPage() {
         </button>
       )}
 
+      {/* Said once as the card shows: the countdown's number ticks every second, so it stays out of the live region. */}
+      <div className="visually-hidden" aria-live="polite">
+        {showUpNext && info?.next && !error ? `Next episode: ${episodeCode(info.next)} ${info.next.title}` : ''}
+      </div>
+
       {showUpNext && info?.next && !error && (
-        <aside className="up-next" aria-live="polite">
+        <aside className="up-next" aria-label="Next episode">
           <div className="up-next-still">
             <img src={imageUrl(info.next.artwork.thumb ?? info.next.artwork.backdrop, 500)} alt="" />
             {counting && (
