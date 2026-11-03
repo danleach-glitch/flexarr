@@ -429,12 +429,24 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         }
     }
 
+    /// <summary>How long a killed ffmpeg is waited for, so it can't write one more segment after its folder is cleared.</summary>
+    private static readonly TimeSpan KillWait = TimeSpan.FromSeconds(2);
+
     /// <summary>Call with the gate held.</summary>
     private void StopProcess()
     {
         if (_process is { } process && IsAlive(process))
         {
             ProcessSignals.KillTree(process);
+            try
+            {
+                // A kill is only a signal: wait (briefly) for it to land before its segments are deleted or trusted.
+                process.WaitForExit(KillWait);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                // Already gone.
+            }
         }
     }
 
