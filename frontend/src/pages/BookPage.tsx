@@ -1,4 +1,4 @@
-import { memo, use, useCallback, useState, type CSSProperties } from 'react'
+import { memo, use, useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
   clearApiCache,
@@ -28,6 +28,9 @@ import { Bookmark as BookmarkIcon, Check, Close, Play } from '../components/icon
 import { icon } from '../components/icons.generated'
 import type { MenuAction } from '../components/ItemMenu'
 import { Overview } from '../components/Overview'
+import { deviceName } from '../lib/books'
+import { getReady, leave, PAGE_DELAY_MS } from '../lib/preparedPlayback'
+import { detectProfile } from '../lib/profile'
 import { Row } from '../components/Row'
 import { AudioTimeContext, useAudioPlayer } from '../hooks/audioPlayerContext'
 import { announceBookmarks, useBookmarkChanges } from '../hooks/bookmarks'
@@ -63,6 +66,16 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
   }, [item.id, onChange])
   useBookmarkChanges(item.id, bookmarksChanged)
 
+  const playingThis = player.current?.id === item.id
+  // Looked at for a moment, and not already the book playing: its session is got ready, so Play starts at once.
+  useEffect(() => {
+    if (playingThis || !book) return
+    const timer = window.setTimeout(() => getReady({ itemId: item.id, profile: detectProfile(), deviceName: deviceName() }), PAGE_DELAY_MS)
+    return () => {
+      window.clearTimeout(timer)
+      leave(item.id)
+    }
+  }, [item.id, playingThis, book])
   if (!book) return <p className="page-message muted">This book can’t be shown by this version of the app.</p>
 
   const playing = player.current?.id === item.id

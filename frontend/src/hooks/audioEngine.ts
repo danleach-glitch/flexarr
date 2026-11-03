@@ -16,6 +16,7 @@ import { heardAsAlbum, replayGainScale } from '../lib/loudness'
 import type { MusicSettings } from '../lib/musicSettings'
 import { detectProfile } from '../lib/profile'
 import { reportStart, type StartTiming } from '../lib/startTiming'
+import { take as takePrepared } from '../lib/preparedPlayback'
 import { createMixer, type Channel } from './mixer'
 import type { QueueState } from './queue'
 
@@ -292,8 +293,10 @@ export function createEngine(host: EngineHost): AudioEngine {
     c.ready = false
     const timing: StartTiming = { kind: 'book', pressedAt: performance.now() }
     bookTiming = null
-    const info = await startPlayback({ itemId: track.id, profile: detectProfile(), deviceName: deviceName() })
-    Object.assign(timing, { answeredAt: performance.now(), warmed: false, method: info.method, playbackId: info.playbackId })
+    // Got ready on the book's page a moment ago: no wait for the server.
+    const ready = await takePrepared({ itemId: track.id })
+    const info = ready ?? await startPlayback({ itemId: track.id, profile: detectProfile(), deviceName: deviceName() })
+    Object.assign(timing, { answeredAt: performance.now(), warmed: ready !== null, method: info.method, playbackId: info.playbackId })
     if (mine !== loadCount) {
       void stopPlayback(info.sessionId)
       return false

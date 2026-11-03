@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PlaybackInfo, PlaybackRequest } from '../api/client'
 
-const dropStream = vi.fn(() => Promise.resolve(undefined))
+const dropStream = vi.fn((_id: string) => Promise.resolve(undefined))
 vi.mock('../api/client', () => ({ dropStream: (id: string) => dropStream(id), prepareStream: vi.fn() }))
 
 const { getReady, handOver, holds, leave, reset, take, MAX_AGE_MS } = await import('./preparedPlayback')
