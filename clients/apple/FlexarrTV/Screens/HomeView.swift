@@ -498,12 +498,21 @@ struct HomeRowView: View {
             .focusSection()
             .environment(\.leavesRow) { leaving = $0 }
         }
-        .onChange(of: focusedCard) { _, id in
+        .onChange(of: focusedCard) { old, id in
+            // Continue watching: the card focus left lets go what it got ready.
+            if row.id == "continue", let old, old != id, let item = row.items.first(where: { $0.id == old }) { model.dropReady(item) }
             if let id {
                 lastFocused = id
             } else if let last = lastFocused, row.items.contains(where: { $0.id == last }) {
                 lastFocused = nil // moved out of the row, rather than the card going
             }
+        }
+        .task(id: row.id == "continue" ? focusedCard : nil) {
+            // A Continue watching card focused for a moment: what it plays is got ready (docs/fast-start.md).
+            guard row.id == "continue", let id = focusedCard, let item = row.items.first(where: { $0.id == id }),
+                  (try? await Task.sleep(for: .seconds(1))) != nil else { return }
+            // The session only: not the opening bytes of every card the remote passes over.
+            model.getReady(item, prewarmBytes: false)
         }
         .onChange(of: row.items.map(\.id)) { old, new in
             let gone = [leaving, lastFocused].compactMap(\.self).first { old.contains($0) && !new.contains($0) }

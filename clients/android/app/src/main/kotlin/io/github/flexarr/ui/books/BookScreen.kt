@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.books
 
+import io.github.flexarr.ui.GetsReadyAfterAMoment
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -160,6 +162,8 @@ fun BookScreen(model: AppModel, id: String) {
     // The profile's default speed, for the time left at it.
     val listening = rememberLoader(model.credentials) { runCatching { client.bookListening() }.getOrNull() }
     val detail = (loader.state as? Load.Loaded)?.value
+    // Looked at for a moment: the book's session is got ready, so Play starts at once (docs/fast-start.md).
+    GetsReadyAfterAMoment(detail?.item)
     RoomBackground(ambient = detail?.item?.accentColor?.let(::glowColor), intensity = 0.3f) {
         Column {
             PageTitle("", onBack = { navigator.back() })

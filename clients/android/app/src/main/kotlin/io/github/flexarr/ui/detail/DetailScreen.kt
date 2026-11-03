@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.detail
 
+import io.github.flexarr.ui.GetsReadyAfterAMoment
+
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import io.github.flexarr.player.LocalPlayFrom
@@ -368,6 +370,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
         MediaKind.Series -> nextUp ?: season?.children?.firstOrNull()
         else -> null
     }
+    GetsReadyAfterAMoment(playable)
     val watched = item.userData.watched || item.userData.unwatchedCount == 0
     val kind = when (item.kind) {
         MediaKind.Series -> DetailActions.Kind.SHOW

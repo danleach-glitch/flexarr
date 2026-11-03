@@ -14,6 +14,14 @@ import io.github.flexarr.core.requestRefusal
 import io.github.flexarr.core.requestStatus
 import io.github.flexarr.core.musicRequestStatus
 import io.github.flexarr.player.PlaybackEnding
+import io.github.flexarr.player.DeviceCapabilities
+import io.github.flexarr.core.PreparedStreams
+import io.github.flexarr.core.LinkSpeed
+import io.github.flexarr.core.ServerVersion
+import io.github.flexarr.core.PlaybackRequest
+import io.github.flexarr.core.DeviceProfile
+import io.github.flexarr.core.ItemSummary
+import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.LiveTvStatus
 import io.github.flexarr.core.liveTvStatus
@@ -256,6 +264,71 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     /** Audiobooks, playing on under every screen; music, podcasts and books take turns. */
     val books = BookPlayer(context, this)
+
+    /** A film or episode got ready ahead of Play from its page or a TV's focus (docs/fast-start.md), taken over by the player. */
+    val warmUps = PreparedStreams(
+        scope,
+        start = { request -> requireNotNull(client).startPlayback(request) },
+        stop = { sessionId -> client?.stopPlayback(sessionId) },
+    )
+
+    /** How fast the video player's stream segments have come lately, sent with each start (docs/fast-start.md). */
+    val linkSpeed = LinkSpeed()
+
+    /** The server's version and the video profile the player asks with, worked out once per server (not on a failure). */
+    private var serverInfo: Triple<String, String, DeviceProfile>? = null
+
+    /**
+     * The server's version (null if it couldn't be asked) and the video profile the player asks with
+     * ([DeviceCapabilities.withServer]): shared by the player and warm-ups, so both ask for exactly the same stream.
+     */
+    suspend fun server(): Pair<String?, DeviceProfile>? {
+        val client = client ?: return null
+        val address = client.baseUrl.toString()
+        serverInfo?.let { (forServer, version, profile) -> if (forServer == address) return version to profile }
+        val version = runCatching { client.systemStatus().version }.getOrNull()
+        val profile = DeviceCapabilities.withServer(DeviceCapabilities.profile(context), version)
+        if (version != null) serverInfo = Triple(address, version, profile)
+        return version to profile
+    }
+
+    /** The one warm-up being worked out (the server's version first), and for which title, so a drop can cancel it. */
+    private var warmJob: Pair<String, Job>? = null
+
+    /**
+     * Gets what Play would start for [item] ready, so it opens at once (docs/fast-start.md): a film or episode as a
+     * video, a book in its player. Pages call this once looked at for a moment, the TV once Play or a card has focus.
+     */
+    fun getReady(item: ItemSummary) {
+        if (item.kind != MediaKind.Movie && item.kind != MediaKind.Episode && item.kind != MediaKind.Audiobook) return
+        if (client == null || serverUnreachable || downloads.entry(item.id)?.isDownloaded == true) return
+        warmJob?.second?.cancel()
+        warmJob = item.id to scope.launch {
+            // A server before 0.59 would show the warm-up as playing and give it a transcode slot.
+            val (version, profile) = server() ?: return@launch
+            if (version == null || !ServerVersion.atLeast(version, 0, 59)) return@launch
+            if (item.kind == MediaKind.Audiobook) {
+                books.getReady(item)
+            } else {
+                warmUps.getReady(PlaybackRequest(itemId = item.id, profile = profile, measuredBitrate = linkSpeed.current()), owner = client?.profileToken)
+            }
+        }
+    }
+
+    /** What was got ready for [itemId] goes (its page left, the focus moved on), unless Play took it. */
+    fun dropReady(itemId: String) {
+        warmJob?.let { (id, job) -> if (id == itemId) job.cancel() }
+        warmUps.drop(itemId)
+        books.dropReady(itemId)
+    }
+
+    /** Everything got ready goes (going to the background, another profile, signing out). */
+    private fun dropAllReady() {
+        warmJob?.second?.cancel()
+        warmJob = null
+        warmUps.drop()
+        books.dropReady()
+    }
 
     /** The book's Now Playing sheet is open. */
     var showsBookPlayer by mutableStateOf(false)
@@ -966,6 +1039,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     }
 
     fun signOut() {
+        dropAllReady()
         // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way. Not
         // for a sign-in from the command line, which may be the server's own API key.
         val client = client
@@ -1196,6 +1270,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         // Straight from one profile to another (the TV's "Who's watching?", a link for someone else): their music,
         // podcasts and Up Next go, as switchProfile's do.
         if (isSwitch(currentProfile?.id, selection.profile.id)) {
+            dropAllReady()
             music.stop()
             podcasts.stop()
             books.stop()
@@ -1218,7 +1293,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Back to choosing who's watching. Never for a guest, which the server keeps on its invite's profile. */
     fun switchProfile() {
         val credentials = credentials?.takeIf { !isGuest } ?: return
-        // Someone else's music, podcasts and Up Next.
+        // Someone else's music, podcasts, Up Next and anything got ready.
+        dropAllReady()
         music.stop()
         podcasts.stop()
         books.stop()
@@ -1435,6 +1511,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     /** Back in front: a guest's tunnel is started again if it stopped while the app was away. */
     fun cameToFront() {
+        // The connection to the server is set up again before Play needs it.
+        client?.let { scope.launch { it.warmConnection() } }
         tunnelIdle?.cancel()
         if (credentials?.isGuest == true) scope.launch(Dispatchers.IO) { tunnel.ensureRunning() }
         // Offline mode ends (or starts) as soon as it's known whether the server answers now, and tries again while
@@ -1574,6 +1652,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      * download coming in), so it doesn't keep the phone's radio busy. Anything that needs it later starts it again.
      */
     fun wentToBackground() {
+        dropAllReady()
         // Offline mode doesn't keep trying in the background: coming back to the front checks.
         if (!inFront) {
             offlineRetry?.cancel()

@@ -24,7 +24,8 @@ public sealed class PlaybackService(
     IOptionsMonitor<FlexarrOptions> options,
     Security.GuestLinks guestLinks,
     Authentication.SignIns? signIns = null,
-    Books.BookFileConverter? bookConverter = null)
+    Books.BookFileConverter? bookConverter = null,
+    IHttpContextAccessor? http = null)
 {
     /// <summary>Within this distance of the end (or once the credits start) an item counts as watched.</summary>
     internal const double WatchedThreshold = 0.92;
@@ -62,16 +63,11 @@ public sealed class PlaybackService(
             return item.Kind == MediaKind.PodcastEpisode ? await StartPodcastAsync(item, request, ct) : null;
         }
 
-        if (file.Streams.Any(s => s.Type == StreamType.Video)
-            && Trickplay.Read(PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue).CacheDirectory, file.Id) is null)
-        {
-            trickplay.Enqueue(file.Id);
-        }
-
-        if (file.MarkersScannedAt is null && item.ParentId is { } seasonId && item.Kind == MediaKind.Episode)
-        {
-            markerQueue.Prioritize(seasonId); // Analyse this season now so skip-intro is ready for the next episode.
-        }
+        // Work for the title being watched: previews for scrubbing, the season's intros and credits, its subtitles.
+        // Only got ready ahead of Play (a page looked at), it waits until a player uses the stream.
+        var needsPreviews = file.Streams.Any(s => s.Type == StreamType.Video)
+            && Trickplay.Read(PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue).CacheDirectory, file.Id) is null;
+        var markSeason = file.MarkersScannedAt is null && item.Kind == MediaKind.Episode ? item.ParentId : null;
 
         var state = await db.PlaybackStates.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == profile.Id && p.MediaItemId == item.Id, ct);
         var preferences = await LanguagePreferencesAsync(item, ct);
@@ -82,7 +78,26 @@ public sealed class PlaybackService(
             subtitles = subtitles.Where(s => !s.IsTeletext || s.IsText).ToList();
         }
 
-        subtitleCache.Prefetch(file, subtitles);
+        void Watching()
+        {
+            if (needsPreviews)
+            {
+                trickplay.Enqueue(file.Id);
+            }
+
+            if (markSeason is { } seasonId)
+            {
+                markerQueue.Prioritize(seasonId); // Analyse this season now so skip-intro is ready for the next episode.
+            }
+
+            subtitleCache.Prefetch(file, subtitles);
+        }
+
+        if (!request.Prepare)
+        {
+            Watching();
+        }
+
         var audioStreams = file.Streams.Where(s => s.Type == StreamType.Audio).OrderBy(s => s.Index).ToList();
 
         var audioIndex = request.AudioStreamIndex
@@ -97,10 +112,29 @@ public sealed class PlaybackService(
         var transcoding = options.CurrentValue.Transcoding;
         // A family guest on Tailscale's slow shared relays is held to what fits through them.
         var slowLink = await guestLinks.CapAsync(ct) ?? 0;
-        var maxBitrate = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate, slowLink }.Where(b => b > 0).DefaultIfEmpty(0).Min();
-        var playbackOptions = new PlaybackOptions(audioIndex, subtitleKey, maxBitrate, request.MaxHeight, request.ForceTranscode, file.AudioDelaySeconds,
-            request.Sound is { } sound ? sound with { MaxChannels = sound.MaxChannels is { } max ? Math.Clamp(max, 1, 8) : null } : null);
+        // Away from home, a file that needs more than the viewer's connection carries is converted to fit, unless the
+        // viewer chose a quality themselves (the web player's menu).
+        var away = request.MaxBitrate is null && request.MaxHeight is null
+            ? AwayFromHome.Cap(transcoding.AwayFromHome, http?.HttpContext is { } context && AwayFromHome.IsRemote(context), request.MeasuredBitrate, file.Bitrate) ?? 0
+            : 0;
+        var otherCaps = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate, slowLink }.Where(b => b > 0).DefaultIfEmpty(0).Min();
+        var maxBitrate = new[] { otherCaps, away }.Where(b => b > 0).DefaultIfEmpty(0).Min();
+        var sound = request.Sound is { } shaping ? shaping with { MaxChannels = shaping.MaxChannels is { } max ? Math.Clamp(max, 1, 8) : null } : null;
+        var playbackOptions = new PlaybackOptions(audioIndex, subtitleKey, maxBitrate, request.MaxHeight, request.ForceTranscode, file.AudioDelaySeconds, sound);
         var decision = PlaybackDecider.Decide(file, request.Profile, subtitles, playbackOptions);
+
+        // Converting only because of the connection: say so (not "the quality limit", which nobody set), and if the
+        // server turns out to be too busy to convert, the file plays as it is, as it would have before.
+        PlaybackDecision? asItIs = null;
+        if (away > 0 && (otherCaps == 0 || away < otherCaps) && decision.Method == PlaybackMethod.Transcode)
+        {
+            var uncapped = PlaybackDecider.Decide(file, request.Profile, subtitles, playbackOptions with { MaxBitrate = otherCaps });
+            if (uncapped.Method == PlaybackMethod.DirectPlay)
+            {
+                asItIs = uncapped;
+                decision = decision with { Reasons = [.. decision.Reasons.Select(r => r == PlaybackDecider.BitrateReason ? AwayFromHome.Reason : r)] };
+            }
+        }
 
         // A player that takes fragmented MP4 (Apple's) gets the video as it is when only the container or the sound was
         // in the way: the original picture, HDR and Dolby Vision included. It needs the file's keyframes, which an MKV
@@ -147,8 +181,15 @@ public sealed class PlaybackService(
         TranscodeSession? transcode = null;
         if (decision is { Method: PlaybackMethod.Transcode, Transcode: { } plan })
         {
-            transcode = await transcodes.CreateAsync(profile.Id, file.Path, duration, plan, restarting, request.Prepare);
-            id = transcode.Id;
+            try
+            {
+                transcode = await transcodes.CreateAsync(profile.Id, file.Path, duration, plan, restarting, request.Prepare);
+                id = transcode.Id;
+            }
+            catch (TranscodeLimitException) when (asItIs is not null && !request.Prepare)
+            {
+                decision = asItIs;
+            }
         }
 
         var credits = file.Markers.Where(m => m.Type == MarkerType.Credits).Select(m => (double?)m.StartSeconds).FirstOrDefault();
@@ -171,6 +212,9 @@ public sealed class PlaybackService(
             // over to the next episode): remembering their language would turn the full subtitles on next time.
             SubtitleLanguage = decision.Subtitle is { IsForced: true } ? null : decision.Subtitle?.Language,
             AudioIsAtmos = decision.Audio?.Profile?.Contains("Atmos", StringComparison.OrdinalIgnoreCase) == true,
+            Warming = request.Prepare,
+            OnUsed = request.Prepare ? Watching : null,
+            Title = item.Title,
         });
 
         var start = request.StartPositionSeconds
@@ -181,10 +225,11 @@ public sealed class PlaybackService(
             transcode.StartSeconds = Math.Max(0, start);
         }
 
-        if (request.Prepare && transcode is { } warming)
+        if (transcode is { } warming)
         {
             // ffmpeg starts with the first segment asked for: ask now for the one playback opens at, so it's ready
-            // when the player is.
+            // when the player is. Any start, not only a prepared one: the player first reads two playlists (and an
+            // init segment), each a round trip that ffmpeg's start-up now overlaps.
             var segment = warming.SegmentAt(start);
             _ = Task.Run(async () =>
             {
@@ -344,6 +389,8 @@ public sealed class PlaybackService(
             CreditsStart = null,
             BookParts = parts,
             PlaysBooks = request.DeviceName is not null,
+            Warming = request.Prepare,
+            Title = book.Title,
             // The name the device was given when it signed in ("Dan's iPhone") says which one better than its model.
             DeviceName = (profile.SignInId is { } signIn ? signIns?.List().FirstOrDefault(s => s.Id == signIn)?.Name : null) ?? request.DeviceName,
         });

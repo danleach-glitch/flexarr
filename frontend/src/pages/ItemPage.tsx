@@ -38,6 +38,8 @@ import { useAgeLimits, useSession } from '../hooks/sessionContext'
 import { announceWatched } from '../hooks/watched'
 import { useApi } from '../hooks/useApi'
 import { endingFrom, finalReportSent, moveOn, rememberScroll, takeScroll, type PlayState } from '../hooks/playbackEnding'
+import { getReady, handOver, leave, PAGE_DELAY_MS } from '../lib/preparedPlayback'
+import { detectProfile } from '../lib/profile'
 import { AlbumPage, ArtistPage } from './MusicPages'
 import { BookPage } from './BookPage'
 import {
@@ -168,6 +170,16 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   }
 
   const playTarget = item.kind === 'Series' ? nextUp : item
+  // Looked at for a moment: what Play would start is got ready, so it opens at once (docs/fast-start.md).
+  const warmId = playTarget && (playTarget.kind === 'Movie' || playTarget.kind === 'Episode') ? playTarget.id : undefined
+  useEffect(() => {
+    if (!warmId) return
+    const timer = window.setTimeout(() => getReady({ itemId: warmId, profile: detectProfile() }), PAGE_DELAY_MS)
+    return () => {
+      window.clearTimeout(timer)
+      leave(warmId)
+    }
+  }, [warmId])
   const playLabel = (() => {
     if (item.kind === 'Series') {
       if (!nextUp) return 'Play'
@@ -215,7 +227,13 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
           {detail.overview && <Overview text={detail.overview} />}
           <div className="detail-actions">
             {playTarget && (
-              <button className="button" onClick={() => play(`/play/${playTarget.id}`)}>
+              <button
+                className="button"
+                onClick={() => {
+                  handOver(playTarget.id)
+                  play(`/play/${playTarget.id}`)
+                }}
+              >
                 <icon.play /> {playLabel}
               </button>
             )}

@@ -5,6 +5,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Playback
+- Movies, episodes and audiobooks start sooner, especially away from home: a title gets ready while its page is open (on the Apple TV and Android TV, while **Play** or a **Continue watching** card is selected).
+- Away from home, a movie, show or album too big for your connection is converted to fit, so it plays instead of buffering. **Settings › Streaming › Away from home** set to **Original quality** turns this off; at home nothing changes.
+- An audiobook in a format some devices can't play is converted before you press **Play**, so it starts without a wait.
+- **Settings › Overview** shows what's being got ready ahead of **Play** as well as what's playing.
 - After you finish an episode, the page you played it from moves on, in every app: a show's Play offers the next episode, and an episode's page shows the next one.
 - On the web, closing the player goes back to the page you pressed Play on, as in the apps.
 - On the web with **Skip credits** on, moving on to the next episode no longer marks it watched and jumps straight past it to the one after, and nothing plays while the next-episode countdown runs.

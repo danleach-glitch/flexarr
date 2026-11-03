@@ -18,14 +18,18 @@ public sealed record PlaybackRequest(
     string? ReplacesSessionId = null,
     // Shuffle a show: with the show's id, a random episode starts; with an episode's, Next is a random one.
     bool Shuffle = false,
-    // Getting the next episode ready while this one's credits play: conversion starts now, so it opens at once. It
-    // never takes another screen's place; with the server full, it's refused (503) and the player starts normally.
+    // Getting a title ready before Play (the next episode during the credits, a page being looked at): conversion starts
+    // now, so it opens at once. It never takes another screen's place; with the server full, it's refused (503) and the
+    // player starts normally. Until a player uses it, it isn't shown as playing and gives way to any real stream.
     bool Prepare = false,
     // The listener's dialogue boost and night mode, applied by the server when it converts the sound (the player can't
     // shape a stream it doesn't decode itself). Left out, the sound is as the file has it.
     SoundShaping? Sound = null,
     // A name for the device ("Dan's iPhone"), for a book's "Jump to where you were on …". Absent from apps before 0.58.
-    string? DeviceName = null);
+    string? DeviceName = null,
+    // How fast media reaches this device lately, in bits per second, as the app measured it. Away from home, with the
+    // Away from home setting on Automatic, a file that needs more is converted to fit. Absent from apps before 0.59.
+    long? MeasuredBitrate = null);
 
 public sealed record AudioTrackDto(int Index, string Label, string Codec, string? Language, int? Channels, bool IsDefault);
 

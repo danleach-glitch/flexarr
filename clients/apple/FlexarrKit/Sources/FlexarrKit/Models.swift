@@ -680,13 +680,17 @@ public struct PlaybackRequest: Codable, Sendable, Hashable {
     public var replacesSessionId: String?
     /// With a show's id, a random episode starts; with an episode's, its `next` is a random one.
     public var shuffle: Bool?
-    /// Getting the next episode ready during the credits: conversion starts now, and it never ends another screen.
+    /// Getting a title ready before Play (the next episode, a page being looked at): conversion starts now, and it
+    /// never ends another screen.
     public var prepare: Bool?
     /// The listener's dialogue boost and night mode, for the server to apply when it converts the sound (the player
     /// can't shape a stream it doesn't decode). Servers before 0.56 ignore it.
     public var sound: PlaybackSound?
     /// A name for this device ("Dan's iPhone"), for a book's "Jump to where you were on …". Servers before 0.58 ignore it.
     public var deviceName: String? = nil
+    /// How fast media reaches this device lately, in bits per second: away from home the server converts a file that
+    /// needs more to fit (docs/fast-start.md). Servers before 0.59 ignore it.
+    public var measuredBitrate: Int? = nil
 
     public init(itemId: String, profile: DeviceProfile, fileId: String? = nil, audioStreamIndex: Int? = nil,
                 subtitleKey: String? = nil, maxBitrate: Int? = nil, maxHeight: Int? = nil,

@@ -32,6 +32,10 @@ class FlexarrLog(val category: String) {
     fun info(message: String, error: Throwable? = null, properties: Map<String, String?> = emptyMap()) =
         write(ClientLogLevel.Information, message, error, properties)
 
+    /** An Information entry the server gets by itself too, like a warning: measurements (start timings) worth seeing without diagnostics. */
+    fun measured(message: String, properties: Map<String, String?> = emptyMap()) =
+        write(ClientLogLevel.Information, message, null, properties, send = true)
+
     fun warning(message: String, error: Throwable? = null, properties: Map<String, String?> = emptyMap()) =
         write(ClientLogLevel.Warning, message, error, properties)
 
@@ -41,7 +45,7 @@ class FlexarrLog(val category: String) {
         if (error != null) ErrorReports.capture(error, category)
     }
 
-    private fun write(level: ClientLogLevel, message: String, error: Throwable?, properties: Map<String, String?>) {
+    private fun write(level: ClientLogLevel, message: String, error: Throwable?, properties: Map<String, String?>, send: Boolean = false) {
         val entry = LogHub.record(
             ClientLogEntry(
                 level = level,
@@ -50,6 +54,7 @@ class FlexarrLog(val category: String) {
                 error = error?.let(::describe),
                 properties = properties.filterValues { it != null }.mapValues { it.value!! }.ifEmpty { null },
             ),
+            send,
         )
         val text = StringBuilder(entry.message)
         entry.error?.let { text.append(" | error: ").append(it) }
@@ -109,12 +114,12 @@ object LogHub {
         }
     }
 
-    /** Redacts the entry, writes it to the file and queues it for the server if it's a warning or error. */
-    internal fun record(entry: ClientLogEntry): ClientLogEntry {
+    /** Redacts the entry, writes it to the file and queues it for the server if it's a warning or error (or [send]). */
+    internal fun record(entry: ClientLogEntry, send: Boolean = false): ClientLogEntry {
         val kept = redactor.redact(entry)
         if (!::file.isInitialized) return kept
         file.append(kept.line)
-        if (kept.level.isSentAutomatically) {
+        if (kept.level.isSentAutomatically || send) {
             uploader?.add(kept) ?: synchronized(early) { uploader?.add(kept) ?: early.add(kept) }
         }
         return kept

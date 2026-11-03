@@ -107,6 +107,9 @@ public sealed record PlaybackDecision(
 /// <summary>Chooses between direct play and transcoding, and how to transcode.</summary>
 public static class PlaybackDecider
 {
+    /// <summary>The reason given for converting a file that's above the bitrate allowed.</summary>
+    public const string BitrateReason = "Bitrate is above the quality limit";
+
     private static readonly HashSet<string> HlsAudioCodecs = new(StringComparer.OrdinalIgnoreCase) { "aac", "mp3", "ac3", "eac3" };
 
     /// <summary>What fragmented MP4 carries as it is: MPEG-TS's codecs and lossless FLAC and ALAC.</summary>
@@ -265,7 +268,7 @@ public static class PlaybackDecider
 
         if (maxBitrate > 0 && file.Bitrate > maxBitrate)
         {
-            reasons.Add("Bitrate is above the quality limit");
+            reasons.Add(BitrateReason);
         }
 
         if (audio is not null && !profile.AudioCodecs.Contains(audio.Codec, StringComparer.OrdinalIgnoreCase))

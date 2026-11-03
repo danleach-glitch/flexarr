@@ -70,9 +70,18 @@ struct BookView: View {
             await load()
         }
         .onAppear { isVisible = true }
-        .onDisappear { isVisible = false }
+        .onDisappear {
+            isVisible = false
+            if let book = detail?.item ?? preview { model.dropReady(book) }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, isVisible, Freshness.isStale(loadedAt) { Task { await load() } }
+            if phase == .background, let book = detail?.item ?? preview { model.dropReady(book) }
+        }
+        .task(id: id) {
+            // Looked at for a moment: the book's session is got ready, so Play starts at once (docs/fast-start.md).
+            guard (try? await Task.sleep(for: .seconds(2))) != nil, let book = detail?.item ?? preview else { return }
+            model.getReady(book)
         }
     }
 

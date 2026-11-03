@@ -570,10 +570,13 @@ extension EnvironmentValues {
 private struct LinkFocus: ViewModifier {
     @Environment(\.focusesPlay) private var takesFocus
     @FocusState private var focused: Bool
+    /// Told when the button gains or loses focus (one focus binding on the button, this one).
+    var focusChanged: ((Bool) -> Void)?
 
     func body(content: Content) -> some View {
         content
             .focused($focused)
+            .onChange(of: focused) { _, now in focusChanged?(now) }
             .task {
                 guard takesFocus.wrappedValue else { return }
                 takesFocus.wrappedValue = false
@@ -588,7 +591,8 @@ private struct LinkFocus: ViewModifier {
 }
 
 extension View {
-    func takesFocusFromLink() -> some View { modifier(LinkFocus()) }
+    /// `focusChanged`: told when the button gains or loses focus, for a view that needs to know as well.
+    func takesFocusFromLink(focusChanged: ((Bool) -> Void)? = nil) -> some View { modifier(LinkFocus(focusChanged: focusChanged)) }
 
     /// `takesFocusFromLink()` when `on`: for a button inside a view that's sometimes the page's first and sometimes not.
     @ViewBuilder func takesFocusFromLink(_ on: Bool) -> some View {

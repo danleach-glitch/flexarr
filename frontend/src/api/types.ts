@@ -472,6 +472,8 @@ export interface Marker {
 
 export interface PlaybackInfo {
   sessionId: string
+  /** A short hash of the session id, for lining logs up (absent from older servers). */
+  playbackId?: string
   method: PlaybackMethod
   url: string
   reasons: string[]
@@ -543,6 +545,8 @@ export interface TranscodingSettings {
   vaapiDevice: string
   softwarePreset: string
   maxStreamingBitrate: number
+  /** Lower the quality away from home when the connection can't keep up (absent from servers before 0.59). */
+  awayFromHome?: 'Automatic' | 'Original'
 }
 
 export interface ArrConnection {
@@ -657,6 +661,8 @@ export interface Activity {
     positionSeconds: number
     durationSeconds: number
     paused: boolean
+    /** Converting ahead of Play (a page looked at), not watched yet. Absent before 0.59. */
+    warming?: boolean
   }[]
 }
 

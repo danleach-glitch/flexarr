@@ -42,6 +42,9 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
         // Rates other than 1× keep the pitch, like Apple's player.
         item.audioTimePitchAlgorithm = .spectral
         player = AVPlayer(playerItem: item)
+        // Starts on the first segment rather than waiting for enough to never stall, then (once playing) goes back to
+        // waiting when it runs low, as normal (docs/fast-start.md).
+        player.automaticallyWaitsToMinimizeStalling = false
         // Subtitles are chosen here, from the server's choice or the viewer's. Left to itself AVPlayer re-chooses by the
         // device's language, turning subtitles back on after the viewer turned them off.
         player.appliesMediaSelectionCriteriaAutomatically = false
@@ -116,6 +119,11 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
     }
 
     func stop() {
+        // How fast the stream came, for the next start's measured speed (docs/fast-start.md): AVPlayer's own measure of
+        // its downloads' throughput, not bytes over the time spent, which includes waiting for the server to convert.
+        for event in item.accessLog()?.events.suffix(3) ?? [] where event.observedBitrate > 0 && event.numberOfBytesTransferred >= LinkSpeed.minSampleBytes {
+            LinkSpeed.shared.sample(bitsPerSecond: Int(event.observedBitrate))
+        }
         player.pause()
         if let timeObserver { player.removeTimeObserver(timeObserver) }
         timeObserver = nil
@@ -190,6 +198,10 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
                 let message = item.error?.localizedDescription
                 Task { @MainActor in self?.statusChanged(status, message: message) }
             },
+            // Playing counts once there's a picture to show (with AVPlayer not waiting, it can start the clock first).
+            layerView.playerLayer.observe(\.isReadyForDisplay, options: [.new]) { [weak self] _, _ in
+                Task { @MainActor in self?.updatePhase() }
+            },
             player.observe(\.timeControlStatus, options: [.new]) { [weak self] _, _ in
                 Task { @MainActor in self?.updatePhase() }
             },
@@ -250,7 +262,9 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
         if ended { phase = .ended; return }
         guard item.status == .readyToPlay else { phase = .loading; return }
         switch player.timeControlStatus {
-        case .playing: phase = .playing
+        case .playing:
+            if !player.automaticallyWaitsToMinimizeStalling { player.automaticallyWaitsToMinimizeStalling = true }
+            phase = layerView.playerLayer.isReadyForDisplay || item.presentationSize == .zero ? .playing : .buffering
         case .waitingToPlayAtSpecifiedRate: phase = .buffering
         default: phase = pendingSeek > 0 ? .loading : .paused
         }

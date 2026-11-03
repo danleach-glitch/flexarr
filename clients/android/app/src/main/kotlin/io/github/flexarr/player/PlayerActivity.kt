@@ -196,6 +196,7 @@ class PlayerActivity : ComponentActivity() {
             startAt = intent.getDoubleExtra(EXTRA_START_AT, -1.0).takeIf { it >= 0 },
             from = intent.getStringExtra(EXTRA_FROM),
             startedWith = intent.getStringExtra(EXTRA_STARTED_WITH),
+            pressedAt = intent.getLongExtra(EXTRA_PRESSED_AT, -1L).takeIf { it >= 0 },
         )
     }
 
@@ -282,6 +283,7 @@ class PlayerActivity : ComponentActivity() {
         private const val EXTRA_ITEM = "itemId"
         private const val EXTRA_FROM = "from"
         private const val EXTRA_STARTED_WITH = "startedWith"
+        private const val EXTRA_PRESSED_AT = "pressedAt"
         private const val EXTRA_FROM_BEGINNING = "fromBeginning"
         private const val EXTRA_SHUFFLE = "shuffle"
         private const val EXTRA_START_AT = "startAt"
@@ -293,6 +295,8 @@ class PlayerActivity : ComponentActivity() {
         fun intent(context: Context, itemId: String, fromBeginning: Boolean, shuffle: Boolean = false, startAt: Int? = null, from: String? = null): Intent =
             Intent(context, PlayerActivity::class.java)
                 .putExtra(EXTRA_ITEM, itemId)
+                // When Play was pressed, for the start's timings (see StartTiming).
+                .putExtra(EXTRA_PRESSED_AT, android.os.SystemClock.elapsedRealtime())
                 .apply { if (from != null) putExtra(EXTRA_FROM, from) }
                 .putExtra(EXTRA_FROM_BEGINNING, fromBeginning)
                 .putExtra(EXTRA_SHUFFLE, shuffle)

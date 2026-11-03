@@ -852,6 +852,14 @@ public struct FlexarrClient: Sendable {
         return URL(string: relative, relativeTo: baseURL.appending(path: "/"))?.absoluteURL
     }
 
+    /// A small request (the server's health check) so the connection is up before anything that matters asks:
+    /// coming back to the app, the first real request (Play) doesn't pay for setting it up. Best effort.
+    public func warmConnection() async {
+        var request = URLRequest(url: baseURL.appending(path: "health"))
+        request.timeoutInterval = 5
+        _ = try? await session.data(for: request)
+    }
+
     /// Artwork URL with a width hint for the server's image cache. Image endpoints are anonymous.
     public func imageURL(_ relative: String?, width: Int) -> URL? {
         guard let relative, !relative.isEmpty else { return nil }

@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.ui.getsReadyOnFocus
+
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -337,7 +339,7 @@ private fun HomeRowView(row: HomeRow) {
                     }
                     HomeRowStyle.Playlists -> items(row.playlists.orEmpty(), key = { it.id }) { TvPlaylistCard(it, onClick = { navigator.openPlaylist(it.id) }) }
                     HomeRowStyle.Mixes -> items(row.mixes.orEmpty(), key = { it.id }) { TvMixCard(it, onClick = { navigator.playMix(it.id) }) }
-                    HomeRowStyle.Wide -> items(items, key = { it.id }) { TvWideCard(it, onClick = { navigator.play(it) }) }
+                    HomeRowStyle.Wide -> items(items, key = { it.id }) { TvWideCard(it, onClick = { navigator.play(it) }, modifier = Modifier.getsReadyOnFocus(it)) }
                     HomeRowStyle.Top10 -> itemsIndexed(items, key = { _, item -> item.id }) { index, item -> TvTop10Card(index + 1, item, onClick = { navigator.open(item) }) }
                     // Albums and artists as the music library draws them, not as posters with a film's menu.
                     else -> items(items, key = { it.id }) {

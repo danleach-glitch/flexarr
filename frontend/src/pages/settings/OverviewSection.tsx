@@ -36,7 +36,7 @@ export function OverviewSection() {
 
       <SettingsGroup title="Watching now">
         {!data && <p className="muted">Loading…</p>}
-        {data?.streams.length === 0 && <p className="muted">Nobody’s watching anything.</p>}
+        {data && data.streams.filter((s) => !s.warming).length === 0 && <p className="muted">Nobody’s watching anything.</p>}
         {data?.streams.map((s) => (
           <div key={s.sessionId} className="setting-row static stream">
             <span className="setting-text">
@@ -50,7 +50,7 @@ export function OverviewSection() {
                 )}
               </strong>
               <span className="muted">
-                {s.paused ? 'Paused at' : 'At'} {formatClock(s.positionSeconds)} of {formatClock(s.durationSeconds)}
+                {s.warming ? 'Getting ready to play' : `${s.paused ? 'Paused at' : 'At'} ${formatClock(s.positionSeconds)} of ${formatClock(s.durationSeconds)}`}
               </span>
             </span>
             <span className="tag">{s.method === 'DirectPlay' ? 'Original file' : `Converting to ${s.transcode}`}</span>

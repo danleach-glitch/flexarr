@@ -25,6 +25,11 @@ import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
 import androidx.media3.exoplayer.ExoPlayer
 import io.github.flexarr.AppModel
+import io.github.flexarr.core.PreparedStreams
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
+import io.github.flexarr.logging.FlexarrLog
 import io.github.flexarr.ReviewPrompt
 import io.github.flexarr.data.PlayerSettings
 import io.github.flexarr.data.SoundSettings
@@ -70,6 +75,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     val player: ExoPlayer = ExoPlayer.Builder(context, shaper.renderers(context))
         .setMediaSourceFactory(mediaSources(context))
+        .setLoadControl(StartBuffer.loadControl())
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         .setHandleAudioBecomingNoisy(true)
         .setSeekBackIncrementMs(skipSeconds * 1000L)
@@ -200,8 +206,29 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** The last progress report or stop sent: each waits for the one before, so the server hears them in order. */
     private var reporting: Job? = null
 
+    /** This title's start, timed until its first picture (see [StartTiming]). */
+    private var timing: StartTiming? = null
+    /** When the first picture came, where, and which playback, to note a stall soon after. */
+    private var firstFrame: Triple<Long, Long, String?>? = null
+    private val log = FlexarrLog("playback")
+
     init {
+        // How fast this stream's segments arrive, for the next start's measured speed (docs/fast-start.md). Only a
+        // converted or repackaged stream's: a file played as it is is one long download paced by the player.
+        player.addAnalyticsListener(object : AnalyticsListener {
+            override fun onLoadCompleted(eventTime: AnalyticsListener.EventTime, loadEventInfo: LoadEventInfo, mediaLoadData: MediaLoadData) {
+                if (mediaLoadData.dataType != C.DATA_TYPE_MEDIA || info?.method != PlaybackMethod.Transcode || isOffline) return
+                model.linkSpeed.sample(loadEventInfo.bytesLoaded, loadEventInfo.loadDurationMs)
+            }
+        })
         player.addListener(object : Player.Listener {
+            override fun onRenderedFirstFrame() {
+                val started = timing?.takeIf { it.isAnswered } ?: return
+                started.report(log, client.baseUrl.host, model.isGuest)
+                firstFrame = Triple(android.os.SystemClock.elapsedRealtime(), player.currentPosition, info?.playbackId)
+                timing = null
+            }
+
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
                 if (playing) {
@@ -216,6 +243,18 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
             override fun onPlaybackStateChanged(state: Int) {
                 isBuffering = state == Player.STATE_BUFFERING
+                // A stall soon after the first picture: its own entry beside the start's. Not a seek (Skip intro, say),
+                // which moves the place well past where playing alone would have got to.
+                if (state == Player.STATE_BUFFERING) firstFrame?.let { (at, position, playbackId) ->
+                    firstFrame = null
+                    val after = android.os.SystemClock.elapsedRealtime() - at
+                    if (after < EARLY_STALL_MS && abs(player.currentPosition - position - after) < 3000) {
+                        log.measured(
+                            "Playback ${playbackId ?: "unknown"} stalled soon after starting",
+                            mapOf("afterMs" to after.toString(), "remote" to (model.isGuest || StartTiming.looksRemote(client.baseUrl.host)).toString(), "playbackId" to playbackId),
+                        )
+                    }
+                }
                 if (state == Player.STATE_ENDED) itemEnded()
             }
 
@@ -257,7 +296,9 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /**
      * Asks the server for [itemId] (or a random episode of a show, with [shuffle]) and starts it, as a new sitting.
      */
-    fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null, from: String? = null, startedWith: String? = null) {
+    fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null, from: String? = null, startedWith: String? = null,
+              pressedAt: Long? = null) {
+        timing = pressedAt?.let { StartTiming(StartTiming.VIDEO, it) } ?: StartTiming(StartTiming.VIDEO)
         // A new sitting: nothing before it for Previous episode.
         trail.clear()
         origin = from to (startedWith ?: itemId)
@@ -285,6 +326,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 replacesSessionId = info?.sessionId,
                 shuffle = if (shuffle) true else null,
                 subtitleKey = if (subtitlesOff) "off" else viewerSubtitleKey,
+                measuredBitrate = model.linkSpeed.current(),
             )
         }
     }
@@ -361,11 +403,17 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         scope.launch {
             try {
                 // Whether this server can have fragmented MP4, or read a chosen teletext page, depends on its version, asked once.
-                val profile = serverProfile ?: runCatching { client.systemStatus().version }.getOrNull().let { version ->
+                // The app's own (asked once per server, shared with warm-ups so both ask for the same stream).
+                val profile = serverProfile ?: (model.server() ?: (null to DeviceCapabilities.withServer(deviceProfile, null))).let { (version, profile) ->
                     serverReadsTeletextPages = Teletext.canChoosePage(version)
-                    DeviceCapabilities.withServer(deviceProfile, version)
+                    profile
                 }.also { serverProfile = it }
-                val started = startPlayback(request(profile), attempts) { !closed && mine == openGeneration } ?: return@launch
+                val asked = request(profile)
+                // Got ready on its page (or by a TV's focus) a moment ago, for exactly this: no wait for the server.
+                val ready = if (asked.replacesSessionId == null) model.warmUps.take(asked, owner = client.profileToken) else null
+                if (ready == null && asked.replacesSessionId == null) model.warmUps.drop()
+                val started = ready ?: startPlayback(asked, attempts) { !closed && mine == openGeneration } ?: return@launch
+                timing?.answered(started, warmed = ready != null)
                 if (closed || mine != openGeneration) {
                     runCatching { client.stopPlayback(started.sessionId) }
                     return@launch
@@ -643,8 +691,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         }
         trail.add(current.item)
         val subtitlesOff = nextSubtitlesOff(current)
+        timing = StartTiming(StartTiming.VIDEO)
         val ready = prepared
-        if (ready != null && ready.info.item.id == next.id && ready.subtitlesOff == subtitlesOff) {
+        // Not after half an hour on the up-next card: the server may have let it go by then.
+        if (ready != null && ready.info.item.id == next.id && ready.subtitlesOff == subtitlesOff &&
+            android.os.SystemClock.elapsedRealtime() - ready.at < PreparedStreams.NEXT_EPISODE_MAX_AGE_MS) {
+            timing?.answered(ready.info, warmed = true)
             // Got ready during the credits: this session ends, and the next one opens straight away.
             Log.i("Flexarr", "Using the next episode got ready during the credits")
             prepared = null
@@ -669,7 +721,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     // The next episode, got ready during the credits.
 
-    private class Prepared(val info: PlaybackInfo, val subtitlesOff: Boolean)
+    private class Prepared(val info: PlaybackInfo, val subtitlesOff: Boolean, val at: Long = android.os.SystemClock.elapsedRealtime())
 
     private var prepared: Prepared? = null
     private var preparing: Job? = null
@@ -1128,6 +1180,9 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     }
 
     companion object {
+        /** How soon after the first picture a stall still counts as part of starting. */
+        const val EARLY_STALL_MS = 30_000L
+
         private const val REPORT_INTERVAL_MS = 10_000L
         private const val COUNTDOWN_SECONDS = 5
         private const val SUBTITLE_ID_PREFIX = "flexarr-subtitle:"

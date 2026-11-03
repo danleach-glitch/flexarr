@@ -536,10 +536,12 @@ data class PlaybackRequest(
     val subtitleKey: String? = null,
     /** Convert it even though the device says it can play the file (it turned out it couldn't). */
     val forceTranscode: Boolean? = null,
-    /** Getting the next episode ready during the credits: conversion starts now, and it never ends another screen. */
+    /** Getting a title ready before Play (the next episode, a page being looked at): it never ends another screen. */
     val prepare: Boolean? = null,
     /** A name for this device, for a book's "Jump to … from {device}?" elsewhere. Servers before 0.58 ignore it. */
     val deviceName: String? = null,
+    /** How fast media reaches this device lately, in bits per second (docs/fast-start.md). Servers before 0.59 ignore it. */
+    val measuredBitrate: Long? = null,
 )
 
 @Serializable

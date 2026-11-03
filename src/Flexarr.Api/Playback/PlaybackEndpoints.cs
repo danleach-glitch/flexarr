@@ -35,8 +35,17 @@ public static partial class PlaybackEndpoints
                     return Results.NotFound();
                 }
 
-                // The first line of every playback's story: search the Logs page for its id to follow it.
-                LogStarted(logger, info.PlaybackId, info.Item.Title, info.Method, info.Reasons.Count > 0 ? $" ({string.Join("; ", info.Reasons)})" : "");
+                // The first line of every playback's story: search the Logs page for its id to follow it. One only got
+                // ready ahead of Play (a page looked at) doesn't name the title: browsing isn't watching.
+                if (request.Prepare)
+                {
+                    LogPrepared(logger, info.PlaybackId, info.Method);
+                }
+                else
+                {
+                    LogStarted(logger, info.PlaybackId, info.Item.Title, info.Method, info.Reasons.Count > 0 ? $" ({string.Join("; ", info.Reasons)})" : "");
+                }
+
                 return Results.Ok(info);
             }
             catch (TranscodeLimitException ex)
@@ -281,6 +290,7 @@ public static partial class PlaybackEndpoints
             }
 
             session.LastSeen = DateTime.UtcNow;
+            sessions.Streamed(session);
             return await Books.BookEndpoints.ServeAsync(parts[index], parts[index].Convert, converter, ct);
         });
 
@@ -290,6 +300,8 @@ public static partial class PlaybackEndpoints
             {
                 return Results.NotFound();
             }
+
+            sessions.Streamed(session);
 
             if (session.RemoteUrl is { } remote)
             {
@@ -303,22 +315,23 @@ public static partial class PlaybackEndpoints
 
         group.MapGet("/master.m3u8", (string sid, bool? subtitles, PlaybackSessions sessions, TranscodeManager transcodes, HttpContext http) =>
             sessions.Get(sid) is { Transcode: not null } session
-                ? Playlist(http, PlaybackService.MasterPlaylist(session, subtitles != false))
+                ? Playlist(http, PlaybackService.MasterPlaylist(Used(sessions, session), subtitles != false))
                 : Missing(transcodes, sid));
 
         group.MapGet("/main.m3u8", (string sid, PlaybackSessions sessions, TranscodeManager transcodes, HttpContext http) =>
-            sessions.Get(sid) is { Transcode: { } transcode }
-                ? Playlist(http, transcode.MediaPlaylist())
+            sessions.Get(sid) is { Transcode: { } transcode } session
+                ? Playlist(http, Used(sessions, session).Transcode!.MediaPlaylist())
                 : Missing(transcodes, sid));
 
         // Fragmented MP4 (Apple's players): the initialisation segment, then .m4s segments served like .ts ones.
         group.MapGet("/init.mp4", async (string sid, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct) =>
         {
-            if (sessions.Get(sid) is not { Transcode: { } transcode })
+            if (sessions.Get(sid) is not { Transcode: { } transcode } session)
             {
                 return Missing(transcodes, sid);
             }
 
+            sessions.Used(session);
             try
             {
                 return await transcode.GetInitBytesAsync(ct) is { } init ? Results.Bytes(init, "video/mp4") : Results.NotFound();
@@ -498,11 +511,12 @@ public static partial class PlaybackEndpoints
     /// <summary>A transcode segment (.ts or fragmented MP4 .m4s), converted if it hasn't been yet.</summary>
     private static async Task<IResult> Segment(string sid, int segment, string contentType, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct)
     {
-        if (sessions.Get(sid) is not { Transcode: { } transcode })
+        if (sessions.Get(sid) is not { Transcode: { } transcode } session)
         {
             return Missing(transcodes, sid);
         }
 
+        sessions.Used(session);
         string? path;
         try
         {
@@ -518,6 +532,13 @@ public static partial class PlaybackEndpoints
         return path is not null ? Results.File(path, contentType)
             : transcodes.TakenOverReason(sid) is { } reason ? TakenOver(reason) // ended while this request waited
             : Results.Problem("The segment couldn't be converted.", statusCode: 500);
+    }
+
+    /// <summary>A player asked for a converted stream's playlist or segments: a session got ready ahead of Play is now in use.</summary>
+    private static PlaybackSession Used(PlaybackSessions sessions, PlaybackSession session)
+    {
+        sessions.Used(session);
+        return session;
     }
 
     /// <summary>A transcode that's gone: 410 with the reason when it was ended for another viewer, else 404.</summary>
@@ -545,6 +566,9 @@ public static partial class PlaybackEndpoints
         "mp3" => "audio/mpeg",
         _ => "application/octet-stream",
     };
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Playback {PlaybackId} got ready ahead of Play: {Method}")]
+    private static partial void LogPrepared(ILogger logger, string playbackId, PlaybackMethod method);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Playback {PlaybackId} of {Title}: {Method}{Reasons}")]
     private static partial void LogStarted(ILogger logger, string playbackId, string title, PlaybackMethod method, string reasons);

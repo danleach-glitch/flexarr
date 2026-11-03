@@ -1,3 +1,4 @@
+import { linkSpeed } from '../lib/linkSpeed'
 import type {
   Activity,
   LiveChannel,
@@ -958,7 +959,8 @@ export const getPodcastCountries = (signal?: AbortSignal) => cachedGet<PodcastCo
 export const importOpml = (file: Blob) => request<OpmlImport>('POST', '/podcasts/opml', file.type ? file : new Blob([file], { type: 'text/x-opml' }))
 export const opmlUrl = '/api/v1/podcasts/opml'
 
-export const startPlayback = (body: PlaybackRequest) => request<PlaybackInfo>('POST', '/playback', body)
+/** Starts playback, saying how fast this browser's connection has been lately (see lib/linkSpeed). */
+export const startPlayback = (body: PlaybackRequest) => request<PlaybackInfo>('POST', '/playback', { measuredBitrate: linkSpeed(), ...body })
 export const getPlaybackPreferences = (signal?: AbortSignal) => apiGet<PlaybackPreferences>('/me/playback-preferences', signal)
 export const setPlaybackPreferences = (preferences: PlaybackPreferences) => request<PlaybackPreferences>('PUT', '/me/playback-preferences', preferences)
 /**
@@ -993,6 +995,25 @@ export function beaconProgress(sessionId: string, positionSeconds: number) {
   clearApiCache()
   const body = new Blob([JSON.stringify({ positionSeconds, paused: true })], { type: 'application/json' })
   navigator.sendBeacon?.(`/api/v1/playback/${sessionId}/progress`, body)
+}
+
+/**
+ * Gets a title ready ahead of Play (`prepare`): like startPlayback, but nothing anyone sees has changed yet, so the
+ * cached answers stay. Refused (503) when the server is busy.
+ */
+export async function prepareStream(body: PlaybackRequest): Promise<PlaybackInfo> {
+  const response = await fetch('/api/v1/playback', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ measuredBitrate: linkSpeed(), ...body, prepare: true }),
+  })
+  if (!response.ok) throw await failure(response)
+  return JSON.parse(await response.text(), asUtc) as PlaybackInfo
+}
+
+/** Lets a stream got ready ahead of Play go (best effort, and it outlives the page), leaving the cache alone. */
+export function dropStream(sessionId: string) {
+  return fetch(`/api/v1/playback/${sessionId}`, { method: 'DELETE', headers: authHeaders(), keepalive: true }).catch(() => undefined)
 }
 
 export function stopPlayback(sessionId: string) {

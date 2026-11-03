@@ -9,6 +9,41 @@ public static class FfmpegCommand
     public const int SegmentSeconds = 6;
 
     /// <summary>
+    /// A converted video's first segments are this many short ones (<see cref="OpeningSegmentSeconds"/> each), so a
+    /// player starting from the beginning has a picture after two seconds' worth rather than six. Audio-only streams,
+    /// cut on sound rather than keyframes, stay even.
+    /// </summary>
+    public const int OpeningSegments = 3;
+    public const int OpeningSegmentSeconds = 2;
+
+    /// <summary>
+    /// Whether <paramref name="plan"/>'s segments start with <see cref="OpeningSegments"/> short ones: a converted video
+    /// (not repackaged, not sound alone), from an encoder that keyframes only where told (<see cref="OpeningIsSafe"/>).
+    /// </summary>
+    public static bool HasOpening(TranscodePlan plan, TranscodeSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(settings);
+        return plan.Repackage is null && plan.VideoStreamIndex >= 0 && OpeningIsSafe(settings.Resolved);
+    }
+
+    /// <summary>Where segment <paramref name="index"/> starts, in seconds from the start of the file.</summary>
+    public static double SegmentStartSeconds(int index, bool opening)
+    {
+        var shortOnes = opening ? OpeningSegments : 0;
+        return index <= shortOnes ? index * OpeningSegmentSeconds : (shortOnes * OpeningSegmentSeconds) + ((index - shortOnes) * SegmentSeconds);
+    }
+
+    /// <summary>The segment playing at <paramref name="seconds"/> (not clamped to the file's length).</summary>
+    public static int SegmentAtSeconds(double seconds, bool opening)
+    {
+        seconds = Math.Max(0, seconds);
+        var shortOnes = opening ? OpeningSegments : 0;
+        var openingEnd = shortOnes * OpeningSegmentSeconds;
+        return seconds < openingEnd ? (int)(seconds / OpeningSegmentSeconds) : shortOnes + (int)((seconds - openingEnd) / SegmentSeconds);
+    }
+
+    /// <summary>
     /// How far ahead of real time a stream is produced: this much in one burst, then at playback speed, so a viewer
     /// has a buffer to seek within without the server encoding the whole film at once.
     /// </summary>
@@ -20,8 +55,22 @@ public static class FfmpegCommand
     /// </summary>
     public static readonly string[] LocalFile = ["-protocol_whitelist", "file"];
 
+    /// <summary>
+    /// A stream got ready ahead of Play makes this much in its burst rather than <see cref="RunAheadSeconds"/>: enough to
+    /// open on, without encoding minutes of a title nobody may play.
+    /// </summary>
+    public const int WarmingRunAheadSeconds = 30;
+
     /// <summary>ffmpeg's own pacing: the burst, then real time (ffmpeg 6 and later for the burst).</summary>
-    private static readonly string[] Pacing = ["-readrate", "1.0", "-readrate_initial_burst", RunAheadSeconds.ToString(CultureInfo.InvariantCulture)];
+    private static string[] Pacing(int burstSeconds) => ["-readrate", "1.0", "-readrate_initial_burst", burstSeconds.ToString(CultureInfo.InvariantCulture)];
+
+    /// <summary>
+    /// Whether the encoder makes keyframes only where they're forced, so the short opening segments cut where the
+    /// playlist says: libx264 (scene cuts off), VideoToolbox, and NVENC (scene cuts off). VA-API and Quick Sync may add
+    /// their own, so their streams keep even segments throughout.
+    /// </summary>
+    public static bool OpeningIsSafe(HardwareAcceleration encoder) =>
+        encoder is HardwareAcceleration.None or HardwareAcceleration.VideoToolbox or HardwareAcceleration.Nvenc;
 
     /// <summary>
     /// Arguments to produce segments <paramref name="startSegment"/>.. of <paramref name="input"/> into
@@ -29,20 +78,31 @@ public static class FfmpegCommand
     /// restart lines up with the pre-generated VOD playlist, and timestamps are offset to the segment's real
     /// position so segments from different runs stitch together.
     /// </summary>
-    public static IReadOnlyList<string> Hls(string input, TranscodePlan plan, int startSegment, string outputDirectory, TranscodeSettings settings)
+    /// <param name="opening">Whether the segments start with short ones (see <see cref="HasOpening"/>); by default, when the plan and encoder allow.</param>
+    /// <param name="burstSeconds">How far ahead to make in the first burst (<see cref="RunAheadSeconds"/> by default).</param>
+    public static IReadOnlyList<string> Hls(string input, TranscodePlan plan, int startSegment, string outputDirectory, TranscodeSettings settings,
+        bool? opening = null, int burstSeconds = RunAheadSeconds)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(settings);
 
         if (plan.Repackage is { } repackage)
         {
-            return Repackaged(input, plan, repackage, startSegment, outputDirectory);
+            return Repackaged(input, plan, repackage, startSegment, outputDirectory, burstSeconds);
         }
 
         // Audio-only plans (music) have no video stream, so nothing to decode on the GPU.
         var audioOnly = plan.VideoStreamIndex < 0;
         var hw = audioOnly ? HardwareAcceleration.None : settings.Resolved;
-        var start = (startSegment * SegmentSeconds).ToString(CultureInfo.InvariantCulture);
+        var shortStart = opening ?? HasOpening(plan, settings);
+        if (shortStart && startSegment < OpeningSegments)
+        {
+            startSegment = 0; // Within the short opening segments: they're quickest made again from the start.
+        }
+
+        var startSeconds = SegmentStartSeconds(startSegment, shortStart);
+        var start = startSeconds.ToString(CultureInfo.InvariantCulture);
+        var fromOpening = shortStart && startSegment == 0;
         var burn = plan.BurnSubtitle;
         var args = new List<string> { "-hide_banner", "-v", "error", "-nostdin", "-y" };
 
@@ -79,7 +139,7 @@ public static class FfmpegCommand
                 break;
         }
 
-        args.AddRange([.. Pacing, "-ss", start, .. LocalFile, "-i", input]);
+        args.AddRange([.. Pacing(burstSeconds), "-ss", start, .. LocalFile, "-i", input]);
         var inputs = 1;
         if (burn?.ExternalPath is { } subtitleFile)
         {
@@ -87,15 +147,15 @@ public static class FfmpegCommand
             inputs++;
         }
 
-        var audioInput = AddShiftedAudioInput(args, input, plan, startSegment * SegmentSeconds, copyTs: false, inputs);
+        var audioInput = AddShiftedAudioInput(args, input, plan, startSeconds, copyTs: false, inputs, burstSeconds);
 
         // ---- Video
         if (!audioOnly)
         {
-            AddVideo(args, plan, burn, hw, settings);
+            AddVideo(args, plan, burn, hw, settings, fromOpening);
         }
 
-        AddAudioAndOutput(args, plan, audioInput, start, startSegment, outputDirectory);
+        AddAudioAndOutput(args, plan, audioInput, start, startSegment, outputDirectory, fromOpening ? OpeningSegmentSeconds : SegmentSeconds);
         return args;
     }
 
@@ -104,12 +164,12 @@ public static class FfmpegCommand
     /// cut at every keyframe (frag0.m4s, frag1.m4s…). The session finds each fragment's place by its own timestamp and
     /// serves a segment as the fragments between two of <see cref="Repackage.SegmentStarts"/>.
     /// </summary>
-    private static List<string> Repackaged(string input, TranscodePlan plan, Repackage repackage, int startSegment, string outputDirectory)
+    private static List<string> Repackaged(string input, TranscodePlan plan, Repackage repackage, int startSegment, string outputDirectory, int burstSeconds)
     {
         var startSeconds = repackage.SegmentStarts[Math.Clamp(startSegment, 0, repackage.SegmentStarts.Count - 1)];
         var start = startSeconds.ToString("0.###", CultureInfo.InvariantCulture);
-        List<string> args = ["-hide_banner", "-v", "error", "-nostdin", "-y", .. Pacing, "-ss", start, .. LocalFile, "-i", input];
-        var audioInput = AddShiftedAudioInput(args, input, plan, startSeconds, copyTs: true, inputs: 1);
+        List<string> args = ["-hide_banner", "-v", "error", "-nostdin", "-y", .. Pacing(burstSeconds), "-ss", start, .. LocalFile, "-i", input];
+        var audioInput = AddShiftedAudioInput(args, input, plan, startSeconds, copyTs: true, inputs: 1, burstSeconds);
         args.AddRange(["-map", $"0:{plan.VideoStreamIndex}", "-c:v", "copy", "-tag:v", repackage.CodecTag]);
         if (repackage.StripDolbyVision)
         {
@@ -183,7 +243,7 @@ public static class FfmpegCommand
         {
             if (plan.VideoStreamIndex >= 0)
             {
-                AddVideo(args, plan, null, hw, settings);
+                AddVideo(args, plan, null, hw, settings, fromOpening: false);
             }
 
             if (plan.AudioStreamIndex is { } audioIndex)
@@ -271,7 +331,7 @@ public static class FfmpegCommand
             ? "zscale=transfer=linear:npl=100,format=gbrpf32le,tonemap=hable:desat=0,zscale=transfer=bt709:matrix=bt709:primaries=bt709:range=tv,"
             : "";
 
-    private static void AddVideo(List<string> args, TranscodePlan plan, SubtitleTrack? burn, HardwareAcceleration hw, TranscodeSettings settings)
+    private static void AddVideo(List<string> args, TranscodePlan plan, SubtitleTrack? burn, HardwareAcceleration hw, TranscodeSettings settings, bool fromOpening)
     {
         var height = plan.TargetHeight.ToString(CultureInfo.InvariantCulture);
         var width = plan.TargetWidth.ToString(CultureInfo.InvariantCulture);
@@ -319,10 +379,17 @@ public static class FfmpegCommand
             HardwareAcceleration.VideoToolbox => ["-c:v", "h264_videotoolbox", "-profile:v", "high", "-b:v", bitrate, "-maxrate", maxrate, "-bufsize", bufsize, "-allow_sw", "1"],
             HardwareAcceleration.Vaapi => ["-c:v", "h264_vaapi", "-b:v", bitrate, "-maxrate", maxrate, "-bufsize", bufsize],
             HardwareAcceleration.Qsv => ["-c:v", "h264_qsv", "-preset", "veryfast", "-b:v", bitrate, "-maxrate", maxrate, "-bufsize", bufsize],
-            HardwareAcceleration.Nvenc => ["-c:v", "h264_nvenc", "-preset", "p4", "-b:v", bitrate, "-maxrate", maxrate, "-bufsize", bufsize],
+            HardwareAcceleration.Nvenc => ["-c:v", "h264_nvenc", "-preset", "p4", "-b:v", bitrate, "-maxrate", maxrate, "-bufsize", bufsize, "-no-scenecut", "1"],
             _ => ["-c:v", "libx264", "-preset", settings.SoftwarePreset, "-crf", "21", "-maxrate", maxrate, "-bufsize", bufsize, "-sc_threshold", "0"],
         });
-        args.AddRange(["-force_key_frames", $"expr:gte(t,n_forced*{SegmentSeconds})", "-g", "1000", "-keyint_min", "1"]);
+        // A keyframe at every segment's start and nowhere else (libx264's and NVENC's scene-cut keyframes are off, and
+        // VideoToolbox makes none of its own; others get no short opening, see OpeningIsSafe): from the
+        // beginning that's the short opening segments, then every SegmentSeconds; a run started later starts on a
+        // SegmentSeconds boundary. The segmenter cuts at the first keyframe a segment's length after the last cut.
+        var keyframes = fromOpening
+            ? $"expr:if(lt(n_forced,{OpeningSegments}),gte(t,n_forced*{OpeningSegmentSeconds}),gte(t,{OpeningSegments * OpeningSegmentSeconds}+(n_forced-{OpeningSegments})*{SegmentSeconds}))"
+            : $"expr:gte(t,n_forced*{SegmentSeconds})";
+        args.AddRange(["-force_key_frames", keyframes, "-g", "1000", "-keyint_min", "1"]);
     }
 
     /// <summary>
@@ -331,7 +398,8 @@ public static class FfmpegCommand
     /// when each input starts from zero; with the file's own timeline kept (<paramref name="copyTs"/>) they're moved
     /// by the delay. Returns the input the sound comes from: 0, the picture's, when it's in sync.
     /// </summary>
-    private static int AddShiftedAudioInput(List<string> args, string input, TranscodePlan plan, double startSeconds, bool copyTs, int inputs)
+    private static int AddShiftedAudioInput(List<string> args, string input, TranscodePlan plan, double startSeconds, bool copyTs, int inputs,
+        int burstSeconds = RunAheadSeconds)
     {
         var delay = plan.AudioDelaySeconds;
         if (delay == 0 || plan.AudioStreamIndex is null || plan.VideoStreamIndex < 0)
@@ -343,12 +411,13 @@ public static class FfmpegCommand
         var offset = copyTs ? delay : Math.Max(0, delay - startSeconds);
         args.AddRange([
             "-itsoffset", offset.ToString("0.###", CultureInfo.InvariantCulture),
-            .. Pacing, "-ss", seek.ToString("0.###", CultureInfo.InvariantCulture), .. LocalFile, "-i", input,
+            .. Pacing(burstSeconds), "-ss", seek.ToString("0.###", CultureInfo.InvariantCulture), .. LocalFile, "-i", input,
         ]);
         return inputs;
     }
 
-    private static void AddAudioAndOutput(List<string> args, TranscodePlan plan, int audioInput, string start, int startSegment, string outputDirectory)
+    private static void AddAudioAndOutput(List<string> args, TranscodePlan plan, int audioInput, string start, int startSegment, string outputDirectory,
+        int segmentSeconds)
     {
         AddAudio(args, plan, audioInput);
 
@@ -364,7 +433,7 @@ public static class FfmpegCommand
             "-max_muxing_queue_size", "2048",
             "-output_ts_offset", start,
             "-f", "hls",
-            "-hls_time", SegmentSeconds.ToString(CultureInfo.InvariantCulture),
+            "-hls_time", segmentSeconds.ToString(CultureInfo.InvariantCulture),
             "-hls_list_size", "0",
             "-hls_playlist_type", "event",
             "-start_number", startSegment.ToString(CultureInfo.InvariantCulture),
@@ -437,13 +506,13 @@ public static class FfmpegCommand
     }
 
     /// <summary>
-    /// A full VOD playlist of fixed-length segments, so players can seek anywhere immediately. With
-    /// <paramref name="startSeconds"/>, it says where to open (EXT-X-START), so a player resuming partway fetches from
-    /// there rather than from the beginning first.
+    /// A full VOD playlist of the segments (fixed-length, after the short <paramref name="opening"/> ones), so players can
+    /// seek anywhere immediately. With <paramref name="startSeconds"/>, it says where to open (EXT-X-START), so a player
+    /// resuming partway fetches from there rather than from the beginning first.
     /// </summary>
-    public static string MediaPlaylist(double durationSeconds, double startSeconds = 0, bool fmp4 = false)
+    public static string MediaPlaylist(double durationSeconds, double startSeconds = 0, bool fmp4 = false, bool opening = false)
     {
-        var count = SegmentCount(durationSeconds);
+        var count = SegmentCount(durationSeconds, opening);
         var builder = new System.Text.StringBuilder();
         builder.Append(fmp4 ? "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:" : "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:")
             .Append(SegmentSeconds + 1)
@@ -460,7 +529,7 @@ public static class FfmpegCommand
 
         for (var i = 0; i < count; i++)
         {
-            var length = Math.Min(SegmentSeconds, durationSeconds - (i * SegmentSeconds));
+            var length = Math.Min(SegmentStartSeconds(i + 1, opening), durationSeconds) - SegmentStartSeconds(i, opening);
             builder.Append(CultureInfo.InvariantCulture, $"#EXTINF:{length:F3},\n{i}.{(fmp4 ? "m4s" : "ts")}\n");
         }
 
@@ -488,5 +557,11 @@ public static class FfmpegCommand
         return builder.Append("#EXT-X-ENDLIST\n").ToString();
     }
 
-    public static int SegmentCount(double durationSeconds) => Math.Max(1, (int)Math.Ceiling(durationSeconds / SegmentSeconds));
+    public static int SegmentCount(double durationSeconds, bool opening = false)
+    {
+        var openingEnd = (opening ? OpeningSegments : 0) * OpeningSegmentSeconds;
+        return Math.Max(1, durationSeconds <= openingEnd
+            ? (int)Math.Ceiling(durationSeconds / OpeningSegmentSeconds)
+            : (opening ? OpeningSegments : 0) + (int)Math.Ceiling((durationSeconds - openingEnd) / SegmentSeconds));
+    }
 }

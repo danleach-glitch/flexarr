@@ -1,4 +1,4 @@
-import { memo, use, useCallback, useState, type CSSProperties } from 'react'
+import { memo, use, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
   clearApiCache,
@@ -28,6 +28,9 @@ import { Bookmark as BookmarkIcon, Check, Close, Play } from '../components/icon
 import { icon } from '../components/icons.generated'
 import type { MenuAction } from '../components/ItemMenu'
 import { Overview } from '../components/Overview'
+import { deviceName } from '../lib/books'
+import { getReady, handOver, leave, PAGE_DELAY_MS } from '../lib/preparedPlayback'
+import { detectProfile } from '../lib/profile'
 import { Row } from '../components/Row'
 import { AudioTimeContext, useAudioPlayer } from '../hooks/audioPlayerContext'
 import { announceBookmarks, useBookmarkChanges } from '../hooks/bookmarks'
@@ -63,6 +66,21 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
   }, [item.id, onChange])
   useBookmarkChanges(item.id, bookmarksChanged)
 
+  // Looked at for a moment, and not already the book playing: its session is got ready, so Play starts at once. Keyed
+  // on the book alone: Play (which hands it over) and a refresh of the page mustn't let it go.
+  const playingThis = useRef(false)
+  playingThis.current = player.current?.id === item.id
+  const hasBook = !!book
+  useEffect(() => {
+    if (!hasBook) return
+    const timer = window.setTimeout(() => {
+      if (!playingThis.current) getReady({ itemId: item.id, profile: detectProfile(), deviceName: deviceName() })
+    }, PAGE_DELAY_MS)
+    return () => {
+      window.clearTimeout(timer)
+      leave(item.id)
+    }
+  }, [item.id, hasBook])
   if (!book) return <p className="page-message muted">This book can’t be shown by this version of the app.</p>
 
   const playing = player.current?.id === item.id
@@ -82,7 +100,10 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
       player.seek(at)
       if (!player.playing) player.toggle()
     } else if (playing) player.toggle()
-    else player.play([{ ...item, playFrom: at }])
+    else {
+      handOver(item.id)
+      player.play([{ ...item, playFrom: at }])
+    }
   }
 
   /** Through the player while this book plays, so its own list of bookmarks keeps up. */
@@ -97,6 +118,7 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
   async function again() {
     await listenAgain(item.id)
     announceWatched(item)
+    handOver(item.id)
     player.play([{ ...item, playFrom: 0, userData: { ...item.userData, watched: false, positionSeconds: 0 } }])
     onChange()
   }

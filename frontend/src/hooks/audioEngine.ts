@@ -15,6 +15,8 @@ import { deviceName, fileAt, isBook, readLocalPlace, saveLocalPlace, smartRewind
 import { heardAsAlbum, replayGainScale } from '../lib/loudness'
 import type { MusicSettings } from '../lib/musicSettings'
 import { detectProfile } from '../lib/profile'
+import { reportStart, type StartTiming } from '../lib/startTiming'
+import { take as takePrepared } from '../lib/preparedPlayback'
 import { createMixer, type Channel } from './mixer'
 import type { QueueState } from './queue'
 
@@ -168,6 +170,8 @@ export function createEngine(host: EngineHost): AudioEngine {
   // The sleep timer's fade, over whatever the level would be.
   let fade = 1
   const level = (s: Slot) => (host.settings().normalise ? s.gain : 1) * fade
+  // A book's start being timed, until its first sound.
+  let bookTiming: StartTiming | null = null
   // A book plays its files back to back through both elements on one session; null when no book is playing.
   let book: BookPlay | null = null
   // When the podcast episode playing was paused, for smart rewind; null when it wasn't (or was moved since).
@@ -287,7 +291,12 @@ export function createEngine(host: EngineHost): AudioEngine {
     const mine = ++loadCount
     c.track = track
     c.ready = false
-    const info = await startPlayback({ itemId: track.id, profile: detectProfile(), deviceName: deviceName() })
+    const timing: StartTiming = { kind: 'book', pressedAt: performance.now() }
+    bookTiming = null
+    // Got ready on the book's page a moment ago: no wait for the server.
+    const ready = await takePrepared({ itemId: track.id })
+    const info = ready ?? await startPlayback({ itemId: track.id, profile: detectProfile(), deviceName: deviceName() })
+    Object.assign(timing, { answeredAt: performance.now(), warmed: ready !== null, method: info.method, playbackId: info.playbackId })
     if (mine !== loadCount) {
       void stopPlayback(info.sessionId)
       return false
@@ -299,6 +308,7 @@ export function createEngine(host: EngineHost): AudioEngine {
     }
     const decision = startDecision(manifest.progress, readLocalPlace(track.id), startAt > 0 ? startAt : track.playFrom)
     book = { track, session: info.sessionId, manifest, pausedAt: null, reportedAt: performance.now(), expired: false, heardAt: Date.now(), preloadFailed: null }
+    bookTiming = timing
     host.book?.({ manifest, session: info.sessionId, decision })
     host.duration(manifest.durationSeconds)
     const place = fileAt(manifest.files, decision.start)
@@ -542,6 +552,12 @@ export function createEngine(host: EngineHost): AudioEngine {
         void reportProgress(s.session, s.el.currentTime, false).catch(() => undefined)
       }
       lookAhead(s)
+    },
+    playing: () => {
+      // A book's first sound: its start is timed (see lib/startTiming).
+      if (s !== current() || !bookTiming) return
+      reportStart(bookTiming)
+      bookTiming = null
     },
     play: () => {
       if (s !== current()) return
