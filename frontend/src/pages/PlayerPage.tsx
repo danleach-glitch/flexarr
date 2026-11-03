@@ -1414,20 +1414,21 @@ export function PlayerPage() {
             )}
           </div>
           <div className="up-next-text">
-            <span className="muted">
+            <span className="muted up-next-count">
               Next episode
               {counting ? ` in ${countdown}` : ''}
             </span>
             <strong>
               {episodeCode(info.next)} {info.next.title}
             </strong>
-            <div className="up-next-actions">
-              <button className="button small" onClick={moveOn}>
+            {/* One split pill: Play now and, while counting down, its X. Each half is its own button. */}
+            <div className={counting ? 'up-next-pill counting' : 'up-next-pill'}>
+              <button className="up-next-play" onClick={moveOn}>
                 <icon.play /> Play now
               </button>
               {counting && (
-                <button className="button quiet small" onClick={cancelUpNext}>
-                  Cancel
+                <button className="up-next-cancel" onClick={cancelUpNext} aria-label="Cancel">
+                  <icon.removeFromRow />
                 </button>
               )}
             </div>
