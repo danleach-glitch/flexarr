@@ -5,6 +5,7 @@ using Flexarr.Core.Media;
 using Flexarr.Core.Podcasts;
 using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Podcasts;
 
@@ -50,12 +51,12 @@ public sealed partial class PodcastLibrary(FlexarrDbContext db, PodcastFetcher f
     {
         if (await LibraryAsync(ct) is not { } library)
         {
-            return new PodcastAddResult(null, "Podcasts aren't available on this profile.");
+            return new PodcastAddResult(null, Loc.Mark("Podcasts aren't available on this profile."));
         }
 
         if (FeedParser.WebUrl(feedUrl) is not { } url)
         {
-            return new PodcastAddResult(null, "That isn't a web address.");
+            return new PodcastAddResult(null, Loc.Mark("That isn't a web address."));
         }
 
         var existing = await db.PodcastFeeds.AsNoTracking()
@@ -69,7 +70,7 @@ public sealed partial class PodcastLibrary(FlexarrDbContext db, PodcastFetcher f
         var fetch = await fetcher.FetchFeedAsync(url, null, null, ct);
         if (fetch.Feed is not { } parsed)
         {
-            return new PodcastAddResult(null, fetch.Error ?? "The feed couldn't be read.");
+            return new PodcastAddResult(null, fetch.Error ?? Loc.Mark("The feed couldn't be read."));
         }
 
         // Moved for good: kept under its new address, which may be one the library already has.

@@ -2,6 +2,7 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -58,7 +59,7 @@ public static class MusicDiscovery
             var recentAlbums = await played.GroupBy(p => p.MediaItem!.ParentId!.Value)
                 .Select(g => new { AlbumId = g.Key, At = g.Max(p => p.LastPlayedAt) })
                 .OrderByDescending(a => a.At).Take(size).ToListAsync(ct);
-            rows.Add(new HomeRowDto("music-recent", "Recently played", "poster", await InOrderAsync(db, recentAlbums.Select(a => a.AlbumId), profileId, ct)));
+            rows.Add(new HomeRowDto("music-recent", Loc.T("Recently played"), "poster", await InOrderAsync(db, recentAlbums.Select(a => a.AlbumId), profileId, ct)));
         }
 
         if (wanted("music-top"))
@@ -66,7 +67,7 @@ public static class MusicDiscovery
             var topTracks = await played.Where(p => p.PlayCount > 0)
                 .OrderByDescending(p => p.PlayCount).ThenByDescending(p => p.LastPlayedAt).Take(size)
                 .Select(p => p.MediaItemId).ToListAsync(ct);
-            rows.Add(new HomeRowDto("music-top", "Most played", "tracks", await InOrderAsync(db, topTracks, profileId, ct)));
+            rows.Add(new HomeRowDto("music-top", Loc.T("Most played"), "tracks", await InOrderAsync(db, topTracks, profileId, ct)));
         }
 
         if (!wanted("music-artists"))
@@ -95,7 +96,7 @@ public static class MusicDiscovery
                 }
             }
 
-            rows.Add(new HomeRowDto("music-artists", "More from artists you play", "poster", await InOrderAsync(db, picks.Take(size), profileId, ct)));
+            rows.Add(new HomeRowDto("music-artists", Loc.T("More from artists you play"), "poster", await InOrderAsync(db, picks.Take(size), profileId, ct)));
         }
 
         return rows.Where(r => r.HasContent).ToList();

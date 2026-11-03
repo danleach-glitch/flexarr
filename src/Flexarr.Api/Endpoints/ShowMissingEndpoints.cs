@@ -143,7 +143,7 @@ public static class ShowMissingEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Results.Problem($"{managed.Instance.Name} didn't take the search ({(int?)ex.StatusCode ?? 0}).", statusCode: 502);
+                return Problems.Of("{name} didn't take the search ({status}).", new { name = managed.Instance.Name, status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
         }).WithTags("Items").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 

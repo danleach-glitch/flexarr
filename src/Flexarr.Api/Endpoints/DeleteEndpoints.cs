@@ -84,7 +84,7 @@ public static partial class DeleteEndpoints
                 }
                 catch (HttpRequestException ex)
                 {
-                    return Results.Problem($"{owner.Lidarr.Name} didn't answer ({(int?)ex.StatusCode ?? 0}). Nothing was deleted.", statusCode: 502);
+                    return Problems.Of("{name} didn't answer ({status}). Nothing was deleted.", new { name = owner.Lidarr.Name, status = (int?)ex.StatusCode ?? 0 }, status: 502);
                 }
             }
 
@@ -158,7 +158,7 @@ public static partial class DeleteEndpoints
                         catch (HttpRequestException ex)
                         {
                             // Unmonitored already, so it won't download again; its files stay until this is tried again.
-                            return Results.Problem($"{instance.Name} stopped wanting the album but didn't delete its files ({(int?)ex.StatusCode ?? 0}). Try again.", statusCode: 502);
+                            return Problems.Of("{name} stopped wanting the album but didn't delete its files ({status}). Try again.", new { name = instance.Name, status = (int?)ex.StatusCode ?? 0 }, status: 502);
                         }
 
                         // Only the artist's last album asks whether they're followed (and keeps them if so).
@@ -182,7 +182,7 @@ public static partial class DeleteEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Results.Problem($"{instance.Name} didn't delete it ({(int?)ex.StatusCode ?? 0}). Nothing was removed from Flexarr.", statusCode: 502);
+                return Problems.Of("{name} didn't delete it ({status}). Nothing was removed from Flexarr.", new { name = instance.Name, status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
 
             if (fromDisk)
@@ -237,7 +237,7 @@ public static partial class DeleteEndpoints
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // Files deleted before this one are gone; the next scan drops them.
-                return Results.Problem($"Couldn't delete {Path.GetFileName(file)}: {ex.Message}", statusCode: 500);
+                return Problems.Of("Couldn't delete {file}: {message}", new { file = Path.GetFileName(file), message = ex.Message }, status: 500);
             }
         }
 

@@ -11,6 +11,7 @@ using Flexarr.Integrations.Arr;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -90,10 +91,10 @@ public static partial class RequestEndpoints
 
     private static readonly (string Id, string List, string Title)[] Lists =
     [
-        ("trending", "trending", "Trending this week"),
-        ("movies", "movies", "Popular movies"),
-        ("tv", "tv", "Popular new shows"),
-        ("upcoming", "movies/upcoming", "Coming to cinemas"),
+        ("trending", "trending", Loc.Mark("Trending this week")),
+        ("movies", "movies", Loc.Mark("Popular movies")),
+        ("tv", "tv", Loc.Mark("Popular new shows")),
+        ("upcoming", "movies/upcoming", Loc.Mark("Coming to cinemas")),
     ];
 
     /// <summary>
@@ -135,7 +136,7 @@ public static partial class RequestEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Results.Problem($"Seerr didn't say where it can add requests ({(int?)ex.StatusCode ?? 0}).", statusCode: 502);
+                return Problems.Of("Seerr didn't say where it can add requests ({status}).", new { status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
         });
 
@@ -162,7 +163,7 @@ public static partial class RequestEndpoints
                     try
                     {
                         var page = await seerr.DiscoverAsync(instance, list, 1, ct, FilterFor(id, today));
-                        rows.Add(new ExternalRowDto(id, title, page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library, wanted))
+                        rows.Add(new ExternalRowDto(id, Loc.T(title), page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library, wanted))
                             .Where(t => t.LibraryItemId is not null || !hidden.Hides(KindOf(t.MediaType))).ToList()));
                     }
                     catch (HttpRequestException)
@@ -206,7 +207,7 @@ public static partial class RequestEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Results.Problem($"Seerr didn't answer the search ({(int?)ex.StatusCode ?? 0}).", statusCode: 502);
+                return Problems.Of("Seerr didn't answer the search ({status}).", new { status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
         });
 
@@ -241,7 +242,7 @@ public static partial class RequestEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Results.Problem($"Seerr didn't answer ({(int?)ex.StatusCode ?? 0}).", statusCode: 502);
+                return Problems.Of("Seerr didn't answer ({status}).", new { status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
         });
 
@@ -250,7 +251,9 @@ public static partial class RequestEndpoints
         {
             if ((await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(KindOf(request.MediaType)))
             {
-                return Results.Problem(request.MediaType == "movie" ? "This profile can't request movies." : "This profile can't request shows.", statusCode: 403);
+                return request.MediaType == "movie"
+                    ? Problems.Of("This profile can't request movies.", status: 403)
+                    : Problems.Of("This profile can't request shows.", status: 403);
             }
 
             if (options.CurrentValue.Seerr?.Instance is not { } instance)
@@ -282,7 +285,7 @@ public static partial class RequestEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Results.Problem($"Seerr didn't accept the request ({(int?)ex.StatusCode ?? 0}). It may already be requested.", statusCode: 502);
+                return Problems.Of("Seerr didn't accept the request ({status}). It may already be requested.", new { status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
             catch (NotRequestableException ex)
             {
@@ -326,7 +329,9 @@ public static partial class RequestEndpoints
 
             if ((await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(KindOf(body.MediaType)))
             {
-                return Results.Problem(body.MediaType == "movie" ? "This profile can't request movies." : "This profile can't request shows.", statusCode: 403);
+                return body.MediaType == "movie"
+                    ? Problems.Of("This profile can't request movies.", status: 403)
+                    : Problems.Of("This profile can't request shows.", status: 403);
             }
 
             if (options.CurrentValue.Seerr?.Instance is not { } instance)
@@ -334,7 +339,7 @@ public static partial class RequestEndpoints
                 return Problems.Of("Requests need a Seerr server. Add one under Settings › Connections.", status: 409);
             }
 
-            if (MusicRequestEndpoints.UndoRefused(current, cache, "Guests can't undo requests.") is { } refused)
+            if (MusicRequestEndpoints.UndoRefused(current, cache, titles: true) is { } refused)
             {
                 return refused;
             }
@@ -371,7 +376,7 @@ public static partial class RequestEndpoints
         // requested; such a show is often specials TheTVDB files under another (a Halloween special, say).
         if (mediaType == "tv" && await seerr.GetAsync(instance, $"tv/{tmdbId}", ct) is { } show && LacksTvdbId(show))
         {
-            throw new NotRequestableException("Sonarr can't add this show: TheTVDB doesn't list it. It may be part of another show.");
+            throw new NotRequestableException(Loc.T("Sonarr can't add this show: TheTVDB doesn't list it. It may be part of another show."));
         }
 
         var to = await RequestDestinations.ForRequestAsync(seerr, instance, options.PathMappings, db, profileId, kind, ct);

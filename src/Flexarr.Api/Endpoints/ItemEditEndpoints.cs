@@ -5,6 +5,7 @@ using Flexarr.Core.Media;
 using Flexarr.Core.Scanning;
 using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -161,40 +162,40 @@ public static class ItemEditEndpoints
     {
         if (string.IsNullOrWhiteSpace(r.Title) || r.Title.Length > 500 || r.SortTitle?.Length > 500 || r.OriginalTitle?.Length > 500)
         {
-            return "A title of up to 500 characters.";
+            return Loc.T("A title of up to 500 characters.");
         }
 
         if (!Names(r.Genres) || r.Studio?.Length > 200)
         {
-            return "Up to 20 genres, and a studio or network, each up to 200 characters.";
+            return Loc.T("Up to 20 genres, and a studio or network, each up to 200 characters.");
         }
 
         if (r.Overview?.Length > 20_000)
         {
-            return "A description of up to 20,000 characters.";
+            return Loc.T("A description of up to 20,000 characters.");
         }
 
-        return r.Year is < 1800 or > 3000 ? "A year such as 1999." : null;
+        return r.Year is < 1800 or > 3000 ? Loc.T("A year such as 1999.") : null;
     }
 
     internal static string? InvalidAlbum(AlbumEditRequest r)
     {
         if (string.IsNullOrWhiteSpace(r.Title) || r.Title.Length > 500)
         {
-            return "A title of up to 500 characters.";
+            return Loc.T("A title of up to 500 characters.");
         }
 
         if (!Names(r.Genres))
         {
-            return "Up to 20 genres, each up to 200 characters.";
+            return Loc.T("Up to 20 genres, each up to 200 characters.");
         }
 
         if (Blank(r.AlbumType) is { } type && !AlbumTypes.Contains(type))
         {
-            return $"A type that's one of {string.Join(", ", AlbumTypes)}.";
+            return Loc.T("A type that's one of {types}.", new { types = string.Join(", ", AlbumTypes) });
         }
 
-        return r.Year is < 1800 or > 3000 ? "A year such as 1999." : null;
+        return r.Year is < 1800 or > 3000 ? Loc.T("A year such as 1999.") : null;
     }
 
     private static bool Names(IReadOnlyList<string>? names) => names is null || (names.Count <= MaxGenres && names.All(n => n is not null && n.Length <= 200));

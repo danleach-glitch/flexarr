@@ -7,6 +7,7 @@ using Flexarr.Metadata;
 using Flexarr.Metadata.Books;
 using Microsoft.EntityFrameworkCore;
 using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Books;
 
@@ -219,21 +220,21 @@ public static class BookMatchEndpoints
         static bool Names(IReadOnlyList<string>? names) => names is null || (names.Count <= MaxNames && names.All(n => n is not null && n.Length <= 200));
         if (string.IsNullOrWhiteSpace(r.Title) || r.Title.Length > 500 || r.Subtitle?.Length > 500)
         {
-            return "A title of up to 500 characters.";
+            return Loc.T("A title of up to 500 characters.");
         }
 
         if (!Names(r.Authors) || !Names(r.Narrators) || !Names(r.Genres)
             || r.Series is { } series && (series.Count > MaxNames || series.Any(s => s?.Name is null || s.Name.Length > 200 || s.Sequence?.Length > 20)))
         {
-            return "Up to 20 authors, narrators, series and genres, each up to 200 characters.";
+            return Loc.T("Up to 20 authors, narrators, series and genres, each up to 200 characters.");
         }
 
         if (r.Overview?.Length > 20_000)
         {
-            return "A description of up to 20,000 characters.";
+            return Loc.T("A description of up to 20,000 characters.");
         }
 
-        return r.Year is < 1 or > 3000 ? "A year such as 2016." : null;
+        return r.Year is < 1 or > 3000 ? Loc.T("A year such as 2016.") : null;
     }
 
     private static BookMatchDto ToDto(BookMatch m) => new(m.Provider, m.Id, m.Title, m.Subtitle, m.Authors, m.Narrators,

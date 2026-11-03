@@ -1,3 +1,5 @@
+using Flexarr.Core.Localization;
+
 namespace Flexarr.Api.Endpoints;
 
 /// <summary>Checks, when a folder is saved in Settings, that Flexarr can make it and write in it.</summary>
@@ -13,7 +15,7 @@ public static class WritableFolder
         ArgumentNullException.ThrowIfNull(folder);
         if (!Path.IsPathFullyQualified(folder) || folder.Contains('\0', StringComparison.Ordinal))
         {
-            return "Enter the folder’s full path.";
+            return Loc.T("Enter the folder’s full path.");
         }
 
         try
@@ -34,7 +36,7 @@ public static class WritableFolder
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            return $"Flexarr can’t write to {folder}.";
+            return Loc.T("Flexarr can’t write to {folder}.", new { folder });
         }
     }
 }

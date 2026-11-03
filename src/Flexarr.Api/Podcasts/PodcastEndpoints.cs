@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Podcasts;
 
@@ -179,7 +180,7 @@ public static class PodcastEndpoints
             var result = await library.AddAsync(feedUrl, request.ITunesId, artwork, ct);
             return result.PodcastId is { } id
                 ? Results.Ok(await PodcastAsync(db, id, profile.Id, ct))
-                : Results.Problem(result.Error, statusCode: StatusCodes.Status422UnprocessableEntity, title: "The podcast couldn't be added");
+                : Results.Problem(Loc.T(result.Error!), statusCode: StatusCodes.Status422UnprocessableEntity, title: Loc.T("The podcast couldn't be added"));
         }).NotForAgeLimited();
 
         group.MapGet("/{id:guid}", async (Guid id, FlexarrDbContext db, CurrentProfile profile, PodcastRefreshQueue queue, TimeProvider clock, CancellationToken ct) =>
@@ -330,10 +331,7 @@ public static class PodcastEndpoints
             if (request.KeepEpisodes is < 1 or > 50 || request.Speed is { } s && (!double.IsFinite(s) || s is < 0.5 or > 4)
                 || request.SkipBackSeconds is { } b && !steps.Contains(b) || request.SkipForwardSeconds is { } f && !steps.Contains(f))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]>
-                {
-                    ["preferences"] = ["Keep 1 to 50 episodes, at a speed from 0.5× to 4×; skips are 10, 15, 30, 45 or 60 seconds."],
-                });
+                return Problems.Field("Keep 1 to 50 episodes, at a speed from 0.5× to 4×; skips are 10, 15, 30, 45 or 60 seconds.", field: "preferences");
             }
 
             if (await db.Profiles.FirstOrDefaultAsync(p => p.Id == profile.Id, ct) is not { } me)
@@ -503,7 +501,7 @@ public static class PodcastEndpoints
             }
         });
 
-        group.MapGet("/genres", () => PodcastDirectory.Genres);
+        group.MapGet("/genres", () => PodcastDirectory.Genres.Select(g => g with { Name = Loc.T(g.Name) }).ToList());
 
         group.MapGet("/countries", () => PodcastCountries.All);
 
@@ -536,7 +534,7 @@ public static class PodcastEndpoints
             }
             catch (FormatException ex)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["opml"] = [ex.Message] });
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["opml"] = [Loc.T(ex.Message)] });
             }
 
             // One import at a time on the server: each can fetch hundreds of feeds, so several at once could tie the server
@@ -695,12 +693,12 @@ public static class Opml
         }
         catch (System.Xml.XmlException ex)
         {
-            throw new FormatException("That file isn't OPML: it isn't valid XML.", ex);
+            throw new FormatException(Loc.Mark("That file isn't OPML: it isn't valid XML."), ex);
         }
 
         if (document.Root?.Name.LocalName != "opml")
         {
-            throw new FormatException("That file isn't OPML.");
+            throw new FormatException(Loc.Mark("That file isn't OPML."));
         }
 
         return document.Descendants("outline")

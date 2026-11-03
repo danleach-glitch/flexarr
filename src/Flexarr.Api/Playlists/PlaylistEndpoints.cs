@@ -4,6 +4,7 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
 using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Playlists;
 
@@ -209,7 +210,7 @@ public static class PlaylistEndpoints
     public static async Task<HomeRowDto?> HomeRowAsync(FlexarrDbContext db, string profileId, int size, CancellationToken ct)
     {
         var playlists = await SummariesAsync(db, profileId, ct);
-        return playlists.Count == 0 ? null : new HomeRowDto(HomeRowId, "Your playlists", "playlists", [], "/playlists", playlists.Take(size).ToList());
+        return playlists.Count == 0 ? null : new HomeRowDto(HomeRowId, Loc.T("Your playlists"), "playlists", [], "/playlists", playlists.Take(size).ToList());
     }
 
     private static IQueryable<Playlist> Mine(FlexarrDbContext db, CurrentProfile profile)

@@ -2,6 +2,7 @@ using Flexarr.Api.Configuration;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Import;
 
@@ -56,7 +57,7 @@ public static class ImportEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Results.Problem($"plex.tv didn't answer ({(int?)ex.StatusCode ?? 0}). Try again in a moment.", statusCode: 502);
+                return Problems.Of("plex.tv didn't answer ({status}). Try again in a moment.", new { status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
         });
 

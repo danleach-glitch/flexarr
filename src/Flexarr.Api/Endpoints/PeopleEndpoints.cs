@@ -61,7 +61,7 @@ public static class PeopleEndpoints
 
             if (request.Biography is { Length: > MaxBiography })
             {
-                return Results.Problem($"Biographies can be up to {MaxBiography:N0} characters.", statusCode: 400);
+                return Problems.Of("Biographies can be up to {max} characters.", new { max = MaxBiography }, status: 400);
             }
 
             var now = DateTime.UtcNow;

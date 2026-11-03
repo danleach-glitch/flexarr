@@ -12,6 +12,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using System.Runtime.CompilerServices;
 using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Endpoints.MusicRequests;
 
@@ -100,9 +101,9 @@ public static partial class MusicRequestEndpoints
                 }
             }
 
-            await RowAsync("music-like", "Like artists you play", "artists", () => LikeYoursAsync(c, owned, top.Take(8).ToList(), ct));
-            await RowAsync("music-new", "New from your artists", "albums", () => NewFromYoursAsync(c, owned, top, ct));
-            await RowAsync("music-charts", "Top albums", "albums", async () => (await c.Catalog.ChartAlbumsAsync(ct)).Select(a => Album(a, owned)).ToList());
+            await RowAsync("music-like", Loc.T("Like artists you play"), "artists", () => LikeYoursAsync(c, owned, top.Take(8).ToList(), ct));
+            await RowAsync("music-new", Loc.T("New from your artists"), "albums", () => NewFromYoursAsync(c, owned, top, ct));
+            await RowAsync("music-charts", Loc.T("Top albums"), "albums", async () => (await c.Catalog.ChartAlbumsAsync(ct)).Select(a => Album(a, owned)).ToList());
             var genres = await Quietly(async () => (await c.Catalog.GenresAsync(ct)).Select(g => new MusicGenreDto(g.Id, g.Name, ImageEndpoints.RemoteUrl(g.Picture))).ToList());
             return rows.Count == 0 && genres is null
                 ? Problems.Of("Deezer didn't answer. Try again in a minute.", status: 502)
@@ -341,12 +342,14 @@ public static partial class MusicRequestEndpoints
     /// Why this profile can't undo now, or null when it can. Family guests can ask for music but not take back the
     /// household's (Lidarr is shared); everyone else has an hourly cap, as asking has a daily one.
     /// </summary>
-    /// <param name="guests">What a family guest is told.</param>
-    internal static IResult? UndoRefused(CurrentProfile current, IMemoryCache cache, string guests = "Guests can't undo music requests.")
+    /// <param name="titles">A film's or show's undo, which a family guest is told about without music.</param>
+    internal static IResult? UndoRefused(CurrentProfile current, IMemoryCache cache, bool titles = false)
     {
         if (current.IsGuest)
         {
-            return Results.Problem(guests, statusCode: 403);
+            return titles
+                ? Problems.Of("Guests can't undo requests.", status: 403)
+                : Problems.Of("Guests can't undo music requests.", status: 403);
         }
 
         return UndoCount(current, cache).Value >= UndoHourlyLimit

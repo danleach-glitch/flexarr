@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Podcasts;
 
@@ -19,11 +20,11 @@ public sealed partial class PodcastDirectory(HttpClient http, IMemoryCache cache
     /// <summary>The categories Apple's charts come in.</summary>
     public static readonly IReadOnlyList<PodcastGenre> Genres =
     [
-        new(1301, "Arts"), new(1321, "Business"), new(1303, "Comedy"), new(1304, "Education"), new(1483, "Fiction"),
-        new(1511, "Government"), new(1512, "Health & Fitness"), new(1487, "History"), new(1305, "Kids & Family"),
-        new(1502, "Leisure"), new(1310, "Music"), new(1489, "News"), new(1314, "Religion & Spirituality"),
-        new(1533, "Science"), new(1324, "Society & Culture"), new(1545, "Sports"), new(1318, "Technology"),
-        new(1488, "True Crime"), new(1309, "TV & Film"),
+        new(1301, Loc.Mark("Arts")), new(1321, Loc.Mark("Business")), new(1303, Loc.Mark("Comedy")), new(1304, Loc.Mark("Education")), new(1483, Loc.Mark("Fiction")),
+        new(1511, Loc.Mark("Government")), new(1512, Loc.Mark("Health & Fitness")), new(1487, Loc.Mark("History")), new(1305, Loc.Mark("Kids & Family")),
+        new(1502, Loc.Mark("Leisure")), new(1310, Loc.Mark("Music")), new(1489, Loc.Mark("News")), new(1314, Loc.Mark("Religion & Spirituality")),
+        new(1533, Loc.Mark("Science")), new(1324, Loc.Mark("Society & Culture")), new(1545, Loc.Mark("Sports")), new(1318, Loc.Mark("Technology")),
+        new(1488, Loc.Mark("True Crime")), new(1309, Loc.Mark("TV & Film")),
     ];
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -101,7 +102,7 @@ public sealed partial class PodcastDirectory(HttpClient http, IMemoryCache cache
         if (!response.IsSuccessStatusCode)
         {
             LogDirectoryFailed(url, (int)response.StatusCode);
-            throw new HttpRequestException("Apple's podcast directory isn't answering. Try again in a minute.");
+            throw new HttpRequestException(Loc.T("Apple's podcast directory isn't answering. Try again in a minute."));
         }
 
         await using var body = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);

@@ -10,6 +10,7 @@ using Flexarr.Integrations.Arr.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -157,8 +158,8 @@ public static class UpcomingEndpoints
                     DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
                 queue.TryGetValue($"sonarr-{episode.Id}", out var download);
                 results.Add((new UpcomingDto(
-                    $"sonarr-{sonarr.Name}-{episode.Id}", MediaKind.Episode, episode.Title ?? "TBA", show?.Title,
-                    episode.SeasonNumber, episode.EpisodeNumber, date, "Airs", episode.Overview,
+                    $"sonarr-{sonarr.Name}-{episode.Id}", MediaKind.Episode, episode.Title ?? Loc.T("TBA"), show?.Title,
+                    episode.SeasonNumber, episode.EpisodeNumber, date, Loc.T("Airs"), episode.Overview,
                     Remote(show?.Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl),
                     Remote(episode.Images.FirstOrDefault(i => i.CoverType == "screenshot")?.RemoteUrl ?? show?.Images.FirstOrDefault(i => i.CoverType == "fanart")?.RemoteUrl),
                     itemId, episode.HasFile, download, sonarr.Name,
@@ -171,10 +172,10 @@ public static class UpcomingEndpoints
             foreach (var movie in calendar.Where(m => !elsewhere.HidesMovie(m.TmdbId, m.Path, movies)))
             {
                 // A film appears once, on its next release in the window: cinema, then digital, then disc.
-                var (date, when) = new[] { (movie.InCinemas, "In cinemas"), (movie.DigitalRelease, "Digital release"), (movie.PhysicalRelease, "On disc") }
+                var (date, when) = new[] { (movie.InCinemas, Loc.T("In cinemas")), (movie.DigitalRelease, Loc.T("Digital release")), (movie.PhysicalRelease, Loc.T("On disc")) }
                     .Where(r => r.Item1 is { } d && d >= start && d <= end)
                     .Select(r => (r.Item1!.Value, r.Item2))
-                    .DefaultIfEmpty((movie.ReleaseDate ?? end, "Released"))
+                    .DefaultIfEmpty((movie.ReleaseDate ?? end, Loc.T("Released")))
                     .First();
                 queue.TryGetValue($"radarr-{movie.Id}", out var download);
                 results.Add((new UpcomingDto(

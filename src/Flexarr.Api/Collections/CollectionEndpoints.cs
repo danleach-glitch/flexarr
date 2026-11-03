@@ -8,6 +8,7 @@ using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Collections;
 
@@ -62,7 +63,7 @@ public static class CollectionEndpoints
             // Working them out takes a few dozen queries over the whole library, and they hardly change from minute to minute.
             // Keyed by the libraries hidden from the profile and its age limit too, so changing either takes effect at once.
             var hiddenLibraries = string.Join(',', db.HiddenLibraryIds.Order());
-            var all = await cache.GetOrCreateAsync($"collection-suggestions:{profile.Id}:{hiddenLibraries}:{db.MaxRatingAge}:{LibraryVisibility.KidsSettingsVersion}", entry =>
+            var all = await cache.GetOrCreateAsync($"collection-suggestions:{profile.Id}:{hiddenLibraries}:{db.MaxRatingAge}:{LibraryVisibility.KidsSettingsVersion}:{Loc.Language}", entry =>
             {
                 entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
                 return CollectionSuggestions.ForAsync(db, profile.Id, ct);

@@ -97,7 +97,9 @@ public static class MusicMatchEndpoints
 
             if (results.Count == 0 && failed.Count > 0)
             {
-                return Results.Problem($"{string.Join(" and ", failed)} didn't answer the search.", statusCode: 502);
+                return failed.Count == 1
+                    ? Problems.Of("{name} didn't answer the search.", new { name = failed[0] }, status: 502)
+                    : Problems.Of("{first} and {second} didn't answer the search.", new { first = failed[0], second = failed[1] }, status: 502);
             }
 
             return Results.Ok(await WithLibraryAsync(db, entity, results, ct));
@@ -166,7 +168,7 @@ public static class MusicMatchEndpoints
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
             {
-                return Results.Problem($"{lidarr?.Name ?? "Deezer"} didn't answer, so the match wasn't changed.", statusCode: 502);
+                return Problems.Of("{name} didn't answer, so the match wasn't changed.", new { name = lidarr?.Name ?? "Deezer" }, status: 502);
             }
 
             if (request.Cover == KeepCover)
