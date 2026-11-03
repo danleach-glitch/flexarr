@@ -278,7 +278,10 @@ public sealed partial class BookFileConverter : IDisposable
     {
         var settings = PlaybackEndpoints.TranscodeSettingsFor(_options.CurrentValue);
         var start = new ProcessStartInfo(settings.FfmpegPath) { RedirectStandardError = true, RedirectStandardOutput = true, UseShellExecute = false };
-        foreach (var arg in new[] { "-v", "error", "-y", "-i", path, "-map", "0:a:0", "-vn", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", "-f", "mp4", temporary })
+        // Local files only (a "book" that's really a playlist mustn't have ffmpeg fetch addresses), and never stdin.
+        string[] args = ["-v", "error", "-nostdin", "-y", .. Streaming.FfmpegCommand.LocalFile, "-i", path, "-map", "0:a:0", "-vn", "-c:a", "aac", "-b:a", "128k",
+            "-movflags", "+faststart", "-f", "mp4", temporary];
+        foreach (var arg in args)
         {
             start.ArgumentList.Add(arg);
         }
