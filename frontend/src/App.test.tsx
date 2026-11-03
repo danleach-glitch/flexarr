@@ -1630,6 +1630,9 @@ describe('Library grid', () => {
     fireEvent.click(within(rail).getByRole('button', { name: 'G' }))
     expect(await within(rail).findByRole('alert')).toHaveTextContent('G couldn’t be loaded.')
     expect(screen.queryByText('More couldn’t be loaded.')).toBeNull()
+    // The phone picker words it shorter, on its own line under the select.
+    const picker = screen.getByRole('combobox', { name: 'Jump to letter' }).closest<HTMLElement>('.alpha-picker')!
+    expect(within(picker).getByRole('alert')).toHaveTextContent('Couldn’t load G.')
     fail = false
     fireEvent.click(within(rail).getByRole('button', { name: 'Try again' }))
 

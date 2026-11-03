@@ -2257,6 +2257,20 @@ a.upcoming-row:hover strong {
     background: var(--room);
   }
 
+  /* A failed jump goes on its own line under the picker, wrapping if it must, so the bar never runs off the side. */
+  .alpha-picker {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .alpha-picker .alpha-failed {
+    order: 1;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    white-space: normal;
+  }
+
   .library-body {
     grid-template-columns: minmax(0, 1fr);
   }

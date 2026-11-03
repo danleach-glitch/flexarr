@@ -55,7 +55,7 @@ struct TVPlayingBar: View {
             .buttonStyle(CardButtonStyle())
             .accessibilityHint("Opens the remote")
             Button { remote.togglePlayPause(on: device) } label: {
-                Label(playing.paused ? "Play" : "Pause", systemImage: playing.paused ? "play.fill" : "pause.fill")
+                Label(playing.paused ? "Play" : "Pause", systemImage: playing.paused ? Symbol.play : Symbol.pause)
             }
             .buttonStyle(RoundActionStyle(scales: false))
             .frame(width: 48, height: 48)

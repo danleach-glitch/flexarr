@@ -350,7 +350,7 @@ extension ExternalTitle {
 /// a play mark rather than a tick, which on a poster means watched.
 private struct LibraryBadge: View {
     var body: some View {
-        Image(systemName: "play.fill")
+        Image(systemName: Symbol.play)
             .font(.system(size: 16, weight: .heavy))
             .foregroundStyle(Color.room)
             .offset(x: 1)

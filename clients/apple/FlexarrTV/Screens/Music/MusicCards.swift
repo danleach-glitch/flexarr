@@ -80,7 +80,7 @@ struct TrackCard: View {
         ArtworkButton(ambient: item.glowColor, focus: focus, focusID: item.id, action: action) {
             SquareArtwork(item: item, size: width)
                 .overlay(alignment: .bottomTrailing) {
-                    Image(systemName: model.music.current?.id == item.id && model.music.isPlaying ? "speaker.wave.2.fill" : "play.fill")
+                    Image(systemName: model.music.current?.id == item.id && model.music.isPlaying ? "speaker.wave.2.fill" : Symbol.play)
                         .font(.system(size: 20, weight: .bold))
                         .foregroundStyle(Color.room)
                         .frame(width: 44, height: 44)
