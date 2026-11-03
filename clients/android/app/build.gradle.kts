@@ -136,6 +136,14 @@ sentry {
 // they're set per variant). benchmarkRelease is release as it ships (R8, no debugging) but profileable, so it's the build
 // to measure the TV interface with on a real stick (`./gradlew :app:installBenchmarkRelease`, then Android Studio's
 // profiler or Perfetto), and the TV journey in the baseline profile is recorded with it.
+android {
+    // Only release goes to Play: the baseline profile's builds of it (installBenchmarkRelease) don't ask it for a
+    // version code.
+    playConfigs {
+        register("nonMinifiedRelease") { enabled.set(false) }
+        register("benchmarkRelease") { enabled.set(false) }
+    }
+}
 androidComponents {
     onVariants { variant ->
         if (variant.name == "nonMinifiedRelease" || variant.name == "benchmarkRelease") {

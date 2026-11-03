@@ -22,6 +22,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import io.github.flexarr.AppModel
+import io.github.flexarr.usesTvInterface
 import io.github.flexarr.core.CollectionKind
 import io.github.flexarr.core.CollectionRules
 import io.github.flexarr.core.CollectionStatus
@@ -659,9 +660,11 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /**
      * Holds what the server says the phone should: the newest unplayed episodes of each podcast that auto-downloads.
      * Missing ones are fetched, once there's Wi-Fi when Settings keeps them to it; ones that came by themselves and
-     * aren't wanted any more (played, pushed out by newer ones) go, unless they're part-heard.
+     * aren't wanted any more (played, pushed out by newer ones) go, unless they're part-heard. Not on a TV, which has no
+     * podcasts or downloads, though its profile may have episodes downloading on the phone.
      */
     suspend fun reconcilePodcasts() {
+        if (context.usesTvInterface) return
         val client = currentClient ?: return
         if (!isOnline || reconciling) return
         reconciling = true

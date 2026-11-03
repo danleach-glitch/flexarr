@@ -343,13 +343,20 @@ private fun Section(title: String, content: androidx.compose.foundation.lazy.Laz
     }
 }
 
-/** The search field: a magnifier and the words; Search on the TV's keyboard puts it away and goes down to the results. */
+/**
+ * The search field: a magnifier and the words; Search on the TV's keyboard puts it away and goes down to the results.
+ * So does Down once the keyboard's away: the text field would otherwise keep it.
+ */
 @Composable
 private fun SearchField(value: String, onValue: (String) -> Unit, modifier: Modifier) {
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     TvTextField(
-        value, onValue, "Movies, shows, episodes and people", modifier, icon = Icons.Filled.Search,
+        value, onValue, "Movies, shows, episodes and people",
+        modifier.onPreviewKeyEvent { event ->
+            event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown && focusManager.moveFocus(FocusDirection.Down)
+        },
+        icon = Icons.Filled.Search,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = {
             keyboard?.hide()
