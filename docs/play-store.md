@@ -51,8 +51,8 @@ upload. As on the App Store, the listing pitches your own streaming service, and
 - **Android TV:** the 1280×720 banner and 1920×1080 screenshots in `graphics/tv-banner` and `graphics/tv-screenshots`,
   from the `Flexarr_Google_TV` emulator on the same Showcase profile.
 - **Screenshots:** phone (1080×1920, 9:16; Play refuses anything longer than 2:1, so not a modern phone's full
-  screen), 7" tablet (1200×1920) and 10" tablet (1600×2560), in `graphics/phone-screenshots`, `seven-inch-screenshots`
-  and `ten-inch-screenshots`, numbered in the order shown. They're from the real library on the Mini's Showcase
+  screen), 7" tablet (1200×1920) and 10" tablet (1600×2560), in `graphics/phone-screenshots`, `tablet-screenshots`
+  and `large-tablet-screenshots`, numbered in the order shown. They're from the real library on the Mini's Showcase
   profile (the maintainer's choice, as for the App Store), taken on emulators made to those sizes
   (`Flexarr_Store_Phone`, `Flexarr_Store_Tab7`, `Flexarr_Store_Tab10`) with the debug launch arguments, `noHistory`,
   and the status bar in demo mode (9:41, full Wi-Fi and battery). Keep out anything an "Everyone" rating or Google's IP
