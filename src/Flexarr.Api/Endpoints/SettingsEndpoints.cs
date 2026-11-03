@@ -43,7 +43,10 @@ public sealed record SettingsDto(
     bool AskPinForMainProfile = false,
     TraktAppDto? TraktApp = null,
     // Whether music can be requested through Lidarr (absent from servers before 0.59).
-    bool? AllowMusicRequests = null);
+    bool? AllowMusicRequests = null,
+    // The server runs in a container, where Docker's port forwarding can make visitors from the internet look like
+    // they're at home, so "only away from home" lets them in (absent from servers before 0.60).
+    bool? InContainer = null);
 
 /// <summary>The admin's own Trakt app, used instead of Flexarr's; the secret is never sent back, only whether there is one.</summary>
 public sealed record TraktAppDto(string ClientId, bool HasSecret);
@@ -515,7 +518,8 @@ public static class SettingsEndpoints
         o.Bazarr is { BaseUrl.Length: > 0 } b ? new BazarrConnectionDto(b.BaseUrl, b.ApiKey.Length > 0) : null,
         mainHasOwnPin,
         o.Trakt.ClientId.Length > 0 ? new TraktAppDto(o.Trakt.ClientId, o.Trakt.ClientSecret.Length > 0) : null,
-        o.MusicRequests.Enabled);
+        o.MusicRequests.Enabled,
+        Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true");
 
     /// <summary>
     /// This machine's name on the network ("Dans-Mac-Mini"), which the web app puts in place of localhost in links to

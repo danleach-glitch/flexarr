@@ -598,6 +598,8 @@ export interface Settings {
   traktApp?: { clientId: string; hasSecret: boolean } | null
   /** Whether music can be requested through Lidarr. Absent from servers before 0.59. */
   allowMusicRequests?: boolean | null
+  /** The server runs in a container (Docker). Absent from servers before 0.60. */
+  inContainer?: boolean | null
 }
 
 export interface SettingsUpdate {

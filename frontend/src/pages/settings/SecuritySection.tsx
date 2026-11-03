@@ -291,6 +291,12 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
             <strong>Anyone on your Wi-Fi can change settings.</strong> Devices at home get in as the main profile, and a PIN doesn’t keep them out. Choose
             “Always” if that matters.
           </p>
+          {settings.inContainer && (
+            <p>
+              <strong>In Docker, visitors from the internet can look like they’re at home too.</strong> Docker Desktop’s port forwarding hides where they come
+              from. Choose “Always” if this server is reachable from the internet.
+            </p>
+          )}
           <details className="advice-more">
             <summary>Using a reverse proxy?</summary>
             <p>

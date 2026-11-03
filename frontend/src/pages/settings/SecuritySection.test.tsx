@@ -74,4 +74,15 @@ describe('Security', () => {
     await vi.waitFor(() => expect(sent).toEqual({ authenticationRequired: 'DisabledForLocalAddresses', pin: '5319', confirm: true }))
     await vi.waitFor(() => expect(screen.queryByRole('form', { name: 'Let devices at home in without the key' })).not.toBeInTheDocument())
   })
+
+  it('warns that Docker can make visitors from the internet look like they’re at home', async () => {
+    mockApi({
+      '/me': { profileId: 'owner', isAdmin: true },
+      '/settings': { authenticationRequired: 'DisabledForLocalAddresses', inContainer: true },
+      '/sign-ins': [],
+    })
+    renderSecurity()
+
+    expect(await screen.findByText('In Docker, visitors from the internet can look like they’re at home too.')).toBeInTheDocument()
+  })
 })
