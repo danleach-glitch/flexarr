@@ -58,6 +58,14 @@ export function StreamingSection() {
             </select>
           </SettingRow>
         )}
+        {draft.awayFromHome !== undefined && (
+          <SettingRow label="Away from home" help="Automatic lowers the quality only when the connection can’t keep up.">
+            <select value={draft.awayFromHome} onChange={(e) => change({ ...draft, awayFromHome: e.target.value as 'Automatic' | 'Original' })}>
+              <option value="Automatic">Automatic</option>
+              <option value="Original">Original quality</option>
+            </select>
+          </SettingRow>
+        )}
         <SettingRow label="Limit each stream to" help="Useful when watching away from home over a slow upload.">
           <select value={draft.maxStreamingBitrate} onChange={(e) => change({ ...draft, maxStreamingBitrate: Number(e.target.value) })}>
             <option value={0}>No limit</option>

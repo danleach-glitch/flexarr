@@ -545,6 +545,8 @@ export interface TranscodingSettings {
   vaapiDevice: string
   softwarePreset: string
   maxStreamingBitrate: number
+  /** Lower the quality away from home when the connection can't keep up (absent from servers before 0.59). */
+  awayFromHome?: 'Automatic' | 'Original'
 }
 
 export interface ArrConnection {
