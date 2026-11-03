@@ -1,6 +1,7 @@
 using Flexarr.Api.Endpoints;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
+using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 
 namespace Flexarr.Api.Search;
@@ -21,6 +22,12 @@ public sealed class SearchIndex : IDisposable
 
     private readonly SemaphoreSlim gate = new(1, 1);
     private Snapshot? snapshot;
+
+    /// <summary>
+    /// Each request's stamp, looked up once: a search asks the index up to five times (titles, books, albums, people,
+    /// genres), and the stamp reads the whole items table.
+    /// </summary>
+    private readonly ConditionalWeakTable<FlexarrDbContext, StrongBox<(int, DateTime?, DateTime?, int, int)>> stamps = new();
 
     /// <summary>A match: the item's or person's id (empty for a genre), and the genre's name.</summary>
     public sealed record Match(Guid Id, string Name);
@@ -72,7 +79,13 @@ public sealed class SearchIndex : IDisposable
 
     private async Task<Snapshot> CurrentAsync(FlexarrDbContext db, CancellationToken ct)
     {
-        var stamp = await StampAsync(db, ct);
+        if (!stamps.TryGetValue(db, out var box))
+        {
+            box = new StrongBox<(int, DateTime?, DateTime?, int, int)>(await StampAsync(db, ct));
+            stamps.AddOrUpdate(db, box);
+        }
+
+        var stamp = box.Value;
         if (snapshot is { } current && current.Stamp == stamp)
         {
             return current;
@@ -101,12 +114,17 @@ public sealed class SearchIndex : IDisposable
     /// <summary>Changes whenever something indexed is added, removed or renamed.</summary>
     private static async Task<(int, DateTime?, DateTime?, int, int)> StampAsync(FlexarrDbContext db, CancellationToken ct)
     {
-        var items = await Indexed(db).GroupBy(_ => 1)
-            .Select(g => new { Count = g.Count(), Added = g.Max(i => (DateTime?)i.AddedAt), Updated = g.Max(i => i.MetadataUpdatedAt) })
+        // One round trip: people and genres are counted alongside.
+        var row = await Indexed(db).GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Count = g.Count(), Added = g.Max(i => (DateTime?)i.AddedAt), Updated = g.Max(i => i.MetadataUpdatedAt),
+                People = db.People.Count(), Genres = db.Genres.Count(),
+            })
             .FirstOrDefaultAsync(ct);
-        var people = await db.People.CountAsync(ct);
-        var genres = await db.Genres.CountAsync(ct);
-        return (items?.Count ?? 0, items?.Added, items?.Updated, people, genres);
+        return row is not null
+            ? (row.Count, row.Added, row.Updated, row.People, row.Genres)
+            : (0, null, null, await db.People.CountAsync(ct), await db.Genres.CountAsync(ct));
     }
 
     private static async Task<IReadOnlyList<Entry>> BuildAsync(FlexarrDbContext db, CancellationToken ct)
