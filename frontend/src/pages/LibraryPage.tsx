@@ -350,7 +350,7 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
     const timer = setTimeout(() => setQuery(search.trim()), 250)
     return () => clearTimeout(timer)
   }, [search])
-  const { items, total, error, moreError, busy, jumping, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
+  const { items, total, error, moreError, busy, jumping, jumpFailed, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
     snapshotKey,
     query,
     pageSize: PAGE_SIZE,
@@ -442,7 +442,7 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
       )}
 
       <div className="library-body">
-        {letters && <AlphaPicker jump={(l) => void jump(l)} jumping={jumping} empty={empty} />}
+        {letters && <AlphaPicker jump={(l) => void jump(l)} jumping={jumping} failed={jumpFailed} empty={empty} />}
         <div
           className={library.type === 'Music' || library.type === 'Audiobooks' ? 'poster-grid square' : 'poster-grid'}
           ref={grid}
@@ -454,7 +454,7 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
             </div>
           ))}
         </div>
-        {letters && <AlphaRail jump={(l) => void jump(l)} jumping={jumping} empty={empty} />}
+        {letters && <AlphaRail jump={(l) => void jump(l)} jumping={jumping} failed={jumpFailed} empty={empty} />}
       </div>
 
       <ShowMore loaded={items.length} total={total} pageSize={PAGE_SIZE} busy={busy} error={moreError} onMore={() => void loadMore()} />
