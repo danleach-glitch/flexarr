@@ -411,6 +411,15 @@ struct BookView: View {
             guard loadedToken != model.refreshToken else { return }
             await load()
         }
+        // Play focused for a moment: the book's session is got ready, so it starts at once (docs/fast-start.md).
+        .task(id: playFocused ? id : nil) {
+            guard playFocused, (try? await Task.sleep(for: .seconds(1))) != nil, let item else { return }
+            model.getReady(item)
+        }
+        .onChange(of: playFocused) { _, focused in
+            if !focused, let item { model.dropReady(item) }
+        }
+        .onDisappear { if let item { model.dropReady(item) } }
     }
 
     private func header(_ item: ItemSummary) -> some View {

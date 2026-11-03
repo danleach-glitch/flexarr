@@ -192,6 +192,11 @@ final class MusicPlayer {
     @ObservationIgnored private var generation = 0
     /// A book's start, timed until its first sound (see StartTiming).
     @ObservationIgnored private var bookTiming: StartTiming?
+    /// A book got ready ahead of Play from its page (docs/fast-start.md), the one on its way, and its first file's
+    /// asset, loading already so its header is read by the time Play is pressed.
+    @ObservationIgnored private var warmBook: PreparedStream?
+    @ObservationIgnored private var warmingBook: (request: PlaybackRequest, task: Task<PreparedStream?, Never>)?
+    @ObservationIgnored private var warmAsset: (url: URL, asset: AVURLAsset)?
     /// Paused because a video started; Now Playing is handed back when it ends.
     @ObservationIgnored private var yieldedToVideo = false
     /// Which remote commands the lock screen has: music's previous and next, or a podcast's skips and speed.
@@ -808,8 +813,12 @@ final class MusicPlayer {
             do {
                 var request = PlaybackRequest(itemId: track.id, profile: Self.bookProfile, startPositionSeconds: requested)
                 request.deviceName = Self.deviceName
-                let info = try await client.startPlayback(request)
-                timing.answered(info, warmed: false)
+                // Got ready on its page a moment ago: no wait for the server.
+                let ready = await takeReadyBook(request)
+                if ready == nil { dropReadyBook() }
+                let info: PlaybackInfo
+                if let ready { info = ready } else { info = try await client.startPlayback(request) }
+                timing.answered(info, warmed: ready != nil)
                 bookTiming = timing
                 guard mine == generation else {
                     try? await client.stopPlayback(sessionId: info.sessionId)
@@ -837,6 +846,66 @@ final class MusicPlayer {
                 errorMessage = ConnectionError(error).message
             }
         }
+    }
+
+    // MARK: Getting a book ready ahead of Play
+
+    /// Gets `book` ready as Play would start it (from its place): the session, and the file that place is in, its
+    /// header loading. Not a book playing already or one downloaded here; any other got ready is let go.
+    func getReadyBook(_ book: ItemSummary, client: FlexarrClient) {
+        guard current?.id != book.id, offlineLibrary?.localBook(for: book.id) == nil else { return }
+        if self.client == nil { self.client = client }
+        var wanted = PlaybackRequest(itemId: book.id, profile: Self.bookProfile)
+        wanted.deviceName = Self.deviceName
+        if let warmBook, warmBook.serves(wanted) { return }
+        if let warmingBook, PreparedStream.same(warmingBook.request, wanted) { return }
+        dropReadyBook()
+        var asking = wanted
+        asking.prepare = true
+        let task = Task { [weak self] () -> PreparedStream? in
+            guard let ready = try? await client.startPlayback(asking) else { return nil }
+            guard let self, let warming = self.warmingBook, PreparedStream.same(warming.request, wanted), let manifest = ready.book else {
+                try? await client.stopPlayback(sessionId: ready.sessionId)
+                return nil
+            }
+            let stream = PreparedStream(request: wanted, info: ready)
+            self.warmBook = stream
+            self.warmingBook = nil
+            log.info("Got ready ahead of Play: \(ready.item.title)", ["playbackId": ready.playbackId])
+            let file = manifest.timeline.locate(ready.startPositionSeconds).file
+            if manifest.files.indices.contains(file), let url = client.url(for: manifest.files[file].url) {
+                let type = Self.bookType(manifest.files[file])
+                let asset = AVURLAsset(url: url, options: type.map { [AVURLAssetOverrideMIMETypeKey: $0] })
+                self.warmAsset = (url, asset)
+                _ = try? await asset.load(.isPlayable, .duration)
+            }
+            return stream
+        }
+        warmingBook = (wanted, task)
+    }
+
+    /// Lets the book got ready go (best effort); with `itemId`, only if it's that book.
+    func dropReadyBook(itemId: String? = nil) {
+        if let itemId, (warmBook?.request.itemId ?? warmingBook?.request.itemId) != itemId { return }
+        warmingBook?.task.cancel()
+        warmingBook = nil
+        warmAsset = nil
+        guard let warmBook, let client else { self.warmBook = nil; return }
+        self.warmBook = nil
+        Task { try? await client.stopPlayback(sessionId: warmBook.info.sessionId) }
+    }
+
+    /// The book got ready for exactly `wanted`, taken over (waiting for it if it's on its way), or nil.
+    private func takeReadyBook(_ wanted: PlaybackRequest) async -> PlaybackInfo? {
+        if let warmBook, warmBook.serves(wanted) {
+            self.warmBook = nil
+            return warmBook.info
+        }
+        guard let warmingBook, PreparedStream.same(warmingBook.request, wanted) else { return nil }
+        let stream = await warmingBook.task.value
+        guard let stream, warmBook?.info.sessionId == stream.info.sessionId else { return nil }
+        warmBook = nil
+        return stream.info
     }
 
     private func beginBook(_ manifest: BookManifest, urls: [URL], at place: Double) {
@@ -1047,7 +1116,10 @@ final class MusicPlayer {
     /// An item for a track's file or stream; speech keeps its pitch at other speeds. `type` names what a file sent as
     /// it is holds, for servers that send FLAC and MP3 without saying so (before 0.53).
     private func item(url: URL, type: String? = nil) -> AVPlayerItem {
-        let asset = AVURLAsset(url: url, options: type.map { [AVURLAssetOverrideMIMETypeKey: $0] })
+        // The file a book's page got ready, already loading.
+        let warmed = warmAsset?.url == url ? warmAsset?.asset : nil
+        warmAsset = nil
+        let asset = warmed ?? AVURLAsset(url: url, options: type.map { [AVURLAssetOverrideMIMETypeKey: $0] })
         let item = AVPlayerItem(asset: asset)
         if isPodcast || isBook { item.audioTimePitchAlgorithm = .timeDomain }
         return item
