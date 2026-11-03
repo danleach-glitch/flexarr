@@ -342,6 +342,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** What's new, from the server through Firebase. */
     val notifications = PushNotifications(context)
 
+    /**
+     * Google Play's in-app updates, one for the whole launch: kept here rather than on a screen, so rotating, a font-size
+     * change or dark mode doesn't ask about the same update again.
+     */
+    val appUpdates: AppUpdates by lazy { AppUpdates.create(context.applicationContext) }
+
     /** Films, episodes and podcast episodes kept on this phone to play with no connection. */
     val downloads = DownloadStore(context, this)
 

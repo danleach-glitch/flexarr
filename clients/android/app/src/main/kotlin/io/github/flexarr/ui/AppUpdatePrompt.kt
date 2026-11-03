@@ -13,7 +13,6 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -33,6 +32,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.tv.material3.Text
 import io.github.flexarr.AppUpdates
+import io.github.flexarr.appModel
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.Tokens
 import io.github.flexarr.ui.tv.TvActionButton
@@ -44,9 +44,8 @@ private const val RESTART = "Restart to update"
 /** [AppUpdates] for this screen, checking at launch and each time the app comes back in front. */
 @Composable
 private fun rememberAppUpdates(): AppUpdates {
-    val context = LocalContext.current
-    val updates = remember { AppUpdates.create(context.applicationContext) }
-    DisposableEffect(updates) { onDispose { updates.close() } }
+    // The launch's own (AppModel's), so a configuration change doesn't start a fresh check that asks again.
+    val updates = LocalContext.current.appModel.appUpdates
     // Play's own download prompt; what it answers comes through AppUpdates' listener.
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {}
     val lifecycle by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
