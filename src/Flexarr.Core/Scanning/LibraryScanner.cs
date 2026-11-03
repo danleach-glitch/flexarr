@@ -350,7 +350,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
         // Ids from folder names are known now; those from Radarr/Sonarr after the metadata refresh, which does this again.
         await WatchHistoryCarryOver.CarryOverAsync(db, cancellationToken).ConfigureAwait(false);
-        await NoticeReplacedArtworkAsync(library.Id, cancellationToken).ConfigureAwait(false);
+        await NoticeReplacedArtworkAsync(library.Id, scope is null ? null : targets.Select(t => t.Scope).ToList(), cancellationToken).ConfigureAwait(false);
 
         library.LastScannedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -561,9 +561,10 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
     /// from last time's sets <see cref="MediaItem.ArtworkChangedAt"/>. Artwork addresses carry it, so apps and browsers
     /// fetch the new picture rather than keep the one they cached. A replacement keeping an older date (a Finder copy)
     /// still counts. A first stamp is only recorded, and <see cref="MediaItem.MetadataUpdatedAt"/> is never touched:
-    /// that says when the title was last looked up.
+    /// that says when the title was last looked up. A scan of part of the library (a webhook's) only looks at artwork
+    /// in the folders it scanned, rather than every artwork file in the library.
     /// </summary>
-    private async Task NoticeReplacedArtworkAsync(Guid libraryId, CancellationToken ct)
+    private async Task NoticeReplacedArtworkAsync(Guid libraryId, IReadOnlyList<string>? within, CancellationToken ct)
     {
         var local = await db.MediaItems
             .Where(i => i.LibraryId == libraryId
@@ -573,7 +574,8 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     || (i.ThumbUrl != null && (i.ThumbUrl.StartsWith("file://") || i.ThumbUrl.StartsWith("embedded://")))))
             .Select(i => new { i.Id, i.ArtworkStamp, Urls = new[] { i.PosterUrl, i.BackdropUrl, i.LogoUrl, i.ThumbUrl } })
             .ToListAsync(ct).ConfigureAwait(false);
-        var changed = local.Select(i => (i.Id, Old: i.ArtworkStamp, New: ArtworkStamp(i.Urls)))
+        var changed = local.Where(i => within is null || i.Urls.Any(u => LocalPath(u) is { } path && within.Any(w => PathComparison.IsUnder(path, w))))
+            .Select(i => (i.Id, Old: i.ArtworkStamp, New: ArtworkStamp(i.Urls)))
             .Where(i => i.New != i.Old)
             .ToDictionary(i => i.Id, i => (i.Old, i.New));
         if (changed.Count == 0)
@@ -606,10 +608,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         var text = new System.Text.StringBuilder();
         foreach (var url in urls)
         {
-            var path = url is null ? null
-                : url.StartsWith("file://", StringComparison.Ordinal) ? url["file://".Length..]
-                : url.StartsWith("embedded://", StringComparison.Ordinal) ? url["embedded://".Length..]
-                : null;
+            var path = LocalPath(url);
             if (path is null)
             {
                 continue;
@@ -625,6 +624,13 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text.ToString()));
         return Convert.ToHexStringLower(hash.AsSpan(0, 8));
     }
+
+    /// <summary>The file a local artwork address (file:// or embedded://) reads; null for any other.</summary>
+    private static string? LocalPath(string? url) =>
+        url is null ? null
+        : url.StartsWith("file://", StringComparison.Ordinal) ? url["file://".Length..]
+        : url.StartsWith("embedded://", StringComparison.Ordinal) ? url["embedded://".Length..]
+        : null;
 
     /// <summary>Removes files missing for longer than <see cref="MissingGracePeriod"/>.</summary>
     private async Task<int> RemoveExpiredAsync(Guid libraryId, CancellationToken ct)
