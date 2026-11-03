@@ -1,6 +1,7 @@
 package io.github.flexarr.core
 
 import java.util.Locale
+import kotlin.math.ceil
 
 // The words every screen shows, as FlexarrKit's Presentation.swift words them for the Apple apps. Wording follows
 // docs/design.md: plain words ("Resume from 32:10"), no middle-dot meta strings.
@@ -134,38 +135,105 @@ fun ItemSummary.facts(scores: Boolean = true): List<String> =
         resolution?.takeIf { it.isNotEmpty() }?.let(::add)
     }
 
+/**
+ * When Next Episode shows, when its countdown runs and what happens after (docs/next-episode-timing.md), in seconds
+ * into the episode. Null means no button before the end: no credits marker and an episode of 2 minutes or less.
+ */
+data class NextEpisodeTiming(
+    /** Next Episode appears. */
+    val showAt: Double,
+    /** The countdown starts (null: no countdown, the viewer presses Next Episode). */
+    val countdownFrom: Double?,
+    /** The countdown has run out: the next episode plays. */
+    val nextAt: Double?,
+    /** The player closes before the end (Skip credits on, auto-play off). */
+    val closeAt: Double?,
+) {
+    /** The countdown's seconds left at [time], once it has started: they follow the playing position. */
+    fun secondsLeft(time: Double): Int? {
+        val from = countdownFrom ?: return null
+        val at = nextAt ?: return null
+        if (time < from) return null
+        return ceil(at - time).toInt().coerceIn(0, COUNTDOWN_SECONDS)
+    }
+
+    companion object {
+        const val COUNTDOWN_SECONDS = 10
+        /** With Skip credits on, the countdown starts this long before the credits... */
+        const val SKIP_CREDITS_LEAD = 8.0
+        /** ...and the next episode plays this far into them. */
+        const val SKIP_CREDITS_INTO = 2.0
+        /** With no credits marker, Next Episode shows this long before the end. */
+        const val UNMARKED_LEAD = 60.0
+        /** With no credits marker, an episode this long or shorter shows no button before the end. */
+        const val UNMARKED_MIN_DURATION = 120.0
+    }
+}
+
+fun nextEpisodeTiming(markers: List<Marker>, duration: Double, skipCredits: Boolean, autoPlayNext: Boolean): NextEpisodeTiming? {
+    val countdown = NextEpisodeTiming.COUNTDOWN_SECONDS.toDouble()
+    val credits = markers.firstOrNull { it.type == MarkerType.Credits }?.start
+    if (credits == null) {
+        if (duration <= NextEpisodeTiming.UNMARKED_MIN_DURATION) return null
+        val showAt = duration - NextEpisodeTiming.UNMARKED_LEAD
+        return if (autoPlayNext) NextEpisodeTiming(showAt, duration - countdown, duration, null) else NextEpisodeTiming(showAt, null, null, null)
+    }
+    return when {
+        skipCredits && autoPlayNext -> {
+            val from = (credits - NextEpisodeTiming.SKIP_CREDITS_LEAD).coerceAtLeast(0.0)
+            val next = credits + NextEpisodeTiming.SKIP_CREDITS_INTO
+            NextEpisodeTiming(from, from, if (duration > 0) minOf(next, duration) else next, null)
+        }
+        autoPlayNext -> {
+            // Credits inside the last 10 seconds: the countdown (and so the button) starts first.
+            val from = (duration - countdown).coerceAtLeast(0.0)
+            NextEpisodeTiming(minOf(credits, from), from, duration, null)
+        }
+        skipCredits -> NextEpisodeTiming(credits, null, null, credits)
+        else -> NextEpisodeTiming(credits, null, null, null)
+    }
+}
+
 /** What the player should offer at a given moment, from the server's markers. */
 sealed interface PlaybackPrompt {
     data object None : PlaybackPrompt
     /** Inside an intro or recap: offer to jump to [to]. */
     data class Skip(val type: MarkerType, val to: Double) : PlaybackPrompt
-    /** The credits have started and there is a next episode. */
+    /** It's time to offer the next episode ([NextEpisodeTiming.showAt]), and there is one. */
     data object NextEpisode : PlaybackPrompt
 
     companion object {
-        fun at(time: Double, markers: List<Marker>, duration: Double, hasNext: Boolean): PlaybackPrompt {
+        fun at(
+            time: Double,
+            markers: List<Marker>,
+            duration: Double,
+            hasNext: Boolean,
+            skipCredits: Boolean = false,
+            autoPlayNext: Boolean = true,
+        ): PlaybackPrompt {
             for (marker in markers) {
                 if (marker.type != MarkerType.Intro && marker.type != MarkerType.Recap) continue
                 // Stop offering the skip in the last second so it doesn't flash as the marker ends.
                 if (time >= marker.start && time < marker.end - 1) return Skip(marker.type, marker.end)
             }
             if (!hasNext) return None
-            markers.firstOrNull { it.type == MarkerType.Credits }?.let { credits ->
-                return if (time >= credits.start) NextEpisode else None
-            }
-            // No credits marker found: offer the next episode for the end of it, where credits usually are.
-            return if (duration > 120 && time >= duration - unmarkedCreditsSeconds(duration)) NextEpisode else None
+            val timing = nextEpisodeTiming(markers, duration, skipCredits, autoPlayNext) ?: return None
+            return if (time >= timing.showAt) NextEpisode else None
         }
-
-        /**
-         * How long before the end the next episode is offered when no credits were found: 3% of the episode, between
-         * 30 seconds and 2 minutes (about 40 seconds of a half-hour show, 100 of an hour-long one).
-         */
-        fun unmarkedCreditsSeconds(duration: Double): Double = (duration * 0.03).coerceIn(30.0, 120.0)
     }
 }
 
-fun PlaybackInfo.prompt(at: Double): PlaybackPrompt = PlaybackPrompt.at(at, markers, durationSeconds, next != null)
+/** This title's Next Episode timing, with the profile's Skip credits and auto-play. */
+val PlaybackInfo.nextEpisodeTiming: NextEpisodeTiming?
+    get() {
+        val prefs = preferences ?: PlaybackPreferences()
+        return nextEpisodeTiming(markers, durationSeconds, prefs.skipCredits, prefs.autoPlayNext)
+    }
+
+fun PlaybackInfo.prompt(at: Double): PlaybackPrompt {
+    val prefs = preferences ?: PlaybackPreferences()
+    return PlaybackPrompt.at(at, markers, durationSeconds, next != null, prefs.skipCredits, prefs.autoPlayNext)
+}
 
 /**
  * What Home says when it has nothing to show: no library yet, a first scan under way, or libraries whose folders hold

@@ -40,7 +40,9 @@ import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.PlaybackInfo
 import io.github.flexarr.core.PlaybackMethod
 import io.github.flexarr.core.PlaybackPreferences
+import io.github.flexarr.core.NextEpisodeTiming
 import io.github.flexarr.core.PlaybackPrompt
+import io.github.flexarr.core.nextEpisodeTiming
 import io.github.flexarr.core.PlaybackRequest
 import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
@@ -640,17 +642,43 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             seekTo(next.to)
             return
         }
-        // Skip credits: the episode is over as soon as they start (unless the sleep timer stops it there). With
-        // auto-play off, that closes the player.
-        val credits = info.markers.firstOrNull { it.type == MarkerType.Credits }
-        if (preferences.skipCredits && info.next != null && !nextCancelled && !isFinishing && !sleepHoldsEpisode && credits != null && seconds >= credits.start) {
-            player.pause()
-            report(paused = true, ended = true)
-            if (preferences.autoPlayNext) {
-                beginFinishing()
-            } else {
+        // Next Episode's countdown follows the position (docs/next-episode-timing.md): the picture plays on under it,
+        // pausing holds it and going back before it puts it away. Not after Cancel, nor while the sleep timer stops
+        // this episode, nor once the file has ended (that's the wall-clock countdown's).
+        val timing = info.nextEpisodeTiming
+        // Scrubbed back from the last frame: the wall-clock countdown gives way to the position's.
+        if (countdownJob?.isActive == true && player.playbackState != Player.STATE_ENDED) {
+            countdownJob?.cancel()
+            endCountdown()
+        }
+        val wallClock = countdownJob?.isActive == true || player.playbackState == Player.STATE_ENDED
+        if (timing != null && info.next != null && !nextCancelled && !sleepHoldsEpisode && !wallClock) {
+            // Skip credits with auto-play off: the episode is over as the credits start, and the player closes.
+            val closeAt = timing.closeAt
+            if (closeAt != null && seconds >= closeAt) {
+                player.pause()
+                report(paused = true, ended = true)
                 return onClose()
             }
+            val left = timing.secondsLeft(seconds)
+            val nextAt = timing.nextAt
+            if (left != null && nextAt != null) {
+                if (seconds >= nextAt) return playNext()
+                if (!isFinishing) {
+                    isFinishing = true
+                    prepareNext()
+                }
+                if (countdown != left) {
+                    countdown = left
+                    updatePrompt()
+                }
+            } else if (isFinishing) {
+                // Gone back before the countdown.
+                endCountdown()
+            }
+        } else if (isFinishing && !wallClock && !nextCancelled) {
+            // The sleep timer took this episode's end mid-countdown.
+            endCountdown()
         }
         if (next != prompt) {
             prompt = next
@@ -663,6 +691,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             }
         }
         if (System.currentTimeMillis() - lastReport >= REPORT_INTERVAL_MS && player.isPlaying) report(paused = false)
+    }
+
+    private fun endCountdown() {
+        isFinishing = false
+        countdown = null
+        updatePrompt()
     }
 
     fun togglePlayPause() = if (player.isPlaying) player.pause() else player.play()
@@ -790,7 +824,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         }
     }
 
-    /** Not now: stop counting, and if the credits were skipped, let them play. */
+    /** Not now: stop counting and let the episode play on; it closes at its end unless Next Episode is pressed. */
     fun cancelNext() {
         nextCancelled = true
         dropPrepared()
@@ -799,21 +833,24 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         countdown = null
         countdownJob?.cancel()
         updatePrompt()
-        if (!ended) player.play()
+        // Cancelled once the file had ended: it closes, as it would have at the end.
+        if (ended) onClose()
     }
 
     private fun itemEnded() {
         report(paused = true, ended = true)
         when {
             sleepHoldsEpisode -> sleep.fallAsleep()
+            // The file ended before the countdown had run (it was shorter than the server said): on at once.
+            isFinishing && countdownJob?.isActive != true && info?.next != null && !nextCancelled -> playNext()
             info?.next != null && !nextCancelled && preferences.autoPlayNext -> beginFinishing()
             else -> onClose()
         }
     }
 
-    /** The episode is over (with auto-play on): count down to the next one. */
+    /** The file ended before the countdown started (with auto-play on): count down over the last frame. */
     private fun beginFinishing() {
-        if (info?.next == null || isFinishing) return
+        if (info?.next == null || countdownJob?.isActive == true) return
         isFinishing = true
         prepareNext()
         countdownJob?.cancel()
@@ -1184,7 +1221,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         const val EARLY_STALL_MS = 30_000L
 
         private const val REPORT_INTERVAL_MS = 10_000L
-        private const val COUNTDOWN_SECONDS = 5
+        private const val COUNTDOWN_SECONDS = NextEpisodeTiming.COUNTDOWN_SECONDS
         private const val SUBTITLE_ID_PREFIX = "flexarr-subtitle:"
         // A stream that stops is asked for again 6 times, 3 s apart, at most once a minute, as on iPhone.
         private const val RECOVERY_INTERVAL_MS = 60_000L

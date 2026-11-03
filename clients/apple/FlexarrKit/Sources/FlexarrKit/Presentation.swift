@@ -257,10 +257,12 @@ public struct NextEpisodeTiming: Equatable, Sendable {
             switch (skipCredits, autoPlayNext) {
             case (true, true):
                 let from = max(0, credits - skipCreditsLead)
-                let next = from + countdownSeconds
+                let next = credits + countdownSeconds - skipCreditsLead
                 return NextEpisodeTiming(showAt: from, countdownFrom: from, nextAt: duration > 0 ? min(next, duration) : next)
             case (false, true):
-                return NextEpisodeTiming(showAt: credits, countdownFrom: max(credits, duration - countdownSeconds), nextAt: max(credits, duration))
+                // Credits inside the last 10 seconds: the countdown (and so the button) starts first.
+                let from = max(0, duration - countdownSeconds)
+                return NextEpisodeTiming(showAt: min(credits, from), countdownFrom: from, nextAt: duration)
             case (true, false):
                 return NextEpisodeTiming(showAt: credits, closeAt: credits)
             case (false, false):

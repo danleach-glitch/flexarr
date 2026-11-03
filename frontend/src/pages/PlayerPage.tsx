@@ -47,7 +47,7 @@ import { mediaErrorRecovery } from '../lib/hlsRecovery'
 import { speedLabel } from '../lib/podcasts'
 import { drawStyled, type StyledSubtitles } from '../lib/styledSubtitles'
 import { cueLine, pictureIn } from '../lib/subtitlePlacement'
-import { unmarkedCreditsSeconds } from '../lib/upNext'
+import { countdownLeft, NEXT_EPISODE_COUNTDOWN_SECONDS, nextEpisodeTiming } from '../lib/upNext'
 import { dialogueBoostChoices, isShaping, nightModeChoices, readSoundSettings, shapingFor, speakerChoices, timeOfDay, unshaped, useSoundSettings, useSoundShaping, writeSoundSettings } from '../lib/soundSettings'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
 import { EARLY_STALL_MS, reportEarlyStall, reportStart, type StartTiming } from '../lib/startTiming'
@@ -65,8 +65,6 @@ const qualities: { value: Quality; label: string; bitrate?: number }[] = [
 /** The speeds the player offers; an episode's is kept for its show. */
 const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const
 
-/** The countdown between one episode finishing and the next starting. */
-const UP_NEXT_SECONDS = 5
 
 
 const defaultPreferences: PlaybackPreferences = { autoPlayNext: true, skipIntros: false, skipRecaps: false, skipCredits: false, subtitleSize: 'Standard' }
@@ -222,10 +220,14 @@ export function PlayerPage() {
   const [subtitleKey, setSubtitleKey] = useState<string | null>(null)
   // Embedded subtitles are extracted on first use, which can take a little while for large files.
   const [subtitleStatus, setSubtitleStatus] = useState<'idle' | 'loading' | 'failed'>('idle')
+  // The sleep timer stopped this episode: nothing moves on from it.
   const [upNextCancelled, setUpNextCancelled] = useState(false)
-  const [countdown, setCountdown] = useState(UP_NEXT_SECONDS)
-  // The episode is over (it ended, or its credits began with Skip credits on): the countdown to the next one runs.
-  const [finished, setFinished] = useState(false)
+  // Cancel (or Keep watching) on Next Episode: no countdown, and the player closes at the end.
+  const [upNextDismissed, setUpNextDismissed] = useState(false)
+  // The video ended (with a next episode to go to).
+  const [ended, setEnded] = useState(false)
+  // The countdown over the last frame when the file ended before its own had started; null when not running.
+  const [endCountdown, setEndCountdown] = useState<number | null>(null)
   const [preferences, setPreferences] = useState<PlaybackPreferences>(defaultPreferences)
   const [subtitleDelay, setSubtitleDelayState] = useState(0)
   // The file's sound offset, as last nudged here (the server is told a moment after the nudging stops).
@@ -446,8 +448,9 @@ export function PlayerPage() {
 
   useEffect(() => {
     setUpNextCancelled(false)
-    setCountdown(UP_NEXT_SECONDS)
-    setFinished(false)
+    setUpNextDismissed(false)
+    setEnded(false)
+    setEndCountdown(null)
     // The last title's position goes too: left over, it would put the next episode in its own credits at once (Skip
     // credits would mark it watched and count down to the one after).
     setTime(0)
@@ -563,7 +566,14 @@ export function PlayerPage() {
     }
     const onEnded = () => {
       if (session.current) void reportProgress(session.current, el.currentTime, true, true).catch(() => undefined)
-      if (info?.next && !upNextCancelled) setFinished(true)
+      if (info?.next) setEnded(true)
+    }
+    // Scrubbing back from the end plays on.
+    const onSeeking = () => {
+      if (!el.ended) {
+        setEnded(false)
+        setEndCountdown(null)
+      }
     }
     el.addEventListener('timeupdate', onTime)
     el.addEventListener('play', onPlay)
@@ -575,6 +585,7 @@ export function PlayerPage() {
     el.addEventListener('volumechange', onVolume)
     el.addEventListener('error', onError)
     el.addEventListener('ended', onEnded)
+    el.addEventListener('seeking', onSeeking)
     return () => {
       el.removeEventListener('timeupdate', onTime)
       el.removeEventListener('play', onPlay)
@@ -586,9 +597,10 @@ export function PlayerPage() {
       el.removeEventListener('volumechange', onVolume)
       el.removeEventListener('error', onError)
       el.removeEventListener('ended', onEnded)
+      el.removeEventListener('seeking', onSeeking)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [info, upNextCancelled])
+  }, [info])
 
   // Subtitles sit where the profile put them over the picture (or in the black bar below it), and rise above the
   // controls while they're showing. Cues are placed by their top edge as a percentage of the video's height (Chrome
@@ -743,8 +755,8 @@ export function PlayerPage() {
     else void container.current?.requestFullscreen?.()
   }
   // How this sitting ends, from what was playing when the player closes (by its own Back or the browser's).
-  const now = useRef({ info, time, duration, finished, credits: undefined as number | undefined })
-  now.current = { info, time, duration, finished, credits: info?.markers.find((m) => m.type === 'Credits')?.start }
+  const now = useRef({ info, time, duration, finished: ended, credits: undefined as number | undefined })
+  now.current = { info, time, duration, finished: ended, credits: info?.markers.find((m) => m.type === 'Credits')?.start }
   const endingNow = (): PlaybackEnding | undefined => {
     const { info: playing, time: at, duration: length, finished: over, credits: creditsStart } = now.current
     // A shuffle belongs to its show, whose page has nothing to move on to.
@@ -867,10 +879,28 @@ export function PlayerPage() {
   const recap = info?.markers.find((m) => m.type === 'Recap')
   const credits = info?.markers.find((m) => m.type === 'Credits')
   const skippable = [recap, intro].find((m) => m && time >= m.start && time < m.end - 1)
-  const upNextAt = credits?.start ?? (duration ? duration - unmarkedCreditsSeconds(duration) : Infinity)
-  // Offered from the credits on, as a button; once the episode is over, with the countdown (auto-play off closes).
-  const showUpNext = !!info?.next && !upNextCancelled && (finished || (time >= upNextAt && duration > 0))
-  const counting = finished && preferences.autoPlayNext && showUpNext
+  // Waiting for the end means the credits, or the very end without them, at the speed it's playing.
+  const sleepEnd = credits?.start ?? duration
+  const sleepLeft = secondsLeft(sleep, clock, duration > 0 ? Math.max(0, (sleepEnd - time) / speed) : Infinity)
+
+  // When Next Episode shows and what follows (docs/next-episode-timing.md). The countdown follows the position, so the
+  // picture plays on under it, pausing holds it and scrubbing back before it puts it away.
+  const upNext = info?.next
+    ? nextEpisodeTiming({ credits: credits?.start, duration, skipCredits: preferences.skipCredits, autoPlayNext: preferences.autoPlayNext })
+    : null
+  const nextAt = upNext?.nextAt
+  // A sleep timer that stops playback before then holds the episode there: no countdown, and no closing.
+  const sleepsBefore = (at: number) => sleepLeft !== null && sleepLeft <= (at - time) / speed
+  const countingLive =
+    nextAt !== undefined &&
+    upNext?.countdownFrom !== undefined &&
+    time >= upNext.countdownFrom &&
+    !upNextCancelled &&
+    !upNextDismissed &&
+    !sleepsBefore(nextAt)
+  const counting = countingLive || endCountdown !== null
+  const countdown = countingLive ? countdownLeft(nextAt, time) : (endCountdown ?? 0)
+  const showUpNext = !!info?.next && !upNextCancelled && !upNextDismissed && (counting || (!!upNext && time >= upNext.showAt))
 
   const playNext = useCallback(() => {
     if (info?.next) navigate(`/play/${info.next.id}?t=0${shuffle ? '&shuffle=1' : ''}`, { replace: true })
@@ -901,37 +931,45 @@ export function PlayerPage() {
     return () => clearTimeout(timer)
   }, [notice])
 
-  // Skip credits: the episode is over as soon as they start.
+  // The countdown has run (or the file ended under it): on to the next episode.
   useEffect(() => {
-    if (!preferences.skipCredits || !credits || !info?.next || upNextCancelled || finished || time < credits.start) return
+    if (!countingLive || (time < nextAt && !ended)) return
     // Only the title on screen: the moment after moving on, info can still be the last episode's.
-    if (playingItem.current !== info.item.id || (video.current?.currentTime ?? 0) < credits.start) return
+    if (!info || playingItem.current !== info.item.id) return
+    if (!ended && (video.current?.currentTime ?? 0) < nextAt) return
+    if (session.current && !ended) void reportProgress(session.current, time, true, true).catch(() => undefined)
+    playNext()
+  }, [countingLive, nextAt, time, ended, info, playNext])
+
+  // Auto-play off: the player closes at the credits with Skip credits on, else at the end.
+  useEffect(() => {
+    const closeAt = upNext?.closeAt
+    if (closeAt === undefined || upNextCancelled || upNextDismissed || ended || time < closeAt || sleepsBefore(closeAt)) return
+    if (!info || playingItem.current !== info.item.id || (video.current?.currentTime ?? 0) < closeAt) return
     video.current?.pause()
     if (session.current) void reportProgress(session.current, time, true, true).catch(() => undefined)
-    setFinished(true)
-  }, [preferences.skipCredits, credits, info, upNextCancelled, finished, time])
-
-  useEffect(() => {
-    if (finished) setCountdown(UP_NEXT_SECONDS)
-  }, [finished])
-
-  // Over with auto-play off (at the credits with Skip credits on, else at the end): back to where it was played from.
-  useEffect(() => {
-    if (finished && !preferences.autoPlayNext) exit()
+    exit()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- exit is a plain function of this render
-  }, [finished, preferences.autoPlayNext])
+  }, [upNext?.closeAt, upNextCancelled, upNextDismissed, ended, time, info])
+
+  // The end, with no countdown running: closed if Next Episode was cancelled or auto-play is off; otherwise (the file
+  // was shorter than the server said) a countdown runs over the last frame.
+  useEffect(() => {
+    if (!ended || countingLive || !info?.next || playingItem.current !== info.item.id) return
+    if (upNextDismissed || !preferences.autoPlayNext) exit()
+    else if (!upNextCancelled && !sleepsBefore(time + NEXT_EPISODE_COUNTDOWN_SECONDS)) setEndCountdown(NEXT_EPISODE_COUNTDOWN_SECONDS)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, as it ends
+  }, [ended])
 
   useEffect(() => {
-    if (!counting) return
-    // Nothing plays under the countdown.
-    video.current?.pause()
-    const timer = setInterval(() => setCountdown((c) => c - 1), 1000)
-    return () => clearInterval(timer)
-  }, [counting])
-
-  useEffect(() => {
-    if (counting && countdown <= 0) playNext()
-  }, [countdown, counting, playNext])
+    if (endCountdown === null) return
+    if (endCountdown <= 0) {
+      playNext()
+      return
+    }
+    const timer = setTimeout(() => setEndCountdown((c) => (c === null ? null : c - 1)), 1000)
+    return () => clearTimeout(timer)
+  }, [endCountdown, playNext])
 
   // Get the next episode ready once the Up Next card shows (the credits, or the last moments), and let it go if the
   // viewer heads back into the episode.
@@ -939,7 +977,7 @@ export function PlayerPage() {
     const next = info?.next
     if (!next) return
     if (!showUpNext) {
-      if (holdsPrepared(next.id) && !finished) dropPrepared()
+      if (holdsPrepared(next.id) && !ended) dropPrepared()
       return
     }
     // As the next episode's page will ask for it: from the start (see playNext). A busy server says no, and it starts
@@ -955,7 +993,7 @@ export function PlayerPage() {
       forceTranscode: q !== 'auto' || undefined,
       shuffle: shuffle || undefined,
     })
-  }, [showUpNext, info, finished, quality, shuffle])
+  }, [showUpNext, info, ended, quality, shuffle])
 
   // Leaving the player lets an unused next episode go.
   useEffect(() => () => dropPrepared(), [])
@@ -1038,9 +1076,6 @@ export function PlayerPage() {
     return () => window.clearInterval(timer)
   }, [sleep])
 
-  // Waiting for the end means the credits, or the very end without them, at the speed it's playing.
-  const sleepEnd = credits?.start ?? duration
-  const sleepLeft = secondsLeft(sleep, clock, duration > 0 ? Math.max(0, (sleepEnd - time) / speed) : Infinity)
   const stillWatching = sleepLeft !== null && sleepLeft <= STILL_WATCHING_SECONDS && playing && !error
   const sleepWhat = info?.item.kind === 'Episode' ? 'episode' : 'movie'
 
@@ -1068,7 +1103,7 @@ export function PlayerPage() {
       setSleep(null)
       setAsleep(true)
       setUpNextCancelled(true)
-      setFinished(false)
+      setEndCountdown(null)
       dropPrepared()
       return
     }
@@ -1100,12 +1135,12 @@ export function PlayerPage() {
     savePreferences({ ...preferences, [key]: !preferences[key] })
   }
 
-  /** Not now: hide the card, and if the credits were skipped, let them play. */
+  /** Not now: hide the card and play on; the player then closes at the end (or now, if it has ended). */
   function cancelUpNext() {
-    setUpNextCancelled(true)
+    setUpNextDismissed(true)
+    setEndCountdown(null)
     dropPrepared()
-    if (finished && video.current && !video.current.ended) void video.current.play()
-    setFinished(false)
+    if (ended) exit()
   }
 
   // ---------- Keyboard
@@ -1327,14 +1362,14 @@ export function PlayerPage() {
             <img src={imageUrl(info.next.artwork.thumb ?? info.next.artwork.backdrop, 500)} alt="" />
             {counting && (
               <svg viewBox="0 0 36 36" className="up-next-ring" aria-hidden="true">
-                <circle cx="18" cy="18" r="16" style={{ strokeDashoffset: 100 - (countdown / UP_NEXT_SECONDS) * 100 }} pathLength={100} />
+                <circle cx="18" cy="18" r="16" style={{ strokeDashoffset: 100 - (countdown / NEXT_EPISODE_COUNTDOWN_SECONDS) * 100 }} pathLength={100} />
               </svg>
             )}
           </div>
           <div className="up-next-text">
             <span className="muted">
               Next episode
-              {counting ? ` in ${Math.max(0, countdown)}` : ''}
+              {counting ? ` in ${countdown}` : ''}
             </span>
             <strong>
               {episodeCode(info.next)} {info.next.title}
@@ -1344,7 +1379,7 @@ export function PlayerPage() {
                 <icon.play /> Play now
               </button>
               <button className="button quiet small" onClick={cancelUpNext}>
-                {finished ? 'Cancel' : 'Keep watching'}
+                {counting ? 'Cancel' : 'Keep watching'}
               </button>
             </div>
           </div>

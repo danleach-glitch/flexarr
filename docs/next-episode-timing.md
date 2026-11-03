@@ -17,6 +17,10 @@ the playing position, so pausing during it holds it, and scrubbing back before i
 | none | either | off | 60s before the end | none | the player closes at the end |
 
 - With no credits marker, an episode of 2 minutes or less shows no button before the end.
+- Credits in the first 8 seconds: the countdown starts at 0 and still ends 2 seconds into them (so it's shorter).
+- Credits in the last 10 seconds, with Skip credits off: the full countdown runs over the last 10 seconds, and the
+  button shows with it, just before the credits.
+- Cancel after the file has ended closes the player.
 - **Cancel** during the countdown lets the episode play on. It then closes at the end, unless Next Episode is pressed.
 - If the file ends before the countdown has run (its real length was shorter than the server said), the next
   episode plays straight away when the countdown had started, or a 10-second countdown runs over the last frame when

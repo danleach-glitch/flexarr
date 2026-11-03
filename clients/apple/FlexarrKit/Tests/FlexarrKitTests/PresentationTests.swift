@@ -160,10 +160,10 @@ struct NextEpisodeTimingTests {
     }
 
     @Test func edges() {
-        // Credits from the very start: the countdown can't start before 0.
-        #expect(timing([Marker(type: .credits, start: 3, end: 60)], 60, skip: true, auto: true) == NextEpisodeTiming(showAt: 0, countdownFrom: 0, nextAt: 10))
-        // Credits in the last few seconds: the countdown starts with them.
-        #expect(timing([Marker(type: .credits, start: 2895, end: 2900)], skip: false, auto: true) == NextEpisodeTiming(showAt: 2895, countdownFrom: 2895, nextAt: 2900))
+        // Credits from the very start: the countdown can't start before 0, and still ends 2s into them.
+        #expect(timing([Marker(type: .credits, start: 3, end: 60)], 60, skip: true, auto: true) == NextEpisodeTiming(showAt: 0, countdownFrom: 0, nextAt: 5))
+        // Credits in the last few seconds: the full countdown, and the button with it.
+        #expect(timing([Marker(type: .credits, start: 2895, end: 2900)], skip: false, auto: true) == NextEpisodeTiming(showAt: 2890, countdownFrom: 2890, nextAt: 2900))
         // Skip credits right at the end never plays the next one after the end.
         #expect(timing([Marker(type: .credits, start: 2898, end: 2900)], skip: true, auto: true)?.nextAt == 2900)
         // A short clip with no credits: no button before the end.

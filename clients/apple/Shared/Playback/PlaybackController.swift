@@ -1094,7 +1094,8 @@ final class PlaybackController: NSObject {
         dropPrepared()
         let ended = transport?.phase == .ended
         endFinishing()
-        if !ended { transport?.play() }
+        // Over already: nothing left to play on to.
+        if ended { dismissPlayer() }
     }
 
     /// "Next episode in 4" (on shuffle too: the next one just happens to be random).

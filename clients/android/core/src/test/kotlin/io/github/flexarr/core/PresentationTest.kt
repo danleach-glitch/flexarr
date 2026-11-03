@@ -97,16 +97,84 @@ class PresentationTest {
         assertEquals(PlaybackPrompt.None, PlaybackPrompt.at(2811.0, markers, 2831.0, hasNext = true))
         assertEquals(PlaybackPrompt.NextEpisode, PlaybackPrompt.at(2812.0, markers, 2831.0, hasNext = true))
         assertEquals(PlaybackPrompt.None, PlaybackPrompt.at(2812.0, markers, 2831.0, hasNext = false))
+        // Skip credits with auto-play: 8 seconds before them.
+        assertEquals(PlaybackPrompt.None, PlaybackPrompt.at(2803.0, markers, 2831.0, hasNext = true, skipCredits = true, autoPlayNext = true))
+        assertEquals(PlaybackPrompt.NextEpisode, PlaybackPrompt.at(2804.0, markers, 2831.0, hasNext = true, skipCredits = true, autoPlayNext = true))
     }
 
     @Test
-    fun `falls back to the end without a credits marker`() {
-        // 3% of a 47-minute episode: the last 85 seconds.
-        assertEquals(PlaybackPrompt.None, PlaybackPrompt.at(2740.0, emptyList(), 2831.0, hasNext = true))
-        assertEquals(PlaybackPrompt.NextEpisode, PlaybackPrompt.at(2750.0, emptyList(), 2831.0, hasNext = true))
-        // Never less than 30 seconds, nor more than 2 minutes.
-        assertEquals(30.0, PlaybackPrompt.unmarkedCreditsSeconds(600.0), 0.0)
-        assertEquals(120.0, PlaybackPrompt.unmarkedCreditsSeconds(7200.0), 0.0)
+    fun `falls back to a minute before the end without a credits marker`() {
+        assertEquals(PlaybackPrompt.None, PlaybackPrompt.at(2770.0, emptyList(), 2831.0, hasNext = true))
+        assertEquals(PlaybackPrompt.NextEpisode, PlaybackPrompt.at(2771.0, emptyList(), 2831.0, hasNext = true))
+    }
+
+    private val credits = listOf(Marker(MarkerType.Credits, 1300.0, 1400.0))
+
+    @Test
+    fun `credits, skip credits and auto-play`() {
+        // Shows 8s before the credits and counts down to 2s into them, then the next episode plays.
+        assertEquals(NextEpisodeTiming(1292.0, 1292.0, 1302.0, null), nextEpisodeTiming(credits, 1400.0, skipCredits = true, autoPlayNext = true))
+    }
+
+    @Test
+    fun `credits and auto-play without skip credits`() {
+        // Shows at the credits; the last 10s count down to the end.
+        assertEquals(NextEpisodeTiming(1300.0, 1390.0, 1400.0, null), nextEpisodeTiming(credits, 1400.0, skipCredits = false, autoPlayNext = true))
+    }
+
+    @Test
+    fun `credits and skip credits without auto-play`() {
+        // Shows at the credits, no countdown, and the player closes there.
+        assertEquals(NextEpisodeTiming(1300.0, null, null, 1300.0), nextEpisodeTiming(credits, 1400.0, skipCredits = true, autoPlayNext = false))
+    }
+
+    @Test
+    fun `credits with neither`() {
+        // Shows at the credits; the player closes at the end.
+        assertEquals(NextEpisodeTiming(1300.0, null, null, null), nextEpisodeTiming(credits, 1400.0, skipCredits = false, autoPlayNext = false))
+    }
+
+    @Test
+    fun `no credits with auto-play`() {
+        // A minute before the end, either way Skip credits is set; the last 10s count down.
+        for (skip in listOf(true, false)) {
+            assertEquals(NextEpisodeTiming(1340.0, 1390.0, 1400.0, null), nextEpisodeTiming(emptyList(), 1400.0, skipCredits = skip, autoPlayNext = true))
+        }
+    }
+
+    @Test
+    fun `no credits without auto-play`() {
+        for (skip in listOf(true, false)) {
+            assertEquals(NextEpisodeTiming(1340.0, null, null, null), nextEpisodeTiming(emptyList(), 1400.0, skipCredits = skip, autoPlayNext = false))
+        }
+    }
+
+    @Test
+    fun `credits starting under 8 seconds in`() {
+        val early = listOf(Marker(MarkerType.Credits, 5.0, 60.0))
+        assertEquals(NextEpisodeTiming(0.0, 0.0, 7.0, null), nextEpisodeTiming(early, 60.0, skipCredits = true, autoPlayNext = true))
+        assertEquals(7, nextEpisodeTiming(early, 60.0, skipCredits = true, autoPlayNext = true)!!.secondsLeft(0.0))
+    }
+
+    @Test
+    fun `short episode without credits shows no button`() {
+        assertNull(nextEpisodeTiming(emptyList(), 120.0, skipCredits = false, autoPlayNext = true))
+        assertNull(nextEpisodeTiming(emptyList(), 90.0, skipCredits = true, autoPlayNext = false))
+        assertEquals(PlaybackPrompt.None, PlaybackPrompt.at(119.0, emptyList(), 120.0, hasNext = true))
+        assertEquals(NextEpisodeTiming(61.0, 111.0, 121.0, null), nextEpisodeTiming(emptyList(), 121.0, skipCredits = false, autoPlayNext = true))
+    }
+
+    @Test
+    fun `countdown seconds follow the position`() {
+        val timing = nextEpisodeTiming(credits, 1400.0, skipCredits = true, autoPlayNext = true)!!
+        assertNull(timing.secondsLeft(1291.9))
+        assertEquals(10, timing.secondsLeft(1292.0))
+        assertEquals(10, timing.secondsLeft(1292.5))
+        assertEquals(9, timing.secondsLeft(1293.0))
+        assertEquals(1, timing.secondsLeft(1301.5))
+        assertEquals(0, timing.secondsLeft(1302.0))
+        assertEquals(0, timing.secondsLeft(1310.0))
+        assertNull(nextEpisodeTiming(credits, 1400.0, skipCredits = true, autoPlayNext = false)!!.secondsLeft(1350.0))
     }
 
     @Test
