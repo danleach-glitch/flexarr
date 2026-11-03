@@ -18,6 +18,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - After Flexarr has been closed, your headset's play button and Android's recent media controls pick up your last audiobook or podcast episode where you left off.
 - If your Flexarr server is older than 0.50.0, the phone and TV apps now say "Update your Flexarr server" when you try to connect, and show the same message after you sign in.
 
+### Apple TV
+- Resting or rolling your thumb on the remote's clickpad no longer moves your place in a film: the timeline only moves once you clearly swipe. Clicking to play from pause just plays, slow swipes move a few seconds at a time and fast ones cover the whole film, and clicking after a swipe jumps there and plays.
+
 ### iPhone and Apple TV
 - Long-press menus on posters use the same icons as a title's page, and Mark as watched and Mark as unwatched no longer look the same.
 - Downloads no longer freeze at a percentage after the app is swiped away mid-download: they carry on from where they got to.

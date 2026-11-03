@@ -3,6 +3,8 @@ import UIKit
 
 /// The timeline: what's played, what's buffered, the intro and credits shaded, and a knob. Dragging (or, on Apple TV,
 /// swiping on the remote while it's focused) scrubs with a preview thumbnail; letting go (or pressing) seeks there.
+/// On Apple TV a swipe only scrubs once it's clearly meant: the clickpad is touch-sensitive, and a thumb rolling onto
+/// it to press Play mustn't move the head.
 final class ScrubberView: UIView {
     var duration: Double = 0 { didSet { setNeedsLayout() } }
     var position: Double = 0 { didSet { if !isScrubbing { setNeedsLayout() } } }
@@ -113,8 +115,28 @@ final class ScrubberView: UIView {
         }
     }
 
-    /// Left and right on the remote while focused: the controller turns them into skips. A sideways pan scrubs; an
-    /// upward one moves focus to the buttons (a recognizer on the focused view keeps the swipe from the focus engine).
+    /// Sideways travel of a swipe that hasn't become a scrub yet (a thumb resting or rolling on the clickpad).
+    private var pendingTravel: CGFloat = 0
+    /// When the current scrub began: a click straight after is a thumb that slid as it pressed, not a choice.
+    private(set) var scrubBeganAt: Date?
+
+    /// How far a thumb must slide, as a share of the track, before it scrubs. Resting a thumb, rolling it onto the
+    /// clickpad to press, or the slip of the press itself stays under it.
+    static let startThreshold: CGFloat = 0.08
+
+    /// Seconds per point of swipe: slow strokes nudge (a full slow stroke is two minutes), fast ones fly (a full fast
+    /// stroke crosses the whole title, like Apple's player).
+    func secondsPerPoint(speed: CGFloat) -> Double {
+        let width = Double(max(1, bounds.width))
+        let fine = min(120, duration * 1.2) / width
+        let coarse = duration * 1.2 / width
+        let t = Double(max(0, min((speed - 300) / 1500, 1)))
+        return fine + (coarse - fine) * t * t
+    }
+
+    /// Left and right on the remote while focused: the controller turns them into skips. A deliberate sideways pan
+    /// scrubs; an upward one moves focus to the buttons (a recognizer on the focused view keeps the swipe from the
+    /// focus engine).
     @objc private func panned(_ pan: UIPanGestureRecognizer) {
         guard duration > 0 else { return }
         switch pan.state {
@@ -126,23 +148,39 @@ final class ScrubberView: UIView {
                 pan.isEnabled = true
                 return
             }
-            beginScrub()
+            pendingTravel = 0
             pan.setTranslation(.zero, in: self)
         case .changed:
-            // The whole track is the whole title, like Apple's player: a long swipe crosses it.
             let delta = pan.translation(in: self).x
             pan.setTranslation(.zero, in: self)
-            moveScrub(to: scrubPosition + Double(delta / max(1, bounds.width)) * duration * 1.2)
+            var moved = delta
+            if !isScrubbing {
+                pendingTravel += delta
+                let threshold = bounds.width * Self.startThreshold
+                guard abs(pendingTravel) > threshold else { return }
+                beginScrub()
+                scrubBeganAt = Date()
+                moved = pendingTravel - (pendingTravel > 0 ? threshold : -threshold) // only what's past the threshold
+            }
+            let speed = abs(pan.velocity(in: self).x)
+            moveScrub(to: scrubPosition + Double(moved) * secondsPerPoint(speed: speed))
         case .ended, .cancelled, .failed:
-            break // Stays put until Select commits it (or the scrub is cancelled by leaving).
+            pendingTravel = 0 // a scrub stays put until Select commits it (or it's cancelled by leaving)
         default:
             break
         }
     }
 
+    /// A scrub that began a moment ago: the click it meets is the thumb's slip on pressing, so it's no scrub at all.
+    var scrubJustBegan: Bool {
+        guard isScrubbing, let began = scrubBeganAt else { return false }
+        return Date().timeIntervalSince(began) < 0.35
+    }
+
     /// Scanning with the remote's edges: the screen moves the head and shows the preview; Select commits as usual.
     func beginScan() {
         if !isScrubbing { beginScrub() }
+        scrubBeganAt = nil // a scan is always meant
     }
 
     func moveScan(to seconds: Double) {
