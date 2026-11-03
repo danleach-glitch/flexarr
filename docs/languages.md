@@ -10,9 +10,9 @@ This page is the plan and the reference for how it works. The checklist it was b
 
 | Piece | Where | What it does |
 | --- | --- | --- |
-| English source | `languages/en.json` | Every string, keyed by its own English text |
+| English source | `languages/packs/en.json` | Every string, keyed by its own English text |
 | Notes for translators | `languages/en.notes.json` | Optional: where a string appears, what a placeholder holds |
-| Packs | `languages/<code>.json` | One per language: English key → translation |
+| Packs | `languages/packs/<code>.json` | One per language: English key → translation |
 | Pack state | `languages/state/<code>.json` | Written by `make strings`: version, scopes, out-of-date strings |
 | Registry | `languages/languages.json` | Each language's native name and direction |
 | Plural rules | `languages/cldr/plurals.json` | CLDR's plural rules, turned into code for every platform |
@@ -82,7 +82,7 @@ A pack is the same shape, with translations as values, and only the strings tran
 ```
 
 This is the shape Weblate calls a *JSON file* with `en.json` as the monolingual base, so connecting Weblate later is
-pointing it at `languages/*.json`.
+pointing it at `languages/packs/*.json`.
 
 `languages.json` lists the languages that exist:
 
@@ -188,7 +188,7 @@ Staying English: the changelog and release notes, the MCP tools' text (read by A
 
 ## Testing
 
-`make strings pseudo=1` writes `languages/qps.json`, a pseudo-language made from English: accented (*Ḿàŕķ àś
+`make strings pseudo=1` writes `languages/packs/qps.json` (git-ignored), a pseudo-language made from English: accented (*Ḿàŕķ àś
 ŵàţçĥéḍ*), 30% longer, and wrapped in ⟦ ⟧. It's never published or built into a release. Point a preview at it,
 and any plain English on screen is a string that hasn't been moved, and any clipping is a layout too tight for
 German.
@@ -196,6 +196,6 @@ German.
 ## Adding a language
 
 1. Add it to `languages/languages.json` with its native name and direction.
-2. Copy `en.json` to `<code>.json` (or start empty) and translate. Leave out what isn't translated yet.
+2. Copy `packs/en.json` to `packs/<code>.json` (or start empty) and translate. Leave out what isn't translated yet.
 3. `make strings`, then open a pull request. It's reviewed like code: this text is shown in people's homes.
 4. On merge, flexarr.io publishes it; servers pick it up within a day, and the next app releases build it in.

@@ -1,0 +1,30 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://flexarr.io/languages/schema.json",
+ "title": "Flexarr language files",
+ "description": "en.json and every <code>.json pack: a flat map from the English key (optionally 'context::English') to an ICU MessageFormat string. languages.json: each language's native name and direction. See docs/languages.md.",
+ "$defs": {
+  "pack": {
+   "type": "object",
+   "propertyNames": {"pattern": "^([a-z][a-z-]*::)?[\\s\\S]+$"},
+   "additionalProperties": {"type": "string", "maxLength": 4000}
+  },
+  "notes": {
+   "type": "object",
+   "additionalProperties": {"type": "string"}
+  },
+  "registry": {
+   "type": "object",
+   "propertyNames": {"pattern": "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?$"},
+   "additionalProperties": {
+    "type": "object",
+    "required": ["name", "direction"],
+    "additionalProperties": false,
+    "properties": {
+     "name": {"type": "string", "minLength": 1},
+     "direction": {"enum": ["ltr", "rtl"]}
+    }
+   }
+  }
+ }
+}
