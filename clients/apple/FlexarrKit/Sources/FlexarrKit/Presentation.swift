@@ -250,15 +250,16 @@ public struct NextEpisodeTiming: Equatable, Sendable {
         return Int(min(Self.countdownSeconds, max(0, (nextAt - time).rounded(.up))))
     }
 
-    /// The timing for an episode with a next one; nil offers no button before the end (no credits found in an episode
-    /// of two minutes or less).
+    /// The timing for an episode with a next one; nil offers no button before the end (an unknown length, or no credits
+    /// found in an episode of two minutes or less).
     public static func of(markers: [Marker], duration: Double, skipCredits: Bool, autoPlayNext: Bool) -> NextEpisodeTiming? {
+        guard duration > 0 else { return nil }
         if let credits = markers.first(where: { $0.type == .credits })?.start {
             switch (skipCredits, autoPlayNext) {
             case (true, true):
                 let from = max(0, credits - skipCreditsLead)
                 let next = credits + countdownSeconds - skipCreditsLead
-                return NextEpisodeTiming(showAt: from, countdownFrom: from, nextAt: duration > 0 ? min(next, duration) : next)
+                return NextEpisodeTiming(showAt: from, countdownFrom: from, nextAt: min(next, duration))
             case (false, true):
                 // Credits inside the last 10 seconds: the countdown (and so the button) starts first.
                 let from = max(0, duration - countdownSeconds)

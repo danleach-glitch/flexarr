@@ -124,50 +124,51 @@ struct PlaybackPromptTests {
     }
 }
 
-/// docs/next-episode-timing.md, row by row.
+/// docs/next-episode-timing.json: the cases every platform tests against.
 struct NextEpisodeTimingTests {
-    let credits = [Marker(type: .credits, start: 2800, end: 2900)]
-    func timing(_ markers: [Marker], _ duration: Double = 2900, skip: Bool, auto: Bool) -> NextEpisodeTiming? {
-        NextEpisodeTiming.of(markers: markers, duration: duration, skipCredits: skip, autoPlayNext: auto)
+    struct Cases: Decodable {
+        struct Case: Decodable {
+            var name: String
+            var credits: Double?
+            var duration: Double
+            var skipCredits: Bool
+            var autoPlayNext: Bool
+            var expect: Expect?
+        }
+        struct Expect: Decodable {
+            var showAt: Double
+            var countdownFrom: Double?
+            var nextAt: Double?
+            var closeAt: Double?
+        }
+        var cases: [Case]
     }
 
-    @Test func skipCreditsWithAutoPlayCountsDownFromEightSecondsBefore() throws {
-        let t = try #require(timing(credits, skip: true, auto: true))
-        #expect(t == NextEpisodeTiming(showAt: 2792, countdownFrom: 2792, nextAt: 2802))
+    static func cases() throws -> [Cases.Case] {
+        // Tests/FlexarrKitTests → FlexarrKit → apple → clients → the repository.
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let data = try Data(contentsOf: root.appendingPathComponent("docs/next-episode-timing.json"))
+        return try JSONDecoder().decode(Cases.self, from: data).cases
+    }
+
+    @Test func sharedCases() throws {
+        let cases = try Self.cases()
+        #expect(cases.count >= 10)
+        for c in cases {
+            let markers = c.credits.map { [Marker(type: .credits, start: $0, end: c.duration)] } ?? []
+            let timing = NextEpisodeTiming.of(markers: markers, duration: c.duration, skipCredits: c.skipCredits, autoPlayNext: c.autoPlayNext)
+            let expected = c.expect.map { NextEpisodeTiming(showAt: $0.showAt, countdownFrom: $0.countdownFrom, nextAt: $0.nextAt, closeAt: $0.closeAt) }
+            #expect(timing == expected, "\(c.name)")
+        }
+    }
+
+    @Test func countdownFollowsThePosition() {
+        let t = NextEpisodeTiming(showAt: 2792, countdownFrom: 2792, nextAt: 2802)
         #expect(t.countdown(at: 2791) == nil)
         #expect(t.countdown(at: 2792) == 10)
         #expect(t.countdown(at: 2797.5) == 5)
         #expect(t.countdown(at: 2802) == 0)
-    }
-
-    @Test func creditsWithAutoPlayPlayOutAndCountDownOverTheLastTen() {
-        #expect(timing(credits, skip: false, auto: true) == NextEpisodeTiming(showAt: 2800, countdownFrom: 2890, nextAt: 2900))
-    }
-
-    @Test func skipCreditsWithoutAutoPlayClosesAsTheyStart() {
-        #expect(timing(credits, skip: true, auto: false) == NextEpisodeTiming(showAt: 2800, closeAt: 2800))
-    }
-
-    @Test func creditsWithoutAutoPlayOnlyShowTheButton() {
-        #expect(timing(credits, skip: false, auto: false) == NextEpisodeTiming(showAt: 2800))
-    }
-
-    @Test func noCreditsShowsAMinuteBeforeTheEnd() {
-        for skip in [true, false] {
-            #expect(timing([], skip: skip, auto: true) == NextEpisodeTiming(showAt: 2840, countdownFrom: 2890, nextAt: 2900))
-            #expect(timing([], skip: skip, auto: false) == NextEpisodeTiming(showAt: 2840))
-        }
-    }
-
-    @Test func edges() {
-        // Credits from the very start: the countdown can't start before 0, and still ends 2s into them.
-        #expect(timing([Marker(type: .credits, start: 3, end: 60)], 60, skip: true, auto: true) == NextEpisodeTiming(showAt: 0, countdownFrom: 0, nextAt: 5))
-        // Credits in the last few seconds: the full countdown, and the button with it.
-        #expect(timing([Marker(type: .credits, start: 2895, end: 2900)], skip: false, auto: true) == NextEpisodeTiming(showAt: 2890, countdownFrom: 2890, nextAt: 2900))
-        // Skip credits right at the end never plays the next one after the end.
-        #expect(timing([Marker(type: .credits, start: 2898, end: 2900)], skip: true, auto: true)?.nextAt == 2900)
-        // A short clip with no credits: no button before the end.
-        #expect(timing([], 120, skip: false, auto: true) == nil)
     }
 }
 
