@@ -51,7 +51,7 @@ struct PlaybackSettingsView: View {
                 } header: {
                     Text("Your profile, on every device")
                 } footer: {
-                    Text("Auto-play counts down 10 seconds, then starts the next episode. Subtitles that run early or late can be moved on Apple TV or the web. In the black bars puts subtitles below the picture of movies wider than the screen.")
+                    Text("The next episode starts after a 10-second countdown. Subtitles that run early or late can be moved on Apple TV or the web. In the black bars puts subtitles below the picture of movies wider than the screen.")
                 }
             }
 

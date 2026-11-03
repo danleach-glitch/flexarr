@@ -17,8 +17,8 @@ struct PlaybackSettingsView: View {
         SettingsPage(title: "Playback", summary: saveFailed ? "That change couldn't be saved on the server, so it's been put back." : nil) {
             if let preferences {
                 SettingsGroupLabel(model.currentProfile.map { "\($0.name), on every device" } ?? "Your profile, on every device")
-                SettingsRow.toggle("Auto-play next episode", isOn: preferences.autoPlayNext, symbol: "forward.end",
-                                   help: "The next episode starts after a 10-second countdown at the end.") {
+                SettingsRow.toggle("Auto-play the next episode", isOn: preferences.autoPlayNext, symbol: "forward.end",
+                                   help: "The next episode starts after a 10-second countdown.") {
                     change(\.autoPlayNext)
                 }
                 SettingsRow.toggle("Skip intros", isOn: preferences.skipIntros, symbol: "forward",
@@ -30,7 +30,7 @@ struct PlaybackSettingsView: View {
                     change(\.skipRecaps)
                 }
                 SettingsRow.toggle("Skip credits", isOn: preferences.skipCredits, symbol: "text.append",
-                                   help: "Ends the episode when the credits start, rather than when they end.") {
+                                   help: "Ends the episode as the credits start.") {
                     change(\.skipCredits)
                 }
                 SettingsLinkRow(title: "Subtitle size", symbol: "captions.bubble", value: subtitleSize.label,
