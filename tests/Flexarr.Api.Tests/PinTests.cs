@@ -162,6 +162,36 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
     }
 
     [Fact]
+    public async Task LettingDevicesAtHomeInWithoutTheKey_AsksForTheAdminPin()
+    {
+        using var server = new FlexarrApiFactory();
+        var admin = server.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        await admin.PostAsJsonAsync(Api("/admin/pin"), new { pin = "5319" });
+        var browser = server.CreateClient();
+        using (var signIn = new HttpRequestMessage(HttpMethod.Post, Api("/session")))
+        {
+            signIn.Headers.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+            browser.DefaultRequestHeaders.Add("Cookie", Assert.Single((await browser.SendAsync(signIn)).Headers.GetValues("Set-Cookie")).Split(';')[0]);
+            browser.DefaultRequestHeaders.Add("X-Requested-With", "flexarr");
+        }
+
+        var without = await browser.PutAsJsonAsync(Api("/settings"), new { authenticationRequired = "DisabledForLocalAddresses" });
+        var wrong = await browser.PutAsJsonAsync(Api("/settings"), new { authenticationRequired = "DisabledForLocalAddresses", pin = "0000" });
+        var right = await browser.PutAsJsonAsync(Api("/settings"), new { authenticationRequired = "DisabledForLocalAddresses", pin = "5319" });
+        // Asking for the key again everywhere, and saving anything else, takes nothing more.
+        var tightened = await browser.PutAsJsonAsync(Api("/settings"), new { authenticationRequired = "Enabled" });
+
+        Assert.Equal(HttpStatusCode.Forbidden, without.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, wrong.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, right.StatusCode);
+        Assert.Equal("DisabledForLocalAddresses", (await right.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("authenticationRequired").GetString());
+        Assert.Equal(HttpStatusCode.OK, tightened.StatusCode);
+        // The API key itself is enough.
+        Assert.Equal(HttpStatusCode.OK, (await admin.PutAsJsonAsync(Api("/settings"), new { authenticationRequired = "DisabledForLocalAddresses" })).StatusCode);
+    }
+
+    [Fact]
     public async Task OverTailscale_ALockedOutLogin_IsHeldOffFromItsOtherAddresses_AndAnAddressFromOtherLogins()
     {
         var clock = new ManualClock();

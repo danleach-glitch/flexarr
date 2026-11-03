@@ -51,4 +51,27 @@ describe('Security', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('The two PINs don’t match.')
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/admin/pin'))).toBe(false)
   })
+
+  it('asks for the admin PIN before letting devices at home in without the key', async () => {
+    let sent: Record<string, unknown> = {}
+    mockApi({
+      '/me': { profileId: 'owner', method: 'session', zone: 'Local', isAdmin: true, tailscaleLogin: null },
+      '/settings': { authenticationRequired: 'Enabled' },
+      '/sign-ins': [],
+      'PUT /settings': (init?: RequestInit) => {
+        sent = JSON.parse(String(init?.body))
+        return { authenticationRequired: 'DisabledForLocalAddresses' }
+      },
+    })
+    renderSecurity()
+
+    fireEvent.change(await screen.findByDisplayValue('Always'), { target: { value: 'DisabledForLocalAddresses' } })
+    const form = screen.getByRole('form', { name: 'Let devices at home in without the key' })
+    expect(sent).toEqual({})
+    fireEvent.change(within(form).getByLabelText('Admin PIN'), { target: { value: '5319' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Let them in' }))
+
+    await vi.waitFor(() => expect(sent).toEqual({ authenticationRequired: 'DisabledForLocalAddresses', pin: '5319', confirm: true }))
+    await vi.waitFor(() => expect(screen.queryByRole('form', { name: 'Let devices at home in without the key' })).not.toBeInTheDocument())
+  })
 })

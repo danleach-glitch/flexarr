@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
-import { getMe, revealApiKey, rotateApiKey, setAdminPin, type Settings } from '../../api/client'
+import { getMe, revealApiKey, rotateApiKey, saveSettings, setAdminPin, type Settings } from '../../api/client'
 import { AsyncButton } from '../../components/AsyncButton'
 import { CopyButton } from '../../components/CopyButton'
 import { Eye, EyeOff } from '../../components/icons'
@@ -182,14 +182,15 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
   // After a new key: how many browsers and TVs were signed out with it.
   const [rotated, setRotated] = useState<{ signedOut: number }>()
   const [auth, setAuth] = useState<Settings['authenticationRequired']>()
-  // Replacing the key asks again first, and so does showing it when there's an admin PIN (the server insists).
-  const [ask, setAsk] = useState<'reveal' | 'rotate'>()
+  // Replacing the key asks again first, and so does showing it when there's an admin PIN, and letting devices at home
+  // in without it (the server insists).
+  const [ask, setAsk] = useState<'reveal' | 'rotate' | 'home'>()
   const [confirming, setConfirming] = useState(false)
   // Until /me answers, assume there's an admin PIN: asking for one too many beats showing the key without it.
   const me = useApi(getMe, [])
   const mainHasPin = me.data?.adminPinMissing !== true
   const askForm = useRef<HTMLFormElement>(null)
-  const opener = useRef<HTMLButtonElement | null>(null)
+  const opener = useRef<HTMLElement | null>(null)
   const keyArea = useRef<HTMLDivElement>(null)
 
   // Keyboard and screen reader users land on what to do next: the PIN, or the button that goes ahead.
@@ -198,7 +199,7 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
     askForm.current?.querySelector<HTMLElement>('input[name="pin"], button[type="submit"]')?.focus()
   }, [ask, mainHasPin])
 
-  function open(which: 'reveal' | 'rotate', button: HTMLButtonElement) {
+  function open(which: 'reveal' | 'rotate' | 'home', button: HTMLElement) {
     opener.current = button
     setKeyError(undefined)
     setAsk(which)
@@ -218,7 +219,13 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
     setKeyError(undefined)
     setConfirming(true)
     try {
-      if (ask === 'reveal') {
+      if (ask === 'home') {
+        await saveSettings({ authenticationRequired: 'DisabledForLocalAddresses', ...confirmation })
+        setAuth('DisabledForLocalAddresses')
+        setAsk(undefined)
+        requestAnimationFrame(() => opener.current?.focus())
+        return
+      } else if (ask === 'reveal') {
         setKey((await revealApiKey(confirmation)).apiKey)
         setRotated(undefined)
       } else {
@@ -265,8 +272,11 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
       <SettingRow label="Ask for it" help="“Only away from home” lets devices on your own network in without it.">
         <select
           value={policy}
+          disabled={ask !== undefined}
           onChange={(e) => {
             const value = e.target.value as Settings['authenticationRequired']
+            // Letting devices at home in asks for the admin PIN first; asking for the key everywhere doesn't.
+            if (value === 'DisabledForLocalAddresses') return open('home', e.currentTarget)
             setAuth(value)
             void save({ authenticationRequired: value })
           }}
@@ -326,13 +336,17 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
           <form
             ref={askForm}
             className="key-confirm"
-            aria-label={ask === 'reveal' ? 'Show the API key' : 'Make a new API key'}
+            aria-label={ask === 'reveal' ? 'Show the API key' : ask === 'home' ? 'Let devices at home in without the key' : 'Make a new API key'}
             onSubmit={(e) => void confirmKey(e)}
             onKeyDown={(e) => e.key === 'Escape' && cancel()}
           >
             {ask === 'reveal' ? (
               <p className="field-help" id="key-confirm-help">
                 Anyone who sees the key can manage this server. Enter the admin PIN to show it.
+              </p>
+            ) : ask === 'home' ? (
+              <p className="field-help" id="key-confirm-help">
+                Every device on your network will get in as the main profile, without the key.
               </p>
             ) : (
               <>
@@ -357,7 +371,7 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
                 Cancel
               </button>
               <AsyncButton type="submit" className="button small" busy={confirming} aria-describedby={mainHasPin ? undefined : 'key-confirm-help'}>
-                {ask === 'reveal' ? 'Show the key' : 'Replace the key'}
+                {ask === 'reveal' ? 'Show the key' : ask === 'home' ? 'Let them in' : 'Replace the key'}
               </AsyncButton>
             </div>
           </form>

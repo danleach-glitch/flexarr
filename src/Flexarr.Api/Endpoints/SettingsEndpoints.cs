@@ -89,7 +89,11 @@ public sealed record SettingsUpdate(
     // Ignored since 0.57: the main profile has a PIN of its own, set in Profiles like anyone's.
     bool? AskPinForMainProfile = null,
     TraktAppUpdate? TraktApp = null,
-    bool? AllowMusicRequests = null);
+    bool? AllowMusicRequests = null,
+    // Letting devices at home in without the key asks again, as showing the key does (see ConfirmKeyAsync): the admin
+    // PIN when it has one, otherwise a yes. Absent from web apps before 0.60.
+    string? Pin = null,
+    bool? Confirm = null);
 
 /// <param name="ApiKey">TMDB's API key or read access token; empty to remove it.</param>
 public sealed record TmdbKeyUpdate(string ApiKey);
@@ -132,9 +136,18 @@ public static class SettingsEndpoints
                 await MainHasOwnPinAsync(db, ct)));
 
         group.MapPut("/", async (SettingsUpdate update, IOptionsMonitor<FlexarrOptions> options, LiveTv.LiveTvRefreshSignal liveTvRefresh, FlexarrDbContext db,
-            ILibraryScanQueue scans, CancellationToken ct) =>
+            ILibraryScanQueue scans, HttpContext http, CurrentProfile profile, PinGuard guard, CancellationToken ct) =>
         {
             var current = options.CurrentValue;
+            // Devices at home getting in without the key hands every one of them the main profile, so it asks again,
+            // as importing the access settings from a file does.
+            if (update.AuthenticationRequired == AuthenticationRequired.DisabledForLocalAddresses && current.AuthenticationRequired != AuthenticationRequired.DisabledForLocalAddresses
+                && await ConfirmKeyAsync(new KeyRequest(update.Pin, update.Confirm == true), http, db, profile, guard, ct,
+                    "let devices at home in without the key") is { } refused)
+            {
+                return refused;
+            }
+
             if (update.LiveTv is { BaseUrl.Length: > 0 } badLive && (WebAddress(badLive.BaseUrl) is null || string.IsNullOrWhiteSpace(badLive.Username)))
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["liveTv"] = ["Enter Dispatcharr's http or https address and a user name."] });
