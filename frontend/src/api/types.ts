@@ -661,6 +661,8 @@ export interface Activity {
     positionSeconds: number
     durationSeconds: number
     paused: boolean
+    /** Converting ahead of Play (a page looked at), not watched yet. Absent before 0.59. */
+    warming?: boolean
   }[]
 }
 

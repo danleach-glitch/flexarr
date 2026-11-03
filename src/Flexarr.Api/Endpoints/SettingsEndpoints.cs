@@ -106,7 +106,9 @@ public sealed record KeyRequest(string? Pin = null, bool Confirm = false, bool S
 
 public sealed record ArrStatusDto(string Name, ArrKind Kind, bool Ok, string? Version, string? Error);
 
-public sealed record StreamActivityDto(string SessionId, ItemSummaryDto Item, string? Series, PlaybackMethod Method, string? Transcode, double PositionSeconds, double DurationSeconds, bool Paused);
+/// <param name="Warming">Got ready ahead of Play (a page looked at) and converting, not watched yet. Absent before 0.59.</param>
+public sealed record StreamActivityDto(string SessionId, ItemSummaryDto Item, string? Series, PlaybackMethod Method, string? Transcode, double PositionSeconds, double DurationSeconds, bool Paused,
+    bool Warming = false);
 
 public sealed record ActivityDto(
     ScanStatusDto? Scan,
@@ -435,7 +437,10 @@ public static class SettingsEndpoints
             var episodes = db.MediaFiles.Where(f => f.MediaItem!.Kind == MediaKind.Episode && f.ProbeError == null);
             var topLevel = db.MediaItems.Where(i => i.ParentId == null);
             var streams = new List<StreamActivityDto>();
-            foreach (var session in sessions.Playing.Where(s => DateTime.UtcNow - s.LastSeen < TimeSpan.FromMinutes(2)))
+            // What's watched, and what's converting ahead of Play (it holds a slot until a stream needs it).
+            var listed = sessions.Playing.Where(s => DateTime.UtcNow - s.LastSeen < TimeSpan.FromMinutes(2))
+                .Concat(sessions.Active.Where(s => s.Warming && s.Transcode is { IsActive: true }));
+            foreach (var session in listed)
             {
                 var item = await db.MediaItems.Where(i => i.Id == session.ItemId).Summaries(session.ProfileId).FirstOrDefaultAsync(ct);
                 if (item is null)
@@ -449,7 +454,7 @@ public static class SettingsEndpoints
                 var plan = session.Transcode?.Plan;
                 streams.Add(new StreamActivityDto(session.Id, item, series, session.Method,
                     plan is null ? null : $"{plan.TargetHeight}p at {plan.VideoBitrate / 1_000_000.0:0.#} Mbps",
-                    session.LastPosition, session.DurationSeconds, session.Paused));
+                    session.LastPosition, session.DurationSeconds, session.Paused, session.Warming));
             }
 
             var scan = progress.Current is { } p ? new ScanStatusDto(p.Path, p.Total, p.Processed) : null;
