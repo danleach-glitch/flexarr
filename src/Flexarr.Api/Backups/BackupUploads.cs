@@ -2,12 +2,13 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Flexarr.Api.Configuration;
+using Flexarr.Core.Localization;
 using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Backups;
 
 /// <summary>Opening a protected file without its passphrase.</summary>
-public sealed class PassphraseNeededException() : Exception("This file is protected with a passphrase.");
+public sealed class PassphraseNeededException() : Exception(Loc.T("This file is protected with a passphrase."));
 
 /// <summary>
 /// A file brought in from the browser: a backup to restore, or settings to import. It's kept for an hour in
@@ -52,7 +53,7 @@ public sealed class BackupUploads(IOptionsMonitor<FlexarrOptions> options, TimeP
         // Room for it, unpacking it (a few times its size), and a gigabyte to spare.
         if (length > MaxBytes || (length ?? 0) * 6 + (1L << 30) > new DriveInfo(Folder).AvailableFreeSpace)
         {
-            throw new InvalidDataException("There isn’t room on the server for this file.");
+            throw new InvalidDataException(Loc.T("There isn’t room on the server for this file."));
         }
 
         var id = Convert.ToHexStringLower(System.Security.Cryptography.RandomNumberGenerator.GetBytes(12));
@@ -68,13 +69,13 @@ public sealed class BackupUploads(IOptionsMonitor<FlexarrOptions> options, TimeP
                 received += read;
                 if (received > MaxBytes)
                 {
-                    throw new InvalidDataException("This file is too big to be a Flexarr backup.");
+                    throw new InvalidDataException(Loc.T("This file is too big to be a Flexarr backup."));
                 }
 
                 // Checked as it comes (a browser needn't say how big it is up front), every 64 MB.
                 if (received % (64L << 20) < read && new DriveInfo(Folder).AvailableFreeSpace < 1L << 30)
                 {
-                    throw new InvalidDataException("There isn’t room on the server for this file.");
+                    throw new InvalidDataException(Loc.T("There isn’t room on the server for this file."));
                 }
 
                 await file.WriteAsync(buffer.AsMemory(0, read), ct);
@@ -180,7 +181,7 @@ public sealed class BackupUploads(IOptionsMonitor<FlexarrOptions> options, TimeP
             }
         }
 
-        throw new InvalidDataException("This isn’t a Flexarr backup or settings file.");
+        throw new InvalidDataException(Loc.T("This isn’t a Flexarr backup or settings file."));
     }
 
     /// <summary>

@@ -182,7 +182,9 @@ public static partial class HealthEndpoints
 
             if (folder.Hold is not (FolderHold.FolderEmpty or FolderHold.MostFilesGone))
             {
-                return Results.Problem(folder.Hold is null ? "This folder isn't being held." : "The folder isn't there. Reconnect its drive, or take the folder out of the library in Settings.", statusCode: 409);
+                return folder.Hold is null
+                    ? Problems.Of("This folder isn't being held.", status: 409)
+                    : Problems.Of("The folder isn't there. Reconnect its drive, or take the folder out of the library in Settings.", status: 409);
             }
 
             // In one statement, so a scan recording new numbers in between can't slip under this confirmation.
@@ -223,7 +225,7 @@ public static partial class HealthEndpoints
             var ids = status.Problems.Select(p => p.ItemId).Distinct().ToList();
             var items = await db.MediaItems.Where(i => ids.Contains(i.Id)).Summaries(profile.Id).ToDictionaryAsync(i => i.Id, ct);
             return new HealthCheckReportDto(status.Running, status.Checked, status.Total, status.FinishedAt,
-                status.Problems.Select(p => new FileProblemReportDto(p, items.GetValueOrDefault(p.ItemId))).ToList());
+                status.Problems.Select(p => new FileProblemReportDto(p.Localized(), items.GetValueOrDefault(p.ItemId))).ToList());
         }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         // Removes a film's or episode's spare copies from disk. Kept: the best copy, and whichever file Sonarr or Radarr
@@ -422,7 +424,9 @@ public static partial class HealthEndpoints
 
         if (items.Any(i => i.LibraryId != keep.LibraryId))
         {
-            return Results.Problem($"Only {(kind == MediaKind.Artist ? "artists" : "albums")} in the same library can be merged.", statusCode: 409);
+            return kind == MediaKind.Artist
+                ? Problems.Of("Only artists in the same library can be merged.", status: 409)
+                : Problems.Of("Only albums in the same library can be merged.", status: 409);
         }
 
         var otherIds = others.ToList();
@@ -569,7 +573,7 @@ public static partial class HealthEndpoints
         }
         catch (HttpRequestException ex)
         {
-            return (null, Results.Problem($"{instance.Name} didn't say which copy it uses ({(int?)ex.StatusCode ?? 0}), so nothing was deleted.", statusCode: 502));
+            return (null, Problems.Of("{name} didn't say which copy it uses ({status}), so nothing was deleted.", new { name = instance.Name, status = (int?)ex.StatusCode ?? 0 }, status: 502));
         }
     }
 

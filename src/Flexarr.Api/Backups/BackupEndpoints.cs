@@ -5,6 +5,7 @@ using Flexarr.Api.Endpoints;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Scanning;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
@@ -111,7 +112,7 @@ public static class BackupEndpoints
                 return Results.NotFound();
             }
 
-            if (await SettingsEndpoints.ConfirmKeyAsync(request, http, db, current, guard, ct, "download a backup") is { } refused)
+            if (await SettingsEndpoints.ConfirmKeyAsync(request, http, db, current, guard, ct, Loc.Mark("download a backup")) is { } refused)
             {
                 return refused;
             }
@@ -128,7 +129,7 @@ public static class BackupEndpoints
                 return Results.NotFound();
             }
 
-            if (await SettingsEndpoints.ConfirmKeyAsync(new KeyRequest(request?.Pin, request?.Confirm == true), http, db, current, guard, ct, "download a backup") is { } refused)
+            if (await SettingsEndpoints.ConfirmKeyAsync(new KeyRequest(request?.Pin, request?.Confirm == true), http, db, current, guard, ct, Loc.Mark("download a backup")) is { } refused)
             {
                 return refused;
             }
@@ -160,7 +161,7 @@ public static class BackupEndpoints
                 return Results.NotFound();
             }
 
-            if (await SettingsEndpoints.ConfirmKeyAsync(request, http, db, current, guard, ct, "restore a backup") is { } refused)
+            if (await SettingsEndpoints.ConfirmKeyAsync(request, http, db, current, guard, ct, Loc.Mark("restore a backup")) is { } refused)
             {
                 return refused;
             }
@@ -188,7 +189,7 @@ public static class BackupEndpoints
         group.MapPost("/settings-export", async (DownloadRequest? request, HttpContext http, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options,
             TimeProvider time, CurrentProfile current, PinGuard guard, CancellationToken ct) =>
         {
-            if (await SettingsEndpoints.ConfirmKeyAsync(new KeyRequest(request?.Pin, request?.Confirm == true), http, db, current, guard, ct, "export the settings") is { } refused)
+            if (await SettingsEndpoints.ConfirmKeyAsync(new KeyRequest(request?.Pin, request?.Confirm == true), http, db, current, guard, ct, Loc.Mark("export the settings")) is { } refused)
             {
                 return refused;
             }
@@ -259,7 +260,7 @@ public static class BackupEndpoints
                 return Gone();
             }
 
-            if (await SettingsEndpoints.ConfirmKeyAsync(request, http, db, current, guard, ct, "restore a backup") is { } refused)
+            if (await SettingsEndpoints.ConfirmKeyAsync(request, http, db, current, guard, ct, Loc.Mark("restore a backup")) is { } refused)
             {
                 return refused;
             }
@@ -294,7 +295,7 @@ public static class BackupEndpoints
             // as showing the key does.
             if (SettingsTransfer.NeedsConfirmation(request.Sections)
                 && await SettingsEndpoints.ConfirmKeyAsync(new KeyRequest(request.Pin, request.Confirm), http, db, current, guard, ct,
-                    "use the server keys or paths from this file") is { } refused)
+                    Loc.Mark("use the server keys or paths from this file")) is { } refused)
             {
                 return refused;
             }

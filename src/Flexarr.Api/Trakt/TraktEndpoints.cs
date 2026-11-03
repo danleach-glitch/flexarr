@@ -53,7 +53,7 @@ public static class TraktEndpoints
             }
             catch (TraktException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 502);
+                return Results.Problem(ex.Localized, statusCode: 502);
             }
         });
 
@@ -85,7 +85,7 @@ public static class TraktEndpoints
             }
             catch (TraktException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 502);
+                return Results.Problem(ex.Localized, statusCode: 502);
             }
         });
 
@@ -98,7 +98,7 @@ public static class TraktEndpoints
             }
             catch (TraktException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 502);
+                return Results.Problem(ex.Localized, statusCode: 502);
             }
         });
 
@@ -110,7 +110,7 @@ public static class TraktEndpoints
             }
             catch (TraktException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 502);
+                return Results.Problem(ex.Localized, statusCode: 502);
             }
         });
 

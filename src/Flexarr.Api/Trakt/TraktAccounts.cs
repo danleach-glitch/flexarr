@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
@@ -164,7 +165,7 @@ public sealed partial class TraktAccounts(FlexarrDbContext db, TraktClient trakt
     {
         if (string.IsNullOrEmpty(token.AccessToken) || string.IsNullOrEmpty(token.RefreshToken))
         {
-            throw new TraktException(null, "Trakt sent back an empty sign-in.");
+            throw new TraktException(null, Loc.Mark("Trakt sent back an empty sign-in."));
         }
 
         connection.AccessToken = token.AccessToken;

@@ -6,6 +6,7 @@ using Flexarr.Api.Configuration;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -222,7 +223,7 @@ public static class LogEndpoints
 
     private static LogSettingsDto ToDto(LogOptions logs) => new(
         logs.Level,
-        [.. LogAreas.All.Select(a => new LogAreaSetting(a.Key, a.Name,
+        [.. LogAreas.All.Select(a => new LogAreaSetting(a.Key, Loc.T(a.Name),
             logs.Areas.FirstOrDefault(x => x.Key.Equals(a.Key, StringComparison.OrdinalIgnoreCase)) is { Key: not null } set ? set.Value : null))],
         logs.RetentionDays,
         logs.MaxSizeMb,
