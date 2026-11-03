@@ -13,7 +13,7 @@ may be more than the connection carries. This page is the set of rules every app
 ## Start timings
 
 Every start is timed and sent to the server's logs (Settings › Logs) as one Information entry, category `playback`,
-message `Playback started`, with the steps in its properties:
+message `Playback <playbackId> started` (the id keeps each start its own entry), with the steps in its properties:
 
 | Property | Meaning |
 | --- | --- |
@@ -25,7 +25,7 @@ message `Playback started`, with the steps in its properties:
 | `firstFrameMs` | Play pressed → the first picture (video) or first sound (books) |
 | `playbackId` | the server's playback id, to line up with server logs |
 
-The message stays the same for every start, so the property values carry the numbers.
+The numbers are in the properties, not the message.
 
 ## Getting ready ahead of Play (warm-ups)
 

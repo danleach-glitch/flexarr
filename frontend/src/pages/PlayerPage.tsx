@@ -50,6 +50,7 @@ import { cueLine, pictureIn } from '../lib/subtitlePlacement'
 import { unmarkedCreditsSeconds } from '../lib/upNext'
 import { dialogueBoostChoices, isShaping, nightModeChoices, readSoundSettings, shapingFor, speakerChoices, timeOfDay, unshaped, useSoundSettings, useSoundShaping, writeSoundSettings } from '../lib/soundSettings'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
+import { reportStart, type StartTiming } from '../lib/startTiming'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
 
 type Quality = 'auto' | 1080 | 720 | 480
@@ -206,6 +207,8 @@ export function PlayerPage() {
   const lifetime = useRef({ alive: true })
   // Counts playback requests, so only the latest one's answer is used.
   const requests = useRef(0)
+  /** This title's start, timed until its first picture (see lib/startTiming). */
+  const timing = useRef<StartTiming | null>(null)
 
   const [info, setInfo] = useState<PlaybackInfo>()
   // How the attached stream is played, set as it's attached: an error can come before the render that brings `info`.
@@ -365,6 +368,9 @@ export function PlayerPage() {
           return true
         }
         if (session.current && session.current !== playback.sessionId) void stopPlayback(session.current)
+        if (timing.current && timing.current.answeredAt === undefined) {
+          Object.assign(timing.current, { answeredAt: performance.now(), warmed: ready !== null, method: playback.method, playbackId: playback.playbackId })
+        }
         session.current = playback.sessionId
         // The same title again (another audio track, a recovery) keeps its speed; another starts at its show's.
         const sameTitle = playingItem.current === playback.item.id
@@ -461,6 +467,7 @@ export function PlayerPage() {
     const el = video.current
     const life = { alive: true }
     lifetime.current = life
+    timing.current = { kind: 'video', pressedAt: performance.now() }
     void start({ startPositionSeconds: t !== null ? Number(t) : undefined })
     return () => {
       life.alive = false
@@ -535,6 +542,11 @@ export function PlayerPage() {
     const onPause = () => setPlaying(false)
     const onWaiting = () => setWaiting(true)
     const onPlaying = () => setWaiting(false)
+    const onFirstPicture = () => {
+      if (timing.current?.answeredAt === undefined) return
+      reportStart(timing.current)
+      timing.current = null
+    }
     const onVolume = () => {
       setVolume(el.volume)
       setMuted(el.muted)
@@ -554,6 +566,7 @@ export function PlayerPage() {
     el.addEventListener('pause', onPause)
     el.addEventListener('waiting', onWaiting)
     el.addEventListener('playing', onPlaying)
+    el.addEventListener('playing', onFirstPicture)
     el.addEventListener('canplay', onPlaying)
     el.addEventListener('volumechange', onVolume)
     el.addEventListener('error', onError)
@@ -563,6 +576,7 @@ export function PlayerPage() {
       el.removeEventListener('play', onPlay)
       el.removeEventListener('pause', onPause)
       el.removeEventListener('waiting', onWaiting)
+      el.removeEventListener('playing', onFirstPicture)
       el.removeEventListener('playing', onPlaying)
       el.removeEventListener('canplay', onPlaying)
       el.removeEventListener('volumechange', onVolume)

@@ -472,6 +472,8 @@ export interface Marker {
 
 export interface PlaybackInfo {
   sessionId: string
+  /** A short hash of the session id, for lining logs up (absent from older servers). */
+  playbackId?: string
   method: PlaybackMethod
   url: string
   reasons: string[]
