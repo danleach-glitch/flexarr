@@ -51,4 +51,19 @@ public sealed class LanguageEndpointTests(FlexarrApiFactory factory) : IClassFix
         KeepPseudo();
         Assert.Equal(expected, (await factory.CreateClient().GetAsync(url)).StatusCode);
     }
+
+    [Fact]
+    public async Task A_profile_picks_its_language_and_me_shows_it()
+    {
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync("/api/v1/me/language", new { language = "pt-BR" })).StatusCode);
+        Assert.Equal("pt-BR", (await client.GetFromJsonAsync<System.Text.Json.JsonElement>("/api/v1/me")).GetProperty("language").GetString());
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync("/api/v1/me/language", new { language = "not a code" })).StatusCode);
+
+        await client.PutAsJsonAsync("/api/v1/me/language", new { language = (string?)null });
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, (await client.GetFromJsonAsync<System.Text.Json.JsonElement>("/api/v1/me")).GetProperty("language").ValueKind);
+    }
 }
