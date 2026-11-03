@@ -119,6 +119,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasIndex(i => new { i.LibraryId, i.Kind, i.SortTitle });
             e.HasIndex(i => i.Path);
             e.HasIndex(i => i.AddedAt);
+            e.HasIndex(i => i.FirstSeenAt);
             // Coming soon, requests, notifications and watch history all find titles by these.
             e.HasIndex(i => i.TmdbId);
             e.HasIndex(i => i.TvdbId);

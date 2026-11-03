@@ -977,6 +977,8 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.HasIndex("AddedAt");
 
+                    b.HasIndex("FirstSeenAt");
+
                     b.HasIndex("ImdbId");
 
                     b.HasIndex("ParentId");
