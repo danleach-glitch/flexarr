@@ -54,7 +54,7 @@ public sealed class PlaybackSession
     /// <summary>The stream's soundtrack carries Dolby Atmos (E-AC-3 with JOC): the master playlist says so.</summary>
     public bool AudioIsAtmos { get; init; }
     public DateTime LastSeen { get; set; } = DateTime.UtcNow;
-    public DateTime Created { get; } = DateTime.UtcNow;
+    public DateTime Created { get; init; } = DateTime.UtcNow;
 
     /// <summary>
     /// Got ready ahead of Play (<see cref="PlaybackRequest.Prepare"/>) and not yet used by a player: not shown as

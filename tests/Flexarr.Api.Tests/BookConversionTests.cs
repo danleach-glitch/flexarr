@@ -217,6 +217,30 @@ public sealed class BookConversionTests : IDisposable
         Assert.True(condition());
     }
 
+    [Fact]
+    public async Task ABookInProgress_IsConvertedAtTheListenersPlace_BeforePlayIsPressed()
+    {
+        var book = await SeedAsync(("01.mp3", "mp3"), ("02.wma", "wmav2"), ("03.wma", "wmav2"));
+        var finished = await SeedAsync(("01.wma", "wmav2"));
+        using (var scope = _server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.PlaybackStates.Add(new PlaybackState { MediaItemId = book, PositionSeconds = 700 });
+            db.PlaybackStates.Add(new PlaybackState { MediaItemId = finished, PositionSeconds = 590, Watched = true });
+            await db.SaveChangesAsync();
+        }
+
+        var warmer = new BookConversionWarmer(_server.Services.GetRequiredService<IServiceScopeFactory>(), Converter, TimeProvider.System,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<BookConversionWarmer>.Instance);
+        Assert.Equal(1, await warmer.RunOnceAsync(CancellationToken.None));
+
+        await WaitForAsync(() => _started == 2); // both WMA files of the book in progress; nothing of the finished one
+        _gate.SetResult();
+        var file = await Client().GetAsync(Url($"/api/v1/items/{book}/book/files/1?convert=aac"));
+        Assert.Equal("converted", await file.Content.ReadAsStringAsync());
+        Assert.Equal(2, _started);
+    }
+
     private async Task<Guid> SeedAsync(params (string Name, string Codec)[] files)
     {
         var folder = Directory.CreateDirectory(Path.Combine(_server.MediaDirectory, Guid.NewGuid().ToString("N"))).FullName;
