@@ -25,6 +25,7 @@ import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
 import androidx.media3.exoplayer.ExoPlayer
 import io.github.flexarr.AppModel
+import io.github.flexarr.logging.FlexarrLog
 import io.github.flexarr.ReviewPrompt
 import io.github.flexarr.data.PlayerSettings
 import io.github.flexarr.data.SoundSettings
@@ -200,8 +201,18 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** The last progress report or stop sent: each waits for the one before, so the server hears them in order. */
     private var reporting: Job? = null
 
+    /** This title's start, timed until its first picture (see [StartTiming]). */
+    private var timing: StartTiming? = null
+    private val log = FlexarrLog("playback")
+
     init {
         player.addListener(object : Player.Listener {
+            override fun onRenderedFirstFrame() {
+                val started = timing?.takeIf { it.isAnswered } ?: return
+                started.report(log, client.baseUrl.host, model.isGuest)
+                timing = null
+            }
+
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
                 if (playing) {
@@ -257,7 +268,9 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /**
      * Asks the server for [itemId] (or a random episode of a show, with [shuffle]) and starts it, as a new sitting.
      */
-    fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null, from: String? = null, startedWith: String? = null) {
+    fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null, from: String? = null, startedWith: String? = null,
+              pressedAt: Long? = null) {
+        timing = pressedAt?.let { StartTiming(StartTiming.VIDEO, it) } ?: StartTiming(StartTiming.VIDEO)
         // A new sitting: nothing before it for Previous episode.
         trail.clear()
         origin = from to (startedWith ?: itemId)
@@ -366,6 +379,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     DeviceCapabilities.withServer(deviceProfile, version)
                 }.also { serverProfile = it }
                 val started = startPlayback(request(profile), attempts) { !closed && mine == openGeneration } ?: return@launch
+                timing?.answered(started, warmed = false)
                 if (closed || mine != openGeneration) {
                     runCatching { client.stopPlayback(started.sessionId) }
                     return@launch
@@ -643,8 +657,10 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         }
         trail.add(current.item)
         val subtitlesOff = nextSubtitlesOff(current)
+        timing = StartTiming(StartTiming.VIDEO)
         val ready = prepared
         if (ready != null && ready.info.item.id == next.id && ready.subtitlesOff == subtitlesOff) {
+            timing?.answered(ready.info, warmed = true)
             // Got ready during the credits: this session ends, and the next one opens straight away.
             Log.i("Flexarr", "Using the next episode got ready during the credits")
             prepared = null

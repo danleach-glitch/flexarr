@@ -48,6 +48,7 @@ import io.github.flexarr.core.previousChapterStart
 import io.github.flexarr.logging.FlexarrLog
 import io.github.flexarr.player.DeviceCapabilities
 import io.github.flexarr.player.ShakeListener
+import io.github.flexarr.player.StartTiming
 import io.github.flexarr.player.SleepTimer
 import io.github.flexarr.player.mediaSources
 import io.github.flexarr.widget.PodcastWidgets
@@ -183,9 +184,16 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
     private var shownChapter: Int? = null
     private var files: List<BookFile> = emptyList()
 
+    /** A book's start, timed until its first sound (see [StartTiming]). */
+    private var timing: StartTiming? = null
+
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(playing: Boolean) {
             isPlaying = playing
+            if (playing) timing?.takeIf { it.isAnswered }?.let { started ->
+                started.report(flexarrLog, client?.baseUrl?.host, model.isGuest)
+                timing = null
+            }
             if (playing) startTicking()
             if (player.playbackState == Player.STATE_READY) report(paused = !playing)
             // The home screen's Continue listening widget follows.
@@ -289,9 +297,13 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
             errorMessage = "Connect to your server to play this book."
             return
         }
+        val started = StartTiming(StartTiming.BOOK)
+        timing = null
         scope.launch {
             try {
                 val info = client.startPlayback(PlaybackRequest(itemId = book.id, profile = profile, startPositionSeconds = from, deviceName = model.deviceName))
+                started.answered(info, warmed = false)
+                timing = started
                 if (mine != generation) {
                     runCatching { client.stopPlayback(info.sessionId) }
                     return@launch
