@@ -39,6 +39,14 @@ enum DebugSnapshots {
                 try? await Task.sleep(for: .seconds(playing ? wait * 2 : wait))
                 if playing { PlayerHost.shared.screen?.showControls() }
                 save(to: FileManager.default.temporaryDirectory.appending(path: folder).appending(path: "mac-\(name).png"))
+                // `-FlexarrSnapshotHold <seconds>`: says the place is showing and stays on it, for a capture of the window
+                // from outside (screencapture -l), which, unlike the picture above, has the sidebar's glass and the video.
+                let hold = defaults.double(forKey: "FlexarrSnapshotHold")
+                if hold > 0 {
+                    print("FlexarrSnapshot ready \(name)")
+                    fflush(stdout)
+                    try? await Task.sleep(for: .seconds(hold))
+                }
                 // Leave the player before the next place.
                 if playing {
                     PlayerHost.shared.screen?.close()
