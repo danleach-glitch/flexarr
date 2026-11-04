@@ -1148,7 +1148,8 @@ final class PlaybackController: NSObject {
     }
 
     private func skip(to end: Double) {
-        transport?.seek(to: end)
+        // Exact: a keyframe landing a few seconds early would replay the intro's tail and bring the skip back.
+        transport?.seek(to: end, exact: true)
         prompt = .none
         updatePrompt()
     }
@@ -1307,7 +1308,7 @@ final class PlaybackController: NSObject {
         switch command.kind {
         case .seek:
             guard let seconds = command.seconds, seconds.isFinite else { return true }
-            screen.seek(to: seconds)
+            screen.seek(to: seconds, exact: true)
         case .skip:
             guard let seconds = command.seconds, seconds.isFinite else { return true }
             screen.skip(seconds, flash: true)

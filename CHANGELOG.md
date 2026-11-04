@@ -14,6 +14,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### iPhone and Apple TV
 - Counts read properly for one of something: "1 track", "1 season" and "1 episode" where some said "1 tracks".
 - Dates, times, numbers and file sizes follow your device's own way of writing them everywhere, including the live TV guide and recordings.
+- On the Apple TV, skipping through AV1 films and episodes brings the picture back in well under a second, and Skip Intro still lands exactly at the intro's end.
+- A film that switches the TV's frame rate no longer flashes coloured noise before it starts.
+- Picture subtitles no longer go missing after skipping forward and then back.
 
 ### iPhone and Android
 - **Mark as unplayed** on a podcast episode you'd started now starts it again from the beginning, and its ring empties, even when it's still in the player. **Mark as played** takes it out of the player. Audiobooks do the same with **Mark as unread** and **Mark as finished**.
