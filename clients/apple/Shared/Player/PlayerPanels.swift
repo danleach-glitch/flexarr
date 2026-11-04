@@ -1,3 +1,5 @@
+// The iPhone's and Apple TV's (UIKit); the Mac draws its own in FlexarrMac/Player.
+#if canImport(UIKit)
 import FlexarrKit
 import UIKit
 
@@ -293,3 +295,4 @@ final class SleepPromptView: UIView {
     override var preferredFocusEnvironments: [UIFocusEnvironment] { [moreButton] }
     #endif
 }
+#endif

@@ -352,6 +352,20 @@ struct FlexarrClientTests {
         #expect(query.contains(.init(name: "take", value: "30")))
     }
 
+    /// The Mac's search field on a library page asks the server, not the page loaded so far; an empty search asks
+    /// for the whole library.
+    @Test func libraryItemsSendsSearch() async throws {
+        let (client, host) = stubbedClient(.init(status: 200, body: try Fixture.data("library-items")))
+
+        _ = try await client.libraryItems("lib", search: "alien")
+        _ = try await client.libraryItems("lib", search: "")
+
+        let urls = StubProtocol.recorded(host: host).compactMap(\.url)
+        let queries = urls.map { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems ?? [] }
+        #expect(queries.first?.contains(.init(name: "search", value: "alien")) == true)
+        #expect(queries.last?.contains(where: { $0.name == "search" }) == false)
+    }
+
     @Test func startPlaybackPostsTvOSProfile() async throws {
         let (client, host) = stubbedClient(.init(status: 200, body: try Fixture.data("playback")))
 
@@ -586,13 +600,14 @@ struct PairingPromptTests {
          {"code":"GHJ-KLM","deviceName":"Kitchen","expiresAt":"2026-10-29T12:00:00Z","deviceType":"AndroidTv"},
          {"code":"NPQ-RST","deviceName":"Bedroom","expiresAt":"2026-10-29T12:00:00Z","deviceType":"Toaster"},
          {"code":"VWX-YZ2","deviceName":"Den","expiresAt":"2026-10-29T12:00:00Z","deviceType":null,"turnedAway":true},
-         {"code":"345-678","deviceName":"Study","expiresAt":"2026-10-29T12:00:00Z"}]
+         {"code":"345-678","deviceName":"Study","expiresAt":"2026-10-29T12:00:00Z"},
+         {"code":"9AB-CDE","deviceName":"MacBook Air","expiresAt":"2026-10-29T12:00:00Z","deviceType":"Mac"}]
         """#
         let (client, _) = stubbedClient(.init(status: 200, body: Data(list.utf8)))
         let waiting = try await client.waitingPairings()
-        #expect(waiting.map(\.deviceType) == [.appleTv, .androidTv, .unknown, nil, nil])
+        #expect(waiting.map(\.deviceType) == [.appleTv, .androidTv, .unknown, nil, nil, .mac])
         // Only the one turned away a moment ago (asking again by itself) isn't asked about.
-        #expect(waiting.map(\.asks) == [true, true, true, false, true])
+        #expect(waiting.map(\.asks) == [true, true, true, false, true, true])
     }
 
     @Test func approvesAndDeclinesByCode() async throws {

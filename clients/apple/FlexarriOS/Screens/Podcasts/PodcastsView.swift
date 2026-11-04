@@ -27,7 +27,7 @@ struct PodcastsView: View {
         }
         .background(RoomBackground(ambient: home.podcasts.first.map { podcastGlow($0.accentColor) }, intensity: 0.18))
         .navigationTitle(t(Words.podcasts))
-        .toolbar {
+        .pageActions {
             // The directory's shows have no age a profile's limit could be checked against.
             if model.podcastStatus?.available != false, !model.hasAgeLimit {
                 Button { router.push(.podcastBrowse) } label: { Label(t(Words.browse), systemImage: "magnifyingglass") }
@@ -93,7 +93,9 @@ struct PodcastsView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        #if os(iOS)
         .environment(\.editMode, .constant(editingUpNext ? .active : .inactive))
+        #endif
         .refreshable { await load() }
     }
 

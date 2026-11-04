@@ -1,5 +1,9 @@
 import FlexarrKit
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 /// A session's scrubbing previews: the server's sheets of thumbnails, fetched as the viewer scrubs. The manifest is
 /// asked for again every so often until the server has made the previews (a new file takes a minute).
@@ -10,10 +14,12 @@ final class TrickplayPreviews {
     private var manifest: TrickplayManifest?
     /// The sheets fetched lately, newest last. A sheet is 100 thumbnails (about 23 MB decoded), so only the few around
     /// where the viewer is scrubbing are kept: a whole film's worth would sit beside the video for the session.
-    private var sheets: [(index: Int, image: UIImage)] = []
+    private var sheets: [(index: Int, image: PlatformImage)] = []
     private static let sheetsKept = 3
     private var loading: Set<Int> = []
     private var task: Task<Void, Never>?
+    /// The last thumbnail cut out, so hovering or scrubbing over one spot doesn't cut it again on every redraw.
+    private var lastThumbnail: (key: String, image: PlatformImage)?
     /// A sheet arrived: whatever is showing a preview should ask again.
     var onLoaded: (() -> Void)?
 
@@ -40,16 +46,32 @@ final class TrickplayPreviews {
     var isAvailable: Bool { manifest != nil }
 
     /// The thumbnail nearest `seconds`, if its sheet is here (it's fetched otherwise, and `onLoaded` says when).
-    func image(at seconds: Double) -> UIImage? {
+    func image(at seconds: Double) -> PlatformImage? {
         guard let manifest, let (sheet, x, y) = manifest.thumbnail(at: seconds) else { return nil }
         guard let image = sheets.first(where: { $0.index == sheet })?.image else {
             fetch(sheet)
             return nil
         }
+        let key = "\(sheet)/\(x)/\(y)"
+        if let lastThumbnail, lastThumbnail.key == key { return lastThumbnail.image }
+        let thumbnail = crop(image, x: x, y: y, manifest: manifest)
+        lastThumbnail = thumbnail.map { (key, $0) }
+        return thumbnail
+    }
+
+    private func crop(_ image: PlatformImage, x: Int, y: Int, manifest: TrickplayManifest) -> PlatformImage? {
+        #if canImport(UIKit)
         let scale = image.scale
+        #else
+        let scale = image.size.width > 0 ? image.pixelSize.width / image.size.width : 1
+        #endif
         let rect = CGRect(x: CGFloat(x) * scale, y: CGFloat(y) * scale, width: CGFloat(manifest.width) * scale, height: CGFloat(manifest.height) * scale)
-        guard let cropped = image.cgImage?.cropping(to: rect) else { return nil }
+        guard let cropped = image.platformCGImage?.cropping(to: rect) else { return nil }
+        #if canImport(UIKit)
         return UIImage(cgImage: cropped, scale: scale, orientation: .up)
+        #else
+        return NSImage(cgImage: cropped, size: CGSize(width: CGFloat(manifest.width), height: CGFloat(manifest.height)))
+        #endif
     }
 
     var aspectRatio: CGFloat {

@@ -1,7 +1,7 @@
 # Publishing the Apple apps
 
 One universal app (FlexarriOS) covers iPhone and iPad. It's listed in App Store Connect as "Flexarr"
-with the bundle ID `com.danleach.flexarr.ios`.
+with the bundle ID `com.danleach.flexarr.ios`; the Apple TV app and the Mac app (the player) join that listing.
 
 ## Uploading a build
 
@@ -89,6 +89,28 @@ subtitle, age rating and App Privacy are shared.
   from outside your home? Use an API key" and the key, then the App Review profile. `FlexarrTVUITests/ReviewerSignIn.swift` walks it on a fresh install, with the same
   environment as the iOS test.
 - The screens behind the screenshots come from `FlexarrTVUITests/StoreTour.swift`.
+
+## Mac (the player)
+
+The Mac app that plays (`FlexarrMac` in `clients/apple`, docs/mac-player.md) joins the iPhone and Apple TV listing as
+the TV app did (universal purchase), so it ships with the iOS bundle ID: `make mac-player-upload TEAM=<team id>
+BUNDLE_ID=<the iOS bundle id>` (its notification extension becomes `<bundle id>.NotificationService`, as the iPhone's).
+It has its own version, text, screenshots (2880×1800) and review submission; the name, subtitle, age rating and App
+Privacy are shared. Flexarr Server (below) stays a separate app and listing.
+
+- **Before the first upload:** App Store Connect › the Flexarr app › Add platform › macOS. If the iPhone app is offered
+  on Apple silicon Macs as "Designed for iPad" (Pricing and Availability), the native Mac app replaces it there.
+  Apple doesn't let a platform leave a universal purchase later.
+- It needs the Mac App Distribution and Mac Installer Distribution certificates (Xcode signed in), and is signed with
+  `FlexarrMac-Store.entitlements` (notifications and the app group with the extension). `MAC_EXPORT=export` builds the
+  package without uploading. Apple silicon only, macOS 15.2 and later.
+- **Review notes** as for the iPhone (the demo server and its API key), plus: "The app uses the network server
+  entitlement for its player: it reads the video file itself and hands it to AVPlayer through a small HLS server
+  whose addresses carry a random token for each playback. Its player reaches it over the loopback address; the
+  same server is reachable on the local network only so that AirPlay receivers can play the stream. The optional
+  Tailscale connection used by family invites also takes incoming UDP."
+- **Promotional text** gains the Mac; the description says the Mac app needs no server on the same Mac.
+- The screens for the screenshots come from `scripts/parity/mac-shots.sh` (the window must be in front while it runs).
 
 ## Mac (Flexarr Server)
 

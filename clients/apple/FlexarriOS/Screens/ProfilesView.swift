@@ -30,6 +30,9 @@ struct ProfilePickerView: View {
     @Environment(\.dismiss) private var dismiss
     /// Opened to switch: the profile watching now is marked and can't be chosen again.
     var marksCurrent = false
+    /// Where it's not a sheet (the Mac's, over the whole window): what closes it once a profile's chosen, or the one
+    /// watching now is clicked. A sheet dismisses itself.
+    var onDone: (() -> Void)? = nil
 
     @State private var asking: Profile?
     /// Leaving a kids profile: the admin PIN is asked for, keeping the chosen profile's own if it had one.
@@ -107,9 +110,9 @@ struct ProfilePickerView: View {
                 Text(t("Who’s watching?"))
                     .font(.marquee(40, weight: .heavy))
                     .foregroundStyle(Color.screen)
-                    .padding(.top, marksCurrent ? 28 : 80)
+                    .padding(.top, Self.centred ? 0 : marksCurrent ? 28 : 80)
 
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 110, maximum: 150), spacing: 20)], spacing: 28) {
+                LazyVGrid(columns: gridColumns, spacing: 28) {
                     ForEach(model.profiles) { profile in
                         Button { Task { await press(profile) } } label: {
                             VStack(spacing: 10) {
@@ -135,6 +138,14 @@ struct ProfilePickerView: View {
                                     Text(caption(for: profile) ?? " ")
                                         .font(.caption.weight(.medium))
                                         .foregroundStyle(Color.usher)
+                                    // How to use the padlock, under each kids profile (a blank line under the others
+                                    // keeps the row level).
+                                    if model.profiles.contains(where: lockBadge) {
+                                        Text(lockBadge(for: profile) ? (model.kidsLock ? t("Hold to turn off child lock") : t("Hold for child lock")) : " ")
+                                            .font(.caption2.weight(.medium))
+                                            .foregroundStyle(Color.usher.opacity(0.8))
+                                            .accessibilityHidden(true)
+                                    }
                                 }
                                 .lineLimit(1)
                             }
@@ -151,8 +162,20 @@ struct ProfilePickerView: View {
                                 Button(model.kidsLock ? t("Turn off child lock") : t("Child lock")) { toggleChildLock(on: profile) }
                             }
                         }
+                        #if os(macOS)
+                        // A Mac has no holding a finger on it: right-click for child lock.
+                        .contextMenu {
+                            if lockBadge(for: profile) {
+                                Button(model.kidsLock ? t("Turn off child lock") : t("Child lock")) { toggleChildLock(on: profile) }
+                            }
+                        }
+                        #endif
                     }
                 }
+                #if os(macOS)
+                // One row's width at most, so a few profiles sit in the middle; a narrower window wraps them.
+                .frame(maxWidth: CGFloat(min(model.profiles.count, 6)) * 178 - 28)
+                #endif
                 .padding(.horizontal, 32)
 
                 if let error {
@@ -165,8 +188,24 @@ struct ProfilePickerView: View {
 
             }
             .frame(maxWidth: .infinity)
+            #if os(macOS)
+            // The whole window: in the middle of it, as the Apple TV's.
+            .containerRelativeFrame(.vertical, alignment: .center)
+            #endif
         }
     }
+
+    /// The Mac fills its window with the picker, centred, as many to a row as fit (up to six); the phones flow theirs
+    /// from the top.
+    #if os(macOS)
+    private static let centred = true
+    private var gridColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: 130, maximum: 150), spacing: 28)]
+    }
+    #else
+    private static let centred = false
+    private var gridColumns: [GridItem] { [GridItem(.adaptive(minimum: 110, maximum: 150), spacing: 20)] }
+    #endif
 
     /// The padlock at the corner of each kids profile's picture, clear of its initial: open while child lock can be
     /// turned on (it locks to that profile), closed while it's on.
@@ -196,7 +235,9 @@ struct ProfilePickerView: View {
     private func toggleChildLock(on profile: Profile) {
         guard switching == nil, !locking else { return }
         // Felt as the hold takes, as on Android.
+        #if os(iOS)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        #endif
         error = nil
         if model.kidsLock {
             kidsLockPin = .unlock
@@ -212,10 +253,14 @@ struct ProfilePickerView: View {
         return nil
     }
 
+    private func finish() {
+        if let onDone { onDone() } else { dismiss() }
+    }
+
     private func press(_ profile: Profile) async {
         error = nil
         // The one watching now: nothing to switch to (its padlock is held, not tapped).
-        if marksCurrent && profile.isCurrent { return }
+        if marksCurrent && profile.isCurrent { onDone?(); return }
         if profile.needsPinToChoose {
             // The admin PIN was just given here (child lock off): it goes with this choice, rather than the
             // keypad again. A profile with a PIN of its own (other than the main profile) still asks for that.
@@ -236,7 +281,7 @@ struct ProfilePickerView: View {
         defer { switching = nil }
         do {
             try await model.switchProfile(to: profile, pin: pin, parentPin: sentParentPin)
-            if marksCurrent { dismiss() }
+            if marksCurrent { finish() }
         } catch FlexarrClientError.parentPinNeeded(let message) {
             if parentPin == nil {
                 // Leaving a kids profile (or the PIN given earlier no longer works): ask for the admin PIN,
@@ -298,7 +343,7 @@ struct ProfilePickerView: View {
                 try? await model.switchProfile(to: target)
             }
             lockTarget = nil
-            if marksCurrent { dismiss() }
+            if marksCurrent { finish() }
         } catch FlexarrClientError.parentPinNeeded(let message) {
             if pin == nil { kidsLockPin = .lock } else { error = message ?? t("That PIN isn’t right.") }
         } catch {

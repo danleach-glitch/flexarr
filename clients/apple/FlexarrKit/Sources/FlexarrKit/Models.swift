@@ -1016,7 +1016,7 @@ public struct PairingRequest: Decodable, Sendable, Hashable, Identifiable {
 /// What kind of device an app runs on, as it tells the server (`X-Flexarr-Device`).
 public enum DeviceType: String, ForwardCompatibleEnum {
     case appleTv = "AppleTv", iPhone = "IPhone", iPad = "IPad"
-    case androidPhone = "AndroidPhone", androidTablet = "AndroidTablet", androidTv = "AndroidTv", unknown
+    case androidPhone = "AndroidPhone", androidTablet = "AndroidTablet", androidTv = "AndroidTv", mac = "Mac", unknown
 }
 
 /// The `pairing-ended` event: the device was allowed (from anywhere), turned away, or its code ran out.

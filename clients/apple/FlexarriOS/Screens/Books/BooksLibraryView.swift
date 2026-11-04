@@ -167,17 +167,23 @@ struct BooksLibraryView: View {
                     ProgressView().frame(maxWidth: .infinity).padding(20)
                 }
             }
+            // The Mac's hero starts where the other libraries' do, right under the toolbar.
+            #if os(macOS)
+            .padding(.top, 0)
+            #else
             .padding(.top, 8)
+            #endif
             .padding(.bottom, 24)
         }
         .background(RoomBackground(ambient: (featured ?? browse.shelves?.continueListening.first)?.glowColor, intensity: featured == nil ? 0.18 : 0.28)
             .animation(.easeInOut(duration: 0.8), value: featured?.id))
         .navigationTitle(genre ?? browse.library.name)
-        .toolbar {
-            if browse.browse == .all {
-                ToolbarItem(placement: .topBarTrailing) { filterMenu }
-            }
+        .pageSwitch(Binding(get: { browse.browse }, set: { browse.browse = $0 }), genre == nil ? BookBrowse.allCases.map { ($0, $0.label) } : [])
+        #if !os(macOS)
+        .pageActions {
+            if browse.browse == .all { filterMenu }
         }
+        #endif
         .refreshable { await load() }
         .task(id: "\(browse.browse.rawValue)#\(browse.filter.hashValue)") { await load() }
         .task(id: model.refreshToken) { if browse.loadedAt != nil { await load() } }
@@ -206,15 +212,24 @@ struct BooksLibraryView: View {
     }
 
     /// Browse, All books, Genres, Series and Authors, as one segmented control like the other libraries' view switch.
+    /// On the Mac it's in the window's toolbar, as theirs is.
+    @ViewBuilder
     private var tabs: some View {
+        #if !os(macOS)
+        tabControl
+            .padding(.horizontal, Layout.edge)
+            .padding(.bottom, 4)
+        #endif
+    }
+
+    private var tabControl: some View {
         Picker(t("Show"), selection: Binding(get: { browse.browse }, set: { browse.browse = $0 })) {
             ForEach(BookBrowse.allCases) { tab in
                 Text(tab.label).tag(tab)
             }
         }
         .pickerStyle(.segmented)
-        .padding(.horizontal, Layout.edge)
-        .padding(.bottom, 4)
+        .labelsHidden()
     }
 
     @ViewBuilder
@@ -299,11 +314,20 @@ struct BooksLibraryView: View {
 
     private var allBooks: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(summary)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Color.usher)
-                .monospacedDigit()
-                .padding(.horizontal, Layout.edge)
+            HStack(spacing: 10) {
+                Text(summary)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.usher)
+                    .monospacedDigit()
+                #if os(macOS)
+                // On the Mac, filter and sort sit on the page above what they change, as the other libraries' do.
+                if browse.browse == .all {
+                    Spacer(minLength: 0)
+                    filterMenu
+                }
+                #endif
+            }
+            .padding(.horizontal, Layout.edge)
             LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                 ForEach(Array(browse.books.enumerated()), id: \.element.id) { index, book in
                     BookCard(item: book)
@@ -360,6 +384,51 @@ struct BooksLibraryView: View {
 
     // MARK: Filters and sorting
 
+    #if os(macOS)
+    @State private var filtersOpen = false
+
+    /// On the Mac, a capsule on the page opening the same choices in a popover (system menus built on the page came
+    /// out greyed).
+    private var filterMenu: some View {
+        Button { filtersOpen.toggle() } label: {
+            PageMenuLabel(icon: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease",
+                          text: t("Filter and sort"), chosen: isFiltered)
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .accessibilityLabel(t("Filter and sort"))
+        .popover(isPresented: $filtersOpen, arrowEdge: .bottom) {
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 10) {
+                    PageChoiceRows(title: t("Show"), selection: $browse.filter.progress,
+                                   options: BookProgressFilter.allCases.map { ($0, $0.label) })
+                    PageChoiceRows(title: t(Words.length),
+                                   selection: Binding(get: { BookLength(browse.filter) }, set: { $0.apply(to: &browse.filter) }),
+                                   options: BookLength.allCases.map { ($0, $0.label) })
+                    PageChoiceRows(title: t("Sort by"),
+                                   selection: Binding(get: { browse.filter.sort }, set: { browse.filter.sort = $0; browse.filter.descending = nil }),
+                                   options: BookSort.allCases.map { ($0, $0.label) })
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle(t("Reverse"), isOn: Binding(get: { (browse.filter.descending ?? browse.filter.sort.descendingByDefault) != browse.filter.sort.descendingByDefault },
+                                                        set: { browse.filter.descending = $0 != browse.filter.sort.descendingByDefault }))
+                        Toggle(t("Unabridged only"), isOn: Binding(get: { browse.filter.abridged == false }, set: { browse.filter.abridged = $0 ? false : nil }))
+                        if browse.filter.genre != nil, genre == nil {
+                            Button(t("All genres")) { browse.filter.genre = nil }
+                        }
+                    }
+                    .toggleStyle(.checkbox)
+                    .padding(.horizontal, 12)
+                }
+                .padding(.vertical, 6)
+            }
+            .scrollIndicators(.never)
+            .frame(maxHeight: 560)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(6)
+            .frame(minWidth: 240)
+        }
+    }
+    #else
     private var filterMenu: some View {
         Menu {
             Picker(t("Show"), selection: $browse.filter.progress) {
@@ -381,10 +450,10 @@ struct BooksLibraryView: View {
                                                 set: { browse.filter.descending = $0 != browse.filter.sort.descendingByDefault }))
             }
         } label: {
-            Image(systemName: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+            Label(t("Filter and sort"), systemImage: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
         }
-        .accessibilityLabel(t("Filter and sort"))
     }
+    #endif
 
     /// Filters that leave nothing: say so, with a way back to every book (the sort stays).
     private var noMatches: some View {

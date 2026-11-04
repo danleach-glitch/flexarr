@@ -8,6 +8,8 @@ struct ConnectView: View {
     @Environment(AppModel.self) private var model
     @State private var browser = ServerBrowser()
     @State private var step: Step = .choose
+    /// Opens on the code for a family invite (the Mac's welcome offers joining someone's Flexarr as its own step).
+    var startsWithInvite = false
 
     private enum Step: Equatable {
         case choose
@@ -18,6 +20,73 @@ struct ConnectView: View {
     }
 
     var body: some View {
+        layout
+            .background(RoomBackground(ambient: .silver, intensity: 0.22).ignoresSafeArea())
+            .animation(.easeInOut(duration: 0.2), value: step)
+            .onAppear(perform: appeared)
+            .onDisappear { browser.stop() }
+    }
+
+    @ViewBuilder
+    private var current: some View {
+        switch step {
+        case .choose:
+            ChooseServer(browser: browser, onPick: { step = .pair($0) }, onManual: { step = .manual }, onGuest: { step = .guest })
+        case .pair(let server):
+            PairWithServer(server: server, onBack: { step = .choose })
+        case .manual:
+            ManualConnect(onPair: { step = .pair($0) }, onBack: { step = .choose })
+        case .guest:
+            GuestCodeView(onBack: { step = .choose })
+        }
+    }
+
+    #if os(macOS)
+    /// The Mac's window: Flexarr on the left (and, until a server turns up, how to get one), and the step on the right
+    /// in a panel, the two side by side in the middle of the window.
+    private var layout: some View {
+        ScrollView {
+            HStack(alignment: .top, spacing: 56) {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(spacing: 12) {
+                        BrandMark(size: 52)
+                        Text(verbatim: "flexarr")
+                            .font(.marquee(60, weight: .black))
+                            .foregroundStyle(Color.screen)
+                    }
+                    Text(t("Your entertainment, on every screen."))
+                        .font(.marquee(30, weight: .bold))
+                        .foregroundStyle(Color.usher)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let notice = model.signedOutNotice {
+                        Text(notice)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Color.screen)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if step == .choose, browser.servers.isEmpty {
+                        NewToFlexarr().padding(.top, 18)
+                    }
+                }
+                .frame(width: 340, alignment: .leading)
+
+                current
+                    .padding(28)
+                    .frame(maxWidth: .infinity, minHeight: 360, alignment: .topLeading)
+                    .background {
+                        RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
+                            .fill(Color.screen.opacity(0.04))
+                            .overlay(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).strokeBorder(Color.screen.opacity(0.06)))
+                    }
+            }
+            .frame(maxWidth: 960)
+            .padding(48)
+            .frame(maxWidth: .infinity)
+            .containerRelativeFrame(.vertical, alignment: .center)
+        }
+    }
+    #else
+    private var layout: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 VStack(alignment: .leading, spacing: 10) {
@@ -38,16 +107,7 @@ struct ConnectView: View {
                     }
                 }
 
-                switch step {
-                case .choose:
-                    ChooseServer(browser: browser, onPick: { step = .pair($0) }, onManual: { step = .manual }, onGuest: { step = .guest })
-                case .pair(let server):
-                    PairWithServer(server: server, onBack: { step = .choose })
-                case .manual:
-                    ManualConnect(onPair: { step = .pair($0) }, onBack: { step = .choose })
-                case .guest:
-                    GuestCodeView(onBack: { step = .choose })
-                }
+                current
             }
             .padding(24)
             .padding(.top, 40)
@@ -55,10 +115,12 @@ struct ConnectView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(RoomBackground(ambient: .silver, intensity: 0.22))
-        .animation(.easeInOut(duration: 0.2), value: step)
-        .onAppear {
+    }
+    #endif
+
+    private func appeared() {
             browser.start()
+            if startsWithInvite, GuestInvite.guestInvitesOffered { step = .guest }
             // Signed out on the server: show a code for the same server straight away.
             // (Not a removed guest: its "server" was its own tunnel. It stays here, to join again with a new code.)
             if model.signedOutNotice != nil, !model.signedOutAsGuest, let server = model.store.lastAddress.flatMap(FlexarrClient.normalizeAddress) {
@@ -72,8 +134,6 @@ struct ConnectView: View {
             // `-FlexarrGuestCode YES` opens "Join someone’s Flexarr"'s code directly.
             if UserDefaults.standard.bool(forKey: "FlexarrGuestCode"), GuestInvite.guestInvitesOffered { step = .guest }
             #endif
-        }
-        .onDisappear { browser.stop() }
     }
 }
 
@@ -123,10 +183,12 @@ private struct ChooseServer: View {
                 .font(.subheadline)
                 .padding(.top, 6)
             }
+            #if !os(macOS)
             if browser.servers.isEmpty {
                 NewToFlexarr()
                     .padding(.top, 10)
             }
+            #endif
         }
         .task {
             guard (try? await Task.sleep(for: .seconds(6))) != nil else { return }

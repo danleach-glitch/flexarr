@@ -49,7 +49,7 @@ struct PlaybackSettingsView: View {
                     ))
                     .settingsRow()
                 } header: {
-                    Text(t("Your profile, on every device"))
+                    PageTopHeader(t("Your profile, on every device"))
                 } footer: {
                     Text(t("The next episode starts after a 10-second countdown. Subtitles that run early or late can be moved on Apple TV or the web. In the black bars puts subtitles below the picture of movies wider than the screen."))
                 }

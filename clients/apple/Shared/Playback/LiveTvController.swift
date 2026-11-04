@@ -1,6 +1,10 @@
 import FlexarrKit
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 private let log = FlexarrLog("livetv")
 
@@ -20,7 +24,9 @@ final class LiveTvController: NSObject {
     @ObservationIgnored var onEnded: (() -> Void)?
     /// Makes the guide shown over the picture, given the client, the channels in order, the one being watched, what
     /// to do when a channel is chosen and when it's closed. Set by the Apple TV app; nil elsewhere (no Guide button).
+    #if canImport(UIKit)
     @ObservationIgnored var makeGuide: ((FlexarrClient, [LiveChannel], String?, @escaping (LiveChannel) -> Void, @escaping () -> Void) -> UIViewController)?
+    #endif
 
     @ObservationIgnored private var client: FlexarrClient?
     @ObservationIgnored private var channels: [LiveChannel] = []
@@ -100,6 +106,11 @@ final class LiveTvController: NSObject {
         } else {
             screen = PlayerViewController()
             screen.delegate = self
+            #if os(macOS)
+            screen.configureLive(onChannels: { [weak self] in self?.showChannels() })
+            self.screen = screen
+            PlayerHost.shared.show(screen)
+            #else
             screen.zapsChannels = true
             screen.controls.isLive = true
             screen.controls.onChannels = { [weak self] in self?.showChannels() }
@@ -109,13 +120,16 @@ final class LiveTvController: NSObject {
             self.screen = screen
             guard let presenter = Self.topViewController() else { throw FlexarrClientError.invalidResponse }
             presenter.present(screen, animated: true)
+            #endif
         }
         let transport = LiveTransport(url: url)
         self.transport = transport
         screen.transport = transport
         screen.setEpisodeNavigation(hasPrevious: channels.count > 1, hasNext: channels.count > 1)
+        #if !os(macOS)
         screen.controls.previousButton.accessibilityLabel = t("Previous channel")
         screen.controls.nextButton.accessibilityLabel = t("Next channel")
+        #endif
         screen.setDetail(started.method == "Original" ? nil : started.method)
         showTitle(for: started.channel, programme: started.channel.now)
         loadLogo(started.channel, into: screen)
@@ -153,7 +167,25 @@ final class LiveTvController: NSObject {
         }
     }
 
-    /// The channel list over the picture: a panel down the right on Apple TV, a sheet on iPhone and iPad.
+    /// The channel list over the picture: a panel down the right on Apple TV, a sheet on iPhone, iPad and Mac.
+    #if os(macOS)
+    private func showChannels() {
+        guard let client, let screen, screen.presentedViewController == nil else { return }
+        let current = watching?.channel.id ?? startingChannel
+        var host: PlayerSheetHost?
+        let previous = previousChannel?.id == current ? nil : previousChannel
+        let picker = LiveChannelPicker(client: client, currentId: current, channels: channels, previous: previous, onPick: { [weak self] channel in
+            host?.dismiss(animated: true)
+            host = nil
+            if channel.id != current { self?.start(channel) }
+        }, onClose: {
+            // Let go of the sheet, which holds these closures, and so this.
+            host?.dismiss(animated: true)
+            host = nil
+        })
+        host = screen.presentSheet(picker)
+    }
+    #else
     private func showChannels() {
         guard let client, let screen, screen.presentedViewController == nil else { return }
         let current = watching?.channel.id ?? startingChannel
@@ -161,8 +193,13 @@ final class LiveTvController: NSObject {
         let previous = previousChannel?.id == current ? nil : previousChannel
         let picker = LiveChannelPicker(client: client, currentId: current, channels: channels, previous: previous, onPick: { [weak self] channel in
             host?.dismiss(animated: true)
+            host = nil
             if channel.id != current { self?.start(channel) }
-        }, onClose: { host?.dismiss(animated: true) })
+        }, onClose: {
+            // Let go of the sheet, which holds these closures, and so this.
+            host?.dismiss(animated: true)
+            host = nil
+        })
         let controller = UIHostingController(rootView: picker)
         #if os(tvOS)
         controller.modalPresentationStyle = .overFullScreen
@@ -189,6 +226,8 @@ final class LiveTvController: NSObject {
         screen.present(controller, animated: true)
     }
 
+    #endif
+
     /// The next channel up or down, in the order the screen listed them.
     private func step(_ by: Int) {
         guard let current = watching?.channel ?? startingChannel.flatMap({ id in channels.first { $0.id == id } }),
@@ -211,6 +250,15 @@ final class LiveTvController: NSObject {
         watching = nil
     }
 
+    /// A channel is up (or starting).
+    var isWatching: Bool { screen != nil || watching != nil }
+
+    /// Closes the channel's screen, ending the stream.
+    func closePlayer() {
+        guard screen != nil || watching != nil || isStarting else { return }
+        close()
+    }
+
     private func close(message: String? = nil) {
         stop()
         let finish = { [weak self] in
@@ -224,6 +272,30 @@ final class LiveTvController: NSObject {
 
     /// Every stream is recording: offers the channel being recorded, or stopping the recording and watching this one.
     private func offer(instead recording: RecordingInTheWay, of wanted: LiveChannel) {
+        #if os(macOS)
+        let present = { [weak self] in
+            guard let self else { return }
+            let alert = NSAlert()
+            alert.messageText = t("Recording")
+            alert.informativeText = recording.message
+            alert.addButton(withTitle: t("Watch {channel}", ["channel": recording.channelName]))
+            alert.addButton(withTitle: t("Stop the recording")).hasDestructiveAction = true
+            alert.addButton(withTitle: t(Words.cancel))
+            switch alert.runModal() {
+            case .alertFirstButtonReturn:
+                self.watchRecorded(recording)
+            case .alertSecondButtonReturn:
+                guard let client = self.client else { return }
+                Task {
+                    try? await client.removeRecording(recording.recordingId)
+                    try? await Task.sleep(for: .seconds(2.5))
+                    self.start(wanted)
+                }
+            default:
+                break
+            }
+        }
+        #else
         let present = { [weak self] in
             guard let self, let top = Self.topViewController() else { return }
             let alert = UIAlertController(title: t("Recording"), message: recording.message, preferredStyle: .alert)
@@ -242,6 +314,7 @@ final class LiveTvController: NSObject {
             alert.addAction(UIAlertAction(title: t(Words.cancel), style: .cancel))
             top.present(alert, animated: true)
         }
+        #endif
         stop()
         onEnded?()
         if let screen {
@@ -297,12 +370,14 @@ final class LiveTvController: NSObject {
         }
     }
 
+    #if canImport(UIKit)
     private static func topViewController() -> UIViewController? {
         let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
         var top = scene?.keyWindow?.rootViewController ?? scene?.windows.first?.rootViewController
         while let presented = top?.presentedViewController { top = presented }
         return top
     }
+    #endif
 }
 
 extension LiveTvController: PlayerScreenDelegate {

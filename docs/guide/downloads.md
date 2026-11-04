@@ -1,9 +1,9 @@
 ---
 title: Downloads
-description: Keep movies, episodes, albums, playlists and podcasts on your iPhone or iPad to watch and listen with no connection.
+description: Keep movies, episodes, albums, playlists and podcasts on your iPhone, iPad or Mac to watch and listen with no connection.
 ---
 
-The iPhone and iPad app can keep movies, episodes, albums, playlists and podcast episodes on the device, for a flight, a train or anywhere without a signal. In the next release, [audiobooks](audiobooks.md) too.
+The iPhone, iPad and Mac apps can keep movies, episodes, albums, playlists and podcast episodes on the device, for a flight, a train or anywhere without a signal. In the next release, [audiobooks](audiobooks.md) too.
 
 ## Downloading something
 

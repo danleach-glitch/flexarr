@@ -183,9 +183,9 @@ public struct CredentialStore: Sendable {
     // MARK: Keychain
 
     private func baseQuery(account: String) -> [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword,
-         kSecAttrService as String: service,
-         kSecAttrAccount as String: account]
+        KeychainPlacement.placed([kSecClass as String: kSecClassGenericPassword,
+                                  kSecAttrService as String: service,
+                                  kSecAttrAccount as String: account])
     }
 
     private func readKey(account: String) -> String? {

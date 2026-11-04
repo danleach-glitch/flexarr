@@ -210,7 +210,7 @@ struct NowPlayingView: View {
     private func artwork(_ track: ItemSummary) -> some View {
         ZStack {
             if let artwork = music.artwork {
-                Image(uiImage: artwork).resizable().aspectRatio(contentMode: .fill)
+                Image(platformImage: artwork).resizable().aspectRatio(contentMode: .fill)
             } else {
                 SquareArtwork(item: track, imageWidth: 800)
             }

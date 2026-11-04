@@ -102,6 +102,8 @@ enum ErrorReports {
 
     #if os(tvOS)
     private static let platform = "tvos"
+    #elseif os(macOS)
+    private static let platform = "macos"
     #else
     private static let platform = "ios"
     #endif

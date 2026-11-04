@@ -22,6 +22,10 @@ struct LibraryView: View {
 
     @State private var sort: LibrarySort = .title
     @State private var genre: String?
+    /// The Mac's search of this library (its toolbar field): All, narrowed to titles with these words.
+    @State private var search = ""
+    /// The search the grid last loaded for, so arriving on the page doesn't load it twice.
+    @State private var searchedFor = ""
     @State private var genres: [GenreCount] = []
     @State private var items: [ItemSummary] = []
     @State private var total = 0
@@ -99,11 +103,24 @@ struct LibraryView: View {
             }
         }
         .navigationTitle(initialGenre ?? library.name)
-        .toolbar {
-            if showing == .all || showing == .albums {
-                ToolbarItem(placement: .topBarTrailing) { sortAndFilter }
-            }
+        .pageSwitch($showing, switchOptions)
+        #if os(macOS)
+        .pageSearch($search, prompt: t("Search {library}", ["library": library.name]))
+        .task(id: search) {
+            // Searching shows the grid; a pause in typing before asking.
+            guard search != searchedFor else { return }
+            searchedFor = search
+            guard (try? await Task.sleep(for: .milliseconds(300))) != nil else { return }
+            // Searching shows the grid. This load is the grid's first if it hasn't been opened yet (it waits for it).
+            if searchWords != nil, showing != .all, showing != .albums { showing = .all }
+            await reload()
         }
+        #endif
+        #if !os(macOS)
+        .pageActions {
+            if showing == .all || showing == .albums { sortAndFilter }
+        }
+        #endif
         .task {
             // For the toolbar's genre menu and the Genres view, once; a genre's own page needs neither.
             guard showsGenreFilter else { return }
@@ -141,9 +158,30 @@ struct LibraryView: View {
             .zIndex(current ? 1 : 0)
     }
 
-    /// Browse, All (movies, shows or folders) and Genres, as one segmented control at the top of each view.
+    /// Browse, All (movies, shows or folders) and Genres, as one segmented control at the top of each view. On the Mac
+    /// it's in the window's toolbar instead, as `PageTabs` (`switchOptions`), as Mac apps put theirs.
     @ViewBuilder
     private var viewSwitch: some View {
+        #if !os(macOS)
+        switchControl
+            .padding(.horizontal, Layout.edge)
+            .padding(.bottom, 4)
+        #endif
+    }
+
+    /// The views the switch offers, in order, with their names.
+    private var switchOptions: [(Showing, String)] {
+        guard (Self.hasBrowse(library, genre: initialGenre) || hasGenres) && !(music && initialGenre != nil) else { return [] }
+        var options: [(Showing, String)] = []
+        if Self.hasBrowse(library, genre: initialGenre) { options.append((.browse, t(Words.browse))) }
+        options.append((.all, music ? t(Words.artists) : library.type == .tvShows ? t("All shows") : library.type == .homeVideos ? t("All folders") : t("All movies")))
+        if music, offersAlbums { options.append((.albums, t(Words.albums))) }
+        if hasGenres { options.append((.genres, t(Words.genres))) }
+        return options
+    }
+
+    @ViewBuilder
+    private var switchControl: some View {
         if (Self.hasBrowse(library, genre: initialGenre) || hasGenres) && !(music && initialGenre != nil) {
             Picker(t("Show"), selection: $showing) {
                 if Self.hasBrowse(library, genre: initialGenre) { Text(t(Words.browse)).tag(Showing.browse) }
@@ -152,8 +190,7 @@ struct LibraryView: View {
                 if hasGenres { Text(t(Words.genres)).tag(Showing.genres) }
             }
             .pickerStyle(.segmented)
-            .padding(.horizontal, Layout.edge)
-            .padding(.bottom, 4)
+            .labelsHidden()
         }
     }
 
@@ -198,6 +235,8 @@ struct LibraryView: View {
                 if loadedToken != model.refreshToken || Freshness.isStale(loadedAt) { await refreshLoaded() }
                 return
             }
+            // Already loading (a search switched to the grid and loads it): not a second request.
+            guard !isLoading else { return }
             await reload()
         }
         .onAppear { isVisible = true }
@@ -212,12 +251,21 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var titles: some View {
-        Text(content.count(total))
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(Color.usher)
-            .monospacedDigit()
-            .padding(.horizontal, Layout.edge)
-            .opacity(items.isEmpty ? 0 : 1)
+        HStack(spacing: 10) {
+            Text(content.count(total))
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.usher)
+                .monospacedDigit()
+                .opacity(items.isEmpty ? 0 : 1)
+            #if os(macOS)
+            // On the Mac, sort and genre sit on the page above what they change; the toolbar keeps the page's
+            // switch and search.
+            Spacer(minLength: 0)
+            sortMenu
+            if showsGenreFilter, !filterGenres.isEmpty { genreMenu }
+            #endif
+        }
+        .padding(.horizontal, Layout.edge)
         if listsAlbums, let genre = initialGenre {
             // A genre plays as a station: up to 200 of its tracks, in order or shuffled.
             HStack(spacing: 10) {
@@ -237,7 +285,7 @@ struct LibraryView: View {
             StatusView(state: .failed(error) { Task { await reload() } })
                 .frame(height: 400)
         } else if items.isEmpty && !isLoading {
-            StatusView(state: .empty(genre.map(noneInGenre) ?? t("Nothing in this library yet.")))
+            StatusView(state: .empty(searchWords.map { t("Nothing found for “{query}”.", ["query": $0]) } ?? genre.map(noneInGenre) ?? t("Nothing in this library yet.")))
                 .frame(height: 400)
         } else {
             LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
@@ -256,6 +304,22 @@ struct LibraryView: View {
             }
         }
     }
+
+    #if os(macOS)
+    /// Sort by, showing the order now.
+    private var sortMenu: some View {
+        PageChoice(icon: "arrow.up.arrow.down", title: t("Sort by"), selection: $sort,
+                   options: content.sorts.map { ($0, $0.label) })
+    }
+
+    /// The genre shown, or all of them.
+    private var genreMenu: some View {
+        PageChoice(icon: genre == nil ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill",
+                   title: t("Genre"), selection: $genre,
+                   options: [(String?.none, t("All genres"))] + filterGenres.map { (Optional($0.name), "\($0.name) (\($0.count))") },
+                   shown: genre ?? t("All genres"), chosen: genre != nil)
+    }
+    #endif
 
     private var sortAndFilter: some View {
         Menu {
@@ -293,12 +357,17 @@ struct LibraryView: View {
     /// A page of what the grid lists, as it's sorted and filtered now.
     private func fetch(_ client: FlexarrClient, skip: Int, take: Int) async throws -> Paged<ItemSummary> {
         if listsAlbums {
-            guard let page = try await client.libraryAlbums(library.id, sort: sort, genre: genre, skip: skip, take: take) else {
+            guard let page = try await client.libraryAlbums(library.id, sort: sort, genre: genre, search: searchWords, skip: skip, take: take) else {
                 throw FlexarrClientError.http(status: 404, message: nil)
             }
             return page
         }
-        return try await client.libraryItems(library.id, sort: sort, genre: genre, skip: skip, take: take)
+        return try await client.libraryItems(library.id, sort: sort, genre: genre, search: searchWords, skip: skip, take: take)
+    }
+
+    private var searchWords: String? {
+        let words = search.trimmingCharacters(in: .whitespaces)
+        return words.isEmpty ? nil : words
     }
 
     private func reload() async {

@@ -1,3 +1,5 @@
+// The iPhone's and Apple TV's (UIKit); the Mac draws its own in FlexarrMac/Player.
+#if canImport(UIKit)
 import AVKit
 import FlexarrKit
 import SwiftUI
@@ -158,11 +160,11 @@ final class PlayerControlsView: UIView {
         if isLive {
             let behind = max(0, duration - shown)
             elapsedLabel.text = Self.timeOfDay.string(from: Date().addingTimeInterval(-behind))
-            remainingLabel.text = behind < LiveTransport.liveSlack ? t("Live") : "−" + ScrubberView.clock(behind)
+            remainingLabel.text = behind < LiveTransport.liveSlack ? t("Live") : t("−{time}", ["time": ScrubberView.clock(behind)])
             return
         }
         elapsedLabel.text = ScrubberView.clock(shown)
-        remainingLabel.text = duration > 0 ? "−" + ScrubberView.clock(max(0, duration - shown)) : ""
+        remainingLabel.text = duration > 0 ? t("−{time}", ["time": ScrubberView.clock(max(0, duration - shown))]) : ""
     }
 
     /// Both buttons when either goes somewhere (Previous always does, starting the title again), the other dimmed.
@@ -748,3 +750,4 @@ final class PillButton: UIButton {
     }
     #endif
 }
+#endif

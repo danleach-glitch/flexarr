@@ -29,7 +29,7 @@ struct NowPlayingBar: View {
                     HStack(spacing: 12) {
                         ZStack {
                             if let artwork = music.artwork {
-                                Image(uiImage: artwork).resizable().aspectRatio(contentMode: .fill)
+                                Image(platformImage: artwork).resizable().aspectRatio(contentMode: .fill)
                             } else {
                                 SquareArtwork(item: track)
                             }

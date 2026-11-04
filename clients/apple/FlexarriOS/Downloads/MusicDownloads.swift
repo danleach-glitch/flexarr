@@ -138,7 +138,7 @@ struct CollectionArtwork: View {
             .aspectRatio(1, contentMode: .fit)
             .overlay {
                 if let image = store.image(named: collection.imageFileName) {
-                    Image(uiImage: image).resizable().scaledToFill()
+                    Image(platformImage: image).resizable().scaledToFill()
                 } else {
                     let names = store.tracks(in: collection).compactMap(\.imageFileName).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
                     let covers = names.compactMap { store.image(named: $0) }
@@ -148,7 +148,7 @@ struct CollectionArtwork: View {
                             HStack(spacing: 0) { tile(covers[2]); tile(covers[3]) }
                         }
                     } else if let first = covers.first {
-                        Image(uiImage: first).resizable().scaledToFill()
+                        Image(platformImage: first).resizable().scaledToFill()
                     } else {
                         Image(systemName: collection.kind == .playlist ? "music.note.list" : "music.note")
                             .font(.title2.weight(.medium))
@@ -159,8 +159,8 @@ struct CollectionArtwork: View {
             .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
     }
 
-    private func tile(_ image: UIImage) -> some View {
-        Color.seat.overlay { Image(uiImage: image).resizable().scaledToFill() }.clipped()
+    private func tile(_ image: PlatformImage) -> some View {
+        Color.seat.overlay { Image(platformImage: image).resizable().scaledToFill() }.clipped()
     }
 }
 
@@ -278,7 +278,7 @@ struct OfflineCollectionView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .toolbar {
+        .pageActions {
             if collection != nil {
                 Button { removing = true } label: { Label(t("Remove download"), systemImage: Symbol.delete) }
             }

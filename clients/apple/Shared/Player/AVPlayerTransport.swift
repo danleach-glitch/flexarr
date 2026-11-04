@@ -9,7 +9,7 @@ private let log = FlexarrLog("transport")
 @MainActor
 final class AVPlayerTransport: NSObject, PlayerTransport {
     weak var delegate: PlayerTransportDelegate?
-    let view: UIView
+    let view: PlatformView
     private let layerView = PlayerLayerView()
     let player: AVPlayer
     private let item: AVPlayerItem
@@ -52,12 +52,16 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
         // Not for a family guest: an AirPlay receiver can't reach the tunnel inside this device.
         player.allowsExternalPlayback = !GuestMode.isActive
         player.usesExternalPlaybackWhileExternalScreenIsActive = true
+        #elseif os(macOS)
+        player.allowsExternalPlayback = !GuestMode.isActive
         #endif
         view = layerView
         super.init()
         layerView.playerLayer.player = player
         layerView.playerLayer.videoGravity = .resizeAspect
+        #if canImport(UIKit)
         layerView.backgroundColor = .black
+        #endif
         subtitleSize = info.preferences?.subtitleSize ?? .standard
         subtitlePlacement = info.preferences?.subtitlePlacement ?? SubtitlePlacement()
         observe()
@@ -181,7 +185,7 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
 
     // MARK: Picture in Picture
 
-    #if os(iOS)
+    #if os(iOS) || os(macOS)
     func pictureInPictureContentSource() -> AVPictureInPictureController.ContentSource? {
         AVPictureInPictureController.ContentSource(playerLayer: layerView.playerLayer)
     }

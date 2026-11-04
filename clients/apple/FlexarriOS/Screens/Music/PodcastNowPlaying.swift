@@ -132,10 +132,12 @@ extension View {
     }
 }
 
-extension UIImage {
+extension PlatformImage {
     /// The image's average colour, for a glow when the server hasn't given one.
     var averageColor: RGB? {
-        guard let input = CIImage(image: self),
+        guard let cg = platformCGImage else { return nil }
+        let input = CIImage(cgImage: cg)
+        guard
               let filter = CIFilter(name: "CIAreaAverage", parameters: [kCIInputImageKey: input, kCIInputExtentKey: CIVector(cgRect: input.extent)]),
               let output = filter.outputImage else { return nil }
         var pixel = [UInt8](repeating: 0, count: 4)

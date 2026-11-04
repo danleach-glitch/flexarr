@@ -1,6 +1,6 @@
 ---
 title: Connect your devices
-description: Connect an iPhone, iPad, Apple TV or another browser to your Flexarr server with a short code, and manage the devices signed in to it.
+description: Connect an iPhone, iPad, Apple TV, Mac or another browser to your Flexarr server with a short code, and manage the devices signed in to it.
 ---
 
 Every device signs in to your server with a code. The device shows the code, and you allow it: on an iPhone that's already signed in to Flexarr as the main profile, which asks you by itself, or on the computer where you [set up Flexarr](first-setup.md). Each device then gets a sign-in of its own, which you can rename or sign out at any time.
@@ -42,6 +42,14 @@ The Apple TV app isn't on the App Store yet. Until it is, [install it with Xcode
 3. On your phone, tap **Allow** when it asks, checking the code matches. Or, on your computer, go to **Settings › Security › Connect a device**, type in the code, then choose **Continue** and **Allow**.
 
 The TV also shows a QR code. Scan it with a phone that's already signed in to Flexarr in its browser, and the approval page opens with the code filled in.
+
+## Mac
+
+The Flexarr app for the Mac plays from your server the way the iPad app does: your libraries in the sidebar, movies and shows in the window, which becomes the player when you press **Play**. It's for a Mac with Apple silicon and macOS 15.2 or later, and it's in development; it will come on the same App Store page as the iPhone and Apple TV app. It's a different app from [Flexarr Server](install-macos.md): you don't need the server on the Mac you watch on.
+
+1. Open Flexarr on the Mac. When macOS asks whether it can find devices on your local network, choose **Allow**.
+2. Under **Servers on your network**, choose your server (a server on the same Mac is listed too).
+3. Allow the code it shows from your phone, or in **Settings › Security › Connect a device** in a browser, as for an iPhone.
 
 > **Note** A code lasts as long as the device keeps showing it. If you go back and choose the server again, the device gets a new code.
 

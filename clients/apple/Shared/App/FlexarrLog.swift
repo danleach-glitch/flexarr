@@ -1,7 +1,11 @@
 import FlexarrKit
 import Foundation
 import os
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 /// One part of the app's log (playback, music, downloads…). Every entry goes to the system log as before, and to a
 /// file on the device that Settings › Send diagnostics sends; warnings and errors are also sent to the server by
@@ -72,6 +76,8 @@ final class LogHub: Sendable {
 
     #if os(tvOS)
     static let platform = "tvos"
+    #elseif os(macOS)
+    static let platform = "macos"
     #else
     static let platform = "ios"
     #endif

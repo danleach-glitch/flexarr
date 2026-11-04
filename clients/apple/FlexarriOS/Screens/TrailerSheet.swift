@@ -29,6 +29,28 @@ struct TrailerSheet: View {
     }
 }
 
+#if os(macOS)
+private struct TrailerPlayer: NSViewRepresentable {
+    let trailer: YouTubeTrailer
+
+    func makeNSView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.mediaTypesRequiringUserActionForPlayback = []
+        configuration.websiteDataStore = .nonPersistent()
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        view.setValue(false, forKey: "drawsBackground")
+        // YouTube refuses an embed that doesn't say which site it's on (error 153).
+        view.loadHTMLString(trailer.embedPage, baseURL: YouTubeTrailer.embedOrigin)
+        return view
+    }
+
+    func updateNSView(_ view: WKWebView, context: Context) {}
+
+    static func dismantleNSView(_ view: WKWebView, coordinator: ()) {
+        view.loadHTMLString("", baseURL: nil)
+    }
+}
+#else
 private struct TrailerPlayer: UIViewRepresentable {
     let trailer: YouTubeTrailer
 
@@ -56,3 +78,4 @@ private struct TrailerPlayer: UIViewRepresentable {
         view.loadHTMLString("", baseURL: nil)
     }
 }
+#endif

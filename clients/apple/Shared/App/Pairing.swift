@@ -1,7 +1,11 @@
 import FlexarrKit
 import Foundation
 import Observation
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 /// Connecting by code: the server hands out a short code, someone signed in to Flexarr approves it (Settings ›
 /// Connect a device, or the link), and this device gets a sign-in of its own. Codes that run out are replaced.
@@ -36,7 +40,7 @@ final class Pairing {
         declined = false
         while !Task.isCancelled {
             do {
-                let started = try await client.startPairing(deviceName: UIDevice.current.name)
+                let started = try await client.startPairing(deviceName: ThisDevice.ownName)
                 let setup = await client.setupStatus()
                 needsSetup = setup?.open ?? false
                 setupNeedsCode = setup?.codeRequired ?? false

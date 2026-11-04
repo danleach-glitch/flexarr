@@ -61,8 +61,7 @@ struct WatchlistView: View {
         }
         .background(RoomBackground(ambient: nil))
         .navigationTitle(t(Words.watchlist))
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+        .pageActions {
                 Menu {
                     Picker(t("Show"), selection: $showing) {
                         Text(t("Everything")).tag(WatchlistStatus?.none)
@@ -82,7 +81,6 @@ struct WatchlistView: View {
                 } label: {
                     Label(t("Filter"), systemImage: filtered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                 }
-            }
         }
         .task { await load() }
         .onAppear {

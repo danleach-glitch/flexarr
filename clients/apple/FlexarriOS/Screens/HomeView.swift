@@ -114,8 +114,10 @@ struct HomeView: View {
         return home.placesPodcasts != true || home.rows.contains { $0.id == HomeRow.podcastsRowId }
     }
 
+    /// The profile watching, to switch from. The Mac's is in its sidebar instead.
     @ViewBuilder
     private var profileButton: some View {
+        #if !os(macOS)
         if model.offersProfilePicker, let current = model.currentProfile {
             Button { choosingProfile = true } label: {
                 ProfileAvatar(profile: current, size: 44)
@@ -123,6 +125,7 @@ struct HomeView: View {
             .buttonStyle(.plain)
             .accessibilityLabel(t("Profile: {name}", ["name": current.name]))
         }
+        #endif
     }
 
     private func load() async {
@@ -221,19 +224,74 @@ struct HomeHero: View {
     private var height: CGFloat { verticalSizeClass == .compact ? 340 : sizeClass == .regular ? 620 : 560 }
 
     var body: some View {
+        pages
+        .frame(height: height)
+        .task(id: "\(index)#\(holdsStill)") {
+            // Moves on by itself after a while; a swipe restarts the clock. Not while the pointer's over it.
+            guard items.count > 1, !holdsStill, (try? await Task.sleep(for: .seconds(10))) != nil else { return }
+            withAnimation(.easeInOut(duration: 0.6)) { index = (index + 1) % items.count }
+        }
+    }
+
+    #if os(macOS)
+    @State private var hovering = false
+    private var holdsStill: Bool { hovering }
+
+    /// A Mac has no swiping pages: one title at a time, crossfading, with dots to pick one and arrows on hover.
+    private var pages: some View {
+        ZStack(alignment: .bottom) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { offset, item in
+                if offset == index { slide(item).transition(.opacity) }
+            }
+            if items.count > 1 {
+                HStack(spacing: 8) {
+                    ForEach(items.indices, id: \.self) { offset in
+                        Button { withAnimation(.easeInOut(duration: 0.4)) { index = offset } } label: {
+                            Circle().fill(offset == index ? Color.screen : Color.screen.opacity(0.35)).frame(width: 7, height: 7)
+                                .padding(4).contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(item(at: offset).title)
+                        .accessibilityAddTraits(offset == index ? [.isSelected] : [])
+                    }
+                }
+                .padding(.bottom, 14)
+                HStack {
+                    arrow("chevron.backward", label: t("Previous")) { index = (index - 1 + items.count) % items.count }
+                    Spacer()
+                    arrow("chevron.forward", label: t("Next")) { index = (index + 1) % items.count }
+                }
+                .padding(.horizontal, 16)
+                .frame(maxHeight: .infinity)
+                .opacity(hovering ? 1 : 0)
+            }
+        }
+        .onHover { hovering = $0 }
+        .animation(.easeInOut(duration: 0.2), value: hovering)
+    }
+
+    private func item(at offset: Int) -> ItemSummary { items[offset] }
+
+    private func arrow(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+        Button { withAnimation(.easeInOut(duration: 0.4)) { action() } } label: {
+            Image(systemName: symbol).font(.system(size: 18, weight: .semibold)).foregroundStyle(Color.screen)
+                .frame(width: 40, height: 40).background(.ultraThinMaterial, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+    #else
+    private var holdsStill: Bool { false }
+
+    private var pages: some View {
         TabView(selection: $index) {
             ForEach(Array(items.enumerated()), id: \.element.id) { offset, item in
                 slide(item).tag(offset)
             }
         }
         .tabViewStyle(.page(indexDisplayMode: items.count > 1 ? .always : .never))
-        .frame(height: height)
-        .task(id: index) {
-            // Moves on by itself after a while; a swipe restarts the clock.
-            guard items.count > 1, (try? await Task.sleep(for: .seconds(10))) != nil else { return }
-            withAnimation(.easeInOut(duration: 0.6)) { index = (index + 1) % items.count }
-        }
     }
+    #endif
 
     @ViewBuilder
     private func slide(_ item: ItemSummary) -> some View {
@@ -537,7 +595,7 @@ private extension View {
     /// No iOS 26 blur across the top: the hero's artwork runs clear up to the status bar.
     @ViewBuilder
     func withoutTopEdgeEffect() -> some View {
-        if #available(iOS 26, *) {
+        if #available(iOS 26, macOS 26, *) {
             scrollEdgeEffectHidden(true, for: .top)
         } else {
             self

@@ -1,7 +1,11 @@
 import FlexarrKit
 import Foundation
 import Observation
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 /// Settings › Send diagnostics: sends this device's log, with a note if there is one, to the server, and says how it
 /// went. The log only ever goes to the signed-in server.
@@ -52,10 +56,14 @@ enum DiagnosticsHeader {
     static func make(model: AppModel) -> String {
         let info = Bundle.main.infoDictionary
         let build = info?["CFBundleVersion"] as? String ?? ""
-        let device = UIDevice.current
+        #if os(macOS)
+        let system = "macOS \(ProcessInfo.processInfo.operatingSystemVersionString)"
+        #else
+        let system = "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"
+        #endif
         var lines = [
             "Flexarr for \(ThisDevice.name) \(Bundle.main.shortVersion) (\(build))",
-            "\(device.systemName) \(device.systemVersion) on \(hardwareModel)",
+            "\(system) on \(hardwareModel)",
             "Sent \(Date().formatted(.iso8601))",
         ]
         if let host = model.credentials?.address.host() {
@@ -72,6 +80,15 @@ enum DiagnosticsHeader {
     private static var hardwareModel: String {
         #if targetEnvironment(simulator)
         if let simulated = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] { return "\(simulated) (simulator)" }
+        #endif
+        #if os(macOS)
+        // "Mac15,12": uname only says "arm64" on a Mac.
+        var size = 0
+        sysctlbyname("hw.model", nil, &size, nil, 0)
+        var model = [CChar](repeating: 0, count: max(size, 1))
+        if size > 0, sysctlbyname("hw.model", &model, &size, nil, 0) == 0 {
+            return String(decoding: model.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        }
         #endif
         var system = utsname()
         uname(&system)

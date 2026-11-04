@@ -14,7 +14,7 @@ public enum SignInKind
     /// <summary>A web browser, holding its token in an HttpOnly cookie.</summary>
     Browser,
 
-    /// <summary>An app (an Apple TV, iPhone or Android device), sending its token as <c>X-Api-Key</c>.</summary>
+    /// <summary>An app (an Apple TV, iPhone, Mac or Android device), sending its token as <c>X-Api-Key</c>.</summary>
     Device,
 }
 
@@ -27,6 +27,9 @@ public enum DeviceType
     AndroidPhone,
     AndroidTablet,
     AndroidTv,
+
+    /// <summary>The Mac app (the player, not Flexarr Server). Added in 0.61.</summary>
+    Mac,
 }
 
 public static class DeviceTypes

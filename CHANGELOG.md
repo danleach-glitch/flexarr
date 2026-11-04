@@ -23,6 +23,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On the Apple TV, skipping through AV1 films and episodes brings the picture back in well under a second, and Skip Intro still lands exactly at the intro's end.
 - A film that switches the TV's frame rate no longer flashes coloured noise before it starts.
 - Picture subtitles no longer go missing after skipping forward and then back.
+- On the iPhone, Settings shows Devices waiting to connect only while a device is waiting.
+- On the iPhone and iPad, Who's watching? says under each kids profile to hold it for child lock.
+- On iPad, a title's buttons sit beside Play, episodes are wide rows with their overview beside the picture, Coming soon shows each day as cards, and downloads have bigger artwork.
 
 ### iPhone and Android
 - **Mark as unplayed** on a podcast episode you'd started now starts it again from the beginning, and its ring empties, even when it's still in the player. **Mark as played** takes it out of the player. Audiobooks do the same with **Mark as unread** and **Mark as finished**.
@@ -32,8 +35,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Counts read properly for one of something: "1 track", "1 season" and "1 channel" where some said "1 tracks".
 - Dates and numbers follow your browser's own way of writing them everywhere, including the live TV guide and recordings.
 - Going from page to page in the newest Chrome no longer shows "Something went wrong".
+- Settings › Security lists a Mac running the coming Flexarr app for Mac as a Mac, with a computer beside it, as do family invites and devices asking to connect.
 
 ### Website
+- flexarr.io/apps and the guide introduce the Flexarr app for Mac, in development: your libraries in a Mac window, a full-screen player, and downloads, on the same App Store page as the iPhone and Apple TV app.
 - flexarr.io/why is now linked from every page: how Flexarr compares with Plex, Jellyfin and Emby and with the Infuse, Plezy, Swiftfin and Rivulet apps, brought up to 0.60.0 with music requests, scores, fixing matches, what a show is missing and audiobooks.
 
 ## 0.60.0 · 3 November 2026

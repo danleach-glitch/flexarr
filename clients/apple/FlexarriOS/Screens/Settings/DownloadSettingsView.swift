@@ -15,7 +15,7 @@ struct DownloadSettingsView: View {
                 }
                 .listRowBackground(Color.seat)
             } header: {
-                Text(t("Movies and episodes"))
+                PageTopHeader(t("Movies and episodes"))
             } footer: {
                 Text(t("Original keeps the full picture and sound but takes the most space. Albums, playlists and podcasts always come as their files are."))
             }

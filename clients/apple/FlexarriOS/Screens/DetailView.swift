@@ -215,25 +215,36 @@ struct DetailView: View {
         let playable = playTarget(item)
         let watched = isWatched(item)
         let actions = detailActions(item, playable: playable)
-        // Play on a line of its own, so "Resume from 1:02:35" never wraps; the rest underneath, named.
-        VStack(spacing: 18) {
-            if let playable {
-                Button { model.play(playable, from: pageToken) } label: {
-                    Label(playLabel(playable, container: item), systemImage: Symbol.play)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(ActionButtonStyle(ambient: item.ambientColor ?? series?.ambientColor, prominent: true))
-                .monospacedDigit()
+        let wide = sizeClass == .regular
+        let play = playable.map { playable in
+            Button { model.play(playable, from: pageToken) } label: {
+                Label(playLabel(playable, container: item), systemImage: Symbol.play)
+                    .frame(maxWidth: wide ? nil : .infinity)
+                    .frame(minWidth: wide ? 200 : nil)
             }
-
-            HStack(alignment: .top, spacing: 8) {
-                ForEach(actions.buttons.filter { $0 != .play }, id: \.self) { button in
-                    secondaryButton(button, item: item, playable: playable, watched: watched, menu: actions.menu)
-                }
-            }
-            .buttonStyle(LabeledActionStyle())
+            .buttonStyle(ActionButtonStyle(ambient: item.ambientColor ?? series?.ambientColor, prominent: true, singleLine: wide))
+            .monospacedDigit()
         }
-        .frame(maxWidth: 560, alignment: .leading)
+        let others = HStack(alignment: .top, spacing: wide ? 4 : 8) {
+            ForEach(actions.buttons.filter { $0 != .play }, id: \.self) { button in
+                secondaryButton(button, item: item, playable: playable, watched: watched, menu: actions.menu)
+            }
+        }
+        .buttonStyle(LabeledActionStyle(packed: wide))
+        if wide {
+            // An iPad or a Mac: Play at its own width with the rest beside it, as on the web.
+            HStack(alignment: .top, spacing: 20) {
+                play
+                others
+            }
+        } else {
+            // Play on a line of its own, so "Resume from 1:02:35" never wraps; the rest underneath, named.
+            VStack(spacing: 18) {
+                play
+                others
+            }
+            .frame(maxWidth: 560, alignment: .leading)
+        }
     }
 
     @ViewBuilder
@@ -427,9 +438,9 @@ struct DetailView: View {
     }
 
     private func episodesList(_ season: ItemDetail) -> some View {
-        // Two columns on an iPad, which would otherwise leave half the page empty.
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 24, alignment: .top), count: sizeClass == .regular ? 2 : 1)
-        return LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
+        // One column everywhere: on an iPad or a Mac each episode is a wide row, the overview beside its picture.
+        let columns = [GridItem(.flexible(), alignment: .top)]
+        return LazyVGrid(columns: columns, alignment: .leading, spacing: sizeClass == .regular ? 24 : 16) {
             ForEach(season.children) { episode in
                 EpisodeRow(episode: episode, overview: season.childOverviews[episode.id] ?? nil,
                            isCurrent: episode.id == item?.id) {
@@ -567,6 +578,7 @@ struct DetailView: View {
 /// An episode in a season list: still with progress beside the number, title and time, then the overview.
 struct EpisodeRow: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.horizontalSizeClass) private var sizeClass
     let episode: ItemSummary
     let overview: String?
     var isCurrent = false
@@ -574,48 +586,88 @@ struct EpisodeRow: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 12) {
-                    Color.seat
-                        .frame(width: 140, height: 140 * 9 / 16)
-                        .overlay {
-                            RemoteImage(url: model.client?.imageURL(episode.artwork.thumb ?? episode.artwork.backdrop, width: 400)) {
-                                Image(systemName: Symbol.play).foregroundStyle(Color.usher)
-                            }
-                        }
-                        .overlay(alignment: .bottom) {
-                            if let progress = episode.progress { ProgressBar(value: progress).padding(6) }
-                        }
-                        .overlay(alignment: .topTrailing) {
-                            if episode.userData.watched { WatchedBadge().padding(5) }
-                        }
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(episode.episodeNumber.map { t("Episode {number}", ["number": $0]) } ?? t("Special"))
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(isCurrent ? Color.screen : Color.usher)
-                        Text(episode.title)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.screen)
-                            .lineLimit(2)
-                        if let time = timeText {
-                            Text(time).font(.caption).foregroundStyle(Color.usher)
-                        }
-                    }
-                    Spacer(minLength: 0)
-                }
-                if let overview, !overview.isEmpty {
-                    Text(overview)
-                        .font(.footnote)
-                        .foregroundStyle(Color.usher)
-                        .lineLimit(3)
-                        .multilineTextAlignment(.leading)
-                }
-            }
-            .contentShape(Rectangle())
+            if sizeClass == .regular { wide } else { narrow }
         }
         .buttonStyle(CardButtonStyle())
         .contextMenu { ItemContextMenu(item: episode, showsDetails: true) }
+    }
+
+    /// An iPad or a Mac: the picture, then the episode's number, title, length and overview beside it.
+    private var wide: some View {
+        HStack(alignment: .top, spacing: 20) {
+            thumbnail(width: 260)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 10) {
+                    Text(episode.episodeNumber.map { t("Episode {number}", ["number": $0]) } ?? t("Special"))
+                        .foregroundStyle(isCurrent ? Color.screen : Color.usher)
+                    if let time = timeText { Text(time).foregroundStyle(Color.usher) }
+                }
+                .font(.subheadline.weight(.semibold))
+                Text(episode.title)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Color.screen)
+                    .lineLimit(2)
+                if let overview, !overview.isEmpty {
+                    Text(overview)
+                        .font(.callout)
+                        .foregroundStyle(Color.screen.opacity(0.7))
+                        .lineLimit(3)
+                        .lineSpacing(2)
+                        .multilineTextAlignment(.leading)
+                        .padding(.top, 4)
+                }
+            }
+            .frame(maxWidth: 720, alignment: .leading)
+            Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
+    }
+
+    private func thumbnail(width: CGFloat) -> some View {
+        Color.seat
+            .frame(width: width, height: width * 9 / 16)
+            .overlay {
+                RemoteImage(url: model.client?.imageURL(episode.artwork.thumb ?? episode.artwork.backdrop, width: width > 200 ? 640 : 400)) {
+                    Image(systemName: Symbol.play).foregroundStyle(Color.usher)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if let progress = episode.progress { ProgressBar(value: progress).padding(6) }
+            }
+            .overlay(alignment: .topTrailing) {
+                if episode.userData.watched { WatchedBadge().padding(5) }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
+    }
+
+    /// A phone: the picture and title side by side, the overview underneath.
+    private var narrow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                thumbnail(width: 140)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(episode.episodeNumber.map { t("Episode {number}", ["number": $0]) } ?? t("Special"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(isCurrent ? Color.screen : Color.usher)
+                    Text(episode.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.screen)
+                        .lineLimit(2)
+                    if let time = timeText {
+                        Text(time).font(.caption).foregroundStyle(Color.usher)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            if let overview, !overview.isEmpty {
+                Text(overview)
+                    .font(.footnote)
+                    .foregroundStyle(Color.usher)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+            }
+        }
+        .contentShape(Rectangle())
     }
 
     private var timeText: String? {

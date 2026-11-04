@@ -4,12 +4,20 @@ import SwiftUI
 // Phone and tablet sizes. The colour tokens, marquee type and room background are shared (Shared/Design/Colors.swift).
 
 enum Layout {
+    #if os(macOS)
+    // The Mac's (docs/mac-player.md, "The Mac's page layout"): a wider margin, bigger posters, more room between them.
+    static let edge: CGFloat = 32
+    static func posterWidth(_ sizeClass: UserInterfaceSizeClass?) -> CGFloat { 176 }
+    static func wideWidth(_ sizeClass: UserInterfaceSizeClass?) -> CGFloat { 360 }
+    static let rowSpacing: CGFloat = 18
+    #else
     /// The shared left edge for heroes, rows and grids.
     static let edge: CGFloat = 20
     /// Posters in a row: a little over three across on a phone, more on an iPad.
     static func posterWidth(_ sizeClass: UserInterfaceSizeClass?) -> CGFloat { sizeClass == .regular ? 160 : 116 }
     static func wideWidth(_ sizeClass: UserInterfaceSizeClass?) -> CGFloat { sizeClass == .regular ? 340 : 260 }
     static let rowSpacing: CGFloat = 12
+    #endif
 }
 
 /// "2016   1h 56m   TV-MA": facts separated by space, never middle dots, then any scores beside their marks. When
@@ -239,15 +247,21 @@ struct ActionRowLayout: SwiftUI.Layout {
 
 /// A round action with its name underneath (the row under Play on a title's page).
 struct LabeledActionStyle: ButtonStyle {
+    /// Side by side at their own width, beside a Play that isn't full width (an iPad or a Mac); otherwise they share
+    /// the row under Play evenly, as on a phone.
+    var packed = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .labelStyle(Stacked())
+            .labelStyle(Stacked(packed: packed))
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
             .opacity(configuration.isPressed ? 0.85 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 
     private struct Stacked: LabelStyle {
+        var packed = false
+
         func makeBody(configuration: Configuration) -> some View {
             VStack(spacing: 6) {
                 configuration.icon
@@ -262,7 +276,8 @@ struct LabeledActionStyle: ButtonStyle {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity)
+            .frame(width: packed ? 76 : nil)
+            .frame(maxWidth: packed ? nil : .infinity)
             .contentShape(Rectangle())
         }
     }

@@ -50,7 +50,9 @@ struct SettingsView: View {
                         .listRowBackground(Color.seat)
                     }
                 } header: {
+                    #if !os(macOS)
                     Text(t("Watching as"))
+                    #endif
                 } footer: {
                     if let lockError { Text(lockError).foregroundStyle(Color.danger) }
                 }
@@ -93,7 +95,9 @@ struct SettingsView: View {
                 if model.languages.count > 1 {
                     SettingsLink(t("Language"), icon: "globe", value: LanguageSettingsView.current(model)) { LanguageSettingsView() }
                 }
-                SettingsLink(t("Notifications"), icon: "bell.fill", value: notifications.isOn ? t("On") : t("Off")) { NotificationSettingsView() }
+                if PushNotifications.canRegister {
+                    SettingsLink(t("Notifications"), icon: "bell.fill", value: notifications.isOn ? t("On") : t("Off")) { NotificationSettingsView() }
+                }
                 SettingsLink("Siri", icon: "waveform", value: siriDeviceName ?? t("This {device}", ["device": ThisDevice.name])) { SiriSettingsView() }
                 if let trakt, trakt.available {
                     SettingsLink("Trakt", icon: "arrow.triangle.2.circlepath", value: trakt.state == .connected ? trakt.username ?? t("On") : trakt.state == .needsSignIn ? t("Signed out") : t("Off")) {
@@ -129,6 +133,10 @@ struct SettingsView: View {
             }
         }
         .settingsPage(t(Words.settings))
+        #if os(macOS)
+        // The sidebar's Flexarr mark opens the Server page (MacNavigation.opensServerSettings).
+        .navigationDestination(isPresented: Bindable(MacNavigation.shared).opensServerSettings) { ServerSettingsView() }
+        #endif
         .sheet(isPresented: $askingParentPin) {
             ZStack {
                 RoomBackground(ambient: nil)
@@ -254,6 +262,8 @@ extension View {
     /// The room behind a Settings page, as every page of Settings has it.
     func settingsPage(_ title: String) -> some View {
         scrollContentBackground(.hidden)
+            .macReadable(title: title, parent: title == t(Words.settings) ? nil : t(Words.settings))
+            .modifier(SettingsBack(isSubpage: title != t(Words.settings)))
             .background(RoomBackground(ambient: nil))
             .navigationTitle(title)
     }
@@ -261,5 +271,41 @@ extension View {
     /// A Settings switch, in the app's silver.
     func settingsRow() -> some View {
         tint(.silver).listRowBackground(Color.seat)
+    }
+}
+
+/// The header of a Settings page's first section: on the Mac the page's own title is right above it, so it's left out.
+struct PageTopHeader: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        #if !os(macOS)
+        Text(text)
+        #endif
+    }
+}
+
+/// A page inside Settings gets the Mac's back button (FlexarrMac's capsule); Settings itself, a sidebar place, has none.
+private struct SettingsBack: ViewModifier {
+    let isSubpage: Bool
+    #if os(macOS)
+    @Environment(\.dismiss) private var dismiss
+    @State private var page = UUID()
+    #endif
+
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        // Settings opens its pages by link rather than on the place's path: they tell the menu's Back (⌘[) themselves.
+        if isSubpage {
+            content.macBackButton()
+                .onAppear { MacNavigation.shared.backActions.append((page, dismiss)) }
+                .onDisappear { MacNavigation.shared.backActions.removeAll { $0.page == page } }
+        } else {
+            content
+        }
+        #else
+        if isSubpage { content.macBackButton() } else { content }
+        #endif
     }
 }

@@ -69,6 +69,8 @@ In the web player, the quality button in the corner chooses **Best for this devi
 - **Speed:** from 0.5× to 2×. A speed chosen during an episode is kept for the rest of the show, on every device. A movie's is for this time only.
 - **Previous:** a few seconds in, it starts the episode again. Press it again to go to the episode before. In a movie, or a first episode, it starts again.
 
+On a Mac, the keyboard works the player: **Space** plays and pauses, **←** and **→** go back and forward 10 seconds (with **⌘**, the longer skip), **F** or a double-click goes full screen, and **Esc** leaves full screen, then the player. **Picture in Picture** (in the top corner) floats the picture while you browse.
+
 The audio menu also has the soundtrack, and [dialogue boost, night mode and speakers](hdr-and-atmos.md#dialogue-boost-and-night-mode). Subtitles have a menu of their own: see [Subtitles, skipping and Up next](subtitles-and-skipping.md).
 
 ## Settings that are per device

@@ -6,6 +6,7 @@ options:
   deploymentTarget:
     tvOS: "18.2"
     iOS: "18.2"
+    macOS: "15.2"
   createIntermediateGroups: true
   developmentLanguage: en
 settings:
@@ -18,6 +19,9 @@ settings:
     # The iPhone and iPad app's bundle ID; its widgets' is this plus .widgets, and the app group they share is
     # group.<this>. Set it rather than PRODUCT_BUNDLE_IDENTIFIER, which would give the widgets the app's own.
     FLEXARR_IOS_BUNDLE_ID: io.github.flexarr.ios
+    # The Mac app's (the player; Flexarr Server is clients/macos). It ships under the iPhone app's bundle ID
+    # (universal purchase, like the TV app); this one is for running it at home. `make mac-player-install` sets it.
+    FLEXARR_MAC_PLAYER_BUNDLE_ID: io.github.flexarr.mac
     # Joining someone's Flexarr (family invites) is offered: NO until servers have family invites switched on; a
     # release turns it to YES. Debug builds and `-FlexarrGuestInvites YES` offer it anyway (GuestInvite.guestInvitesOffered).
     FLEXARR_GUEST_INVITES: "NO"
@@ -216,6 +220,102 @@ targets:
         FLEXARR_IOS_ENTITLEMENTS: ""
         "FLEXARR_IOS_ENTITLEMENTS[sdk=iphonesimulator*]": FlexarriOS/FlexarriOS-CarPlay.entitlements
         CODE_SIGN_ENTITLEMENTS: $(FLEXARR_IOS_ENTITLEMENTS)
+  # The Mac app: the player, browsing and playing from a server the way the iPad app does (docs/mac-player.md).
+  # Not Flexarr Server, which is clients/macos.
+  FlexarrMac:
+    type: application
+    platform: macOS
+    preBuildScripts:
+      # The tunnel's library, built once if it isn't there (make tunnel-apple rebuilds it when its sources change).
+      - name: Build the tunnel if missing
+        basedOnDependencyAnalysis: false
+        script: |
+          [ -d "$SRCROOT/../tunnel/build/FlexarrTunnel.xcframework/macos-arm64" ] || PATH="$PATH:/opt/homebrew/bin:/usr/local/go/bin" make -C "$SRCROOT/../.." tunnel-apple
+    # The iPad's screens and downloads are compiled in from FlexarriOS (the Mac counts as a regular size class); what's
+    # the phone's alone (CarPlay, the Apple TV remote, widgets, its app delegate) stays out.
+    sources:
+      - Shared
+      - FlexarrMac
+      - path: FlexarriOS/Screens
+        # The phone's tab bar; the Mac has its own sidebar (FlexarrMac/App/MacMainView.swift).
+        excludes: [MainTabView.swift]
+      - FlexarriOS/Design
+      - FlexarriOS/Downloads
+      - FlexarriOS/App/PairingPrompts.swift
+      - FlexarriOS/App/PushNotifications.swift
+      - FlexarriOS/App/ReviewPrompt.swift
+      - Languages/Localizable.xcstrings
+      - Languages/AppShortcuts.xcstrings
+      - Languages/FlexarrMac/InfoPlist.xcstrings
+    dependencies:
+      - package: FlexarrKit
+      - package: AetherEngine
+      - package: Sentry
+        product: Sentry
+      # Tailscale built in, for family guests (clients/tunnel's macos slice).
+      - framework: ../tunnel/build/FlexarrTunnel.xcframework
+        embed: false
+      - target: FlexarrMacNotificationService
+    info:
+      path: FlexarrMac/Info.plist
+      properties:
+        CFBundleDisplayName: Flexarr
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.entertainment
+        # Big Shoulders Display, the marquee type (Shared/Fonts), copied to Resources.
+        ATSApplicationFontsPath: .
+        FlexarrGuestInvites: $(FLEXARR_GUEST_INVITES)
+        # Shared with the notification extension, which opens the server's sealed notifications with the key kept there.
+        FlexarrAppGroup: group.$(FLEXARR_MAC_PLAYER_BUNDLE_ID)
+        # Export compliance: as the iPhone app's (see FlexarriOS).
+        ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: "Flexarr looks for your Flexarr server on your home network so you can connect without typing an address, then streams from it. For example, it finds the server on your Mac and plays your movies, shows, music and podcasts from it."
+        NSBonjourServices: [_flexarr._tcp]
+        CFBundleURLTypes:
+          - CFBundleURLName: io.github.flexarr.mac
+            CFBundleURLSchemes: [flexarr]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(FLEXARR_MAC_PLAYER_BUNDLE_ID)
+        PRODUCT_NAME: Flexarr
+        # Apple silicon only (docs/mac-player.md).
+        ARCHS: arm64
+        ENABLE_HARDENED_RUNTIME: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        # The sandbox, the network and files: enough to run it at home unsigned or ad hoc. The store's build passes
+        # FLEXARR_MAC_ENTITLEMENTS=FlexarrMac/FlexarrMac-Store.entitlements, which adds notifications (APNs) and the app
+        # group shared with the notification extension; those need the provisioning profile the upload signs with.
+        FLEXARR_MAC_ENTITLEMENTS: FlexarrMac/FlexarrMac.entitlements
+        CODE_SIGN_ENTITLEMENTS: $(FLEXARR_MAC_ENTITLEMENTS)
+  # Opens the server's sealed notifications on the Mac, as FlexarrNotificationService does on the iPhone (same source).
+  FlexarrMacNotificationService:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: NotificationService/NotificationService.swift
+    dependencies:
+      - package: FlexarrKit
+    info:
+      path: FlexarrMacNotificationService/Info.plist
+      properties:
+        CFBundleDisplayName: Flexarr
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        FlexarrAppGroup: group.$(FLEXARR_MAC_PLAYER_BUNDLE_ID)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(FLEXARR_MAC_PLAYER_BUNDLE_ID).NotificationService
+        ARCHS: arm64
+        ENABLE_HARDENED_RUNTIME: YES
+        FLEXARR_MAC_NOTIFICATION_ENTITLEMENTS: FlexarrMacNotificationService/FlexarrMacNotificationService.entitlements
+        CODE_SIGN_ENTITLEMENTS: $(FLEXARR_MAC_NOTIFICATION_ENTITLEMENTS)
   # Podcast widgets for the Home Screen and Lock Screen: Continue listening and Up Next, from what the app saves.
   FlexarrWidgets:
     type: app-extension
@@ -312,3 +412,7 @@ schemes:
     test:
       targets:
         - FlexarrTVUITests
+  FlexarrMac:
+    build:
+      targets:
+        FlexarrMac: all

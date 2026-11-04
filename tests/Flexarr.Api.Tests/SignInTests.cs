@@ -77,6 +77,13 @@ public class SignInTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         await updatedTv.GetAsync(Api("/system/status"));
         Assert.Equal("AppleTv", (await Listed("Living room")).GetProperty("deviceType").GetString());
 
+        // The Mac app (0.61) is a Mac.
+        using var mac = new HttpRequestMessage(HttpMethod.Post, Api("/session/device")) { Content = JsonContent.Create(new { deviceName = "MacBook Air" }) };
+        mac.Headers.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        mac.Headers.Add(DeviceTypes.Header, "Mac");
+        await factory.CreateClient().SendAsync(mac);
+        Assert.Equal("Mac", (await Listed("MacBook Air")).GetProperty("deviceType").GetString());
+
         // Play on's list says it too.
         var devices = await Device(tvToken).GetFromJsonAsync<JsonElement[]>(Api("/devices"));
         Assert.Equal("AndroidPhone", devices!.First(d => d.GetProperty("id").GetString() == phoneId).GetProperty("deviceType").GetString());

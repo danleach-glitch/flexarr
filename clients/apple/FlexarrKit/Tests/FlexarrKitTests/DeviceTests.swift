@@ -17,6 +17,12 @@ struct DeviceTests {
         #expect(events.feed("") == ServerSentEvents.Event(name: "message", data: "one\ntwo"))
     }
 
+    /// A Mac says so; a kind of device newer than this app reads as unknown rather than failing.
+    @Test func deviceType_decodesMacAndUnknown() throws {
+        let types = try FlexarrClient.decoder.decode([DeviceType].self, from: Data(#"["Mac","IPhone","Fridge"]"#.utf8))
+        #expect(types == [.mac, .iPhone, .unknown])
+    }
+
     @Test func deviceCommand_decodes() throws {
         let json = """
         {"id":"ab12","kind":"Play","itemId":"019a4c1e-0d8a-7a2e-9f1b-2c3d4e5f6a7b","fromBeginning":true,"sentBy":"Dan's iPhone","sentAt":"2026-10-25T10:00:00Z"}

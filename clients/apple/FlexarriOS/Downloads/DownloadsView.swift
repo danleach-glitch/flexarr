@@ -56,6 +56,7 @@ struct DownloadsView: View {
                     }
                 }
                 .scrollContentBackground(.hidden)
+                .macReadable(title: t(Words.downloads))
             }
         }
         .background(RoomBackground(ambient: nil))
@@ -79,17 +80,19 @@ struct DownloadsView: View {
 /// A download: its picture, title and size, and what it's doing (tap to play once it's here).
 private struct DownloadRow: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(DownloadStore.self) private var store
     let download: LocalDownload
 
     var body: some View {
         Button(action: play) {
-            HStack(spacing: 12) {
+            HStack(spacing: sizeClass == .regular ? 16 : 12) {
                 Color.seat
-                    .frame(width: 112, height: 63)
+                    // Bigger on an iPad or a Mac, where the row has the room.
+                    .frame(width: sizeClass == .regular ? 192 : 112, height: sizeClass == .regular ? 108 : 63)
                     .overlay {
-                        if let name = download.imageFileName, let image = UIImage(contentsOfFile: DownloadStore.folder.appending(path: name).path(percentEncoded: false)) {
-                            Image(uiImage: image).resizable().scaledToFill()
+                        if let name = download.imageFileName, let image = PlatformImage(contentsOfFile: DownloadStore.folder.appending(path: name).path(percentEncoded: false)) {
+                            Image(platformImage: image).resizable().scaledToFill()
                         } else {
                             Image(systemName: "film").foregroundStyle(Color.usher)
                         }
@@ -156,6 +159,7 @@ private struct DownloadRow: View {
 /// once it's here).
 private struct PodcastDownloadRow: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(DownloadStore.self) private var store
     let download: LocalDownload
 
@@ -163,12 +167,12 @@ private struct PodcastDownloadRow: View {
 
     var body: some View {
         Button { if isBook { model.playBook(download.item) } else { model.playEpisode(download.item) } } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: sizeClass == .regular ? 16 : 12) {
                 Color.seat
-                    .frame(width: 63, height: 63)
+                    .frame(width: sizeClass == .regular ? 96 : 63, height: sizeClass == .regular ? 96 : 63)
                     .overlay {
                         if let image = store.image(named: download.imageFileName) {
-                            Image(uiImage: image).resizable().scaledToFill()
+                            Image(platformImage: image).resizable().scaledToFill()
                         } else {
                             Image(systemName: isBook ? "book.fill" : "mic.fill").foregroundStyle(Color.usher)
                         }

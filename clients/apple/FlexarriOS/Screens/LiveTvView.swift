@@ -15,6 +15,23 @@ struct LiveTvView: View {
     @State private var chosen: Filter?
     /// The list or the guide, remembered on this device.
     @AppStorage("FlexarrLiveTvGuide") private var showsGuide = false
+    #if os(macOS)
+    /// The Mac's third tab: the recordings in place, rather than a page of their own.
+    @State private var showsRecordings = false
+
+    private enum Tab: Hashable { case channels, guide, recordings }
+
+    private var tab: Binding<Tab> {
+        Binding(get: { showsRecordings ? .recordings : showsGuide ? .guide : .channels },
+                set: { showsRecordings = $0 == .recordings; if $0 != .recordings { showsGuide = $0 == .guide } })
+    }
+
+    /// Channels, Guide and (not for a profile with an age limit: a recording is for everyone) Recordings.
+    private var tabs: [(Tab, String)] {
+        guard channels?.isEmpty == false else { return [] }
+        return [(.channels, t("Channels")), (.guide, t("Guide"))] + (model.hasAgeLimit ? [] : [(.recordings, t("Recordings"))])
+    }
+    #endif
 
     enum Filter: Hashable {
         case favourites
@@ -22,11 +39,23 @@ struct LiveTvView: View {
         case group(String)
     }
 
+    private var macShowsRecordings: Bool {
+        #if os(macOS)
+        showsRecordings
+        #else
+        false
+        #endif
+    }
+
     var body: some View {
         Group {
             if let channels {
                 if channels.isEmpty {
                     StatusView(state: .empty(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.")))
+                } else if macShowsRecordings {
+                    #if os(macOS)
+                    LiveRecordingsView()
+                    #endif
                 } else if showsGuide {
                     VStack(spacing: 0) {
                         chips.padding(.vertical, 6)
@@ -45,7 +74,10 @@ struct LiveTvView: View {
         .navigationTitle(t(Words.liveTv))
         // The guide wants the height: the title small at the top.
         .navigationBarTitleDisplayMode(showsGuide ? .inline : .automatic)
-        .toolbar {
+        #if os(macOS)
+        .pageSwitch(tab, tabs)
+        #else
+        .pageActions {
             if channels?.isEmpty == false {
                 // A recording is for everyone, so a profile with an age limit has none to see or set.
                 if !model.hasAgeLimit {
@@ -58,6 +90,7 @@ struct LiveTvView: View {
                 }
             }
         }
+        #endif
         // What's on moves on: fetched again each minute while the screen is up.
         // Only while the app is in front: with music keeping it alive in the background, it would go on asking.
         .task(id: scenePhase == .active) {

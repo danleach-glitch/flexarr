@@ -272,6 +272,7 @@ extension PairingRequest {
         case .androidPhone: t("Android phone")
         case .androidTablet: t("Android tablet")
         case .androidTv: "Android TV"
+        case .mac: "Mac"
         case .unknown, nil: nil
         }
     }
@@ -284,6 +285,7 @@ extension PairingRequest {
         case .iPad: "ipad"
         case .androidPhone: "smartphone"
         case .androidTablet: "ipad.landscape"
+        case .mac: "desktopcomputer"  // A computer, as the web and Android show it: a Mac Mini is no laptop.
         case .androidTv, .unknown, nil: "tv"
         }
     }

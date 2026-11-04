@@ -1,7 +1,14 @@
 import FlexarrKit
 import Foundation
 import Observation
+#if os(macOS)
+import SystemConfiguration
+#endif
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 private let log = FlexarrLog("signin")
 
@@ -243,8 +250,21 @@ final class AppModel {
             }
         }
         // One thing plays at a time: a film starting pauses the music, which the lock screen offers back after.
+        #if os(macOS)
+        // On a Mac a film can float in Picture in Picture while the window browses: a channel ends it, and a title
+        // ends a channel, so only one plays (they share the window's player).
+        player.onWillStart = { [weak self] in
+            self?.music.yieldToVideo()
+            self?.liveTv.closePlayer()
+        }
+        liveTv.onWillStart = { [weak self] in
+            self?.music.yieldToVideo()
+            self?.player.closePlayer()
+        }
+        #else
         player.onWillStart = { [weak self] in self?.music.yieldToVideo() }
         liveTv.onWillStart = { [weak self] in self?.music.yieldToVideo() }
+        #endif
         liveTv.onEnded = { [weak self] in self?.music.videoEnded() }
         // A speed picked in the player is the profile's speed from then on, everywhere.
         // Heard to the end: Home's new episodes and the downloads drop it now, not at the next catch-up. A moment later,
@@ -470,9 +490,20 @@ final class AppModel {
         timer.cancel()
     }
 
+    /// Signing out or another profile: what's playing stops. On a Mac its screen goes too, as it can still be up (a film
+    /// floating in Picture in Picture, Settings open beside it); on the phones and the TV the player covers those paths.
+    private func endPlayback() {
+        #if os(macOS)
+        player.closePlayer()
+        liveTv.closePlayer()
+        #else
+        player.stop()
+        #endif
+    }
+
     /// `stoppingTunnel`: false only for a guest's sign-out, which stops the tunnel itself once the server has heard.
     private func forget(stoppingTunnel: Bool = true) {
-        player.stop()
+        endPlayback()
         music.stop()
         // A guest leaving leaves its host's tailnet too: nothing of the tunnel stays on the device.
         if stoppingTunnel, credentials?.isGuest == true { GuestTunnel.shared.stop(forget: true) }
@@ -566,7 +597,7 @@ final class AppModel {
     private func withOwnToken(_ credentials: ServerCredentials, me known: SignInInfo? = nil) async -> ServerCredentials {
         guard !credentials.apiKey.isEmpty,
               let me = await Self.signIn(known, of: credentials), me.method == "api-key",
-              let token = try? await credentials.client.deviceToken(deviceName: UIDevice.current.name)
+              let token = try? await credentials.client.deviceToken(deviceName: ThisDevice.ownName)
         else { return credentials }
         var own = credentials
         own.apiKey = token
@@ -1026,7 +1057,7 @@ final class AppModel {
         Task { await refreshRemoteAddress() }
     }
 
-    #if os(iOS)
+    #if os(iOS) || os(macOS)
     /// The device Siri plays on when none is named: an Apple TV's sign-in id, or nil for this iPhone or iPad.
     static var siriDevice: String? {
         get { UserDefaults.standard.string(forKey: "FlexarrSiriDevice") }
@@ -1117,7 +1148,7 @@ final class AppModel {
     private func chose(_ selection: ProfileSelection, among list: [Profile]) {
         guard var credentials else { return }
         let profile = selection.profile
-        player.stop()
+        endPlayback()
         music.stop()
         // What the last profile got ready is theirs.
         player.dropReady()
@@ -1871,7 +1902,7 @@ final class AppModel {
         if !profile.needsPinToChoose, (try? await switchProfile(to: profile)) != nil { return open(url: url) }
         afterProfileChoice = url
         linkProfile = profile
-        player.stop()
+        endPlayback()
         needsProfileChoice = true
     }
 }
@@ -1917,9 +1948,22 @@ struct ConnectionError: LocalizedError {
     var errorDescription: String? { message }
 }
 
-/// What this device is called in messages: "Apple TV", "iPhone" or "iPad".
+/// What this device is called in messages: "Apple TV", "iPhone", "iPad" or "Mac".
 enum ThisDevice {
-    #if os(tvOS)
+    #if os(macOS)
+    /// The Mac's own name, read once: the system configuration store answers at once, where `Host.current()` resolves
+    /// every address and can stall on a slow network.
+    private static let macName: String = (SCDynamicStoreCopyComputerName(nil, nil) as String?) ?? "Mac"
+    #endif
+
+    #if os(macOS)
+    static let name = "Mac"
+
+    /// Tells the server what this is, for its lists of devices.
+    @MainActor static func identify() {
+        FlexarrClient.deviceType = "Mac"
+    }
+    #elseif os(tvOS)
     static let name = "Apple TV"
 
     /// Tells the server what this is, for its lists of devices.
@@ -1937,6 +1981,15 @@ enum ThisDevice {
         FlexarrClient.deviceType = pad ? "IPad" : "IPhone"
     }
     #endif
+
+    /// This device's own name, as its owner set it ("Dan's MacBook Air", "Living room"), for the server's lists.
+    @MainActor static var ownName: String {
+        #if os(macOS)
+        macName
+        #else
+        UIDevice.current.name
+        #endif
+    }
 }
 
 /// Navigation destinations shared by every tab.

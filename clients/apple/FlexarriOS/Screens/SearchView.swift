@@ -24,6 +24,15 @@ struct SearchView: View {
     /// Lidarr isn't answering: music still shows, its requests wait.
     private var musicPaused: Bool { musicStatus?.configured == true && musicStatus?.reachable == false }
 
+    /// Pressing Search (Return on the Mac) keeps the words as a recent search, as picking a result does: shown at once,
+    /// without waiting for the server, so clearing the field shows it straight away.
+    private func keepSearch() {
+        let words = query.trimmingCharacters(in: .whitespaces)
+        guard !words.isEmpty, model.player.recordsHistory else { return }
+        model.recordSearch(query: words)
+        recents = RecentSearches(queries: Array(([words] + recents.queries.filter { $0.caseInsensitiveCompare(words) != .orderedSame }).prefix(5)), items: recents.items)
+    }
+
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 24) {
@@ -142,17 +151,18 @@ struct SearchView: View {
         .background(RoomBackground(ambient: nil))
         .navigationTitle(t(Words.search))
         // Always showing: left to itself, iOS tucks the field away until the page is pulled down.
+        #if os(macOS)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                PageSearchField(text: $query, prompt: t("Movies, shows, episodes and people"), width: 440, focus: $typing, onSubmit: keepSearch)
+            }
+        }
+        #else
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: t("Movies, shows, episodes and people"))
         // Opening Search is for typing: the field's ready with the keyboard up.
         .searchFocused($typing)
-        // Pressing Search keeps the words as a recent search, as picking a result does: shown at once, without waiting
-        // for the server, so clearing the field shows it straight away.
-        .onSubmit(of: .search) {
-            let words = query.trimmingCharacters(in: .whitespaces)
-            guard !words.isEmpty, model.player.recordsHistory else { return }
-            model.recordSearch(query: words)
-            recents = RecentSearches(queries: Array(([words] + recents.queries.filter { $0.caseInsensitiveCompare(words) != .orderedSame }).prefix(5)), items: recents.items)
-        }
+        .onSubmit(of: .search, keepSearch)
+        #endif
         .onAppear {
             takeSiriSearch()
             if query.isEmpty { typing = true }

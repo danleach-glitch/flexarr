@@ -19,6 +19,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PhoneIphone
 import androidx.compose.material.icons.filled.TabletAndroid
@@ -79,11 +80,12 @@ fun PairingPrompt(model: AppModel, client: FlexarrClient) {
     key(device.code) { PairingSheet(model, client, device) }
 }
 
-/** A TV, phone or tablet, as its [WaitingDevice.deviceType] or [io.github.flexarr.core.Device.deviceType] says; a TV when it doesn't. */
+/** A TV, phone, tablet or computer, as its [WaitingDevice.deviceType] or [io.github.flexarr.core.Device.deviceType] says; a TV when it doesn't. */
 fun deviceIcon(deviceType: String?): ImageVector = when (deviceType) {
     "IPhone" -> Icons.Filled.PhoneIphone
     "AndroidPhone" -> Icons.Filled.PhoneAndroid
     "IPad", "AndroidTablet" -> Icons.Filled.TabletAndroid
+    "Mac" -> Icons.Filled.Computer
     else -> Icons.Filled.Tv
 }
 

@@ -10,7 +10,8 @@ import re
 import sys
 from pathlib import Path
 
-PLATFORMS = [("web", "Web"), ("iphone", "iPhone"), ("tv", "Apple TV"), ("android", "Android phone"), ("androidtv", "Android TV")]
+PLATFORMS = [("web", "Web"), ("iphone", "iPhone"), ("tv", "Apple TV"), ("mac", "Mac"), ("android", "Android phone"),
+             ("androidtv", "Android TV")]
 SCREENS = [("01-home", "Home"), ("02-library", "A movie library"), ("03-movie", "A movie"), ("04-show", "A show"),
            ("05-player", "Player"), ("06-search", "Search"), ("07-settings", "Settings"), ("08-profiles", "Profiles"),
            ("09-browse", "A movie library's Browse")]

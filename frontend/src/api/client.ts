@@ -2156,7 +2156,7 @@ export interface SignIn {
   kidsLock?: boolean
 }
 
-export type DeviceType = 'AppleTv' | 'IPhone' | 'IPad' | 'AndroidPhone' | 'AndroidTablet' | 'AndroidTv'
+export type DeviceType = 'AppleTv' | 'IPhone' | 'IPad' | 'AndroidPhone' | 'AndroidTablet' | 'AndroidTv' | 'Mac'
 
 export const getSignIns = (signal?: AbortSignal) => apiGet<SignIn[]>('/sign-ins', signal)
 export const revokeSignIn = (id: string) => request<void>('DELETE', `/sign-ins/${id}`)

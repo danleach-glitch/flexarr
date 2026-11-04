@@ -204,9 +204,9 @@ final class GuestTunnel: @unchecked Sendable {
     // MARK: The identity's copy in the Keychain
 
     private static let identityFile = "tailscaled.state"
-    private static var keychainQuery: [String: Any] { [kSecClass as String: kSecClassGenericPassword,
-                                                        kSecAttrService as String: "io.github.flexarr.tunnel",
-                                                        kSecAttrAccount as String: identityFile] }
+    private static var keychainQuery: [String: Any] { KeychainPlacement.placed([kSecClass as String: kSecClassGenericPassword,
+                                                                                kSecAttrService as String: "io.github.flexarr.tunnel",
+                                                                                kSecAttrAccount as String: identityFile]) }
 
     private static func restoreIdentity(into folder: URL) {
         let file = folder.appendingPathComponent(identityFile)

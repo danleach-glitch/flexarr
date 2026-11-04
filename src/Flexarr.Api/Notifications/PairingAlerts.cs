@@ -100,6 +100,7 @@ public sealed partial class PairingAlerts(IServiceScopeFactory scopes, ILogger<P
         Authentication.DeviceType.AndroidPhone => Loc.T("Android phone"),
         Authentication.DeviceType.AndroidTablet => Loc.T("Android tablet"),
         Authentication.DeviceType.AndroidTv => "Android TV",
+        Authentication.DeviceType.Mac => "Mac",
         _ => null,
     };
 

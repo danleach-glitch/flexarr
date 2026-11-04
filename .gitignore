@@ -23,6 +23,7 @@ frontend/dist/
 clients/apple/*.xcodeproj/
 clients/apple/FlexarrTV/Info.plist
 clients/apple/FlexarriOS/Info.plist
+clients/apple/FlexarrMac/Info.plist
 .build/
 .swiftpm/
 DerivedData/

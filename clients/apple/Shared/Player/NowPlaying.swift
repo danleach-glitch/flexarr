@@ -1,6 +1,6 @@
 import FlexarrKit
 import MediaPlayer
-import UIKit
+import SwiftUI
 
 /// What a device in the house is playing, as the server says (this app's own `NowPlaying` is the lock screen's).
 typealias DeviceNowPlaying = FlexarrKit.NowPlaying
@@ -98,7 +98,7 @@ final class NowPlaying {
     }
 
     /// A book: the chapter as the title, the book and its author beneath, and where it is in the chapter list.
-    func setBook(title: String, chapter: String?, author: String?, artwork: UIImage?, chapterIndex: Int?, chapterCount: Int) {
+    func setBook(title: String, chapter: String?, author: String?, artwork: PlatformImage?, chapterIndex: Int?, chapterCount: Int) {
         info[MPMediaItemPropertyTitle] = chapter ?? title
         info[MPMediaItemPropertyArtist] = author
         info[MPMediaItemPropertyAlbumTitle] = title
@@ -119,9 +119,12 @@ final class NowPlaying {
         targets = []
         info = [:]
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        #if os(macOS)
+        MPNowPlayingInfoCenter.default().playbackState = .stopped
+        #endif
     }
 
-    func setTitle(_ title: String, subtitle: String?, artwork: UIImage?) {
+    func setTitle(_ title: String, subtitle: String?, artwork: PlatformImage?) {
         info[MPMediaItemPropertyTitle] = title
         info[MPMediaItemPropertyArtist] = subtitle
         info[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.video.rawValue
@@ -135,7 +138,7 @@ final class NowPlaying {
 
     /// A track: the lock screen shows the artist and album under the title, and the system treats it as music
     /// (the skip buttons give way to previous and next track).
-    func setTrack(title: String, artist: String?, album: String?, artwork: UIImage?) {
+    func setTrack(title: String, artist: String?, album: String?, artwork: PlatformImage?) {
         info[MPMediaItemPropertyTitle] = title
         info[MPMediaItemPropertyArtist] = artist
         info[MPMediaItemPropertyAlbumTitle] = album
@@ -155,11 +158,15 @@ final class NowPlaying {
         info[MPMediaItemPropertyPlaybackDuration] = duration
         info[MPNowPlayingInfoPropertyPlaybackRate] = Double(rate)
         info[MPNowPlayingInfoPropertyDefaultPlaybackRate] = Double(defaultRate)
+        #if os(macOS)
+        // A Mac doesn't work this out from an audio session as the phones do: Control Centre and the media keys go by it.
+        MPNowPlayingInfoCenter.default().playbackState = rate > 0 ? .playing : .paused
+        #endif
         push()
     }
 
     /// The system asks for the image on its own queue, so the request handler must not be main-actor bound.
-    nonisolated private static func artwork(_ image: UIImage) -> MPMediaItemArtwork {
+    nonisolated private static func artwork(_ image: PlatformImage) -> MPMediaItemArtwork {
         MPMediaItemArtwork(boundsSize: image.size) { _ in image }
     }
 

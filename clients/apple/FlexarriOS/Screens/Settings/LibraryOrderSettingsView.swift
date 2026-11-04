@@ -76,10 +76,10 @@ struct LibraryOrderSettingsView: View {
                      ?? t("This profile’s own. The web, the Apple TV and Android list your libraries in this order too."))
             }
         }
+        #if os(iOS)
         .environment(\.editMode, .constant(.active))
-        .scrollContentBackground(.hidden)
-        .background(RoomBackground(ambient: nil))
-        .navigationTitle(t("Library order"))
+        #endif
+        .settingsPage(t("Library order"))
         .navigationBarTitleDisplayMode(.inline)
     }
 }

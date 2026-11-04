@@ -1,6 +1,11 @@
 import FlexarrKit
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
+import Security
 import UserNotifications
 
 private let log = FlexarrLog("notifications")
@@ -12,6 +17,18 @@ private let log = FlexarrLog("notifications")
 @Observable
 final class PushNotifications {
     nonisolated static let videoCategory = "flexarr.video"
+
+    /// Whether this build can have notifications at all. Every iPhone build can; on the Mac only an App Store build
+    /// carries Apple's push entitlement (FlexarrMac-Store.entitlements), and a home build would only ever fail to
+    /// register, so it doesn't offer them.
+    nonisolated static let canRegister: Bool = {
+        #if os(macOS)
+        guard let task = SecTaskCreateFromSelf(nil) else { return false }
+        return SecTaskCopyValueForEntitlement(task, "com.apple.developer.aps-environment" as CFString, nil) != nil
+        #else
+        return true
+        #endif
+    }()
     nonisolated static let podcastCategory = "flexarr.podcast"
     nonisolated static let recordingCategory = "flexarr.recording"
     /// "Living room wants to connect": opening it asks to allow the device (see `PairingPrompts`). Allow opens the app
@@ -79,6 +96,11 @@ final class PushNotifications {
     static var environment: String {
         #if DEBUG
         "sandbox"
+        #elseif os(macOS)
+        // A Mac app keeps its profile in Contents, the store's included; only a development one says "development".
+        let url = Bundle.main.bundleURL.appending(path: "Contents/embedded.provisionprofile")
+        guard let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .isoLatin1) else { return "production" }
+        return text.range(of: #"aps-environment</key>\s*<string>development"#, options: .regularExpression) == nil ? "production" : "sandbox"
         #else
         guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
               let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .isoLatin1) else { return "production" }
@@ -229,8 +251,12 @@ final class PushNotifications {
 
     /// Launch and coming to the front: asks Apple for the token again (it can change), which is then sent on.
     func refresh() {
-        guard isOn else { return }
+        guard isOn, Self.canRegister else { return }
+        #if os(macOS)
+        NSApplication.shared.registerForRemoteNotifications()
+        #else
         UIApplication.shared.registerForRemoteNotifications()
+        #endif
     }
 
     /// Apple's answer, through the app delegate. A token the server doesn't have yet is sent, as the profile they're for.
@@ -260,7 +286,11 @@ final class PushNotifications {
     /// This launch's token, asked for if need be. Nil if Apple doesn't answer in a while (no network, say).
     private func token() async -> String? {
         if let deviceToken { return deviceToken }
+        #if os(macOS)
+        NSApplication.shared.registerForRemoteNotifications()
+        #else
         UIApplication.shared.registerForRemoteNotifications()
+        #endif
         Task {
             try? await Task.sleep(for: .seconds(15))
             let waiting = tokenWaiters

@@ -1,6 +1,10 @@
 import FlexarrKit
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 /// This profile's Trakt account: connect by a code entered at trakt.tv/activate, how the sync is going, the first
 /// history import (previewed first), the lists brought across, and disconnecting.
@@ -88,8 +92,14 @@ struct TraktSettingsView: View {
                     .listRowBackground(Color.seat)
                 if let url = URL(string: pending.verificationUrl) {
                     Button {
+                        #if os(macOS)
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(pending.userCode, forType: .string)
+                        NSWorkspace.shared.open(url)
+                        #else
                         UIPasteboard.general.string = pending.userCode
                         UIApplication.shared.open(url)
+                        #endif
                     } label: {
                         Label(t("Copy code and open Trakt"), systemImage: "arrow.up.forward.app")
                     }
