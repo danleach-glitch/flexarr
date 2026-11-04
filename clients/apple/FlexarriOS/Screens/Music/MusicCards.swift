@@ -236,6 +236,19 @@ struct MusicDestination: View {
 }
 
 /// The system's AirPlay and output picker, as a plain icon button.
+#if os(macOS)
+struct RoutePicker: NSViewRepresentable {
+    func makeNSView(context: Context) -> AVRoutePickerView {
+        let picker = AVRoutePickerView()
+        picker.isRoutePickerButtonBordered = false
+        picker.setRoutePickerButtonColor(NSColor(Color.screen), for: .normal)
+        picker.setRoutePickerButtonColor(NSColor(Color.silver), for: .active)
+        return picker
+    }
+
+    func updateNSView(_ view: AVRoutePickerView, context: Context) {}
+}
+#else
 struct RoutePicker: UIViewRepresentable {
     func makeUIView(context: Context) -> AVRoutePickerView {
         let picker = AVRoutePickerView()
@@ -247,3 +260,4 @@ struct RoutePicker: UIViewRepresentable {
 
     func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
 }
+#endif

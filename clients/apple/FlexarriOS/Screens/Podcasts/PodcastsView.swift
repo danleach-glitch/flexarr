@@ -93,7 +93,9 @@ struct PodcastsView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        #if os(iOS)
         .environment(\.editMode, .constant(editingUpNext ? .active : .inactive))
+        #endif
         .refreshable { await load() }
     }
 

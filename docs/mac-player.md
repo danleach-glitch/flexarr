@@ -6,7 +6,7 @@ Decided:
 
 - **Native macOS SwiftUI**, a new `FlexarrMac` target in `clients/apple`. Not Mac Catalyst (AetherEngine's FFmpeg and the tunnel have no Catalyst builds) and not the web app in a window (it would play only what browsers can, so more transcoding).
 - **Universal purchase** with the iPhone and Apple TV app: one *Flexarr* listing (app 6826618084), uploaded under the iPhone app's bundle ID as the TV app is. Flexarr Server keeps its own listing. Apple doesn't let an app leave a universal purchase later.
-- **Apple silicon only**, macOS 15 Sequoia or later (FlexarrKit's and AetherEngine's minimum).
+- **Apple silicon only**, macOS 15.2 or later (the iPhone app's iOS 18.2, for its Siri intents; FlexarrKit and AetherEngine need 15).
 - **Everything the iPad has**: movies, TV, music, audiobooks, podcasts, Live TV, search, watchlist, requests, profiles and kids, settings. Not CarPlay, widgets, Live Activities, the Apple TV remote or Shake to extend.
 - **Downloads and offline mode** in the first release, for laptops away from home.
 - **Video plays in the main window**, which becomes the player. Esc or Back returns to the page; ⌃⌘F is full screen.

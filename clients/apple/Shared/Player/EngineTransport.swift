@@ -4,7 +4,11 @@ import AVFoundation
 import AVKit
 import Combine
 import FlexarrKit
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 private let log = FlexarrLog("engine")
 
@@ -14,7 +18,7 @@ private let log = FlexarrLog("engine")
 @MainActor
 final class EngineTransport: PlayerTransport {
     weak var delegate: PlayerTransportDelegate?
-    let view: UIView
+    let view: PlatformView
     let engine: AetherEngine
     private let surface = AetherPlayerView()
     private let overlay = SubtitleOverlayView()
@@ -47,10 +51,16 @@ final class EngineTransport: PlayerTransport {
         self.info = info
         self.client = client
         engine = try AetherEngine()
+        #if canImport(UIKit)
         let container = UIView()
         container.backgroundColor = .black
+        #else
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.backgroundColor = NSColor.black.cgColor
+        #endif
         view = container
-        for subview in [surface, overlay] as [UIView] {
+        for subview in [surface, overlay] as [PlatformView] {
             subview.translatesAutoresizingMaskIntoConstraints = false
             container.addSubview(subview)
             NSLayoutConstraint.activate([
@@ -88,9 +98,15 @@ final class EngineTransport: PlayerTransport {
         // Dialogue boost, night mode and the speakers (this device's sound settings), shaped by the engine.
         let startingTrack = info.audioTracks.first { $0.index == audioIndex ?? info.selectedAudioIndex }
         options.audioShaping = SoundSettings.current.shaping(at: Date(), sourceChannels: startingTrack?.channels)
+        #if os(macOS)
+        // A Mac's display says only whether it shows HDR (and an Apple silicon Mac then shows Dolby Vision too).
+        options.panelIsInHDRMode = AVPlayer.eligibleForHDRPlayback
+        options.panelPresentsDolbyVision = AVPlayer.eligibleForHDRPlayback
+        #else
         let modes = AVPlayer.availableHDRModes
         options.panelIsInHDRMode = !modes.isEmpty
         options.panelPresentsDolbyVision = modes.contains(.dolbyVision)
+        #endif
         #if os(tvOS)
         options.matchContentEnabled = matchContent
         #endif
@@ -408,7 +424,7 @@ final class EngineTransport: PlayerTransport {
 
     // MARK: Picture in Picture
 
-    #if os(iOS)
+    #if os(iOS) || os(macOS)
     func pictureInPictureContentSource() -> AVPictureInPictureController.ContentSource? {
         if let layer = engine.nativePlayerLayer, engine.currentAVPlayer != nil {
             return AVPictureInPictureController.ContentSource(playerLayer: layer)
@@ -552,6 +568,14 @@ final class EngineTransport: PlayerTransport {
 
     private func observe() {
         let center = NotificationCenter.default
+        #if os(macOS)
+        // A Mac app isn't suspended when it's hidden or behind another window: the picture plays on.
+        lifecycleObservers = [
+            center.addObserver(forName: SoundSettings.changed, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.applySoundSettings() }
+            },
+        ]
+        #else
         lifecycleObservers = [
             center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.backgroundedAt = Date() }
@@ -563,6 +587,7 @@ final class EngineTransport: PlayerTransport {
                 MainActor.assumeIsolated { self?.applySoundSettings() }
             },
         ]
+        #endif
         soundClock = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, SoundSettings.current.nightMode == .scheduled else { return }
@@ -618,7 +643,11 @@ final class EngineTransport: PlayerTransport {
         if case .failed = phase { return }
         defer {
             // What the viewer meant, as of the last moment the app was in front: the system pauses it on the way out.
+            #if os(macOS)
+            if !restoreOnPlay { playingWhenActive = isPlaying }
+            #else
             if UIApplication.shared.applicationState == .active, !restoreOnPlay { playingWhenActive = isPlaying }
+            #endif
         }
         if parkedAtEnd { phase = .ended; return }
         switch engine.playbackPhase {

@@ -1,3 +1,5 @@
+// The iPhone's and Apple TV's (UIKit); the Mac draws its own in FlexarrMac/Player.
+#if canImport(UIKit)
 import AVKit
 import FlexarrKit
 import SwiftUI
@@ -748,3 +750,4 @@ final class PillButton: UIButton {
     }
     #endif
 }
+#endif

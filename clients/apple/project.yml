@@ -6,7 +6,7 @@ options:
   deploymentTarget:
     tvOS: "18.2"
     iOS: "18.2"
-    macOS: "15.0"
+    macOS: "15.2"
   createIntermediateGroups: true
   developmentLanguage: en
 settings:
@@ -225,12 +225,36 @@ targets:
   FlexarrMac:
     type: application
     platform: macOS
-    sources: [FlexarrMac, Languages/Localizable.xcstrings, Languages/AppShortcuts.xcstrings, Languages/FlexarrMac/InfoPlist.xcstrings]
+    preBuildScripts:
+      # The tunnel's library, built once if it isn't there (make tunnel-apple rebuilds it when its sources change).
+      - name: Build the tunnel if missing
+        basedOnDependencyAnalysis: false
+        script: |
+          [ -d "$SRCROOT/../tunnel/build/FlexarrTunnel.xcframework/macos-arm64" ] || PATH="$PATH:/opt/homebrew/bin:/usr/local/go/bin" make -C "$SRCROOT/../.." tunnel-apple
+    # The iPad's screens and downloads are compiled in from FlexarriOS (the Mac counts as a regular size class); what's
+    # the phone's alone (CarPlay, the Apple TV remote, widgets, its app delegate) stays out.
+    sources:
+      - Shared
+      - FlexarrMac
+      - path: FlexarriOS/Screens
+        # The phone's tab bar; the Mac has its own sidebar (FlexarrMac/App/MacMainView.swift).
+        excludes: [MainTabView.swift]
+      - FlexarriOS/Design
+      - FlexarriOS/Downloads
+      - FlexarriOS/App/PairingPrompts.swift
+      - FlexarriOS/App/PushNotifications.swift
+      - FlexarriOS/App/ReviewPrompt.swift
+      - Languages/Localizable.xcstrings
+      - Languages/AppShortcuts.xcstrings
+      - Languages/FlexarrMac/InfoPlist.xcstrings
     dependencies:
       - package: FlexarrKit
       - package: AetherEngine
       - package: Sentry
         product: Sentry
+      # Tailscale built in, for family guests (clients/tunnel's macos slice).
+      - framework: ../tunnel/build/FlexarrTunnel.xcframework
+        embed: false
     entitlements:
       path: FlexarrMac/FlexarrMac.entitlements
       properties:

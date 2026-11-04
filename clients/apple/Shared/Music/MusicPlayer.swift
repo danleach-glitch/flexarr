@@ -2,7 +2,11 @@ import AVFoundation
 import FlexarrKit
 import MediaPlayer
 import Observation
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 private let log = FlexarrLog("music")
 
@@ -13,7 +17,7 @@ protocol OfflineMusicLibrary: AnyObject {
     /// The track's file on this device, if it's downloaded.
     func localFile(for trackId: String) -> URL?
     /// The cover saved with it.
-    func localArtwork(for trackId: String) -> UIImage?
+    func localArtwork(for trackId: String) -> PlatformImage?
     /// Where listening to a downloaded podcast episode got to on this device.
     func resumePosition(for trackId: String) -> Double
     /// With no connection, what plays after a podcast episode: the next downloaded, unplayed one of its show.
@@ -102,7 +106,7 @@ final class MusicPlayer {
     private(set) var isShuffled = false
     private(set) var repeatMode: RepeatMode = .off
     /// The current track's cover, once fetched (also what the lock screen shows).
-    private(set) var artwork: UIImage?
+    private(set) var artwork: PlatformImage?
     /// The current track is playing from its downloaded file rather than the server.
     private(set) var isPlayingOffline = false
     var errorMessage: String?
@@ -215,7 +219,7 @@ final class MusicPlayer {
         player.isMuted = UserDefaults.standard.bool(forKey: "FlexarrMuted")
         #endif
         player.audiovisualBackgroundPlaybackPolicy = .continuesIfPossible
-        #if os(iOS)
+        #if os(iOS) || os(macOS)
         player.allowsExternalPlayback = true
         #endif
         statusObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] player, _ in
@@ -225,12 +229,15 @@ final class MusicPlayer {
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.5, preferredTimescale: 600), queue: .main) { [weak self] time in
             MainActor.assumeIsolated { self?.tick(time.seconds) }
         }
+        #if !os(macOS)
+        // A Mac has no calls or Siri taking the sound away (its sound mixes with everything else's).
         interruptionObserver = NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
             // Only plain numbers cross to the main actor; the notification itself isn't Sendable.
             let type = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
             let options = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt
             MainActor.assumeIsolated { self?.interrupted(type: type, options: options) }
         }
+        #endif
         sleep.onExpire = { [weak self] in self?.fallAsleep() }
         #if os(iOS)
         // A shake while a sleep timer runs (or fades the sound out) gives more time.
@@ -293,7 +300,7 @@ final class MusicPlayer {
         #if os(tvOS)
         "Apple TV"
         #else
-        UIDevice.current.name
+        ThisDevice.ownName
         #endif
     }
 
@@ -1379,16 +1386,20 @@ final class MusicPlayer {
 
     /// A call or Siri: the system pauses the music, and it comes back after if the system says it may.
     private func interrupted(type: UInt?, options: UInt?) {
+        #if !os(macOS)
         guard let type, AVAudioSession.InterruptionType(rawValue: type) == .ended else { return }
         if AVAudioSession.InterruptionOptions(rawValue: options ?? 0).contains(.shouldResume), current != nil, !yieldedToVideo { player.play() }
+        #endif
     }
 
     // MARK: Now Playing and sound
 
     private func activateAudioSession() {
         // Sound on with the ring switch off, and playing on with the screen locked.
+        #if !os(macOS)
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
         try? AVAudioSession.sharedInstance().setActive(true)
+        #endif
     }
 
     private var nowPlayingIsIdle: Bool { MPNowPlayingInfoCenter.default().nowPlayingInfo == nil }

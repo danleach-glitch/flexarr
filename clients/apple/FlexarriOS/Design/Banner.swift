@@ -24,7 +24,7 @@ private struct BannerModifier: ViewModifier {
                     .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
                     .onTapGesture { dismiss() }
                     .task(id: text) {
-                        UIAccessibility.post(notification: .announcement, argument: text)
+                        AccessibilityNotification.Announcement(text).post()
                         // Long enough to read: three seconds, more for a longer notice.
                         try? await Task.sleep(for: .seconds(Banner.duration(text)))
                         if self.text == text { dismiss() }

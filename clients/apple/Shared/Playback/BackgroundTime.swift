@@ -1,9 +1,18 @@
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 /// A little time from iOS to finish something after the app leaves the screen. Ended when the work is done, or by
 /// iOS when the time runs out.
 @MainActor
 final class BackgroundTime {
+    #if os(macOS)
+    // A Mac app keeps running when it's hidden: there's nothing to ask for.
+    init(named name: String) {}
+    nonisolated func end() {}
+    #else
     private var id = UIBackgroundTaskIdentifier.invalid
 
     init(named name: String) {
@@ -19,4 +28,5 @@ final class BackgroundTime {
             self.id = .invalid
         }
     }
+    #endif
 }

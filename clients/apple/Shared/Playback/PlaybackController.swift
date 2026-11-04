@@ -5,7 +5,11 @@ import AVFoundation
 import FlexarrKit
 import Observation
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 private let log = FlexarrLog("playback")
 
@@ -117,7 +121,12 @@ final class PlaybackController: NSObject {
         get {
             let defaults = UserDefaults.standard
             if defaults.object(forKey: losslessKey) != nil { return defaults.bool(forKey: losslessKey) }
+            #if os(macOS)
+            // A Mac's own speakers and headphones are stereo; Dolby Digital Plus suits them and AirPlay alike.
+            return false
+            #else
             return AVAudioSession.sharedInstance().maximumOutputNumberOfChannels >= 6
+            #endif
         }
         set { UserDefaults.standard.set(newValue, forKey: losslessKey) }
     }
@@ -285,6 +294,11 @@ final class PlaybackController: NSObject {
 
     #if canImport(AetherEngine)
     private static var engineProfile: DeviceProfile {
+        #if os(macOS)
+        // A Mac's display says only whether it shows HDR at all; HDR10 and HLG come with it.
+        let hdr = AVPlayer.eligibleForHDRPlayback
+        return .engine(client: "macos", hdr: hdr, dolbyVision: supportsDolbyVision, hdr10: hdr, hlg: hdr)
+        #else
         let modes = AVPlayer.availableHDRModes
         #if os(tvOS)
         let client = "tvos"
@@ -293,17 +307,25 @@ final class PlaybackController: NSObject {
         #endif
         return .engine(client: client, hdr: AVPlayer.eligibleForHDRPlayback, dolbyVision: supportsDolbyVision,
                        hdr10: modes.contains(.hdr10), hlg: modes.contains(.hlg))
+        #endif
     }
     #endif
 
     private static var deviceProfile: DeviceProfile {
         // What the display shows right now: an Apple TV on a fixed Dolby Vision output, say, has no HDR10 mode and
         // refuses plain HDR10 streams, so those are converted for it instead.
+        #if os(macOS)
+        let hdr = AVPlayer.eligibleForHDRPlayback
+        var profile = DeviceProfile.iOS(hdr: hdr, dolbyVision: supportsDolbyVision, hdr10: hdr, hlg: hdr)
+        profile.client = "macos"
+        return profile
+        #else
         let modes = AVPlayer.availableHDRModes
         #if os(tvOS)
         return .tvOS(hdr: AVPlayer.eligibleForHDRPlayback, dolbyVision: supportsDolbyVision, hdr10: modes.contains(.hdr10), hlg: modes.contains(.hlg))
         #else
         return .iOS(hdr: AVPlayer.eligibleForHDRPlayback, dolbyVision: supportsDolbyVision, hdr10: modes.contains(.hdr10), hlg: modes.contains(.hlg))
+        #endif
         #endif
     }
 
@@ -313,7 +335,12 @@ final class PlaybackController: NSObject {
         // `-FlexarrNoDolbyVision YES` asks for HDR10 only, to tell a Dolby Vision problem from an HDR one.
         if UserDefaults.standard.bool(forKey: "FlexarrNoDolbyVision") { return false }
         #endif
+        #if os(macOS)
+        // Apple silicon Macs show Dolby Vision on any HDR display they can show HDR on.
+        return AVPlayer.eligibleForHDRPlayback
+        #else
         return AVPlayer.availableHDRModes.contains(.dolbyVision)
+        #endif
     }
 
     // MARK: Getting ready ahead of Play
@@ -399,8 +426,13 @@ final class PlaybackController: NSObject {
             screen = PlayerViewController()
             screen.delegate = self
             self.screen = screen
+            #if os(macOS)
+            // The main window becomes the player (FlexarrMac/Player/PlayerHost.swift).
+            PlayerHost.shared.show(screen)
+            #else
             guard let presenter = Self.topViewController() else { throw FlexarrClientError.invalidResponse }
             presenter.present(screen, animated: true)
+            #endif
         }
         try attach(info, to: screen)
     }
@@ -637,6 +669,20 @@ final class PlaybackController: NSObject {
         guard let client, let current = info, !current.isOffline, let screen, screen.presentedViewController == nil else { return }
         let wasPlaying = transport?.isPlaying ?? false
         transport?.pause()
+        #if os(macOS)
+        weak var host: PlayerSheetHost?
+        let search = SubtitleSearchView(client: client, itemId: current.item.id, fileId: current.fileId, onDownloaded: { [weak self] saved in
+            log.info("Subtitles downloaded: \(saved.label) (\(saved.key))", ["playbackId": current.playbackId])
+            host?.dismiss(animated: true)
+            guard let self, self.info?.sessionId == current.sessionId, !self.isRecovering else { return }
+            self.viewerSubtitleKey = .some(saved.key)
+            self.reopen(self.reopenRequest(current), replacing: current)
+        }, onClose: { [weak self] in
+            host?.dismiss(animated: true)
+            if wasPlaying, self?.info?.sessionId == current.sessionId { self?.transport?.play() }
+        })
+        host = screen.presentSheet(search)
+        #else
         weak var host: UIViewController?
         let search = SubtitleSearchView(client: client, itemId: current.item.id, fileId: current.fileId, onDownloaded: { [weak self] saved in
             log.info("Subtitles downloaded: \(saved.label) (\(saved.key))", ["playbackId": current.playbackId])
@@ -661,6 +707,7 @@ final class PlaybackController: NSObject {
         #endif
         host = controller
         screen.present(controller, animated: true)
+        #endif
     }
 
     /// Asks the server to line the subtitle file `key` up with the audio, then follows it: when it's done the title
@@ -736,9 +783,13 @@ final class PlaybackController: NSObject {
         updateSubtitleSearch()
         log.warning("Subtitles weren't re-synced: \(message)", ["playbackId": info?.playbackId])
         guard let current = info, current.item.id == sync.itemId, let screen, screen.presentedViewController == nil else { return }
+        #if os(macOS)
+        screen.showAlert(t("Couldn’t re-sync subtitles"), message: message)
+        #else
         let alert = UIAlertController(title: t("Couldn’t re-sync subtitles"), message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: t("OK"), style: .default))
         screen.present(alert, animated: true)
+        #endif
     }
 
     private func cancelSubtitleSync() {
@@ -1421,6 +1472,10 @@ final class PlaybackController: NSObject {
 
     /// The screen to present the player from: never one on its way out (a sheet still closing), which would refuse it
     /// and leave nothing on screen.
+    #if os(macOS)
+    /// Nothing slides over the Mac's window the way a sheet does on the iPhone: the player comes up straight away.
+    static func sheetsSettled() async {}
+    #else
     private static func topViewController() -> UIViewController? {
         let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
         var top = scene?.keyWindow?.rootViewController ?? scene?.windows.first?.rootViewController
@@ -1442,6 +1497,7 @@ final class PlaybackController: NSObject {
             try? await Task.sleep(for: .milliseconds(50))
         }
     }
+    #endif
 }
 
 /// Marks the engine's transport without naming its type where the engine isn't compiled in.

@@ -1,6 +1,10 @@
 import FlexarrKit
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 import UserNotifications
 
 private let log = FlexarrLog("notifications")
@@ -230,7 +234,11 @@ final class PushNotifications {
     /// Launch and coming to the front: asks Apple for the token again (it can change), which is then sent on.
     func refresh() {
         guard isOn else { return }
+        #if os(macOS)
+        NSApplication.shared.registerForRemoteNotifications()
+        #else
         UIApplication.shared.registerForRemoteNotifications()
+        #endif
     }
 
     /// Apple's answer, through the app delegate. A token the server doesn't have yet is sent, as the profile they're for.
@@ -260,7 +268,11 @@ final class PushNotifications {
     /// This launch's token, asked for if need be. Nil if Apple doesn't answer in a while (no network, say).
     private func token() async -> String? {
         if let deviceToken { return deviceToken }
+        #if os(macOS)
+        NSApplication.shared.registerForRemoteNotifications()
+        #else
         UIApplication.shared.registerForRemoteNotifications()
+        #endif
         Task {
             try? await Task.sleep(for: .seconds(15))
             let waiting = tokenWaiters

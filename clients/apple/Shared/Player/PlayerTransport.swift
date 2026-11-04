@@ -1,7 +1,11 @@
 import AVFoundation
 import AVKit
 import FlexarrKit
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 /// What the picture is doing, as the player shows it: a spinner while loading or buffering, the play/pause button's
 /// state, the end of the title, or why it stopped.
@@ -38,7 +42,7 @@ protocol PlayerTransportDelegate: AnyObject {
 protocol PlayerTransport: AnyObject {
     var delegate: PlayerTransportDelegate? { get set }
     /// The video (and whatever the transport draws over it, such as subtitles), to fill the screen.
-    var view: UIView { get }
+    var view: PlatformView { get }
     var phase: TransportPhase { get }
     var currentTime: Double { get }
     var duration: Double { get }
@@ -76,7 +80,7 @@ protocol PlayerTransport: AnyObject {
     /// Apple's player underneath, when there is one: AirPlay and Picture in Picture go through it.
     var avPlayer: AVPlayer? { get }
     var playerLayer: AVPlayerLayer? { get }
-    #if os(iOS)
+    #if os(iOS) || os(macOS)
     /// Picture in Picture for a transport without an AVPlayerLayer (the engine's software route).
     func pictureInPictureContentSource() -> AVPictureInPictureController.ContentSource?
     func setPictureInPictureActive(_ active: Bool)
@@ -107,10 +111,25 @@ extension PlayerTransport {
 let teletextPages = [888, 777, 150, 801]
 
 /// A view whose layer is an AVPlayerLayer: the picture of a server stream or a download.
+#if canImport(UIKit)
 final class PlayerLayerView: UIView {
     override class var layerClass: AnyClass { AVPlayerLayer.self }
     var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
 }
+#else
+final class PlayerLayerView: NSView {
+    let playerLayer = AVPlayerLayer()
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer = playerLayer
+        playerLayer.backgroundColor = NSColor.black.cgColor
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+}
+#endif
 
 extension SubtitleSize {
     /// The style rules Apple's player draws WebVTT and other text subtitles with: the profile's size, and its position

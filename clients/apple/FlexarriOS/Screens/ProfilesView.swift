@@ -196,7 +196,9 @@ struct ProfilePickerView: View {
     private func toggleChildLock(on profile: Profile) {
         guard switching == nil, !locking else { return }
         // Felt as the hold takes, as on Android.
+        #if os(iOS)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        #endif
         error = nil
         if model.kidsLock {
             kidsLockPin = .unlock

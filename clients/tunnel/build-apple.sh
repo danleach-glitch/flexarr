@@ -1,33 +1,36 @@
 #!/usr/bin/env bash
 # Builds build/FlexarrTunnel.xcframework: static libraries (Go c-archive) for iOS,
-# iOS simulator, tvOS and tvOS simulator, all arm64, with a header and module map
-# (import FlexarrTunnel from Swift).
+# iOS simulator, tvOS, tvOS simulator and macOS (the Mac app), all arm64, with a header
+# and module map (import FlexarrTunnel from Swift).
 #
 # gomobile doesn't know tvOS, so this drives `go build -buildmode=c-archive` by
 # hand: GOOS=ios for every slice (Go's darwin/ios code paths), with clang pointed at
 # the right SDK and -target. Go's linker takes the platform (iOS, tvOS, simulator)
 # from the cgo objects, so each archive is stamped for the platform Xcode expects.
+# The Mac's slice is plain GOOS=darwin.
 #
-# Usage: ./build-apple.sh [slice ...]   slices: ios ios-sim tvos tvos-sim (default all)
+# Usage: ./build-apple.sh [slice ...]   slices: ios ios-sim tvos tvos-sim macos (default all)
 set -euo pipefail
 cd "$(dirname "$0")"
 
 MIN_VERSION="${MIN_VERSION:-18.2}"
+MAC_MIN_VERSION="${MAC_MIN_VERSION:-15.2}"
 OUT=build
 WORK="$OUT/apple"
 # tsnet features the tunnel never uses are left out (tags.sh), logtail included.
 TAGS="${TAGS:-$(./tags.sh)}"
 
 slices=("$@")
-[ ${#slices[@]} -eq 0 ] && slices=(ios ios-sim tvos tvos-sim)
+[ ${#slices[@]} -eq 0 ] && slices=(ios ios-sim tvos tvos-sim macos)
 
 build_slice() {
-  local name=$1 sdk target
+  local name=$1 sdk target goos=ios
   case $name in
     ios)      sdk=iphoneos;         target="arm64-apple-ios$MIN_VERSION" ;;
     ios-sim)  sdk=iphonesimulator;  target="arm64-apple-ios$MIN_VERSION-simulator" ;;
     tvos)     sdk=appletvos;        target="arm64-apple-tvos$MIN_VERSION" ;;
     tvos-sim) sdk=appletvsimulator; target="arm64-apple-tvos$MIN_VERSION-simulator" ;;
+    macos)    sdk=macosx;           target="arm64-apple-macos$MAC_MIN_VERSION"; goos=darwin ;;
     *) echo "unknown slice $name" >&2; exit 1 ;;
   esac
   local sysroot clang
@@ -37,10 +40,12 @@ build_slice() {
   mkdir -p "$dir"
   echo "==> $name ($target)"
   local flags="-isysroot $sysroot -target $target"
-  GOOS=ios GOARCH=arm64 CGO_ENABLED=1 \
+  local tags="ios,$TAGS"
+  [ "$goos" = darwin ] && tags="$TAGS"
+  GOOS=$goos GOARCH=arm64 CGO_ENABLED=1 \
     CC="$clang" CXX="$(xcrun --sdk "$sdk" --find clang++)" \
     CGO_CFLAGS="$flags -O2" CGO_LDFLAGS="$flags" \
-    go build -trimpath -buildmode=c-archive -tags "ios,$TAGS" -ldflags="-s -w" \
+    go build -trimpath -buildmode=c-archive -tags "$tags" -ldflags="-s -w" \
       -o "$dir/libflexarrtunnel.a" ./capi
   # In a folder of its own: Xcode copies every xcframework's headers into one include/, where another package's
   # module.modulemap would collide with ours.

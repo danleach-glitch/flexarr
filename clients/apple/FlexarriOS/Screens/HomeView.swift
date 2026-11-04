@@ -537,7 +537,7 @@ private extension View {
     /// No iOS 26 blur across the top: the hero's artwork runs clear up to the status bar.
     @ViewBuilder
     func withoutTopEdgeEffect() -> some View {
-        if #available(iOS 26, *) {
+        if #available(iOS 26, macOS 26, *) {
             scrollEdgeEffectHidden(true, for: .top)
         } else {
             self

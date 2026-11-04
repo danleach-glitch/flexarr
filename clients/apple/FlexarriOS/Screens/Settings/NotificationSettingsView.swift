@@ -16,7 +16,11 @@ struct NotificationSettingsView: View {
             if authorization == .denied {
                 Section {
                     Button(t("Open Settings")) {
+                        #if os(macOS)
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") { NSWorkspace.shared.open(url) }
+                        #else
                         if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                        #endif
                     }
                     .listRowBackground(Color.seat)
                 } footer: {

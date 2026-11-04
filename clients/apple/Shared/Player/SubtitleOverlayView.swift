@@ -3,12 +3,17 @@ import AetherEngine
 import CoreText
 import FlexarrKit
 import MediaAccessibility
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 /// Subtitles the engine decodes, drawn over the video: text cues where the profile put them (in the caption style
 /// chosen in the system's Accessibility settings, as Apple's own player draws them), or where a styled (ASS) cue asks
 /// to be, and picture subtitles (PGS, DVB) placed as the disc authored them, the cue's canvas mapped width-aligned and
 /// centre-anchored onto the video's rectangle (the picture fitted into this view).
+#if canImport(UIKit)
 final class SubtitleOverlayView: UIView {
     /// The picture's size in pixels, for placing cues over it.
     var videoSize: CGSize = .zero {
@@ -236,6 +241,7 @@ final class SubtitleOverlayView: UIView {
         }
     }
 }
+#endif
 
 /// The caption style the viewer chose in the system's Accessibility settings (Subtitles and Captioning): font, text
 /// size, colours and opacities, and the text's edge. Apple's own player draws captions this way; public API only.
@@ -243,20 +249,24 @@ struct CaptionStyle {
     var fontDescriptor: CTFontDescriptor?
     /// The style's text size as a multiplier of the standard size.
     var scale: CGFloat
-    var text: UIColor
+    var text: PlatformColor
     /// Behind the text itself, if the style has one.
-    var background: UIColor?
+    var background: PlatformColor?
     /// Behind the whole caption, if the style has one.
-    var window: UIColor?
+    var window: PlatformColor?
     var edge: MACaptionAppearanceTextEdgeStyle
 
     static var current: CaptionStyle {
         let domain = MACaptionAppearanceDomain.user
         func color(_ copy: (MACaptionAppearanceDomain, UnsafeMutablePointer<MACaptionAppearanceBehavior>?) -> Unmanaged<CGColor>,
-                   _ opacity: (MACaptionAppearanceDomain, UnsafeMutablePointer<MACaptionAppearanceBehavior>?) -> CGFloat) -> UIColor? {
+                   _ opacity: (MACaptionAppearanceDomain, UnsafeMutablePointer<MACaptionAppearanceBehavior>?) -> CGFloat) -> PlatformColor? {
             let alpha = opacity(domain, nil)
             guard alpha > 0.01 else { return nil }
+            #if canImport(UIKit)
             return UIColor(cgColor: copy(domain, nil).takeRetainedValue()).withAlphaComponent(alpha)
+            #else
+            return NSColor(cgColor: copy(domain, nil).takeRetainedValue())?.withAlphaComponent(alpha)
+            #endif
         }
         let scale = MACaptionAppearanceGetRelativeCharacterSize(domain, nil)
         return CaptionStyle(
@@ -269,9 +279,9 @@ struct CaptionStyle {
         )
     }
 
-    func font(ofSize size: CGFloat) -> UIFont {
+    func font(ofSize size: CGFloat) -> PlatformFont {
         guard let fontDescriptor else { return .systemFont(ofSize: size, weight: .medium) }
-        return CTFontCreateWithFontDescriptor(fontDescriptor, size, nil) as UIFont
+        return CTFontCreateWithFontDescriptor(fontDescriptor, size, nil) as PlatformFont
     }
 }
 #endif

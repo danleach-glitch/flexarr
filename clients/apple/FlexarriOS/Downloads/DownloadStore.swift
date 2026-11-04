@@ -3,7 +3,11 @@ import Foundation
 import Network
 import Observation
 import Security
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 private let log = FlexarrLog("downloads")
 
@@ -850,7 +854,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     @discardableResult
     private func fetchImage(at path: String?, named name: String, width: Int = 500) async -> String? {
-        guard let url = client?.imageURL(path, width: width), let (data, _) = try? await URLSession.shared.data(from: url), UIImage(data: data) != nil else {
+        guard let url = client?.imageURL(path, width: width), let (data, _) = try? await URLSession.shared.data(from: url), PlatformImage(data: data) != nil else {
             return nil
         }
         try? data.write(to: Self.folder.appending(path: name))
@@ -1039,14 +1043,14 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             .min { $0.item.addedAt < $1.item.addedAt }?.item
     }
 
-    func localArtwork(for trackId: String) -> UIImage? {
+    func localArtwork(for trackId: String) -> PlatformImage? {
         image(named: entry(for: trackId)?.imageFileName)
     }
 
     /// A saved picture, by the name a download or collection holds.
-    func image(named name: String?) -> UIImage? {
+    func image(named name: String?) -> PlatformImage? {
         guard let name else { return nil }
-        return UIImage(contentsOfFile: Self.folder.appending(path: name).path(percentEncoded: false))
+        return PlatformImage(contentsOfFile: Self.folder.appending(path: name).path(percentEncoded: false))
     }
 
     // MARK: Saving

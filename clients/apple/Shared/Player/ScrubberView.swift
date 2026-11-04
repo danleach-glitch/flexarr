@@ -1,3 +1,5 @@
+// The iPhone's and Apple TV's (UIKit); the Mac draws its own in FlexarrMac/Player.
+#if canImport(UIKit)
 import FlexarrKit
 import UIKit
 
@@ -316,3 +318,4 @@ final class ScrubberView: UIView {
         return hours > 0 ? String(format: "%d:%02d:%02d", hours, minutes, secs) : String(format: "%d:%02d", minutes, secs)
     }
 }
+#endif

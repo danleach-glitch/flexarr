@@ -217,7 +217,7 @@ struct NoticeCapsule: View {
             .shadow(color: .black.opacity(0.3), radius: 12, y: 4)
             .transition(.move(edge: .top).combined(with: .opacity))
             .accessibilityAddTraits(.updatesFrequently)
-            .onAppear { UIAccessibility.post(notification: .announcement, argument: notice.text) }
+            .onAppear { AccessibilityNotification.Announcement(notice.text).post() }
     }
 }
 

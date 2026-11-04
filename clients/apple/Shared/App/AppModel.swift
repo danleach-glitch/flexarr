@@ -1,7 +1,11 @@
 import FlexarrKit
 import Foundation
 import Observation
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 private let log = FlexarrLog("signin")
 
@@ -566,7 +570,7 @@ final class AppModel {
     private func withOwnToken(_ credentials: ServerCredentials, me known: SignInInfo? = nil) async -> ServerCredentials {
         guard !credentials.apiKey.isEmpty,
               let me = await Self.signIn(known, of: credentials), me.method == "api-key",
-              let token = try? await credentials.client.deviceToken(deviceName: UIDevice.current.name)
+              let token = try? await credentials.client.deviceToken(deviceName: ThisDevice.ownName)
         else { return credentials }
         var own = credentials
         own.apiKey = token
@@ -1026,7 +1030,7 @@ final class AppModel {
         Task { await refreshRemoteAddress() }
     }
 
-    #if os(iOS)
+    #if os(iOS) || os(macOS)
     /// The device Siri plays on when none is named: an Apple TV's sign-in id, or nil for this iPhone or iPad.
     static var siriDevice: String? {
         get { UserDefaults.standard.string(forKey: "FlexarrSiriDevice") }
@@ -1917,9 +1921,16 @@ struct ConnectionError: LocalizedError {
     var errorDescription: String? { message }
 }
 
-/// What this device is called in messages: "Apple TV", "iPhone" or "iPad".
+/// What this device is called in messages: "Apple TV", "iPhone", "iPad" or "Mac".
 enum ThisDevice {
-    #if os(tvOS)
+    #if os(macOS)
+    static let name = "Mac"
+
+    /// Tells the server what this is, for its lists of devices.
+    @MainActor static func identify() {
+        FlexarrClient.deviceType = "Mac"
+    }
+    #elseif os(tvOS)
     static let name = "Apple TV"
 
     /// Tells the server what this is, for its lists of devices.
@@ -1937,6 +1948,15 @@ enum ThisDevice {
         FlexarrClient.deviceType = pad ? "IPad" : "IPhone"
     }
     #endif
+
+    /// This device's own name, as its owner set it ("Dan's MacBook Air", "Living room"), for the server's lists.
+    @MainActor static var ownName: String {
+        #if os(macOS)
+        Host.current().localizedName ?? "Mac"
+        #else
+        UIDevice.current.name
+        #endif
+    }
 }
 
 /// Navigation destinations shared by every tab.
