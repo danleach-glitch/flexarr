@@ -76,9 +76,14 @@ android {
         }
     }
 
-    // English only for now, so the libraries' own words (Material's, say) don't turn up in other languages beside it.
+    // Only Flexarr's own languages (languages/languages.json, docs/languages.md), so the libraries' words (Material's,
+    // say) don't turn up in a language Flexarr itself isn't in. Android names pt-BR "pt-rBR".
     androidResources {
-        localeFilters += "en"
+        val registry = rootProject.file("../../languages/languages.json").readText()
+        Regex(""""([a-z]{2,3}(?:-[A-Za-z0-9]+)*)"\s*:\s*\{""").findAll(registry).map { it.groupValues[1] }.forEach { code ->
+            val parts = code.split('-')
+            localeFilters += if (parts.size == 2 && parts[1].length == 2) "${parts[0]}-r${parts[1]}" else if (parts.size == 1) code else "b+" + parts.joinToString("+")
+        }
     }
 
     buildFeatures {
