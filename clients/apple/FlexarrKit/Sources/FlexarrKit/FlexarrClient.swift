@@ -796,6 +796,28 @@ public struct FlexarrClient: Sendable {
         try await get("me")
     }
 
+    /// The languages this server offers, English first. Empty from servers before 0.61 (which answer 404).
+    public func languages() async throws -> [LanguageInfo] {
+        struct Languages: Decodable { let languages: [LanguageInfo] }
+        do {
+            let list: Languages = try await get("languages")
+            return list.languages
+        } catch FlexarrClientError.http(status: 404, _) {
+            return []
+        }
+    }
+
+    /// A language's strings for the Apple apps.
+    public func languagePack(_ code: String) async throws -> LanguagePack {
+        try await get("languages/\(code)", query: [URLQueryItem(name: "scope", value: "apple")])
+    }
+
+    /// The signed-in profile's language: a code from `languages()`, or nil to follow each device.
+    public func setLanguage(_ code: String?) async throws {
+        struct Choice: Encodable { let language: String? }
+        _ = try await send("PUT", "me/language", body: Choice(language: code))
+    }
+
     /// Unlocks managing the server for this sign-in with the admin PIN, for a while (servers from 0.56, where
     /// choosing the main profile isn't enough by itself). 403: not the right PIN; 429: too many wrong ones, with the
     /// server's message; 409: the main profile has no PIN yet. Returns when it locks again.
@@ -952,6 +974,8 @@ public struct FlexarrClient: Sendable {
         request.httpMethod = method
         request.timeoutInterval = timeout
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        // The server answers in the language shown here (the profile's own choice wins over it, server side).
+        request.setValue(Localization.shared.code, forHTTPHeaderField: "Accept-Language")
         if let apiKey, !apiKey.isEmpty {
             request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key")
         }

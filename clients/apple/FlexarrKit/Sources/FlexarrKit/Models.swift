@@ -1054,6 +1054,8 @@ public struct SignInInfo: Decodable, Sendable, Equatable {
     /// A family guest's device: it stays on its profile and has none of the household's devices. Absent from
     /// servers before 0.57.
     public var isGuest: Bool? = nil
+    /// The profile's chosen language (a BCP 47 code); nil follows the device. Absent from servers before 0.61.
+    public var language: String? = nil
 }
 
 /// What `POST /admin/unlock` answers.
