@@ -4,6 +4,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### iPhone and Apple TV
+- Counts read properly for one of something: "1 track", "1 season" and "1 episode" where some said "1 tracks".
+- Dates, times, numbers and file sizes follow your device's own way of writing them everywhere, including the live TV guide and recordings.
+
 ### Web
 - Counts read properly for one of something: "1 track", "1 season" and "1 channel" where some said "1 tracks".
 - Dates and numbers follow your browser's own way of writing them everywhere, including the live TV guide and recordings.
