@@ -24,6 +24,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A film that switches the TV's frame rate no longer flashes coloured noise before it starts.
 - Picture subtitles no longer go missing after skipping forward and then back.
 - On the iPhone, Settings shows Devices waiting to connect only while a device is waiting.
+- On iPad, a title's buttons sit beside Play, episodes are wide rows with their overview beside the picture, Coming soon shows each day as cards, and downloads have bigger artwork.
 
 ### iPhone and Android
 - **Mark as unplayed** on a podcast episode you'd started now starts it again from the beginning, and its ring empties, even when it's still in the player. **Mark as played** takes it out of the player. Audiobooks do the same with **Mark as unread** and **Mark as finished**.
