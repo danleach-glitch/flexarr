@@ -26,8 +26,8 @@ const statuses = {
 
 // The page's sections, in order: what runs at home, what you watch on, and what works alongside.
 const kinds = {
-  server: { title: 'The server', glyph: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>', intro: 'One per home. It holds your films, TV, music and podcasts and streams them to every screen.' },
-  player: { title: 'The players', glyph: '<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/><path d="m10 8 5 2.5-5 2.5z"/>', intro: 'Watch on as many screens as you like. Each one signs in to your server.' },
+  server: { title: 'Flexarr Server', glyph: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>', intro: 'One per home. It holds your films, TV, music and podcasts and streams them to every screen.' },
+  player: { title: 'Flexarr Player', glyph: '<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/><path d="m10 8 5 2.5-5 2.5z"/>', intro: 'Watch on as many screens as you like. Each one signs in to your server.' },
   integration: { title: 'Works with', glyph: '<path d="M9 2v6M15 2v6"/><path d="M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/>', intro: 'Add-ons that bring Flexarr into the rest of your home.' },
 };
 
