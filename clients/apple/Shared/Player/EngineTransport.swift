@@ -206,12 +206,16 @@ final class EngineTransport: PlayerTransport {
 
     func pause() { engine.pause() }
 
-    func seek(to seconds: Double) {
+    func seek(to seconds: Double) { seek(to: seconds, exact: false) }
+
+    /// A plain seek into AV1 that FFmpeg decodes lands on the keyframe before it (up to 10 s early) for a quicker
+    /// picture; an exact one decodes on to the target.
+    func seek(to seconds: Double, exact: Bool) {
         let target = max(0, min(seconds, duration))
         parkedAtEnd = false
         Task { [weak self] in
             guard let self else { return }
-            await self.engine.seek(to: target)
+            await self.engine.seek(to: target, exact: exact)
             self.delegate?.transport(self, tick: self.currentTime)
         }
     }

@@ -52,6 +52,9 @@ protocol PlayerTransport: AnyObject {
     func play()
     func pause()
     func seek(to seconds: Double)
+    /// `exact`: land on that very moment (the end of an intro, a remote's chosen time). A plain seek may land a little
+    /// before it, on the picture's nearest keyframe, when that gets the picture back sooner.
+    func seek(to seconds: Double, exact: Bool)
     func setRate(_ rate: Float)
     func stop()
     /// The sound's level, 0 to 1 (the sleep timer fades it out).
@@ -81,6 +84,9 @@ protocol PlayerTransport: AnyObject {
 }
 
 extension PlayerTransport {
+    /// Apple's player always lands where it's asked.
+    func seek(to seconds: Double, exact: Bool) { seek(to: seconds) }
+
     var isPlaying: Bool { phase == .playing || phase == .buffering }
 
     /// The engine shapes the sound, and so does the server for a stream it converts; Apple's player over the original

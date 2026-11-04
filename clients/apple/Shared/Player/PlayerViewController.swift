@@ -509,11 +509,11 @@ final class PlayerViewController: UIViewController {
         if flash { controls.flashSkip(seconds) }
     }
 
-    func seek(to seconds: Double) {
+    func seek(to seconds: Double, exact: Bool = false) {
         guard let transport else { return }
         let target = max(0, min(seconds, transport.duration > 0 ? transport.duration : seconds))
         seekTarget = (target, Date())
-        transport.seek(to: target)
+        transport.seek(to: target, exact: exact)
         controls.setTime(position: target, duration: transport.duration, buffered: transport.bufferedTime)
         delegate?.playerScreen(self, didSeekTo: target)
         showControls()
