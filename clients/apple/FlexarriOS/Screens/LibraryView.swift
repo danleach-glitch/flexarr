@@ -110,8 +110,9 @@ struct LibraryView: View {
             // Searching shows the grid; a pause in typing before asking.
             guard search != searchedFor else { return }
             searchedFor = search
-            if searchWords != nil, showing != .all, showing != .albums { showing = .all }
             guard (try? await Task.sleep(for: .milliseconds(300))) != nil else { return }
+            // Searching shows the grid. This load is the grid's first if it hasn't been opened yet (it waits for it).
+            if searchWords != nil, showing != .all, showing != .albums { showing = .all }
             await reload()
         }
         #endif
@@ -232,6 +233,8 @@ struct LibraryView: View {
                 if loadedToken != model.refreshToken || Freshness.isStale(loadedAt) { await refreshLoaded() }
                 return
             }
+            // Already loading (a search switched to the grid and loads it): not a second request.
+            guard !isLoading else { return }
             await reload()
         }
         .onAppear { isVisible = true }
@@ -271,7 +274,7 @@ struct LibraryView: View {
             StatusView(state: .failed(error) { Task { await reload() } })
                 .frame(height: 400)
         } else if items.isEmpty && !isLoading {
-            StatusView(state: .empty(genre.map(noneInGenre) ?? t("Nothing in this library yet.")))
+            StatusView(state: .empty(searchWords.map { t("Nothing found for “{query}”.", ["query": $0]) } ?? genre.map(noneInGenre) ?? t("Nothing in this library yet.")))
                 .frame(height: 400)
         } else {
             LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {

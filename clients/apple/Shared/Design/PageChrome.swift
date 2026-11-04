@@ -126,7 +126,13 @@ struct PageSearchField: View {
     @Binding var text: String
     let prompt: String
     var width: CGFloat = 260
-    @FocusState private var focused: Bool
+    /// The page's own focus for the field (Search puts the cursor in it on arrival), else the field's.
+    var focus: FocusState<Bool>.Binding?
+    /// Return in the field.
+    var onSubmit: () -> Void = {}
+    @FocusState private var ownFocus: Bool
+
+    private var focused: FocusState<Bool>.Binding { focus ?? $ownFocus }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -134,7 +140,8 @@ struct PageSearchField: View {
             TextField(prompt, text: $text)
                 .textFieldStyle(.plain)
                 .font(.system(size: 14))
-                .focused($focused)
+                .focused(focused)
+                .onSubmit(onSubmit)
             if !text.isEmpty {
                 Button { text = "" } label: {
                     Image(systemName: "xmark.circle.fill").font(.system(size: 13)).foregroundStyle(Color.usher)
@@ -146,7 +153,7 @@ struct PageSearchField: View {
         .padding(.horizontal, 14)
         .frame(width: width, height: PageControl.height)
         .background(Capsule().fill(PageControl.track))
-        .overlay(Capsule().strokeBorder(focused ? AnyShapeStyle(Color.silver.opacity(0.6)) : AnyShapeStyle(PageControl.edge)))
+        .overlay(Capsule().strokeBorder(focused.wrappedValue ? AnyShapeStyle(Color.silver.opacity(0.6)) : AnyShapeStyle(PageControl.edge)))
     }
 }
 

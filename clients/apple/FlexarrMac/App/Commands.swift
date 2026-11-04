@@ -37,7 +37,8 @@ struct FlexarrCommands: Commands {
     }
 }
 
-/// Play/Pause and skipping, for what's playing: the film or episode on the player, else music or a book.
+/// Play/Pause and skipping, for what's playing: the film or episode on the player, else music or a book. No arrow-key
+/// shortcuts here: menu keys come before text fields, and ⌘← ⌘→ belong to them (the player takes the arrows itself).
 private struct PlaybackCommands: View {
     let model: AppModel
 
@@ -51,25 +52,20 @@ private struct PlaybackCommands: View {
         Button(t("Skip forward")) {
             if let screen { screen.skip(PlayerViewController.skipSeconds, flash: true) } else { music.skip(by: Double(music.skipForward)) }
         }
-        .keyboardShortcut(.rightArrow, modifiers: .command)
         .disabled(screen == nil && music.current == nil)
         Button(t("Skip back")) {
             if let screen { screen.skip(-PlayerViewController.skipSeconds, flash: true) } else { music.skip(by: -Double(music.skipBack)) }
         }
-        .keyboardShortcut(.leftArrow, modifiers: .command)
         .disabled(screen == nil && music.current == nil)
         Divider()
         Button(t("Next")) { if let screen { screen.next() } else { music.next() } }
-            .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
             .disabled(screen == nil && !music.hasNext)
         Button(t("Previous")) { if let screen { screen.previous() } else { music.previous() } }
-            .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
             .disabled(screen == nil && !music.hasPrevious)
         if screen != nil {
             Divider()
-            // Esc closes it too, from the player itself (after leaving full screen).
+            // Esc closes it, from the player itself (after leaving full screen); ⌘W stays the window's.
             Button(t("Close")) { screen?.close() }
-                .keyboardShortcut("w")
         }
     }
 }
