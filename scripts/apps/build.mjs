@@ -124,14 +124,12 @@ ${p.runsOn ? `            <div class="runs-on">
 ` : ''}          </article>`;
 
 // Asking for somewhere new closes the players.
-const ask = `<article class="card soon ask">
+const ask = `<article class="card ask">
             <div class="card-body">
-              <div class="card-top"><span class="app-icon">${stroke('<path d="M12 5v14M5 12h14"/>')}</span></div>
+              <span class="ask-icon">${stroke('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12Z"/><path d="M12 9v4M10 11h4"/>')}</span>
               <h3>Somewhere else?</h3>
               <p class="summary">Tell us where you'd like to watch Flexarr next.</p>
-              <div class="foot">
-                <div class="links"><a class="button quiet" href="${repo}/discussions/categories/ideas" target="_blank" rel="noopener">Ask on GitHub</a></div>
-              </div>
+              <div class="links"><a class="button primary" href="${repo}/discussions/categories/ideas" target="_blank" rel="noopener">Ask on GitHub${arrow}</a></div>
             </div>
           </article>`;
 // One section per kind: what's out now, then the dashed cards for what's on the way.
@@ -261,7 +259,14 @@ const html = `<!doctype html>
     .card.soon .foot { border-top: 1px dashed var(--aisle); padding-top: 16px; margin-top: auto; }
     .card.soon .card-body > .summary { margin-bottom: 8px; }
     /* A slim strip across the row, after the cards. */
-    .card.ask .app-icon { color: var(--usher); }
+    /* Not an app: an open invitation, centred, in rose. */
+    .card.ask { border-color: color-mix(in srgb, var(--rose) 38%, transparent);
+      background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--rose) 20%, transparent), transparent 70%), var(--seat); }
+    .card.ask .card-body { align-items: center; justify-content: center; text-align: center; gap: 14px; }
+    .card.ask .ask-icon { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; color: var(--rose); background: color-mix(in srgb, var(--rose) 14%, transparent); }
+    .card.ask .ask-icon svg { width: 30px; height: 30px; }
+    .card.ask .summary { max-width: 26ch; }
+    .card.ask .links { justify-content: center; margin-top: 6px; }
 
     .source { margin: clamp(56px, 8vw, 96px) 0 clamp(48px, 6vw, 72px); color: var(--usher); font-size: 0.92rem; text-align: center; }
   </style>
