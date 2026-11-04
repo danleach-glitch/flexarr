@@ -100,7 +100,7 @@ final class ServerProcess {
         environment["Flexarr__MacApp__Port"] = String(requestsPort)
         environment["Flexarr__MacApp__Token"] = requests.token
         // The sandbox leaves the server no way to ask for this Mac's Bonjour name, its default name.
-        environment["Flexarr__MacApp__HostName"] = Self.localHostName
+        if let host = SCDynamicStoreCopyLocalHostName(nil).map({ String($0) }) { environment["Flexarr__MacApp__HostName"] = host }
         process.environment = environment
 
         let console = logDirectory.appending(path: "console.log")

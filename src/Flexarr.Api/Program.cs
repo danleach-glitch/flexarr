@@ -351,6 +351,8 @@ builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompre
 builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(o => o.Level = System.IO.Compression.CompressionLevel.Fastest);
 
 var app = builder.Build();
+// The machine's name, which the server is called until it's named, is looked up now so no request waits for it.
+_ = Task.Run(ServerName.Warm);
 // The Mac app's sandbox can't run other programs, Tailscale's command included.
 TailscaleService.Sandboxed = app.Services.GetRequiredService<IInstallEnvironment>().Kind == InstallKind.MacApp;
 // config.json's watcher belongs to this server: let it go when the server stops (tests start many in one process, and

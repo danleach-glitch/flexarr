@@ -23,11 +23,11 @@ public sealed class ServerNameTests
     [InlineData(null, null, "Flexarr")]
     [InlineData(null, "", "Flexarr")]
     public void Resolve_PrefersTheGivenName_ThenTheMachines(string? set, string? machine, string expected) =>
-        Assert.Equal(expected, ServerName.Resolve(set, machine));
+        Assert.Equal(expected, ServerName.Resolve(set, () => machine));
 
     [Fact]
     public void Resolve_SkipsAMachineNameTooLongToAnnounce() =>
-        Assert.Equal("Flexarr", ServerName.Resolve(null, new string('é', 40)));
+        Assert.Equal("Flexarr", ServerName.Resolve(null, () => new string('é', 40)));
 
     [Theory]
     [InlineData("Smith House", true)]
@@ -35,7 +35,33 @@ public sealed class ServerNameTests
     [InlineData("Ünïcødé ✨ server", true)]
     [InlineData("Line\nbreak", false)]
     [InlineData("Tab\there", false)]
-    public void Problem_RefusesControlCharacters(string name, bool ok) => Assert.Equal(ok, ServerName.Problem(name) is null);
+    [InlineData("Smith \u202eesuoH", false)] // right-to-left override
+    [InlineData("Smith\u200bHouse", false)] // zero-width space
+    [InlineData("Line\u2028separator", false)]
+    [InlineData("Dan._tv", false)]
+    [InlineData("v1.2 House", true)]
+    public void Problem_RefusesControlAndInvisibleCharacters_AndDotUnderscore(string name, bool ok) => Assert.Equal(ok, ServerName.Problem(name) is null);
+
+    [Fact]
+    public void Problem_SaysWhichLimitANameBreaks()
+    {
+        Assert.Equal("Keep the name to {max} characters or fewer.", ServerName.Problem(new string('a', 41)));
+        Assert.Equal("That name is too long.", ServerName.Problem(new string('日', 22))); // 22 characters, 66 bytes.
+    }
+
+    [Theory]
+    [InlineData("Line\nbreak")]
+    [InlineData("Dan._tv")]
+    public void Resolve_IgnoresAStoredNameSettingsWouldRefuse(string stored) =>
+        Assert.Equal("Dans-Mac-Mini", ServerName.Resolve(stored, () => "Dans-Mac-Mini"));
+
+    [Fact]
+    public void Resolve_OnlyLooksTheMachineUpWhenUnnamed()
+    {
+        var asked = false;
+        Assert.Equal("Smith House", ServerName.Resolve("Smith House", () => { asked = true; return "Dans-Mac-Mini"; }));
+        Assert.False(asked);
+    }
 
     [Fact]
     public void Problem_RefusesNamesLongerThanFortyCharacters_OrSixtyThreeBytes()
