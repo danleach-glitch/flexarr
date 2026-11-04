@@ -33,6 +33,8 @@ final class PlayerViewController: NSViewController {
     private var finished = false
     private var artwork: NSImage?
     private var hideTask: Task<Void, Never>?
+    /// When the pointer last moved over the picture, for the controls' three seconds.
+    private var lastActivity = Date()
     private var flashTask: Task<Void, Never>?
     private var sleepWatch: Task<Void, Never>?
     private var isScrubbing = false
@@ -411,7 +413,10 @@ final class PlayerViewController: NSViewController {
 
     func showControls() {
         hideTask?.cancel()
-        if !state.controlsVisible { state.controlsVisible = true }
+        if !state.controlsVisible {
+            if let transport { updateTime(transport.currentTime, transport) }
+            state.controlsVisible = true
+        }
         scheduleHide()
     }
 
@@ -430,10 +435,17 @@ final class PlayerViewController: NSViewController {
         #if DEBUG
         if UserDefaults.standard.bool(forKey: "FlexarrKeepControls") { return }
         #endif
+        lastActivity = Date()
         hideTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(3))
             while !Task.isCancelled {
                 guard let self, state.controlsVisible else { return }
+                // The pointer moved meanwhile: three seconds from then.
+                let idle = Date().timeIntervalSince(lastActivity)
+                if idle < 3 {
+                    try? await Task.sleep(for: .seconds(3 - idle))
+                    continue
+                }
                 if let transport, transport.isPlaying, !isScrubbing, !state.audioSyncOpen, presentedViewController == nil,
                    !(NSApp.windows.contains { $0.className.contains("Menu") && $0.isVisible }) {
                     return hideControls()
@@ -471,6 +483,11 @@ final class PlayerViewController: NSViewController {
 
     fileprivate func pointerMoved() {
         if sleepPhase == .asking { return }
+        // Already up and counting down: the count starts again from now, without a new task for every movement.
+        if state.controlsVisible, let hideTask, !hideTask.isCancelled {
+            lastActivity = Date()
+            return
+        }
         showControls()
     }
 
@@ -508,11 +525,13 @@ final class PlayerViewController: NSViewController {
         }
     }
 
+    /// What the timeline shows. Only values that changed are written, so the controls redraw only for those.
     private func updateTime(_ seconds: Double, _ transport: PlayerTransport) {
-        state.position = seconds
-        state.duration = transport.duration
-        state.buffered = transport.bufferedTime
-        if let live = transport as? LiveTransport { state.behindLive = live.behindLive }
+        if state.position != seconds { state.position = seconds }
+        if state.duration != transport.duration { state.duration = transport.duration }
+        let buffered = transport.bufferedTime
+        if abs(state.buffered - buffered) >= 1 { state.buffered = buffered }
+        if let live = transport as? LiveTransport, abs(state.behindLive - live.behindLive) >= 1 { state.behindLive = live.behindLive }
     }
 
     private func wireNowPlaying() {
@@ -673,7 +692,7 @@ final class PlayerViewController: NSViewController {
     }
 
     static func rateLabel(_ rate: Float) -> String {
-        rate == 1 ? t("Normal") : "\(rate.formatted(.number.precision(.fractionLength(0...2)).locale(Localization.locale)))×"
+        rate == 1 ? t("Normal") : t("{rate}×", ["rate": rate.formatted(.number.precision(.fractionLength(0...2)).locale(Localization.locale))])
     }
 
     /// "+0.25 s", as the iPhone's audio sync panel says it.
@@ -700,7 +719,8 @@ extension PlayerViewController: PlayerTransportDelegate {
                 return
             }
         }
-        if !isScrubbing { updateTime(seconds, transport) }
+        // Hidden, the timeline isn't drawn: it catches up as the controls come back (`showControls`).
+        if !isScrubbing, state.controlsVisible { updateTime(seconds, transport) }
         if Date().timeIntervalSince(lastNowPlayingUpdate) > 1 {
             lastNowPlayingUpdate = Date()
             nowPlaying.setTime(position: seconds, duration: transport.duration, rate: transport.isPlaying ? transport.rate : 0)

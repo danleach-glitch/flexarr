@@ -119,6 +119,9 @@ final class NowPlaying {
         targets = []
         info = [:]
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        #if os(macOS)
+        MPNowPlayingInfoCenter.default().playbackState = .stopped
+        #endif
     }
 
     func setTitle(_ title: String, subtitle: String?, artwork: PlatformImage?) {
@@ -155,6 +158,10 @@ final class NowPlaying {
         info[MPMediaItemPropertyPlaybackDuration] = duration
         info[MPNowPlayingInfoPropertyPlaybackRate] = Double(rate)
         info[MPNowPlayingInfoPropertyDefaultPlaybackRate] = Double(defaultRate)
+        #if os(macOS)
+        // A Mac doesn't work this out from an audio session as the phones do: Control Centre and the media keys go by it.
+        MPNowPlayingInfoCenter.default().playbackState = rate > 0 ? .playing : .paused
+        #endif
         push()
     }
 

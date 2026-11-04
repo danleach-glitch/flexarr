@@ -981,7 +981,7 @@ final class PlayerViewController: UIViewController {
     }
 
     static func rateLabel(_ rate: Float) -> String {
-        rate == 1 ? t("Normal") : "\(rate.formatted(.number.precision(.fractionLength(0...2)).locale(Localization.locale)))×"
+        rate == 1 ? t("Normal") : t("{rate}×", ["rate": rate.formatted(.number.precision(.fractionLength(0...2)).locale(Localization.locale))])
     }
 
     // MARK: Phase

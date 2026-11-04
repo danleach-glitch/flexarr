@@ -476,7 +476,7 @@ struct RootView: View {
             }
         } message: {
             if model.player.problem == .takenOver {
-                Text((model.player.errorMessage ?? "") + "\n\n" + t("The other screen will stop if you watch here."))
+                Text(t("{message}\n\nThe other screen will stop if you watch here.", ["message": model.player.errorMessage ?? ""]))
             } else {
                 Text(model.player.errorMessage ?? "")
             }

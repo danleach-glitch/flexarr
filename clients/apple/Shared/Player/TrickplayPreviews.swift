@@ -18,6 +18,8 @@ final class TrickplayPreviews {
     private static let sheetsKept = 3
     private var loading: Set<Int> = []
     private var task: Task<Void, Never>?
+    /// The last thumbnail cut out, so hovering or scrubbing over one spot doesn't cut it again on every redraw.
+    private var lastThumbnail: (key: String, image: PlatformImage)?
     /// A sheet arrived: whatever is showing a preview should ask again.
     var onLoaded: (() -> Void)?
 
@@ -50,6 +52,14 @@ final class TrickplayPreviews {
             fetch(sheet)
             return nil
         }
+        let key = "\(sheet)/\(x)/\(y)"
+        if let lastThumbnail, lastThumbnail.key == key { return lastThumbnail.image }
+        let thumbnail = crop(image, x: x, y: y, manifest: manifest)
+        lastThumbnail = thumbnail.map { (key, $0) }
+        return thumbnail
+    }
+
+    private func crop(_ image: PlatformImage, x: Int, y: Int, manifest: TrickplayManifest) -> PlatformImage? {
         #if canImport(UIKit)
         let scale = image.scale
         #else

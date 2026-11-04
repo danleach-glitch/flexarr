@@ -2691,7 +2691,7 @@
   "The next episode starts after a 10-second countdown.": "wans",
   "The next episode starts after a 10-second countdown. Subtitles that run early or late can be moved on Apple TV or the web. In the black bars puts subtitles below the picture of movies wider than the screen.": "an",
   "The order of your libraries and Live TV in the sidebar, between Home and Discover.": "an",
-  "The other screen will stop if you watch here.": "wa",
+  "The other screen will stop if you watch here.": "w",
   "The passphrases don’t match.": "w",
   "The podcast couldn’t be added": "s",
   "The podcast episode you’re on, to carry on with": "n",
@@ -3589,6 +3589,7 @@
   "{position} of {length}": "n",
   "{profile}’s own. The web, the Apple TV and Android list your libraries in this order too.": "a",
   "{range}, {episodes}": "w",
+  "{rate}×": "a",
   "{received} of {total}. Flexarr restarts to install it once it’s downloaded.": "w",
   "{received}. Flexarr restarts to install it once it’s downloaded.": "w",
   "{score}%": "a",
@@ -3658,6 +3659,7 @@
   "“{range}” is far too wide a range to trust as a proxy.": "s",
   "−{amount} s": "a",
   "−{seconds} s": "a",
+  "−{time}": "a",
   "✓ {name} joined": "w"
  }
 }

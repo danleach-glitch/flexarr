@@ -3588,6 +3588,7 @@
  "{position} of {length}": "{position} of {length}",
  "{profile}’s own. The web, the Apple TV and Android list your libraries in this order too.": "{profile}’s own. The web, the Apple TV and Android list your libraries in this order too.",
  "{range}, {episodes}": "{range}, {episodes}",
+ "{rate}×": "{rate}×",
  "{received} of {total}. Flexarr restarts to install it once it’s downloaded.": "{received} of {total}. Flexarr restarts to install it once it’s downloaded.",
  "{received}. Flexarr restarts to install it once it’s downloaded.": "{received}. Flexarr restarts to install it once it’s downloaded.",
  "{score}%": "{score}%",
@@ -3657,5 +3658,6 @@
  "“{range}” is far too wide a range to trust as a proxy.": "“{range}” is far too wide a range to trust as a proxy.",
  "−{amount} s": "−{amount} s",
  "−{seconds} s": "−{seconds} s",
+ "−{time}": "−{time}",
  "✓ {name} joined": "✓ {name} joined"
 }

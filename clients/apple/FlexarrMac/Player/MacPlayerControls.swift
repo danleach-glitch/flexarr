@@ -58,7 +58,7 @@ struct MacPlayerControls: View {
     var body: some View {
         ZStack {
             if state.isLoading && !state.asleep {
-                ProgressView().controlSize(.large).tint(.white)
+                ProgressView().controlSize(.large).tint(Color.screen)
             }
             if let flash = state.flash {
                 Text(flash)
@@ -139,13 +139,7 @@ struct MacPlayerControls: View {
                 HStack { Spacer(); promptPill }.padding(.bottom, 6)
             }
             MacScrubber(state: state, screen: screen)
-            HStack {
-                Text(PlayerViewController.clock(state.position))
-                Spacer()
-                Text(remaining)
-            }
-            .font(.system(size: 14, weight: .semibold)).monospacedDigit()
-            .foregroundStyle(.white.opacity(0.8))
+            PlayerTimes(state: state)
             ZStack {
                 HStack {
                     if let detail = state.detail {
@@ -160,11 +154,6 @@ struct MacPlayerControls: View {
         }
         .padding(.horizontal, Self.edge).padding(.top, 80).padding(.bottom, state.isFullScreen ? 36 : 28)
         .background(LinearGradient(colors: [.clear, .black.opacity(0.8)], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
-    }
-
-    private var remaining: String {
-        if state.isLive { return state.behindLive < LiveTransport.liveSlack ? t("Live") : "−" + PlayerViewController.clock(state.behindLive) }
-        return state.duration > 0 ? "−" + PlayerViewController.clock(max(0, state.duration - state.position)) : ""
     }
 
     private var transport: some View {
@@ -215,16 +204,16 @@ struct MacPlayerControls: View {
                     Label(prompt.title, systemImage: prompt.symbol)
                         .font(.callout.weight(.semibold)).monospacedDigit()
                         .padding(.horizontal, 16).padding(.vertical, 9)
-                        .foregroundStyle(Color.black)
-                        .background(Color.white, in: UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: 18,
-                                                                           bottomTrailingRadius: prompt.countingDown ? 0 : 18,
-                                                                           topTrailingRadius: prompt.countingDown ? 0 : 18))
+                        .foregroundStyle(Color.room)
+                        .background(Color.screen.opacity(0.95), in: UnevenRoundedRectangle(topLeadingRadius: Radius.panel, bottomLeadingRadius: Radius.panel,
+                                                                           bottomTrailingRadius: prompt.countingDown ? 0 : Radius.panel,
+                                                                           topTrailingRadius: prompt.countingDown ? 0 : Radius.panel))
                 }
                 if prompt.countingDown {
                     Button { screen?.cancelNext() } label: {
                         Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
                             .padding(.horizontal, 12).padding(.vertical, 12)
-                            .background(Color.aisle.opacity(0.85), in: UnevenRoundedRectangle(bottomTrailingRadius: 18, topTrailingRadius: 18))
+                            .background(Color.aisle.opacity(0.85), in: UnevenRoundedRectangle(bottomTrailingRadius: Radius.panel, topTrailingRadius: Radius.panel))
                     }
                     .accessibilityLabel(t(Words.cancel))
                 }
@@ -353,13 +342,36 @@ struct MacPlayerControls: View {
                 Text(detail).font(.title3.weight(.medium)).monospacedDigit().foregroundStyle(.white.opacity(0.75))
                 HStack(spacing: 12) {
                     Button(t("+{minutes} min", ["minutes": 15])) { screen?.setSleep(.minutes(15)) }
-                        .buttonStyle(.borderedProminent).tint(.white).foregroundStyle(.black)
+                        .buttonStyle(.borderedProminent).tint(Color.screen).foregroundStyle(Color.room)
                     Button(t("Cancel timer")) { screen?.setSleep(nil) }
                         .buttonStyle(.bordered)
                 }
                 .controlSize(.large)
             }
         }
+    }
+}
+
+/// The times under the timeline's ends: its own view, so only it redraws as the clock moves.
+private struct PlayerTimes: View {
+    let state: MacPlayerState
+
+    var body: some View {
+        HStack {
+            Text(PlayerViewController.clock(state.position))
+            Spacer()
+            Text(remaining)
+        }
+        .font(.system(size: 14, weight: .semibold)).monospacedDigit()
+        .foregroundStyle(Color.screen.opacity(0.8))
+        .accessibilityElement(children: .combine)
+    }
+
+    private var remaining: String {
+        if state.isLive {
+            return state.behindLive < LiveTransport.liveSlack ? t("Live") : t("−{time}", ["time": PlayerViewController.clock(state.behindLive)])
+        }
+        return state.duration > 0 ? t("−{time}", ["time": PlayerViewController.clock(max(0, state.duration - state.position))]) : ""
     }
 }
 
@@ -421,7 +433,7 @@ private struct MacScrubber: View {
             if let image = state.previews?.image(at: seconds) {
                 Image(nsImage: image).resizable().aspectRatio(state.previews?.aspectRatio ?? 16 / 9, contentMode: .fill)
                     .frame(width: 160, height: 160 / (state.previews?.aspectRatio ?? 16 / 9))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
             } else {
                 Color.clear.frame(width: 160, height: 90)
             }
