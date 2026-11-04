@@ -88,12 +88,16 @@ public sealed class ServerNameTests
         var before = await client.GetFromJsonAsync<SettingsDto>("/api/v1/settings", Json);
         Assert.Null(before!.ServerName);
         Assert.Equal(ServerName.Default, before.DefaultServerName);
-        Assert.Equal(ServerName.Default, (await client.GetFromJsonAsync<SystemStatus>("/api/v1/system/status", Json))!.ServerName);
+        var unnamed = await client.GetFromJsonAsync<SystemStatus>("/api/v1/system/status", Json);
+        Assert.Equal(ServerName.Default, unnamed!.ServerName);
+        Assert.False(unnamed.ServerNamed);
 
         var renamed = await client.PutAsJsonAsync("/api/v1/settings", new { serverName = "  Smith House " });
         Assert.Equal(HttpStatusCode.OK, renamed.StatusCode);
         Assert.Equal("Smith House", (await renamed.Content.ReadFromJsonAsync<SettingsDto>(Json))!.ServerName);
-        Assert.Equal("Smith House", (await client.GetFromJsonAsync<SystemStatus>("/api/v1/system/status", Json))!.ServerName);
+        var named = await client.GetFromJsonAsync<SystemStatus>("/api/v1/system/status", Json);
+        Assert.Equal("Smith House", named!.ServerName);
+        Assert.True(named.ServerNamed);
         Assert.Equal("Smith House", (await client.GetFromJsonAsync<JsonObject>("/api/v1/setup"))!["serverName"]!.GetValue<string>());
         Assert.Equal("Smith House", (await MediaBrowser(server).GetFromJsonAsync<JsonObject>("/System/Configuration"))!["ServerName"]!.GetValue<string>());
 
