@@ -138,7 +138,13 @@ struct FlexarrMacApp: App {
                 )) {
                     Button(t("OK"), role: .cancel) {}
                 }
-                .onAppear { delegate.model = model }
+                .onAppear {
+                    delegate.model = model
+                    #if DEBUG
+                    DebugSnapshots.currentModel = model
+                    DebugSnapshots.runIfAsked()
+                    #endif
+                }
         }
         .defaultSize(width: 1280, height: 800)
         .windowToolbarStyle(.unified(showsTitle: false))

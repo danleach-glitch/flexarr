@@ -5,7 +5,7 @@ import Synchronization
 /// Where sign-ins and keys are kept in the Keychain: on this device only, so a backup restored to another phone
 /// (or Quick Start) doesn't bring them along. Two phones sharing one device token and notification key would take the
 /// command stream from each other and read each other's notifications; the new phone signs in for itself instead.
-enum KeychainPlacement {
+public enum KeychainPlacement {
     static var accessible: CFString { kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly }
 
     /// `query` in the right Keychain. On a Mac that's the data-protection Keychain, the one iOS has, where
@@ -27,10 +27,16 @@ enum KeychainPlacement {
     /// Whether this build may use the data-protection Keychain: it needs the app's identifier (a signed build), and
     /// says "missing entitlement" otherwise.
     public static let usesDataProtectionKeychain: Bool = {
+        // Reading answers "not found" either way; only saving says whether it's allowed.
         let probe: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
                                     kSecAttrService as String: "io.github.flexarr.keychain-probe",
+                                    kSecAttrAccount as String: "probe",
                                     kSecUseDataProtectionKeychain as String: true]
-        return SecItemCopyMatching(probe as CFDictionary, nil) != errSecMissingEntitlement
+        var add = probe
+        add[kSecValueData as String] = Data()
+        let status = SecItemAdd(add as CFDictionary, nil)
+        SecItemDelete(probe as CFDictionary)
+        return status == errSecSuccess || status == errSecDuplicateItem
     }()
     #endif
 
