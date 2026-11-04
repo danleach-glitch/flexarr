@@ -105,7 +105,7 @@ struct PageBackButton: View {
 
     var body: some View {
         Button { dismiss() } label: {
-            Image(systemName: "chevron.left")
+            Image(systemName: "chevron.backward")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Color.screen)
                 .frame(width: 44, height: PageControl.height)
@@ -131,8 +131,14 @@ struct PageSearchField: View {
     /// Return in the field.
     var onSubmit: () -> Void = {}
     @FocusState private var ownFocus: Bool
+    @Environment(Router.self) private var router: Router?
+    @State private var depth: Int?
 
     private var focused: FocusState<Bool>.Binding { focus ?? $ownFocus }
+
+    /// The fields on screen, by their place's stack and depth in it, for ⌘F (MacNavigation.findOnPage). Not
+    /// observed: only read when ⌘F is pressed.
+    @MainActor static var registered: [(router: ObjectIdentifier, depth: Int)] = []
 
     var body: some View {
         HStack(spacing: 8) {
@@ -154,6 +160,22 @@ struct PageSearchField: View {
         .frame(width: width, height: PageControl.height)
         .background(Capsule().fill(PageControl.track))
         .overlay(Capsule().strokeBorder(focused.wrappedValue ? AnyShapeStyle(Color.silver.opacity(0.6)) : AnyShapeStyle(PageControl.edge)))
+        .onAppear {
+            guard let router else { return }
+            depth = router.path.count
+            Self.registered.append((ObjectIdentifier(router), router.path.count))
+        }
+        .onDisappear {
+            guard let router, let depth else { return }
+            if let at = Self.registered.firstIndex(where: { $0.router == ObjectIdentifier(router) && $0.depth == depth }) {
+                Self.registered.remove(at: at)
+            }
+        }
+        .onChange(of: MacNavigation.shared.find?.count) { _, _ in
+            guard let router, let depth, let find = MacNavigation.shared.find,
+                  find.router == ObjectIdentifier(router), find.depth == depth else { return }
+            focused.wrappedValue = true
+        }
     }
 }
 

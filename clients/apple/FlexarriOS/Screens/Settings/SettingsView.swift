@@ -271,8 +271,23 @@ extension View {
 /// A page inside Settings gets the Mac's back button (FlexarrMac's capsule); Settings itself, a sidebar place, has none.
 private struct SettingsBack: ViewModifier {
     let isSubpage: Bool
+    #if os(macOS)
+    @Environment(\.dismiss) private var dismiss
+    @State private var page = UUID()
+    #endif
 
     func body(content: Content) -> some View {
+        #if os(macOS)
+        // Settings opens its pages by link rather than on the place's path: they tell the menu's Back (⌘[) themselves.
+        if isSubpage {
+            content.macBackButton()
+                .onAppear { MacNavigation.shared.backActions.append((page, dismiss)) }
+                .onDisappear { MacNavigation.shared.backActions.removeAll { $0.page == page } }
+        } else {
+            content
+        }
+        #else
         if isSubpage { content.macBackButton() } else { content }
+        #endif
     }
 }

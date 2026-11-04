@@ -28,7 +28,8 @@ struct FlexarrCommands: Commands {
                 .disabled(!MacNavigation.shared.canGoBack)
         }
         CommandGroup(after: .textEditing) {
-            Button(t(Words.search)) { MacNavigation.shared.selection = .search }
+            // The page's own search field where it has one (a library, Discover), else Search.
+            Button(t(Words.search)) { MacNavigation.shared.findOnPage() }
                 .keyboardShortcut("f")
         }
         CommandMenu(t("Playback")) {

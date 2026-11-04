@@ -278,7 +278,7 @@ struct OfflineCollectionView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .toolbar {
+        .pageActions {
             if collection != nil {
                 Button { removing = true } label: { Label(t("Remove download"), systemImage: Symbol.delete) }
             }

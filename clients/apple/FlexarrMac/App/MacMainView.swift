@@ -31,16 +31,34 @@ final class MacNavigation {
         return router
     }
 
-    var canGoBack: Bool { selection.map { !(routers[$0]?.path.isEmpty ?? true) } ?? false }
+    /// Pages opened by a link rather than on a place's path (Settings' own), newest last: Back closes the newest.
+    var backActions: [(page: UUID, close: DismissAction)] = []
+    /// ⌘F on a page with its own search field: that field, by its place's stack and its depth in it, takes the cursor.
+    private(set) var find: (router: ObjectIdentifier, depth: Int, count: Int)?
+
+    var canGoBack: Bool { !backActions.isEmpty || (selection.map { !(routers[$0]?.path.isEmpty ?? true) } ?? false) }
 
     func goBack() {
+        if let newest = backActions.last { newest.close(); return }
         guard let selection, let router = routers[selection], !router.path.isEmpty else { return }
         router.path.removeLast()
+    }
+
+    /// The page in front's search field, else Search.
+    func findOnPage() {
+        guard let selection, let router = routers[selection], backActions.isEmpty,
+              PageSearchField.registered.contains(where: { $0.router == ObjectIdentifier(router) && $0.depth == router.path.count })
+        else {
+            self.selection = .search
+            return
+        }
+        find = (ObjectIdentifier(router), router.path.count, (find?.count ?? 0) + 1)
     }
 
     /// A new profile or server: every place starts again at its top.
     func reset() {
         routers = [:]
+        backActions = []
         selection = .home
     }
 }
@@ -171,9 +189,13 @@ struct MacMainView: View {
         case .home:
             if model.isOffline { OfflineView(title: t(Words.home)) { navigation.selection = .downloads } } else { HomeView() }
         case .watchlist:
-            WatchlistView()
+            if model.isOffline { OfflineView(title: t(Words.watchlist)) { navigation.selection = .downloads } } else { WatchlistView() }
         case .discover:
-            MacDiscoverView(offersTitles: discoversTitles, offersMusic: discoversMusic)
+            if model.isOffline {
+                OfflineView(title: t(Words.discover)) { navigation.selection = .downloads }
+            } else {
+                MacDiscoverView(offersTitles: discoversTitles, offersMusic: discoversMusic)
+            }
         case .entry(.library(let library)):
             RouteDestination(route: .library(library, .title))
         case .entry(.podcasts):
