@@ -13,7 +13,7 @@ enum DvrActions {
         }
         let recording = try await client.record(programme: programme.id)
         return recording.clashes
-            ? "\(programme.title) clashes with recordings already on the list: every stream is wanted then, so it won't record unless one of them comes off."
+            ? t("{title} clashes with recordings already on the list: every stream is wanted then, so it won't record unless one of them comes off.", ["title": programme.title])
             : nil
     }
 
@@ -29,10 +29,10 @@ enum DvrActions {
     }
 
     static func recordLabel(_ programme: LiveProgramme) -> String {
-        programme.isRecordingNow ? "Stop recording" : programme.isSetToRecord ? "Don't record" : "Record"
+        programme.isRecordingNow ? t("Stop recording") : programme.isSetToRecord ? t("Don't record") : t("Record")
     }
 
     static func seriesLabel(_ programme: LiveProgramme) -> String {
-        programme.series == true ? "Stop recording the series" : "Record series"
+        programme.series == true ? t("Stop recording the series") : t("Record series")
     }
 }

@@ -24,7 +24,7 @@ struct BookMoreMenu: View {
     var body: some View {
         menu
             .accessibilityLabel(t("More actions"))
-            .alert("Delete \(item.title)?", isPresented: $asking, presenting: plan) { _ in
+            .alert(t("Delete {title}?", ["title": item.title]), isPresented: $asking, presenting: plan) { _ in
                 Button(t("Delete book"), role: .destructive) { Task { await delete() } }
                 Button(t("Keep it"), role: .cancel) {}
             } message: { plan in

@@ -114,8 +114,8 @@ final class LiveTvController: NSObject {
         self.transport = transport
         screen.transport = transport
         screen.setEpisodeNavigation(hasPrevious: channels.count > 1, hasNext: channels.count > 1)
-        screen.controls.previousButton.accessibilityLabel = "Previous channel"
-        screen.controls.nextButton.accessibilityLabel = "Next channel"
+        screen.controls.previousButton.accessibilityLabel = t("Previous channel")
+        screen.controls.nextButton.accessibilityLabel = t("Next channel")
         screen.setDetail(started.method == "Original" ? nil : started.method)
         showTitle(for: started.channel, programme: started.channel.now)
         loadLogo(started.channel, into: screen)
@@ -139,7 +139,7 @@ final class LiveTvController: NSObject {
                     try await client.liveHeartbeat(viewer: viewer)
                 } catch FlexarrClientError.http(410, let message) {
                     // A recording needed the stream: say so, rather than the picture just stopping.
-                    self.close(message: message ?? "A recording needed the stream.")
+                    self.close(message: message ?? t("A recording needed the stream."))
                     return
                 } catch {
                     // A missed beat; the next one will do.
@@ -226,11 +226,11 @@ final class LiveTvController: NSObject {
     private func offer(instead recording: RecordingInTheWay, of wanted: LiveChannel) {
         let present = { [weak self] in
             guard let self, let top = Self.topViewController() else { return }
-            let alert = UIAlertController(title: "Recording", message: recording.message, preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "Watch \(recording.channelName)", style: .default) { [weak self] _ in
+            let alert = UIAlertController(title: t("Recording"), message: recording.message, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: t("Watch {channel}", ["channel": recording.channelName]), style: .default) { [weak self] _ in
                 self?.watchRecorded(recording)
             })
-            alert.addAction(UIAlertAction(title: "Stop the recording", style: .destructive) { [weak self] _ in
+            alert.addAction(UIAlertAction(title: t("Stop the recording"), style: .destructive) { [weak self] _ in
                 guard let self, let client = self.client else { return }
                 Task {
                     try? await client.removeRecording(recording.recordingId)
@@ -239,7 +239,7 @@ final class LiveTvController: NSObject {
                     self.start(wanted)
                 }
             })
-            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+            alert.addAction(UIAlertAction(title: t(Words.cancel), style: .cancel))
             top.present(alert, animated: true)
         }
         stop()
@@ -271,12 +271,13 @@ final class LiveTvController: NSObject {
         return error.localizedDescription
     }
 
-    private static let clock: DateFormatter = {
+    /// Made at use, so it follows the language shown.
+    private static var clock: DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = Localization.locale
         formatter.timeStyle = .short
         return formatter
-    }()
+    }
 
     static func startTime(_ programme: LiveProgramme) -> String {
         clock.string(from: programme.start)
@@ -315,7 +316,7 @@ extension LiveTvController: PlayerScreenDelegate {
         let behind = !transport.isAtLive
         if behind != promptShown {
             promptShown = behind
-            screen.setPrompt(behind ? "Back to live" : nil, countingDown: false)
+            screen.setPrompt(behind ? t("Back to live") : nil, symbol: "dot.radiowaves.left.and.right", countingDown: false)
         }
     }
 

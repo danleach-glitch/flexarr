@@ -1312,7 +1312,7 @@ final class MusicPlayer {
 
     private func trackFailed(_ reason: String?) {
         log.error("Track failed: \(reason ?? "no reason")", ["playbackId": playbackId])
-        errorMessage = reason ?? "This track couldn't be played."
+        errorMessage = reason ?? t("This track couldn't be played.")
         endSession()
         clearItem()
         // Move on rather than fall silent, unless it was the last one.
@@ -1465,12 +1465,12 @@ struct BookmarkNotice: Equatable {
     let isError: Bool
 
     static func added(_ position: Double) -> BookmarkNotice {
-        BookmarkNotice(text: "Bookmarked \(Format.timestamp(position))", isError: false)
+        BookmarkNotice(text: t("Bookmarked {time}", ["time": Format.timestamp(position)]), isError: false)
     }
 
     static func failed(_ error: Error) -> BookmarkNotice {
         let offline = (error as? URLError).map { [.notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost, .timedOut, .cannotFindHost].contains($0.code) } ?? false
-        return BookmarkNotice(text: offline ? "No connection: bookmark not added" : "Bookmark not added", isError: true)
+        return BookmarkNotice(text: offline ? t("No connection: bookmark not added") : t("Bookmark not added"), isError: true)
     }
 
     /// A light tap for one added, the warning buzz for one that wasn't.

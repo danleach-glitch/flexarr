@@ -52,13 +52,13 @@ struct LiveChannelPicker: View {
             ScrollView(.vertical) {
                 LazyVStack(alignment: .leading, spacing: rowSpacing) {
                     if let previous {
-                        heading("Last watched")
+                        heading(t("Last watched"))
                         let channel = listed.first { $0.id == previous.id } ?? previous
                         Button { onPick(channel) } label: { row(channel) }
                             .buttonStyle(PickerRowStyle(current: false))
                             .focused($focused, equals: Self.lastWatched)
                             .id(Self.lastWatched)
-                        heading("All channels").padding(.top, 12)
+                        heading(t("All channels")).padding(.top, 12)
                     }
                     ForEach(listed) { channel in
                         Button { onPick(channel) } label: { row(channel) }
@@ -114,7 +114,7 @@ struct LiveChannelPicker: View {
             .frame(width: logoWidth, height: logoWidth * 9 / 16)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    Text(channel.now?.displayTitle ?? "No listings")
+                    Text(channel.now?.displayTitle ?? t("No listings"))
                         .font(titleFont)
                         .foregroundStyle(Color.screen)
                         .lineLimit(1)

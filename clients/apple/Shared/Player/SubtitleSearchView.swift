@@ -67,7 +67,7 @@ struct SubtitleSearchView: View {
                         .padding(.bottom, 8)
                 }
                 Button { pick(nil) } label: {
-                    row(id: Self.bestMatch, title: "Best match", detail: "Flexarr picks the closest one", provider: nil, matchesFile: false)
+                    row(id: Self.bestMatch, title: t("Best match"), detail: t("Flexarr picks the closest one"), provider: nil, matchesFile: false)
                 }
                 .buttonStyle(PickerRowStyle(current: false))
                 .focused($focused, equals: Self.bestMatch)
@@ -111,7 +111,7 @@ struct SubtitleSearchView: View {
                     .font(titleFont)
                     .foregroundStyle(Color.screen)
                     .lineLimit(1)
-                Text(downloading == id ? "Downloading…" : detail)
+                Text(downloading == id ? t("Downloading…") : detail)
                     .font(detailFont)
                     .foregroundStyle(Color.usher)
                     .lineLimit(2)
