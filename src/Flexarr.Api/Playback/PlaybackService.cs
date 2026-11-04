@@ -4,6 +4,7 @@ using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Media;
 using Flexarr.Streaming;
 using Flexarr.Streaming.Remux;
@@ -132,7 +133,7 @@ public sealed class PlaybackService(
             if (uncapped.Method == PlaybackMethod.DirectPlay)
             {
                 asItIs = uncapped;
-                decision = decision with { Reasons = [.. decision.Reasons.Select(r => r == PlaybackDecider.BitrateReason ? AwayFromHome.Reason : r)] };
+                decision = decision with { Reasons = [.. decision.Reasons.Select(r => r == Loc.T(PlaybackDecider.BitrateReason) ? Loc.T(AwayFromHome.Reason) : r)] };
             }
         }
 

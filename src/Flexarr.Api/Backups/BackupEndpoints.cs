@@ -5,10 +5,12 @@ using Flexarr.Api.Endpoints;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Scanning;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Backups;
 
@@ -83,7 +85,7 @@ public static class BackupEndpoints
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException
                 or Microsoft.Data.Sqlite.SqliteException)
             {
-                return Results.Problem($"The backup couldn’t be made: {ex.Message}", statusCode: 500);
+                return Problems.Of("The backup couldn’t be made: {message}", new { message = ex.Message }, status: 500);
             }
         });
 
@@ -99,7 +101,7 @@ public static class BackupEndpoints
 
             return http.User.FindFirst(FlexarrClaims.Method)?.Value == Authentication.ApiKeyAuthenticationHandler.Methods.ApiKey || links.Redeem(ticket, name)
                 ? Results.File(path, "application/zip", name)
-                : Results.Problem("That download link has expired. Download the backup again.", statusCode: 403);
+                : Problems.Of("That download link has expired. Download the backup again.", status: 403);
         });
 
         group.MapPost("/{name}/download-link", async (string name, KeyRequest? request, HttpContext http, BackupStore store, DownloadLinks links, FlexarrDbContext db,
@@ -110,7 +112,7 @@ public static class BackupEndpoints
                 return Results.NotFound();
             }
 
-            if (await SettingsEndpoints.ConfirmKeyAsync(request, http, db, current, guard, ct, "download a backup") is { } refused)
+            if (await SettingsEndpoints.ConfirmKeyAsync(request, http, db, current, guard, ct, Loc.Mark("download a backup")) is { } refused)
             {
                 return refused;
             }
@@ -127,7 +129,7 @@ public static class BackupEndpoints
                 return Results.NotFound();
             }
 
-            if (await SettingsEndpoints.ConfirmKeyAsync(new KeyRequest(request?.Pin, request?.Confirm == true), http, db, current, guard, ct, "download a backup") is { } refused)
+            if (await SettingsEndpoints.ConfirmKeyAsync(new KeyRequest(request?.Pin, request?.Confirm == true), http, db, current, guard, ct, Loc.Mark("download a backup")) is { } refused)
             {
                 return refused;
             }
@@ -159,7 +161,7 @@ public static class BackupEndpoints
                 return Results.NotFound();
             }
 
-            if (await SettingsEndpoints.ConfirmKeyAsync(request, http, db, current, guard, ct, "restore a backup") is { } refused)
+            if (await SettingsEndpoints.ConfirmKeyAsync(request, http, db, current, guard, ct, Loc.Mark("restore a backup")) is { } refused)
             {
                 return refused;
             }
@@ -187,7 +189,7 @@ public static class BackupEndpoints
         group.MapPost("/settings-export", async (DownloadRequest? request, HttpContext http, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options,
             TimeProvider time, CurrentProfile current, PinGuard guard, CancellationToken ct) =>
         {
-            if (await SettingsEndpoints.ConfirmKeyAsync(new KeyRequest(request?.Pin, request?.Confirm == true), http, db, current, guard, ct, "export the settings") is { } refused)
+            if (await SettingsEndpoints.ConfirmKeyAsync(new KeyRequest(request?.Pin, request?.Confirm == true), http, db, current, guard, ct, Loc.Mark("export the settings")) is { } refused)
             {
                 return refused;
             }
@@ -258,7 +260,7 @@ public static class BackupEndpoints
                 return Gone();
             }
 
-            if (await SettingsEndpoints.ConfirmKeyAsync(request, http, db, current, guard, ct, "restore a backup") is { } refused)
+            if (await SettingsEndpoints.ConfirmKeyAsync(request, http, db, current, guard, ct, Loc.Mark("restore a backup")) is { } refused)
             {
                 return refused;
             }
@@ -293,7 +295,7 @@ public static class BackupEndpoints
             // as showing the key does.
             if (SettingsTransfer.NeedsConfirmation(request.Sections)
                 && await SettingsEndpoints.ConfirmKeyAsync(new KeyRequest(request.Pin, request.Confirm), http, db, current, guard, ct,
-                    "use the server keys or paths from this file") is { } refused)
+                    Loc.Mark("use the server keys or paths from this file")) is { } refused)
             {
                 return refused;
             }
@@ -339,13 +341,13 @@ public static class BackupEndpoints
         SettingsTransfer.KeepMachinePaths(config, ServerConfigStore.PathFor(options.DataDirectory));
         if (File.Exists(config) && SettingsTransfer.BindProblem(JsonNode.Parse(await File.ReadAllTextAsync(config, ct)) as JsonObject ?? []) is { } settings)
         {
-            return Results.Problem($"The settings in this backup can’t be used: {settings}", statusCode: 409);
+            return Problems.Of("The settings in this backup can’t be used: {settings}", new { settings }, status: 409);
         }
 
         // One restore at a time: a second can't swap its backup in under the first's copy.
         if (!await PendingRestore.Gate.WaitAsync(TimeSpan.Zero, ct))
         {
-            return Results.Problem("A restore is already under way.", statusCode: 409);
+            return Problems.Of("A restore is already under way.", status: 409);
         }
 
         try
@@ -356,7 +358,7 @@ public static class BackupEndpoints
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                return Results.Problem($"Flexarr couldn’t keep a copy of the server as it is now, so nothing was restored: {ex.Message}", statusCode: 500);
+                return Problems.Of("Flexarr couldn’t keep a copy of the server as it is now, so nothing was restored: {message}", new { message = ex.Message }, status: 500);
             }
 
             PendingRestore.Stage(options.DataDirectory, unpacked, DateTime.UtcNow);
@@ -435,7 +437,7 @@ public static class BackupEndpoints
     }
 
     private static IResult ShortPassphrase() =>
-        Results.ValidationProblem(new Dictionary<string, string[]> { ["passphrase"] = [$"Use a passphrase of at least {BackupCrypto.MinPassphraseLength} characters."] });
+        Problems.Field("Use a passphrase of at least {minPassphraseLength} characters.", field: "passphrase", args: new { minPassphraseLength = BackupCrypto.MinPassphraseLength });
 
-    private static IResult Gone() => Results.Problem("That file is no longer here. Choose it again.", statusCode: 404);
+    private static IResult Gone() => Problems.Of("That file is no longer here. Choose it again.", status: 404);
 }

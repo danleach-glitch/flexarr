@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Flexarr.Api.Configuration;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Paths;
 using Flexarr.Core.Scanning;
 using Microsoft.EntityFrameworkCore;
@@ -165,25 +166,25 @@ public static class SettingsTransfer
 
         if (config.ToJsonString().Contains("\\u0000", StringComparison.Ordinal))
         {
-            return "a setting has a null character in it.";
+            return Loc.T("a setting has a null character in it.");
         }
 
         if (options.Backups.Folder is { } folder && !Path.IsPathFullyQualified(folder))
         {
-            return $"the backups folder “{folder}” isn’t a full path.";
+            return Loc.T("the backups folder “{folder}” isn’t a full path.", new { folder });
         }
 
         if (options.TrustedProxies.FirstOrDefault(p => System.Net.IPNetwork.TryParse(p, out var network) && network.PrefixLength < 8) is { } everyone)
         {
             // A proxy range that takes in the internet would let anyone say they're on the home network.
-            return $"“{everyone}” is far too wide a range to trust as a proxy.";
+            return Loc.T("“{range}” is far too wide a range to trust as a proxy.", new { range = everyone });
         }
 
         foreach (var (name, address) in Addresses(config))
         {
             if (!Uri.TryCreate(address, UriKind.Absolute, out var url) || url.Scheme is not ("http" or "https"))
             {
-                return $"{name}’s address “{address}” isn’t an http or https address.";
+                return Loc.T("{name}’s address “{address}” isn’t an http or https address.", new { name, address });
             }
         }
 
@@ -276,7 +277,7 @@ public static class SettingsTransfer
 
                 if (BindProblem(config) is { } problem)
                 {
-                    throw new InvalidDataException($"These settings can’t be used here: {problem}");
+                    throw new InvalidDataException(Loc.T("These settings can’t be used here: {problem}", new { problem }));
                 }
             });
         }
@@ -298,32 +299,32 @@ public static class SettingsTransfer
 
                 if (original.Type == LibraryType.TvShows && original.Name == RecordingsLibrary.Name)
                 {
-                    problems.Add($"{RecordingsLibrary.Name} is the name of Live TV’s recordings, so it wasn’t added.");
+                    problems.Add(Loc.T("{name} is the name of Live TV’s recordings, so it wasn’t added.", new { name = RecordingsLibrary.Name }));
                     continue;
                 }
 
                 if (here.Contains(original.Name, StringComparer.OrdinalIgnoreCase))
                 {
-                    problems.Add($"{original.Name} is already here, so it was left as it is.");
+                    problems.Add(Loc.T("{name} is already here, so it was left as it is.", new { name = original.Name }));
                     continue;
                 }
 
                 var folders = library.Folders.Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => Path.GetFullPath(f.Trim()).TrimEnd('/')).Distinct().ToList();
                 if (folders.Count == 0)
                 {
-                    problems.Add($"{original.Name} has no folders.");
+                    problems.Add(Loc.T("{name} has no folders.", new { name = original.Name }));
                     continue;
                 }
 
                 if (folders.FirstOrDefault(f => !Directory.Exists(f)) is { } missing)
                 {
-                    problems.Add($"{original.Name}: {missing} isn’t on this server.");
+                    problems.Add(Loc.T("{name}: {folder} isn’t on this server.", new { name = original.Name, folder = missing }));
                     continue;
                 }
 
                 if (folders.FirstOrDefault(f => taken.Any(t => PathComparison.IsUnder(f, t) || PathComparison.IsUnder(t, f))) is { } overlapping)
                 {
-                    problems.Add($"{original.Name}: {overlapping} overlaps a folder in another library.");
+                    problems.Add(Loc.T("{name}: {folder} overlaps a folder in another library.", new { name = original.Name, folder = overlapping }));
                     continue;
                 }
 
@@ -434,7 +435,7 @@ public static class SettingsTransfer
         .ToArray();
 
     /// <summary>The single services a config can point at, by config.json name.</summary>
-    private static readonly KeyValuePair<string, string>[] Services = [new("seerr", "Seerr"), new("bazarr", "Bazarr"), new("liveTv", "Live TV")];
+    private static readonly KeyValuePair<string, string>[] Services = [new("seerr", "Seerr"), new("bazarr", "Bazarr"), new("liveTv", Loc.Mark("Live TV"))];
 
     /// <summary>The web addresses in a config: each *arr's, Seerr's, Bazarr's and the Live TV source's.</summary>
     private static IEnumerable<(string Name, string Address)> Addresses(JsonObject config)
@@ -447,14 +448,14 @@ public static class SettingsTransfer
                 {
                     if (Text(instance, "baseUrl") is { Length: > 0 } address)
                     {
-                        yield return (Text(instance, "name") ?? "A Sonarr or Radarr", address);
+                        yield return (Text(instance, "name") ?? Loc.T("A Sonarr or Radarr"), address);
                     }
                 }
             }
             else if (Services.FirstOrDefault(s => key.Equals(s.Key, StringComparison.OrdinalIgnoreCase)) is { Key: not null } named
                 && value is JsonObject service && Text(service, "baseUrl") is { Length: > 0 } address)
             {
-                yield return (named.Value, address);
+                yield return (Loc.T(named.Value), address);
             }
         }
     }

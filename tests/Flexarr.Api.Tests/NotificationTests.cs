@@ -2,10 +2,12 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Flexarr.Api.Localization;
 using Flexarr.Api.Notifications;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.LiveTv;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Media;
 using Flexarr.Core.Notifications;
 using Flexarr.Core.Podcasts;
@@ -241,6 +243,41 @@ public sealed class NotificationTests : IAsyncLifetime
         // The relay was handed only the sealed payload, under the phone's token.
         Assert.Equal(string.Concat(Enumerable.Repeat("ab12", 16)), _relay.Sent[^1].GetProperty("token").GetString());
         Assert.Equal("sandbox", _relay.Sent[^1].GetProperty("environment").GetString());
+    }
+
+    [Fact]
+    public async Task NewFilm_IsTold_InItsProfilesLanguage()
+    {
+        // A pseudo-language of this test's own (en-XA is LanguageEndpointTests'; the catalog is shared, newest version wins).
+        Loc.Catalog.Install(LanguagePack.Read("""
+            {"format":1,"code":"en-XB","name":"Pseudo (notifications)","direction":"ltr","version":1,"coverage":{"server":1},
+             "messages":{"New film: {title}":"⟦Ñéŵ ƒíĺɱ: {title}⟧","Ready to watch.":"⟦Ŕéàđý ţö ŵàţçĥ.⟧"},"scopes":{"New film: {title}":"s","Ready to watch.":"s"}}
+            """u8));
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        string profileId;
+        using (var scope = _server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            profileId = (await db.NotificationDevices.SingleAsync()).ProfileId;
+            var profile = await db.Profiles.SingleAsync(p => p.Id == profileId);
+            profile.Language = "en-XB";
+            await db.SaveChangesAsync();
+            _server.Services.GetRequiredService<ProfileLanguages>().Changed(profileId, "en-XB");
+        }
+
+        await StartAsync();
+        var library = OldLibrary(LibraryType.Movies);
+        var film = Film(library, "Arrival", _clock.Now.AddMinutes(1));
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.MediaItems.Add(film);
+        });
+
+        var sent = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(5)));
+        Assert.Equal("⟦Ñéŵ ƒíĺɱ: Arrival (2020)⟧", sent.GetProperty("t").GetString());
+        Assert.Equal("⟦Ŕéàđý ţö ŵàţçĥ.⟧", sent.GetProperty("b").GetString());
     }
 
     [Fact]

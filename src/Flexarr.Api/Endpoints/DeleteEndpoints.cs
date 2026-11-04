@@ -9,6 +9,7 @@ using Flexarr.Integrations.Arr.Models;
 using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -51,7 +52,7 @@ public static partial class DeleteEndpoints
 
             if (item.Kind is not (MediaKind.Movie or MediaKind.Series or MediaKind.Episode or MediaKind.Audiobook or MediaKind.Album or MediaKind.Artist))
             {
-                return Results.Problem("Only movies, shows, episodes, audiobooks, albums and artists can be deleted.", statusCode: 400);
+                return Problems.Of("Only movies, shows, episodes, audiobooks, albums and artists can be deleted.", status: 400);
             }
 
             if (item.Kind == MediaKind.Audiobook)
@@ -76,14 +77,14 @@ public static partial class DeleteEndpoints
                         .OrderBy(a => item.Year is { } y && a.ReleaseDate is { } d ? Math.Abs(d.Year - y) : 0).FirstOrDefault();
                     if (match is null)
                     {
-                        return Results.Problem($"{owner.Lidarr.Name} has this artist but not this album under that name. Refresh the artist's details, then try again. Nothing was deleted.", statusCode: 409);
+                        return Problems.Of("{name} has this artist but not this album under that name. Refresh the artist's details, then try again. Nothing was deleted.", new { name = owner.Lidarr.Name }, status: 409);
                     }
 
                     (instance, managedId) = (owner.Lidarr, match.Id);
                 }
                 catch (HttpRequestException ex)
                 {
-                    return Results.Problem($"{owner.Lidarr.Name} didn't answer ({(int?)ex.StatusCode ?? 0}). Nothing was deleted.", statusCode: 502);
+                    return Problems.Of("{name} didn't answer ({status}). Nothing was deleted.", new { name = owner.Lidarr.Name, status = (int?)ex.StatusCode ?? 0 }, status: 502);
                 }
             }
 
@@ -121,7 +122,7 @@ public static partial class DeleteEndpoints
                         var roots = await db.LibraryFolders.Where(f => f.LibraryId == item.LibraryId).Select(f => f.Path).ToListAsync(ct);
                         if (lidarrArtist.Path is not { } lidarrPath || !roots.Any(r => PathComparison.IsUnder(PathMapper.Map(lidarrPath, options.CurrentValue.PathMappings), r)))
                         {
-                            return Results.Problem($"{instance.Name} keeps this artist's files outside this library, so Flexarr won't delete them. Nothing was deleted.", statusCode: 409);
+                            return Problems.Of("{name} keeps this artist's files outside this library, so Flexarr won't delete them. Nothing was deleted.", new { name = instance.Name }, status: 409);
                         }
 
                         // And that folder must be this artist's: matched to the wrong one of two same-named artists,
@@ -130,7 +131,7 @@ public static partial class DeleteEndpoints
                         var albumFolders = await db.MediaItems.Where(i => i.ParentId == item.Id && i.Kind == MediaKind.Album && i.Path != null).Select(i => i.Path!).ToListAsync(ct);
                         if (albumFolders.Count > 0 && !albumFolders.Any(f => PathComparison.IsUnder(f, artistFolder)))
                         {
-                            return Results.Problem($"{instance.Name}'s folder for this artist doesn't hold their albums here, so it may be another artist's. Check Fix match, then try again. Nothing was deleted.", statusCode: 409);
+                            return Problems.Of("{name}'s folder for this artist doesn't hold their albums here, so it may be another artist's. Check Fix match, then try again. Nothing was deleted.", new { name = instance.Name }, status: 409);
                         }
 
                         await arr.DeleteAsync(instance, $"artist/{arrId}?deleteFiles=true&addImportListExclusion=false", ct);
@@ -157,7 +158,7 @@ public static partial class DeleteEndpoints
                         catch (HttpRequestException ex)
                         {
                             // Unmonitored already, so it won't download again; its files stay until this is tried again.
-                            return Results.Problem($"{instance.Name} stopped wanting the album but didn't delete its files ({(int?)ex.StatusCode ?? 0}). Try again.", statusCode: 502);
+                            return Problems.Of("{name} stopped wanting the album but didn't delete its files ({status}). Try again.", new { name = instance.Name, status = (int?)ex.StatusCode ?? 0 }, status: 502);
                         }
 
                         // Only the artist's last album asks whether they're followed (and keeps them if so).
@@ -181,7 +182,7 @@ public static partial class DeleteEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Results.Problem($"{instance.Name} didn't delete it ({(int?)ex.StatusCode ?? 0}). Nothing was removed from Flexarr.", statusCode: 502);
+                return Problems.Of("{name} didn't delete it ({status}). Nothing was removed from Flexarr.", new { name = instance.Name, status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
 
             if (fromDisk)
@@ -224,7 +225,7 @@ public static partial class DeleteEndpoints
         var roots = await db.LibraryFolders.Where(f => f.LibraryId == item.LibraryId).Select(f => f.Path).ToListAsync(ct);
         if (files.FirstOrDefault(f => !roots.Any(r => PathComparison.IsUnder(f, r) && PathComparison.Key(f) != PathComparison.Key(r))) is { } outside)
         {
-            return Results.Problem($"{outside} isn't inside the library's folders, so Flexarr won't delete it. Nothing was deleted.", statusCode: 409);
+            return Problems.Of("{outside} isn't inside the library's folders, so Flexarr won't delete it. Nothing was deleted.", new { outside }, status: 409);
         }
 
         foreach (var file in files)
@@ -236,7 +237,7 @@ public static partial class DeleteEndpoints
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // Files deleted before this one are gone; the next scan drops them.
-                return Results.Problem($"Couldn't delete {Path.GetFileName(file)}: {ex.Message}", statusCode: 500);
+                return Problems.Of("Couldn't delete {file}: {message}", new { file = Path.GetFileName(file), message = ex.Message }, status: 500);
             }
         }
 

@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Flexarr.Api.Authentication;
 using Flexarr.Api.Configuration;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -159,7 +160,7 @@ public static class BackupArchive
             // itself enough to run out of memory.
             if (EntryCount(zipPath) is not (> 0 and <= MaxEntries))
             {
-                throw new InvalidDataException("This isn’t a Flexarr backup.");
+                throw new InvalidDataException(Loc.T("This isn’t a Flexarr backup."));
             }
 
             using var zip = ZipFile.OpenRead(zipPath);
@@ -169,12 +170,12 @@ public static class BackupArchive
             if (wanted.Any(e => e.Entry.Length > MaxSmallFileBytes && e.Entry.Length > e.Entry.CompressedLength * MaxExpansion)
                 || wanted.Any(e => e.Target != DatabaseName && e.Entry.Length > MaxSmallFileBytes))
             {
-                throw new InvalidDataException("This file unpacks to far more than a backup would. It isn’t one Flexarr made.");
+                throw new InvalidDataException(Loc.T("This file unpacks to far more than a backup would. It isn’t one Flexarr made."));
             }
 
             if (new DriveInfo(Path.GetFullPath(folder)).AvailableFreeSpace - total < SpareBytes)
             {
-                throw new InvalidDataException($"There isn’t room to unpack this backup: it needs {total / (1024 * 1024):N0} MB and 1 GB to spare.");
+                throw new InvalidDataException(Loc.T("There isn’t room to unpack this backup: it needs {megabytes} MB and 1 GB to spare.", new { megabytes = total / (1024 * 1024) }));
             }
 
             foreach (var (entry, target) in wanted)
@@ -195,13 +196,13 @@ public static class BackupArchive
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException or IOException and not FileNotFoundException and not DirectoryNotFoundException)
         {
-            throw new InvalidDataException("This isn’t a Flexarr backup, or it’s damaged.", ex);
+            throw new InvalidDataException(Loc.T("This isn’t a Flexarr backup, or it’s damaged."), ex);
         }
 
         var database = Path.Combine(folder, DatabaseName);
         if (manifest is null || !File.Exists(database))
         {
-            throw new InvalidDataException("This isn’t a Flexarr backup.");
+            throw new InvalidDataException(Loc.T("This isn’t a Flexarr backup."));
         }
 
         if (SettingsProblem(Path.Combine(folder, ServerConfigStore.FileName)) is { } settingsProblem)
@@ -215,27 +216,27 @@ public static class BackupArchive
             await db.OpenAsync(ct);
             if (await ScalarAsync<string>(db, "PRAGMA quick_check", ct) != "ok")
             {
-                return new BackupContents(manifest, 0, 0, 0, "The database in this backup is damaged.");
+                return new BackupContents(manifest, 0, 0, 0, Loc.T("The database in this backup is damaged."));
             }
 
             // Flexarr's database has only tables and indexes. A trigger or view would be something else's doing, and
             // would run inside the server once restored.
             if (await ScalarAsync<long>(db, "SELECT COUNT(*) FROM sqlite_master WHERE type NOT IN ('table', 'index')", ct) > 0)
             {
-                return new BackupContents(manifest, 0, 0, 0, "The database in this backup has things in it Flexarr didn’t make, so it won’t be restored.");
+                return new BackupContents(manifest, 0, 0, 0, Loc.T("The database in this backup has things in it Flexarr didn’t make, so it won’t be restored."));
             }
 
             var migration = await ScalarAsync<string>(db, "SELECT MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId DESC LIMIT 1", ct);
             if (migration is null || !knownMigrations.Contains(migration))
             {
                 return new BackupContents(manifest, 0, 0, 0, migration is null
-                    ? "The database in this backup can’t be read."
-                    : $"This backup is from a newer Flexarr ({manifest.FlexarrVersion}). Update this server, then restore it.");
+                    ? Loc.T("The database in this backup can’t be read.")
+                    : Loc.T("This backup is from a newer Flexarr ({version}). Update this server, then restore it.", new { version = manifest.FlexarrVersion }));
             }
         }
         catch (SqliteException)
         {
-            return new BackupContents(manifest, 0, 0, 0, "The database in this backup can’t be read.");
+            return new BackupContents(manifest, 0, 0, 0, Loc.T("The database in this backup can’t be read."));
         }
 
         // The unpacked copy is brought up to this version now (so the restart doesn't), and then every table and
@@ -265,7 +266,7 @@ public static class BackupArchive
         }
         catch (Exception ex) when (ex is SqliteException or InvalidOperationException or DbUpdateException)
         {
-            return new BackupContents(manifest, 0, 0, 0, "The database in this backup doesn’t match what Flexarr expects, so it won’t be restored.");
+            return new BackupContents(manifest, 0, 0, 0, Loc.T("The database in this backup doesn’t match what Flexarr expects, so it won’t be restored."));
         }
     }
 
@@ -361,14 +362,14 @@ public static class BackupArchive
         {
             if (JsonNode.Parse(File.ReadAllText(path)) is not JsonObject config)
             {
-                return "The settings in this backup can’t be read.";
+                return Loc.T("The settings in this backup can’t be read.");
             }
 
-            return SettingsTransfer.BindProblem(config) is { } problem ? $"The settings in this backup can’t be used: {problem}" : null;
+            return SettingsTransfer.BindProblem(config) is { } problem ? Loc.T("The settings in this backup can’t be used: {problem}", new { problem }) : null;
         }
         catch (Exception ex) when (ex is JsonException or ArgumentException or InvalidOperationException)
         {
-            return "The settings in this backup can’t be read.";
+            return Loc.T("The settings in this backup can’t be read.");
         }
     }
 
@@ -399,7 +400,7 @@ public static class BackupArchive
             copied += read;
             if (copied > limit)
             {
-                throw new InvalidDataException("This file unpacks to more than it says. It isn’t one Flexarr made.");
+                throw new InvalidDataException(Loc.T("This file unpacks to more than it says. It isn’t one Flexarr made."));
             }
 
             await output.WriteAsync(buffer.AsMemory(0, read), ct);

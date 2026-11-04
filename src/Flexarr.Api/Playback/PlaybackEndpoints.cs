@@ -4,11 +4,13 @@ using Flexarr.Api.Events;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Media;
 using Flexarr.Streaming;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Playback;
 
@@ -25,7 +27,7 @@ public static partial class PlaybackEndpoints
             // JSON leaves it null when the body has none, whatever the record says.
             if (request.Profile is null)
             {
-                return Results.Problem("Say what the player can play: the request needs a profile.", statusCode: 400);
+                return Problems.Of("Say what the player can play: the request needs a profile.", status: 400);
             }
 
             try
@@ -50,7 +52,7 @@ public static partial class PlaybackEndpoints
             }
             catch (TranscodeLimitException ex)
             {
-                return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: "The server is busy");
+                return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: Loc.T("The server is busy"));
             }
             catch (PlaybackTakenOverException ex)
             {
@@ -93,7 +95,7 @@ public static partial class PlaybackEndpoints
         {
             if (!double.IsFinite(request.Seconds) || Math.Abs(request.Seconds) > 60)
             {
-                return Results.Problem("Subtitles can be moved up to a minute either way.", statusCode: 400);
+                return Problems.Of("Subtitles can be moved up to a minute either way.", status: 400);
             }
 
             if (!await db.MediaItems.AnyAsync(i => i.Id == id, ct))
@@ -118,7 +120,7 @@ public static partial class PlaybackEndpoints
         {
             if (!double.IsFinite(request.Seconds) || Math.Abs(request.Seconds) > MaxAudioDelaySeconds)
             {
-                return Results.Problem("The sound can be moved up to two seconds either way.", statusCode: 400);
+                return Problems.Of("The sound can be moved up to two seconds either way.", status: 400);
             }
 
             if (!await db.MediaItems.AnyAsync(i => i.Id == id, ct))
@@ -137,7 +139,7 @@ public static partial class PlaybackEndpoints
         {
             if (!double.IsFinite(request.Speed) || request.Speed is < 0.25 or > 4)
             {
-                return Results.Problem("Speeds go from a quarter to four times.", statusCode: 400);
+                return Problems.Of("Speeds go from a quarter to four times.", status: 400);
             }
 
             if (await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct) is not { } item)
@@ -338,7 +340,7 @@ public static partial class PlaybackEndpoints
             }
             catch (TranscodeLimitException ex)
             {
-                return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: "The server is busy");
+                return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: Loc.T("The server is busy"));
             }
         });
         group.MapGet("/{segment:int}.m4s", (string sid, int segment, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct) =>
@@ -357,12 +359,12 @@ public static partial class PlaybackEndpoints
 
             if (page is { } number && (!track.IsTeletext || !Subtitles.IsTeletextPage(number)))
             {
-                return Results.Problem("Only teletext subtitles have a page, numbered 100 to 899.", statusCode: StatusCodes.Status400BadRequest);
+                return Problems.Of("Only teletext subtitles have a page, numbered 100 to 899.", status: StatusCodes.Status400BadRequest);
             }
 
             if (!track.IsText)
             {
-                return Results.Problem("Picture-based subtitles can only be burned into the video.", statusCode: 422);
+                return Problems.Of("Picture-based subtitles can only be burned into the video.", status: 422);
             }
 
             var file = await db.MediaFiles.AsNoTracking().FirstAsync(f => f.Id == session.FileId, ct);
@@ -371,7 +373,7 @@ public static partial class PlaybackEndpoints
                 : await subtitles.GetAsync(file, session.Subtitles, track, ct);
             if (path is null)
             {
-                return Results.Problem("These subtitles couldn't be converted.", statusCode: 422);
+                return Problems.Of("These subtitles couldn't be converted.", status: 422);
             }
 
             var delay = await db.PlaybackStates.AsNoTracking().Where(p => p.UserId == session.ProfileId && p.MediaItemId == session.ItemId)
@@ -411,7 +413,7 @@ public static partial class PlaybackEndpoints
                 text = await Subtitles.StyledAsync(file, track, settings, ct);
             }
 
-            return text is null ? Results.Problem("These subtitles couldn't be read.", statusCode: 422) : Results.Text(text, "text/x-ssa");
+            return text is null ? Problems.Of("These subtitles couldn't be read.", status: 422) : Results.Text(text, "text/x-ssa");
         });
 
         // The fonts attached to the file, which its styled subtitles are drawn with.
@@ -531,12 +533,12 @@ public static partial class PlaybackEndpoints
         {
             // Back from a long pause to find the others using every slot. The player gives up and its recovery
             // asks for a new session, which is refused with this same message for the viewer to see.
-            return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: "The server is busy");
+            return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: Loc.T("The server is busy"));
         }
 
         return path is not null ? Results.File(path, contentType)
             : transcodes.TakenOverReason(sid) is { } reason ? TakenOver(reason) // ended while this request waited
-            : Results.Problem("The segment couldn't be converted.", statusCode: 500);
+            : Problems.Of("The segment couldn't be converted.", status: 500);
     }
 
     /// <summary>A player asked for a converted stream's playlist or segments: a session got ready ahead of Play is now in use.</summary>
@@ -551,8 +553,9 @@ public static partial class PlaybackEndpoints
         transcodes.TakenOverReason(sid) is { } reason ? TakenOver(reason) : Results.NotFound();
 
     // Players show this rather than trying to get the stream back, which would only take it from the other screen.
+    // The reason is kept in English (TranscodeManager marks it) and put in this player's language here.
     private static IResult TakenOver(string reason) =>
-        Results.Problem(reason, statusCode: StatusCodes.Status410Gone, title: "Playing somewhere else");
+        Results.Problem(Loc.T(reason), statusCode: StatusCodes.Status410Gone, title: Loc.T("Playing somewhere else"));
 
     private static IResult Playlist(HttpContext http, string body)
     {

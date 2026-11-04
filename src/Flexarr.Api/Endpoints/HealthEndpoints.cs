@@ -10,6 +10,7 @@ using Flexarr.Integrations.Arr;
 using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -181,7 +182,9 @@ public static partial class HealthEndpoints
 
             if (folder.Hold is not (FolderHold.FolderEmpty or FolderHold.MostFilesGone))
             {
-                return Results.Problem(folder.Hold is null ? "This folder isn't being held." : "The folder isn't there. Reconnect its drive, or take the folder out of the library in Settings.", statusCode: 409);
+                return folder.Hold is null
+                    ? Problems.Of("This folder isn't being held.", status: 409)
+                    : Problems.Of("The folder isn't there. Reconnect its drive, or take the folder out of the library in Settings.", status: 409);
             }
 
             // In one statement, so a scan recording new numbers in between can't slip under this confirmation.
@@ -193,7 +196,7 @@ public static partial class HealthEndpoints
                     .ExecuteUpdateAsync(u => u.SetProperty(f => f.RemovalConfirmed, true), ct) == 1;
             if (!same)
             {
-                return Results.Problem("A scan has found something different since this was shown, so nothing was confirmed. Check the new numbers and confirm again if they're right.", statusCode: 409);
+                return Problems.Of("A scan has found something different since this was shown, so nothing was confirmed. Check the new numbers and confirm again if they're right.", status: 409);
             }
 
             await queue.EnqueueAsync(new LibraryScanRequest(folder.Path, "Removal confirmed in Library health"), ct);
@@ -222,7 +225,7 @@ public static partial class HealthEndpoints
             var ids = status.Problems.Select(p => p.ItemId).Distinct().ToList();
             var items = await db.MediaItems.Where(i => ids.Contains(i.Id)).Summaries(profile.Id).ToDictionaryAsync(i => i.Id, ct);
             return new HealthCheckReportDto(status.Running, status.Checked, status.Total, status.FinishedAt,
-                status.Problems.Select(p => new FileProblemReportDto(p, items.GetValueOrDefault(p.ItemId))).ToList());
+                status.Problems.Select(p => new FileProblemReportDto(p.Localized(), items.GetValueOrDefault(p.ItemId))).ToList());
         }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         // Removes a film's or episode's spare copies from disk. Kept: the best copy, and whichever file Sonarr or Radarr
@@ -291,7 +294,7 @@ public static partial class HealthEndpoints
 
             if (item.Files.Count < 2)
             {
-                return Results.Problem("This is the only copy. To remove the title, use Delete on its page.", statusCode: 409);
+                return Problems.Of("This is the only copy. To remove the title, use Delete on its page.", status: 409);
             }
 
             var (trackedPath, problem) = await TrackedFileAsync(item, options.CurrentValue, arr, ct);
@@ -302,7 +305,7 @@ public static partial class HealthEndpoints
 
             if (trackedPath == Normalize(file.Path))
             {
-                return Results.Problem("Sonarr or Radarr use this copy. Replace it there, or delete the other copy.", statusCode: 409);
+                return Problems.Of("Sonarr or Radarr use this copy. Replace it there, or delete the other copy.", status: 409);
             }
 
             try
@@ -311,7 +314,7 @@ public static partial class HealthEndpoints
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                return Results.Problem($"Couldn't delete it: {ex.Message}", statusCode: 500);
+                return Problems.Of("Couldn't delete it: {message}", new { message = ex.Message }, status: 500);
             }
 
             db.MediaFiles.Remove(file);
@@ -341,7 +344,7 @@ public static partial class HealthEndpoints
             };
             if (instance is null || command is null)
             {
-                return Results.Problem("This title isn't managed by Sonarr or Radarr, so there's nothing to search with.", statusCode: 409);
+                return Problems.Of("This title isn't managed by Sonarr or Radarr, so there's nothing to search with.", status: 409);
             }
 
             await arr.SendCommandAsync(instance, command, ct);
@@ -409,7 +412,7 @@ public static partial class HealthEndpoints
         var others = request.Merge.Where(m => m != request.Keep).Distinct().ToList();
         if (others.Count == 0 || others.Count > 20)
         {
-            return Results.ValidationProblem(new Dictionary<string, string[]> { ["merge"] = ["Choose one to keep and up to 20 to merge into it."] });
+            return Problems.Field("Choose one to keep and up to 20 to merge into it.", field: "merge");
         }
 
         var items = await db.MediaItems.Where(i => (i.Id == request.Keep || others.Contains(i.Id)) && i.Kind == kind).ToListAsync(ct);
@@ -421,7 +424,9 @@ public static partial class HealthEndpoints
 
         if (items.Any(i => i.LibraryId != keep.LibraryId))
         {
-            return Results.Problem($"Only {(kind == MediaKind.Artist ? "artists" : "albums")} in the same library can be merged.", statusCode: 409);
+            return kind == MediaKind.Artist
+                ? Problems.Of("Only artists in the same library can be merged.", status: 409)
+                : Problems.Of("Only albums in the same library can be merged.", status: 409);
         }
 
         var otherIds = others.ToList();
@@ -556,7 +561,7 @@ public static partial class HealthEndpoints
         var instance = options.Arr.FirstOrDefault(a => a.Name == source && a.Kind == kind);
         if (instance is null || item.ArrId is not { } arrId)
         {
-            return (null, Results.Problem($"{kind} doesn't manage {item.Title}, so Flexarr can't tell which copy it uses. Remove the spare in the Finder.", statusCode: 409));
+            return (null, Problems.Of("{kind} doesn't manage {title}, so Flexarr can't tell which copy it uses. Remove the spare in the Finder.", new { kind, title = item.Title }, status: 409));
         }
 
         try
@@ -568,7 +573,7 @@ public static partial class HealthEndpoints
         }
         catch (HttpRequestException ex)
         {
-            return (null, Results.Problem($"{instance.Name} didn't say which copy it uses ({(int?)ex.StatusCode ?? 0}), so nothing was deleted.", statusCode: 502));
+            return (null, Problems.Of("{name} didn't say which copy it uses ({status}), so nothing was deleted.", new { name = instance.Name, status = (int?)ex.StatusCode ?? 0 }, status: 502));
         }
     }
 

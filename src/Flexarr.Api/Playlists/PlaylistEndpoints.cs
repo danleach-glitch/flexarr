@@ -3,6 +3,8 @@ using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Playlists;
 
@@ -67,13 +69,13 @@ public static class PlaylistEndpoints
         {
             if (Name(request.Name) is not { } name)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = ["Give the playlist a name."] });
+                return Problems.Field("Give the playlist a name.", field: "name");
             }
 
             var tracks = await TracksOfAsync(db, request.ItemIds ?? [], ct);
             if (tracks is null)
             {
-                return Results.Problem("Only tracks, albums and artists can go in a playlist.", statusCode: 400);
+                return Problems.Of("Only tracks, albums and artists can go in a playlist.", status: 400);
             }
 
             var playlist = new Playlist { ProfileId = profile.Id, Name = name };
@@ -92,14 +94,14 @@ public static class PlaylistEndpoints
 
             if (request.Name is not null && Name(request.Name) is null)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = ["Give the playlist a name."] });
+                return Problems.Field("Give the playlist a name.", field: "name");
             }
 
             if (request.CoverItemId is { } cover)
             {
                 if (!await db.MediaItems.AnyAsync(i => i.Id == cover && (i.Kind == MediaKind.Album || i.Kind == MediaKind.Track), ct))
                 {
-                    return Results.Problem("The cover has to be an album's or a track's.", statusCode: 400);
+                    return Problems.Of("The cover has to be an album's or a track's.", status: 400);
                 }
 
                 playlist.CoverItemId = cover;
@@ -138,7 +140,7 @@ public static class PlaylistEndpoints
             var tracks = await TracksOfAsync(db, request.ItemIds, ct);
             if (tracks is null)
             {
-                return Results.Problem("Only tracks, albums and artists can go in a playlist.", statusCode: 400);
+                return Problems.Of("Only tracks, albums and artists can go in a playlist.", status: 400);
             }
 
             var existing = await db.PlaylistItems.Where(i => i.PlaylistId == id).Select(i => new { i.MediaItemId, i.Position }).ToListAsync(ct);
@@ -208,7 +210,7 @@ public static class PlaylistEndpoints
     public static async Task<HomeRowDto?> HomeRowAsync(FlexarrDbContext db, string profileId, int size, CancellationToken ct)
     {
         var playlists = await SummariesAsync(db, profileId, ct);
-        return playlists.Count == 0 ? null : new HomeRowDto(HomeRowId, "Your playlists", "playlists", [], "/playlists", playlists.Take(size).ToList());
+        return playlists.Count == 0 ? null : new HomeRowDto(HomeRowId, Loc.T("Your playlists"), "playlists", [], "/playlists", playlists.Take(size).ToList());
     }
 
     private static IQueryable<Playlist> Mine(FlexarrDbContext db, CurrentProfile profile)

@@ -5,6 +5,7 @@ using Flexarr.Integrations.Arr;
 using Flexarr.Integrations.Arr.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Endpoints.MusicRequests;
 
@@ -103,7 +104,7 @@ public static class MusicDestinations
         var destinations = Match(roots, mappings, visible);
         if (destinations.Count == 0)
         {
-            return (null, "None of your music libraries is one of Lidarr's root folders, so what it downloads wouldn't show here.");
+            return (null, Loc.T("None of your music libraries is one of Lidarr's root folders, so what it downloads wouldn't show here."));
         }
 
         var chosen = await db.Profiles.AsNoTracking().Where(p => p.Id == profileId).Select(p => p.RequestMusicLibraryId).FirstOrDefaultAsync(ct);

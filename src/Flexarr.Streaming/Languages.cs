@@ -1,4 +1,5 @@
 using System.Globalization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Streaming;
 
@@ -93,10 +94,11 @@ public static class Languages
     /// </summary>
     public static string Label(string? code, string? title, bool forced)
     {
-        var language = Name(code) ?? "Unknown";
+        // Language names stay English for now (docs/languages.md); the words around them are translated.
+        var language = Name(code) ?? Loc.T("Unknown", ctx: "language");
         var extra = Clean(title, language, code);
         var label = extra is null ? language : $"{language} ({extra})";
-        return forced && !label.Contains("forced", StringComparison.OrdinalIgnoreCase) ? $"{label} (forced)" : label;
+        return forced && !label.Contains("forced", StringComparison.OrdinalIgnoreCase) ? Loc.T("{label} (forced)", new { label }) : label;
     }
 
     private static string? Clean(string? title, string language, string? code)

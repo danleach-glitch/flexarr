@@ -1,10 +1,11 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Backups;
 
 /// <summary>The passphrase given to open a protected file was wrong (or the file was changed).</summary>
-public sealed class WrongPassphraseException() : Exception("That passphrase doesn’t open this file.");
+public sealed class WrongPassphraseException() : Exception(Loc.T("That passphrase doesn’t open this file."));
 
 /// <summary>
 /// Passphrase protection for backups and settings files: AES-256-GCM in 1 MB chunks, under a key derived from the
@@ -88,14 +89,14 @@ public static class BackupCrypto
         var header = new byte[Magic.Length + 4 + SaltSize + PrefixSize];
         if (await input.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, ct) < header.Length || !header.AsSpan(0, Magic.Length).SequenceEqual(Magic))
         {
-            throw new InvalidDataException("This isn’t a passphrase-protected Flexarr file.");
+            throw new InvalidDataException(Loc.T("This isn’t a passphrase-protected Flexarr file."));
         }
 
         var iterations = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(Magic.Length));
         // A file can't make opening it take forever.
         if (iterations is < 100_000 or > 2_000_000)
         {
-            throw new InvalidDataException("This file’s protection isn’t one Flexarr knows.");
+            throw new InvalidDataException(Loc.T("This file’s protection isn’t one Flexarr knows."));
         }
 
         var salt = header.AsSpan(Magic.Length + 4, SaltSize).ToArray();
@@ -109,20 +110,20 @@ public static class BackupCrypto
         {
             if (await input.ReadAtLeastAsync(chunkHeader, chunkHeader.Length, throwOnEndOfStream: false, ct) < chunkHeader.Length)
             {
-                throw new InvalidDataException("This file is cut short.");
+                throw new InvalidDataException(Loc.T("This file is cut short."));
             }
 
             var last = chunkHeader[0] == 1;
             var length = BinaryPrimitives.ReadInt32LittleEndian(chunkHeader.AsSpan(1));
             if (length is < 0 or > ChunkSize || chunkHeader[0] > 1)
             {
-                throw new InvalidDataException("This file is damaged.");
+                throw new InvalidDataException(Loc.T("This file is damaged."));
             }
 
             if (await input.ReadAtLeastAsync(cipher.AsMemory(0, length), length, throwOnEndOfStream: false, ct) < length
                 || await input.ReadAtLeastAsync(tag, TagSize, throwOnEndOfStream: false, ct) < TagSize)
             {
-                throw new InvalidDataException("This file is cut short.");
+                throw new InvalidDataException(Loc.T("This file is cut short."));
             }
 
             try
@@ -140,7 +141,7 @@ public static class BackupCrypto
                 // Nothing may follow the last chunk.
                 if (await input.ReadAsync(chunkHeader.AsMemory(0, 1), ct) > 0)
                 {
-                    throw new InvalidDataException("This file has more in it than it should.");
+                    throw new InvalidDataException(Loc.T("This file has more in it than it should."));
                 }
 
                 return;

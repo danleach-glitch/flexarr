@@ -8,7 +8,7 @@ let package = Package(
         .library(name: "FlexarrKit", targets: ["FlexarrKit"]),
     ],
     targets: [
-        .target(name: "FlexarrKit"),
+        .target(name: "FlexarrKit", resources: [.copy("Resources/Languages")]),
         .testTarget(
             name: "FlexarrKitTests",
             dependencies: ["FlexarrKit"],

@@ -5,6 +5,8 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -52,7 +54,7 @@ public static class LayoutEndpoints
 
             if (me.IsKids)
             {
-                return Results.Problem("A kids profile has the standard Home.", statusCode: 403);
+                return Problems.Of("A kids profile has the standard Home.", status: 403);
             }
 
             var before = Parse(me.Layout) ?? options.CurrentValue.Layout;
@@ -132,12 +134,12 @@ public static class LayoutEndpoints
         IReadOnlyList<RowSetting>?[] required = [update.Home, update.Movies, update.Shows];
         if (required.Any(l => l is null))
         {
-            return "Send the home, movies and shows rows.";
+            return Loc.T("Send the home, movies and shows rows.");
         }
 
         return required.Concat([update.Music, update.Audiobooks]).OfType<IReadOnlyList<RowSetting>>()
             .Any(l => l.Count > MaxRows || l.Any(r => r is null || string.IsNullOrWhiteSpace(r.Id) || r.Id.Length > MaxIdLength))
-            ? $"Each list takes up to {MaxRows} rows, each with an id of up to {MaxIdLength} characters."
+            ? Loc.T("Each list takes up to {rows} rows, each with an id of up to {length} characters.", new { rows = MaxRows, length = MaxIdLength })
             : null;
     }
 
@@ -178,10 +180,11 @@ public static class LayoutEndpoints
         var libraries = all.Where(l => l.Type is (LibraryType.Movies or LibraryType.TvShows or LibraryType.HomeVideos)
             && !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l))).ToList();
         var collections = await db.Collections.Where(c => c.ShowOnHome && !c.Hidden && (c.OwnerProfileId == null || c.OwnerProfileId == me))
-            .OrderBy(c => c.Name).Select(c => new RowChoiceDto($"collection-{c.Id}", $"Collection: {c.Name}", true)).ToListAsync(ct);
+            .OrderBy(c => c.Name).Select(c => new { c.Id, c.Name }).ToListAsync(ct);
+        var collectionRows = collections.Select(c => new RowChoiceDto($"collection-{c.Id}", Loc.T("Collection: {name}", new { name = c.Name }), true));
         var home = WithPodcastsRow(WithWatchlistRow(ForCombining(layout.Home, libraries, layout.CombineLibraries)));
         bool music = all.Any(l => l.Type == LibraryType.Music), books = all.Any(l => l.Type == LibraryType.Audiobooks);
-        return new LayoutDto(Merge([.. HomeRows(libraries, layout.CombineLibraries, music, books, all.Any(l => l.Type == LibraryType.Podcasts)), .. collections], home),
+        return new LayoutDto(Merge([.. HomeRows(libraries, layout.CombineLibraries, music, books, all.Any(l => l.Type == LibraryType.Podcasts)), .. collectionRows], home),
             Merge(BrowseRows(movies: true), layout.Movies), Merge(BrowseRows(movies: false), layout.Shows),
             layout.CombineLibraries, libraries.GroupBy(l => l.Type).Any(g => g.Count() > 1),
             music ? Merge([.. MusicBrowseRows], layout.Music) : null, books ? Merge([.. BookShelves], layout.Audiobooks) : null);
@@ -279,19 +282,19 @@ public static class LayoutEndpoints
     /// <param name="music">Whether there's a music library: its rows are only offered when there's one to fill them.</param>
     private static List<RowChoiceDto> HomeRows(IEnumerable<Library> libraries, bool combine, bool music, bool books, bool podcasts) =>
     [
-        new("continue", "Continue watching (and listening)", true),
-        .. podcasts ? [new RowChoiceDto(PodcastsRowId, "New podcasts", true)] : Array.Empty<RowChoiceDto>(),
-        new(Watchlist.WatchlistService.HomeRowId, "Ready from your watchlist", true),
-        new("live-tv", "Live TV (your favourite channels)", true),
+        new("continue", Loc.T("Continue watching (and listening)"), true),
+        .. podcasts ? [new RowChoiceDto(PodcastsRowId, Loc.T("New podcasts"), true)] : Array.Empty<RowChoiceDto>(),
+        new(Watchlist.WatchlistService.HomeRowId, Loc.T("Ready from your watchlist"), true),
+        new("live-tv", Loc.T("Live TV (your favourite channels)"), true),
         .. RecentRows(libraries.ToList(), combine),
-        new("top-movies", "Top 10 movies", true),
-        new("top-shows", "Top 10 shows", true),
+        new("top-movies", Loc.T("Top 10 movies"), true),
+        new("top-shows", Loc.T("Top 10 shows"), true),
         .. music ? MusicRows : Array.Empty<RowChoiceDto>(),
         .. books ? BookRows : Array.Empty<RowChoiceDto>(),
-        new("because", "Because you watched…", true),
-        new("genres", "Genre rows (three, changing daily)", true),
-        new("gems", "Highly rated movies, not yet watched", true),
-        new("upcoming", "Coming soon", true),
+        new("because", Loc.T("Because you watched…"), true),
+        new("genres", Loc.T("Genre rows (three, changing daily)"), true),
+        new("gems", Loc.T("Highly rated movies, not yet watched"), true),
+        new("upcoming", Loc.T("Coming soon"), true),
     ];
 
     /// <summary>A Latest unwatched row for each library, or one for each kind where it has more than one to combine.</summary>
@@ -299,63 +302,63 @@ public static class LayoutEndpoints
         libraries.GroupBy(l => combine ? (object)l.Type : l.Id).Select(g =>
         {
             var first = g.First();
-            var label = g.Count() == 1 ? $"Latest unwatched in {first.Name}"
+            var label = g.Count() == 1 ? Loc.T("Latest unwatched in {library}", new { library = first.Name })
                 : first.Type switch
                 {
-                    LibraryType.Movies => "Latest unwatched movies, from every movie library",
-                    LibraryType.HomeVideos => "Latest unwatched home videos, from every home video library",
-                    _ => "Latest unwatched shows, from every TV library",
+                    LibraryType.Movies => Loc.T("Latest unwatched movies, from every movie library"),
+                    LibraryType.HomeVideos => Loc.T("Latest unwatched home videos, from every home video library"),
+                    _ => Loc.T("Latest unwatched shows, from every TV library"),
                 };
             return new RowChoiceDto(combine ? CombinedRowId(first.Type) : $"recent-{first.Id}", label, true);
         });
 
-    private static readonly RowChoiceDto[] BookRows =
+    private static RowChoiceDto[] BookRows =>
     [
-        new(Books.BookRows.ContinueRowId, "Continue listening (when kept apart)", true),
-        new(Books.BookRows.NextRowId, "Next in series (audiobooks)", true),
-        new(Books.BookRows.NewRowId, "New audiobooks", true),
+        new(Books.BookRows.ContinueRowId, Loc.T("Continue listening (when kept apart)"), true),
+        new(Books.BookRows.NextRowId, Loc.T("Next in series (audiobooks)"), true),
+        new(Books.BookRows.NewRowId, Loc.T("New audiobooks"), true),
     ];
 
-    private static readonly RowChoiceDto[] MusicRows =
+    private static RowChoiceDto[] MusicRows =>
     [
-        new(Playlists.PlaylistEndpoints.HomeRowId, "Your playlists", true),
-        new(MusicMixes.HomeRowId, "Made for you (music mixes)", true),
-        new("music-recent", "Recently played (music)", true),
-        new("music-top", "Most played (music)", true),
-        new("music-artists", "More from artists you play", true),
-        new("music-new", "New albums", true),
+        new(Playlists.PlaylistEndpoints.HomeRowId, Loc.T("Your playlists"), true),
+        new(MusicMixes.HomeRowId, Loc.T("Made for you (music mixes)"), true),
+        new("music-recent", Loc.T("Recently played (music)"), true),
+        new("music-top", Loc.T("Most played (music)"), true),
+        new("music-artists", Loc.T("More from artists you play"), true),
+        new("music-new", Loc.T("New albums"), true),
     ];
 
-    private static readonly RowChoiceDto[] MusicBrowseRows =
+    private static RowChoiceDto[] MusicBrowseRows =>
     [
-        new(Playlists.PlaylistEndpoints.HomeRowId, "Your playlists", true),
-        new(MusicMixes.HomeRowId, "Made for you (music mixes)", true),
-        new("music-recent", "Recently played", true),
-        new("music-top", "Most played", true),
-        new("music-artists", "More from artists you play", true),
-        new("recent", "New albums", true),
+        new(Playlists.PlaylistEndpoints.HomeRowId, Loc.T("Your playlists"), true),
+        new(MusicMixes.HomeRowId, Loc.T("Made for you (music mixes)"), true),
+        new("music-recent", Loc.T("Recently played"), true),
+        new("music-top", Loc.T("Most played"), true),
+        new("music-artists", Loc.T("More from artists you play"), true),
+        new("recent", Loc.T("New albums"), true),
     ];
 
     /// <summary>An audiobooks library's shelves, as BookShelvesDto.Order names them.</summary>
-    private static readonly RowChoiceDto[] BookShelves =
+    private static RowChoiceDto[] BookShelves =>
     [
-        new("continue", "Continue listening", true),
-        new("next", "Next in series", true),
-        new("recent", "Recently added", true),
-        new("series", "Series", true),
-        new("authors", "Authors", true),
-        new("finished", "Finished", true),
+        new("continue", Loc.T("Continue listening"), true),
+        new("next", Loc.T("Next in series"), true),
+        new("recent", Loc.T("Recently added"), true),
+        new("series", Loc.T("Series"), true),
+        new("authors", Loc.T("Authors"), true),
+        new("finished", Loc.T("Finished"), true),
     ];
 
     private static List<RowChoiceDto> BrowseRows(bool movies) =>
     [
-        new("continue", "Continue watching", true),
-        new("recent", "Latest unwatched", true),
-        new("upcoming", "Coming soon", true),
-        new("top", "Top 10", true),
-        new("released", movies ? "Newest releases" : "Newest shows", true),
-        new("gems", movies ? "Highly rated, not yet watched" : "Highly rated, not yet started", true),
-        new("genres", "Genre rows (the library's biggest genres)", true),
+        new("continue", Loc.T("Continue watching"), true),
+        new("recent", Loc.T("Latest unwatched"), true),
+        new("upcoming", Loc.T("Coming soon"), true),
+        new("top", Loc.T("Top 10"), true),
+        new("released", movies ? Loc.T("Newest releases") : Loc.T("Newest shows"), true),
+        new("gems", movies ? Loc.T("Highly rated, not yet watched") : Loc.T("Highly rated, not yet started"), true),
+        new("genres", Loc.T("Genre rows (the library's biggest genres)"), true),
     ];
 
     /// <summary>The saved order and switches over every row there is, new ones last and on.</summary>

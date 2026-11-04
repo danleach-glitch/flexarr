@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Security;
 
@@ -111,7 +112,7 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
     {
         if (Cli is null)
         {
-            return new TailscaleState(false, false, null, null, false, false, [], "Tailscale isn't installed on the server.");
+            return new TailscaleState(false, false, null, null, false, false, [], Loc.T("Tailscale isn't installed on the server."));
         }
 
         var (ok, statusJson, error) = await RunAsync(ct, "status", "--json");
@@ -128,7 +129,7 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
         {
             var said = statusJson.Trim() is { Length: > 0 } text ? text.Split('\n')[0].Trim() : error;
             return new TailscaleState(true, false, null, null, false, false, [],
-                $"Tailscale's command line didn't answer as expected ({said}). On a Mac, install it from the Tailscale app: Settings › Install CLI.");
+                Loc.T("Tailscale's command line didn't answer as expected ({said}). On a Mac, install it from the Tailscale app: Settings › Install CLI.", new { said }));
         }
 
         var root = status.RootElement;
@@ -173,7 +174,7 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
         }
 
         return new TailscaleState(true, running, dns, owner, privateAccess, publicAccess, people.OrderBy(p => p.Name).ToList(),
-            running ? null : "Tailscale is installed but not connected. Sign in to Tailscale on the server.");
+            running ? null : Loc.T("Tailscale is installed but not connected. Sign in to Tailscale on the server."));
     }
 
     /// <summary>
@@ -350,7 +351,7 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
     {
         if (Cli is null)
         {
-            return "Tailscale isn't installed on the server.";
+            return Loc.T("Tailscale isn't installed on the server.");
         }
 
         // An empty port turns the relay off.
@@ -468,7 +469,7 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
                 Stop(process);
             }
 
-            return (false, "", ex is OperationCanceledException ? TimedOut : ex.Message);
+            return (false, "", ex is OperationCanceledException ? Loc.T(TimedOut) : ex.Message);
         }
         finally
         {
@@ -488,7 +489,7 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
         }
     }
 
-    private const string TimedOut = "Tailscale didn't answer in time.";
+    private static readonly string TimedOut = Loc.Mark("Tailscale didn't answer in time.");
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Private access over Tailscale turned {State}")]
     private partial void LogChanged(string state);

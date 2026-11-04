@@ -2,6 +2,7 @@ using Flexarr.Api.Endpoints;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Books;
 
@@ -25,19 +26,19 @@ public static class BookRows
         var rows = new List<HomeRowDto>();
         if (continueRow && wanted(ContinueRowId))
         {
-            rows.Add(new(ContinueRowId, "Continue listening", "poster", await BookQueries.InProgress(books, profileId)
+            rows.Add(new(ContinueRowId, Loc.T("Continue listening"), "poster", await BookQueries.InProgress(books, profileId)
                 .OrderByDescending(i => i.PlaybackStates.Where(p => p.UserId == profileId).Select(p => p.LastPlayedAt).FirstOrDefault())
                 .Take(size).Summaries(profileId).ToListAsync(ct), link));
         }
 
         if (wanted(NextRowId))
         {
-            rows.Add(new(NextRowId, "Next in series", "poster", await BookQueries.NextInSeriesAsync(db, books, profileId, size, ct), link));
+            rows.Add(new(NextRowId, Loc.T("Next in series"), "poster", await BookQueries.NextInSeriesAsync(db, books, profileId, size, ct), link));
         }
 
         if (wanted(NewRowId))
         {
-            rows.Add(new(NewRowId, "New audiobooks", "poster", await books.OrderByDescending(i => i.AddedAt).Take(size).Summaries(profileId).ToListAsync(ct),
+            rows.Add(new(NewRowId, Loc.T("New audiobooks"), "poster", await books.OrderByDescending(i => i.AddedAt).Take(size).Summaries(profileId).ToListAsync(ct),
                 link is null ? null : $"{link}?view=all&sort=added"));
         }
 

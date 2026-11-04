@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Flexarr.Api.Configuration;
 using Microsoft.Extensions.Options;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Security;
 
@@ -54,7 +55,7 @@ public sealed partial class GuestTvCodes(IHttpClientFactory clients, IOptionsMon
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InviteException($"Flexarr's relay answered {(int)response.StatusCode}. Try again in a minute.", StatusCodes.Status502BadGateway);
+            throw new InviteException(Loc.T("Flexarr's relay answered {status}. Try again in a minute.", new { status = (int)response.StatusCode }), StatusCodes.Status502BadGateway);
         }
 
         try
@@ -84,17 +85,17 @@ public sealed partial class GuestTvCodes(IHttpClientFactory clients, IOptionsMon
             new SealedInvite(Convert.ToBase64String(serverKey), Convert.ToBase64String(sealedBox)), ct);
         if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone)
         {
-            throw new InviteException("Their device stopped showing that code. Check the one on their screen now.", StatusCodes.Status410Gone);
+            throw new InviteException(Loc.T("Their device stopped showing that code. Check the one on their screen now."), StatusCodes.Status410Gone);
         }
 
         if (response.StatusCode == HttpStatusCode.Conflict)
         {
-            throw new InviteException("That code has been used. Check the one on their screen now.", StatusCodes.Status409Conflict);
+            throw new InviteException(Loc.T("That code has been used. Check the one on their screen now."), StatusCodes.Status409Conflict);
         }
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InviteException($"Flexarr's relay answered {(int)response.StatusCode}. Try again in a minute.", StatusCodes.Status502BadGateway);
+            throw new InviteException(Loc.T("Flexarr's relay answered {status}. Try again in a minute.", new { status = (int)response.StatusCode }), StatusCodes.Status502BadGateway);
         }
 
         LogDelivered();

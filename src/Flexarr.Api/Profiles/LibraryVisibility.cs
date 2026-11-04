@@ -3,6 +3,8 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Profiles;
 
@@ -58,7 +60,7 @@ public static class LibraryVisibility
     {
         builder.AddEndpointFilter(async (context, next) =>
             context.HttpContext.RequestServices.GetRequiredService<FlexarrDbContext>().IsLimited()
-                ? Results.Problem("That isn't available on a profile with an age limit.", statusCode: 403)
+                ? Problems.Of("That isn't available on a profile with an age limit.", status: 403)
                 : await next(context));
         return builder;
     }
@@ -71,7 +73,7 @@ public static class LibraryVisibility
     {
         builder.AddEndpointFilter(async (context, next) =>
             context.HttpContext.RequestServices.GetRequiredService<FlexarrDbContext>().ServesKids
-                ? Results.Problem("That isn't available on a kids profile.", statusCode: 403)
+                ? Problems.Of("That isn't available on a kids profile.", status: 403)
                 : await next(context));
         return builder;
     }
@@ -116,7 +118,7 @@ public static class LibraryVisibility
     }
 
     /// <summary>What a profile is told about a title from a library hidden from it, playing on another screen.</summary>
-    public const string PrivateTitle = "Something private";
+    public static string PrivateTitle => Loc.T("Something private");
 
     /// <summary>
     /// <paramref name="item"/> as a profile that can't see its library is shown it in the household's now playing:

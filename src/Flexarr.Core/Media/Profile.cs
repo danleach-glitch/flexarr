@@ -36,6 +36,12 @@ public sealed class Profile
     /// <summary>When the profile picture last changed (null: no picture, show the initial).</summary>
     public DateTime? ImageUpdatedAt { get; set; }
 
+    /// <summary>
+    /// The language the apps and the server's messages are in for this profile, a BCP 47 code (de, pt-BR); null follows
+    /// each device's own language (docs/languages.md).
+    /// </summary>
+    public string? Language { get; set; }
+
     /// <summary>When an episode finishes, count down and play the next one.</summary>
     public bool AutoPlayNext { get; set; } = true;
 

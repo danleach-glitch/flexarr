@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
 using Flexarr.Core.Podcasts;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Podcasts;
 
@@ -143,7 +144,7 @@ public sealed class PodcastFetcher(HttpClient http)
         {
             if (url.Scheme != Uri.UriSchemeHttp && url.Scheme != Uri.UriSchemeHttps)
             {
-                throw new HttpRequestException("The feed sent Flexarr to an address that isn't on the web.");
+                throw new HttpRequestException(Loc.Mark("The feed sent Flexarr to an address that isn't on the web."));
             }
 
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -159,7 +160,7 @@ public sealed class PodcastFetcher(HttpClient http)
             response.Dispose();
             if (hop >= MaxRedirects)
             {
-                throw new HttpRequestException("The feed redirected too many times.");
+                throw new HttpRequestException(Loc.Mark("The feed redirected too many times."));
             }
 
             permanent &= status is 301 or 308;
@@ -172,7 +173,7 @@ public sealed class PodcastFetcher(HttpClient http)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
         {
-            return Failed("That isn't a web address.");
+            return Failed(Loc.Mark("That isn't a web address."));
         }
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -205,15 +206,15 @@ public sealed class PodcastFetcher(HttpClient http)
                 {
                     return Failed(response.StatusCode switch
                     {
-                        HttpStatusCode.NotFound or HttpStatusCode.Gone => "The feed isn't there any more.",
-                        HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "The feed's host refused to send it.",
+                        HttpStatusCode.NotFound or HttpStatusCode.Gone => Loc.Mark("The feed isn't there any more."),
+                        HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => Loc.Mark("The feed's host refused to send it."),
                         _ => $"The feed's host answered {(int)response.StatusCode}.",
                     });
                 }
 
                 if (response.Content.Headers.ContentLength > MaxFeedBytes)
                 {
-                    return Failed("The feed is too big to be a podcast.");
+                    return Failed(Loc.Mark("The feed is too big to be a podcast."));
                 }
 
                 await using var body = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
@@ -231,11 +232,11 @@ public sealed class PodcastFetcher(HttpClient http)
         }
         catch (HttpRequestException ex)
         {
-            return Failed(ex.HttpRequestError == HttpRequestError.NameResolutionError ? "The feed's host couldn't be found." : ex.Message);
+            return Failed(ex.HttpRequestError == HttpRequestError.NameResolutionError ? Loc.Mark("The feed's host couldn't be found.") : ex.Message);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            return Failed("The feed's host didn't answer in time.");
+            return Failed(Loc.Mark("The feed's host didn't answer in time."));
         }
 
         static FeedFetch Failed(string error) => new(null, false, null, null, null, error);
@@ -287,7 +288,7 @@ public sealed class PodcastFetcher(HttpClient http)
             total += read;
             if (total > limit)
             {
-                throw new FormatException("The feed is too big to be a podcast.");
+                throw new FormatException(Loc.Mark("The feed is too big to be a podcast."));
             }
 
             await to.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);

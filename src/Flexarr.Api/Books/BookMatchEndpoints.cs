@@ -6,6 +6,8 @@ using Flexarr.Core.Probing;
 using Flexarr.Metadata;
 using Flexarr.Metadata.Books;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Books;
 
@@ -80,7 +82,7 @@ public static class BookMatchEndpoints
             chosen ??= (await providers.SearchAsync(request.Query, request.Author, ct)).FirstOrDefault(m => m.Provider == request.Provider && m.Id == request.Id);
             if (chosen is null)
             {
-                return Results.Problem("That result can't be found any more. Search again.", statusCode: 409);
+                return Problems.Of("That result can't be found any more. Search again.", status: 409);
             }
 
             var details = book.Book ??= new BookDetails { MediaItemId = book.Id };
@@ -127,7 +129,7 @@ public static class BookMatchEndpoints
             if (edits.Count == 0 || edits.Any(c => string.IsNullOrWhiteSpace(c.Title) || c.Title.Length > 500 || !double.IsFinite(c.StartSeconds) || c.StartSeconds < 0)
                 || edits.Select(c => c.StartSeconds).Distinct().Count() != edits.Count)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["chapters"] = ["Each chapter needs a title and its own start in the book."] });
+                return Problems.Field("Each chapter needs a title and its own start in the book.", field: "chapters");
             }
 
             await SaveAsync(db, id, details, [.. edits.Select(e => new BookChapter(e.Title.Trim(), e.StartSeconds, 0))], ChapterSource.Edited, ct);
@@ -143,7 +145,7 @@ public static class BookMatchEndpoints
 
             if (!double.IsFinite(request.Seconds) || Math.Abs(request.Seconds) > 600)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["seconds"] = ["Shift by up to ten minutes either way."] });
+                return Problems.Field("Shift by up to ten minutes either way.", field: "seconds");
             }
 
             var chapters = await db.MediaChapters.Where(c => c.MediaItemId == id).OrderBy(c => c.Index).ToListAsync(ct);
@@ -163,7 +165,7 @@ public static class BookMatchEndpoints
 
             if (details.Asin is not { } asin)
             {
-                return Results.Problem("This book has no Audible id. Fix match to find it on Audible first.", statusCode: 409);
+                return Problems.Of("This book has no Audible id. Fix match to find it on Audible first.", status: 409);
             }
 
             if (BadShift(shiftSeconds ?? 0) is { } bad)
@@ -173,7 +175,7 @@ public static class BookMatchEndpoints
 
             return await refresher.AudibleChaptersAsync(details, asin, shiftSeconds ?? 0, ct, force: true) is { } chapters
                 ? Results.Ok(chapters.Select((c, i) => new BookChapterDto(i, c.Title, c.StartSeconds, c.EndSeconds)).ToList())
-                : Results.Problem("Audible has no chapters for this book.", statusCode: 404);
+                : Problems.Of("Audible has no chapters for this book.", status: 404);
         });
 
         item.MapPost("/chapters/audible", async (Guid id, AudibleChaptersRequest request, FlexarrDbContext db, MetadataRefresher refresher, CancellationToken ct) =>
@@ -185,7 +187,7 @@ public static class BookMatchEndpoints
 
             if (details.Asin is not { } asin)
             {
-                return Results.Problem("This book has no Audible id. Fix match to find it on Audible first.", statusCode: 409);
+                return Problems.Of("This book has no Audible id. Fix match to find it on Audible first.", status: 409);
             }
 
             if (BadShift(request.ShiftSeconds) is { } bad)
@@ -195,7 +197,7 @@ public static class BookMatchEndpoints
 
             if (!await refresher.UseAudibleChaptersAsync(id, details, asin, request.ShiftSeconds, ct, force: true))
             {
-                return Results.Problem("Audible has no chapters for this book.", statusCode: 404);
+                return Problems.Of("Audible has no chapters for this book.", status: 404);
             }
 
             await db.SaveChangesAsync(ct);
@@ -207,7 +209,7 @@ public static class BookMatchEndpoints
 
     /// <summary>A shift that isn't a number, or is more than ten minutes either way: refused, as <c>/chapters/shift</c> does.</summary>
     private static IResult? BadShift(double seconds) => !double.IsFinite(seconds) || Math.Abs(seconds) > 600
-        ? Results.ValidationProblem(new Dictionary<string, string[]> { ["shiftSeconds"] = ["Shift by up to ten minutes either way."] })
+        ? Problems.Field("Shift by up to ten minutes either way.", field: "shiftSeconds")
         : null;
 
     private const int MaxNames = 20;
@@ -218,21 +220,21 @@ public static class BookMatchEndpoints
         static bool Names(IReadOnlyList<string>? names) => names is null || (names.Count <= MaxNames && names.All(n => n is not null && n.Length <= 200));
         if (string.IsNullOrWhiteSpace(r.Title) || r.Title.Length > 500 || r.Subtitle?.Length > 500)
         {
-            return "A title of up to 500 characters.";
+            return Loc.T("A title of up to 500 characters.");
         }
 
         if (!Names(r.Authors) || !Names(r.Narrators) || !Names(r.Genres)
             || r.Series is { } series && (series.Count > MaxNames || series.Any(s => s?.Name is null || s.Name.Length > 200 || s.Sequence?.Length > 20)))
         {
-            return "Up to 20 authors, narrators, series and genres, each up to 200 characters.";
+            return Loc.T("Up to 20 authors, narrators, series and genres, each up to 200 characters.");
         }
 
         if (r.Overview?.Length > 20_000)
         {
-            return "A description of up to 20,000 characters.";
+            return Loc.T("A description of up to 20,000 characters.");
         }
 
-        return r.Year is < 1 or > 3000 ? "A year such as 2016." : null;
+        return r.Year is < 1 or > 3000 ? Loc.T("A year such as 2016.") : null;
     }
 
     private static BookMatchDto ToDto(BookMatch m) => new(m.Provider, m.Id, m.Title, m.Subtitle, m.Authors, m.Narrators,

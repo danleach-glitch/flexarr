@@ -6,6 +6,7 @@ using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Import;
 
@@ -21,12 +22,12 @@ public sealed class PlexAvatars(HttpClient http, FlexarrDbContext db, ProfileIma
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    internal const string MacAppProblem = "The Mac app can’t read Plex’s sign-in, so it can’t bring over Plex profile pictures. Add pictures in Profiles instead.";
+    internal static string MacAppProblem => Loc.T("The Mac app can’t read Plex’s sign-in, so it can’t bring over Plex profile pictures. Add pictures in Profiles instead.");
 
     public async Task<PlexAvatarResult> ImportAsync(string? databasePath, CancellationToken ct)
     {
         var token = await FindTokenAsync(PlexImporter.Resolve(databasePath), ct)
-            ?? throw new InvalidOperationException("Couldn't find Plex's sign-in on this computer. Is Plex Media Server installed here and signed in to plex.tv?");
+            ?? throw new InvalidOperationException(Loc.T("Couldn't find Plex's sign-in on this computer. Is Plex Media Server installed here and signed in to plex.tv?"));
 
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri("https://plex.tv/api/v2/home/users"));
         request.Headers.Add("X-Plex-Token", token);

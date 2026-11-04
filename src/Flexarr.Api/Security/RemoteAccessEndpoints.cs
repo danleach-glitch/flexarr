@@ -5,6 +5,7 @@ using Flexarr.Api.Updates;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Security;
 
@@ -34,8 +35,15 @@ public sealed record TailscaleLinkRequest(string Login, string? ProfileId);
 /// <param name="MaxRatingAge">The profile's age limit (0 is U, 8 PG, then 12, 15, 18); null, none. Absent from servers before 0.56.</param>
 /// <param name="KidsLock">This browser or device is locked to kids profiles. Absent from servers before 0.56.</param>
 /// <param name="IsGuest">A family guest's device: it stays on its profile and has no household devices. Absent from servers before 0.57.</param>
+/// <param name="Language">
+/// The profile's chosen language (a BCP 47 code); null follows the device. Set with PUT /me/language. Absent from servers
+/// before 0.61.
+/// </param>
 public sealed record MeDto(string ProfileId, string Method, NetworkZone Zone, bool IsAdmin, string? TailscaleLogin, bool CanUnlock = false, bool AdminPinMissing = false,
-    DateTime? UnlockedUntil = null, bool IsKids = false, int? MaxRatingAge = null, bool KidsLock = false, bool IsGuest = false);
+    DateTime? UnlockedUntil = null, bool IsKids = false, int? MaxRatingAge = null, bool KidsLock = false, bool IsGuest = false, string? Language = null);
+
+/// <summary>The language a profile picked; null to follow each device's own.</summary>
+public sealed record LanguageChoice(string? Language);
 
 public static class RemoteAccessEndpoints
 {
@@ -54,8 +62,30 @@ public static class RemoteAccessEndpoints
                 profile.CanUnlock,
                 (profile.IsAdmin || profile.CanUnlock) && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.AdminPinHash == null, ct),
                 profile.IsAdmin ? unlocks.UnlockedUntil(profile.SignInId) : null,
-                db.ServesKids, db.MaxRatingAge, signIns.ById(profile.SignInId)?.KidsLock == true, profile.IsGuest);
+                db.ServesKids, db.MaxRatingAge, signIns.ById(profile.SignInId)?.KidsLock == true, profile.IsGuest,
+                await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id).Select(p => p.Language).FirstOrDefaultAsync(ct));
         }).WithTags("Remote access");
+
+        // Each profile's own, like its playback preferences: anyone signed in as it may change it, kids included.
+        api.MapPut("/me/language", async (LanguageChoice choice, FlexarrDbContext db, Flexarr.Api.Profiles.CurrentProfile profile,
+            Localization.ProfileLanguages languages, CancellationToken ct) =>
+        {
+            var language = string.IsNullOrWhiteSpace(choice.Language) ? null : choice.Language.Trim();
+            if (language is not null && !Flexarr.Core.Localization.LanguageCode.IsValid(language))
+            {
+                return Localization.Problems.Field("That isn't a language code.", field: "language");
+            }
+
+            if (await db.Profiles.FindAsync([profile.Id], ct) is not { } found)
+            {
+                return Results.NotFound();
+            }
+
+            found.Language = language;
+            await db.SaveChangesAsync(ct);
+            languages.Changed(profile.Id, language);
+            return Results.Ok(new LanguageChoice(language));
+        }).WithTags("Languages");
 
         var group = api.MapGroup("/remote").WithTags("Remote access").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
@@ -68,7 +98,7 @@ public static class RemoteAccessEndpoints
             var error = toggle.Enabled ? await tailscale.EnableAsync(port, ct) : await tailscale.DisableAsync(ct);
             if (error is not null)
             {
-                return Results.Problem($"Tailscale said: {error}", statusCode: 502);
+                return Problems.Of("Tailscale said: {error}", new { error }, status: 502);
             }
 
             // First time on: your own Tailscale account signs in as the main profile.
@@ -88,7 +118,7 @@ public static class RemoteAccessEndpoints
             // Tagged devices (family guests among them) all share this login: linking it would give every one a profile.
             if (string.Equals(request.Login.Trim(), "tagged-devices", StringComparison.OrdinalIgnoreCase))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["login"] = ["Tagged devices can't be linked to a profile. Invite guests from Family invites instead."] });
+                return Problems.Field("Tagged devices can't be linked to a profile. Invite guests from Family invites instead.", field: "login");
             }
 
             // One profile per Tailscale account: unlink it wherever it was first.

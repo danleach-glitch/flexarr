@@ -9,6 +9,7 @@ using Flexarr.Integrations.Arr;
 using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -76,7 +77,7 @@ public static partial class MatchEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Results.Problem($"{instances[0].Name} didn't answer the search ({(int?)ex.StatusCode ?? 0}).", statusCode: 502);
+                return Problems.Of("{name} didn't answer the search ({status}).", new { name = instances[0].Name, status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
         }).WithTags("Match").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
@@ -133,14 +134,12 @@ public static partial class MatchEndpoints
                     // theirs to change, and deleting it here would be too easy to get wrong.
                     if (item.Path is not null && managed.Values.FirstOrDefault(m => m.Path is not null && SamePath(m.Path, item.Path)) is { } owner)
                     {
-                        return Results.Problem(
-                            $"{owner.Instance.Name} already uses this folder for {owner.Title}. Remove that {noun} in {owner.Instance.Name} (keep its files), then fix the match again.",
-                            statusCode: 409);
+                        return Problems.Of("{noun, select, movie {{name} already uses this folder for {title}. Remove that movie in {name} (keep its files), then fix the match again.} other {{name} already uses this folder for {title}. Remove that show in {name} (keep its files), then fix the match again.}}", new { name = owner.Instance.Name, title = owner.Title, noun }, status: 409);
                     }
 
                     if (item.Path is null)
                     {
-                        return Results.Problem($"Flexarr doesn't know this {noun}'s folder, so it can't add it to {kind}.", statusCode: 409);
+                        return Problems.Of("{noun, select, movie {Flexarr doesn't know this movie's folder, so it can't add it to {kind}.} other {Flexarr doesn't know this show's folder, so it can't add it to {kind}.}}", new { noun, kind }, status: 409);
                     }
 
                     var arrPath = PathMapper.Unmap(item.Path, config.PathMappings).TrimEnd('/').Normalize(NormalizationForm.FormC);
@@ -150,7 +149,7 @@ public static partial class MatchEndpoints
                     {
                         if (await arr.LookupMoviesAsync(instance, $"tmdb:{request.Id}", ct) is not [var found, ..])
                         {
-                            return Results.Problem($"{instance.Name} couldn't find that movie any more.", statusCode: 404);
+                            return Problems.Of("{name} couldn't find that movie any more.", new { name = instance.Name }, status: 404);
                         }
 
                         var movie = await arr.AddMovieAsync(instance, request.Id, found.Title, arrPath, profile, ct);
@@ -160,7 +159,7 @@ public static partial class MatchEndpoints
                     {
                         if (await arr.LookupSeriesAsync(instance, $"tvdb:{request.Id}", ct) is not [var found, ..])
                         {
-                            return Results.Problem($"{instance.Name} couldn't find that show any more.", statusCode: 404);
+                            return Problems.Of("{name} couldn't find that show any more.", new { name = instance.Name }, status: 404);
                         }
 
                         var series = await arr.AddSeriesAsync(instance, request.Id, found.Title, arrPath, profile, ct);
@@ -172,11 +171,11 @@ public static partial class MatchEndpoints
             }
             catch (HttpRequestException ex) when (ex.StatusCode is System.Net.HttpStatusCode.BadRequest)
             {
-                return Results.Problem($"{kind} wouldn't add it: {ex.Message}", statusCode: 409);
+                return Problems.Of("{kind} wouldn't add it: {message}", new { kind, message = ex.Message }, status: 409);
             }
             catch (HttpRequestException ex)
             {
-                return Results.Problem($"{kind} didn't answer ({(int?)ex.StatusCode ?? 0}), so the match wasn't changed.", statusCode: 502);
+                return Problems.Of("{kind} didn't answer ({status}), so the match wasn't changed.", new { kind, status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
 
             Forget(db, item, rematched);
@@ -222,7 +221,7 @@ public static partial class MatchEndpoints
 
             if ((item.Kind == MediaKind.Movie ? item.TmdbId : item.TvdbId ?? item.TvMazeId) is null)
             {
-                return Results.Problem($"{item.Title} isn't matched to anything yet. Use Fix match to choose what it is.", statusCode: 409);
+                return Problems.Of("{title} isn't matched to anything yet. Use Fix match to choose what it is.", new { title = item.Title }, status: 409);
             }
 
             item.MatchLocked = true;
@@ -261,7 +260,7 @@ public static partial class MatchEndpoints
     /// <summary>Without Radarr, films are found on TMDB, which needs the owner's key.</summary>
     private static IResult? OnlineUnavailable(MediaItem item, FlexarrOptions config) =>
         item.Kind == MediaKind.Movie && config.Tmdb?.ApiKey is not { Length: > 0 }
-            ? Results.Problem("Fixing a movie's match needs Radarr, or a TMDB key. Add either under Settings › Connections.", statusCode: 409)
+            ? Problems.Of("Fixing a movie's match needs Radarr, or a TMDB key. Add either under Settings › Connections.", status: 409)
             : null;
 
     /// <summary>Without Radarr or Sonarr: films from TMDB's search, shows from TVmaze's.</summary>
@@ -288,7 +287,7 @@ public static partial class MatchEndpoints
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {
-            return Results.Problem($"{(item.Kind == MediaKind.Movie ? "TMDB" : "TVmaze")} didn't answer the search.", statusCode: 502);
+            return Problems.Of("{name} didn't answer the search.", new { name = item.Kind == MediaKind.Movie ? "TMDB" : "TVmaze" }, status: 502);
         }
     }
 

@@ -2,6 +2,7 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Api.Endpoints;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Collections;
 
@@ -132,21 +133,21 @@ public static class CollectionSuggestions
         var now = DateTime.UtcNow;
         var ideas = new List<(string Name, string Description, SmartRules Rules)>
         {
-            ("Top 10 shows this year", "The best-rated shows with episodes out this year.", new SmartRules(Type: "series", ThisYear: true, Limit: 10)),
-            ("Top 10 movies this year", "The best-rated movies released this year.", new SmartRules(Type: "movie", ThisYear: true, Limit: 10)),
-            ("Highly rated, never watched", "Movies rated 7.5 or more that you haven't seen.", new SmartRules(Type: "movie", MinRating: 7.5, Watched: "unwatched")),
-            ("New this month", "Everything added in the last 30 days.", new SmartRules(AddedWithinDays: 30, Sort: "added")),
+            (Loc.T("Top 10 shows this year"), Loc.T("The best-rated shows with episodes out this year."), new SmartRules(Type: "series", ThisYear: true, Limit: 10)),
+            (Loc.T("Top 10 movies this year"), Loc.T("The best-rated movies released this year."), new SmartRules(Type: "movie", ThisYear: true, Limit: 10)),
+            (Loc.T("Highly rated, never watched"), Loc.T("Movies rated 7.5 or more that you haven't seen."), new SmartRules(Type: "movie", MinRating: 7.5, Watched: "unwatched")),
+            (Loc.T("New this month"), Loc.T("Everything added in the last 30 days."), new SmartRules(AddedWithinDays: 30, Sort: "added")),
         };
 
         // Seasonal, and only near the season, so suggestions change through the year.
         if (now.Month is 11 or 12)
         {
-            ideas.Add(("Christmas", "Movies and specials with Christmas in them.", new SmartRules(Contains: "Christmas", Sort: "year")));
+            ideas.Add((Loc.T("Christmas"), Loc.T("Movies and specials with Christmas in them."), new SmartRules(Contains: "Christmas", Sort: "year")));
         }
 
         if (now.Month is 9 or 10)
         {
-            ideas.Add(("Halloween", "Horror for the season, best first.", new SmartRules(Genres: ["Horror"])));
+            ideas.Add((Loc.T("Halloween"), Loc.T("Horror for the season, best first."), new SmartRules(Genres: ["Horror"])));
         }
 
         // Directors with four or more titles here, and leading actors with six or more.
@@ -159,9 +160,10 @@ public static class CollectionSuggestions
         var ids = directors.Select(d => d.Key).Concat(actors.Select(a => a.Key)).ToList();
         var names = await db.People.Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name, ct);
         ideas.AddRange(directors.Where(d => names.ContainsKey(d.Key))
-            .Select(d => ($"Directed by {names[d.Key]}", $"{d.Count} of their movies and shows in your library.", new SmartRules(PersonId: d.Key, Sort: "year"))));
+            .Select(d => (Loc.T("Directed by {name}", new { name = names[d.Key] }),
+                Loc.T("{count, plural, one {# of their movies and shows in your library.} other {# of their movies and shows in your library.}}", new { count = d.Count }), new SmartRules(PersonId: d.Key, Sort: "year"))));
         ideas.AddRange(actors.Where(a => names.ContainsKey(a.Key))
-            .Select(a => (names[a.Key], $"Starring {names[a.Key]}: {a.Count} titles.", new SmartRules(PersonId: a.Key, Sort: "year"))));
+            .Select(a => (names[a.Key], Loc.T("Starring {name}: {count, plural, one {# title} other {# titles}}.", new { name = names[a.Key], count = a.Count }), new SmartRules(PersonId: a.Key, Sort: "year"))));
 
         // Genre-and-decade runs with plenty of films.
         // (Grouped here rather than in SQL, which SQLite can't do for a collection navigation; a library has
@@ -173,7 +175,10 @@ public static class CollectionSuggestions
             .Where(g => g.Count >= 15).OrderByDescending(g => g.Count)
             // At most two per decade, so they span the library rather than all coming from its biggest decade.
             .GroupBy(g => g.Decade).SelectMany(d => d.Take(2)).OrderByDescending(g => g.Count).Take(6).ToList();
-        ideas.AddRange(films.Select(g => ($"'{g.Decade % 100:00}s {g.Name}", $"{g.Count} {g.Name.ToLowerInvariant()} movies from the {g.Decade}s, best first.",
+        ideas.AddRange(films.Select(g => (
+            Loc.T("''{decade}s {genre}", new { decade = (g.Decade % 100).ToString("00", System.Globalization.CultureInfo.InvariantCulture), genre = g.Name }),
+            Loc.T("{count, plural, one {# {genre} movie from the {decade}s, best first.} other {# {genre} movies from the {decade}s, best first.}}",
+                new { count = g.Count, genre = g.Name.ToLowerInvariant(), decade = g.Decade.ToString(System.Globalization.CultureInfo.InvariantCulture) }),
             new SmartRules(Type: "movie", Genres: [g.Name], YearFrom: g.Decade, YearTo: g.Decade + 9))));
 
         var suggestions = new List<CollectionSuggestionDto>();

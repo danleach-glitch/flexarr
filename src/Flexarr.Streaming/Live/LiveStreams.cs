@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Flexarr.Core.Localization;
 using Microsoft.Extensions.Logging;
 
 namespace Flexarr.Streaming.Live;
@@ -98,7 +99,7 @@ public sealed class LiveStreams(Func<TranscodeSettings> settings, ILoggerFactory
                 {
                     if (!made!.CopyVideo && limit > 0 && ConvertingCount + (transcoding?.Invoke() ?? 0) >= limit)
                     {
-                        throw new LiveStreamException("Flexarr is busy playing on other screens. Try again when one of them finishes.");
+                        throw new LiveStreamException(Loc.T("Flexarr is busy playing on other screens. Try again when one of them finishes."));
                     }
 
                     // Counted from here, before its ffmpeg starts, so a film starting meanwhile sees the slot taken.

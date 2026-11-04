@@ -11,6 +11,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using System.Runtime.CompilerServices;
+using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Endpoints.MusicRequests;
 
@@ -72,17 +74,17 @@ public static partial class MusicRequestEndpoints
             var options = services.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue;
             if (!options.Arr.Any(a => a.Kind == ArrKind.Lidarr))
             {
-                return Results.Problem("Music requests need Lidarr. Add one under Settings › Connections.", statusCode: 409);
+                return Problems.Of("Music requests need Lidarr. Add one under Settings › Connections.", status: 409);
             }
 
             if (!options.MusicRequests.Enabled)
             {
-                return Results.Problem("Music requests are turned off.", statusCode: 409);
+                return Problems.Of("Music requests are turned off.", status: 409);
             }
 
             return await SeesMusicAsync(db, context.HttpContext.RequestAborted)
                 ? await next(context)
-                : Results.Problem("This profile can't request music.", statusCode: 403);
+                : Problems.Of("This profile can't request music.", status: 403);
         });
 
         music.MapGet("/discover", async (MusicRequestContext c, CurrentProfile current, CancellationToken ct) =>
@@ -99,12 +101,12 @@ public static partial class MusicRequestEndpoints
                 }
             }
 
-            await RowAsync("music-like", "Like artists you play", "artists", () => LikeYoursAsync(c, owned, top.Take(8).ToList(), ct));
-            await RowAsync("music-new", "New from your artists", "albums", () => NewFromYoursAsync(c, owned, top, ct));
-            await RowAsync("music-charts", "Top albums", "albums", async () => (await c.Catalog.ChartAlbumsAsync(ct)).Select(a => Album(a, owned)).ToList());
+            await RowAsync("music-like", Loc.T("Like artists you play"), "artists", () => LikeYoursAsync(c, owned, top.Take(8).ToList(), ct));
+            await RowAsync("music-new", Loc.T("New from your artists"), "albums", () => NewFromYoursAsync(c, owned, top, ct));
+            await RowAsync("music-charts", Loc.T("Top albums"), "albums", async () => (await c.Catalog.ChartAlbumsAsync(ct)).Select(a => Album(a, owned)).ToList());
             var genres = await Quietly(async () => (await c.Catalog.GenresAsync(ct)).Select(g => new MusicGenreDto(g.Id, g.Name, ImageEndpoints.RemoteUrl(g.Picture))).ToList());
             return rows.Count == 0 && genres is null
-                ? Results.Problem("Deezer didn't answer. Try again in a minute.", statusCode: 502)
+                ? Problems.Of("Deezer didn't answer. Try again in a minute.", status: 502)
                 : Results.Ok(new MusicDiscoverDto(rows, genres ?? []));
         });
 
@@ -260,7 +262,7 @@ public static partial class MusicRequestEndpoints
 
             return await MusicRequested.ListAsync(c, folders, ct) is { } listed
                 ? Results.Ok(listed)
-                : Results.Problem("Lidarr isn't answering. Try again later.", statusCode: 502);
+                : Problems.Of("Lidarr isn't answering. Try again later.", status: 502);
         });
 
         // Stop following an artist, for the household: Lidarr stops looking for their new releases.
@@ -278,12 +280,12 @@ public static partial class MusicRequestEndpoints
         {
             if (!c.Options.MusicRequests.Enabled)
             {
-                return Results.Problem("Music requests are off. An admin can turn them on under Settings › Connections.", statusCode: 409);
+                return Problems.Of("Music requests are off. An admin can turn them on under Settings › Connections.", status: 409);
             }
 
             if (body.Kind is not ("album" or "artist") || (body.DeezerId is null && body.MusicBrainzId is null && body.ArtistId is null))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["kind"] = ["Use \"album\" or \"artist\", with a deezerId, musicBrainzId or artistId."] });
+                return Problems.Field("Use \"album\" or \"artist\", with a deezerId, musicBrainzId or artistId.", field: "kind");
             }
 
             var logger = loggers.CreateLogger("Flexarr.MusicRequests");
@@ -296,7 +298,7 @@ public static partial class MusicRequestEndpoints
                 || await c.Db.MediaRequests.CountAsync(r => r.ProfileId == current.Id && (r.Kind == MediaKind.Album || r.Kind == MediaKind.Artist) && r.RequestedAt > since, ct)
                 >= DailyLimit)
             {
-                return Results.Problem("That's a lot of music for one day. Try again tomorrow.", statusCode: 429);
+                return Problems.Of("That's a lot of music for one day. Try again tomorrow.", status: 429);
             }
 
             try
@@ -319,8 +321,8 @@ public static partial class MusicRequestEndpoints
                 // Lidarr's own words can name its address or folders: they go to the log, not to whoever asked.
                 LogLidarrRefused(logger, ex, (int?)ex.StatusCode);
                 return ex.StatusCode is { } status && (int)status is >= 400 and < 500
-                    ? Results.Problem("Lidarr turned the request down. It may have it already.", statusCode: 502)
-                    : Results.Problem("Lidarr isn't answering. Try again later.", statusCode: 502);
+                    ? Problems.Of("Lidarr turned the request down. It may have it already.", status: 502)
+                    : Problems.Of("Lidarr isn't answering. Try again later.", status: 502);
             }
             catch (DeezerException ex) when (ex.Code == 800)
             {
@@ -328,7 +330,7 @@ public static partial class MusicRequestEndpoints
             }
             catch (Exception ex) when (ex is DeezerException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
             {
-                return Results.Problem("Lidarr or Deezer didn't answer in time. Try again in a minute.", statusCode: 502);
+                return Problems.Of("Lidarr or Deezer didn't answer in time. Try again in a minute.", status: 502);
             }
         });
     }
@@ -340,16 +342,18 @@ public static partial class MusicRequestEndpoints
     /// Why this profile can't undo now, or null when it can. Family guests can ask for music but not take back the
     /// household's (Lidarr is shared); everyone else has an hourly cap, as asking has a daily one.
     /// </summary>
-    /// <param name="guests">What a family guest is told.</param>
-    internal static IResult? UndoRefused(CurrentProfile current, IMemoryCache cache, string guests = "Guests can't undo music requests.")
+    /// <param name="titles">A film's or show's undo, which a family guest is told about without music.</param>
+    internal static IResult? UndoRefused(CurrentProfile current, IMemoryCache cache, bool titles = false)
     {
         if (current.IsGuest)
         {
-            return Results.Problem(guests, statusCode: 403);
+            return titles
+                ? Problems.Of("Guests can't undo requests.", status: 403)
+                : Problems.Of("Guests can't undo music requests.", status: 403);
         }
 
         return UndoCount(current, cache).Value >= UndoHourlyLimit
-            ? Results.Problem("That's a lot of undoing for one hour. Try again later.", statusCode: 429)
+            ? Problems.Of("That's a lot of undoing for one hour. Try again later.", status: 429)
             : null;
     }
 
@@ -390,17 +394,17 @@ public static partial class MusicRequestEndpoints
         {
             LogLidarrRefused(logger, ex, (int?)ex.StatusCode);
             return ex.StatusCode is { } status && (int)status is >= 400 and < 500
-                ? Results.Problem("Lidarr turned that down.", statusCode: 502)
-                : Results.Problem("Lidarr isn't answering. Try again later.", statusCode: 502);
+                ? Problems.Of("Lidarr turned that down.", status: 502)
+                : Problems.Of("Lidarr isn't answering. Try again later.", status: 502);
         }
         catch (DeezerException ex) when (ex.Code == 800)
         {
             // Said, so clients don't take it for a server without undo (a bare 404).
-            return Results.Problem("Deezer doesn't know that any more.", statusCode: 404);
+            return Problems.Of("Deezer doesn't know that any more.", status: 404);
         }
         catch (Exception ex) when (ex is DeezerException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
         {
-            return Results.Problem("Lidarr or Deezer didn't answer in time. Try again in a minute.", statusCode: 502);
+            return Problems.Of("Lidarr or Deezer didn't answer in time. Try again in a minute.", status: 502);
         }
     }
 
@@ -431,7 +435,7 @@ public static partial class MusicRequestEndpoints
         }
         catch (Exception ex) when (ex is DeezerException or HttpRequestException || (ex is TaskCanceledException && ex.InnerException is TimeoutException))
         {
-            return Results.Problem("Deezer didn't answer. Try again in a minute.", statusCode: 502);
+            return Problems.Of("Deezer didn't answer. Try again in a minute.", status: 502);
         }
     }
 

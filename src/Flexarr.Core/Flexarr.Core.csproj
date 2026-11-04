@@ -5,6 +5,10 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The language packs built into the server (make strings writes them; docs/languages.md). -->
+    <EmbeddedResource Include="Localization/Packs/*.json" LogicalName="languages/%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="Flexarr.Core.Tests" />
   </ItemGroup>
 </Project>

@@ -7,6 +7,7 @@ using Flexarr.Api.Playback;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Media;
 using Flexarr.Core.Paths;
 using Flexarr.Core.Scanning;
@@ -16,6 +17,7 @@ using Flexarr.Metadata;
 using Flexarr.Streaming;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -146,40 +148,40 @@ public static class SettingsEndpoints
             // as importing the access settings from a file does.
             if (update.AuthenticationRequired == AuthenticationRequired.DisabledForLocalAddresses && current.AuthenticationRequired != AuthenticationRequired.DisabledForLocalAddresses
                 && await ConfirmKeyAsync(new KeyRequest(update.Pin, update.Confirm == true), http, db, profile, guard, ct,
-                    "let devices at home in without the key") is { } refused)
+                    Loc.Mark("let devices at home in without the key")) is { } refused)
             {
                 return refused;
             }
 
             if (update.LiveTv is { BaseUrl.Length: > 0 } badLive && (WebAddress(badLive.BaseUrl) is null || string.IsNullOrWhiteSpace(badLive.Username)))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["liveTv"] = ["Enter Dispatcharr's http or https address and a user name."] });
+                return Problems.Field("Enter Dispatcharr's http or https address and a user name.", field: "liveTv");
             }
 
             if (update.Arr?.FirstOrDefault(a => WebAddress(a.BaseUrl) is null) is { } bad)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["arr"] = [$"{bad.Name}: “{bad.BaseUrl}” isn't a valid http or https address."] });
+                return Problems.Field("{name}: “{baseUrl}” isn't a valid http or https address.", field: "arr", args: new { name = bad.Name, baseUrl = bad.BaseUrl });
             }
 
             if (update.Seerr is { BaseUrl.Length: > 0 } badSeerr && WebAddress(badSeerr.BaseUrl) is null)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["seerr"] = [$"“{badSeerr.BaseUrl}” isn't a valid http or https address."] });
+                return Problems.Field("“{baseUrl}” isn't a valid http or https address.", field: "seerr", args: new { baseUrl = badSeerr.BaseUrl });
             }
 
             if (update.TraktApp is { } traktApp && (traktApp.ClientId?.Trim() ?? "") is { Length: > 0 } traktId
                 && (traktId.Length > 128 || !traktId.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_')))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["traktApp"] = ["That doesn't look like a Trakt client ID."] });
+                return Problems.Field("That doesn't look like a Trakt client ID.", field: "traktApp");
             }
 
             if (update.Bazarr is { BaseUrl.Length: > 0 } badBazarr && WebAddress(badBazarr.BaseUrl) is null)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["bazarr"] = [$"“{badBazarr.BaseUrl}” isn't a valid http or https address."] });
+                return Problems.Field("“{baseUrl}” isn't a valid http or https address.", field: "bazarr", args: new { baseUrl = badBazarr.BaseUrl });
             }
 
             if (update.Podcasts is { Country: { Length: > 0 } country } && Podcasts.PodcastCountries.Known(country) is null)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["podcasts"] = [$"Apple has no podcast charts for “{country}”."] });
+                return Problems.Field("Apple has no podcast charts for “{country}”.", field: "podcasts", args: new { country });
             }
 
             // A new recordings folder must be one Flexarr can write to now: otherwise every recording fails later (in the Mac
@@ -394,7 +396,7 @@ public static class SettingsEndpoints
                 : connection.ApiKey;
             if (WebAddress(connection.BaseUrl) is not { } url || key is null)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["arr"] = ["Enter an http or https address and the API key."] });
+                return Problems.Field("Enter an http or https address and the API key.", field: "arr");
             }
 
             return Results.Ok(await StatusAsync(client, new ArrInstance { Name = connection.Name, Kind = connection.Kind, BaseUrl = url, ApiKey = key }, ct));
@@ -406,18 +408,18 @@ public static class SettingsEndpoints
             var key = connection?.ApiKey.Trim() is { Length: > 0 } typed ? typed : options.CurrentValue.Tmdb?.ApiKey;
             if (string.IsNullOrEmpty(key))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["tmdb"] = ["Paste your TMDB API key or read access token."] });
+                return Problems.Field("Paste your TMDB API key or read access token.", field: "tmdb");
             }
 
             try
             {
                 return Results.Ok(await client.CheckKeyAsync(key, ct)
                     ? new TmdbTestDto(true, null)
-                    : new TmdbTestDto(false, "TMDB didn't accept that key. Copy it again from themoviedb.org › Settings › API."));
+                    : new TmdbTestDto(false, Loc.T("TMDB didn't accept that key. Copy it again from themoviedb.org › Settings › API.")));
             }
             catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
             {
-                return Results.Ok(new TmdbTestDto(false, "Couldn't reach TMDB from the server."));
+                return Results.Ok(new TmdbTestDto(false, Loc.T("Couldn't reach TMDB from the server.")));
             }
         }).WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
@@ -429,7 +431,7 @@ public static class SettingsEndpoints
             var password = string.IsNullOrEmpty(connection.Password) ? saved is not null && SameServer(saved.BaseUrl, connection.BaseUrl) ? saved.Password : null : connection.Password;
             if (WebAddress(connection.BaseUrl) is not { } url || string.IsNullOrWhiteSpace(connection.Username) || string.IsNullOrEmpty(password))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["liveTv"] = ["Enter Dispatcharr's address, a user name and its password."] });
+                return Problems.Field("Enter Dispatcharr's address, a user name and its password.", field: "liveTv");
             }
 
             var account = new LiveTv.XtreamAccount(url, connection.Username.Trim(), password);
@@ -440,7 +442,7 @@ public static class SettingsEndpoints
                 var info = await client.CheckAsync(account, timeout.Token);
                 if (!info.SignedIn)
                 {
-                    return Results.Ok(new LiveTvTestDto(false, null, null, null, "The Live TV source refused the user name or password."));
+                    return Results.Ok(new LiveTvTestDto(false, null, null, null, Loc.T("The Live TV source refused the user name or password.")));
                 }
 
                 var channels = await client.GetChannelsAsync(account, timeout.Token);
@@ -452,7 +454,7 @@ public static class SettingsEndpoints
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                return Results.Ok(new LiveTvTestDto(false, null, null, null, "The Live TV source didn't answer in time."));
+                return Results.Ok(new LiveTvTestDto(false, null, null, null, Loc.T("The Live TV source didn't answer in time.")));
             }
         }).WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
@@ -547,8 +549,10 @@ public static class SettingsEndpoints
     /// Null when that's given; otherwise the refusal. Signing in with the key itself is enough.
     /// </summary>
     internal static async Task<IResult?> ConfirmKeyAsync(KeyRequest? request, HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard,
-        CancellationToken ct, string action = "see the API key")
+        CancellationToken ct, string? action = null)
     {
+        // The action is marked where it's written (Loc.Mark) and translated here, in the request's language.
+        action = action is null ? Loc.T("see the API key") : Loc.T(action);
         if (http.User.FindFirst(FlexarrClaims.Method)?.Value == ApiKeyAuthenticationHandler.Methods.ApiKey)
         {
             return null;
@@ -557,12 +561,12 @@ public static class SettingsEndpoints
         var main = await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == PlaybackState.DefaultUser, ct);
         if (main?.AdminPinHash is null)
         {
-            return request?.Confirm == true ? null : Results.Problem($"Confirm that you want to {action}.", statusCode: 400);
+            return request?.Confirm == true ? null : Problems.Of("Confirm that you want to {action}.", new { action }, status: 400);
         }
 
         if (string.IsNullOrEmpty(request?.Pin))
         {
-            return Results.Problem($"Enter the admin PIN to {action}.", statusCode: 403);
+            return Problems.Of("Enter the admin PIN to {action}.", new { action }, status: 403);
         }
 
         var (callers, browser) = ProfileEndpoints.PinCaller(http, current);
@@ -571,7 +575,7 @@ public static class SettingsEndpoints
         {
             PinCheck.Right => null,
             PinCheck.LockedOut => ProfileEndpoints.TooManyPins(http, retryAfter),
-            _ => Results.Problem("That PIN isn't right.", statusCode: 403),
+            _ => Problems.Of("That PIN isn't right.", status: 403),
         };
     }
 
@@ -603,11 +607,11 @@ public static class SettingsEndpoints
         {
             var reason = ex switch
             {
-                HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized } => "The API key was rejected.",
-                HttpRequestException { StatusCode: not null } http => $"It answered with HTTP {(int)http.StatusCode.Value}.",
-                HttpRequestException => "Nothing answered at that address.",
-                TaskCanceledException => "It didn't answer within 8 seconds.",
-                _ => "That doesn't look like a Sonarr, Radarr or Lidarr server.",
+                HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized } => Loc.T("The API key was rejected."),
+                HttpRequestException { StatusCode: not null } http => Loc.T("It answered with HTTP {status}.", new { status = (int)http.StatusCode.Value }),
+                HttpRequestException => Loc.T("Nothing answered at that address."),
+                TaskCanceledException => Loc.T("It didn't answer within 8 seconds."),
+                _ => Loc.T("That doesn't look like a Sonarr, Radarr or Lidarr server."),
             };
             return new ArrStatusDto(instance.Name, instance.Kind, false, null, reason);
         }

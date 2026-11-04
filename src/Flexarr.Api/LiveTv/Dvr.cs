@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using Flexarr.Api.Configuration;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.LiveTv;
 using Flexarr.Core.Scanning;
@@ -184,7 +185,7 @@ public sealed partial class DvrService(IServiceScopeFactory scopes, IOptionsMoni
             {
                 foreach (var viewer in viewers.All.Where(v => v.Session == session))
                 {
-                    viewers.End(viewer.Id, $"Recording {title} needed the stream. You can watch that channel, or stop the recording.");
+                    viewers.End(viewer.Id, () => Loc.T("Recording {title} needed the stream. You can watch that channel, or stop the recording.", new { title }));
                 }
 
                 await streams.EndAsync(session);
