@@ -81,7 +81,7 @@ extension View {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     if let parent {
                         Text(parent).foregroundStyle(Color.usher)
-                        Image(systemName: "chevron.right").font(.system(size: 18, weight: .bold)).foregroundStyle(Color.usher)
+                        Image(systemName: "chevron.forward").font(.system(size: 18, weight: .bold)).foregroundStyle(Color.usher)
                     }
                     Text(title).foregroundStyle(Color.screen)
                 }
