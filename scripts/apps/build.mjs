@@ -15,13 +15,20 @@ const serverVersion = args.includes('--server-version') ? args[args.indexOf('--s
 
 const escape = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-// The status column's icons, in the order the legend lists them.
+// What each status is called on the cards' pills.
 const statuses = {
-  available: { icon: '✅', label: 'Available' },
-  beta: { icon: '🧪', label: 'Beta' },
-  coming: { icon: '🕒', label: 'Coming soon' },
-  development: { icon: '🛠️', label: 'In development' },
-  planned: { icon: '🗓️', label: 'Planned' },
+  available: { label: 'Available' },
+  beta: { label: 'Beta' },
+  coming: { label: 'Coming soon' },
+  development: { label: 'In development' },
+  planned: { label: 'Planned' },
+};
+
+// The page's sections, in order: what runs at home, what you watch on, and what works alongside.
+const kinds = {
+  server: { title: 'Flexarr Server', glyph: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>', intro: 'One per home. It holds your films, TV, music and podcasts and streams them to every screen.' },
+  player: { title: 'Flexarr Player', glyph: '<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/><path d="m10 8 5 2.5-5 2.5z"/>', intro: 'Watch on as many screens as you like. Each one signs in to your server.' },
+  integration: { title: 'Works with', glyph: '<path d="M9 2v6M15 2v6"/><path d="M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/>', intro: 'Add-ons that bring Flexarr into the rest of your home.' },
 };
 
 const stroke = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
@@ -47,16 +54,22 @@ const stores = {
   google: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 3.5v17l14-8.5L5 3.5Z"/></svg>',
 };
 
+// Icons a link can carry before its label (`"icon": "laptop"`).
+const linkIcons = {
+  laptop: stroke('<rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/>'),
+};
+
 function load() {
   const data = JSON.parse(fs.readFileSync(source, 'utf8'));
   const problems = [];
   const ids = new Set();
   for (const [i, p] of (data.platforms ?? []).entries()) {
     const at = `platforms[${i}]${p.id ? ` (${p.id})` : ''}`;
-    for (const key of ['id', 'name', 'icon', 'status', 'summary']) if (!p[key]) problems.push(`${at}: needs "${key}"`);
+    for (const key of ['id', 'name', 'kind', 'icon', 'status', 'summary']) if (!p[key]) problems.push(`${at}: needs "${key}"`);
     if (ids.has(p.id)) problems.push(`${at}: id used twice`);
     ids.add(p.id);
     if (p.runsOn && !(Array.isArray(p.runsOn) && p.runsOn.every(r => systems[r]))) problems.push(`${at}: runsOn can list ${Object.keys(systems).join(', ')}`);
+    if (p.kind && !kinds[p.kind]) problems.push(`${at}: kind must be one of ${Object.keys(kinds).join(', ')}`);
     if (p.icon && !icons[p.icon]) problems.push(`${at}: icon must be one of ${Object.keys(icons).join(', ')}`);
     if (p.status && !statuses[p.status]) problems.push(`${at}: status must be one of ${Object.keys(statuses).join(', ')}`);
     if (['available', 'beta', 'coming'].includes(p.status) && !p.version) problems.push(`${at}: a ${p.status} app needs a version`);
@@ -64,6 +77,7 @@ function load() {
     if (p.release && p.release !== 'server') problems.push(`${at}: "release" can only be "server"`);
     for (const link of p.links ?? []) {
       if (!link.label || !/^(https:\/\/|\/)/.test(link.href ?? '')) problems.push(`${at}: each link needs a label and an https:// or /path href`);
+      if (link.icon && !linkIcons[link.icon]) problems.push(`${at}: a link's icon must be one of ${Object.keys(linkIcons).join(', ')}`);
       if (link.store && !stores[link.store]) problems.push(`${at}: store must be one of ${Object.keys(stores).join(', ')}`);
     }
   }
@@ -88,38 +102,27 @@ if (serverVersion) {
 const data = load();
 
 const external = href => /^https:/.test(href);
+// The server and every player are free, and their pills say so.
+const pill = p => `<span class="pill ${p.status}">${['server', 'player'].includes(p.kind) && p.status === 'available' ? 'Available. 100% free.' : statuses[p.status].label}</span>`;
+// Links that open a new tab end in an arrow.
 const arrow = '<svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>';
-const pill = p => `<span class="pill ${p.status}">${statuses[p.status].label}</span>`;
 const button = (l, i) => {
   const kind = l.store || l.primary ? 'button primary' : i === 0 ? 'button quiet' : 'more';
-  return `<a class="${kind}" href="${escape(l.href)}"${external(l.href) ? ' target="_blank" rel="noopener"' : ''}>${l.store ? stores[l.store] : ''}${escape(l.label)}</a>`;
+  return `<a class="${kind}" href="${escape(l.href)}"${external(l.href) ? ' target="_blank" rel="noopener"' : ''}>${l.store ? stores[l.store] : l.icon ? linkIcons[l.icon] : ''}${escape(l.label)}${external(l.href) ? arrow : ''}</a>`;
 };
 
-// At a glance: one row each, with the first link as the way to get it.
-const get = p => {
-  const l = p.links?.[0];
-  if (!l) return '<span class="none">Not yet</span>';
-  return `<a class="get${l.store || l.primary ? ' ready' : ''}" href="${escape(l.href)}"${external(l.href) ? ' target="_blank" rel="noopener"' : ''}>${l.store ? stores[l.store] : ''}${escape(l.short || l.label)}${external(l.href) ? arrow : ''}</a>`;
-};
-const row = p => `            <tr>
-              <th scope="row"><div class="platform"><span class="row-icon">${icons[p.icon]}</span><div><a href="#${escape(p.id)}">${escape(p.name)}</a>${p.version ? `<span class="sub">${escape(p.version)}</span>` : ''}</div></div></th>
-              <td class="state"><span class="mark" aria-hidden="true">${statuses[p.status].icon}</span><span class="state-label">${statuses[p.status].label}</span></td>
-              <td class="ver">${p.version ? `<span class="version">${escape(p.version)}</span>` : '<span class="none">–</span>'}</td>
-              <td class="go">${get(p)}</td>
-            </tr>`;
-const table = `<div class="table"><table>
-          <thead><tr><th scope="col">Platform</th><th scope="col" class="state"><span class="state-label">Status</span></th><th scope="col" class="ver">Version</th><th scope="col" class="go">Get it</th></tr></thead>
-          <tbody>
-${data.platforms.map(row).join('\n')}
-          </tbody>
-        </table></div>`;
+// Out now, coming soon (built, waiting on a store), or on the way (still being made: a lighter, dashed card).
+const rank = p => ['available', 'beta'].includes(p.status) ? 0 : p.status === 'coming' ? 1 : 2;
+const onTheWay = p => rank(p) === 2;
+// Each kind's entries in the order the page shows them: what's out now first, then what's on the way.
+const ofKind = kind => data.platforms.filter(p => p.kind === kind).map((p, i) => [p, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([p]) => p);
 
-const card = p => `<article class="card${p.runsOn ? ' wide' : ''}" id="${escape(p.id)}">
+const card = p => `<article class="card${p.runsOn ? ' wide' : ''}${onTheWay(p) ? ' soon' : ''}" id="${escape(p.id)}">
             <div class="card-body">
               <div class="card-top"><span class="app-icon">${icons[p.icon]}</span>${pill(p)}</div>
               <h3>${escape(p.name)}</h3>
 ${p.version ? `              <p class="version-line">Version <span class="version">${escape(p.version)}</span></p>\n` : ''}              <p class="summary">${escape(p.summary)}</p>
-${p.requires ? `              <p class="requires">${escape(p.requires)}</p>\n` : ''}${p.note || p.links?.length ? `              <div class="foot">
+${p.note || p.links?.length ? `              <div class="foot">
 ${p.note ? `                <p class="note">${escape(p.note)}</p>\n` : ''}${p.links?.length ? `                <div class="links">${p.links.map(button).join('')}</div>\n` : ''}              </div>\n` : ''}            </div>
 ${p.runsOn ? `            <div class="runs-on">
               <p>Runs on</p>
@@ -127,11 +130,35 @@ ${p.runsOn ? `            <div class="runs-on">
             </div>
 ` : ''}          </article>`;
 
-const now = data.platforms.filter(p => ['available', 'beta'].includes(p.status));
-const soon = data.platforms.filter(p => !['available', 'beta'].includes(p.status));
+// Asking for somewhere new closes the players.
+const ask = `<article class="card ask">
+            <div class="card-body">
+              <span class="ask-icon">${stroke('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12Z"/><path d="M12 9v4M10 11h4"/>')}</span>
+              <h3>Somewhere else?</h3>
+              <p class="summary">Tell us where you'd like to watch Flexarr next.</p>
+              <div class="links"><a class="button primary" href="${repo}/discussions/categories/ideas" target="_blank" rel="noopener">Ask on GitHub${arrow}</a></div>
+            </div>
+          </article>`;
+// One section per kind: what's out now, then the dashed cards for what's on the way.
+const section = ([kind, k]) => {
+  const all = ofKind(kind);
+  if (!all.length) return '';
+  const cards = all.map(card);
+  if (kind === 'player') cards.push(ask);
+  return `      <section class="kind ${kind}" aria-labelledby="${kind}-head">
+        <div class="kind-head">
+          <h2 id="${kind}-head"><span class="glyph">${stroke(k.glyph)}</span>${escape(k.title)}</h2>
+          <p>${escape(k.intro)}</p>
+        </div>
+        <div class="cards">
+          ${cards.join('\n          ')}
+        </div>
+      </section>`;
+};
+const sections = Object.entries(kinds).map(section).filter(Boolean).join('\n\n');
 
-const title = 'Flexarr apps: Apple TV, iPhone, iPad, web and Android';
-const description = 'Every Flexarr app and platform, with its version and status: what you can download today, what\'s coming soon and what\'s on the way.';
+const title = 'Flexarr server and apps: Apple TV, iPhone, iPad, Mac, web and Android';
+const description = 'The Flexarr server for your home and a player for every screen, each with its version and status: what you can get today, what\'s coming soon and what\'s on the way.';
 
 const html = `<!doctype html>
 <html lang="en">
@@ -161,7 +188,7 @@ const html = `<!doctype html>
     .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     .kicker { color: var(--silver); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.8rem; margin: 0 0 14px; }
     section { padding-top: clamp(64px, 9vw, 112px); }
-    section > h2, .section-head h2 { font-size: clamp(2.4rem, 6vw, 4rem); }
+    section > h2, .kind-head h2 { font-size: clamp(2.4rem, 6vw, 4rem); }
 
     /* Hero: the headline, then the devices straight on the page. */
     .hero { padding-top: clamp(40px, 7vw, 88px); text-align: center; }
@@ -170,53 +197,8 @@ const html = `<!doctype html>
     .hero picture { display: block; margin-top: clamp(32px, 6vw, 64px); }
     .hero img { width: 100%; }
 
-    /* At a glance */
-    .section-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 16px 32px; }
-    .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 0; list-style: none; color: var(--usher); font-size: 0.92rem; }
-    .table { margin-top: 28px; border: 1px solid var(--aisle); border-radius: 22px; background: linear-gradient(180deg, var(--seat), rgb(37 32 44 / 0.55)); overflow: hidden; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 18px 22px; text-align: left; border-top: 1px solid var(--aisle); vertical-align: middle; }
-    thead th { border-top: 0; padding-block: 16px; color: var(--usher); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-    tbody tr { transition: background 0.15s; }
-    tbody tr:hover { background: rgb(242 238 231 / 0.03); }
-    tbody th { font-weight: 700; font-size: 1.05rem; }
-    tbody th a { color: var(--screen); text-decoration: none; }
-    tbody th a:hover { color: var(--silver); }
-    td { color: var(--usher); }
-    .platform { display: flex; align-items: center; gap: 14px; }
-    .row-icon { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; flex: none; background: var(--seat-raised); border: 1px solid var(--aisle); color: var(--screen); }
-    .row-icon svg, .row-icon img { width: 19px; height: 19px; }
-    td.state { white-space: nowrap; }
-    .mark { margin-right: 9px; font-size: 1.05rem; }
-    .version { font-variant-numeric: tabular-nums; color: var(--screen); }
-    .none { color: var(--usher); opacity: 0.6; }
-    .sub { display: none; }
-    th.go, td.go { text-align: right; }
-    .get { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--aisle); color: var(--screen); font-size: 0.92rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
-    .get:hover { border-color: var(--usher); background: var(--seat-raised); }
-    .get.ready { background: var(--screen); border-color: var(--screen); color: var(--room); }
-    .get.ready:hover { background: #fff; }
-    .get svg { width: 15px; height: 15px; flex: none; }
-    .get .arrow { width: 13px; height: 13px; opacity: 0.7; }
-    @media (max-width: 720px) {
-      th, td { padding: 14px 14px; }
-      .ver, .state-label { display: none; }
-      .platform { gap: 10px; }
-      .row-icon { width: 30px; height: 30px; border-radius: 9px; }
-      .row-icon svg, .row-icon img { width: 16px; height: 16px; }
-      td.state { padding-inline: 4px; text-align: center; }
-      .mark { margin: 0; }
-      .sub { display: block; margin-top: 2px; color: var(--usher); font-weight: 400; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
-      td.go { padding-left: 4px; }
-      .get { padding: 6px 11px; font-size: 0.85rem; gap: 5px; }
-      .get .arrow { display: none; }
-    }
-
-    /* On a phone the cards below say it all, so the table goes. */
-    @media (max-width: 640px) { .glance { display: none; } }
 
     /* Cards */
-    .cards + .cards { margin-top: 20px; }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 20px; margin-top: 32px; }
     .card { position: relative; display: grid; border: 1px solid var(--aisle); border-radius: 24px; overflow: hidden; scroll-margin-top: 100px;
       background: radial-gradient(420px 260px at 0% 0%, rgb(var(--accent) / 0.14), transparent 70%), linear-gradient(180deg, var(--seat), rgb(37 32 44 / 0.4)); }
@@ -230,17 +212,18 @@ const html = `<!doctype html>
     .app-icon svg, .app-icon img { width: 28px; height: 28px; }
     .card h3 { font-size: clamp(2rem, 3.4vw, 2.6rem); }
     .card p { margin: 0; }
+    .version { font-variant-numeric: tabular-nums; color: var(--screen); }
     .version-line { color: var(--usher); font-size: 0.95rem; margin-top: -4px !important; }
     .summary { color: #cfc8d8; }
-    .note, .requires { color: var(--usher); font-size: 0.93rem; }
-    .requires::before { content: "Needs "; color: var(--screen); font-weight: 700; }
+    .note { color: var(--usher); font-size: 0.93rem; }
     /* The note and buttons sit at the bottom, so cards in a row line up. */
     .foot { margin-top: auto; padding-top: 10px; display: flex; flex-direction: column; gap: 12px; }
-    .links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; }
-    .links .button { min-height: 46px; padding: 0 20px; font-size: 0.95rem; }
+    .links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+    .links .button { min-height: 46px; padding: 0 18px; font-size: 0.95rem; }
     .links .button.primary { box-shadow: none; }
     .links .button svg { width: 18px; height: 18px; }
-    .more { font-weight: 700; text-decoration: none; }
+    .links .arrow, .links .button svg.arrow { width: 14px; height: 14px; margin-left: 6px; flex: none; opacity: 0.7; }
+    .more { display: inline-flex; align-items: center; font-weight: 700; text-decoration: none; }
     .more:hover { text-decoration: underline; }
 
     .pill { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 999px; font-size: 0.85rem; font-weight: 700; white-space: nowrap; color: var(--c); background: color-mix(in srgb, var(--c) 13%, transparent); }
@@ -265,18 +248,30 @@ const html = `<!doctype html>
       .runs-on li { flex-direction: column; gap: 6px; padding: 12px 6px; font-size: 0.88rem; }
     }
 
+    /* Sections: the server, the players, and what works with them. */
+    .kind-head h2 { display: flex; align-items: center; gap: 18px; }
+    .kind-head .glyph { width: 0.9em; height: 0.9em; border-radius: 0.24em; display: inline-grid; place-items: center; flex: none; background: var(--seat-raised); border: 1px solid var(--aisle); color: var(--silver); }
+    .kind-head .glyph svg { width: 0.5em; height: 0.5em; }
+    .kind-head p { margin: 14px 0 0; max-width: 620px; color: var(--usher); font-size: clamp(1.05rem, 2.2vw, 1.2rem); }
+    /* The server's cards each take the full row; players sit three across. */
+    .server .card { grid-column: 1 / -1; }
+    .server .card.soon .summary { max-width: 68ch; }
+    .player .cards, .integration .cards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+
     /* On the way: lighter, dashed. */
-    .soon .card { background: transparent; border-style: dashed; }
-    .soon .card h3 { font-size: clamp(1.8rem, 3vw, 2.2rem); }
-    .soon .requires { display: none; }
-    .soon .foot { border-top: 1px dashed var(--aisle); padding-top: 16px; margin-top: auto; }
-    .soon .card-body > .summary { margin-bottom: 8px; }
+    .card.soon { background: transparent; border-style: dashed; }
+    .card.soon h3 { font-size: clamp(1.8rem, 3vw, 2.2rem); }
+    .card.soon .foot { border-top: 1px dashed var(--aisle); padding-top: 16px; margin-top: auto; }
+    .card.soon .card-body > .summary { margin-bottom: 8px; }
     /* A slim strip across the row, after the cards. */
-    .card.ask { grid-column: 1 / -1; }
-    .card.ask .card-body { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; padding-block: 24px; }
-    .card.ask h3 { font-size: clamp(1.7rem, 3vw, 2.1rem); }
-    .card.ask p { color: var(--usher); margin-top: 4px; }
-    .card.ask .links { margin: 0; padding: 0; }
+    /* Not an app: an open invitation, centred, in rose. */
+    .card.ask { border-color: color-mix(in srgb, var(--rose) 38%, transparent);
+      background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--rose) 20%, transparent), transparent 70%), var(--seat); }
+    .card.ask .card-body { align-items: center; justify-content: center; text-align: center; gap: 14px; }
+    .card.ask .ask-icon { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; color: var(--rose); background: color-mix(in srgb, var(--rose) 14%, transparent); }
+    .card.ask .ask-icon svg { width: 30px; height: 30px; }
+    .card.ask .summary { max-width: 26ch; }
+    .card.ask .links { justify-content: center; margin-top: 6px; }
 
     .source { margin: clamp(56px, 8vw, 96px) 0 clamp(48px, 6vw, 72px); color: var(--usher); font-size: 0.92rem; text-align: center; }
   </style>
@@ -303,42 +298,11 @@ const html = `<!doctype html>
       <div class="hero">
         <p class="kicker">Apps</p>
         <h1>Flexarr on every screen.</h1>
-        <p class="lede">One server at home, and an app for every screen in it. Here's what you can get today and what's on the way.</p>
+        <p class="lede">Start with one server at home, then add a player for every screen. Here's what you can get today and what's on the way.</p>
         <picture><source media="(max-width: 640px)" srcset="/shots/screens-m.webp" width="1100" height="902"><img src="/shots/screens.webp" width="2000" height="1206" srcset="/shots/screens-1000.webp 1000w, /shots/screens.webp 2000w" sizes="(min-width: 1260px) 1180px, 92vw" alt="Flexarr in a web browser showing Only Murders in the Building on Home, on an iPad showing Home, and on an iPhone showing Barbie's page." fetchpriority="high"></picture>
       </div>
 
-      <section class="glance" aria-labelledby="glance">
-        <div class="section-head">
-          <h2 id="glance">At a glance</h2>
-          <ul class="legend">
-${Object.values(statuses).map(s => `            <li><span aria-hidden="true">${s.icon}</span> ${s.label}</li>`).join('\n')}
-          </ul>
-        </div>
-        ${table}
-      </section>
-
-      <section aria-labelledby="now">
-        <h2 id="now">Available now</h2>
-        <div class="cards">
-          ${now.filter(p => p.runsOn).map(card).join('\n          ')}
-        </div>
-        <div class="cards">
-          ${now.filter(p => !p.runsOn).map(card).join('\n          ')}
-        </div>
-      </section>
-
-      <section class="soon" aria-labelledby="soon">
-        <h2 id="soon">On the way</h2>
-        <div class="cards">
-          ${soon.map(card).join('\n          ')}
-          <article class="card ask">
-            <div class="card-body">
-              <div><h3>Somewhere else?</h3><p>Tell us where you'd like to watch Flexarr next.</p></div>
-              <div class="links"><a class="button quiet" href="${repo}/discussions/categories/ideas" target="_blank" rel="noopener">Ask on GitHub</a></div>
-            </div>
-          </article>
-        </div>
-      </section>
+${sections}
 
       <p class="source">This list is also at <a href="/apps.json">flexarr.io/apps.json</a>, built from <a href="${repo}/blob/main/site/apps.json">site/apps.json</a>.</p>
     </div>

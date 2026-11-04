@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Website
+- flexarr.io/apps is split into **Flexarr Server**, what you run at home, and **Flexarr Player**, the apps you watch on, with Home Assistant under **Works with**. Each card links to its guide, and the server and players say they're free.
+
 ## 0.61.0 · 4 November 2026
 
 ### Server name
