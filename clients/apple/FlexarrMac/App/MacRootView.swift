@@ -20,6 +20,11 @@ struct MacRootView: View {
     /// The splash, for a moment at launch.
     @State private var splashing = true
 
+    private var signedIn: Bool {
+        if case .signedIn = model.phase { return true }
+        return false
+    }
+
     private var covered: Bool { player.shown != nil || navigation.choosingProfile }
 
     var body: some View {
@@ -29,12 +34,10 @@ struct MacRootView: View {
             switch model.phase {
             case .signedOut:
                 if !welcomed && model.store.lastAddress == nil {
-                    WelcomeView { welcomed = true }
-                        .frame(maxWidth: 560)
+                    MacWelcomeView { withAnimation { welcomed = true } }
                         .transition(.opacity)
                 } else {
                     ConnectView()
-                        .frame(maxWidth: 640)
                         .transition(.opacity)
                 }
             case .signedIn(let credentials):
@@ -96,7 +99,8 @@ struct MacRootView: View {
         // Scrolled with a trackpad or wheel, as the Mac's TV and Music apps are: no bars down the side.
         .scrollIndicators(.never)
         .frame(minWidth: 900, minHeight: 600)
-        .toolbar(player.shown == nil && !navigation.choosingProfile && !splashing ? .automatic : .hidden, for: .windowToolbar)
+        // No toolbar until there's a page to put in it: signed out, the window is the welcome or connect screen.
+        .toolbar(signedIn && player.shown == nil && !navigation.choosingProfile && !splashing ? .automatic : .hidden, for: .windowToolbar)
         .animation(.easeInOut(duration: 0.25), value: navigation.choosingProfile)
         // A profile chosen there (or the signed-in profile changing anywhere) closes it.
         .onChange(of: model.currentProfile?.id) { _, _ in navigation.choosingProfile = false }

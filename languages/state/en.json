@@ -1694,6 +1694,7 @@
   "On or off": "a",
   "On the same Wi-Fi, this phone finds your server by itself. Then approve the code it shows and you’re in.": "n",
   "On the same Wi-Fi, this {device} finds your server by itself. When it asks to find devices on your network, tap Allow. Then approve the code it shows and you’re in.": "a",
+  "On the same network, this Mac finds your server by itself. If it asks to find devices on your network, click Allow. Then approve the code it shows and you’re in.": "a",
   "On the web.": "w",
   "On their phone, tablet or TV, they open Flexarr and choose {join}": "w",
   "On this server at {folder}": "w",
