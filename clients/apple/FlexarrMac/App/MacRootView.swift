@@ -53,7 +53,7 @@ struct MacRootView: View {
             // Who's watching? from the sidebar's profile: the whole window, as at launch.
             if navigation.choosingProfile {
                 VStack(spacing: 0) {
-                    ProfilePickerView(marksCurrent: true)
+                    ProfilePickerView(marksCurrent: true) { navigation.choosingProfile = false }
                     Button { navigation.choosingProfile = false } label: {
                         Label(t(Words.cancel), systemImage: "xmark")
                     }

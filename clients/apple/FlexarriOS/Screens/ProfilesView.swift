@@ -30,6 +30,9 @@ struct ProfilePickerView: View {
     @Environment(\.dismiss) private var dismiss
     /// Opened to switch: the profile watching now is marked and can't be chosen again.
     var marksCurrent = false
+    /// Where it's not a sheet (the Mac's, over the whole window): what closes it once a profile's chosen, or the one
+    /// watching now is clicked. A sheet dismisses itself.
+    var onDone: (() -> Void)? = nil
 
     @State private var asking: Profile?
     /// Leaving a kids profile: the admin PIN is asked for, keeping the chosen profile's own if it had one.
@@ -230,10 +233,14 @@ struct ProfilePickerView: View {
         return nil
     }
 
+    private func finish() {
+        if let onDone { onDone() } else { dismiss() }
+    }
+
     private func press(_ profile: Profile) async {
         error = nil
         // The one watching now: nothing to switch to (its padlock is held, not tapped).
-        if marksCurrent && profile.isCurrent { return }
+        if marksCurrent && profile.isCurrent { onDone?(); return }
         if profile.needsPinToChoose {
             // The admin PIN was just given here (child lock off): it goes with this choice, rather than the
             // keypad again. A profile with a PIN of its own (other than the main profile) still asks for that.
@@ -254,7 +261,7 @@ struct ProfilePickerView: View {
         defer { switching = nil }
         do {
             try await model.switchProfile(to: profile, pin: pin, parentPin: sentParentPin)
-            if marksCurrent { dismiss() }
+            if marksCurrent { finish() }
         } catch FlexarrClientError.parentPinNeeded(let message) {
             if parentPin == nil {
                 // Leaving a kids profile (or the PIN given earlier no longer works): ask for the admin PIN,
@@ -316,7 +323,7 @@ struct ProfilePickerView: View {
                 try? await model.switchProfile(to: target)
             }
             lockTarget = nil
-            if marksCurrent { dismiss() }
+            if marksCurrent { finish() }
         } catch FlexarrClientError.parentPinNeeded(let message) {
             if pin == nil { kidsLockPin = .lock } else { error = message ?? t("That PIN isn’t right.") }
         } catch {
