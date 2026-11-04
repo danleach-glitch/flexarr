@@ -316,7 +316,7 @@ struct LibraryView: View {
         } label: {
             PageMenuLabel(icon: "arrow.up.arrow.down", text: sort.label)
         }
-        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .menuStyle(.button).buttonStyle(.borderless).menuIndicator(.hidden).fixedSize()
         .help(t("Sort by"))
         .accessibilityLabel(t("Sort by"))
         .accessibilityValue(sort.label)
@@ -336,7 +336,7 @@ struct LibraryView: View {
             PageMenuLabel(icon: genre == nil ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill",
                           text: genre ?? t("All genres"), chosen: genre != nil)
         }
-        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .menuStyle(.button).buttonStyle(.borderless).menuIndicator(.hidden).fixedSize()
         .help(t("Genre"))
         .accessibilityLabel(t("Genre"))
         .accessibilityValue(genre ?? t("All genres"))

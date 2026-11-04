@@ -413,7 +413,7 @@ struct BooksLibraryView: View {
             #endif
         }
         #if os(macOS)
-        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .menuStyle(.button).buttonStyle(.borderless).menuIndicator(.hidden).fixedSize()
         .accessibilityLabel(t("Filter and sort"))
         #endif
     }
