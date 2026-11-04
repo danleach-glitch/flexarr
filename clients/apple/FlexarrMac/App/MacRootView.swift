@@ -16,6 +16,9 @@ struct MacRootView: View {
     @State private var navigation = MacNavigation.shared
     /// The welcome cards have been seen or skipped. `-FlexarrWelcomed NO` shows them again.
     @AppStorage("FlexarrWelcomed") private var welcomed = false
+    /// Find my server was clicked this run: on to connecting, even when `-FlexarrWelcomed NO` (a launch argument,
+    /// which outranks what's saved) asks for the welcome.
+    @State private var welcomeDone = false
     @State private var showsDownloads = false
     /// The splash, for a moment at launch.
     @State private var splashing = true
@@ -33,8 +36,11 @@ struct MacRootView: View {
             Group {
             switch model.phase {
             case .signedOut:
-                if !welcomed && model.store.lastAddress == nil {
-                    MacWelcomeView { withAnimation { welcomed = true } }
+                if !welcomed && !welcomeDone && model.store.lastAddress == nil {
+                    MacWelcomeView {
+                        welcomed = true
+                        withAnimation { welcomeDone = true }
+                    }
                         .transition(.opacity)
                 } else {
                     ConnectView()
