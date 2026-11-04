@@ -138,6 +138,14 @@ struct ProfilePickerView: View {
                                     Text(caption(for: profile) ?? " ")
                                         .font(.caption.weight(.medium))
                                         .foregroundStyle(Color.usher)
+                                    // How to use the padlock, under each kids profile (a blank line under the others
+                                    // keeps the row level).
+                                    if model.profiles.contains(where: lockBadge) {
+                                        Text(lockBadge(for: profile) ? (model.kidsLock ? t("Hold to turn off child lock") : t("Hold for child lock")) : " ")
+                                            .font(.caption2.weight(.medium))
+                                            .foregroundStyle(Color.usher.opacity(0.8))
+                                            .accessibilityHidden(true)
+                                    }
                                 }
                                 .lineLimit(1)
                             }
