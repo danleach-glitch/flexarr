@@ -489,6 +489,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
             DeviceType.AndroidPhone => "Android phone",
             DeviceType.AndroidTablet => "Android tablet",
             DeviceType.AndroidTv => "Android TV",
+            DeviceType.Mac => "Mac",
             _ => "device",
         };
         return profileName is { Length: > 0 } who ? $"{who}’s {what}" : $"A guest’s {what}";

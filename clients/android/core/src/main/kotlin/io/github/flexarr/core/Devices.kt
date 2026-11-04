@@ -50,6 +50,7 @@ fun deviceKind(deviceType: String?): String? = when (deviceType) {
     "AndroidPhone" -> t("Android phone")
     "AndroidTablet" -> t("Android tablet")
     "AndroidTv" -> "Android TV"
+    "Mac" -> "Mac"
     else -> null
 }
 
