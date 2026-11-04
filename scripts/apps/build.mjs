@@ -116,8 +116,8 @@ const card = p => `<article class="card${p.runsOn ? ' wide' : ''}${onTheWay(p) ?
               <div class="card-top"><span class="app-icon">${icons[p.icon]}</span>${pill(p)}</div>
               <h3>${escape(p.name)}</h3>
 ${p.version ? `              <p class="version-line">Version <span class="version">${escape(p.version)}</span></p>\n` : ''}              <p class="summary">${escape(p.summary)}</p>
-${p.requires || p.note || p.links?.length ? `              <div class="foot">
-${p.requires ? `                <p class="requires">${escape(p.requires)}</p>\n` : ''}${p.note ? `                <p class="note">${escape(p.note)}</p>\n` : ''}${p.links?.length ? `                <div class="links">${p.links.map(button).join('')}</div>\n` : ''}              </div>\n` : ''}            </div>
+${p.note || p.links?.length ? `              <div class="foot">
+${p.note ? `                <p class="note">${escape(p.note)}</p>\n` : ''}${p.links?.length ? `                <div class="links">${p.links.map(button).join('')}</div>\n` : ''}              </div>\n` : ''}            </div>
 ${p.runsOn ? `            <div class="runs-on">
               <p>Runs on</p>
               <ul>${p.runsOn.map(r => `<li>${systems[r]}${escape(r)}</li>`).join('')}</ul>
@@ -209,8 +209,7 @@ const html = `<!doctype html>
     .version { font-variant-numeric: tabular-nums; color: var(--screen); }
     .version-line { color: var(--usher); font-size: 0.95rem; margin-top: -4px !important; }
     .summary { color: #cfc8d8; }
-    .note, .requires { color: var(--usher); font-size: 0.93rem; }
-    .requires::before { content: "Needs "; color: var(--screen); font-weight: 700; }
+    .note { color: var(--usher); font-size: 0.93rem; }
     /* The note and buttons sit at the bottom, so cards in a row line up. */
     .foot { margin-top: auto; padding-top: 10px; display: flex; flex-direction: column; gap: 12px; }
     .links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
@@ -256,7 +255,6 @@ const html = `<!doctype html>
     /* On the way: lighter, dashed. */
     .card.soon { background: transparent; border-style: dashed; }
     .card.soon h3 { font-size: clamp(1.8rem, 3vw, 2.2rem); }
-    .card.soon .requires { display: none; }
     .card.soon .foot { border-top: 1px dashed var(--aisle); padding-top: 16px; margin-top: auto; }
     .card.soon .card-body > .summary { margin-bottom: 8px; }
     /* A slim strip across the row, after the cards. */

@@ -9,7 +9,6 @@
       "status": "available",
       "version": "0.61.0",
       "release": "server",
-      "requires": "A computer at home that stays on: 64-bit Intel, AMD or ARM",
       "runsOn": ["Docker", "Synology", "Unraid", "Linux", "Windows", "Mac"],
       "summary": "Reads your films, TV, music and podcasts, works with Sonarr, Radarr and Lidarr, and streams to every app. The web player is built in: open your server's address in any browser.",
       "links": [
@@ -24,7 +23,6 @@
       "icon": "apple",
       "status": "available",
       "version": "0.57.0",
-      "requires": "iOS or iPadOS 18.2 or later",
       "summary": "Downloads for offline, podcasts with widgets and alerts, Siri, Picture in Picture and AirPlay.",
       "links": [
         { "label": "App Store", "href": "https://apps.apple.com/app/flexarr/id6826618084", "store": "apple" }
@@ -37,7 +35,6 @@
       "icon": "apple",
       "status": "coming",
       "version": "0.57.0",
-      "requires": "tvOS 18.2 or later",
       "summary": "Your libraries, music and live TV from the sofa, with a player built for HDR and Atmos.",
       "note": "With Apple for review. Can't wait?",
       "links": [
@@ -51,9 +48,7 @@
       "icon": "apple",
       "status": "available",
       "version": "0.61.0",
-      "requires": "A Mac with Apple silicon, macOS 15.2 or later",
       "summary": "Your libraries in a Mac window, a full-screen player with Picture in Picture and AirPlay, and downloads for away from home.",
-      "note": "Coming to the Mac App Store too.",
       "links": [
         { "label": "Download for Mac", "href": "https://github.com/danleach-glitch/flexarr/releases/latest/download/Flexarr.dmg", "primary": true },
         { "label": "Guide", "href": "/guide/connect-devices#mac" }
@@ -66,7 +61,6 @@
       "icon": "home-assistant",
       "status": "available",
       "version": "0.1.1",
-      "requires": "Home Assistant with HACS, and Flexarr 0.45.0 or later",
       "summary": "Every Apple TV, iPhone and iPad becomes a media player, so your home can react to what you're watching: lights down when a film starts.",
       "links": [
         { "label": "Get it on GitHub", "href": "https://github.com/danleach-glitch/flexarr-home-assistant" },
