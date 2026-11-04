@@ -26,9 +26,9 @@ const statuses = {
 
 // The page's sections, in order: what runs at home, what you watch on, and what works alongside.
 const kinds = {
-  server: { title: 'The server', number: 1, intro: 'One per home. It holds your films, TV, music and podcasts and streams them to every screen.' },
-  player: { title: 'The players', number: 2, intro: 'Watch on as many screens as you like. Each one signs in to your server.' },
-  integration: { title: 'Works with', intro: 'Add-ons that bring Flexarr into the rest of your home.' },
+  server: { title: 'The server', group: 'Server', number: 1, intro: 'One per home. It holds your films, TV, music and podcasts and streams them to every screen.' },
+  player: { title: 'The players', group: 'Players', number: 2, intro: 'Watch on as many screens as you like. Each one signs in to your server.' },
+  integration: { title: 'Works with', group: 'Works with', intro: 'Add-ons that bring Flexarr into the rest of your home.' },
 };
 
 const stroke = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
@@ -115,10 +115,15 @@ const row = p => `            <tr>
               <td class="ver">${p.version ? `<span class="version">${escape(p.version)}</span>` : '<span class="none">–</span>'}</td>
               <td class="go">${get(p)}</td>
             </tr>`;
+const ready = p => ['available', 'beta'].includes(p.status);
+// Each kind's entries in the order the page shows them: what's out now first, then what's on the way.
+const ofKind = kind => { const all = data.platforms.filter(p => p.kind === kind); return [...all.filter(ready), ...all.filter(p => !ready(p))]; };
+const groups = Object.entries(kinds).filter(([kind]) => ofKind(kind).length).map(([kind, k]) => `            <tr class="group"><th scope="rowgroup" colspan="4"><a href="#${kind}-head">${escape(k.group)}</a></th></tr>
+${ofKind(kind).map(row).join('\n')}`).join('\n');
 const table = `<div class="table"><table>
           <thead><tr><th scope="col">Platform</th><th scope="col" class="state"><span class="state-label">Status</span></th><th scope="col" class="ver">Version</th><th scope="col" class="go">Get it</th></tr></thead>
           <tbody>
-${data.platforms.map(row).join('\n')}
+${groups}
           </tbody>
         </table></div>`;
 
@@ -135,7 +140,6 @@ ${p.runsOn ? `            <div class="runs-on">
             </div>
 ` : ''}          </article>`;
 
-const ready = p => ['available', 'beta'].includes(p.status);
 // Asking for somewhere new closes the players.
 const ask = `<article class="card ask soon">
             <div class="card-body">
@@ -145,9 +149,9 @@ const ask = `<article class="card ask soon">
           </article>`;
 // One section per kind: what's out now, then the dashed cards for what's on the way.
 const section = ([kind, k]) => {
-  const all = data.platforms.filter(p => p.kind === kind);
+  const all = ofKind(kind);
   if (!all.length) return '';
-  const cards = [...all.filter(ready), ...all.filter(p => !ready(p))].map(p => ready(p) ? card(p) : card(p).replace('<article class="card', '<article class="card soon'));
+  const cards = all.map(p => ready(p) ? card(p) : card(p).replace('<article class="card', '<article class="card soon'));
   if (kind === 'player') cards.push(ask);
   return `      <section class="kind ${kind}" aria-labelledby="${kind}-head">
         <div class="kind-head">
@@ -209,6 +213,10 @@ const html = `<!doctype html>
     th, td { padding: 18px 22px; text-align: left; border-top: 1px solid var(--aisle); vertical-align: middle; }
     thead th { border-top: 0; padding-block: 16px; color: var(--usher); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
     tbody tr { transition: background 0.15s; }
+    tbody tr.group:hover { background: none; }
+    tr.group th { padding-block: 22px 10px; color: var(--silver); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    tr.group th a { color: inherit; }
+    tr.group:first-child th { border-top: 0; }
     tbody tr:hover { background: rgb(242 238 231 / 0.03); }
     tbody th { font-weight: 700; font-size: 1.05rem; }
     tbody th a { color: var(--screen); text-decoration: none; }
