@@ -19,6 +19,8 @@ struct MacRootView: View {
     /// Find my server was clicked this run: on to connecting, even when `-FlexarrWelcomed NO` (a launch argument,
     /// which outranks what's saved) asks for the welcome.
     @State private var welcomeDone = false
+    /// The welcome's Join someone’s Flexarr: the connect screen opens on the code for the invite.
+    @State private var joinsInvite = false
     @State private var showsDownloads = false
     /// The splash, for a moment at launch.
     @State private var splashing = true
@@ -37,13 +39,17 @@ struct MacRootView: View {
             switch model.phase {
             case .signedOut:
                 if !welcomed && !welcomeDone && model.store.lastAddress == nil {
-                    MacWelcomeView {
+                    MacWelcomeView(onDone: {
                         welcomed = true
                         withAnimation { welcomeDone = true }
-                    }
+                    }, onJoin: {
+                        welcomed = true
+                        joinsInvite = true
+                        withAnimation { welcomeDone = true }
+                    })
                         .transition(.opacity)
                 } else {
-                    ConnectView()
+                    ConnectView(startsWithInvite: joinsInvite)
                         .transition(.opacity)
                 }
             case .signedIn(let credentials):

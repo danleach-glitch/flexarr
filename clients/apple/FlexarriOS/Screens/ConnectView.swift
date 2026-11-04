@@ -8,6 +8,8 @@ struct ConnectView: View {
     @Environment(AppModel.self) private var model
     @State private var browser = ServerBrowser()
     @State private var step: Step = .choose
+    /// Opens on the code for a family invite (the Mac's welcome offers joining someone's Flexarr as its own step).
+    var startsWithInvite = false
 
     private enum Step: Equatable {
         case choose
@@ -118,6 +120,7 @@ struct ConnectView: View {
 
     private func appeared() {
             browser.start()
+            if startsWithInvite, GuestInvite.guestInvitesOffered { step = .guest }
             // Signed out on the server: show a code for the same server straight away.
             // (Not a removed guest: its "server" was its own tunnel. It stays here, to join again with a new code.)
             if model.signedOutNotice != nil, !model.signedOutAsGuest, let server = model.store.lastAddress.flatMap(FlexarrClient.normalizeAddress) {
