@@ -498,8 +498,8 @@ struct NowPlayingView: View {
                 if !model.isKids {
                     Button {
                         Task {
+                            // Finished: the player lets it go, without sending a place that would undo it.
                             await model.setBookFinished(track, true)
-                            music.stop()
                         }
                     } label: { Label(t(Words.markAsFinished), systemImage: Symbol.watched) }
                 }
@@ -608,7 +608,7 @@ struct NowPlayingView: View {
                 Button { goToPodcast() } label: { Label(t("Go to podcast"), systemImage: "square.stack") }
                 Button {
                     Task {
-                        await model.setWatched(track, true)
+                        await model.setWatched(track, true, keepingPlayer: true)
                         // Played: on to what comes next, as if it had finished.
                         music.seek(to: max(0, music.duration - 0.5))
                     }

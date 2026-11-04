@@ -163,7 +163,7 @@ fun PodcastScreen(model: AppModel, id: String) {
     /** Marks an episode played or unplayed here at once (on Unplayed, a played one goes), then on the server. */
     fun setPlayed(episode: PodcastEpisode, played: Boolean) {
         val changes = episode.isPlayed != played
-        if (!changes && !(!played && episode.progress != null)) return
+        if (!changes && !(!played && model.hasPlace(episode))) return
         val index = episodes.indexOfFirst { it.id == episode.id }
         if (unplayedOnly && played) {
             if (index >= 0) episodes.removeAt(index)
@@ -172,6 +172,7 @@ fun PodcastScreen(model: AppModel, id: String) {
             episodes[index] = episode.withPlayed(played)
         }
         podcast?.let { show -> if (changes) podcast = show.copy(unplayedCount = (show.unplayedCount + if (played) -1 else 1).coerceAtLeast(0)) }
+        model.marked(episode.id, played)
         scope.launch {
             if (runCatching { client.setWatched(episode.id, played) }.isFailure) {
                 reload++ // didn't stick: back to what the server has
@@ -252,6 +253,7 @@ fun PodcastScreen(model: AppModel, id: String) {
             confirmButton = {
                 TextButton(onClick = {
                     markingAllPlayed = false
+                    model.marked(id, played = true)
                     scope.launch {
                         runCatching { client.setWatched(id, true) }.onSuccess { model.downloads.markedPlayed(id) }
                         model.watchStateChanged()

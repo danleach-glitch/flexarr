@@ -495,8 +495,8 @@ private fun BookMenu(model: AppModel, closeSheet: () -> Unit, modifier: Modifier
             Entry(t("Go to book"), Icons.AutoMirrored.Filled.MenuBook) { open = false; closeSheet(); navigator.openBook(book.id) }
             Entry(t(Words.markAsFinished), FlexarrIcons.watched) {
                 open = false
+                // Finished: the player lets it go, without sending a place that would undo it.
                 navigator.setBookFinished(book, true)
-                player.stop()
             }
             val download = model.bookDownloads.entry(book.id)
             if (download == null) Entry(t(Words.download), FlexarrIcons.download) {

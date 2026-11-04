@@ -1466,6 +1466,27 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         return ending
     }
 
+    /**
+     * Heard part way: by what the server said, or, loaded in the player, where it is now (the list it's shown in may be
+     * from before it was played). What its ring shows, and so whether Mark as unplayed is offered.
+     */
+    fun hasPlace(episode: io.github.flexarr.core.PodcastEpisode): Boolean =
+        !episode.isPlayed && (episode.progress != null || (podcasts.current?.id == episode.id && podcasts.position > 0))
+
+    /**
+     * Marked played or unplayed (finished or unread), or taken out of Continue watching, anywhere but its own player's
+     * menu: this phone follows at once. Loaded in its player, it stops there without sending its place (else the rings
+     * and Play would carry on from it, and the next report would undo the change). Its download is the same episode or
+     * book, so it says the same: finished, or not started.
+     */
+    fun marked(itemId: String, played: Boolean) {
+        if (books.current?.id == itemId) books.stop(reportsPlace = false)
+        // A whole podcast marked played lets go of its episode that's loaded.
+        if (podcasts.current?.id == itemId || podcasts.current?.podcastId == itemId) podcasts.stop(reportsPlace = false)
+        downloads.marked(itemId, played)
+        bookDownloads.marked(itemId, played)
+    }
+
     fun watchStateChanged() {
         watchStateVersion++
         // Watched films and started shows leave the watchlist (and who's watching may have changed).

@@ -15,6 +15,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Counts read properly for one of something: "1 track", "1 season" and "1 episode" where some said "1 tracks".
 - Dates, times, numbers and file sizes follow your device's own way of writing them everywhere, including the live TV guide and recordings.
 
+### iPhone and Android
+- **Mark as unplayed** on a podcast episode you'd started now starts it again from the beginning, and its ring empties, even when it's still in the player. **Mark as played** takes it out of the player. Audiobooks do the same with **Mark as unread** and **Mark as finished**.
+- A download follows what you mark: marked played or finished anywhere, its downloaded copy is too, and marked unplayed or unread, the copy starts from the beginning.
+
 ### Web
 - Counts read properly for one of something: "1 track", "1 season" and "1 channel" where some said "1 tracks".
 - Dates and numbers follow your browser's own way of writing them everywhere, including the live TV guide and recordings.

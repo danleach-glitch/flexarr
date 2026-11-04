@@ -140,7 +140,7 @@ final class PodcastPageModel {
     /// Unplayed part way through forgets the place reached.
     func setPlayed(_ episode: PodcastEpisode, _ played: Bool, model: AppModel) async {
         let changes = episode.isPlayed != played
-        guard let client = model.client, changes || (!played && episode.progress != nil) else { return }
+        guard let client = model.client, changes || (!played && model.hasPlace(episode)) else { return }
         if unplayedOnly, played {
             episodes.removeAll { $0.id == episode.id }
             total = max(0, total - 1)
@@ -148,6 +148,7 @@ final class PodcastPageModel {
             episodes[index] = episode.with(played: played)
         }
         if let podcast, changes { self.podcast = podcast.with(unplayedCount: podcast.unplayedCount + (played ? -1 : 1)) }
+        model.releaseFromPlayer(episode.id)
         do {
             try await client.setWatched(episode.id, watched: played)
         } catch {
