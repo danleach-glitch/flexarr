@@ -164,8 +164,11 @@ struct ProfilePickerView: View {
                         #endif
                     }
                 }
+                #if os(macOS)
+                // One row's width at most, so a few profiles sit in the middle; a narrower window wraps them.
+                .frame(maxWidth: CGFloat(min(model.profiles.count, 6)) * 178 - 28)
+                #endif
                 .padding(.horizontal, 32)
-                .fixedSize(horizontal: Self.centred, vertical: false)
 
                 if let error {
                     Text(error)
@@ -184,11 +187,12 @@ struct ProfilePickerView: View {
         }
     }
 
-    /// The Mac fills its window with the picker, centred, a row of up to six; the phones flow theirs from the top.
+    /// The Mac fills its window with the picker, centred, as many to a row as fit (up to six); the phones flow theirs
+    /// from the top.
     #if os(macOS)
     private static let centred = true
     private var gridColumns: [GridItem] {
-        Array(repeating: GridItem(.fixed(150), spacing: 28), count: max(1, min(model.profiles.count, 6)))
+        [GridItem(.adaptive(minimum: 130, maximum: 150), spacing: 28)]
     }
     #else
     private static let centred = false

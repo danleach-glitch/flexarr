@@ -20,9 +20,12 @@ struct MacRootView: View {
     /// The splash, for a moment at launch.
     @State private var splashing = true
 
+    private var covered: Bool { player.shown != nil || navigation.choosingProfile }
+
     var body: some View {
         ZStack {
             Color.room.ignoresSafeArea()
+            Group {
             switch model.phase {
             case .signedOut:
                 if !welcomed && model.store.lastAddress == nil {
@@ -50,6 +53,10 @@ struct MacRootView: View {
                         .transition(.opacity)
                 }
             }
+            }
+            // Under the player or Who's watching?, the page is out of reach of VoiceOver and Tab.
+            .accessibilityHidden(covered)
+            .disabled(covered)
             // Who's watching? from the sidebar's profile: the whole window, as at launch.
             if navigation.choosingProfile {
                 VStack(spacing: 0) {
