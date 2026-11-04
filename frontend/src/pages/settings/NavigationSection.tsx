@@ -19,7 +19,7 @@ import { PODCAST_PREFERENCES_CHANGED } from '../../lib/podcasts'
 import { RowList } from './LayoutSection'
 import { SaveStatus, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
-import { t } from '../../i18n'
+import { t, tk } from '../../i18n'
 
 /** The profile's own: the order of its libraries in the sidebar here and in every app's menu, and what else is in it. */
 export function NavigationSection() {
@@ -69,12 +69,12 @@ export function NavigationSection() {
       <SettingsHeader title={t('Navigation')}>{t('The sidebar here and the apps’ menus. Drag a library to move it.')}</SettingsHeader>
       {shown.length > 1 ? (
         <RowList
-          title={`${me.name}’s libraries`}
+          title={t('{name}’s libraries', { name: me.name })}
           // Podcasts' switch: whether it's in the web sidebar at all (Home's New podcasts row is in Home & browse).
           // Its switch only reaches the web sidebar, so its name says so.
           rows={shown.map((l) => ({
             id: l.id,
-            label: l.type === 'Podcasts' && podcastsShown.on !== undefined ? `${l.name} (on the web)` : l.name,
+            label: l.type === 'Podcasts' && podcastsShown.on !== undefined ? t('{name} (on the web)', { name: l.name }) : l.name,
             enabled: l.type !== 'Podcasts' || podcastsShown.on !== false,
           }))}
           onChange={(rows) => {
@@ -101,12 +101,12 @@ export function NavigationSection() {
 }
 
 const items: { id: NavigationItem; label: string }[] = [
-  { id: 'watchlist', label: 'Watchlist' },
-  { id: 'collections', label: 'Collections' },
-  { id: 'playlists', label: 'Playlists' },
-  { id: 'live-tv', label: 'Live TV' },
-  { id: 'discover', label: 'Discover' },
-  { id: 'upcoming', label: 'Coming soon' },
+  { id: 'watchlist', label: tk('Watchlist') },
+  { id: 'collections', label: tk('Collections') },
+  { id: 'playlists', label: tk('Playlists') },
+  { id: 'live-tv', label: tk('Live TV') },
+  { id: 'discover', label: tk('Discover') },
+  { id: 'upcoming', label: tk('Coming soon') },
 ]
 
 /** The rest of the menu, each on or off: the ones this profile has (Playlists with music, Live TV once it's set up). */
@@ -146,7 +146,7 @@ function BrowseItems({ profile, liveTv }: { profile: Profile; liveTv: boolean })
       {items
         .filter((i) => has[i.id])
         .map((i) => (
-          <ToggleRow key={i.id} label={i.label} checked={!hidden.includes(i.id)} onChange={(on) => void change(i.id, on)} />
+          <ToggleRow key={i.id} label={t(i.label)} checked={!hidden.includes(i.id)} onChange={(on) => void change(i.id, on)} />
         ))}
     </SettingsGroup>
   )

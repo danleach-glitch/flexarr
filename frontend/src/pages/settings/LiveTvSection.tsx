@@ -46,7 +46,7 @@ export function LiveTvSection() {
           <select value={liveTv.rewindMinutes} onChange={(e) => change({ rewindMinutes: Number(e.target.value) })}>
             {withSaved([15, 30, 60, 120, 240], liveTv.rewindMinutes).map((m) => (
               <option key={m} value={m}>
-                {m < 60 ? `${m} minutes` : m === 60 ? '1 hour' : `${m / 60} hours`}
+                {m < 60 ? t('{count, plural, one {# minute} other {# minutes}}', { count: m }) : t('{count, plural, one {# hour} other {# hours}}', { count: m / 60 })}
               </option>
             ))}
           </select>
@@ -62,13 +62,13 @@ export function LiveTvSection() {
           </select>
         </SettingRow>
       </SettingsGroup>
-      <SettingsGroup title={t('Recordings')} note="Broadcasts drift, so recordings start a little early and run on.">
+      <SettingsGroup title={t('Recordings')} note={t('Broadcasts drift, so recordings start a little early and run on.')}>
         <FolderRow key={liveTv.dvrFolder ?? ''} saved={liveTv.dvrFolder ?? ''} inUse={liveTv.dvrFolderInUse} onSave={(dvrFolder) => change({ dvrFolder })} />
         <SettingRow label={t('Start early')}>
           <select value={liveTv.paddingBeforeMinutes} onChange={(e) => change({ paddingBeforeMinutes: Number(e.target.value) })}>
             {withSaved([0, 1, 2, 5, 10], liveTv.paddingBeforeMinutes).map((m) => (
               <option key={m} value={m}>
-                {m === 0 ? 'On time' : `${m} min`}
+                {m === 0 ? t('On time') : t('{count} min', { count: m })}
               </option>
             ))}
           </select>
@@ -77,7 +77,7 @@ export function LiveTvSection() {
           <select value={liveTv.paddingAfterMinutes} onChange={(e) => change({ paddingAfterMinutes: Number(e.target.value) })}>
             {withSaved([0, 2, 5, 10, 15, 30], liveTv.paddingAfterMinutes).map((m) => (
               <option key={m} value={m}>
-                {m === 0 ? 'No' : `${m} min`}
+                {m === 0 ? t('No') : t('{count} min', { count: m })}
               </option>
             ))}
           </select>
@@ -86,7 +86,7 @@ export function LiveTvSection() {
           <select value={liveTv.minFreeGigabytes} onChange={(e) => change({ minFreeGigabytes: Number(e.target.value) })}>
             {withSaved([10, 25, 50, 100, 250, 500], liveTv.minFreeGigabytes).map((g) => (
               <option key={g} value={g}>
-                {g} GB
+                {t('{count} GB', { count: g })}
               </option>
             ))}
           </select>
@@ -132,7 +132,7 @@ function KidsChannels() {
   return (
     <SettingsGroup
       title={t('Channels for kids')}
-      note={error ? <SaveStatus error={error} /> : `${channels.filter(isFine).length} of ${channels.length} for profiles with an age limit.`}
+      note={error ? <SaveStatus error={error} /> : t('{fine, number} of {count, number} for profiles with an age limit.', { fine: channels.filter(isFine).length, count: channels.length })}
     >
       <SettingRow label={t('Find a channel')}>
         <input type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('Name')} />
@@ -144,7 +144,7 @@ function KidsChannels() {
           </SettingRow>
         ))}
         {matching.length === 0 && <SettingRow label={t('No channels by that name')} />}
-        {matching.length > shown.length && <SettingRow label={`${matching.length - shown.length} more`} help={t('Search to find them.')} />}
+        {matching.length > shown.length && <SettingRow label={t('{count, number} more', { count: matching.length - shown.length })} help={t('Search to find them.')} />}
       </div>
     </SettingsGroup>
   )
@@ -164,7 +164,7 @@ function FolderRow({ saved, inUse, onSave }: { saved: string; inUse: string; onS
     setChoosing(false)
     save(path)
   }
-  const help = folder.trim() ? 'Recordings made from now on go here. Earlier ones stay where they are.' : `Empty for the default${inUse ? `: ${inUse}` : ''}.`
+  const help = folder.trim() ? t('Recordings made from now on go here. Earlier ones stay where they are.') : inUse ? t('Empty for the default: {folder}.', { folder: inUse }) : t('Empty for the default.')
   return (
     <>
       <SettingRow
@@ -173,7 +173,7 @@ function FolderRow({ saved, inUse, onSave }: { saved: string; inUse: string; onS
         help={
           onMac ? (
             <>
-              {folder ? help : 'The default, on the drive your TV library is on.'}
+              {folder ? help : t('The default, on the drive your TV library is on.')}
               <code className="folder">{folder || inUse}</code>
             </>
           ) : (
@@ -187,7 +187,7 @@ function FolderRow({ saved, inUse, onSave }: { saved: string; inUse: string; onS
               type="text"
               value={folder}
               aria-label={t('Recordings folder')}
-              placeholder={inUse || 'A DVR folder on the drive your TV library is on'}
+              placeholder={inUse || t('A DVR folder on the drive your TV library is on')}
               onChange={(e) => setFolder(e.target.value)}
               onBlur={() => save(folder.trim())}
             />
@@ -199,7 +199,7 @@ function FolderRow({ saved, inUse, onSave }: { saved: string; inUse: string; onS
           )}
           {!choosing && (
             <button type="button" className="button quiet small" onClick={() => setChoosing(true)}>
-              {onMac ? 'Change' : 'Browse…'}
+              {onMac ? t('Change') : t('Browse…')}
             </button>
           )}
         </span>

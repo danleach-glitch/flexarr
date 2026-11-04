@@ -61,7 +61,7 @@ export function ImportSection() {
 
   return (
     <section>
-      <SettingsHeader title={t('Bring over from Plex')} back={{ to: '/settings/libraries', label: 'Libraries' }}>
+      <SettingsHeader title={t('Bring over from Plex')} back={{ to: '/settings/libraries', label: t('Libraries') }}>
         {t('Copies what you’ve watched, and where you stopped, from Plex. Plex isn’t changed, and it’s safe to run again.')}
       </SettingsHeader>
       <div className="panel">
@@ -69,7 +69,7 @@ export function ImportSection() {
         {source.data && !source.data.found && onMac && (
           <div className="field">
             <span className="field-label">
-              Choose Plex’s folder: <code>{t('Plex Media Server')}</code>{t(', in your Library’s Application Support folder. Flexarr opens it in a window on the Mac.')}
+              {t.rich('Choose Plex’s folder: {folder}, in your Library’s Application Support folder. Flexarr opens it in a window on the Mac.', { folder: <code>Plex Media Server</code> })}
             </span>
             {source.error && <p className="error">{source.error.message}</p>}
             <div className="form-actions">
@@ -88,7 +88,7 @@ export function ImportSection() {
             }}
           >
             <span className="field-label">{t("Plex wasn't found in the usual places. Where is com.plexapp.plugins.library.db?")}</span>
-            <input type="text" value={path} onChange={(e) => setPath(e.target.value)} placeholder={t('/path/to/Plug-in Support/Databases/com.plexapp.plugins.library.db')} />
+            <input type="text" value={path} onChange={(e) => setPath(e.target.value)} placeholder="/path/to/Plug-in Support/Databases/com.plexapp.plugins.library.db" />
             <div className="form-actions">
               <AsyncButton type="submit" className="button quiet small" busy={source.loading}>
                 {t('Look there')}
@@ -99,7 +99,7 @@ export function ImportSection() {
         {source.data?.found && (
           <>
             <p className="muted">
-              Found Plex at <code className="folder">{source.data.path}</code>
+              {t.rich('Found Plex at {folder}', { folder: <code className="folder">{source.data.path}</code> })}
             </p>
             {source.data.accounts.length === 0 ? (
               <p>{t('That Plex server has no watch history to bring over.')}</p>
@@ -109,7 +109,7 @@ export function ImportSection() {
                 <select value={chosen} onChange={(e) => setAccount(Number(e.target.value))}>
                   {source.data.accounts.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.name}: {a.watched.toLocaleString(locale())} watched, {a.inProgress.toLocaleString(locale())} in progress
+                      {t('{name}: {watched, number} watched, {inProgress, number} in progress', { name: a.name, watched: a.watched, inProgress: a.inProgress })}
                     </option>
                   ))}
                 </select>
@@ -129,9 +129,9 @@ export function ImportSection() {
             )}
             {result && (
               <p role="status" className="import-result">
-                Brought over {result.matched.toLocaleString(locale())} titles: {result.watched.toLocaleString(locale())} watched and {result.inProgress.toLocaleString(locale())} to resume.
-                {result.keptNewer > 0 && ` ${result.keptNewer} you'd watched more recently in Flexarr were left as they were.`}
-                {result.unmatched > 0 && ` ${result.unmatched.toLocaleString(locale())} files Plex knows about aren't in your Flexarr libraries.`}
+                {t('Brought over {count, plural, one {# title} other {# titles}}: {watched, number} watched and {inProgress, number} to resume.', { count: result.matched, watched: result.watched, inProgress: result.inProgress })}
+                {result.keptNewer > 0 && ` ${t("{count, number} you'd watched more recently in Flexarr were left as they were.", { count: result.keptNewer })}`}
+                {result.unmatched > 0 && ` ${t("{count, plural, one {# file Plex knows about isn't in your Flexarr libraries.} other {# files Plex knows about aren't in your Flexarr libraries.}}", { count: result.unmatched })}`}
               </p>
             )}
             {error && (
@@ -176,8 +176,11 @@ function PlexPictures({ path }: { path?: string }) {
       <p className="muted">{t('Uses your Plex Home users’ pictures for the Flexarr profiles with the same names, in place of any picture they have.')}</p>
       {result && (
         <p role="status" className="import-result">
-          {result.matched.length > 0 ? `Updated ${result.matched.map((m) => m.profile).join(' and ')}.` : 'No profiles matched a Plex user’s name.'}
-          {result.unmatchedPlexUsers.length > 0 && ` No profile is called ${result.unmatchedPlexUsers.join(' or ')}; add one and run this again.`}
+          {result.matched.length > 0
+            ? t('Updated {names}.', { names: new Intl.ListFormat(locale(), { type: 'conjunction' }).format(result.matched.map((m) => m.profile)) })
+            : t('No profiles matched a Plex user’s name.')}
+          {result.unmatchedPlexUsers.length > 0 &&
+            ` ${t('No profile is called {names}; add one and run this again.', { names: new Intl.ListFormat(locale(), { type: 'disjunction' }).format(result.unmatchedPlexUsers) })}`}
         </p>
       )}
       {error && (

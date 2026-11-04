@@ -119,7 +119,7 @@ export function SetupGroup({ setup, onChange, collapsed = false }: { setup: Remo
 
   const toggle = (
     <button type="button" className="button quiet small" aria-expanded={open} onClick={() => setOpen(!open)}>
-      {open ? 'Hide' : 'Show'}
+      {open ? t('Hide') : t('Show')}
     </button>
   )
 
@@ -134,25 +134,30 @@ export function SetupGroup({ setup, onChange, collapsed = false }: { setup: Remo
     <SettingsGroup
       title={t('Tailscale setup')}
       action={toggle}
-      note="Guests don’t need Tailscale or an account. Their apps join your tailnet, can reach Flexarr and nothing else, and you can remove them at any time."
+      note={t('Guests don’t need Tailscale or an account. Their apps join your tailnet, can reach Flexarr and nothing else, and you can remove them at any time.')}
     >
       <ol className="guest-steps">
         <li>
           <strong>{t('Paste this into your tailnet policy')}</strong>
           <span className="muted">
-            In <a href={POLICY_URL}>{t('Access controls')}</a>.
+            {t.rich('In {link}.', { link: <a href={POLICY_URL}>{t('Access controls')}</a> })}
           </span>
           {setup.snippet && (
             <>
               <pre className="guest-snippet">{setup.snippet}</pre>
-              <CopyButton text={setup.snippet} what="the policy" />
+              <CopyButton text={setup.snippet} what={t('the policy')} />
             </>
           )}
         </li>
         <li>
           <strong>{t('Create an OAuth client')}</strong>
           <span className="muted">
-            In <a href={CLIENTS_URL}>{t('Trust credentials')}</a>: <em>{t('Auth Keys')}</em> (write, tag <code>{setup.tag}</code>) and <em>{t('Policy File')}</em> {t('(read). Nothing else.')}
+            {t.rich('In {link}: {authKeys} (write, tag {tag}) and {policyFile} (read). Nothing else.', {
+              link: <a href={CLIENTS_URL}>{t('Trust credentials')}</a>,
+              authKeys: <em>{t('Auth Keys')}</em>,
+              tag: <code>{setup.tag}</code>,
+              policyFile: <em>{t('Policy File')}</em>,
+            })}
           </span>
         </li>
         <li>
@@ -169,7 +174,7 @@ export function SetupGroup({ setup, onChange, collapsed = false }: { setup: Remo
                 type="password"
                 value={secret}
                 onChange={(e) => setSecret(e.target.value)}
-                placeholder={setup.hasClient ? 'Saved' : ''}
+                placeholder={setup.hasClient ? t('Saved') : ''}
                 autoComplete="off"
               />
             </label>
@@ -383,7 +388,7 @@ export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void;
           </span>
           {nameTaken && (
             <p className="error guest-new-help" role="alert">
-              There’s already a profile called {nameTaken.name}.{' '}
+              {t('There’s already a profile called {name}.', { name: nameTaken.name })}{' '}
               {!nameTaken.isMain && (
                 <button
                   type="button"
@@ -395,7 +400,7 @@ export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void;
                     setNameTaken(undefined)
                   }}
                 >
-                  Add a device for {nameTaken.name} instead
+                  {t('Add a device for {name} instead', { name: nameTaken.name })}
                 </button>
               )}
             </p>
@@ -420,7 +425,7 @@ export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void;
             <strong className="guest-name">{person.name}</strong>
             <IconButton
               label={t('Remove guest')}
-              aria-label={`Remove ${person.name}`}
+              aria-label={t('Remove {name}', { name: person.name })}
               icon={<icon.delete />}
               className="button quiet small icon danger-icon"
               onClick={() => setConfirming({ person })}
@@ -447,10 +452,10 @@ export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void;
                   </span>
                   <IconButton
                     label={t('Remove')}
-                    aria-label={`Remove ${d.name}`}
+                    aria-label={t('Remove {name}', { name: d.name })}
                     icon={<icon.delete />}
                     className="button quiet small icon danger-icon"
-                    onClick={() => setConfirming({ device: d, label: `${person.name}’s ${deviceLabel(d, person.name)}` })}
+                    onClick={() => setConfirming({ device: d, label: t('{name}’s {device}', { name: person.name, device: deviceLabel(d, person.name) }) })}
                   />
                 </div>
               ))}
@@ -463,9 +468,9 @@ export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void;
                   </span>
                   <span className="setting-text">
                     <strong>{t('Waiting for their device')}</strong>
-                    <span className="muted">Invited {relativeTime(w.createdAt)}</span>
+                    <span className="muted">{t('Invited {time}', { time: relativeTime(w.createdAt) })}</span>
                   </span>
-                  <AsyncButton className="button quiet small" aria-label={`Cancel the invite for ${person.name}`} onClick={() => cancel(w.id)}>
+                  <AsyncButton className="button quiet small" aria-label={t('Cancel the invite for {name}', { name: person.name })} onClick={() => cancel(w.id)}>
                     {t('Cancel')}
                   </AsyncButton>
                 </div>
@@ -499,15 +504,17 @@ export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void;
       </div>
       {removed && (
         <p className="settings-note" role="status">
-          {removed.name} can’t reach Flexarr any more. To free its place on your tailnet, delete it in{' '}
-          <a href={webLink(removed.tailscaleAdminUrl)}>{t('Tailscale’s Machines')}</a>.
+          {t.rich('{name} can’t reach Flexarr any more. To free its place on your tailnet, delete it in {link}.', {
+            name: removed.name,
+            link: <a href={webLink(removed.tailscaleAdminUrl)}>{t('Tailscale’s Machines')}</a>,
+          })}
         </p>
       )}
       {confirming && (
         <ConfirmDialog
-          title={'device' in confirming ? `Remove ${confirming.label}?` : `Remove ${confirming.person.name}?`}
-          confirmLabel="Remove"
-          cancelLabel="Keep"
+          title={'device' in confirming ? t('Remove {name}?', { name: confirming.label }) : t('Remove {name}?', { name: confirming.person.name })}
+          confirmLabel={t('Remove')}
+          cancelLabel={t('Keep')}
           danger
           busy={removing}
           error={removeError}
@@ -519,8 +526,8 @@ export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void;
         >
           <p>
             {'device' in confirming
-              ? 'It can’t reach Flexarr any more. Joining again takes a new code.'
-              : 'Their devices are signed out, and their profile and its watch history go.'}
+              ? t('It can’t reach Flexarr any more. Joining again takes a new code.')
+              : t('Their devices are signed out, and their profile and its watch history go.')}
           </p>
         </ConfirmDialog>
       )}
@@ -603,7 +610,7 @@ export function AddDevice({
     return () => window.clearTimeout(timer)
   }, [waiting, arrivedId])
 
-  const title = arrived ? `✓ ${arrived.name} joined` : waiting ? 'Waiting for their device to join…' : 'Type the code their device shows'
+  const title = arrived ? t('✓ {name} joined', { name: arrived.name }) : waiting ? t('Waiting for their device to join…') : t('Type the code their device shows')
 
   return (
     <div
@@ -640,7 +647,7 @@ export function AddDevice({
             </span>
           ) : (
             <span className="field-help">
-              On their phone, tablet or TV, they open Flexarr and choose <strong>{t('Join someone’s Flexarr')}</strong>
+              {t.rich('On their phone, tablet or TV, they open Flexarr and choose {join}', { join: <strong>{t('Join someone’s Flexarr')}</strong> })}
             </span>
           )}
           <span className="guest-code-row">
@@ -650,7 +657,7 @@ export function AddDevice({
               className="guest-code"
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder={t('ABCD-EFGH')}
+              placeholder="ABCD-EFGH"
               maxLength={9}
               autoComplete="off"
               autoFocus
@@ -697,8 +704,8 @@ export function RelayGroup({ setup, onChange }: { setup: RemoteGuests; onChange:
         label={t('Faster relay')}
         help={
           on
-            ? `Forward UDP port ${setup.relay.port} on your router to this server. Then update the policy with the snippet in setup.`
-            : 'Guests whose networks can’t connect directly go through this server, not Tailscale’s slow relays.'
+            ? t('Forward UDP port {port} on your router to this server. Then update the policy with the snippet in setup.', { port: String(setup.relay.port) })
+            : t('Guests whose networks can’t connect directly go through this server, not Tailscale’s slow relays.')
         }
         checked={on}
         onChange={(enabled) => void toggle(enabled)}

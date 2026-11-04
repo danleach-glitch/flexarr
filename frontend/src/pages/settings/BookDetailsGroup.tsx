@@ -2,21 +2,21 @@ import { useState } from 'react'
 import { getBookMetadataSettings, saveBookMetadataSettings, type BookMetadataSettings } from '../../api/client'
 import { useApi } from '../../hooks/useApi'
 import { SaveStatus, SettingRow, SettingsGroup, ToggleRow } from './shared'
-import { t } from '../../i18n'
+import { t, tk } from '../../i18n'
 
 const providerNames: Record<string, string> = { audible: 'Audible', itunes: 'Apple Books', openlibrary: 'Open Library' }
 
 const regionNames: Record<string, string> = {
-  us: 'United States',
-  uk: 'United Kingdom',
-  ca: 'Canada',
-  au: 'Australia',
-  de: 'Germany',
-  fr: 'France',
-  it: 'Italy',
-  es: 'Spain',
-  in: 'India',
-  jp: 'Japan',
+  us: tk('United States'),
+  uk: tk('United Kingdom'),
+  ca: tk('Canada'),
+  au: tk('Australia'),
+  de: tk('Germany'),
+  fr: tk('France'),
+  it: tk('Italy'),
+  es: tk('Spain'),
+  in: tk('India'),
+  jp: tk('Japan'),
 }
 
 /** Where the server looks books up: the store region and which providers (in order). */
@@ -32,7 +32,7 @@ export function BookDetailsGroup() {
     try {
       setSettings(await saveBookMetadataSettings(changes))
     } catch {
-      setError("That didn't save. Try again.")
+      setError(t("That didn't save. Try again."))
     }
   }
 
@@ -43,12 +43,12 @@ export function BookDetailsGroup() {
   }
 
   return (
-    <SettingsGroup title={t('Audiobook details')} note="Looked up online, for the whole server. Details in the files always win.">
+    <SettingsGroup title={t('Audiobook details')} note={t('Looked up online, for the whole server. Details in the files always win.')}>
       <SettingRow label={t('Audible store')}>
         <select value={s.region} onChange={(e) => void save({ region: e.target.value })}>
           {s.regions.map((r) => (
             <option key={r} value={r}>
-              {regionNames[r] ?? r.toUpperCase()}
+              {regionNames[r] ? t(regionNames[r]) : r.toUpperCase()}
             </option>
           ))}
         </select>

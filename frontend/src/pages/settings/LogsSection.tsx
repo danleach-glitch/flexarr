@@ -20,10 +20,18 @@ import { formatSize, relativeTime } from '../../lib/format'
 import { configureSentry } from '../../lib/sentry'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
-import { locale, t } from '../../i18n'
+import { locale, t, tk } from '../../i18n'
 
 /** The levels worth choosing between; Verbose and Fatal still show up in the list. */
 const levels: LogLevel[] = ['Debug', 'Information', 'Warning', 'Error']
+const levelName: Record<LogLevel, string> = {
+  Verbose: tk('Verbose'),
+  Debug: tk('Debug'),
+  Information: tk('Information'),
+  Warning: tk('Warning'),
+  Error: tk('Error'),
+  Fatal: tk('Fatal'),
+}
 const badge: Record<LogLevel, string> = { Verbose: 'VRB', Debug: 'DBG', Information: 'INF', Warning: 'WRN', Error: 'ERR', Fatal: 'FTL' }
 
 /** The areas, until the server's settings say what they're called. */
@@ -217,7 +225,7 @@ function LogViewer({ areaNames }: { areaNames: Record<string, string> }) {
         <select aria-label={t('Minimum level')} value={level} onChange={(e) => setLevel(e.target.value as LogLevel)}>
           {levels.map((l) => (
             <option key={l} value={l}>
-              {l}
+              {t(levelName[l])}
             </option>
           ))}
         </select>
@@ -243,7 +251,7 @@ function LogViewer({ areaNames }: { areaNames: Record<string, string> }) {
         ) : loading && !entries.length ? (
           <p className="muted">{t('Loading…')}</p>
         ) : !entries.length ? (
-          <p className="muted">Nothing logged{q ? ' matches that' : ''}.</p>
+          <p className="muted">{q ? t('Nothing logged matches that.') : t('Nothing logged.')}</p>
         ) : (
           <ol className="log-list" aria-label={t('Log')}>
             {entries.map((entry) => (
@@ -261,8 +269,8 @@ function LogViewer({ areaNames }: { areaNames: Record<string, string> }) {
       </div>
       <div className="log-foot">
         <p className="muted settings-status" role="status">
-          {live ? (streamState === 'reconnecting' ? 'Reconnecting…' : 'Live') : ''}
-          {live && entries.length >= MAX_ENTRIES ? `\u2003showing the newest ${MAX_ENTRIES}` : ''}
+          {live ? (streamState === 'reconnecting' ? t('Reconnecting…') : t('Live')) : ''}
+          {live && entries.length >= MAX_ENTRIES ? `\u2003${t('showing the newest {count, number}', { count: MAX_ENTRIES })}` : ''}
         </p>
         {cursor && entries.length < MAX_ENTRIES && (
           <AsyncButton className="button quiet small" onClick={loadOlder}>
@@ -325,7 +333,7 @@ function ErrorReports({ settings, onSaved }: { settings: LogSettings; onSaved: (
       const result = await saveLogSettings({ errorReports: next })
       onSaved(result)
       setOn(result.errorReports)
-      setSaved(result.errorReports ? 'On' : 'Off')
+      setSaved(result.errorReports ? t('On') : t('Off'))
       setTimeout(() => setSaved(undefined), 3000)
       await followSwitch(result.errorReports).catch(() => {})
     } catch (e) {
@@ -348,7 +356,7 @@ function ErrorReports({ settings, onSaved }: { settings: LogSettings; onSaved: (
         onChange={(next) => void change(next)}
       />
       <button type="button" className="error-reports-disclosure" aria-expanded={detailsOpen} aria-controls="error-reports-privacy" onClick={toggleDetails}>
-        What’s sent, and what never is
+        {t('What’s sent, and what never is')}
         <ChevronDown aria-hidden="true" />
       </button>
       <div className="error-reports-privacy" id="error-reports-privacy" hidden={!detailsOpen}>
@@ -360,7 +368,7 @@ function ErrorReports({ settings, onSaved }: { settings: LogSettings; onSaved: (
           <strong>{t('Never sent:')}</strong> {t('titles, file names or paths, what you watch, profile or device names, addresses (IP, server, network), keys or passwords. These are removed on your server or device before anything leaves it.')}
         </p>
         <p>
-          Switching off stops it at once, on every app.{' '}
+          {t('Switching off stops it at once, on every app.')}{' '}
           <a href={errorReportsDocs} target="_blank" rel="noreferrer">
             {t('What exactly is sent')}
           </a>
@@ -383,7 +391,7 @@ function LogLevels({ settings, onSaved }: { settings: LogSettings; onSaved: (set
       const result = await saveLogSettings(changes)
       setDraft(result)
       onSaved(result)
-      setSaved('Saved')
+      setSaved(t('Saved'))
       setTimeout(() => setSaved(undefined), 3000)
     } catch (e) {
       setDraft(settings)
@@ -410,7 +418,7 @@ function LogLevels({ settings, onSaved }: { settings: LogSettings; onSaved: (set
           <select value={draft.level} onChange={(e) => void save({ level: e.target.value as LogLevel }, { ...draft, level: e.target.value as LogLevel })}>
             {levels.map((l) => (
               <option key={l} value={l}>
-                {l}
+                {t(levelName[l])}
               </option>
             ))}
           </select>
@@ -418,10 +426,10 @@ function LogLevels({ settings, onSaved }: { settings: LogSettings; onSaved: (set
         {draft.areas.map((a) => (
           <SettingRow key={a.key} label={a.name}>
             <select value={a.level ?? ''} onChange={(e) => setArea(a.key, (e.target.value || null) as LogLevel | null)}>
-              <option value="">Default ({draft.level})</option>
+              <option value="">{t('Default ({level})', { level: t(levelName[draft.level]) })}</option>
               {levels.map((l) => (
                 <option key={l} value={l}>
-                  {l}
+                  {t(levelName[l])}
                 </option>
               ))}
             </select>

@@ -27,7 +27,7 @@ export function AdminUnlock({ pinMissing, onUnlocked }: { pinMissing: boolean; o
     event.preventDefault()
     if (lockout.locked) return
     if (mode !== 'pin' && newPin !== confirmPin) {
-      setError('The two PINs don’t match. Type the same one in both.')
+      setError(t('The two PINs don’t match. Type the same one in both.'))
       return
     }
     setError(undefined)
@@ -46,11 +46,11 @@ export function AdminUnlock({ pinMissing, onUnlocked }: { pinMissing: boolean; o
   const newPinFields = (
     <div className="field-row">
       <label>
-        {mode === 'forgotten' ? 'New PIN' : 'PIN'}
+        {mode === 'forgotten' ? t('New PIN') : t('PIN')}
         <input type="password" inputMode="numeric" autoComplete="new-password" required minLength={4} value={newPin} placeholder={t('4 to 8 digits')} onChange={(e) => setNewPin(digits(e.target.value))} />
       </label>
       <label>
-        {mode === 'forgotten' ? 'Confirm new PIN' : 'Confirm PIN'}
+        {mode === 'forgotten' ? t('Confirm new PIN') : t('Confirm PIN')}
         <input type="password" inputMode="numeric" autoComplete="new-password" required minLength={4} value={confirmPin} onChange={(e) => setConfirmPin(digits(e.target.value))} />
       </label>
     </div>
@@ -58,12 +58,12 @@ export function AdminUnlock({ pinMissing, onUnlocked }: { pinMissing: boolean; o
 
   return (
     <section>
-      <SettingsHeader title={mode === 'new' ? 'Choose an admin PIN' : 'Settings are locked'}>
+      <SettingsHeader title={mode === 'new' ? t('Choose an admin PIN') : t('Settings are locked')}>
         {mode === 'new'
-          ? 'Before anything else: the admin PIN keeps the server’s settings to you. The main profile can have a PIN of its own for watching, in Profiles.'
-          : 'Changing the server takes the admin PIN. It stays unlocked on this browser for 15 minutes after your last change.'}
+          ? t('Before anything else: the admin PIN keeps the server’s settings to you. The main profile can have a PIN of its own for watching, in Profiles.')
+          : t('Changing the server takes the admin PIN. It stays unlocked on this browser for 15 minutes after your last change.')}
       </SettingsHeader>
-      <form className="panel admin-unlock" onSubmit={submit} aria-label={mode === 'pin' ? 'Unlock settings' : 'Set the admin PIN'}>
+      <form className="panel admin-unlock" onSubmit={submit} aria-label={mode === 'pin' ? t('Unlock settings') : t('Set the admin PIN')}>
         {mode === 'pin' && (
           <label className="field">
             <span className="field-label">{t('Admin PIN')}</span>
@@ -104,7 +104,7 @@ export function AdminUnlock({ pinMissing, onUnlocked }: { pinMissing: boolean; o
             </button>
           )}
           <AsyncButton type="submit" className="button" busy={busy} disabled={lockout.locked}>
-            {mode === 'pin' ? 'Unlock' : 'Save PIN'}
+            {mode === 'pin' ? t('Unlock') : t('Save PIN')}
           </AsyncButton>
         </div>
       </form>

@@ -108,18 +108,18 @@ export function ProfilesSection() {
                   {p.isCurrent && <span className="tag profile-you">{t('You')}</span>}
                 </strong>
                 <span className="muted">
-                  {[p.isMain ? 'Main profile, manages the server' : p.isKids ? null : 'Profile', p.hasPin ? 'PIN' : 'No PIN', ageLimitText(p)].filter(Boolean).join('\u2003')}
+                  {[p.isMain ? t('Main profile, manages the server') : p.isKids ? null : t('Profile'), p.hasPin ? t('PIN') : t('No PIN'), ageLimitText(p)].filter(Boolean).join('\u2003')}
                 </span>
               </span>
               <span className="library-row-actions">
-                <IconButton label={t('Edit')} aria-label={`Edit ${p.name}`} icon={<Pencil />} onClick={() => setEditing(p)} />
+                <IconButton label={t('Edit')} aria-label={t('Edit {name}', { name: p.name })} icon={<Pencil />} onClick={() => setEditing(p)} />
                 {!p.isMain && (
                   <IconButton
                     label={t('Remove')}
-                    aria-label={`Remove ${p.name}`}
+                    aria-label={t('Remove {name}', { name: p.name })}
                     icon={<icon.delete />}
                     className="button quiet small icon danger-icon"
-                    onClick={() => confirm(`Remove ${p.name}’s profile? Their watch history goes with it.`) && deleteProfile(p.id).then(reload)}
+                    onClick={() => confirm(t('Remove {name}’s profile? Their watch history goes with it.', { name: p.name })) && deleteProfile(p.id).then(reload)}
                   />
                 )}
               </span>
@@ -179,7 +179,7 @@ function ProfileForm({
   async function submit(e: FormEvent) {
     e.preventDefault()
     if (pin !== '' && !removePin && pin !== confirmPin) {
-      setErrors(['The two PINs don’t match. Type the same one in both.'])
+      setErrors([t('The two PINs don’t match. Type the same one in both.')])
       return
     }
     setSaving(true)
@@ -206,18 +206,18 @@ function ProfileForm({
   }
 
   const pinHelp = removePin
-    ? 'The PIN goes when you save.'
+    ? t('The PIN goes when you save.')
     : profile?.hasPin
-      ? `Asked for when someone switches to ${profile.name}.`
-      : 'Anyone can switch to this profile. A PIN keeps it private.'
+      ? t('Asked for when someone switches to {name}.', { name: profile.name })
+      : t('Anyone can switch to this profile. A PIN keeps it private.')
 
   return (
-    <form className="panel profile-form" onSubmit={submit} aria-label={profile ? `Edit ${profile.name}` : 'New profile'}>
+    <form className="panel profile-form" onSubmit={submit} aria-label={profile ? t('Edit {name}', { name: profile.name }) : t('New profile')}>
       <div className="profile-identity">
         <div className="profile-picture">
           <Avatar profile={{ name: name || '?', color, image: shownImage }} size={72} />
           <label className="text-button file-button">
-            {shownImage ? 'Change' : 'Add picture'}
+            {shownImage ? t('Change') : t('Add picture')}
             <input type="file" accept="image/*" onChange={(e) => setPicture(e.target.files?.[0])} />
           </label>
           {shownImage && (
@@ -243,7 +243,7 @@ function ProfileForm({
                   role="radio"
                   aria-checked={c.value === color.toLowerCase()}
                   aria-label={c.name}
-                  title={shownImage ? `${c.name}, shown behind the picture while it loads` : c.name}
+                  title={shownImage ? t('{colour}, shown behind the picture while it loads', { colour: c.name }) : c.name}
                   className="swatch"
                   style={{ background: c.value }}
                   onClick={() => setColor(c.value)}
@@ -264,7 +264,7 @@ function ProfileForm({
           {!choosingPin && !removePin && (
             <span className="library-row-actions">
               <button type="button" className="button quiet small" onClick={() => setChoosingPin(true)}>
-                {profile?.hasPin ? 'Change' : 'Add a PIN'}
+                {profile?.hasPin ? t('Change') : t('Add a PIN')}
               </button>
               {profile?.hasPin && (
                 <button type="button" className="text-button danger-text" onClick={() => setRemovePin(true)}>
@@ -284,14 +284,14 @@ function ProfileForm({
                 setConfirmPin('')
               }}
             >
-              {removePin ? 'Keep it' : 'Cancel'}
+              {removePin ? t('Keep it') : t('Cancel')}
             </button>
           )}
         </div>
         {choosingPin && (
           <div className="field-row">
             <label>
-              {profile?.hasPin ? 'New PIN' : 'PIN'}
+              {profile?.hasPin ? t('New PIN') : t('PIN')}
               <input
                 type="password"
                 inputMode="numeric"
@@ -304,7 +304,7 @@ function ProfileForm({
               />
             </label>
             <label>
-              {profile?.hasPin ? 'Confirm new PIN' : 'Confirm PIN'}
+              {profile?.hasPin ? t('Confirm new PIN') : t('Confirm PIN')}
               <input
                 type="password"
                 inputMode="numeric"
@@ -318,7 +318,7 @@ function ProfileForm({
         )}
         {profile?.isMain && (
           <span className="field-help">
-            The admin PIN, for the server’s settings, is separate: it’s in <Link to="/settings/security">{t('Security')}</Link>.
+            {t.rich('The admin PIN, for the server’s settings, is separate: it’s in {page}.', { page: <Link to="/settings/security">{t('Security')}</Link> })}
           </span>
         )}
       </fieldset>
@@ -354,7 +354,7 @@ function ProfileForm({
             <label className="profile-library">
               <span className="setting-text">
                 <span>{t('Kids profile')}</span>
-                <span className="muted">{mainHasPin ? 'No Settings. Leaving takes the admin PIN.' : 'Needs an admin PIN first.'}</span>
+                <span className="muted">{mainHasPin ? t('No Settings. Leaving takes the admin PIN.') : t('Needs an admin PIN first.')}</span>
               </span>
               <input
                 type="checkbox"
@@ -372,7 +372,7 @@ function ProfileForm({
         <fieldset className="profile-section profile-libraries">
           <legend className="visually-hidden">{t('Libraries')}</legend>
           <span className="setting-text">
-            <strong>Libraries {profile ? `${profile.name} sees` : 'this profile sees'}</strong>
+            <strong>{profile ? t('Libraries {name} sees', { name: profile.name }) : t('Libraries this profile sees')}</strong>
             <span className="muted">{t('The rest are hidden everywhere on this profile: Home, search, Discover, Coming soon and requests.')}</span>
           </span>
           <div className="profile-library-list">
@@ -396,7 +396,7 @@ function ProfileForm({
         <fieldset className="profile-section profile-libraries">
           <legend className="visually-hidden">{t('Requests')}</legend>
           <span className="setting-text">
-            <strong>Where {profile ? `${profile.name}’s` : 'this profile’s'} requests go</strong>
+            <strong>{profile ? t('Where {name}’s requests go', { name: profile.name }) : t('Where this profile’s requests go')}</strong>
           </span>
           <div className="profile-library-list">
             {requestFields.map((r) => (
@@ -419,7 +419,7 @@ function ProfileForm({
           <legend className="visually-hidden">{t('Watchlist')}</legend>
           <label className="profile-section-head">
             <span className="setting-text">
-              <strong>Request what {profile ? profile.name : 'this profile'} adds to the watchlist</strong>
+              <strong>{profile ? t('Request what {name} adds to the watchlist', { name: profile.name }) : t('Request what this profile adds to the watchlist')}</strong>
             </span>
             <input type="checkbox" role="switch" className="switch" checked={autoRequest} onChange={(e) => setAutoRequest(e.target.checked)} />
           </label>
@@ -437,7 +437,7 @@ function ProfileForm({
           {t('Cancel')}
         </button>
         <AsyncButton type="submit" className="button" busy={saving}>
-          {profile ? 'Save profile' : 'Add profile'}
+          {profile ? t('Save profile') : t('Add profile')}
         </AsyncButton>
       </div>
     </form>

@@ -5,10 +5,16 @@ import { useSettings } from './useSettings'
 import { t } from '../../i18n'
 
 const accelerationLabel: Record<HardwareAcceleration, string> = {
-  Auto: 'Automatic (recommended)',
-  None: 'Off: convert on the CPU',
+  get Auto() {
+    return t('Automatic (recommended)')
+  },
+  get None() {
+    return t('Off: convert on the CPU')
+  },
   VideoToolbox: 'Apple VideoToolbox',
-  Vaapi: 'VA-API (Intel and AMD on Linux)',
+  get Vaapi() {
+    return t('VA-API (Intel and AMD on Linux)')
+  },
   Qsv: 'Intel Quick Sync',
   Nvenc: 'NVIDIA NVENC',
 }
@@ -31,7 +37,7 @@ export function StreamingSection() {
       <SettingsHeader title={t('Streaming')}>
         {t('Files a device can play are sent as they are. The rest are converted as they play.')}
       </SettingsHeader>
-      <SettingsGroup title={t('Converting video')} note={saved || saveError ? <SaveStatus saved={saved} error={saveError} /> : 'For everyone, on every device.'}>
+      <SettingsGroup title={t('Converting video')} note={saved || saveError ? <SaveStatus saved={saved} error={saveError} /> : t('For everyone, on every device.')}>
         <SettingRow label={t('Hardware acceleration')} help={t('Only what this server’s FFmpeg supports is listed.')}>
           <select value={draft.hardwareAcceleration} onChange={(e) => change({ ...draft, hardwareAcceleration: e.target.value as HardwareAcceleration })}>
             {settings.availableHardwareAcceleration.map((h) => (

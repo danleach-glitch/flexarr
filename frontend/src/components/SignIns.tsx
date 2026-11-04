@@ -11,7 +11,7 @@ import { locale, t } from '../i18n'
 
 const threeDays = 3 * 24 * 60 * 60 * 1000
 
-const where = (s: SignIn) => (s.zone === 'Local' ? 'Home network' : s.zone === 'Tailnet' ? 'Tailscale' : 'Internet')
+const where = (s: SignIn) => (s.zone === 'Local' ? t('Home network') : s.zone === 'Tailnet' ? 'Tailscale' : t('Internet'))
 
 /** "24 Oct", with the year when it isn't this one. */
 const day = (iso: string) => {
@@ -19,20 +19,25 @@ const day = (iso: string) => {
   return date.toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' })
 }
 
-const signedIn = (s: SignIn) => (s.kind === 'Device' ? 'connected' : 'signed in')
-
 /**
  * One short line: who, where and when. An address is only worth showing from the internet (anything else is a device
  * in the house); the rest of the detail is on hover.
  */
 const summary = (s: SignIn) =>
-  [s.profileName, s.zone === 'Internet' && s.address ? `Internet (${s.address})` : where(s), `last used ${relativeTime(s.lastUsedAt)}`].filter(Boolean).join('\u2003')
+  [s.profileName, s.zone === 'Internet' && s.address ? t('Internet ({address})', { address: s.address }) : where(s), t('last used {time}', { time: relativeTime(s.lastUsedAt) })].filter(Boolean).join('\u2003')
 
 /** "Android phone", when the device's app has said what it is. */
 const deviceType = (s: SignIn) => deviceTypeName(s.deviceType)
 
-const detail = (s: SignIn, from = s.createdAt) =>
-  `${deviceType(s) ? `${deviceType(s)}. ` : ''}${s.kind === 'Device' ? 'Connected' : 'Signed in'} ${day(from) === day(s.createdAt) ? day(s.createdAt) : `between ${day(from)} and ${day(s.createdAt)}`}${s.address ? ` from ${s.address}` : ''}`
+const detail = (s: SignIn, from = s.createdAt) => {
+  const kind = s.kind === 'Device' ? 'Device' : 'other'
+  const when =
+    day(from) === day(s.createdAt)
+      ? t('{kind, select, Device {Connected {date}} other {Signed in {date}}}', { kind, date: day(s.createdAt) })
+      : t('{kind, select, Device {Connected between {start} and {end}} other {Signed in between {start} and {end}}}', { kind, start: day(from), end: day(s.createdAt) })
+  const line = s.address ? t('{when} from {address}', { when, address: s.address }) : when
+  return deviceType(s) ? t('{device}. {line}', { device: deviceType(s), line }) : line
+}
 
 /** A screen for a browser; for a device, what it says it is, and a TV until it says (as the Apple TV was the first). */
 const KindIcon = ({ signIn }: { signIn: SignIn }) => (
@@ -40,7 +45,10 @@ const KindIcon = ({ signIn }: { signIn: SignIn }) => (
 )
 
 /** What tells one sign-in from another for a screen reader: "Chrome on Mac, signed in 24 Oct". */
-const describe = (s: SignIn) => `${s.name}, ${s.isThisOne ? 'this browser' : `${signedIn(s)} ${day(s.createdAt)}`}`
+const describe = (s: SignIn) =>
+  s.isThisOne
+    ? t('{name}, this browser', { name: s.name })
+    : t('{kind, select, Device {{name}, connected {date}} other {{name}, signed in {date}}}', { kind: s.kind === 'Device' ? 'Device' : 'other', name: s.name, date: day(s.createdAt) })
 
 /** Sign-ins that look the same in the list (the same browser signing in again and again) are shown as one. */
 const sameKind = (s: SignIn) => (s.isThisOne || s.kidsLock ? s.id : [s.kind, s.name, s.zone, s.address ?? '', s.profileId].join('\u0000'))
@@ -92,24 +100,24 @@ export function SignIns() {
       } else {
         void act(async () => {
           await revokeSignIn(s.id)
-          return `Signed out ${s.name}.`
+          return t('Signed out {name}.', { name: s.name })
         })
       }
     } else if ('group' in asking) {
       const group = asking.group
       void act(async () => {
         for (const s of group) await revokeSignIn(s.id)
-        return `Signed out ${group.length.toLocaleString(locale())} sign-ins of ${group[0].name}.`
+        return t('Signed out {count, plural, one {# sign-in} other {# sign-ins}} of {name}.', { count: group.length, name: group[0].name })
       })
     } else {
       void act(async () => {
         const { signedOut } = await signOutOthers()
-        return `Signed out ${signedOut.toLocaleString(locale())} ${signedOut === 1 ? 'browser or TV' : 'browsers and TVs'}.`
+        return t('Signed out {count, plural, one {# browser or TV} other {# browsers and TVs}}.', { count: signedOut })
       })
     }
   }
 
-  if (!list.data) return <p className="muted">{list.error ? list.error.message : 'Loading…'}</p>
+  if (!list.data) return <p className="muted">{list.error ? list.error.message : t('Loading…')}</p>
 
   const thisOne = list.data.find((s) => s.isThisOne)
   const others = list.data.filter((s) => !s.isThisOne)
@@ -161,14 +169,14 @@ export function SignIns() {
       {editing !== s.id && (
         <span className="sign-in-actions">
           {s.kidsLock && (
-            <AsyncButton className="button quiet small" aria-label={`Turn off child lock on ${describe(s)}`} onClick={() => releaseSignInKidsLock(s.id).then(list.reload)}>
+            <AsyncButton className="button quiet small" aria-label={t('Turn off child lock on {name}', { name: describe(s) })} onClick={() => releaseSignInKidsLock(s.id).then(list.reload)}>
               {t('Turn off child lock')}
             </AsyncButton>
           )}
-          <button className="button quiet small" data-rename={s.id} aria-label={`Rename ${describe(s)}`} onClick={() => setEditing(s.id)}>
+          <button className="button quiet small" data-rename={s.id} aria-label={t('Rename {name}', { name: describe(s) })} onClick={() => setEditing(s.id)}>
             {t('Rename')}
           </button>
-          <button className="button quiet small" aria-label={`Sign out ${describe(s)}`} disabled={busy} onClick={() => setAsking({ one: s })}>
+          <button className="button quiet small" aria-label={t('Sign out {name}', { name: describe(s) })} disabled={busy} onClick={() => setAsking({ one: s })}>
             {t('Sign out')}
           </button>
         </span>
@@ -193,7 +201,7 @@ export function SignIns() {
                 <span className="sign-in-text">
                   <span className="sign-in-name">
                     <strong>{latest.name}</strong>
-                    <span className="pill">{group.length.toLocaleString(locale())} sign-ins</span>
+                    <span className="pill">{t('{count, plural, one {# sign-in} other {# sign-ins}}', { count: group.length })}</span>
                     {group.some(isNew) && <span className="pill new">{t('New')}</span>}
                   </span>
                   <span className="muted sign-in-meta" title={detail(latest, oldest.createdAt)}>
@@ -202,15 +210,15 @@ export function SignIns() {
                 </span>
                 <span className="sign-in-actions">
                   <button className="button quiet small" aria-expanded={expanded} onClick={() => setOpen((o) => ({ ...o, [latest.id]: !expanded }))}>
-                    {expanded ? 'Hide' : 'Show each'}
+                    {expanded ? t('Hide') : t('Show each')}
                   </button>
                   <button
                     className="button quiet small"
-                    aria-label={`Sign out all ${group.length} sign-ins of ${latest.name}`}
+                    aria-label={t('Sign out all {count, plural, one {# sign-in} other {# sign-ins}} of {name}', { count: group.length, name: latest.name })}
                     disabled={busy}
                     onClick={() => setAsking({ group })}
                   >
-                    Sign out all {group.length.toLocaleString(locale())}
+                    {t('Sign out all {count, number}', { count: group.length })}
                   </button>
                 </span>
                 {expanded && <ul className="plain-list sign-in-list sign-in-each">{group.map(row)}</ul>}
@@ -241,14 +249,14 @@ export function SignIns() {
           title={
             'one' in asking
               ? asking.one.isThisOne
-                ? 'Sign out of this browser?'
-                : `Sign out ${asking.one.name}?`
+                ? t('Sign out of this browser?')
+                : t('Sign out {name}?', { name: asking.one.name })
               : 'group' in asking
-                ? `Sign out all ${asking.group.length.toLocaleString(locale())} sign-ins of ${asking.group[0].name}?`
-                : 'Sign out every other browser and TV?'
+                ? t('Sign out all {count, plural, one {# sign-in} other {# sign-ins}} of {name}?', { count: asking.group.length, name: asking.group[0].name })
+                : t('Sign out every other browser and TV?')
           }
-          confirmLabel="Sign out"
-          cancelLabel="Keep signed in"
+          confirmLabel={t('Sign out')}
+          cancelLabel={t('Keep signed in')}
           danger
           busy={busy}
           error={error}
@@ -261,13 +269,13 @@ export function SignIns() {
           <p>
             {'one' in asking
               ? asking.one.isThisOne
-                ? 'You’ll need the API key to sign in here again.'
+                ? t('You’ll need the API key to sign in here again.')
                 : asking.one.kind === 'Device'
-                  ? `It will need to connect again. Connected ${day(asking.one.createdAt)}, last used ${relativeTime(asking.one.lastUsedAt)}.`
-                  : `It will need the API key to sign in again. Signed in ${day(asking.one.createdAt)}, last used ${relativeTime(asking.one.lastUsedAt)}.`
+                  ? t('It will need to connect again. Connected {date}, last used {time}.', { date: day(asking.one.createdAt), time: relativeTime(asking.one.lastUsedAt) })
+                  : t('It will need the API key to sign in again. Signed in {date}, last used {time}.', { date: day(asking.one.createdAt), time: relativeTime(asking.one.lastUsedAt) })
               : 'group' in asking
-                ? 'Each will need to sign in or connect again.'
-                : `${asking.others.toLocaleString(locale())} browsers and TVs will need to sign in or connect again. This browser stays signed in.`}
+                ? t('Each will need to sign in or connect again.')
+                : t('{count, plural, one {# browser or TV will need to sign in or connect again.} other {# browsers and TVs will need to sign in or connect again.}} This browser stays signed in.', { count: asking.others })}
           </p>
         </ConfirmDialog>
       )}
@@ -302,7 +310,7 @@ function RenameForm({ signIn, onDone }: { signIn: SignIn; onDone: (renamed: bool
   return (
     <form className="sign-in-rename" onSubmit={(e) => void save(e)} onKeyDown={(e) => e.key === 'Escape' && onDone(false)}>
       <label className="field">
-        <span className="field-label">Name for {signIn.name}</span>
+        <span className="field-label">{t('Name for {name}', { name: signIn.name })}</span>
         <input ref={input} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="off" />
       </label>
       <div className="form-actions">

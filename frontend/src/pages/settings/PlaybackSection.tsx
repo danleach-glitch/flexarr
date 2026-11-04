@@ -17,7 +17,11 @@ import {
 } from '../../lib/soundSettings'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
-import { t } from '../../i18n'
+import { t, tk } from '../../i18n'
+
+const boostLabel: Record<DialogueBoost, string> = { Off: tk('Off'), Low: tk('Low'), Medium: tk('Medium'), High: tk('High') }
+const nightLabel: Record<NightMode, string> = { Off: tk('Off'), On: tk('On'), Scheduled: tk('On a schedule') }
+const speakerLabel: Partial<Record<Speakers, string>> = { Auto: tk('Auto'), Stereo: tk('Stereo') }
 
 /** The profile's own: auto-play and what to skip, saved as soon as they change (and followed by every device). */
 function WhileWatching({ name }: { name?: string }) {
@@ -30,10 +34,10 @@ function WhileWatching({ name }: { name?: string }) {
 
   type Toggle = 'autoPlayNext' | 'skipIntros' | 'skipRecaps' | 'skipCredits'
   const options: { key: Toggle; label: string; help: string }[] = [
-    { key: 'autoPlayNext', label: 'Auto-play the next episode', help: 'The next episode starts after a 10-second countdown.' },
-    { key: 'skipIntros', label: 'Skip intros', help: 'Jumps past the opening titles by itself.' },
-    { key: 'skipRecaps', label: 'Skip recaps', help: 'Jumps past “Previously on…” by itself.' },
-    { key: 'skipCredits', label: 'Skip credits', help: 'Ends the episode as the credits start.' },
+    { key: 'autoPlayNext', label: t('Auto-play the next episode'), help: t('The next episode starts after a 10-second countdown.') },
+    { key: 'skipIntros', label: t('Skip intros'), help: t('Jumps past the opening titles by itself.') },
+    { key: 'skipRecaps', label: t('Skip recaps'), help: t('Jumps past “Previously on…” by itself.') },
+    { key: 'skipCredits', label: t('Skip credits'), help: t('Ends the episode as the credits start.') },
   ]
 
   async function change(next: PlaybackPreferences) {
@@ -52,7 +56,15 @@ function WhileWatching({ name }: { name?: string }) {
     <>
       <SettingsGroup
         title={t('While watching')}
-        note={error ? <SaveStatus error={error} /> : `${name ? `${name}’s` : 'This profile’s'} own, on every device. The player’s menus change them too.`}
+        note={
+          error ? (
+            <SaveStatus error={error} />
+          ) : name ? (
+            t('{name}’s own, on every device. The player’s menus change them too.', { name })
+          ) : (
+            t('This profile’s own, on every device. The player’s menus change them too.')
+          )
+        }
       >
         {options.map((o) => (
           <ToggleRow key={o.key} label={o.label} help={o.help} checked={preferences[o.key]} onChange={(on) => void change({ ...preferences, [o.key]: on })} />
@@ -88,7 +100,7 @@ function WhileWatching({ name }: { name?: string }) {
 function MusicInThisBrowser() {
   const settings = useMusicSettings()
   return (
-    <SettingsGroup title={t('Music in this browser')} note="This browser’s own. Every device has its own.">
+    <SettingsGroup title={t('Music in this browser')} note={t('This browser’s own. Every device has its own.')}>
       <ToggleRow
         label={t('Normalise volume')}
         help={t('Levels tracks by their ReplayGain tags, so a quiet album and a loud one play at about the same volume.')}
@@ -99,7 +111,7 @@ function MusicInThisBrowser() {
         <select value={settings.crossfade} onChange={(e) => writeMusicSettings({ crossfade: Number(e.target.value) })}>
           {crossfadeChoices.map((seconds) => (
             <option key={seconds} value={seconds}>
-              {seconds === 0 ? 'Off' : `${seconds} seconds`}
+              {seconds === 0 ? t('Off') : t('{count, plural, one {# second} other {# seconds}}', { count: seconds })}
             </option>
           ))}
         </select>
@@ -118,12 +130,12 @@ function MusicInThisBrowser() {
 function SoundInThisBrowser() {
   const settings = useSoundSettings()
   return (
-    <SettingsGroup title={t('Sound in this browser')} note="This browser’s own. The player’s audio menu changes them too.">
+    <SettingsGroup title={t('Sound in this browser')} note={t('This browser’s own. The player’s audio menu changes them too.')}>
       <SettingRow label={t('Dialogue boost')} help={t('Makes voices easier to follow under music and effects.')}>
         <select value={settings.dialogueBoost} onChange={(e) => writeSoundSettings({ dialogueBoost: e.target.value as DialogueBoost })}>
           {dialogueBoostChoices.map((b) => (
             <option key={b} value={b}>
-              {b}
+              {t(boostLabel[b])}
             </option>
           ))}
         </select>
@@ -132,7 +144,7 @@ function SoundInThisBrowser() {
         <select value={settings.nightMode} onChange={(e) => writeSoundSettings({ nightMode: e.target.value as NightMode })}>
           {nightModeChoices.map((n) => (
             <option key={n} value={n}>
-              {n === 'Scheduled' ? 'On a schedule' : n}
+              {t(nightLabel[n])}
             </option>
           ))}
         </select>
@@ -140,25 +152,30 @@ function SoundInThisBrowser() {
       {settings.nightMode === 'Scheduled' && (
         <SettingRow label={t('Night mode hours')} as="div">
           <span>
-            <input
-              type="time"
-              aria-label={t('Night mode starts')}
-              value={timeOfDay(settings.nightStart)}
-              onChange={(e) => {
-                const at = minutesOf(e.target.value)
-                if (at !== null) writeSoundSettings({ nightStart: at })
-              }}
-            />
-            {' to '}
-            <input
-              type="time"
-              aria-label={t('Night mode ends')}
-              value={timeOfDay(settings.nightEnd)}
-              onChange={(e) => {
-                const at = minutesOf(e.target.value)
-                if (at !== null) writeSoundSettings({ nightEnd: at })
-              }}
-            />
+            {t.rich('{start} to {end}', {
+              start: (
+                <input
+                  type="time"
+                  aria-label={t('Night mode starts')}
+                  value={timeOfDay(settings.nightStart)}
+                  onChange={(e) => {
+                    const at = minutesOf(e.target.value)
+                    if (at !== null) writeSoundSettings({ nightStart: at })
+                  }}
+                />
+              ),
+              end: (
+                <input
+                  type="time"
+                  aria-label={t('Night mode ends')}
+                  value={timeOfDay(settings.nightEnd)}
+                  onChange={(e) => {
+                    const at = minutesOf(e.target.value)
+                    if (at !== null) writeSoundSettings({ nightEnd: at })
+                  }}
+                />
+              ),
+            })}
           </span>
         </SettingRow>
       )}
@@ -166,7 +183,7 @@ function SoundInThisBrowser() {
         <select value={settings.speakers} onChange={(e) => writeSoundSettings({ speakers: e.target.value as Speakers })}>
           {speakerChoices.map((c) => (
             <option key={c.value} value={c.value}>
-              {c.label}
+              {speakerLabel[c.value] ? t(speakerLabel[c.value]!) : c.label}
             </option>
           ))}
         </select>

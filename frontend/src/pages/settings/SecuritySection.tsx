@@ -9,7 +9,7 @@ import { useApi } from '../../hooks/useApi'
 import { usePinLockout } from '../../hooks/usePinLockout'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { errorText, useSettings } from './useSettings'
-import { locale, t } from '../../i18n'
+import { t } from '../../i18n'
 
 const digits = (value: string) => value.replace(/\D/g, '').slice(0, 8)
 
@@ -70,7 +70,7 @@ function AdminPinGroup() {
     event.preventDefault()
     if (held) return
     if (pin !== confirmPin) {
-      setError('The two PINs don’t match. Type the same one in both.')
+      setError(t('The two PINs don’t match. Type the same one in both.'))
       return
     }
     setError(undefined)
@@ -94,8 +94,8 @@ function AdminPinGroup() {
       note={
         <>
           {/* Mounted from the start, so screen readers hear it when it fills. */}
-          <span role="status">{changed ? 'PIN changed. Anywhere the old one unlocked settings is locked again. ' : ''}</span>
-          Separate from the main profile’s own PIN, which is in <Link to="/settings/profiles">{t('Profiles')}</Link>.
+          <span role="status">{changed ? `${t('PIN changed. Anywhere the old one unlocked settings is locked again.')} ` : ''}</span>
+          {t.rich('Separate from the main profile’s own PIN, which is in {page}.', { page: <Link to="/settings/profiles">{t('Profiles')}</Link> })}
         </>
       }
     >
@@ -119,12 +119,12 @@ function AdminPinGroup() {
           <div className="field-row">
             {forgotten ? (
               <label>
-                API key
+                {t('API key')}
                 <input ref={proof} type="password" autoComplete="off" required autoFocus value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
               </label>
             ) : (
               <label>
-                Current PIN
+                {t('Current PIN')}
                 <input
                   ref={proof}
                   type="password"
@@ -138,11 +138,11 @@ function AdminPinGroup() {
               </label>
             )}
             <label>
-              New PIN
+              {t('New PIN')}
               <input type="password" inputMode="numeric" autoComplete="new-password" required minLength={4} placeholder={t('4 to 8 digits')} value={pin} onChange={(e) => setPin(digits(e.target.value))} />
             </label>
             <label>
-              Confirm new PIN
+              {t('Confirm new PIN')}
               <input type="password" inputMode="numeric" autoComplete="new-password" required minLength={4} value={confirmPin} onChange={(e) => setConfirmPin(digits(e.target.value))} />
             </label>
           </div>
@@ -150,7 +150,7 @@ function AdminPinGroup() {
             <p className="field-help">{t('It’s in config.json in the server’s data folder: ~/.flexarr/data on a Mac, /config with Docker.')}</p>
           ) : (
             <p className="field-help">
-              Forgotten it?{' '}
+              {t('Forgotten it?')}{' '}
               <button type="button" className="text-button" onClick={() => setForgotten(true)}>
                 {t('Use the API key instead')}
               </button>
@@ -268,7 +268,7 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
   return (
     <SettingsGroup
       title={t('API key')}
-      note={saved || saveError ? <SaveStatus saved={saved} error={saveError} /> : 'Signs in a new browser, or sets up an app. Browsers and TVs get a sign-in of their own once connected, so they don’t keep it.'}
+      note={saved || saveError ? <SaveStatus saved={saved} error={saveError} /> : t('Signs in a new browser, or sets up an app. Browsers and TVs get a sign-in of their own once connected, so they don’t keep it.')}
     >
       <SettingRow label={t('Ask for it')} help={t('“Only away from home” lets devices on your own network in without it.')}>
         <select
@@ -299,11 +299,19 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
           <details className="advice-more">
             <summary>{t('Using a reverse proxy?')}</summary>
             <p>
-              If Flexarr sits behind a reverse proxy in Docker or on another computer, add that proxy to <code>{t('trustedProxies')}</code> {t('in config.json, or visitors through it are treated as the internet and asked for the key.')}
+              {t.rich('If Flexarr sits behind a reverse proxy in Docker or on another computer, add that proxy to {setting} in config.json, or visitors through it are treated as the internet and asked for the key.', {
+                setting: <code>trustedProxies</code>,
+              })}
             </p>
             <p>
-              A reverse proxy on this computer must send <code>{t('X-Forwarded-For')}</code> (in nginx, <code>{t('proxy_set_header X-Forwarded-For $remote_addr;')}</code>), or
-              everyone through it looks like this computer and gets in. To be safe, set <code>{t('"loopbackNeedsForwarding": true')}</code> {t('in config.json: requests from this computer that don’t say who they’re for then count as the internet (a browser on this computer will need the key too).')}
+              {t.rich(
+                'A reverse proxy on this computer must send {header} (in nginx, {nginx}), or everyone through it looks like this computer and gets in. To be safe, set {setting} in config.json: requests from this computer that don’t say who they’re for then count as the internet (a browser on this computer will need the key too).',
+                {
+                  header: <code>X-Forwarded-For</code>,
+                  nginx: <code>proxy_set_header X-Forwarded-For $remote_addr;</code>,
+                  setting: <code>"loopbackNeedsForwarding": true</code>,
+                },
+              )}
             </p>
           </details>
         </div>
@@ -311,26 +319,26 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
       <div className="setting-row static">
         {rotated && (
           <p className="key-note" role="status">
-            New key made. The old one stopped working.
+            {t('New key made. The old one stopped working.')}
             {rotated.signedOut > 0
-              ? ` ${rotated.signedOut.toLocaleString(locale())} ${rotated.signedOut === 1 ? 'browser or TV was' : 'browsers and TVs were'} signed out.`
-              : ' Browsers and TVs signed in below keep working.'}
+              ? ` ${t('{count, plural, one {# browser or TV was signed out.} other {# browsers and TVs were signed out.}}', { count: rotated.signedOut })}`
+              : ` ${t('Browsers and TVs signed in below keep working.')}`}
           </p>
         )}
         <div className="key-row" ref={keyArea}>
           <div className="secret-field">
-            <code aria-label={key ? undefined : 'API key, hidden'}>{key ?? '•'.repeat(32)}</code>
+            <code aria-label={key ? undefined : t('API key, hidden')}>{key ?? '•'.repeat(32)}</code>
             <AsyncButton
               className="icon-button"
-              aria-label={key ? 'Hide the API key' : 'Show the API key'}
-              title={key ? 'Hide' : 'Show'}
+              aria-label={key ? t('Hide the API key') : t('Show the API key')}
+              title={key ? t('Hide') : t('Show')}
               onClick={(e) => toggleKey(e.currentTarget)}
               disabled={ask !== undefined}
             >
               {key ? <EyeOff /> : <Eye />}
             </AsyncButton>
           </div>
-          {key && <CopyButton text={key} what="the API key" />}
+          {key && <CopyButton text={key} what={t('the API key')} />}
           <button className="button quiet small" onClick={(e) => open('rotate', e.currentTarget)} disabled={ask !== undefined}>
             {t('Make a new key')}
           </button>
@@ -339,7 +347,7 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
           <form
             ref={askForm}
             className="key-confirm"
-            aria-label={ask === 'reveal' ? 'Show the API key' : ask === 'home' ? 'Let devices at home in without the key' : 'Make a new API key'}
+            aria-label={ask === 'reveal' ? t('Show the API key') : ask === 'home' ? t('Let devices at home in without the key') : t('Make a new API key')}
             onSubmit={(e) => void confirmKey(e)}
             onKeyDown={(e) => e.key === 'Escape' && cancel()}
           >
@@ -372,7 +380,7 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
                 {t('Cancel')}
               </button>
               <AsyncButton type="submit" className="button small" busy={confirming} aria-describedby={mainHasPin ? undefined : 'key-confirm-help'}>
-                {ask === 'reveal' ? 'Show the key' : ask === 'home' ? 'Let them in' : 'Replace the key'}
+                {ask === 'reveal' ? t('Show the key') : ask === 'home' ? t('Let them in') : t('Replace the key')}
               </AsyncButton>
             </div>
           </form>

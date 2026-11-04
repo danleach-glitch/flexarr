@@ -21,8 +21,6 @@ export function RemoteAccessSection() {
   )
 }
 
-const zoneLabel = { Local: 'your home network', Tailnet: 'Tailscale', Internet: 'the internet' } as const
-
 export function RemoteAccessGroups() {
   const [version, setVersion] = useState(0)
   const remote = useApi(getRemoteAccess, [version])
@@ -43,16 +41,16 @@ export function RemoteAccessGroups() {
     }
   }
 
-  if (!remote.data) return <p className="muted">{remote.error ? remote.error.message : 'Checking Tailscale…'}</p>
+  if (!remote.data) return <p className="muted">{remote.error ? remote.error.message : t('Checking Tailscale…')}</p>
   const { tailscale: ts } = remote.data
   const inDocker = !ts.installed && remote.data.inContainer
   const inMacApp = remote.data.inMacApp === true
-  const you = (
-    <>
-      You’re connected from {zoneLabel[remote.data.yourConnection]}
-      {remote.data.yourTailscaleLogin && <> as {remote.data.yourTailscaleLogin}</>}.
-    </>
-  )
+  const you = remote.data.yourTailscaleLogin
+    ? t('{zone, select, Local {You’re connected from your home network as {login}.} Tailnet {You’re connected from Tailscale as {login}.} other {You’re connected from the internet as {login}.}}', {
+        zone: remote.data.yourConnection,
+        login: remote.data.yourTailscaleLogin,
+      })
+    : t('{zone, select, Local {You’re connected from your home network.} Tailnet {You’re connected from Tailscale.} other {You’re connected from the internet.}}', { zone: remote.data.yourConnection })
 
   return (
     <>
@@ -61,9 +59,8 @@ export function RemoteAccessGroups() {
         note={
           ts.publicAccess ? undefined : (
             <>
-              Tailscale lets your devices reach Flexarr from anywhere, privately, with nothing opened on your router. The apps switch to it by
-              themselves.
-              {remote.data.cloudflareTunnelRunning && ' A Cloudflare Tunnel runs on this server, but it doesn’t route to Flexarr.'} {you}
+              {t('Tailscale lets your devices reach Flexarr from anywhere, privately, with nothing opened on your router. The apps switch to it by themselves.')}
+              {remote.data.cloudflareTunnelRunning && ` ${t('A Cloudflare Tunnel runs on this server, but it doesn’t route to Flexarr.')}`} {you}
             </>
           )
         }
@@ -75,23 +72,23 @@ export function RemoteAccessGroups() {
             <span className="muted">
               {inMacApp
                 ? remote.data.tailnetAddress
-                  ? 'This Mac is on your tailnet'
-                  : 'Set up in the Tailscale app'
+                  ? t('This Mac is on your tailnet')
+                  : t('Set up in the Tailscale app')
                 : inDocker
-                ? 'Not available in Docker'
+                ? t('Not available in Docker')
                 : !ts.installed
-                ? 'Not installed on the server'
+                ? t('Not installed on the server')
                 : !ts.running
-                  ? 'Installed, not connected'
+                  ? t('Installed, not connected')
                   : ts.privateAccess
-                    ? 'On: Flexarr is available on your tailnet'
-                    : `Off. Connected as ${ts.dnsName}`}
+                    ? t('On: Flexarr is available on your tailnet')
+                    : t('Off. Connected as {name}', { name: ts.dnsName })}
             </span>
           </span>
           {ts.running && !inMacApp && (
             <span className="connection-actions">
               <AsyncButton className={ts.privateAccess ? 'button danger small' : 'button small'} disabled={busy} onClick={() => run(() => setTailscaleAccess(!ts.privateAccess))}>
-                {ts.privateAccess ? 'Turn off' : 'Turn on'}
+                {ts.privateAccess ? t('Turn off') : t('Turn on')}
               </AsyncButton>
             </span>
           )}
@@ -100,31 +97,33 @@ export function RemoteAccessGroups() {
         {inMacApp && (
           <>
             <p className="muted">
-              Mac App Store apps can’t turn Tailscale on. Install{' '}
-              <a href="https://tailscale.com/download">{t('Tailscale')}</a> on this Mac and your devices with the same account, and they’ll reach Flexarr at this Mac’s Tailscale address. See <a href="https://flexarr.io/guide/away-from-home">{t('Watch away from home')}</a>.
+              {t.rich('Mac App Store apps can’t turn Tailscale on. Install {tailscale} on this Mac and your devices with the same account, and they’ll reach Flexarr at this Mac’s Tailscale address. See {guide}.', {
+                tailscale: <a href="https://tailscale.com/download">Tailscale</a>,
+                guide: <a href="https://flexarr.io/guide/away-from-home">{t('Watch away from home')}</a>,
+              })}
             </p>
             {remote.data.tailnetAddress && (
               <SettingRow as="div" label={t('Private address')} help={<code className="remote-address">{remote.data.tailnetAddress}</code>}>
-                <CopyButton text={remote.data.tailnetAddress} what="the address" />
+                <CopyButton text={remote.data.tailnetAddress} what={t('the address')} />
               </SettingRow>
             )}
           </>
         )}
         {inDocker && (
           <p className="muted">
-            Flexarr can’t reach Tailscale from inside Docker. Run it outside Docker on a computer with Tailscale, or behind an HTTPS reverse proxy.
-            See{' '}
-            <a href="https://flexarr.io/guide/away-from-home">{t('Watch away from home')}</a>.
+            {t.rich('Flexarr can’t reach Tailscale from inside Docker. Run it outside Docker on a computer with Tailscale, or behind an HTTPS reverse proxy. See {guide}.', {
+              guide: <a href="https://flexarr.io/guide/away-from-home">{t('Watch away from home')}</a>,
+            })}
           </p>
         )}
         {!ts.installed && !inDocker && !inMacApp && (
           <p className="muted">
-            Install Tailscale on the server from <a href="https://tailscale.com/download">{t('tailscale.com/download')}</a>{t(', sign in, then come back here.')}
+            {t.rich('Install Tailscale on the server from {link}, sign in, then come back here.', { link: <a href="https://tailscale.com/download">tailscale.com/download</a> })}
           </p>
         )}
         {ts.privateAccess && ts.url && (
           <SettingRow as="div" label={t('Private address')} help={<code className="remote-address">{ts.url}</code>}>
-            <CopyButton text={ts.url} what="the address" />
+            <CopyButton text={ts.url} what={t('the address')} />
           </SettingRow>
         )}
         {error && (
@@ -140,20 +139,19 @@ export function RemoteAccessGroups() {
 
       {ts.privateAccess && !remote.data.mainProfileHasPin && (
         <p className="panel advice">
-          Anyone using a browser or TV you’ve signed in can change settings, because there’s no admin PIN. Choose one in{' '}
-          <Link to="/settings/security">{t('Security')}</Link>.
+          {t.rich('Anyone using a browser or TV you’ve signed in can change settings, because there’s no admin PIN. Choose one in {page}.', { page: <Link to="/settings/security">{t('Security')}</Link> })}
         </p>
       )}
 
       {ts.running && remote.data.links.length > 0 && (
         <SettingsGroup
           title={t('People with their own Tailscale')}
-          note="People on your tailnet with the Tailscale app and their own account. Choose the profile each one gets when they open Flexarr in a browser, or Not allowed to turn them away."
+          note={t('People on your tailnet with the Tailscale app and their own account. Choose the profile each one gets when they open Flexarr in a browser, or Not allowed to turn them away.')}
         >
           {remote.data.links.map((person) => (
             <SettingRow key={person.login} label={person.name} help={person.login}>
               <select
-                aria-label={`Profile for ${person.name}`}
+                aria-label={t('Profile for {name}', { name: person.name })}
                 value={person.profileId ?? ''}
                 disabled={busy}
                 onChange={(e) => run(() => linkTailscale(person.login, e.target.value || null))}

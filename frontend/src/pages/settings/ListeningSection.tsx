@@ -41,7 +41,7 @@ export function ListeningSection() {
     try {
       setSaved(await savePodcastPreferences(changes))
     } catch {
-      setError("That didn't save. Try again.")
+      setError(t("That didn't save. Try again."))
       settle()
       // What the server has now, in place of the change that didn't save.
       void getPodcastPreferences().then(setSaved, () => undefined)
@@ -62,7 +62,7 @@ export function ListeningSection() {
       ))}
     </select>
   )
-  const seconds = (n: number) => `${n} seconds`
+  const seconds = (n: number) => t('{count, plural, one {# second} other {# seconds}}', { count: n })
 
   return (
     <section>
@@ -71,7 +71,7 @@ export function ListeningSection() {
         <>
           <SettingsGroup
             title={t('Listening')}
-            note={`${name ? `${name}’s` : 'This profile’s'} own, in every app. A book with a speed of its own keeps it.`}
+            note={name ? t('{name}’s own, in every app. A book with a speed of its own keeps it.', { name }) : t('This profile’s own, in every app. A book with a speed of its own keeps it.')}
           >
             <SettingRow label={t('Speed')}>{select(p.speed, withCurrent(bookSpeedPresets, p.speed), speedLabel, (speed) => void save({ speed }))}</SettingRow>
             {p.skipBackSeconds !== undefined && (
@@ -90,7 +90,7 @@ export function ListeningSection() {
           </SettingsGroup>
           <SettingsGroup
             title={t('Automatic downloads')}
-            note="On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted. Notifications for new episodes are in each phone’s Settings."
+            note={t('On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted. Notifications for new episodes are in each phone’s Settings.')}
           >
             <ToggleRow label={t('Download new episodes')} checked={p.autoDownload} onChange={(autoDownload) => void save({ autoDownload })} />
             <SettingRow label={t('Episodes to keep')}>

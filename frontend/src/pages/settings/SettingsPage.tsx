@@ -3,7 +3,7 @@ import { Navigate, NavLink, useParams } from 'react-router'
 import { clearApiCache, getMe, getTraktStatus, getUpdates, lockAdmin } from '../../api/client'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
-import { availableLanguages, t } from '../../i18n'
+import { availableLanguages, t, tk } from '../../i18n'
 import { Antenna, Download, Film, Gauge, Globe, Headphones, History, Info, LayoutGrid, Notes, Padlock, PanelLeft, Shield, PlayCircle, Plug, Restore, Stack, Users } from '../../components/icons'
 import { AboutSection } from './AboutSection'
 import { SecuritySection } from './SecuritySection'
@@ -40,35 +40,35 @@ interface Page {
 
 /** Every profile's own: how it watches and listens, what Home and Browse show, and its menu. */
 const profilePages: Page[] = [
-  { id: 'playback', label: 'Playback', icon: PlayCircle, render: () => <PlaybackSection /> },
-  { id: 'listening', label: 'Podcasts & audiobooks', icon: Headphones, render: () => <ListeningSection /> },
-  { id: 'layout', label: 'Home & browse', icon: LayoutGrid, render: () => <LayoutSection /> },
-  { id: 'navigation', label: 'Navigation', icon: PanelLeft, render: () => <NavigationSection /> },
+  { id: 'playback', label: tk('Playback'), icon: PlayCircle, render: () => <PlaybackSection /> },
+  { id: 'listening', label: tk('Podcasts & audiobooks'), icon: Headphones, render: () => <ListeningSection /> },
+  { id: 'layout', label: tk('Home & browse'), icon: LayoutGrid, render: () => <LayoutSection /> },
+  { id: 'navigation', label: tk('Navigation'), icon: PanelLeft, render: () => <NavigationSection /> },
 ]
 
 /** Listed once the server offers a language besides English (from 0.61). */
-const languagePage: Page = { id: 'language', label: 'Language', icon: Globe, render: () => <LanguageSection /> }
+const languagePage: Page = { id: 'language', label: tk('Language'), icon: Globe, render: () => <LanguageSection /> }
 
 /** Listed when the server offers Trakt (from 0.57). */
 const traktPage: Page = { id: 'trakt', label: 'Trakt', icon: History, render: () => <TraktSection /> }
 
 /** The server's, for the main profile only. */
 const serverPages: Page[] = [
-  { id: 'overview', label: 'Overview', icon: Gauge, render: () => <OverviewSection /> },
-  { id: 'libraries', label: 'Libraries', icon: Stack, render: () => <LibrariesSection /> },
-  { id: 'health', label: 'Library health', render: () => <HealthSection />, under: 'libraries' },
-  { id: 'import', label: 'Bring over from Plex', render: () => <ImportSection />, under: 'libraries' },
-  { id: 'profiles', label: 'Profiles', icon: Users, render: () => <ProfilesSection /> },
-  { id: 'streaming', label: 'Streaming', icon: Film, render: () => <StreamingSection /> },
-  { id: 'livetv', label: 'Live TV', icon: Antenna, render: () => <LiveTvSection /> },
-  { id: 'connections', label: 'Connections', icon: Plug, render: () => <ConnectionsSection /> },
-  { id: 'remote', label: 'Remote access', icon: Globe, render: () => <RemoteAccessSection /> },
-  { id: 'security', label: 'Security', icon: Shield, render: () => <SecuritySection /> },
-  { id: 'tv', label: 'Connect a device', render: () => <ConnectTvSection />, under: 'security' },
-  { id: 'backups', label: 'Backup & restore', icon: Restore, render: () => <BackupSection /> },
-  { id: 'updates', label: 'Updates', icon: Download, render: () => <UpdatesSection /> },
-  { id: 'logs', label: 'Logs', icon: Notes, render: () => <LogsSection /> },
-  { id: 'about', label: 'About', icon: Info, render: () => <AboutSection /> },
+  { id: 'overview', label: tk('Overview'), icon: Gauge, render: () => <OverviewSection /> },
+  { id: 'libraries', label: tk('Libraries'), icon: Stack, render: () => <LibrariesSection /> },
+  { id: 'health', label: tk('Library health'), render: () => <HealthSection />, under: 'libraries' },
+  { id: 'import', label: tk('Bring over from Plex'), render: () => <ImportSection />, under: 'libraries' },
+  { id: 'profiles', label: tk('Profiles'), icon: Users, render: () => <ProfilesSection /> },
+  { id: 'streaming', label: tk('Streaming'), icon: Film, render: () => <StreamingSection /> },
+  { id: 'livetv', label: tk('Live TV'), icon: Antenna, render: () => <LiveTvSection /> },
+  { id: 'connections', label: tk('Connections'), icon: Plug, render: () => <ConnectionsSection /> },
+  { id: 'remote', label: tk('Remote access'), icon: Globe, render: () => <RemoteAccessSection /> },
+  { id: 'security', label: tk('Security'), icon: Shield, render: () => <SecuritySection /> },
+  { id: 'tv', label: tk('Connect a device'), render: () => <ConnectTvSection />, under: 'security' },
+  { id: 'backups', label: tk('Backup & restore'), icon: Restore, render: () => <BackupSection /> },
+  { id: 'updates', label: tk('Updates'), icon: Download, render: () => <UpdatesSection /> },
+  { id: 'logs', label: tk('Logs'), icon: Notes, render: () => <LogsSection /> },
+  { id: 'about', label: tk('About'), icon: Info, render: () => <AboutSection /> },
 ]
 
 /** Pages that moved, so old links and bookmarks still land somewhere sensible. */
@@ -124,7 +124,7 @@ export function SettingsPage() {
   }, [unlockedUntil, reloadMe])
   // A dot on Updates when there's a release to install. Only the main profile may ask; older servers have no /updates.
   const updates = useApi((signal) => (me.data?.isAdmin ? getUpdates(signal) : Promise.resolve(undefined)), [me.data?.isAdmin])
-  const badges: Record<string, string | undefined> = { updates: updates.data?.available ? `Flexarr ${updates.data.latest?.version} is available` : undefined }
+  const badges: Record<string, string | undefined> = { updates: updates.data?.available ? t('Flexarr {version} is available', { version: updates.data.latest?.version }) : undefined }
 
   // A child's choices are a parent's to make: the kids app has no Settings, even by its address.
   if (me.data?.isKids) return <Navigate to="/" replace />
@@ -142,7 +142,7 @@ export function SettingsPage() {
   const link = (p: Page) => (
     <NavLink key={p.id} to={`/settings/${p.id}`} className={() => (p.id === lit ? 'active' : undefined)}>
       {p.icon && <p.icon className="settings-nav-icon" />}
-      {p.label}
+      {t(p.label)}
       {badges[p.id] && <span className="settings-nav-badge" role="img" aria-label={badges[p.id]} title={badges[p.id]} />}
     </NavLink>
   )
@@ -159,7 +159,7 @@ export function SettingsPage() {
           {(isAdmin || locked) && (
             <div className="settings-nav-group">
               <h2>{t('Server')}</h2>
-              {isAdmin && !pinMissing ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: locked ? 'Unlock settings' : 'Choose an admin PIN', icon: Padlock, render: () => null })}
+              {isAdmin && !pinMissing ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: locked ? tk('Unlock settings') : tk('Choose an admin PIN'), icon: Padlock, render: () => null })}
               {isAdmin && unlockedUntil && (
                 <button type="button" className="text-button settings-lock" onClick={() => void lockAdmin().then(() => window.location.reload())}>
                   {t('Lock settings')}
@@ -185,6 +185,6 @@ export function SettingsPage() {
 
 /** "Claire’s profile", but a name that already says profile (a new server's "Main profile") stays as it is. */
 function profileHeading(name: string | undefined) {
-  if (!name) return 'Your profile'
-  return /\bprofile$/i.test(name.trim()) ? name : `${name}’s profile`
+  if (!name) return t('Your profile')
+  return /\bprofile$/i.test(name.trim()) ? name : t('{name}’s profile', { name })
 }

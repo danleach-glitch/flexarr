@@ -155,10 +155,10 @@ export function RowList({
               <span className={row.enabled ? undefined : 'muted'}>{row.label}</span>
             </label>
             <span className="row-list-move">
-              <button type="button" className="icon-button" aria-label={`Move ${row.label} up`} disabled={i === 0} onClick={() => move(i, i - 1)}>
+              <button type="button" className="icon-button" aria-label={t('Move {name} up', { name: row.label })} disabled={i === 0} onClick={() => move(i, i - 1)}>
                 <ChevronUp />
               </button>
-              <button type="button" className="icon-button" aria-label={`Move ${row.label} down`} disabled={i === rows.length - 1} onClick={() => move(i, i + 1)}>
+              <button type="button" className="icon-button" aria-label={t('Move {name} down', { name: row.label })} disabled={i === rows.length - 1} onClick={() => move(i, i + 1)}>
                 <ChevronDown />
               </button>
             </span>

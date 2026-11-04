@@ -5,7 +5,7 @@ import { relativeTime } from '../../lib/format'
 import { parse, ReleaseNotes } from './changelog'
 import { SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText, useSettings } from './useSettings'
-import { locale, t } from '../../i18n'
+import { t } from '../../i18n'
 
 /** Which Flexarr this is, where it keeps things, and what's changed. */
 export function AboutSection() {
@@ -22,7 +22,7 @@ export function AboutSection() {
         {status && (
           <SettingRow as="div" label={t('Running on')}>
             <span className="setting-value">
-              {status.osDescription}, since {relativeTime(status.startTime)}
+              {t('{os}, since {time}', { os: status.osDescription, time: relativeTime(status.startTime) })}
             </span>
           </SettingRow>
         )}
@@ -66,8 +66,8 @@ function StartAtLogin() {
         label={t('Start when you log in')}
         help={
           current.startAtLogin === 'NeedsApproval'
-            ? 'macOS needs your OK first: on the Mac, open System Settings › General › Login Items and turn on Flexarr Server.'
-            : 'Opens Flexarr Server when you log in to this Mac, so the server is back after a restart.'
+            ? t('macOS needs your OK first: on the Mac, open System Settings › General › Login Items and turn on Flexarr Server.')
+            : t('Opens Flexarr Server when you log in to this Mac, so the server is back after a restart.')
         }
         checked={current.startAtLogin !== 'Off'}
         onChange={(on) => void change(on)}
@@ -94,7 +94,7 @@ function WhatsNew() {
       <div className="settings-group-head">
         <h3 className="settings-subhead">{t('What’s new')}</h3>
       </div>
-      {error && <p className="error">The changelog couldn’t be loaded: {error.message}</p>}
+      {error && <p className="error">{t('The changelog couldn’t be loaded: {message}', { message: error.message })}</p>}
       {!data && !error && <p className="muted">{t('Loading…')}</p>}
       <div className="changelog">
         {shown.map((release) => (
@@ -103,7 +103,7 @@ function WhatsNew() {
       </div>
       {!all && releases.length > shown.length && (
         <button className="button quiet small changelog-more" onClick={() => setAll(true)}>
-          Show older releases ({(releases.length - shown.length).toLocaleString(locale())})
+          {t('Show older releases ({count, number})', { count: releases.length - shown.length })}
         </button>
       )}
     </div>
