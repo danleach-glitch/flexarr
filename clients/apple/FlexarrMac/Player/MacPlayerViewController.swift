@@ -130,6 +130,14 @@ final class PlayerViewController: NSViewController {
                 MainActor.assumeIsolated { self?.state.isFullScreen = window.styleMask.contains(.fullScreen) }
             }
         }
+        // The window closed with the film in it (not floating in Picture in Picture): that's the end of watching, not
+        // a film playing on unseen.
+        fullScreenObservers.append(center.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, !self.finished, !PlayerHost.shared.isFloating else { return }
+                self.close()
+            }
+        })
     }
 
     private func install(_ transport: PlayerTransport) {
@@ -150,6 +158,12 @@ final class PlayerViewController: NSViewController {
         #endif
         updateTime(transport.currentTime, transport)
         refreshTracks()
+        // A new transport (the next episode, another title) while floating: Picture in Picture ends without ending the
+        // session, and the picture comes back into the window.
+        if let floating = pictureInPicture, floating.isPictureInPictureActive {
+            isRestoringFromPictureInPicture = true
+            floating.stopPictureInPicture()
+        }
         pictureInPicture = nil
         preparePictureInPicture(transport)
     }

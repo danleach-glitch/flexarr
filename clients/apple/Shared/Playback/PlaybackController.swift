@@ -422,6 +422,10 @@ final class PlaybackController: NSObject {
         let screen: PlayerViewController
         if let current = self.screen {
             screen = current
+            #if os(macOS)
+            // A film floating in Picture in Picture: the next one comes back into the window.
+            PlayerHost.shared.show(current)
+            #endif
         } else {
             screen = PlayerViewController()
             screen.delegate = self
@@ -670,15 +674,18 @@ final class PlaybackController: NSObject {
         let wasPlaying = transport?.isPlaying ?? false
         transport?.pause()
         #if os(macOS)
-        weak var host: PlayerSheetHost?
+        // Held here until it closes: nothing else keeps the Mac's sheet host alive (the iPhone's presentation does).
+        var host: PlayerSheetHost?
         let search = SubtitleSearchView(client: client, itemId: current.item.id, fileId: current.fileId, onDownloaded: { [weak self] saved in
             log.info("Subtitles downloaded: \(saved.label) (\(saved.key))", ["playbackId": current.playbackId])
             host?.dismiss(animated: true)
+            host = nil
             guard let self, self.info?.sessionId == current.sessionId, !self.isRecovering else { return }
             self.viewerSubtitleKey = .some(saved.key)
             self.reopen(self.reopenRequest(current), replacing: current)
         }, onClose: { [weak self] in
             host?.dismiss(animated: true)
+            host = nil
             if wasPlaying, self?.info?.sessionId == current.sessionId { self?.transport?.play() }
         })
         host = screen.presentSheet(search)
@@ -1331,6 +1338,7 @@ final class PlaybackController: NSObject {
 
     /// Closes the player screen, ending the session.
     func closePlayer() {
+        guard screen != nil || info != nil else { return }
         dismissPlayer()
     }
 

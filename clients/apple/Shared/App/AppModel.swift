@@ -247,8 +247,21 @@ final class AppModel {
             }
         }
         // One thing plays at a time: a film starting pauses the music, which the lock screen offers back after.
+        #if os(macOS)
+        // On a Mac a film can float in Picture in Picture while the window browses: a channel ends it, and a title
+        // ends a channel, so only one plays (they share the window's player).
+        player.onWillStart = { [weak self] in
+            self?.music.yieldToVideo()
+            self?.liveTv.closePlayer()
+        }
+        liveTv.onWillStart = { [weak self] in
+            self?.music.yieldToVideo()
+            self?.player.closePlayer()
+        }
+        #else
         player.onWillStart = { [weak self] in self?.music.yieldToVideo() }
         liveTv.onWillStart = { [weak self] in self?.music.yieldToVideo() }
+        #endif
         liveTv.onEnded = { [weak self] in self?.music.videoEnded() }
         // A speed picked in the player is the profile's speed from then on, everywhere.
         // Heard to the end: Home's new episodes and the downloads drop it now, not at the next catch-up. A moment later,
@@ -474,9 +487,20 @@ final class AppModel {
         timer.cancel()
     }
 
+    /// Signing out or another profile: what's playing stops. On a Mac its screen goes too, as it can still be up (a film
+    /// floating in Picture in Picture, Settings open beside it); on the phones and the TV the player covers those paths.
+    private func endPlayback() {
+        #if os(macOS)
+        player.closePlayer()
+        liveTv.closePlayer()
+        #else
+        player.stop()
+        #endif
+    }
+
     /// `stoppingTunnel`: false only for a guest's sign-out, which stops the tunnel itself once the server has heard.
     private func forget(stoppingTunnel: Bool = true) {
-        player.stop()
+        endPlayback()
         music.stop()
         // A guest leaving leaves its host's tailnet too: nothing of the tunnel stays on the device.
         if stoppingTunnel, credentials?.isGuest == true { GuestTunnel.shared.stop(forget: true) }
@@ -1121,7 +1145,7 @@ final class AppModel {
     private func chose(_ selection: ProfileSelection, among list: [Profile]) {
         guard var credentials else { return }
         let profile = selection.profile
-        player.stop()
+        endPlayback()
         music.stop()
         // What the last profile got ready is theirs.
         player.dropReady()
@@ -1875,7 +1899,7 @@ final class AppModel {
         if !profile.needsPinToChoose, (try? await switchProfile(to: profile)) != nil { return open(url: url) }
         afterProfileChoice = url
         linkProfile = profile
-        player.stop()
+        endPlayback()
         needsProfileChoice = true
     }
 }

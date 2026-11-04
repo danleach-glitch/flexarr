@@ -176,8 +176,13 @@ final class LiveTvController: NSObject {
         let previous = previousChannel?.id == current ? nil : previousChannel
         let picker = LiveChannelPicker(client: client, currentId: current, channels: channels, previous: previous, onPick: { [weak self] channel in
             host?.dismiss(animated: true)
+            host = nil
             if channel.id != current { self?.start(channel) }
-        }, onClose: { host?.dismiss(animated: true) })
+        }, onClose: {
+            // Let go of the sheet, which holds these closures, and so this.
+            host?.dismiss(animated: true)
+            host = nil
+        })
         host = screen.presentSheet(picker)
     }
     #else
@@ -188,8 +193,13 @@ final class LiveTvController: NSObject {
         let previous = previousChannel?.id == current ? nil : previousChannel
         let picker = LiveChannelPicker(client: client, currentId: current, channels: channels, previous: previous, onPick: { [weak self] channel in
             host?.dismiss(animated: true)
+            host = nil
             if channel.id != current { self?.start(channel) }
-        }, onClose: { host?.dismiss(animated: true) })
+        }, onClose: {
+            // Let go of the sheet, which holds these closures, and so this.
+            host?.dismiss(animated: true)
+            host = nil
+        })
         let controller = UIHostingController(rootView: picker)
         #if os(tvOS)
         controller.modalPresentationStyle = .overFullScreen
@@ -238,6 +248,15 @@ final class LiveTvController: NSObject {
             Task { try? await client.stopLiveChannel(viewer: viewer) }
         }
         watching = nil
+    }
+
+    /// A channel is up (or starting).
+    var isWatching: Bool { screen != nil || watching != nil }
+
+    /// Closes the channel's screen, ending the stream.
+    func closePlayer() {
+        guard screen != nil || watching != nil || isStarting else { return }
+        close()
     }
 
     private func close(message: String? = nil) {

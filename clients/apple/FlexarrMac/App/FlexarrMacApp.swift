@@ -33,10 +33,29 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationC
         }
     }
 
-    /// Closing the window ends the app, as for Apple's TV and Music apps when their only window goes (a film playing
-    /// in Picture in Picture keeps it open).
+    /// Closing the window ends the app, as for Apple's TV and Music apps when their only window goes; a film floating
+    /// in Picture in Picture keeps it open (closing the window with a film in it closes the film: see the player).
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        PlayerHost.shared.screen == nil
+        !PlayerHost.shared.isFloating
+    }
+
+    /// Quitting mid-film: the session ends on the server and the last position is sent first (a moment at most), so
+    /// the server stops converting and the place is kept.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let model, model.player.isShowingTitle || model.liveTv.isWatching else { return .terminateNow }
+        model.player.closePlayer()
+        model.liveTv.closePlayer()
+        let sent = model.player.reportsSent
+        Task { @MainActor in
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await sent?.value }
+                group.addTask { try? await Task.sleep(for: .seconds(2)) }
+                await group.next()
+                group.cancelAll()
+            }
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     func application(_ application: NSApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
