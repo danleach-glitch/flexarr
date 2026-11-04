@@ -79,6 +79,6 @@ val UpcomingItem.code: String get() = t(Words.seasonEpisodeShort, "season" to (s
 val UpcomingItem.status: String?
     get() = when {
         available == true -> t("Ready to watch")
-        download != null -> t("Downloading {percent}%", "percent" to Math.round(download.progress * 100))
+        download != null -> t("Downloading, {percent}%", "percent" to Math.round(download.progress * 100))
         else -> null
     }

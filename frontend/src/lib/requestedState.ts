@@ -5,7 +5,7 @@ import { locale, t, Words } from '../i18n'
 export function requestedState(r: Pick<MusicRequested | TitleRequested, 'state' | 'progress' | 'releaseDate'>, now = new Date()): string {
   switch (r.state) {
     case 'downloading':
-      return r.progress != null && r.progress > 0 ? t('Downloading {percent}%', { percent: Math.round(r.progress * 100) }) : t('Downloading')
+      return r.progress != null && r.progress > 0 ? t('Downloading, {percent}%', { percent: Math.round(r.progress * 100) }) : t('Downloading')
     case 'importing':
       return t('Importing')
     case 'upcoming': {

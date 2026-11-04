@@ -57,7 +57,7 @@ public static class ImportEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Problems.Of("plex.tv didn't answer ({status}). Try again in a moment.", new { status = (int?)ex.StatusCode ?? 0 }, status: 502);
+                return Problems.Of("plex.tv didn’t answer ({status}). Try again in a moment.", new { status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
         });
 

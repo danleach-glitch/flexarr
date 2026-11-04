@@ -71,7 +71,7 @@ final class SettingsTour: XCTestCase {
         if row("Profiles").exists {
             focus("Profiles")
             press(.select, wait: 2)
-            focus("Ask who's watching")
+            focus("Ask who’s watching")
             shot("37-profiles")
             press(.menu, wait: 2)
         }

@@ -39,7 +39,7 @@ struct LibrarySettingsView: View {
 private extension LibraryOpening {
     var help: String {
         switch self {
-        case .browse: t("A library opens on its highlights: what you're watching in it, the latest, the best not yet watched and its biggest genres.")
+        case .browse: t("A library opens on its highlights: what you’re watching in it, the latest, the best not yet watched and its biggest genres.")
         case .all: t("A library opens on every title, A to Z, with sorting, genres and a letter rail to jump through it.")
         case .genres: t("A library opens on its genres, each with a picture from its titles. Home videos open on Browse.")
         }
@@ -57,7 +57,7 @@ private extension LibraryOpening {
 private extension BookOpening {
     var help: String {
         switch self {
-        case .browse: t("The books you're listening to, then your shelves.")
+        case .browse: t("The books you’re listening to, then your shelves.")
         case .all: t("Every book, A to Z, with sorting, filters and a letter rail.")
         case .genres: t("A tile for each genre.")
         case .series: t("Every series, A to Z.")

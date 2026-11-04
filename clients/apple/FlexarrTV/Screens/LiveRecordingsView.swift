@@ -83,7 +83,7 @@ struct LiveRecordingsView: View {
         .alert(title, isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }), presenting: confirming) { confirm in
             switch confirm {
             case .recording(let recording):
-                Button(recording.isRecordingNow ? t("Stop recording") : t("Don't record"), role: .destructive) {
+                Button(recording.isRecordingNow ? t("Stop recording") : t("Don’t record"), role: .destructive) {
                     act { try await $0.removeRecording(recording.id) }
                 }
             case .series(let series):
@@ -93,9 +93,9 @@ struct LiveRecordingsView: View {
         } message: { confirm in
             switch confirm {
             case .recording(let recording):
-                Text(recording.isRecordingNow ? t("What's recorded so far is kept.") : "\(recording.channelName), \(Self.day.string(from: recording.start))")
+                Text(recording.isRecordingNow ? t("What’s recorded so far is kept.") : "\(recording.channelName), \(Self.day.string(from: recording.start))")
             case .series(let series):
-                Text(t("Its scheduled showings come off the list. What it's recorded stays."))
+                Text(t("Its scheduled showings come off the list. What it’s recorded stays."))
             }
         }
     }
@@ -121,7 +121,7 @@ struct LiveRecordingsView: View {
                 Text(recording.title).font(.system(size: 27, weight: .semibold)).lineLimit(1)
                 Text(detail(recording)).font(.system(size: 21)).opacity(0.7).lineLimit(1)
                 if recording.clashes {
-                    Text(t("Won't record: every stream is wanted by recordings scheduled before it."))
+                    Text(t("Won’t record: every stream is wanted by recordings scheduled before it."))
                         .font(.system(size: 21)).foregroundStyle(Color.danger)
                 } else if let reason = recording.reason, recording.state != "scheduled" {
                     Text(reason).font(.system(size: 21)).opacity(0.7).lineLimit(1)

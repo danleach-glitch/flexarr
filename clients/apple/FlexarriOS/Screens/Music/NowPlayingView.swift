@@ -493,15 +493,15 @@ struct NowPlayingView: View {
     private var bookMenu: some View {
         Menu {
             if let track = music.current {
-                Button { Task { await music.addBookmark() } } label: { Label(t("Add Bookmark"), systemImage: "bookmark") }
-                Button { goToBook() } label: { Label(t("Go to Book"), systemImage: "book") }
+                Button { Task { await music.addBookmark() } } label: { Label(t("Add bookmark"), systemImage: "bookmark") }
+                Button { goToBook() } label: { Label(t("Go to book"), systemImage: "book") }
                 if !model.isKids {
                     Button {
                         Task {
                             await model.setBookFinished(track, true)
                             music.stop()
                         }
-                    } label: { Label(t("Mark as Finished"), systemImage: Symbol.watched) }
+                    } label: { Label(t(Words.markAsFinished), systemImage: Symbol.watched) }
                 }
             }
         } label: {
@@ -605,7 +605,7 @@ struct NowPlayingView: View {
     private var episodeMenu: some View {
         Menu {
             if let track = music.current {
-                Button { goToPodcast() } label: { Label(t("Go to Podcast"), systemImage: "square.stack") }
+                Button { goToPodcast() } label: { Label(t("Go to podcast"), systemImage: "square.stack") }
                 Button {
                     Task {
                         await model.setWatched(track, true)
@@ -615,7 +615,7 @@ struct NowPlayingView: View {
                 } label: { Label(t(Words.markAsPlayed), systemImage: Symbol.watched) }
                 if let download = downloads.entry(for: track.id) {
                     Button(role: .destructive) { downloads.remove(download.id) } label: {
-                        Label(download.isDownloaded ? t("Remove Download") : t("Stop Download"), systemImage: Symbol.delete)
+                        Label(download.isDownloaded ? t("Remove download") : t("Stop download"), systemImage: Symbol.delete)
                     }
                 } else if !music.isPlayingOffline {
                     Button { Task { try? await downloads.download(itemId: track.id, quality: .original) } } label: {
@@ -623,7 +623,7 @@ struct NowPlayingView: View {
                     }
                 }
                 if let link = playing.podcast?.link.flatMap(URL.init(string:)) {
-                    ShareLink(item: link) { Label(t("Share Podcast"), systemImage: "square.and.arrow.up") }
+                    ShareLink(item: link) { Label(t("Share podcast"), systemImage: "square.and.arrow.up") }
                 }
             }
         } label: {
@@ -690,7 +690,7 @@ struct NowPlayingView: View {
     private var notes: some View {
         if let episode = playing.episode, episode.id == music.current?.id {
             VStack(alignment: .leading, spacing: 8) {
-                sectionTitle(t("Episode Notes"))
+                sectionTitle(t("Episode notes"))
                 FactsLine(facts: [episode.dateLine, episode.durationSeconds.flatMap(Format.runtime(seconds:)), episode.explicit ? t("Explicit") : nil].compactMap { $0 })
                     .font(.caption)
                     .padding(.horizontal, 12)

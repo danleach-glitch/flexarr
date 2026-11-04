@@ -45,7 +45,7 @@ public static partial class MusicUndo
         }
         else
         {
-            return Problems.Field("Give the artist's artistId, deezerId or musicBrainzId.", field: "artistId");
+            return Problems.Field("Give the artist’s artistId, deezerId or musicBrainzId.", field: "artistId");
         }
 
         // By MusicBrainz id when there is one (a same-named artist is someone else); by name only without one.
@@ -123,7 +123,7 @@ public static partial class MusicUndo
         }
         else
         {
-            return Problems.Field("Give the album's musicBrainzId or deezerId.", field: "musicBrainzId");
+            return Problems.Field("Give the album’s musicBrainzId or deezerId.", field: "musicBrainzId");
         }
 
         if (found is null && releaseGroupId is not null)
@@ -284,7 +284,7 @@ public static partial class MusicUndo
         return null;
     }
 
-    private static IResult NotAnswering => Problems.Of("Lidarr isn't answering. Try again later.", status: 502);
+    private static IResult NotAnswering => Problems.Of("Lidarr isn’t answering. Try again later.", status: 502);
 
     private static bool LidarrDown(MusicRequestContext c) => c.Lidarrs.Any(l => MusicMatcher.IsDown(c.Cache, l));
 

@@ -159,7 +159,7 @@ final class LiveTransport: NSObject, PlayerTransport {
         case .readyToPlay:
             player.play()
         case .failed:
-            let reason = message ?? t("The channel couldn't be opened.")
+            let reason = message ?? t("The channel couldn’t be opened.")
             log.error("Live item failed: \(reason)")
             phase = .failed(t("The channel stopped sending. Try again, or pick another channel."))
         default:

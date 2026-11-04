@@ -312,7 +312,7 @@ private fun LiveTimeline(controller: LiveTvController, focus: FocusRequester, on
             Spacer(Modifier.weight(1f))
             val behind = (duration - controller.position).coerceAtLeast(0.0)
             Text(
-                if (!controller.isBehind) "LIVE" else "−" + Format.timestamp(behind),
+                if (!controller.isBehind) t("Live") else "−" + Format.timestamp(behind),
                 fontSize = 13.sp,
                 style = TimeStyle,
                 fontWeight = if (controller.isBehind) FontWeight.Normal else FontWeight.Bold,

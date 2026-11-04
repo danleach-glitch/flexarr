@@ -235,33 +235,33 @@ public static class PlaybackDecider
         if (!profile.Containers.Contains(ContainerName(file.Container), StringComparer.OrdinalIgnoreCase))
         {
             reasons.Add(file.Container is { } container
-                ? Loc.T("This device can't open {container} files", new { container = container.ToUpperInvariant() })
-                : Loc.T("This device can't open this files"));
+                ? Loc.T("This device can’t open {container} files", new { container = container.ToUpperInvariant() })
+                : Loc.T("This device can’t open this files"));
         }
 
         if (file.VideoCodec is { } codec && !profile.VideoCodecs.Contains(codec, StringComparer.OrdinalIgnoreCase))
         {
-            reasons.Add(Loc.T("This device can't decode {codec} video", new { codec = codec.ToUpperInvariant() }));
+            reasons.Add(Loc.T("This device can’t decode {codec} video", new { codec = codec.ToUpperInvariant() }));
         }
 
         if (file.VideoRange != VideoRange.Sdr && !profile.Hdr)
         {
-            reasons.Add(Loc.T("This display doesn't support HDR"));
+            reasons.Add(Loc.T("This display doesn’t support HDR"));
         }
         else if (file.VideoRange == VideoRange.DolbyVision && !profile.DolbyVision)
         {
             // Profile 5 has no HDR10 picture underneath and shows purple and green; which profile this is isn't known
             // here, so it's repackaged (which knows, and keeps 7 and 8's HDR10) or converted.
-            reasons.Add(Loc.T("This display doesn't show Dolby Vision"));
+            reasons.Add(Loc.T("This display doesn’t show Dolby Vision"));
         }
         else if ((file.VideoRange == VideoRange.Hdr10 && profile.Hdr10 == false) || (file.VideoRange == VideoRange.Hlg && profile.Hlg == false))
         {
-            reasons.Add(Loc.T("This display isn't showing {range} right now", new { range = file.VideoRange == VideoRange.Hlg ? "HLG" : "HDR10" }));
+            reasons.Add(Loc.T("This display isn’t showing {range} right now", new { range = file.VideoRange == VideoRange.Hlg ? "HLG" : "HDR10" }));
         }
 
         if (video is not null && !DecodableProfile(video))
         {
-            reasons.Add(Loc.T("Players can't decode {codec} {profile} video", new { codec = video.Codec.ToUpperInvariant(), profile = video.Profile }));
+            reasons.Add(Loc.T("Players can’t decode {codec} {profile} video", new { codec = video.Codec.ToUpperInvariant(), profile = video.Profile }));
         }
 
         if (Math.Max(file.Height ?? 0, (file.Width ?? 0) * 9 / 16) > maxHeight)
@@ -276,13 +276,13 @@ public static class PlaybackDecider
 
         if (audio is not null && !profile.AudioCodecs.Contains(audio.Codec, StringComparer.OrdinalIgnoreCase))
         {
-            reasons.Add(Loc.T("This device can't decode {codec} audio", new { codec = audio.Codec.ToUpperInvariant() }));
+            reasons.Add(Loc.T("This device can’t decode {codec} audio", new { codec = audio.Codec.ToUpperInvariant() }));
         }
 
         // Browsers can't switch audio tracks in a plain <video>; any track but the first needs conversion.
         if (audio is not null && audioStreams.Count > 1 && audio.Index != audioStreams[0].Index && !profile.SelectsTracksItself)
         {
-            reasons.Add(Loc.T("The chosen audio track isn't the file's first"));
+            reasons.Add(Loc.T("The chosen audio track isn’t the file’s first"));
         }
 
         if (subtitle is { IsText: false } && !profile.SelectsTracksItself)

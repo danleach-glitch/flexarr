@@ -400,7 +400,7 @@ private fun LiveTimeline(controller: LiveTvController, onInteract: () -> Unit, m
         )
         val behind = duration - shown
         Text(
-            if (!controller.isBehind && !scrubbing) "LIVE" else "−" + Format.timestamp(behind.coerceAtLeast(0.0)),
+            if (!controller.isBehind && !scrubbing) t("Live") else "−" + Format.timestamp(behind.coerceAtLeast(0.0)),
             fontSize = 13.sp,
             style = TimeStyle,
             maxLines = 1,

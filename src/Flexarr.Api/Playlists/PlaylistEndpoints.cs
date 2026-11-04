@@ -101,7 +101,7 @@ public static class PlaylistEndpoints
             {
                 if (!await db.MediaItems.AnyAsync(i => i.Id == cover && (i.Kind == MediaKind.Album || i.Kind == MediaKind.Track), ct))
                 {
-                    return Problems.Of("The cover has to be an album's or a track's.", status: 400);
+                    return Problems.Of("The cover has to be an album’s or a track’s.", status: 400);
                 }
 
                 playlist.CoverItemId = cover;

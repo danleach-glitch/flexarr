@@ -119,7 +119,7 @@ public static class LiveProbe
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            throw new LiveStreamException(Loc.T("The channel didn't start sending within 20 seconds."));
+            throw new LiveStreamException(Loc.T("The channel didn’t start sending within 20 seconds."));
         }
         finally
         {
@@ -197,15 +197,15 @@ public sealed partial class LiveStreamException(string message) : Exception(mess
     internal static string Explain(string error) => Address().Replace(error, "") switch
     {
         var e when IsBusy(e)
-            => Loc.T("No connection free: the TV provider allows only so many streams at once, and they're in use."),
+            => Loc.T("No connection free: the TV provider allows only so many streams at once, and they’re in use."),
         var e when e.Contains("401", StringComparison.Ordinal) || e.Contains("403", StringComparison.Ordinal)
-            => Loc.T("The Live TV source refused Flexarr's sign-in. Check Dispatcharr in Settings › Connections."),
-        var e when e.Contains("404", StringComparison.Ordinal) => Loc.T("The Live TV source doesn't have this channel any more."),
-        var e when e.Contains("Connection refused", StringComparison.OrdinalIgnoreCase) => Loc.T("Flexarr can't reach the Live TV source."),
+            => Loc.T("The Live TV source refused Flexarr’s sign-in. Check Dispatcharr in Settings › Connections."),
+        var e when e.Contains("404", StringComparison.Ordinal) => Loc.T("The Live TV source doesn’t have this channel any more."),
+        var e when e.Contains("Connection refused", StringComparison.OrdinalIgnoreCase) => Loc.T("Flexarr can’t reach the Live TV source."),
         var e when e.Contains("Input/output error", StringComparison.Ordinal) || e.Contains("End of file", StringComparison.Ordinal)
-            => Loc.T("The provider isn't sending this channel at the moment. Try again later."),
-        { Length: > 0 } e => Loc.T("The channel couldn't be played: {error}", new { error = e.Trim() }),
-        _ => Loc.T("The channel couldn't be played."),
+            => Loc.T("The provider isn’t sending this channel at the moment. Try again later."),
+        { Length: > 0 } e => Loc.T("The channel couldn’t be played: {error}", new { error = e.Trim() }),
+        _ => Loc.T("The channel couldn’t be played."),
     };
 
     [System.Text.RegularExpressions.GeneratedRegex(@"[a-z][a-z0-9+.-]*://\S+?(:\s|\s|$)", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]

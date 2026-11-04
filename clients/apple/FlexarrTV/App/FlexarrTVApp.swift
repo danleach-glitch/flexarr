@@ -138,7 +138,7 @@ struct RootView: View {
                 .transition(.opacity)
             }
         }
-        .alert(t("Couldn't request this"), isPresented: Binding(
+        .alert(t("Couldn’t request this"), isPresented: Binding(
             get: { model.requestError != nil },
             set: { if !$0 { model.requestError = nil } }
         )) {
@@ -146,7 +146,7 @@ struct RootView: View {
         } message: {
             Text(model.requestError ?? "")
         }
-        .alert(t("Couldn't change your watchlist"), isPresented: Binding(
+        .alert(t("Couldn’t change your watchlist"), isPresented: Binding(
             get: { model.watchlistError != nil },
             set: { if !$0 { model.watchlistError = nil } }
         )) {
@@ -154,7 +154,7 @@ struct RootView: View {
         } message: {
             Text(model.watchlistError ?? "")
         }
-        .alert(t("Couldn't play this channel"), isPresented: Binding(
+        .alert(t("Couldn’t play this channel"), isPresented: Binding(
             get: { model.liveTv.errorMessage != nil },
             set: { if !$0 { model.liveTv.errorMessage = nil } }
         )) {
@@ -162,7 +162,7 @@ struct RootView: View {
         } message: {
             Text(model.liveTv.errorMessage ?? "")
         }
-        .alert(model.player.problem == .takenOver ? t("Stopped for another screen") : t("Couldn't play this"), isPresented: Binding(
+        .alert(model.player.problem == .takenOver ? t("Stopped for another screen") : t("Couldn’t play this"), isPresented: Binding(
             get: { model.player.errorMessage != nil },
             set: { if !$0 { model.player.errorMessage = nil } }
         )) {

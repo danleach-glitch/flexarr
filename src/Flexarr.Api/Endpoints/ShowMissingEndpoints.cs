@@ -119,7 +119,7 @@ public static class ShowMissingEndpoints
 
             if (await SonarrSeriesAsync(show, options.CurrentValue, arr, cache, ct) is not { } managed)
             {
-                return Problems.Of("Sonarr doesn't manage this show, so there's nothing to search with.", status: 409);
+                return Problems.Of("Sonarr doesn’t manage this show, so there’s nothing to search with.", status: 409);
             }
 
             try
@@ -143,7 +143,7 @@ public static class ShowMissingEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Problems.Of("{name} didn't take the search ({status}).", new { name = managed.Instance.Name, status = (int?)ex.StatusCode ?? 0 }, status: 502);
+                return Problems.Of("{name} didn’t take the search ({status}).", new { name = managed.Instance.Name, status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
         }).WithTags("Items").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 

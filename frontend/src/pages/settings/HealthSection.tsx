@@ -520,7 +520,7 @@ function DownloadingNote({ state }: { state: LibraryHealth['downloading'][string
       ? t('Downloaded, waiting to import')
       : status.includes('queued') || status.includes('delay')
         ? t('Queued to download')
-        : t('Downloading {percent}%', { percent: Math.round(state.progress * 100) })
+        : t('Downloading, {percent}%', { percent: Math.round(state.progress * 100) })
   return <span className="tag health-downloading">{text}</span>
 }
 

@@ -192,7 +192,7 @@ public static class ItemEditEndpoints
 
         if (Blank(r.AlbumType) is { } type && !AlbumTypes.Contains(type))
         {
-            return Loc.T("A type that's one of {types}.", new { types = string.Join(", ", AlbumTypes) });
+            return Loc.T("A type that’s one of {types}.", new { types = string.Join(", ", AlbumTypes) });
         }
 
         return r.Year is < 1800 or > 3000 ? Loc.T("A year such as 1999.") : null;

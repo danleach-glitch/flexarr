@@ -14,7 +14,7 @@ struct PlaybackSettingsView: View {
     @State private var visualiser = AudioSpectrum.isOn
 
     var body: some View {
-        SettingsPage(title: t("Playback"), summary: saveFailed ? t("That change couldn't be saved on the server, so it's been put back.") : nil) {
+        SettingsPage(title: t("Playback"), summary: saveFailed ? t("That change couldn’t be saved on the server, so it’s been put back.") : nil) {
             if let preferences {
                 SettingsGroupLabel(model.currentProfile.map { t("{name}, on every device", ["name": $0.name]) } ?? t("Your profile, on every device"))
                 SettingsRow.toggle(t(Words.autoPlayNext), isOn: preferences.autoPlayNext, symbol: "forward.end",
@@ -22,7 +22,7 @@ struct PlaybackSettingsView: View {
                     change(\.autoPlayNext)
                 }
                 SettingsRow.toggle(t("Skip intros"), isOn: preferences.skipIntros, symbol: "forward",
-                                   help: t("Jumps past a show's opening titles by itself. Off, a Skip intro button shows instead.")) {
+                                   help: t("Jumps past a show’s opening titles by itself. Off, a Skip intro button shows instead.")) {
                     change(\.skipIntros)
                 }
                 SettingsRow.toggle(t("Skip recaps"), isOn: preferences.skipRecaps, symbol: "clock.arrow.circlepath",
@@ -34,7 +34,7 @@ struct PlaybackSettingsView: View {
                     change(\.skipCredits)
                 }
                 SettingsLinkRow(title: t("Subtitle size"), symbol: "captions.bubble", value: subtitleSize.label,
-                                help: t("How big subtitles are. Subtitles that run early or late can be moved from the player's subtitles menu.")) {
+                                help: t("How big subtitles are. Subtitles that run early or late can be moved from the player’s Subtitles menu.")) {
                     SettingsChoicePage(title: t("Subtitle size"), summary: t("For this profile on every device."),
                                        choices: SubtitleSize.allCases, label: \.label, selection: subtitleSize) { size in
                         var changed = preferences
@@ -96,7 +96,7 @@ struct PlaybackSettingsView: View {
             SettingsGroupLabel(t("This Apple TV"))
             SettingsLinkRow(title: t("Skip back and forward"), symbol: "goforward.\(Int(skipSeconds))", value: Self.seconds(Int(skipSeconds)),
                             help: t("How far a click on the left or right of the remote moves movies and shows.")) {
-                SettingsChoicePage(title: t("Skip back and forward"), summary: t("A click on the left or right of the remote's touch surface."),
+                SettingsChoicePage(title: t("Skip back and forward"), summary: t("A click on the left or right of the remote’s touch surface."),
                                    choices: [10.0, 15.0, 30.0], label: { Self.seconds(Int($0)) }, selection: skipSeconds) { seconds in
                     skipSeconds = seconds
                     UserDefaults.standard.set(seconds, forKey: "FlexarrSkipSeconds")
@@ -104,14 +104,14 @@ struct PlaybackSettingsView: View {
             }
             SettingsRow.toggle(t("Play files directly"), isOn: playsFilesDirectly, symbol: "cpu",
                                help: playsFilesDirectly
-                                   ? t("Files play on this Apple TV as they are, every format with HDR and Dolby Vision. The server only steps in for the few it can't play.")
-                                   : t("The server sends a stream instead of the file itself, converting what this Apple TV can't play.")) {
+                                   ? t("Files play on this Apple TV as they are, every format with HDR and Dolby Vision. The server only steps in for the few it can’t play.")
+                                   : t("The server sends a stream instead of the file itself, converting what this Apple TV can’t play.")) {
                 playsFilesDirectly.toggle()
                 PlaybackController.usesEngine = playsFilesDirectly
             }
             if playsFilesDirectly {
                 SettingsRow.toggle(t("Lossless surround"), isOn: losslessAudio, symbol: "hifispeaker.2",
-                                   help: t("TrueHD, DTS-HD and FLAC go as multichannel PCM over HDMI, for a receiver or eARC soundbar that takes it. Off, they go as Dolby Digital Plus, which anything plays. Until you choose, it's on when the Apple TV is connected to something that takes it.")) {
+                                   help: t("TrueHD, DTS-HD and FLAC go as multichannel PCM over HDMI, for a receiver or eARC soundbar that takes it. Off, they go as Dolby Digital Plus, which anything plays. Until you choose, it’s on when the Apple TV is connected to something that takes it.")) {
                     losslessAudio.toggle()
                     PlaybackController.losslessAudio = losslessAudio
                 }
@@ -142,13 +142,13 @@ struct PlaybackSettingsView: View {
                     }
                 }
                 SettingsLinkRow(title: t("Speakers"), symbol: "hifispeaker", value: sound.speakers.label,
-                                help: t("Auto plays every channel what's connected takes.")) {
+                                help: t("Auto plays every channel what’s connected takes.")) {
                     SettingsChoicePage(title: t("Speakers"), summary: soundSummary, choices: SoundSettings.Speakers.allCases,
                                        label: \.label, selection: sound.speakers) { SoundSettings.current.speakers = $0 }
                 }
             }
             SettingsRow.toggle(t("Music visualiser"), isOn: visualiser, symbol: "waveform",
-                               help: t("Light in the cover's colours moves with the music behind Now Playing.")) {
+                               help: t("Light in the cover’s colours moves with the music behind Now Playing.")) {
                 visualiser.toggle()
                 AudioSpectrum.isOn = visualiser
             }

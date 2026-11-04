@@ -75,7 +75,7 @@ class FlexarrMessagingService : FirebaseMessagingService() {
                 description = t("Movies, shows, podcast episodes, recordings and requests as they arrive")
             })
             manager.createNotificationChannel(NotificationChannel(UPCOMING_CHANNEL, t("Upcoming"), NotificationManager.IMPORTANCE_LOW).apply {
-                description = t("Each morning, what's airing today")
+                description = t("Each morning, what’s airing today")
             })
             manager.createNotificationChannel(NotificationChannel(DEVICES_CHANNEL, t("Devices asking to connect"), NotificationManager.IMPORTANCE_HIGH).apply {
                 description = t("A TV, phone or tablet waiting for you to let it in")

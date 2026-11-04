@@ -1840,17 +1840,17 @@ struct ConnectionError: LocalizedError {
         } else if let error = error as? URLError {
             switch error.code {
             case .cannotFindHost, .dnsLookupFailed:
-                message = t("Couldn't find that server. Check the address, or use its IP address instead of the name.")
+                message = t("Couldn’t find that server. Check the address, or use its IP address instead of the name.")
             case .cannotConnectToHost, .networkConnectionLost:
-                message = t("The server isn't answering at that address. Make sure Flexarr is running and the port is right (usually 8383).")
+                message = t("The server isn’t answering at that address. Make sure Flexarr is running and the port is right (usually 8383).")
             case .timedOut:
                 message = t("The server took too long to answer. Is it on the same network as this {device}?", ["device": ThisDevice.name])
             case .notConnectedToInternet:
-                message = t("This {device} isn't connected to a network.", ["device": ThisDevice.name])
+                message = t("This {device} isn’t connected to a network.", ["device": ThisDevice.name])
             case .appTransportSecurityRequiresSecureConnection:
                 message = t("Plain http only works for local addresses (.local names or IP addresses). Use https for anything else.")
             case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate, .serverCertificateNotYetValid:
-                message = t("The server's https certificate isn't trusted. Try its http address on your local network.")
+                message = t("The server’s https certificate isn’t trusted. Try its http address on your local network.")
             case .cancelled:
                 message = t("The request was cancelled.")
             default:

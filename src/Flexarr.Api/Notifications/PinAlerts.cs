@@ -95,8 +95,8 @@ public sealed partial class PinAlerts(IServiceScopeFactory scopes, SignIns signI
 
     /// <summary>In the current language (<see cref="Loc.Use"/>).</summary>
     public static PushMessage Message(string who) =>
-        new(Loc.T("Someone's guessing your PIN"),
-            Loc.T("{who} got the admin PIN or your profile's PIN wrong too many times and has to wait. If it wasn't you, change them on the web, in Settings.", new { who }),
+        new(Loc.T("Someone’s guessing your PIN"),
+            Loc.T("{who} got the admin PIN or your profile’s PIN wrong too many times and has to wait. If it wasn’t you, change them on the web, in Settings.", new { who }),
             Category, Thread: Category);
 
     /// <summary>"Living Room TV", "the Tailscale account sam@example.com", or "a device at 192.168.1.20".</summary>

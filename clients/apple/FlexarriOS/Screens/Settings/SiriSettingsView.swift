@@ -36,7 +36,7 @@ struct SiriSettingsView: View {
             } header: {
                 Text(t("Try saying"))
             } footer: {
-                Text(t("Shows play from the episode you're up to."))
+                Text(t("Shows play from the episode you’re up to."))
             }
         }
         .settingsPage("Siri")

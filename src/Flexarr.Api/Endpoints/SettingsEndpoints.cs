@@ -155,28 +155,28 @@ public static class SettingsEndpoints
 
             if (update.LiveTv is { BaseUrl.Length: > 0 } badLive && (WebAddress(badLive.BaseUrl) is null || string.IsNullOrWhiteSpace(badLive.Username)))
             {
-                return Problems.Field("Enter Dispatcharr's http or https address and a user name.", field: "liveTv");
+                return Problems.Field("Enter Dispatcharr’s http or https address and a user name.", field: "liveTv");
             }
 
             if (update.Arr?.FirstOrDefault(a => WebAddress(a.BaseUrl) is null) is { } bad)
             {
-                return Problems.Field("{name}: “{baseUrl}” isn't a valid http or https address.", field: "arr", args: new { name = bad.Name, baseUrl = bad.BaseUrl });
+                return Problems.Field("{name}: “{baseUrl}” isn’t a valid http or https address.", field: "arr", args: new { name = bad.Name, baseUrl = bad.BaseUrl });
             }
 
             if (update.Seerr is { BaseUrl.Length: > 0 } badSeerr && WebAddress(badSeerr.BaseUrl) is null)
             {
-                return Problems.Field("“{baseUrl}” isn't a valid http or https address.", field: "seerr", args: new { baseUrl = badSeerr.BaseUrl });
+                return Problems.Field("“{baseUrl}” isn’t a valid http or https address.", field: "seerr", args: new { baseUrl = badSeerr.BaseUrl });
             }
 
             if (update.TraktApp is { } traktApp && (traktApp.ClientId?.Trim() ?? "") is { Length: > 0 } traktId
                 && (traktId.Length > 128 || !traktId.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_')))
             {
-                return Problems.Field("That doesn't look like a Trakt client ID.", field: "traktApp");
+                return Problems.Field("That doesn’t look like a Trakt client ID.", field: "traktApp");
             }
 
             if (update.Bazarr is { BaseUrl.Length: > 0 } badBazarr && WebAddress(badBazarr.BaseUrl) is null)
             {
-                return Problems.Field("“{baseUrl}” isn't a valid http or https address.", field: "bazarr", args: new { baseUrl = badBazarr.BaseUrl });
+                return Problems.Field("“{baseUrl}” isn’t a valid http or https address.", field: "bazarr", args: new { baseUrl = badBazarr.BaseUrl });
             }
 
             if (update.Podcasts is { Country: { Length: > 0 } country } && Podcasts.PodcastCountries.Known(country) is null)
@@ -415,11 +415,11 @@ public static class SettingsEndpoints
             {
                 return Results.Ok(await client.CheckKeyAsync(key, ct)
                     ? new TmdbTestDto(true, null)
-                    : new TmdbTestDto(false, Loc.T("TMDB didn't accept that key. Copy it again from themoviedb.org › Settings › API.")));
+                    : new TmdbTestDto(false, Loc.T("TMDB didn’t accept that key. Copy it again from themoviedb.org › Settings › API.")));
             }
             catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
             {
-                return Results.Ok(new TmdbTestDto(false, Loc.T("Couldn't reach TMDB from the server.")));
+                return Results.Ok(new TmdbTestDto(false, Loc.T("Couldn’t reach TMDB from the server.")));
             }
         }).WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
@@ -431,7 +431,7 @@ public static class SettingsEndpoints
             var password = string.IsNullOrEmpty(connection.Password) ? saved is not null && SameServer(saved.BaseUrl, connection.BaseUrl) ? saved.Password : null : connection.Password;
             if (WebAddress(connection.BaseUrl) is not { } url || string.IsNullOrWhiteSpace(connection.Username) || string.IsNullOrEmpty(password))
             {
-                return Problems.Field("Enter Dispatcharr's address, a user name and its password.", field: "liveTv");
+                return Problems.Field("Enter Dispatcharr’s address, a user name and its password.", field: "liveTv");
             }
 
             var account = new LiveTv.XtreamAccount(url, connection.Username.Trim(), password);
@@ -454,7 +454,7 @@ public static class SettingsEndpoints
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                return Results.Ok(new LiveTvTestDto(false, null, null, null, Loc.T("The Live TV source didn't answer in time.")));
+                return Results.Ok(new LiveTvTestDto(false, null, null, null, Loc.T("The Live TV source didn’t answer in time.")));
             }
         }).WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
@@ -575,7 +575,7 @@ public static class SettingsEndpoints
         {
             PinCheck.Right => null,
             PinCheck.LockedOut => ProfileEndpoints.TooManyPins(http, retryAfter),
-            _ => Problems.Of("That PIN isn't right.", status: 403),
+            _ => Problems.Of("That PIN isn’t right.", status: 403),
         };
     }
 
@@ -610,8 +610,8 @@ public static class SettingsEndpoints
                 HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized } => Loc.T("The API key was rejected."),
                 HttpRequestException { StatusCode: not null } http => Loc.T("It answered with HTTP {status}.", new { status = (int)http.StatusCode.Value }),
                 HttpRequestException => Loc.T("Nothing answered at that address."),
-                TaskCanceledException => Loc.T("It didn't answer within 8 seconds."),
-                _ => Loc.T("That doesn't look like a Sonarr, Radarr or Lidarr server."),
+                TaskCanceledException => Loc.T("It didn’t answer within 8 seconds."),
+                _ => Loc.T("That doesn’t look like a Sonarr, Radarr or Lidarr server."),
             };
             return new ArrStatusDto(instance.Name, instance.Kind, false, null, reason);
         }

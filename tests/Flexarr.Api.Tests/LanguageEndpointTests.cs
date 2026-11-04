@@ -9,7 +9,7 @@ namespace Flexarr.Api.Tests;
 public sealed class LanguageEndpointTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFactory>
 {
     // en-XA, the pseudo-language: harmless if other tests' requests ever saw it.
-    private const string Pack = """{"format":1,"code":"en-XA","name":"Pseudo (test)","direction":"ltr","version":7,"coverage":{"web":1},"messages":{"Play":"⟦Ƥĺàý~⟧","Only on Android":"⟦x⟧","That isn't a language code.":"⟦Ţĥàţ íšñ'ţ à ĺàñĝûàĝé çöđé.~~~~⟧"},"scopes":{"Play":"wan","Only on Android":"n","That isn't a language code.":"s"}}""";
+    private const string Pack = """{"format":1,"code":"en-XA","name":"Pseudo (test)","direction":"ltr","version":7,"coverage":{"web":1},"messages":{"Play":"⟦Ƥĺàý~⟧","Only on Android":"⟦x⟧","That isn’t a language code.":"⟦Ţĥàţ íšñ'ţ à ĺàñĝûàĝé çöđé.~~~~⟧"},"scopes":{"Play":"wan","Only on Android":"n","That isn’t a language code.":"s"}}""";
 
     private void KeepPseudo()
     {
@@ -79,12 +79,12 @@ public sealed class LanguageEndpointTests(FlexarrApiFactory factory) : IClassFix
         var refused = await client.PutAsJsonAsync("/api/v1/me/language", new { language = "not a code" });
         var body = await refused.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
         Assert.Contains("Ţĥàţ", body.GetProperty("errors").GetProperty("language")[0].GetString());
-        Assert.Equal("That isn't a language code.", body.GetProperty("code").GetString());
+        Assert.Equal("That isn’t a language code.", body.GetProperty("code").GetString());
 
         // The profile's own choice wins over the app's.
         await client.PutAsJsonAsync("/api/v1/me/language", new { language = "en" });
         refused = await client.PutAsJsonAsync("/api/v1/me/language", new { language = "not a code" });
-        Assert.Contains("That isn't a language code.", await refused.Content.ReadAsStringAsync());
+        Assert.Contains("That isn’t a language code.", await refused.Content.ReadAsStringAsync());
         await client.PutAsJsonAsync("/api/v1/me/language", new { language = (string?)null });
     }
 

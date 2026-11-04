@@ -32,7 +32,7 @@ public class PlaybackDeciderTests
         var hdr10Only = PlaybackDecider.Decide(file, AppleTv with { Hdr10 = true }, [], new PlaybackOptions());
         var dolbyVision = PlaybackDecider.Decide(file, AppleTv with { DolbyVision = true, Hdr10 = true }, [], new PlaybackOptions());
 
-        Assert.Contains("This display doesn't show Dolby Vision", hdr10Only.Reasons);
+        Assert.Contains("This display doesn’t show Dolby Vision", hdr10Only.Reasons);
         Assert.Equal(PlaybackMethod.DirectPlay, dolbyVision.Method);
     }
 

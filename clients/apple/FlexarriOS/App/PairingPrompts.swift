@@ -128,7 +128,7 @@ final class PairingPrompts {
                 return
             } catch FlexarrClientError.http(status: let status, let message) where status == 403 || status == 429 {
                 // Not the right PIN, or too many wrong ones: the server says which (and for how long).
-                steps[request.code] = .needsPin(message ?? t("That PIN isn't right."))
+                steps[request.code] = .needsPin(message ?? t("That PIN isn’t right."))
                 return
             } catch {
                 steps[request.code] = .needsPin(ConnectionError(error).message)
@@ -141,7 +141,7 @@ final class PairingPrompts {
             try? await Task.sleep(for: .seconds(2))
             if step(for: request.code) == .allowed { remove(request.code) }
         } catch FlexarrClientError.http(status: 404, _) {
-            steps[request.code] = .failed(t("It's no longer waiting. It may have expired; the device shows a new code."))
+            steps[request.code] = .failed(t("It’s no longer waiting. It may have expired; the device shows a new code."))
         } catch FlexarrClientError.http(status: 403, let message) where pin == nil {
             // The main profile, locked here (or no longer the main profile: then it's the server's message).
             let me = try? await client.me()

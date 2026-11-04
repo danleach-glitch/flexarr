@@ -39,7 +39,7 @@ final class DiagnosticsUpload {
             state = .sent(id)
             note = ""
         } catch FlexarrClientError.unexpectedResponse, FlexarrClientError.http(status: 404, _), FlexarrClientError.http(status: 405, _) {
-            state = .failed(t("This server doesn't take diagnostics yet. Update Flexarr on it, then try again."))
+            state = .failed(t("This server doesn’t take diagnostics yet. Update Flexarr on it, then try again."))
         } catch {
             state = .failed(ConnectionError(error).message)
         }

@@ -26,7 +26,7 @@ struct WaitingDevicesSection: View {
         } footer: {
             // Without them, a device asking is only heard about while Flexarr is open here.
             if !notifications.isOn {
-                Text(t("Turn on Notifications to be asked when Flexarr isn't open."))
+                Text(t("Turn on Notifications to be asked when Flexarr isn’t open."))
             }
         }
         .animation(.easeInOut(duration: 0.2), value: pairing.waiting)
@@ -52,7 +52,7 @@ private struct WaitingDeviceRow: View {
                         Text(kind).font(.subheadline).foregroundStyle(Color.usher)
                     }
                     if !request.asks {
-                        Text(t("You turned this away. Allow it if it's yours."))
+                        Text(t("You turned this away. Allow it if it’s yours."))
                             .font(.subheadline)
                             .foregroundStyle(Color.usher)
                     }
@@ -92,7 +92,7 @@ private struct WaitingDeviceRow: View {
                     Button {
                         Task { await pairing.decline(request.code) }
                     } label: {
-                        Text(t("Don't allow")).frame(maxWidth: .infinity)
+                        Text(t("Don’t allow")).frame(maxWidth: .infinity)
                     }
                     .buttonStyle(ActionButtonStyle())
                 }

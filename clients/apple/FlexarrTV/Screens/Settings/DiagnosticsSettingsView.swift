@@ -13,7 +13,7 @@ struct DiagnosticsSettingsView: View {
         SettingsPage(title: t("Send diagnostics"),
                      summary: t("Sends what this Apple TV has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)")) {
             SettingsRow(title: t("Note"), symbol: "square.and.pencil", value: upload.note.isEmpty ? t("Optional") : upload.note,
-                        help: t("What happened and roughly when, so it's easy to find in the log.")) {
+                        help: t("What happened and roughly when, so it’s easy to find in the log.")) {
                 draft = upload.note
                 editingNote = true
             }

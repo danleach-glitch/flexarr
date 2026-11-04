@@ -82,7 +82,7 @@ public static class LibraryEndpoints
 
             if (request.Type != library.Type)
             {
-                return Problems.Field("A library's type can't be changed.", field: "type");
+                return Problems.Field("A library’s type can’t be changed.", field: "type");
             }
 
             if (await ValidateAsync(request, id, db, ct) is { } problem)
@@ -133,7 +133,7 @@ public static class LibraryEndpoints
             await db.Libraries.IgnoreQueryFilters().Where(l => l.Id == id).Select(l => (LibraryType?)l.Type).FirstOrDefaultAsync(ct) switch
             {
                 null => Results.NotFound(),
-                LibraryType.Podcasts => Problems.Field("Podcasts can't be removed.", field: "type"),
+                LibraryType.Podcasts => Problems.Field("Podcasts can’t be removed.", field: "type"),
                 _ => await db.Libraries.IgnoreQueryFilters().Where(l => l.Id == id).ExecuteDeleteAsync(ct) > 0 ? Results.NoContent() : Results.NotFound(),
             })
             .RequireAuthorization(FlexarrClaims.AdminPolicy);
@@ -195,7 +195,7 @@ public static class LibraryEndpoints
         else if (request.Type == LibraryType.TvShows && request.Name.Trim() == RecordingsLibrary.Name)
         {
             // It'd be taken for the DVR's, and left out of the lists.
-            errors["name"] = [Loc.T("Recordings is the name of Live TV's recordings. Choose another.")];
+            errors["name"] = [Loc.T("Recordings is the name of Live TV’s recordings. Choose another.")];
         }
 
         if (request.Folders is not { Count: > 0 })
@@ -209,7 +209,7 @@ public static class LibraryEndpoints
             var taken = await db.LibraryFolders.Where(f => f.LibraryId != id).Select(f => f.Path).ToListAsync(ct);
             var overlapping = folders.Where(f => taken.Any(t => PathComparison.IsUnder(f, t) || PathComparison.IsUnder(t, f))).ToList();
 
-            var messages = missing.Select(f => Loc.T("{folder} doesn't exist or isn't readable.", new { folder = f }))
+            var messages = missing.Select(f => Loc.T("{folder} doesn’t exist or isn’t readable.", new { folder = f }))
                 .Concat(overlapping.Select(f => Loc.T("{folder} overlaps a folder in another library.", new { folder = f })))
                 .ToArray();
             if (messages.Length > 0)

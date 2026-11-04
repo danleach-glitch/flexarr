@@ -37,7 +37,7 @@ const library = { id: 'lib', name: 'Music', type: 'Music' } as Library
 
 describe('LibraryRequested', () => {
   it('says where each album stands', () => {
-    expect(requestedState(albums[0])).toBe('Downloading 45%')
+    expect(requestedState(albums[0])).toBe('Downloading, 45%')
     expect(requestedState({ ...albums[0], state: 'importing' })).toBe('Importing')
     expect(requestedState({ ...albums[0], state: 'searching' })).toBe('Searching')
     expect(requestedState(albums[1], new Date('2099-01-01'))).toMatch(/^Out 14 Nov$|^Out Nov 14$/)
@@ -51,7 +51,7 @@ describe('LibraryRequested', () => {
     )
 
     expect((await screen.findAllByText('moisturizer')).length).toBeGreaterThan(0)
-    expect(screen.getByText('Downloading 45%')).toBeTruthy()
+    expect(screen.getByText('Downloading, 45%')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Wet Leg' }).getAttribute('href')).toBe('/item/artist-1')
     fireEvent.click(screen.getByRole('button', { name: 'Unrequest moisturizer' }))
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Unrequest' }))
@@ -83,7 +83,7 @@ describe('LibraryRequested', () => {
     )
 
     expect(await screen.findByText('Seasons 2 and 3')).toBeTruthy()
-    expect(screen.getByText('Downloading 50%')).toBeTruthy()
+    expect(screen.getByText('Downloading, 50%')).toBeTruthy()
     expect(screen.getAllByRole('link', { name: 'Thrones' })[0].getAttribute('href')).toBe('/item/show-1')
     expect(screen.getAllByRole('link', { name: 'The Matrix' })[0].getAttribute('href')).toBe('/discover/movie/603')
     fireEvent.click(screen.getAllByRole('button', { name: /^Unrequest / })[0])

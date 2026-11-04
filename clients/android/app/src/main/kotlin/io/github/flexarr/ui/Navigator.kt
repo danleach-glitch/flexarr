@@ -112,7 +112,7 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         model.scope.launch {
             try {
                 val tracks = client.mix(id).tracks
-                if (tracks.isEmpty()) throw IllegalStateException(t("There's nothing in it today."))
+                if (tracks.isEmpty()) throw IllegalStateException(t("There’s nothing in it today."))
                 model.music.play(tracks)
                 // The TV shows Now Playing over everything when asked; the phone opens its sheet.
                 if (context.usesTvInterface) model.nowPlayingRequests++ else model.showsMusicPlayer = true

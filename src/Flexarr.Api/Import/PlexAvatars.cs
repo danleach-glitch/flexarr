@@ -27,7 +27,7 @@ public sealed class PlexAvatars(HttpClient http, FlexarrDbContext db, ProfileIma
     public async Task<PlexAvatarResult> ImportAsync(string? databasePath, CancellationToken ct)
     {
         var token = await FindTokenAsync(PlexImporter.Resolve(databasePath), ct)
-            ?? throw new InvalidOperationException(Loc.T("Couldn't find Plex's sign-in on this computer. Is Plex Media Server installed here and signed in to plex.tv?"));
+            ?? throw new InvalidOperationException(Loc.T("Couldn’t find Plex’s sign-in on this computer. Is Plex Media Server installed here and signed in to plex.tv?"));
 
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri("https://plex.tv/api/v2/home/users"));
         request.Headers.Add("X-Plex-Token", token);

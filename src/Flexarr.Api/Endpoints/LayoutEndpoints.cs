@@ -358,7 +358,7 @@ public static class LayoutEndpoints
         new("top", Loc.T("Top 10"), true),
         new("released", movies ? Loc.T("Newest releases") : Loc.T("Newest shows"), true),
         new("gems", movies ? Loc.T("Highly rated, not yet watched") : Loc.T("Highly rated, not yet started"), true),
-        new("genres", Loc.T("Genre rows (the library's biggest genres)"), true),
+        new("genres", Loc.T("Genre rows (the library’s biggest genres)"), true),
     ];
 
     /// <summary>The saved order and switches over every row there is, new ones last and on.</summary>

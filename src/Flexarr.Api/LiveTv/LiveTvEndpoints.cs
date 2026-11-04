@@ -140,7 +140,7 @@ public static partial class LiveTvEndpoints
             var settings = options.CurrentValue;
             if (settings.LiveTv is not { Account: { } account } liveTv)
             {
-                return Problems.Of("Live TV isn't set up. Connect Dispatcharr in Settings › Connections.", status: StatusCodes.Status409Conflict);
+                return Problems.Of("Live TV isn’t set up. Connect Dispatcharr in Settings › Connections.", status: StatusCodes.Status409Conflict);
             }
 
             if (await db.LiveChannels.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, ct) is not { } channel)
@@ -203,7 +203,7 @@ public static partial class LiveTvEndpoints
             {
                 // A channel that wouldn't start is probed afresh next time: its format may be what changed.
                 memory.Remove($"livetv-format:{channel.Id}");
-                return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: Loc.T("The channel couldn't be played"));
+                return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: Loc.T("The channel couldn’t be played"));
             }
 
             viewers.Add(new LiveViewer(viewerId, channel.Id, channel.Name, profile.Id, profile.SignInId, session));

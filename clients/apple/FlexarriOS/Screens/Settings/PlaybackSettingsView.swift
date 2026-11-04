@@ -75,7 +75,7 @@ struct PlaybackSettingsView: View {
                 Text(t("This {device}", ["device": ThisDevice.name]))
             } footer: {
                 Text(playsFilesDirectly
-                    ? t("Files play as they are, every format with HDR and Dolby Vision. Lossless surround sends TrueHD, DTS-HD and FLAC as multichannel PCM, for a receiver or eARC soundbar; off, they go as Dolby Digital Plus. Until you choose, it's on when what's connected takes it.")
+                    ? t("Files play as they are, every format with HDR and Dolby Vision. Lossless surround sends TrueHD, DTS-HD and FLAC as multichannel PCM, for a receiver or eARC soundbar; off, they go as Dolby Digital Plus. Until you choose, it’s on when what’s connected takes it.")
                     : t("Off, the server sends a stream instead of the file itself. Downloads and remote viewing are unaffected."))
             }
             if playsFilesDirectly {

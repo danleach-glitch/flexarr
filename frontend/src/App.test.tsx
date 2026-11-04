@@ -394,7 +394,7 @@ describe('App', () => {
     fill('ABCD-EFGH', '2468', '2469')
     expect(await screen.findByText('The two PINs don’t match. Type the same one in both.')).toBeInTheDocument()
     fill('WRONG-ONE', '2468')
-    expect(await screen.findByText("That isn't this server's setup code.")).toBeInTheDocument()
+    expect(await screen.findByText("That isn’t this server’s setup code.")).toBeInTheDocument()
 
     // The whole link from the server's log, pasted in.
     fill('http://localhost:8383/#setup=ABCD-EFGH', '2468')
@@ -439,7 +439,7 @@ describe('App', () => {
     fireEvent.change(await screen.findByLabelText('API key'), { target: { value: 'nope' } })
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
 
-    expect(await screen.findByText("That isn't the right key.")).toBeInTheDocument()
+    expect(await screen.findByText("That isn’t the right key.")).toBeInTheDocument()
   })
 
   it('trades a key stored by an earlier version for a session, then forgets it', async () => {
@@ -467,7 +467,7 @@ describe('App', () => {
 
     render(<App />)
 
-    expect(await screen.findByText(/Can't reach the server/)).toBeInTheDocument()
+    expect(await screen.findByText(/Can’t reach the server/)).toBeInTheDocument()
   })
 })
 
@@ -1088,7 +1088,7 @@ describe('Settings', () => {
 
     renderAt('/link?code=ABC-DEF')
 
-    expect(await screen.findByRole('heading', { name: 'Connect Living room?' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Connect “Living room”?' })).toBeInTheDocument()
     expect(screen.getByText(/didn’t come from your home network/)).toBeInTheDocument()
   })
 })

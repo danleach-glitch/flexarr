@@ -85,8 +85,8 @@ public static class UpdateEndpoints
             if (!CanInstall(checker, updater))
             {
                 return checker.Available(ReleaseVersion.Current)
-                    ? Problems.Of("This server can't install updates itself.", status: StatusCodes.Status409Conflict)
-                    : Problems.Of("There's no newer release to install.", status: StatusCodes.Status409Conflict);
+                    ? Problems.Of("This server can’t install updates itself.", status: StatusCodes.Status409Conflict)
+                    : Problems.Of("There’s no newer release to install.", status: StatusCodes.Status409Conflict);
             }
 
             if (!updater.Start(checker.Latest!))

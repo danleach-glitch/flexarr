@@ -174,7 +174,7 @@ public sealed partial class LiveSession : IAsyncDisposable
         {
             if (Failed)
             {
-                throw _lastError is { } failure ? LiveStreamException.FromError(failure) : new LiveStreamException(Loc.T("The channel couldn't be played."));
+                throw _lastError is { } failure ? LiveStreamException.FromError(failure) : new LiveStreamException(Loc.T("The channel couldn’t be played."));
             }
 
             if (ReadPlaylist() is { } playlist && SegmentCount(playlist) >= segments)
@@ -185,7 +185,7 @@ public sealed partial class LiveSession : IAsyncDisposable
             await Task.Delay(250, ct).ConfigureAwait(false);
         }
 
-        throw _lastError is { } error ? LiveStreamException.FromError(error) : new LiveStreamException(Loc.T("The channel didn't start sending in time."));
+        throw _lastError is { } error ? LiveStreamException.FromError(error) : new LiveStreamException(Loc.T("The channel didn’t start sending in time."));
     }
 
     /// <summary>ffmpeg's playlist as it stands; it writes a new one beside it and renames, so a read never sees half.</summary>

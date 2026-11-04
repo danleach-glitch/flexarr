@@ -58,7 +58,7 @@ describe('Podcasts & audiobooks settings', () => {
     await vi.waitFor(() => expect(screen.getByRole('combobox', { name: 'Skip back' })).toHaveValue('45'))
     fireEvent.click(screen.getByRole('switch', { name: /Smart rewind/ }))
 
-    expect(await screen.findByText("That didn't save. Try again.")).toBeInTheDocument()
+    expect(await screen.findByText("That didn’t save. Try again.")).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: /Smart rewind/ })).toBeChecked()
     expect(screen.getByRole('combobox', { name: 'Skip back' })).toHaveValue('45')
   })

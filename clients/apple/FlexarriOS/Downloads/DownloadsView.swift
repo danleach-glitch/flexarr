@@ -256,7 +256,7 @@ struct DownloadButton: View {
             }
         }
         .accessibilityLabel(waiting ? t("Waiting for Wi-Fi") : DownloadStateIcon.accessibilityLabel(download?.state))
-        .alert(t("Couldn't download this"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+        .alert(t("Couldn’t download this"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
             Button(t("Try again")) {
                 if let download { store.delete(download.id) }
                 Task { await start() }
@@ -272,7 +272,7 @@ struct DownloadButton: View {
             }
             Button(t(Words.cancel), role: .cancel) {}
         }
-        .alert(t("Couldn't download this"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+        .alert(t("Couldn’t download this"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button(t("OK"), role: .cancel) {}
         } message: {
             Text(error ?? "")
@@ -293,7 +293,7 @@ struct DownloadButton: View {
         case .preparing(let progress): progress > 0 && progress < 1 ? t("Getting ready, {percent}%", ["percent": Int(progress * 100)]) : t("Getting ready")
         case .downloading(let progress): t("{percent}%", ["percent": Int(progress * 100)])
         case .downloaded: t("Downloaded")
-        case .failed: t("Couldn't download")
+        case .failed: t("Couldn’t download")
         }
     }
 }
@@ -339,7 +339,7 @@ struct DownloadStateIcon: View {
         case .preparing: t("Getting ready on the server")
         case .downloading(let fraction): t("Downloading, {percent}%", ["percent": Int(fraction * 100)])
         case .downloaded: t("Downloaded")
-        case .failed: t("Couldn't download")
+        case .failed: t("Couldn’t download")
         }
     }
 }

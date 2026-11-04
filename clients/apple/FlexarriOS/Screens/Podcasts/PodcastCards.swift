@@ -391,7 +391,7 @@ struct EpisodeDownloadButton: View {
             }
             Button(t(Words.cancel), role: .cancel) {}
         }
-        .alert(t("Couldn't download this"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+        .alert(t("Couldn’t download this"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
             Button(t("Try again")) {
                 if let download { store.delete(download.id) }
                 Task { await start() }
@@ -400,7 +400,7 @@ struct EpisodeDownloadButton: View {
         } message: {
             Text(failure ?? "")
         }
-        .alert(t("Couldn't download this"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+        .alert(t("Couldn’t download this"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button(t("OK"), role: .cancel) {}
         } message: {
             Text(error ?? "")

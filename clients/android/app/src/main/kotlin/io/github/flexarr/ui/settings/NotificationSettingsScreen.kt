@@ -109,7 +109,7 @@ fun NotificationSettingsScreen(model: AppModel) {
             }
             if (!allowed && notifications.isOn) {
                 item {
-                    Group(footer = t("Notifications are off for Flexarr in Android's settings. Allow them there first.")) {
+                    Group(footer = t("Notifications are off for Flexarr in Android’s settings. Allow them there first.")) {
                         Text(
                             t("Open Settings"),
                             fontSize = 17.sp,
