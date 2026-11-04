@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Threading.Channels;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 
@@ -22,6 +23,7 @@ public sealed partial class BonjourAdvertiser(IServer server, IHostApplicationLi
     {
         if (macApp.IsAvailable)
         {
+            await TellMacAppAsync(stoppingToken);
             return;
         }
 
@@ -65,6 +67,38 @@ public sealed partial class BonjourAdvertiser(IServer server, IHostApplicationLi
             {
                 LogRenamed(name);
             }
+        }
+    }
+
+    /// <summary>
+    /// In the Mac app, which announces the server itself: tells it the name once the server's up, and again after
+    /// each rename. An app from before names doesn't know the command, and keeps its own.
+    /// </summary>
+    private async Task TellMacAppAsync(CancellationToken ct)
+    {
+        var started = new TaskCompletionSource();
+        using var _ = lifetime.ApplicationStarted.Register(() => started.TrySetResult());
+        await started.Task.WaitAsync(ct);
+        var renamed = Channel.CreateBounded<bool>(new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropOldest });
+        using var watch = options.OnChange((_, _) => renamed.Writer.TryWrite(true));
+        string? told = null;
+        while (!ct.IsCancellationRequested)
+        {
+            var name = Configuration.ServerName.Of(options.CurrentValue);
+            if (name != told)
+            {
+                try
+                {
+                    await macApp.AnnounceNameAsync(name, ct);
+                    told = name;
+                }
+                catch (Exception ex) when (ex is IOException or System.Net.Sockets.SocketException)
+                {
+                    LogUnavailable(ex.Message);
+                }
+            }
+
+            await renamed.Reader.ReadAsync(ct);
         }
     }
 

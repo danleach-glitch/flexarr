@@ -55,6 +55,12 @@ public static class ServerName
             return null;
         }
 
+        // The Mac app passes its Bonjour name in: its sandbox can't run scutil.
+        if (Environment.GetEnvironmentVariable("Flexarr__MacApp__HostName") is { Length: > 0 } macApp)
+        {
+            return macApp;
+        }
+
         if (OperatingSystem.IsMacOS())
         {
             try

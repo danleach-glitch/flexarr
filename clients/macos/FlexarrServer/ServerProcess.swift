@@ -32,6 +32,8 @@ final class ServerProcess {
     /// Flexarr's Bonjour announcement ("_flexarr._tcp"), so apps on the network list this server. The app makes it, as
     /// the sandbox leaves the server no system tool to announce with; up while the server is.
     private var announcement: NetService?
+    /// What the server is called (Settings › Overview in the web app), as it last said; nil until it has.
+    private(set) var serverName: String?
 
     /// The port the server listens on. `defaults write <bundle id> Port 8484` changes it.
     let port: Int = UserDefaults.standard.integer(forKey: "Port").nonZero ?? 8383
@@ -52,6 +54,7 @@ final class ServerProcess {
 
     init(folders: MediaFolders) {
         requests = AppRequests(folders: folders)
+        requests.onName = { [weak self] in self?.named($0) }
     }
 
     func start() {
@@ -96,6 +99,8 @@ final class ServerProcess {
         environment["Flexarr__FfprobePath"] = executable.deletingLastPathComponent().appending(path: "ffprobe").path
         environment["Flexarr__MacApp__Port"] = String(requestsPort)
         environment["Flexarr__MacApp__Token"] = requests.token
+        // The sandbox leaves the server no way to ask for this Mac's Bonjour name, its default name.
+        environment["Flexarr__MacApp__HostName"] = Self.localHostName
         process.environment = environment
 
         let console = logDirectory.appending(path: "console.log")
@@ -189,11 +194,25 @@ final class ServerProcess {
 }
 
 extension ServerProcess {
-    /// Announces the server as the server does elsewhere: "Flexarr on <Bonjour name>", with its address in the TXT record.
+    /// This Mac's Bonjour name ("Dans-Mac-Mini").
+    static var localHostName: String { SCDynamicStoreCopyLocalHostName(nil).map { String($0) } ?? "localhost" }
+
+    /// The server said what it's called: announced under that name from now on.
+    func named(_ name: String) {
+        guard name != serverName else { return }
+        serverName = name
+        guard let announcement else { return }
+        announcement.stop()
+        self.announcement = nil
+        announce()
+    }
+
+    /// Announces the server as the server does elsewhere: under its name (the Mac's Bonjour name until it says), with
+    /// its address in the TXT record.
     fileprivate func announce() {
         guard announcement == nil else { return }
-        let host = SCDynamicStoreCopyLocalHostName(nil).map { String($0) } ?? "localhost"
-        let service = NetService(domain: "local.", type: "_flexarr._tcp.", name: "Flexarr on \(host)", port: Int32(port))
+        let host = Self.localHostName
+        let service = NetService(domain: "local.", type: "_flexarr._tcp.", name: serverName ?? host, port: Int32(port))
         service.setTXTRecord(NetService.data(fromTXTRecord: ["url": Data("http://\(host).local:\(port)".utf8)]))
         service.publish()
         announcement = service
