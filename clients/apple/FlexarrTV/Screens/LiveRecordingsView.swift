@@ -26,6 +26,7 @@ struct LiveRecordingsView: View {
 
     private static let day: DateFormatter = {
         let formatter = DateFormatter()
+        formatter.locale = Localization.locale
         formatter.setLocalizedDateFormatFromTemplate("EEE d MMM HH:mm")
         return formatter
     }()

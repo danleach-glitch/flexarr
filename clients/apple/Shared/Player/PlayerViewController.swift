@@ -1015,12 +1015,12 @@ final class PlayerViewController: UIViewController {
     /// "In time", "0.5s later", "1s earlier".
     static func delayLabel(_ seconds: Double) -> String {
         guard seconds != 0 else { return "In time" }
-        let amount = abs(seconds).formatted(.number.precision(.fractionLength(0...2)))
+        let amount = abs(seconds).formatted(.number.precision(.fractionLength(0...2)).locale(Localization.locale))
         return "\(amount)s \(seconds > 0 ? "later" : "earlier")"
     }
 
     static func rateLabel(_ rate: Float) -> String {
-        rate == 1 ? "Normal" : "\(rate.formatted(.number.precision(.fractionLength(0...2))))×"
+        rate == 1 ? "Normal" : "\(rate.formatted(.number.precision(.fractionLength(0...2)).locale(Localization.locale)))×"
     }
 
     // MARK: Phase

@@ -32,7 +32,7 @@ struct ServerSettingsView: View {
             if let status {
                 SettingsFact("Version", ServerVersion.short(status.version))
                 SettingsFact("Running on", status.osDescription)
-                SettingsFact("Up since", status.startTime.formatted(date: .abbreviated, time: .shortened))
+                SettingsFact("Up since", status.startTime.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: Localization.locale)))
             } else {
                 SettingsFact("Status", error ?? "Checking")
             }

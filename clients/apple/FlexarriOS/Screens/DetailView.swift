@@ -452,7 +452,7 @@ struct DetailView: View {
             if !video.isEmpty { labeled("Video", video) }
             if !audio.isEmpty { labeled("Audio", audio) }
             if let studio = detail?.studio { labeled("Studio", studio) }
-            labeled("Size", ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file))
+            labeled("Size", formatBytes(file.size))
         }
         .padding(.horizontal, Layout.edge)
     }

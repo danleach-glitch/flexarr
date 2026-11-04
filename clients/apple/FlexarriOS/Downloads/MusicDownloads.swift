@@ -63,7 +63,7 @@ struct MusicDownloadButton: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             if let collection, status == .downloaded {
-                Text("\(ByteCountFormatter.string(fromByteCount: store.bytesUsed(by: collection), countStyle: .file)) on this \(ThisDevice.name).")
+                Text("\(formatBytes(store.bytesUsed(by: collection))) on this \(ThisDevice.name).")
             }
         }
         .alert("Couldn't download this", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
@@ -209,7 +209,7 @@ struct CollectionRow: View {
             HStack(spacing: 6) {
                 DownloadedMark()
                 caption([collection.trackIds.count == 1 ? "1 track" : "\(collection.trackIds.count) tracks",
-                         ByteCountFormatter.string(fromByteCount: store.bytesUsed(by: collection), countStyle: .file)].joined(separator: "  "))
+                         formatBytes(store.bytesUsed(by: collection))].joined(separator: "  "))
             }
         case .failed(let message):
             Text(message).font(.caption).foregroundStyle(Color.danger)
@@ -217,7 +217,7 @@ struct CollectionRow: View {
     }
 
     private var estimate: String? {
-        collection.estimatedBytes.map { "about " + ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
+        collection.estimatedBytes.map { "about " + formatBytes($0) }
     }
 
     private func caption(_ text: String) -> some View {

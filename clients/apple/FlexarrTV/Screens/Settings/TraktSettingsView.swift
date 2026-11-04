@@ -127,7 +127,7 @@ struct TraktSettingsView: View {
             return SettingsRow(title: TraktWords.importing, symbol: "clock.arrow.circlepath") {}
         }
         if let importedAt = status.importedAt {
-            return SettingsRow(title: TraktWords.imported, symbol: "checkmark.circle", value: importedAt.formatted(.relative(presentation: .named))) {}
+            return SettingsRow(title: TraktWords.imported, symbol: "checkmark.circle", value: importedAt.formatted(.relative(presentation: .named).locale(Localization.locale))) {}
         }
         if let preview {
             let counts = "\(preview.traktFilms.formatted()) movies and \(preview.traktEpisodes.formatted()) episodes"

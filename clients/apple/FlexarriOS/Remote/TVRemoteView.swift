@@ -172,7 +172,7 @@ struct TVRemoteView: View {
         let duration = playing.durationSeconds
         let shown = scrubbing ?? position
         let ends = duration > 0
-            ? Text("Ends \(Date().addingTimeInterval(max(0, duration - shown) / max(0.5, playing.rate ?? 1)).formatted(date: .omitted, time: .shortened))")
+            ? Text("Ends \(Date().addingTimeInterval(max(0, duration - shown) / max(0.5, playing.rate ?? 1)).formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: Localization.locale)))")
             : nil
         return VStack(spacing: 2) {
             PlayerScrubber(position: position, duration: duration, step: Self.skipSeconds, scrubbing: $scrubbing) { remote.seek(to: $0) }
@@ -347,7 +347,7 @@ struct TVRemoteView: View {
     }
 
     private func speedLabel(_ rate: Double) -> String {
-        rate == 1 ? "1×" : "\(rate.formatted(.number.precision(.fractionLength(0...2))))×"
+        rate == 1 ? "1×" : "\(rate.formatted(.number.precision(.fractionLength(0...2)).locale(Localization.locale)))×"
     }
 
     /// The TV's dialogue boost, night mode and speakers.

@@ -239,3 +239,8 @@ public final class LanguageState {
         }
     }
 }
+
+/// A file's size as the language shown writes it ("1.2 GB", "1,2 GB").
+public func formatBytes(_ bytes: Int64) -> String {
+    bytes.formatted(.byteCount(style: .file).locale(Localization.locale))
+}

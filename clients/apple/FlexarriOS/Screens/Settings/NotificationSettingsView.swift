@@ -104,7 +104,7 @@ struct NotificationSettingsView: View {
     /// "9 AM", or "09:00", as the phone tells the time.
     private static func hourLabel(_ hour: Int) -> String {
         guard let date = Calendar.current.date(from: DateComponents(hour: hour)) else { return "\(hour):00" }
-        return date.formatted(date: .omitted, time: .shortened)
+        return date.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: Localization.locale))
     }
 
     private func load() async {

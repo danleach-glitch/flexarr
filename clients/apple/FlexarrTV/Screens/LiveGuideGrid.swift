@@ -36,6 +36,7 @@ struct LiveGuideGrid: View {
     private static let rowHeight: CGFloat = 96
     private static let clock: DateFormatter = {
         let formatter = DateFormatter()
+        formatter.locale = Localization.locale
         formatter.timeStyle = .short
         return formatter
     }()
@@ -313,7 +314,7 @@ struct LiveGuideGrid: View {
         let calendar = Calendar.current
         if calendar.isDateInToday(date) { return "Today" }
         if calendar.isDateInTomorrow(date) { return "Tomorrow" }
-        return date.formatted(.dateTime.weekday(.wide))
+        return date.formatted(.dateTime.weekday(.wide).locale(Localization.locale))
     }
 }
 

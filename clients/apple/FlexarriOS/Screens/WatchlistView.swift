@@ -198,7 +198,7 @@ private struct WatchlistCard: View {
     /// "Out 5 Mar 2027", in the phone's own format (the date is a calendar day, so it's read and shown in UTC).
     private var comingLabel: String {
         guard let raw = entry.releaseDate, let date = try? Date(raw, strategy: .iso8601.year().month().day()) else { return "Coming" }
-        var style = Date.FormatStyle(date: .abbreviated, time: .omitted)
+        var style = Date.FormatStyle(date: .abbreviated, time: .omitted, locale: Localization.locale)
         style.timeZone = TimeZone(identifier: "UTC") ?? .gmt
         return "Out \(date.formatted(style))"
     }

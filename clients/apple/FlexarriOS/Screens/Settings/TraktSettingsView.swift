@@ -159,7 +159,7 @@ struct TraktSettingsView: View {
                 }
                 .listRowBackground(Color.seat)
             } else if let importedAt = status.importedAt {
-                LabeledContent(TraktWords.imported, value: importedAt.formatted(.relative(presentation: .named))).settingsRow()
+                LabeledContent(TraktWords.imported, value: importedAt.formatted(.relative(presentation: .named).locale(Localization.locale))).settingsRow()
             } else if let preview {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(preview.summary).font(.body.weight(.semibold))

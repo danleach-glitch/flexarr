@@ -140,6 +140,7 @@ final class PlayerControlsView: UIView {
 
     private static let timeOfDay: DateFormatter = {
         let formatter = DateFormatter()
+        formatter.locale = Localization.locale
         formatter.timeStyle = .short
         return formatter
     }()

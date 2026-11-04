@@ -52,7 +52,7 @@ struct DownloadsView: View {
                     Section {
                         EmptyView()
                     } footer: {
-                        Text("\(ByteCountFormatter.string(fromByteCount: store.bytesUsed, countStyle: .file)) used on this \(ThisDevice.name).")
+                        Text("\(formatBytes(store.bytesUsed)) used on this \(ThisDevice.name).")
                     }
                 }
                 .scrollContentBackground(.hidden)
@@ -134,7 +134,7 @@ private struct DownloadRow: View {
         case .downloaded:
             HStack(spacing: 6) {
                 DownloadedMark()
-                caption([download.quality.label, download.sizeBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) },
+                caption([download.quality.label, download.sizeBytes.map { formatBytes($0) },
                          download.finishedAt != nil ? "Watched" : nil].compactMap { $0 }.joined(separator: "  "))
             }
         case .failed(let message):
@@ -215,7 +215,7 @@ private struct PodcastDownloadRow: View {
         case .downloaded:
             HStack(spacing: 6) {
                 DownloadedMark()
-                caption([download.sizeBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) },
+                caption([download.sizeBytes.map { formatBytes($0) },
                      download.finishedAt != nil ? (isBook ? "Finished" : "Played") : nil].compactMap { $0 }.joined(separator: "  "))
             }
         case .failed(let message):

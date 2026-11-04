@@ -163,7 +163,7 @@ private struct UpcomingAboutView: View {
                 .font(.marquee(64, weight: .heavy))
                 .foregroundStyle(Color.screen)
             Text(detail).font(.system(size: 30, weight: .semibold)).foregroundStyle(Color.screen.opacity(0.85))
-            Text("\(item.when) \(item.date.formatted(date: .complete, time: item.kind == .episode ? .shortened : .omitted))")
+            Text("\(item.when) \(item.date.formatted(Date.FormatStyle(date: .complete, time: item.kind == .episode ? .shortened : .omitted, locale: Localization.locale)))")
                 .font(.system(size: 26))
                 .foregroundStyle(Color.usher)
             if let overview = item.overview {

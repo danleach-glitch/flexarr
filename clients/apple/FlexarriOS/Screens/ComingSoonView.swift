@@ -83,7 +83,7 @@ private struct ComingSoonEntryRow: View {
                     if let status = entry.status {
                         Text(status).font(.footnote.weight(.medium)).foregroundStyle(entry.first.available == true ? Color.go : Color.usher)
                     } else if entry.first.kind == .episode {
-                        Text(entry.first.date.formatted(date: .omitted, time: .shortened)).font(.footnote).foregroundStyle(Color.usher)
+                        Text(entry.first.date.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: Localization.locale))).font(.footnote).foregroundStyle(Color.usher)
                     }
                 }
                 .lineLimit(2)
@@ -125,7 +125,7 @@ struct UpcomingAboutSheet: View {
                             .font(.marquee(28, weight: .bold))
                             .foregroundStyle(Color.screen)
                         Text(detail).font(.subheadline).foregroundStyle(Color.screen.opacity(0.85))
-                        Text("\(item.when) \(item.date.formatted(date: .complete, time: item.kind == .episode ? .shortened : .omitted))")
+                        Text("\(item.when) \(item.date.formatted(Date.FormatStyle(date: .complete, time: item.kind == .episode ? .shortened : .omitted, locale: Localization.locale)))")
                             .font(.footnote)
                             .foregroundStyle(Color.usher)
                         if let status = UpcomingDay.status(item) {

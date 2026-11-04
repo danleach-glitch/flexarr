@@ -279,6 +279,7 @@ private struct ChannelRow: View {
 
     private static let clock: DateFormatter = {
         let formatter = DateFormatter()
+        formatter.locale = Localization.locale
         formatter.timeStyle = .short
         return formatter
     }()

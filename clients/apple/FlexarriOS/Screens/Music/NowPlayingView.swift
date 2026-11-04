@@ -283,7 +283,7 @@ struct NowPlayingView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if music.isPodcast, music.duration > 0 {
                     // When it'll finish, at the speed it's playing.
-                    Text("Ends \(Date().addingTimeInterval(max(0, music.duration - music.position) / max(0.5, music.speed)).formatted(date: .omitted, time: .shortened))")
+                    Text("Ends \(Date().addingTimeInterval(max(0, music.duration - music.position) / max(0.5, music.speed)).formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: Localization.locale)))")
                 } else if music.isBook, music.chapters.count > 1 {
                     // Which the scrubber spans: a tap switches.
                     Button(scope.isChapter ? "Chapter" : "Book") { wholeBook.toggle() }

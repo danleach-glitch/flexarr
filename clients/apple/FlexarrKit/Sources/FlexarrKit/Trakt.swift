@@ -139,7 +139,7 @@ public enum TraktWords {
     /// "Synced 5 minutes ago", or "Not synced yet".
     public static func synced(_ date: Date?, now: Date = .now) -> String {
         guard let date else { return "Not synced yet" }
-        return "Synced \(date.formatted(.relative(presentation: .named, unitsStyle: .wide)))"
+        return "Synced \(date.formatted(.relative(presentation: .named, unitsStyle: .wide).locale(Localization.locale)))"
     }
 
     /// The server's own words for what went wrong, when it gave some.

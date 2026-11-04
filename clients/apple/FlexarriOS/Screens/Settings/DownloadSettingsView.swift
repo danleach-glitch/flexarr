@@ -38,7 +38,7 @@ struct DownloadSettingsView: View {
             }
 
             Section {
-                LabeledContent("Space used", value: downloads.bytesUsed == 0 ? "None" : ByteCountFormatter.string(fromByteCount: downloads.bytesUsed, countStyle: .file))
+                LabeledContent("Space used", value: downloads.bytesUsed == 0 ? "None" : formatBytes(downloads.bytesUsed))
                     .listRowBackground(Color.seat)
                 if !downloads.all.isEmpty {
                     Button("Delete all downloads", role: .destructive) { confirmDeleteDownloads = true }

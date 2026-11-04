@@ -11,6 +11,7 @@ struct LiveRecordingsView: View {
 
     private static let day: DateFormatter = {
         let formatter = DateFormatter()
+        formatter.locale = Localization.locale
         formatter.setLocalizedDateFormatFromTemplate("EEE d MMM HH:mm")
         return formatter
     }()
@@ -107,7 +108,7 @@ struct LiveRecordingsView: View {
         if let subtitle = recording.subtitle { parts.append(subtitle) }
         parts.append(recording.channelName)
         parts.append(Self.day.string(from: recording.start))
-        if let size = recording.size { parts.append(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)) }
+        if let size = recording.size { parts.append(formatBytes(size)) }
         return parts.joined(separator: "   ")
     }
 

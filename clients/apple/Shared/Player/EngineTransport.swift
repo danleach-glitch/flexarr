@@ -373,7 +373,7 @@ final class EngineTransport: PlayerTransport {
 
     /// "English · E-AC-3 5.1", "Commentary · AAC stereo", "English (PGS)".
     static func label(_ track: TrackInfo) -> String {
-        let language = Locale.current.localizedString(forLanguageCode: track.language ?? "") ?? track.language ?? ""
+        let language = Localization.locale.localizedString(forLanguageCode: track.language ?? "") ?? track.language ?? ""
         let name = track.name.isEmpty || track.name == track.language ? language : track.name
         let channels = switch track.channels {
         case 8: "7.1"

@@ -10,8 +10,8 @@ enum UpcomingDay {
         case 0: return calendar.component(.hour, from: date) >= 17 ? "Tonight" : "Today"
         case 1: return "Tomorrow"
         case -1: return "Yesterday"
-        case 2..<7: return date.formatted(.dateTime.weekday(.wide))
-        default: return date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+        case 2..<7: return date.formatted(.dateTime.weekday(.wide).locale(Localization.locale))
+        default: return date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(Localization.locale))
         }
     }
 
@@ -22,7 +22,7 @@ enum UpcomingDay {
         case 0: return "Today"
         case 1: return "Tomorrow"
         case -1: return "Yesterday"
-        default: return day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+        default: return day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(Localization.locale))
         }
     }
 

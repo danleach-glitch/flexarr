@@ -77,7 +77,7 @@ struct SettingsView: View {
 
             Section {
                 SettingsLink("Playback", icon: "play.fill") { PlaybackSettingsView() }
-                SettingsLink("Downloads", icon: "arrow.down", value: downloads.bytesUsed == 0 ? nil : ByteCountFormatter.string(fromByteCount: downloads.bytesUsed, countStyle: .file)) {
+                SettingsLink("Downloads", icon: "arrow.down", value: downloads.bytesUsed == 0 ? nil : formatBytes(downloads.bytesUsed)) {
                     DownloadSettingsView()
                 }
                 if model.podcastStatus?.available == true || model.bookListening != nil {

@@ -172,7 +172,7 @@ struct WatchlistView: View {
     /// "Out 5 Mar 2027" (a calendar day, read and shown in UTC).
     private static func out(_ raw: String) -> String? {
         guard let date = try? Date(raw, strategy: .iso8601.year().month().day()) else { return nil }
-        var style = Date.FormatStyle(date: .abbreviated, time: .omitted)
+        var style = Date.FormatStyle(date: .abbreviated, time: .omitted, locale: Localization.locale)
         style.timeZone = TimeZone(identifier: "UTC") ?? .gmt
         return "Out \(date.formatted(style))"
     }

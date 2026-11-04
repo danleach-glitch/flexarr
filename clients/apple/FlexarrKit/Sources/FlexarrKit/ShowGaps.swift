@@ -50,14 +50,14 @@ public struct ShowEpisode: Codable, Sendable, Hashable, Identifiable {
     }
 
     /// "Airs 12 Nov", "Airs 3 Jan 2028" (a year only when it isn't this one), or "Airs today".
-    public func airs(now: Date = Date(), calendar: Calendar = .current, locale: Locale = .current) -> String? {
+    public func airs(now: Date = Date(), calendar: Calendar = .current, locale: Locale = Localization.locale) -> String? {
         guard let airDate else { return nil }
         if calendar.isDate(airDate, inSameDayAs: now) { return "Airs today" }
         return aired(now: now, calendar: calendar, locale: locale).map { "Airs " + $0 }
     }
 
     /// When a missing episode aired: "12 Nov", or "12 Nov 2021" when it wasn't this year.
-    public func aired(now: Date = Date(), calendar: Calendar = .current, locale: Locale = .current) -> String? {
+    public func aired(now: Date = Date(), calendar: Calendar = .current, locale: Locale = Localization.locale) -> String? {
         guard let airDate else { return nil }
         let style = calendar.component(.year, from: airDate) == calendar.component(.year, from: now)
             ? Date.FormatStyle(date: .omitted, time: .omitted).day().month(.abbreviated)

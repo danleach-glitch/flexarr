@@ -266,12 +266,12 @@ extension PodcastEpisode {
         if calendar.isDateInToday(publishedAt) { return "Today" }
         if calendar.isDateInYesterday(publishedAt) { return "Yesterday" }
         if let days = calendar.dateComponents([.day], from: publishedAt, to: Date()).day, days < 7 {
-            return publishedAt.formatted(.dateTime.weekday(.wide))
+            return publishedAt.formatted(.dateTime.weekday(.wide).locale(Localization.locale))
         }
         if calendar.isDate(publishedAt, equalTo: Date(), toGranularity: .year) {
-            return publishedAt.formatted(.dateTime.day().month(.abbreviated))
+            return publishedAt.formatted(.dateTime.day().month(.abbreviated).locale(Localization.locale))
         }
-        return publishedAt.formatted(.dateTime.day().month(.abbreviated).year())
+        return publishedAt.formatted(.dateTime.day().month(.abbreviated).year().locale(Localization.locale))
     }
 
     /// "1h 6m", or "24m left" part way through, or "Played".
@@ -286,5 +286,5 @@ extension PodcastEpisode {
 
 /// "1×", "1.5×", "1.75×".
 func speedLabel(_ speed: Double) -> String {
-    speed.formatted(.number.precision(.fractionLength(0...2))) + "×"
+    speed.formatted(.number.precision(.fractionLength(0...2)).locale(Localization.locale)) + "×"
 }

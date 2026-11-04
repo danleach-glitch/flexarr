@@ -40,7 +40,7 @@ struct ServerSettingsView: View {
                 if let status {
                     row("Version", ServerVersion.short(status.version))
                     row("Running on", status.osDescription)
-                    row("Up since", status.startTime.formatted(date: .abbreviated, time: .shortened))
+                    row("Up since", status.startTime.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: Localization.locale)))
                 } else if let error {
                     row("Status", error)
                 } else {
