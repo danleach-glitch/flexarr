@@ -565,6 +565,13 @@
   font-size: var(--step-1);
 }
 
+/* The server's name, under the main profile's. */
+.onboard-server-name {
+  display: grid;
+  gap: 6px;
+  margin-top: 28px;
+}
+
 .onboard-swatches {
   display: flex;
   flex-wrap: wrap;

@@ -34,6 +34,7 @@ import { useApi } from '../hooks/useApi'
 import { appLogos } from '../lib/apps'
 import { libraryTypeLabel } from '../lib/format'
 import { freeColour, profileColours } from '../lib/profileColours'
+import { SERVER_NAME_MAX, setServerTitle } from '../lib/serverTitle'
 import { tooBroad } from '../lib/setupGuide'
 import { errorText } from './settings/useSettings'
 import '../styles/onboarding.css'
@@ -212,8 +213,10 @@ function StepFooter({ nav, next, skipLabel = t('Skip') }: { nav: StepNav; next: 
 /** The main profile's name and colour, which start as "Main profile" in blue. */
 function NameStep({ nav }: { nav: StepNav }) {
   const profiles = useApi(getProfiles, [])
+  const settings = useApi(getSettings, []).data
   const main = profiles.data?.find((p) => p.isMain)
   const [name, setName] = useState<string>()
+  const [serverName, setServerName] = useState<string>()
   const [color, setColor] = useState<string>()
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
@@ -222,6 +225,9 @@ function NameStep({ nav }: { nav: StepNav }) {
   // The name it was given when the server was made isn't anyone's: start with an empty box.
   const shown = name ?? (main.name === 'Main profile' ? '' : main.name)
   const chosen = color ?? main.color
+  // The server goes by its machine's name until it's given one (older servers have neither).
+  const serverNow = settings?.defaultServerName == null ? undefined : (settings.serverName ?? settings.defaultServerName)
+  const serverShown = serverName ?? serverNow ?? ''
 
   async function save(e: FormEvent) {
     e.preventDefault()
@@ -229,6 +235,10 @@ function NameStep({ nav }: { nav: StepNav }) {
     setBusy(true)
     try {
       await updateProfile(main!.id, { name: shown.trim(), color: chosen })
+      if (serverNow !== undefined && serverShown.trim() !== serverNow) {
+        const saved = await saveSettings({ serverName: serverShown.trim() })
+        setServerTitle(saved.serverName ?? saved.defaultServerName)
+      }
       nav.next()
     } catch (err) {
       setError(errorText(err))
@@ -260,6 +270,12 @@ function NameStep({ nav }: { nav: StepNav }) {
           </div>
         </div>
       </div>
+      {serverNow !== undefined && (
+        <label className="field onboard-server-name">
+          <span className="field-label">{t('Server name')}</span>
+          <input type="text" value={serverShown} maxLength={SERVER_NAME_MAX} placeholder={settings?.defaultServerName ?? ''} onChange={(e) => setServerName(e.target.value)} />
+        </label>
+      )}
       {error && (
         <p className="onboard-error" role="alert">
           {error}
