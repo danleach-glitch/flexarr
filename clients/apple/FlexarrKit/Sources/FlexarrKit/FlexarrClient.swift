@@ -227,9 +227,11 @@ public struct FlexarrClient: Sendable {
         try await get("libraries")
     }
 
-    public func libraryItems(_ libraryId: String, sort: LibrarySort = .title, genre: String? = nil,
+    /// `search` narrows it to titles whose name has those words.
+    public func libraryItems(_ libraryId: String, sort: LibrarySort = .title, genre: String? = nil, search: String? = nil,
                              skip: Int = 0, take: Int = 60) async throws -> Paged<ItemSummary> {
         var query: [URLQueryItem] = []
+        if let search, !search.isEmpty { query.append(.init(name: "search", value: search)) }
         if sort != .title { query.append(.init(name: "sort", value: sort.rawValue)) }
         if let genre, !genre.isEmpty { query.append(.init(name: "genre", value: genre)) }
         if skip > 0 { query.append(.init(name: "skip", value: String(skip))) }
@@ -244,9 +246,10 @@ public struct FlexarrClient: Sendable {
     /// A music library's albums (its items are its artists), A–Z, newest added or by year, optionally in one genre
     /// (the album's own, or its artist's when it has none). Nil from servers before the endpoint (0.59), which answer
     /// with their web page (or, once they 404 unknown routes, 404).
-    public func libraryAlbums(_ libraryId: String, sort: LibrarySort = .title, genre: String? = nil,
+    public func libraryAlbums(_ libraryId: String, sort: LibrarySort = .title, genre: String? = nil, search: String? = nil,
                               skip: Int = 0, take: Int = 60) async throws -> Paged<ItemSummary>? {
         var query: [URLQueryItem] = []
+        if let search, !search.isEmpty { query.append(.init(name: "search", value: search)) }
         if sort != .title { query.append(.init(name: "sort", value: sort.rawValue)) }
         if let genre, !genre.isEmpty { query.append(.init(name: "genre", value: genre)) }
         if skip > 0 { query.append(.init(name: "skip", value: String(skip))) }

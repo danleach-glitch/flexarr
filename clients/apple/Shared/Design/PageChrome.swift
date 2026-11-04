@@ -1,3 +1,4 @@
+import FlexarrKit
 import SwiftUI
 
 // Where a page's own controls go (docs/mac-player.md, "The Mac's page layout"): its view switch (Browse, All, Genres…)
@@ -52,9 +53,103 @@ extension View {
         self
         #endif
     }
+
+    /// A search field for the page, on the Mac: at the toolbar's right, after its actions, the tabs' height.
+    @ViewBuilder
+    func pageSearch(_ text: Binding<String>, prompt: String) -> some View {
+        #if os(macOS)
+        toolbar {
+            if #available(macOS 26, *) {
+                ToolbarSpacer(.flexible)
+                ToolbarItem(placement: .automatic) { PageSearchField(text: text, prompt: prompt) }
+                    .sharedBackgroundVisibility(.hidden)
+            } else {
+                ToolbarItem(placement: .automatic) { PageSearchField(text: text, prompt: prompt) }
+            }
+        }
+        #else
+        self
+        #endif
+    }
+
+    /// The Mac's back button, for a page pushed onto a stack: the tabs' capsule, in from the window's corner.
+    @ViewBuilder
+    func macBackButton() -> some View {
+        #if os(macOS)
+        navigationBarBackButtonHidden(true)
+            .toolbar {
+                if #available(macOS 26, *) {
+                    ToolbarItem(placement: .navigation) { PageBackButton() }
+                        .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .navigation) { PageBackButton() }
+                }
+            }
+        #else
+        self
+        #endif
+    }
 }
 
 #if os(macOS)
+/// The page's controls share one height and one capsule (docs/mac-player.md): tabs, search fields and back.
+enum PageControl {
+    static let height: CGFloat = 34
+    static var track: some ShapeStyle { Color.seat.opacity(0.9) }
+    static var edge: some ShapeStyle { Color.screen.opacity(0.08) }
+}
+
+/// Back, as a capsule the tabs' height.
+struct PageBackButton: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        Button { dismiss() } label: {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color.screen)
+                .frame(width: 44, height: PageControl.height)
+                .background(Capsule().fill(PageControl.track))
+                .overlay(Capsule().strokeBorder(PageControl.edge))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut("[", modifiers: .command)
+        .help(t("Back"))
+        .accessibilityLabel(t("Back"))
+        .padding(.leading, 8)
+    }
+}
+
+/// A search field the tabs' height, with its magnifier and a clear button.
+struct PageSearchField: View {
+    @Binding var text: String
+    let prompt: String
+    var width: CGFloat = 260
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.usher)
+            TextField(prompt, text: $text)
+                .textFieldStyle(.plain)
+                .font(.system(size: 14))
+                .focused($focused)
+            if !text.isEmpty {
+                Button { text = "" } label: {
+                    Image(systemName: "xmark.circle.fill").font(.system(size: 13)).foregroundStyle(Color.usher)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(t("Clear"))
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(width: width, height: PageControl.height)
+        .background(Capsule().fill(PageControl.track))
+        .overlay(Capsule().strokeBorder(focused ? AnyShapeStyle(Color.silver.opacity(0.6)) : AnyShapeStyle(PageControl.edge)))
+    }
+}
+
 /// The Mac's page tabs (Browse, All movies, Genres…): a capsule track with the chosen one filled to its edges, the same
 /// size on every page. The system's segmented control insets its highlight from the track, which reads as unfinished
 /// at this size.
@@ -74,7 +169,7 @@ struct PageTabs<Value: Hashable>: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(chosen ? Color.room : Color.screen.opacity(0.85))
                         .padding(.horizontal, 18)
-                        .frame(height: 34)
+                        .frame(height: PageControl.height)
                         .background {
                             if chosen {
                                 Capsule().fill(Color.screen).matchedGeometryEffect(id: "pill", in: pill)
@@ -86,8 +181,8 @@ struct PageTabs<Value: Hashable>: View {
                 .accessibilityAddTraits(chosen ? [.isSelected] : [])
             }
         }
-        .background(Capsule().fill(Color.seat.opacity(0.9)))
-        .overlay(Capsule().strokeBorder(Color.screen.opacity(0.08)))
+        .background(Capsule().fill(PageControl.track))
+        .overlay(Capsule().strokeBorder(PageControl.edge))
         .fixedSize()
     }
 }

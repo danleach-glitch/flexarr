@@ -50,7 +50,9 @@ struct SettingsView: View {
                         .listRowBackground(Color.seat)
                     }
                 } header: {
+                    #if !os(macOS)
                     Text(t("Watching as"))
+                    #endif
                 } footer: {
                     if let lockError { Text(lockError).foregroundStyle(Color.danger) }
                 }
@@ -255,6 +257,7 @@ extension View {
     func settingsPage(_ title: String) -> some View {
         scrollContentBackground(.hidden)
             .macReadable(title: title, parent: title == t(Words.settings) ? nil : t(Words.settings))
+            .modifier(SettingsBack(isSubpage: title != t(Words.settings)))
             .background(RoomBackground(ambient: nil))
             .navigationTitle(title)
     }
@@ -262,5 +265,14 @@ extension View {
     /// A Settings switch, in the app's silver.
     func settingsRow() -> some View {
         tint(.silver).listRowBackground(Color.seat)
+    }
+}
+
+/// A page inside Settings gets the Mac's back button (FlexarrMac's capsule); Settings itself, a sidebar place, has none.
+private struct SettingsBack: ViewModifier {
+    let isSubpage: Bool
+
+    func body(content: Content) -> some View {
+        if isSubpage { content.macBackButton() } else { content }
     }
 }

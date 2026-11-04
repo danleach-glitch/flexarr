@@ -22,6 +22,10 @@ struct LibraryView: View {
 
     @State private var sort: LibrarySort = .title
     @State private var genre: String?
+    /// The Mac's search of this library (its toolbar field): All, narrowed to titles with these words.
+    @State private var search = ""
+    /// The search the grid last loaded for, so arriving on the page doesn't load it twice.
+    @State private var searchedFor = ""
     @State private var genres: [GenreCount] = []
     @State private var items: [ItemSummary] = []
     @State private var total = 0
@@ -100,6 +104,17 @@ struct LibraryView: View {
         }
         .navigationTitle(initialGenre ?? library.name)
         .pageSwitch($showing, switchOptions)
+        #if os(macOS)
+        .pageSearch($search, prompt: t("Search {library}", ["library": library.name]))
+        .task(id: search) {
+            // Searching shows the grid; a pause in typing before asking.
+            guard search != searchedFor else { return }
+            searchedFor = search
+            if searchWords != nil, showing != .all, showing != .albums { showing = .all }
+            guard (try? await Task.sleep(for: .milliseconds(300))) != nil else { return }
+            await reload()
+        }
+        #endif
         .pageActions {
             if showing == .all || showing == .albums { sortAndFilter }
         }
@@ -312,12 +327,17 @@ struct LibraryView: View {
     /// A page of what the grid lists, as it's sorted and filtered now.
     private func fetch(_ client: FlexarrClient, skip: Int, take: Int) async throws -> Paged<ItemSummary> {
         if listsAlbums {
-            guard let page = try await client.libraryAlbums(library.id, sort: sort, genre: genre, skip: skip, take: take) else {
+            guard let page = try await client.libraryAlbums(library.id, sort: sort, genre: genre, search: searchWords, skip: skip, take: take) else {
                 throw FlexarrClientError.http(status: 404, message: nil)
             }
             return page
         }
-        return try await client.libraryItems(library.id, sort: sort, genre: genre, skip: skip, take: take)
+        return try await client.libraryItems(library.id, sort: sort, genre: genre, search: searchWords, skip: skip, take: take)
+    }
+
+    private var searchWords: String? {
+        let words = search.trimmingCharacters(in: .whitespaces)
+        return words.isEmpty ? nil : words
     }
 
     private func reload() async {

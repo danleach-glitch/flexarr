@@ -201,7 +201,7 @@ struct MacStack<Content: View>: View {
             content()
                 .environment(router)
                 .macPageToolbar()
-                .navigationDestination(for: Route.self) { RouteDestination(route: $0).environment(router).macPageToolbar() }
+                .navigationDestination(for: Route.self) { RouteDestination(route: $0).environment(router).macPageToolbar().macBackButton() }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             if model.isOffline { OfflineBar() }

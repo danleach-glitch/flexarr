@@ -42,8 +42,7 @@ struct MacDiscoverView: View {
         }
         .background(RoomBackground(ambient: nil))
         .navigationTitle(t(Words.discover))
-        .searchable(text: $query, placement: .toolbar,
-                    prompt: showing == .titles ? t("Search for a movie or show") : t("Search for an artist or album"))
+        .pageSearch($query, prompt: showing == .titles ? t("Search for a movie or show") : t("Search for an artist or album"))
         .pageSwitch($mode, offersTitles && offersMusic ? [(.titles, t(Words.moviesAndShows)), (.music, t(Words.music))] : [])
         // Again on coming back, so what was just requested says so.
         .task { await load() }

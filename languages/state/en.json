@@ -2148,6 +2148,7 @@
   "Search the log": "w",
   "Search to find them.": "w",
   "Search your library": "w",
+  "Search {library}": "a",
   "Search {name}": "w",
   "Search {source}": "w",
   "Searching": "wan",

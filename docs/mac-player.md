@@ -43,12 +43,13 @@ rows stay in the marquee face (Big Shoulders Display). Text with no style of its
 lists. Posters 176 pt wide with 18 pt between them. Rows 28 pt apart.
 
 **The window's toolbar** (`Shared/Design/PageChrome.swift`). See-through, over the page: heroes run up under it.
-- Left: back, and nothing else.
+- Left: back, and nothing else: `PageBackButton`, a capsule the tabs' height (34 pt), in from the corner.
 - Middle: the page's tabs (Browse, All, Genres…; Discover's Movies and shows or Music; Live TV's Channels, Guide and
   Recordings), from `pageSwitch`: `PageTabs`, a capsule track with the chosen tab filled to its edges, the same size
   and place on every page.
 - Right: the page's actions (Filter, Sort and filter, Recordings, Guide), from `pageActions`, each a named button with
-  its icon; search, where a page has one, after them. Search's own page has its field in the middle. Controls that
+  its icon; search, where a page has one, after them (`pageSearch`: `PageSearchField`, the tabs' height; a library's
+  searches its titles). Search's own page has its field in the middle. Controls that
   belong to part of a page (a podcast's episode order, beside Unplayed and All) stay on the page, by that part.
 
 **Lists** (Settings, Downloads; `macReadable`). One centred column, 760 pt at most, with the page margin either side,

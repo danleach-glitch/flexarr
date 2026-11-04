@@ -167,7 +167,12 @@ struct BooksLibraryView: View {
                     ProgressView().frame(maxWidth: .infinity).padding(20)
                 }
             }
+            // The Mac's hero starts where the other libraries' do, right under the toolbar.
+            #if os(macOS)
+            .padding(.top, 0)
+            #else
             .padding(.top, 8)
+            #endif
             .padding(.bottom, 24)
         }
         .background(RoomBackground(ambient: (featured ?? browse.shelves?.continueListening.first)?.glowColor, intensity: featured == nil ? 0.18 : 0.28)

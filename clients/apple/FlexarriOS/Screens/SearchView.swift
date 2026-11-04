@@ -142,7 +142,13 @@ struct SearchView: View {
         .background(RoomBackground(ambient: nil))
         .navigationTitle(t(Words.search))
         // Always showing: left to itself, iOS tucks the field away until the page is pulled down.
+        #if os(macOS)
+        .toolbar {
+            ToolbarItem(placement: .principal) { PageSearchField(text: $query, prompt: t("Movies, shows, episodes and people"), width: 440) }
+        }
+        #else
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: t("Movies, shows, episodes and people"))
+        #endif
         // Opening Search is for typing: the field's ready with the keyboard up.
         .searchFocused($typing)
         // Pressing Search keeps the words as a recent search, as picking a result does: shown at once, without waiting

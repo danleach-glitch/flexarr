@@ -66,6 +66,7 @@ struct LiveRecordingsView: View {
                     }
                 }
                 .scrollContentBackground(.hidden)
+                .macReadable()
             } else if let failed {
                 StatusView(state: .failed(failed) { Task { await load() } })
             } else {
