@@ -1,10 +1,9 @@
 import SwiftUI
-import UIKit
 
 /// Decoded-image memory cache. Disk caching is left to URLCache (configured at launch).
 final class ImageCache: @unchecked Sendable {
     static let shared = ImageCache()
-    private let cache = NSCache<NSURL, UIImage>()
+    private let cache = NSCache<NSURL, PlatformImage>()
 
     init() {
         // An Apple TV has less memory to spare than a phone, and its grids are large: decoded artwork adds up.
@@ -15,12 +14,13 @@ final class ImageCache: @unchecked Sendable {
         #endif
     }
 
-    func image(for url: URL) -> UIImage? {
+    func image(for url: URL) -> PlatformImage? {
         cache.object(forKey: url as NSURL)
     }
 
-    func insert(_ image: UIImage, for url: URL) {
-        let cost = Int(image.size.width * image.size.height * image.scale * image.scale * 4)
+    func insert(_ image: PlatformImage, for url: URL) {
+        let pixels = image.pixelSize
+        let cost = Int(pixels.width * pixels.height * 4)
         cache.setObject(image, forKey: url as NSURL, cost: cost)
     }
 }
@@ -29,24 +29,24 @@ final class ImageCache: @unchecked Sendable {
 actor ImageLoader {
     static let shared = ImageLoader()
     private struct Load {
-        let task: Task<UIImage?, Never>
+        let task: Task<PlatformImage?, Never>
         var waiters: Int
     }
     private var inFlight: [URL: Load] = [:]
 
     /// Cancelling the caller (a poster scrolled away before it arrived) stops the download,
     /// unless another view is still waiting for the same image.
-    func load(_ url: URL) async -> UIImage? {
+    func load(_ url: URL) async -> PlatformImage? {
         if let cached = ImageCache.shared.image(for: url) { return cached }
-        let task: Task<UIImage?, Never>
+        let task: Task<PlatformImage?, Never>
         if var load = inFlight[url] {
             load.waiters += 1
             inFlight[url] = load
             task = load.task
         } else {
-            task = Task<UIImage?, Never> {
-                guard let data = await Self.fetch(url), let image = UIImage(data: data) else { return nil }
-                let decoded = await image.byPreparingForDisplay() ?? image
+            task = Task<PlatformImage?, Never> {
+                guard let data = await Self.fetch(url), let image = PlatformImage(data: data) else { return nil }
+                let decoded = await image.preparedForDisplay()
                 ImageCache.shared.insert(decoded, for: url)
                 return decoded
             }
@@ -76,7 +76,7 @@ actor ImageLoader {
         return nil
     }
 
-    private func abandon(_ url: URL, _ task: Task<UIImage?, Never>) {
+    private func abandon(_ url: URL, _ task: Task<PlatformImage?, Never>) {
         guard var load = inFlight[url], load.task == task else { return }
         load.waiters -= 1
         if load.waiters > 0 {
@@ -99,14 +99,14 @@ struct RemoteImage<Placeholder: View>: View {
     var contentMode: ContentMode = .fill
     @ViewBuilder var placeholder: () -> Placeholder
 
-    @State private var loaded: UIImage?
+    @State private var loaded: PlatformImage?
     @State private var loadedURL: URL?
 
     var body: some View {
         let image = (loadedURL == url ? loaded : nil) ?? url.flatMap(ImageCache.shared.image(for:))
         ZStack {
             if let image {
-                Image(uiImage: image)
+                Image(platformImage: image)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
                     .transition(.opacity.animation(.easeOut(duration: 0.25)))

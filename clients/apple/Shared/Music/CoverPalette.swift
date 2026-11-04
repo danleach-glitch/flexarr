@@ -1,4 +1,4 @@
-import UIKit
+import CoreGraphics
 
 /// The colours of a cover, for the visualiser: its few strongest hues, each lifted to a level that glows on a dark room.
 /// A grey or black-and-white cover has none to speak of, so the track's own glow colour stands in. The web app picks
@@ -11,7 +11,7 @@ enum CoverPalette {
     }
 
     /// Up to four colours from `image`, filled out with neighbouring hues to `count`.
-    static func colours(of image: UIImage?, fallback: RGB, count: Int = 4) -> [RGB] {
+    static func colours(of image: PlatformImage?, fallback: RGB, count: Int = 4) -> [RGB] {
         let read = image.map { strongest(in: pixels(of: $0), count: count) } ?? []
         return fill(read.isEmpty ? [glow(fallback)] : read, to: count)
     }
@@ -61,8 +61,8 @@ enum CoverPalette {
     }
 
     /// The image drawn into 32 × 32 RGBA pixels.
-    private static func pixels(of image: UIImage) -> [UInt8] {
-        guard let cg = image.cgImage else { return [] }
+    private static func pixels(of image: PlatformImage) -> [UInt8] {
+        guard let cg = image.platformCGImage else { return [] }
         let side = 32
         var data = [UInt8](repeating: 0, count: side * side * 4)
         let drawn = data.withUnsafeMutableBytes { bytes -> Bool in

@@ -88,8 +88,8 @@ private struct DownloadRow: View {
                 Color.seat
                     .frame(width: 112, height: 63)
                     .overlay {
-                        if let name = download.imageFileName, let image = UIImage(contentsOfFile: DownloadStore.folder.appending(path: name).path(percentEncoded: false)) {
-                            Image(uiImage: image).resizable().scaledToFill()
+                        if let name = download.imageFileName, let image = PlatformImage(contentsOfFile: DownloadStore.folder.appending(path: name).path(percentEncoded: false)) {
+                            Image(platformImage: image).resizable().scaledToFill()
                         } else {
                             Image(systemName: "film").foregroundStyle(Color.usher)
                         }
@@ -168,7 +168,7 @@ private struct PodcastDownloadRow: View {
                     .frame(width: 63, height: 63)
                     .overlay {
                         if let image = store.image(named: download.imageFileName) {
-                            Image(uiImage: image).resizable().scaledToFill()
+                            Image(platformImage: image).resizable().scaledToFill()
                         } else {
                             Image(systemName: isBook ? "book.fill" : "mic.fill").foregroundStyle(Color.usher)
                         }
