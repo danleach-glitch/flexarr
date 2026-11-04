@@ -30,14 +30,14 @@
 
   document.title = `${owner} invited you to watch on Flexarr`;
   document.getElementById('title').textContent = `${owner} invited you to watch.`;
-  // The server's name, when the invite has one (servers from 0.61): "Watch films and shows on Smith House as Gran".
+  // The server's name, when the invite has one (servers from 0.61): "Watch movies and shows on Smith House as Gran".
   const server = typeof invite.m === 'string' && invite.m.trim() ? invite.m.trim() : null;
   if (typeof invite.p === 'string' && invite.p.trim()) {
     document.getElementById('lede').textContent = server
-      ? `Watch films and shows on ${server} as ${invite.p.trim()}, from wherever you are.`
+      ? `Watch movies and shows on ${server} as ${invite.p.trim()}, from wherever you are.`
       : `Watch ${owner}'s films and shows as ${invite.p.trim()}, from wherever you are.`;
   } else if (server) {
-    document.getElementById('lede').textContent = `Watch films and shows on ${server}, from wherever you are.`;
+    document.getElementById('lede').textContent = `Watch movies and shows on ${server}, from wherever you are.`;
   }
 
   // The app's own address for the invite, for when the link was opened somewhere that doesn't hand it to the app.
