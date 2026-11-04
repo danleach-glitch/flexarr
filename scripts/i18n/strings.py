@@ -240,6 +240,17 @@ def build(now=None, write_check=False):
     return out, problems
 
 
+def near_duplicates(keys):
+    """Groups of English that differ only in case, punctuation or spacing (Mark as Watched / Mark as watched.),
+    the candidates for one string or a shared word. Contexts count: music::Play isn't a duplicate of Play."""
+    groups = {}
+    for key in keys:
+        ctx = key.split("::")[0] if scan.CONTEXT_KEY.match(key) else ""
+        norm = re.sub(r"[\s.,!?…:;’'\"“”()–—-]+", " ", scan.english(key)).strip().casefold()
+        groups.setdefault((ctx, norm), []).append(key)
+    return [sorted(g) for g in groups.values() if len(g) > 1]
+
+
 def stale_files(out):
     """Generated files that would be written differently, plus bundled packs that shouldn't be there any more."""
     stale = [p for p, text in out.items() if not p.exists() or p.read_text(encoding="utf-8") != text]
@@ -276,6 +287,13 @@ def main(argv):
             path.write_text(text, encoding="utf-8")
     english = json.loads(out[PACKS / "en.json"])
     print(f"{len(english)} strings; packs: {', '.join(c for c in load_packs()) or 'none yet'}")
+    dupes = near_duplicates(english)
+    if dupes and "--duplicates" in argv:
+        print("Near-duplicates (make them one string, or a shared word in languages/words.json):")
+        for g in dupes:
+            print("  " + "  |  ".join(repr(k) for k in g))
+    elif dupes:
+        print(f"{len(dupes)} near-duplicate groups: `python3 scripts/i18n/strings.py --duplicates` lists them")
     return 0
 
 
