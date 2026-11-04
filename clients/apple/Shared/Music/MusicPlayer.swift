@@ -299,6 +299,9 @@ final class MusicPlayer {
     static var deviceName: String {
         #if os(tvOS)
         "Apple TV"
+        #elseif os(macOS)
+        // A family host's server hears only "Mac", not the name its owner gave it.
+        GuestMode.isActive ? ThisDevice.name : ThisDevice.ownName
         #else
         ThisDevice.ownName
         #endif

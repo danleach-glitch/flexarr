@@ -1,6 +1,9 @@
 import FlexarrKit
 import Foundation
 import Observation
+#if os(macOS)
+import SystemConfiguration
+#endif
 #if canImport(UIKit)
 import UIKit
 #else
@@ -1948,6 +1951,12 @@ struct ConnectionError: LocalizedError {
 /// What this device is called in messages: "Apple TV", "iPhone", "iPad" or "Mac".
 enum ThisDevice {
     #if os(macOS)
+    /// The Mac's own name, read once: the system configuration store answers at once, where `Host.current()` resolves
+    /// every address and can stall on a slow network.
+    private static let macName: String = (SCDynamicStoreCopyComputerName(nil, nil) as String?) ?? "Mac"
+    #endif
+
+    #if os(macOS)
     static let name = "Mac"
 
     /// Tells the server what this is, for its lists of devices.
@@ -1976,7 +1985,7 @@ enum ThisDevice {
     /// This device's own name, as its owner set it ("Dan's MacBook Air", "Living room"), for the server's lists.
     @MainActor static var ownName: String {
         #if os(macOS)
-        Host.current().localizedName ?? "Mac"
+        macName
         #else
         UIDevice.current.name
         #endif
