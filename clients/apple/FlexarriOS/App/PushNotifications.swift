@@ -5,6 +5,7 @@ import UIKit
 #else
 import AppKit
 #endif
+import Security
 import UserNotifications
 
 private let log = FlexarrLog("notifications")
@@ -16,6 +17,18 @@ private let log = FlexarrLog("notifications")
 @Observable
 final class PushNotifications {
     nonisolated static let videoCategory = "flexarr.video"
+
+    /// Whether this build can have notifications at all. Every iPhone build can; on the Mac only an App Store build
+    /// carries Apple's push entitlement (FlexarrMac-Store.entitlements), and a home build would only ever fail to
+    /// register, so it doesn't offer them.
+    nonisolated static let canRegister: Bool = {
+        #if os(macOS)
+        guard let task = SecTaskCreateFromSelf(nil) else { return false }
+        return SecTaskCopyValueForEntitlement(task, "com.apple.developer.aps-environment" as CFString, nil) != nil
+        #else
+        return true
+        #endif
+    }()
     nonisolated static let podcastCategory = "flexarr.podcast"
     nonisolated static let recordingCategory = "flexarr.recording"
     /// "Living room wants to connect": opening it asks to allow the device (see `PairingPrompts`). Allow opens the app
@@ -238,7 +251,7 @@ final class PushNotifications {
 
     /// Launch and coming to the front: asks Apple for the token again (it can change), which is then sent on.
     func refresh() {
-        guard isOn else { return }
+        guard isOn, Self.canRegister else { return }
         #if os(macOS)
         NSApplication.shared.registerForRemoteNotifications()
         #else

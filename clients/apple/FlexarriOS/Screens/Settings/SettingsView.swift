@@ -95,7 +95,9 @@ struct SettingsView: View {
                 if model.languages.count > 1 {
                     SettingsLink(t("Language"), icon: "globe", value: LanguageSettingsView.current(model)) { LanguageSettingsView() }
                 }
-                SettingsLink(t("Notifications"), icon: "bell.fill", value: notifications.isOn ? t("On") : t("Off")) { NotificationSettingsView() }
+                if PushNotifications.canRegister {
+                    SettingsLink(t("Notifications"), icon: "bell.fill", value: notifications.isOn ? t("On") : t("Off")) { NotificationSettingsView() }
+                }
                 SettingsLink("Siri", icon: "waveform", value: siriDeviceName ?? t("This {device}", ["device": ThisDevice.name])) { SiriSettingsView() }
                 if let trakt, trakt.available {
                     SettingsLink("Trakt", icon: "arrow.triangle.2.circlepath", value: trakt.state == .connected ? trakt.username ?? t("On") : trakt.state == .needsSignIn ? t("Signed out") : t("Off")) {
