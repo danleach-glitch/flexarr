@@ -43,11 +43,24 @@ public struct GuestTunnelInfo: Codable, Sendable, Equatable {
     public var hostname: String
     /// The host's name, for "Connected to Dan's Flexarr".
     public var ownerName: String
+    /// The server's name, from the invite (absent from invites before 0.61 and from guests who joined before).
+    public var serverName: String?
 
-    public init(target: String, hostname: String, ownerName: String) {
+    public init(target: String, hostname: String, ownerName: String, serverName: String? = nil) {
         self.target = target
         self.hostname = hostname
         self.ownerName = ownerName
+        self.serverName = serverName
+    }
+
+    /// What to call the host's server: its name, or "Dan's Flexarr".
+    public var serverTitle: String { Self.title(serverName: serverName, ownerName: ownerName) }
+
+    /// The server's name when there is one, else "Dan's Flexarr" (or "this Flexarr" with no owner either).
+    public static func title(serverName: String?, ownerName: String?) -> String {
+        if let name = serverName?.trimmingCharacters(in: .whitespaces), !name.isEmpty { return name }
+        if let owner = ownerName?.trimmingCharacters(in: .whitespaces), !owner.isEmpty { return t("{owner}’s Flexarr", ["owner": owner]) }
+        return t("this Flexarr")
     }
 }
 
@@ -81,6 +94,8 @@ public struct CredentialStore: Sendable {
 
     public func save(_ credentials: ServerCredentials) throws {
         let account = credentials.address.absoluteString
+        // Another server's name mustn't stay behind for this one.
+        if defaults.string(forKey: addressKey) != account { defaults.removeObject(forKey: "\(addressKey).name") }
         try writeKey(credentials.apiKey, account: account)
         defaults.set(account, forKey: addressKey)
         // A guest's address is its own tunnel on this device: no use to offer as the server to connect to again.
@@ -120,6 +135,14 @@ public struct CredentialStore: Sendable {
 
     public var savedKidsLock: Bool { defaults.bool(forKey: "\(addressKey).kidsLock") }
 
+    /// Remembers what the server is called, so Settings can say so while it can't be reached (nil forgets it).
+    public func saveServerName(_ name: String?) {
+        defaults.set(name?.trimmingCharacters(in: .whitespaces).isEmpty == false ? name : nil, forKey: "\(addressKey).name")
+    }
+
+    /// The server's name as it last gave it; nil before it has said (or for servers before 0.61).
+    public var savedServerName: String? { defaults.string(forKey: "\(addressKey).name") }
+
     public func clear() {
         if let text = defaults.string(forKey: addressKey) { deleteKey(account: text) }
         defaults.removeObject(forKey: "\(addressKey).profiles")
@@ -128,6 +151,7 @@ public struct CredentialStore: Sendable {
         defaults.removeObject(forKey: "\(addressKey).profile")
         defaults.removeObject(forKey: "\(addressKey).remote")
         defaults.removeObject(forKey: "\(addressKey).guest")
+        defaults.removeObject(forKey: "\(addressKey).name")
     }
 
     // MARK: Keychain

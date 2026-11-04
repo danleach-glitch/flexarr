@@ -101,6 +101,8 @@ public struct SystemStatus: Codable, Sendable, Equatable {
     /// The server's own random id, which `FlexarrClient.serverId(at:)` asks another address for before the app sends
     /// its sign-in there. Absent from servers before 0.55.
     public var serverId: String? = nil
+    /// What the server is called: the name its admin gave it, or its machine's name. Absent from servers before 0.61.
+    public var serverName: String? = nil
 }
 
 /// The server's error-report switch, which the apps follow: off unless the owner turned it on.
