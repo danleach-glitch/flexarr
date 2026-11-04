@@ -23,7 +23,8 @@ extension Localization {
         let onDevice = Self.newestOnDevice(code)
         show(onDevice)
         // The list says each pack's version: download only when the server's is newer than the device's.
-        let published = offered.first { Self.fallbacks(code).contains($0.code) }
+        // The most specific the server has (de-AT, then de); English is never a pack.
+        let published = Self.fallbacks(code).lazy.filter { $0 != "en" }.compactMap { c in offered.first { $0.code == c } }.first
         if let published, published.version > (onDevice?.version ?? -1), let pack = try? await client.languagePack(published.code) {
             Self.keep(pack)
             show(pack)

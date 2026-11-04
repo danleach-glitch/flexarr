@@ -98,3 +98,16 @@ import Testing
         #expect(StubProtocol.recorded(host: host).last?.value(forHTTPHeaderField: "Accept-Language") == "de")
     }
 }
+
+@Suite(.serialized) struct SettleTests {
+    @Test func downloadsTheMostSpecificPackNotEnglish() async {
+        // A server listing English first and en-XA: the pack asked for is en-XA's.
+        let list = #"{"languages":[{"code":"en","name":"English","direction":"ltr","version":0},{"code":"en-XA","name":"Pseudo","direction":"ltr","version":3}]}"#
+        let (client, host) = stubbedClient(.init(status: 200, body: Data(list.utf8)))
+        await Localization.shared.settle(profileChoice: "en-XA", client: client)
+        let asked = StubProtocol.recorded(host: host).compactMap { $0.url?.path }
+        #expect(asked.contains("/api/v1/languages/en-XA"))
+        #expect(!asked.contains("/api/v1/languages/en"))
+        Localization.shared.show(nil)
+    }
+}
