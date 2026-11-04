@@ -46,6 +46,12 @@ public sealed class FlexarrOptions
     public string? ServerId { get; set; }
 
     /// <summary>
+    /// What an admin named this server (Settings › Overview), announced on the network and shown in the apps. Empty
+    /// for the machine's name (<see cref="Configuration.ServerName"/>).
+    /// </summary>
+    public string? ServerName { get; set; }
+
+    /// <summary>
     /// Reverse proxies (addresses or CIDR ranges, such as "172.17.0.1" for Docker) whose X-Forwarded-For is believed.
     /// This machine is always trusted. Forwarded requests from anywhere else count as coming from the internet.
     /// Read at startup.
