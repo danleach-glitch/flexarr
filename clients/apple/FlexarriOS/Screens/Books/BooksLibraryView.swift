@@ -173,7 +173,7 @@ struct BooksLibraryView: View {
         .background(RoomBackground(ambient: (featured ?? browse.shelves?.continueListening.first)?.glowColor, intensity: featured == nil ? 0.18 : 0.28)
             .animation(.easeInOut(duration: 0.8), value: featured?.id))
         .navigationTitle(genre ?? browse.library.name)
-        .pageSwitch { if genre == nil { tabControl } }
+        .pageSwitch(Binding(get: { browse.browse }, set: { browse.browse = $0 }), genre == nil ? BookBrowse.allCases.map { ($0, $0.label) } : [])
         .pageActions {
             if browse.browse == .all { filterMenu }
         }

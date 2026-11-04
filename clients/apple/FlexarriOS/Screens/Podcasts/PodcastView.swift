@@ -89,20 +89,11 @@ struct PodcastView: View {
         } message: {
             Text(t("Its new episodes stop coming to this {device}. Episodes already downloaded stay until you delete them.", ["device": ThisDevice.name]))
         }
+        #if !os(macOS)
         .toolbar {
-            if let podcast = page.podcast {
-                Menu {
-                    Section(t("Order")) {
-                        order(t("Newest first"), oldest: false)
-                        order(t("Oldest first"), oldest: true)
-                    }
-                    Button { markingAllPlayed = true } label: { Label(t("Mark all as played"), systemImage: Symbol.watched) }
-                        .disabled(podcast.unplayedCount == 0)
-                } label: {
-                    Label(t("More"), systemImage: Symbol.more)
-                }
-            }
+            if let podcast = page.podcast { moreMenu(podcast) }
         }
+        #endif
         .task(id: model.refreshToken) {
             if page.skipsNextReload {
                 page.skipsNextReload = false
@@ -186,6 +177,21 @@ struct PodcastView: View {
         .padding(.horizontal, Layout.edge)
     }
 
+    /// The order of the episodes, and Mark all as played: in the navigation bar on the iPhone, beside Unplayed and All
+    /// on the Mac (whose toolbar holds only back and the page's switch).
+    private func moreMenu(_ podcast: Podcast) -> some View {
+        Menu {
+            Section(t("Order")) {
+                order(t("Newest first"), oldest: false)
+                order(t("Oldest first"), oldest: true)
+            }
+            Button { markingAllPlayed = true } label: { Label(t("Mark all as played"), systemImage: Symbol.watched) }
+                .disabled(podcast.unplayedCount == 0)
+        } label: {
+            Label(t("More"), systemImage: Symbol.more)
+        }
+    }
+
     /// How many episodes, and Unplayed or All.
     private func episodesHeading(_ podcast: Podcast) -> some View {
         HStack(spacing: 12) {
@@ -201,7 +207,14 @@ struct PodcastView: View {
                 Text(t("All")).tag(false)
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .fixedSize()
+            #if os(macOS)
+            moreMenu(podcast)
+                .labelStyle(.iconOnly)
+                .menuIndicator(.hidden)
+                .fixedSize()
+            #endif
         }
         .padding(.top, 12)
     }

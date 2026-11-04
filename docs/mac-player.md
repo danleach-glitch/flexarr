@@ -44,14 +44,17 @@ lists. Posters 176 pt wide with 18 pt between them. Rows 28 pt apart.
 
 **The window's toolbar** (`Shared/Design/PageChrome.swift`). See-through, over the page: heroes run up under it.
 - Left: back, and nothing else.
-- Middle: the page's view switch (Browse, All, Genres…; Discover's Movies and shows or Music), from `pageSwitch`,
-  segmented, large, the same size and place on every page.
+- Middle: the page's tabs (Browse, All, Genres…; Discover's Movies and shows or Music; Live TV's Channels, Guide and
+  Recordings), from `pageSwitch`: `PageTabs`, a capsule track with the chosen tab filled to its edges, the same size
+  and place on every page.
 - Right: the page's actions (Filter, Sort and filter, Recordings, Guide), from `pageActions`, each a named button with
-  its icon; search, where a page has one, after them. Search's own page has its field in the middle.
+  its icon; search, where a page has one, after them. Search's own page has its field in the middle. Controls that
+  belong to part of a page (a podcast's episode order, beside Unplayed and All) stay on the page, by that part.
 
 **Lists** (Settings, Downloads; `macReadable`). One centred column, 760 pt at most, with the page margin either side,
 headed by the page's title in the marquee face ("Settings › Server" inside Settings), rows at least 46 pt tall, icons
-14 pt from their words.
+14 pt from their words, and no toolbar band (back floats over the page). Every Settings page goes through
+`settingsPage`. No scroll bars anywhere: the Mac app is scrolled with a trackpad or wheel.
 
 **Wide pages.** Title pages put Play (or Request) at its own width with the other actions beside it; episodes are wide
 rows with the overview beside the picture; Coming soon's days are grids of cards; downloads have big artwork.

@@ -24,9 +24,7 @@ struct LanguageSettingsView: View {
             }
             .listRowBackground(Color.seat)
         }
-        .scrollContentBackground(.hidden)
-        .background(Color.room)
-        .navigationTitle(t("Language"))
+        .settingsPage(t("Language"))
         .disabled(saving)
     }
 

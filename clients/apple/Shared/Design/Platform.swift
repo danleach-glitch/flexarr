@@ -88,6 +88,8 @@ extension View {
         .frame(maxWidth: 760)
         .padding(.horizontal, Layout.edge)
         .frame(maxWidth: .infinity)
+        // No band for the toolbar over a list page: back floats over the page.
+        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         #else
         self
         #endif

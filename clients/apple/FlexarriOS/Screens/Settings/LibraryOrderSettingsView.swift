@@ -79,9 +79,7 @@ struct LibraryOrderSettingsView: View {
         #if os(iOS)
         .environment(\.editMode, .constant(.active))
         #endif
-        .scrollContentBackground(.hidden)
-        .background(RoomBackground(ambient: nil))
-        .navigationTitle(t("Library order"))
+        .settingsPage(t("Library order"))
         .navigationBarTitleDisplayMode(.inline)
     }
 }

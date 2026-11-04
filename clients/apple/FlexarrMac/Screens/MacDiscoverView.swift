@@ -44,14 +44,7 @@ struct MacDiscoverView: View {
         .navigationTitle(t(Words.discover))
         .searchable(text: $query, placement: .toolbar,
                     prompt: showing == .titles ? t("Search for a movie or show") : t("Search for an artist or album"))
-        .pageSwitch {
-            if offersTitles && offersMusic {
-                Picker(t(Words.discover), selection: $mode) {
-                    Text(t(Words.moviesAndShows)).tag(Mode.titles)
-                    Text(t(Words.music)).tag(Mode.music)
-                }
-            }
-        }
+        .pageSwitch($mode, offersTitles && offersMusic ? [(.titles, t(Words.moviesAndShows)), (.music, t(Words.music))] : [])
         // Again on coming back, so what was just requested says so.
         .task { await load() }
         .task(id: "\(showing)#\(words)") { await search() }

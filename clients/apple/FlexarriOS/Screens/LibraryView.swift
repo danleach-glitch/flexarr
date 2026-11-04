@@ -99,7 +99,7 @@ struct LibraryView: View {
             }
         }
         .navigationTitle(initialGenre ?? library.name)
-        .pageSwitch { switchControl }
+        .pageSwitch($showing, switchOptions)
         .pageActions {
             if showing == .all || showing == .albums { sortAndFilter }
         }
@@ -141,7 +141,7 @@ struct LibraryView: View {
     }
 
     /// Browse, All (movies, shows or folders) and Genres, as one segmented control at the top of each view. On the Mac
-    /// it's in the window's toolbar instead (`switchControl`), as Mac apps put theirs.
+    /// it's in the window's toolbar instead, as `PageTabs` (`switchOptions`), as Mac apps put theirs.
     @ViewBuilder
     private var viewSwitch: some View {
         #if !os(macOS)
@@ -149,6 +149,17 @@ struct LibraryView: View {
             .padding(.horizontal, Layout.edge)
             .padding(.bottom, 4)
         #endif
+    }
+
+    /// The views the switch offers, in order, with their names.
+    private var switchOptions: [(Showing, String)] {
+        guard (Self.hasBrowse(library, genre: initialGenre) || hasGenres) && !(music && initialGenre != nil) else { return [] }
+        var options: [(Showing, String)] = []
+        if Self.hasBrowse(library, genre: initialGenre) { options.append((.browse, t(Words.browse))) }
+        options.append((.all, music ? t(Words.artists) : library.type == .tvShows ? t("All shows") : library.type == .homeVideos ? t("All folders") : t("All movies")))
+        if music, offersAlbums { options.append((.albums, t(Words.albums))) }
+        if hasGenres { options.append((.genres, t(Words.genres))) }
+        return options
     }
 
     @ViewBuilder
