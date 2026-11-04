@@ -86,22 +86,22 @@ Flexarr looks like one product everywhere, and behaves like it belongs on each d
 - The tokens above, the ambient colour, and the 4 / 10 / 14 shapes.
 - Big Shoulders Display for titles, row headings and Top 10 numerals.
 - The main button's look: the ambient fill (silver when a title has none). On the TVs it's ambient at rest and projected white when focused, as tvOS and Google TV expect focus to look.
-- The film and show page's actions, in this order: **Play** or **Resume from 32:10**, **Start over** (only once there's progress), **Shuffle** (shows), **Trailer** (not for children), **Watched**, **Watchlist**, **Download** (phones only), then **⋯**. The ⋯ menu holds the rest: subtitles, add to a collection, fix match, allow or block for kids, delete. The phones keep three beside Play, like an episode's page: **Start over** and **Download** always stay, and the rest fill by where you are with the title (before starting **Trailer**, **Watchlist**, then **Watched**; once started or watched **Watched**, **Watchlist**, then **Trailer**; **Shuffle** last). What doesn't fit goes to the top of ⋯, named in full (*Mark as watched*, *Add to watchlist*). **Watched** is a toggle like **Download**: the tick fills, the name stays. The order is defined once in `DetailActions` (FlexarrKit and Android `core`) and on web in `ItemPage`.
-- An audiobook's actions, in this order: **Play** or **Resume** (**Pause** while it plays), **Start over** (only once there's a place or it's finished; part way through it asks first, and offers **Mark as unread** there), **Finished** / **Unread** (a toggle; not for children), **Download** (phones only), then **⋯**. The apps spell out **Play** and show the rest as labelled icons (phones) or round icons (the TVs). The order is defined once in `BookActions` (FlexarrKit and Android `core`) and on web in `BookPage`.
-- An artist's or album's actions, in this order: **Play**, **Shuffle**, **Radio** (artists), **Download** (phones, albums), **Follow** / **Following** (artists) or **Request album** / **Requested** (albums, when music requests are on), then **⋯** (queue actions; **Delete…** for the main profile on web). Nothing to play (a followed artist with no albums yet, an album from outside the library) leaves out the first four. The web labels each button beside its icon. The apps spell out **Play** and show the rest as round icons (the TVs name the focused one under the row); on the phones a **Follow** or **Request album** that's the page's only button is spelled out too. Pressing **Following** or **Requested** asks once (*Stop following …?*, *Unrequest …?*) and takes it back. The order is defined once in `MusicActions` (FlexarrKit and Android `core`).
+- The film and show page's actions, in this order: **Play** or **Resume from 32:10**, **Start over** (only once there's progress), **Shuffle** (shows), **Trailer** (not for children), **Watched**, **Watchlist**, **Download** (phones and the Mac), then **⋯**. The ⋯ menu holds the rest: subtitles, add to a collection, fix match, allow or block for kids, delete. The phones keep three beside Play, like an episode's page: **Start over** and **Download** always stay, and the rest fill by where you are with the title (before starting **Trailer**, **Watchlist**, then **Watched**; once started or watched **Watched**, **Watchlist**, then **Trailer**; **Shuffle** last). What doesn't fit goes to the top of ⋯, named in full (*Mark as watched*, *Add to watchlist*). **Watched** is a toggle like **Download**: the tick fills, the name stays. The order is defined once in `DetailActions` (FlexarrKit and Android `core`) and on web in `ItemPage`.
+- An audiobook's actions, in this order: **Play** or **Resume** (**Pause** while it plays), **Start over** (only once there's a place or it's finished; part way through it asks first, and offers **Mark as unread** there), **Finished** / **Unread** (a toggle; not for children), **Download** (phones and the Mac), then **⋯**. The apps spell out **Play** and show the rest as labelled icons (phones) or round icons (the TVs). The order is defined once in `BookActions` (FlexarrKit and Android `core`) and on web in `BookPage`.
+- An artist's or album's actions, in this order: **Play**, **Shuffle**, **Radio** (artists), **Download** (phones and the Mac, albums), **Follow** / **Following** (artists) or **Request album** / **Requested** (albums, when music requests are on), then **⋯** (queue actions; **Delete…** for the main profile on web). Nothing to play (a followed artist with no albums yet, an album from outside the library) leaves out the first four. The web labels each button beside its icon. The apps spell out **Play** and show the rest as round icons (the TVs name the focused one under the row); on the phones a **Follow** or **Request album** that's the page's only button is spelled out too. Pressing **Following** or **Requested** asks once (*Stop following …?*, *Unrequest …?*) and takes it back. The order is defined once in `MusicActions` (FlexarrKit and Android `core`).
 - The words (below).
 
 **Native on each**
 
-| | Web and Mac | iPhone | Apple TV | Android phone | Android TV |
-| --- | --- | --- | --- | --- | --- |
-| Navigation | Sidebar, drawer on small screens | Tab bar (sidebar on iPad) | Sidebar | Bottom bar (rail on tablets) | Sidebar |
-| Body font | Atkinson Hyperlegible Next | SF, with Dynamic Type | SF | Roboto | Roboto |
-| Focus | Ambient glow | Press dims | System card lift plus ambient glow | Press dims | Scale plus ambient glow |
-| Back | Browser | Swipe from the edge | Menu button | Predictive back | Back button |
-| Notices | Toast at the bottom | Banner at the top | Alert | Snackbar | Snackbar |
-| Trailer | Embedded player | Sheet with the embedded player | YouTube app, when installed | Sheet with the embedded player | YouTube app, when installed |
-| Player | Custom controls | Custom controls, AirPlay, PiP | Custom controls | Custom controls, PiP | Custom controls |
+| | Web (and Flexarr Server on a Mac) | iPhone | Apple TV | Mac app | Android phone | Android TV |
+| --- | --- | --- | --- | --- | --- | --- |
+| Navigation | Sidebar, drawer on small screens | Tab bar (sidebar on iPad) | Sidebar | Sidebar with the libraries in it | Bottom bar (rail on tablets) | Sidebar |
+| Body font | Atkinson Hyperlegible Next | SF, with Dynamic Type | SF | SF | Roboto | Roboto |
+| Focus | Ambient glow | Press dims | System card lift plus ambient glow | Press dims, as on the iPad | Press dims | Scale plus ambient glow |
+| Back | Browser | Swipe from the edge | Menu button | ⌘[ and the toolbar's back | Predictive back | Back button |
+| Notices | Toast at the bottom | Banner at the top | Alert | Banner at the top | Snackbar | Snackbar |
+| Trailer | Embedded player | Sheet with the embedded player | YouTube app, when installed | Sheet with the embedded player | Sheet with the embedded player | YouTube app, when installed |
+| Player | Custom controls | Custom controls, AirPlay, PiP | Custom controls | Custom controls, full screen, AirPlay, PiP, keyboard | Custom controls, PiP | Custom controls |
 
 ## Words
 
@@ -125,23 +125,23 @@ The same words on every client and in the guide. The ones every client shares ar
 
 What's on each client today. The gaps are for future briefs. How the four kinds of library (Movies, TV shows, Music, Audiobooks) compare with each other is in [library-parity.md](library-parity.md).
 
-| Screen | Web | iPhone | Apple TV | Android phone | Android TV |
-| --- | --- | --- | --- | --- | --- |
-| Home, libraries, detail, search, player | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Trailer | ✅ | ✅ | ✅ | ✅ | ✅ |
-| IMDb and Rotten Tomatoes scores | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Coming soon page | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Watchlist | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Music | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Audiobooks | ✅ | ✅ | ✅ | ✅ | 🟡 points to the phone |
-| Podcasts | ✅ | ✅ | ❌ | ✅ | ❌ by design |
-| Live TV | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Discover | ✅ | ❌ | ✅ | ❌ | ✅ |
-| Music requests | ✅ Discover › Music, artist pages | 🟡 Search, artist pages | ✅ Discover › Music, artist pages | 🟡 Search, artist pages | ✅ Discover › Music, artist pages |
-| Collections | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Playlists and mixes pages | ✅ | 🟡 in Music | 🟡 in Music | 🟡 in Music | 🟡 in Music |
-| Downloads | ❌ | ✅ | ❌ | ✅ | ❌ |
-| A–Z rail | ✅ | ❌ | ❌ | ❌ | ✅ |
-| Server settings (libraries, backups, logs…) | ✅ | ❌ | ❌ | ❌ | ❌ by design |
+| Screen | Web | iPhone | Apple TV | Mac | Android phone | Android TV |
+| --- | --- | --- | --- | --- | --- | --- |
+| Home, libraries, detail, search, player | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Trailer | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| IMDb and Rotten Tomatoes scores | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Coming soon page | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Watchlist | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Music | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Audiobooks | ✅ | ✅ | ✅ | ✅ | ✅ | 🟡 points to the phone |
+| Podcasts | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ by design |
+| Live TV | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Discover | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ |
+| Music requests | ✅ Discover › Music, artist pages | 🟡 Search, artist pages | ✅ Discover › Music, artist pages | 🟡 Search, artist pages | 🟡 Search, artist pages | ✅ Discover › Music, artist pages |
+| Collections | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Playlists and mixes pages | ✅ | 🟡 in Music | 🟡 in Music | 🟡 in Music | 🟡 in Music | 🟡 in Music |
+| Downloads | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| A–Z rail | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Server settings (libraries, backups, logs…) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ by design |
 
 ✅ there, 🟡 partly, ❌ missing.
