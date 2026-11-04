@@ -125,6 +125,7 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         Assert.Equal("Gran", payload.P);
         Assert.Equal("Gran's iPad", payload.G);
         Assert.False(string.IsNullOrEmpty(payload.S));
+        Assert.Equal(Flexarr.Api.Configuration.ServerName.Default, payload.M);
         Assert.Equal(factory.Clock.GetUtcNow().UtcDateTime.AddDays(3), invite.Invite.ExpiresAt, TimeSpan.FromDays(1));
         using var admin = factory.Admin();
         var waiting = await admin.GetFromJsonAsync<List<GuestInviteDto>>("/api/v1/remote/guests/invites", Web);

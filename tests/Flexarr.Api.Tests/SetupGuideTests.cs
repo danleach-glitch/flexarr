@@ -77,7 +77,7 @@ public sealed class SetupGuideTests
 
         Assert.True(result!.Ok, result.Error);
         var saved = Assert.Single(bodies, b => b.Path == "/api/v3/notification").Body;
-        Assert.Equal("Flexarr", saved["name"]!.GetValue<string>());
+        Assert.Equal(SetupGuideEndpoints.ConnectionName(Flexarr.Api.Configuration.ServerName.Default, []), saved["name"]!.GetValue<string>());
         Assert.True(saved["onDownload"]!.GetValue<bool>());
         Assert.True(saved["onSeriesDelete"]!.GetValue<bool>());
         Assert.False(saved["onGrab"]!.GetValue<bool>()); // Not a file change.
@@ -113,7 +113,7 @@ public sealed class SetupGuideTests
 
         Assert.True(result!.Ok, result.Error);
         Assert.DoesNotContain(arr.Requests, r => r.StartsWith("PUT ", StringComparison.Ordinal));
-        Assert.StartsWith("Flexarr (", JsonNode.Parse(saved!)!["name"]!.GetValue<string>(), StringComparison.Ordinal);
+        Assert.NotEqual("Flexarr", JsonNode.Parse(saved!)!["name"]!.GetValue<string>());
     }
 
     [Fact]
