@@ -67,9 +67,9 @@ You're signed in as the server's **main profile**, the one that can change setti
 
 ## The server's name
 
-Phones and TVs list the server by its name under **Servers on your network**, and show it in their **Settings › Server**. Family guests see it too, and so does the browser tab. A new server is named after the computer it runs on (in Docker, just "Flexarr").
+Phones and TVs list the server by its name under **Servers on your network**, and show it in their **Settings › Server**, and so does the browser tab. Family guests see it once you've named it; until then they see your name, as in "Dan's Flexarr". A new server is named after the computer it runs on (in Docker, just "Flexarr").
 
-To rename it, go to **Settings › Overview** and choose the pencil beside **Name** under **Server**. Type the new name (up to 40 characters) and choose **Save**. Every app shows the new name the next time it opens. **Use the machine’s name** goes back to the computer's name.
+To rename it, go to **Settings › Overview** and choose the pencil beside **Name** under **Server**. Type the new name (up to 40 characters) and choose **Save**. Apps pick the new name up when they next come back on screen. Clear the box and save to go back to the computer's name.
 
 ## Add your libraries
 
