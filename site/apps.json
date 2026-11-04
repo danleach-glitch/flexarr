@@ -54,6 +54,17 @@
       ]
     },
     {
+      "id": "mac-player",
+      "name": "Mac",
+      "icon": "apple",
+      "status": "development",
+      "requires": "A Mac with Apple silicon, macOS 15.2 or later",
+      "summary": "Your libraries in a Mac window, a full-screen player with Picture in Picture and AirPlay, and downloads for watching away from home. On the same App Store page as the iPhone and Apple TV app.",
+      "links": [
+        { "label": "How it connects", "href": "/guide/connect-devices#mac", "short": "Guide" }
+      ]
+    },
+    {
       "id": "home-assistant",
       "name": "Home Assistant",
       "icon": "home-assistant",
