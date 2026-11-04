@@ -352,6 +352,20 @@ struct FlexarrClientTests {
         #expect(query.contains(.init(name: "take", value: "30")))
     }
 
+    /// The Mac's search field on a library page asks the server, not the page loaded so far; an empty search asks
+    /// for the whole library.
+    @Test func libraryItemsSendsSearch() async throws {
+        let (client, host) = stubbedClient(.init(status: 200, body: try Fixture.data("library-items")))
+
+        _ = try await client.libraryItems("lib", search: "alien")
+        _ = try await client.libraryItems("lib", search: "")
+
+        let urls = StubProtocol.recorded(host: host).compactMap(\.url)
+        let queries = urls.map { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems ?? [] }
+        #expect(queries.first?.contains(.init(name: "search", value: "alien")) == true)
+        #expect(queries.last?.contains(where: { $0.name == "search" }) == false)
+    }
+
     @Test func startPlaybackPostsTvOSProfile() async throws {
         let (client, host) = stubbedClient(.init(status: 200, body: try Fixture.data("playback")))
 
