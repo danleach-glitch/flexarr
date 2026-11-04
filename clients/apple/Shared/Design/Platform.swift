@@ -41,10 +41,19 @@ extension NSImage {
         return cgImage(forProposedRect: &rect, context: nil, hints: nil)
     }
 
-    /// An NSImage decodes as it's first drawn; drawing it once off the main thread here keeps that out of scrolling.
+    /// An NSImage decodes as it's first drawn: drawn here into a bitmap, off the main thread, so scrolling never waits
+    /// for a JPEG. Artwork bigger than a 5K screen's width is drawn at that size.
     func preparedForDisplay() async -> NSImage {
         guard let cg = platformCGImage else { return self }
-        return NSImage(cgImage: cg, size: size)
+        let scale = min(1, 2880 / CGFloat(max(cg.width, 1)))
+        let width = Int(CGFloat(cg.width) * scale), height = Int(CGFloat(cg.height) * scale)
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: cg.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return self }
+        context.interpolationQuality = .high
+        context.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let decoded = context.makeImage() else { return self }
+        return NSImage(cgImage: decoded, size: size)
     }
 
     var pixelSize: CGSize {
