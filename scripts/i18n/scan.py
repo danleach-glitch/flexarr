@@ -121,7 +121,7 @@ def scan_text(src, lang, call):
     for m in call.finditer(src):
         line = src.count("\n", 0, m.start()) + 1
         before = src[src.rfind("\n", 0, m.start()) + 1:m.start()]
-        if re.search(r"(^|\s)//", before) or before.lstrip().startswith("*"):
+        if re.search(r"(^|\s)//", before) or before.lstrip().startswith(("*", "/*")):
             continue  # a comment: an example, not a lookup
         try:
             lit = read_literal(src, m.end(), lang)
