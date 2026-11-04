@@ -151,7 +151,7 @@ fun WaitingDevicesSection(model: AppModel, header: String? = t("Devices waiting 
             footer = problem ?: listOfNotNull(
                 t("Allow one only if its screen shows the same code.").takeIf { waiting.isNotEmpty() },
                 // Without them, a device asking is only heard about while Flexarr is open here.
-                t("Turn on Notifications to be asked when Flexarr isn't open.").takeIf { !model.notifications.isOn },
+                t("Turn on Notifications to be asked when Flexarr isn’t open.").takeIf { !model.notifications.isOn },
             ).joinToString(" ").ifEmpty { null },
         ) {
             // Locked here: allowing takes the admin PIN, given once for any of them.
@@ -194,7 +194,7 @@ private fun WaitingDeviceRow(device: WaitingDevice, sending: Boolean, enabled: B
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(device.deviceName, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(device.shortSummary, fontSize = 13.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (!device.asks) Text(t("You turned this away. Allow it if it's yours."), fontSize = 13.sp, color = Flexarr.usher)
+                if (!device.asks) Text(t("You turned this away. Allow it if it’s yours."), fontSize = 13.sp, color = Flexarr.usher)
                 Text(
                     styledParts(t("Code {code}", "code" to device.code), device.code, style = SpanStyle(fontWeight = FontWeight.Bold, color = Flexarr.screen)),
                     fontSize = 15.sp,

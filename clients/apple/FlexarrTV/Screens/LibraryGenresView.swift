@@ -73,7 +73,7 @@ struct LibraryGenresView: View {
         } else {
             Group {
                 if genres != nil {
-                    StatusView(state: .empty(t("No genres here yet. They come with each title's details once a scan has found them.")))
+                    StatusView(state: .empty(t("No genres here yet. They come with each title’s details once a scan has found them.")))
                 } else if let error {
                     StatusView(state: .failed(error) { Task { await load() } })
                 } else {

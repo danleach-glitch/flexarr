@@ -4,6 +4,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Every app and the web
+- Words read the same on every screen and app: "Add to favourites", "Go to podcast", "Remove download", "Now playing" on the TV, "TV shows" and "Home videos", and curly apostrophes throughout, where some said "Add to Favourites" or "Couldn't". The live player says "Live" on every app.
+
 ### Android
 - Counts read properly for one of something: "1 track", "1 season" and "1 episode" where some said "1 tracks" or "1 songs".
 - Dates, times, numbers and file sizes follow your phone's or TV's own way of writing them everywhere.
@@ -15,9 +18,14 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A film that switches the TV's frame rate no longer flashes coloured noise before it starts.
 - Picture subtitles no longer go missing after skipping forward and then back.
 
+### iPhone and Android
+- **Mark as unplayed** on a podcast episode you'd started now starts it again from the beginning, and its ring empties, even when it's still in the player. **Mark as played** takes it out of the player. Audiobooks do the same with **Mark as unread** and **Mark as finished**.
+- A download follows what you mark: marked played or finished anywhere, its downloaded copy is too, and marked unplayed or unread, the copy starts from the beginning.
+
 ### Web
 - Counts read properly for one of something: "1 track", "1 season" and "1 channel" where some said "1 tracks".
 - Dates and numbers follow your browser's own way of writing them everywhere, including the live TV guide and recordings.
+- Going from page to page in the newest Chrome no longer shows "Something went wrong".
 
 ### Website
 - flexarr.io/why is now linked from every page: how Flexarr compares with Plex, Jellyfin and Emby and with the Infuse, Plezy, Swiftfin and Rivulet apps, brought up to 0.60.0 with music requests, scores, fixing matches, what a show is missing and audiobooks.

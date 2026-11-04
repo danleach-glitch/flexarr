@@ -555,7 +555,7 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         var (oldResponse, _) = await ListenAsync(oldTv, "?accepts=Seek");
         var refused = await Admin().PostAsJsonAsync(Api($"/devices/{old}/play"), new { itemId = book });
         Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
-        Assert.Contains("can't play audiobooks", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Contains("can’t play audiobooks", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         oldResponse.Dispose();
 
         // One that hasn't said since the server started: open it first.

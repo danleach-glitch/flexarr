@@ -513,7 +513,7 @@ fun TvLiveGuideGrid(
                 add(MenuAction(recordLabel(programme)) { act { toggleRecording(client, programme, channel.id) } })
                 add(MenuAction(seriesLabel(programme)) { act { toggleSeries(client, programme, channel.id); null } })
             }
-            if (onFavourite != null) add(MenuAction(if (channel.isFavourite) t("Remove from Favourites") else t("Add to Favourites")) { onFavourite(channel) })
+            if (onFavourite != null) add(MenuAction(if (channel.isFavourite) t("Remove from favourites") else t("Add to favourites")) { onFavourite(channel) })
         }, onDismiss = { menu = null })
     }
     notice?.let { message ->

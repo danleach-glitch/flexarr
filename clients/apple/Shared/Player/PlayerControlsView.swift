@@ -158,7 +158,7 @@ final class PlayerControlsView: UIView {
         if isLive {
             let behind = max(0, duration - shown)
             elapsedLabel.text = Self.timeOfDay.string(from: Date().addingTimeInterval(-behind))
-            remainingLabel.text = behind < LiveTransport.liveSlack ? t("LIVE") : "−" + ScrubberView.clock(behind)
+            remainingLabel.text = behind < LiveTransport.liveSlack ? t("Live") : "−" + ScrubberView.clock(behind)
             return
         }
         elapsedLabel.text = ScrubberView.clock(shown)

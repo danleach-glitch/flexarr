@@ -503,7 +503,7 @@ function FileInfo({ files, itemId, kind }: { files: MediaFile[]; itemId: string;
       {files.map((file) => (
         <div key={file.id} className="file">
           <code>{file.path}</code>
-          {file.probeError && <p className="error">{t("This file couldn't be read: {reason}", { reason: file.probeError })}</p>}
+          {file.probeError && <p className="error">{t('This file couldn’t be read: {reason}', { reason: file.probeError })}</p>}
           <dl>
             <dt>{t('Video')}</dt>
             <dd>{[file.videoCodec?.toUpperCase(), file.width && `${file.width}×${file.height}`, pictureLabel(file)].filter(Boolean).join(', ') || t('None')}</dd>

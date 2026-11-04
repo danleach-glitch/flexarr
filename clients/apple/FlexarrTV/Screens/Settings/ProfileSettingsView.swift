@@ -18,8 +18,8 @@ struct ProfileSettingsView: View {
             SettingsRow(title: t("Stay with the last profile"), symbol: "person.crop.circle.badge.checkmark",
                         help: t("Flexarr opens as whoever watched last on this Apple TV."),
                         accessory: asksWhoIsWatching ? .none : .checkmark) { choose(false) }
-            SettingsRow(title: t("Ask who's watching"), symbol: "person.2",
-                        help: t("Flexarr opens on Who's watching? each time it starts, so everyone's history stays their own. Profiles with a PIN ask for it every time."),
+            SettingsRow(title: t("Ask who’s watching"), symbol: "person.2",
+                        help: t("Flexarr opens on Who’s watching? each time it starts, so everyone’s history stays their own. Profiles with a PIN ask for it every time."),
                         accessory: asksWhoIsWatching ? .checkmark : .none) { choose(true) }
             if model.offersKidsLock {
                 SettingsGroupLabel(t("Kids"))

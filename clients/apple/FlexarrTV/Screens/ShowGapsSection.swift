@@ -180,7 +180,7 @@ struct ShowGapsSection: View {
                     Label(asked.contains(-season) ? t("Searching") : t(Words.search), systemImage: Symbol.search)
                 }
                 .buttonStyle(ActionButtonStyle())
-                .accessibilityLabel(t("Search for season {season}'s missing episodes", ["season": season]))
+                .accessibilityLabel(t("Search for season {season}’s missing episodes", ["season": season]))
                 .padding(.top, 8)
             }
         }

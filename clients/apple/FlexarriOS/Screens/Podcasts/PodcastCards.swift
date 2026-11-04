@@ -188,7 +188,7 @@ struct PodcastEpisodeRow: View {
                 Label(episode.isPlayed ? t("Mark as unplayed") : t(Words.markAsPlayed), systemImage: episode.isPlayed ? Symbol.markUnwatched : Symbol.watched)
             }
             // Part way through: unplayed forgets the place, so it leaves the listening list.
-            if episode.progress != nil {
+            if model.hasPlace(episode) {
                 Button { markUnplayed() } label: { Label(t("Mark as unplayed"), systemImage: "circle") }
             }
         }
@@ -391,7 +391,7 @@ struct EpisodeDownloadButton: View {
             }
             Button(t(Words.cancel), role: .cancel) {}
         }
-        .alert(t("Couldn't download this"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+        .alert(t("Couldn’t download this"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
             Button(t("Try again")) {
                 if let download { store.delete(download.id) }
                 Task { await start() }
@@ -400,7 +400,7 @@ struct EpisodeDownloadButton: View {
         } message: {
             Text(failure ?? "")
         }
-        .alert(t("Couldn't download this"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+        .alert(t("Couldn’t download this"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button(t("OK"), role: .cancel) {}
         } message: {
             Text(error ?? "")
@@ -496,7 +496,7 @@ struct EpisodeSheet: View {
                     }
                     .buttonStyle(RoundActionStyle())
                     .accessibilityValue(isPlayed ? t("Played") : "")
-                    if shown.progress != nil, played == nil {
+                    if model.hasPlace(shown), played == nil {
                         // Part way through: forget the place without marking it played.
                         Button {
                             if let setPlayed {

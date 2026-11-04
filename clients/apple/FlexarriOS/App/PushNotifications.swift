@@ -98,7 +98,7 @@ final class PushNotifications {
         // from 0.56 it takes the admin PIN when the main profile is locked here, and only the app can ask.
         let allow = UNNotificationAction(identifier: allowPairingAction, title: t("Allow"), options: [.foreground],
                                          icon: UNNotificationActionIcon(systemImageName: "checkmark"))
-        let decline = UNNotificationAction(identifier: declinePairingAction, title: t("Don't allow"),
+        let decline = UNNotificationAction(identifier: declinePairingAction, title: t("Don’t allow"),
                                            options: [.destructive, .authenticationRequired],
                                            icon: UNNotificationActionIcon(systemImageName: "xmark"))
         UNUserNotificationCenter.current().setNotificationCategories([
@@ -274,7 +274,7 @@ final class PushNotifications {
 
     /// No token from Apple.
     struct NoToken: LocalizedError {
-        var errorDescription: String? { t("Couldn't reach Apple's notification service. Check this {device} is online and try again.", ["device": ThisDevice.name]) }
+        var errorDescription: String? { t("Couldn’t reach Apple’s notification service. Check this {device} is online and try again.", ["device": ThisDevice.name]) }
     }
 
     private func register(as credentials: ServerCredentials, settings: NotificationSettings,

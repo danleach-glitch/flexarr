@@ -26,7 +26,7 @@ struct LiveTvView: View {
         Group {
             if let channels {
                 if channels.isEmpty {
-                    StatusView(state: .empty(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr's user.")))
+                    StatusView(state: .empty(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.")))
                 } else if showsGuide {
                     VStack(spacing: 0) {
                         chips.padding(.vertical, 6)
@@ -108,7 +108,7 @@ struct LiveTvView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { model.watch(channel, among: order) }
                     .accessibilityAddTraits(.isButton)
-                    .accessibilityAction(named: channel.isFavourite ? t("Remove from Favourites") : t("Add to Favourites")) {
+                    .accessibilityAction(named: channel.isFavourite ? t("Remove from favourites") : t("Add to favourites")) {
                         setFavourite(channel, !channel.isFavourite)
                     }
                     .swipeActions(edge: .leading, allowsFullSwipe: true) {
@@ -125,7 +125,7 @@ struct LiveTvView: View {
                             }
                         }
                         Button { setFavourite(channel, !channel.isFavourite) } label: {
-                            Label(channel.isFavourite ? t("Remove from Favourites") : t("Add to Favourites"), systemImage: channel.isFavourite ? "star.slash" : "star")
+                            Label(channel.isFavourite ? t("Remove from favourites") : t("Add to favourites"), systemImage: channel.isFavourite ? "star.slash" : "star")
                         }
                     }
                     .listRowBackground(Color.clear)
@@ -190,8 +190,8 @@ struct LiveTvView: View {
             do {
                 let recording = try await client.record(programme: programme.id)
                 notice = recording.clashes
-                    ? t("{title} clashes with recordings already on the list: every stream is wanted then, so it won't record unless one of them comes off.", ["title": programme.title])
-                    : t("{title} will be recorded. Recordings, at the top, lists what's set.", ["title": programme.title])
+                    ? t("{title} clashes with recordings already on the list: every stream is wanted then, so it won’t record unless one of them comes off.", ["title": programme.title])
+                    : t("{title} will be recorded. Recordings, at the top, lists what’s set.", ["title": programme.title])
             } catch {
                 notice = error.localizedDescription
             }

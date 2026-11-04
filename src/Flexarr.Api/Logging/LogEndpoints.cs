@@ -40,7 +40,7 @@ public static class LogEndpoints
         {
             if (update.Areas?.FirstOrDefault(a => LogAreas.Find(a.Key) is null) is { } unknown)
             {
-                return Problems.Field("There's no area called “{key}”.", field: "areas", args: new { key = unknown.Key });
+                return Problems.Field("There’s no area called “{key}”.", field: "areas", args: new { key = unknown.Key });
             }
 
             var current = options.CurrentValue;

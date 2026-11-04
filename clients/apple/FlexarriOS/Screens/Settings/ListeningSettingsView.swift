@@ -17,7 +17,7 @@ struct ListeningSettingsView: View {
             if speed == nil {
                 Group {
                     if loadFailed {
-                        StatusView(state: .failed(t("Your settings couldn't be loaded."), retry: { Task { await load() } }))
+                        StatusView(state: .failed(t("Your settings couldn’t be loaded."), retry: { Task { await load() } }))
                     } else {
                         StatusView(state: .loading)
                     }
@@ -65,7 +65,7 @@ struct ListeningSettingsView: View {
                 } footer: {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(t("A book with a speed of its own keeps it. Smart rewind starts a little earlier after a pause."))
-                        if failed { Text(t("That didn't save. Try again.")).foregroundStyle(Color.danger) }
+                        if failed { Text(t("That didn’t save. Try again.")).foregroundStyle(Color.danger) }
                     }
                 }
             }

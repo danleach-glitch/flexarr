@@ -41,11 +41,11 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
         case .unexpectedResponse:
             t("That address answered, but not like a Flexarr server. Check the host name and port.")
         case .invalidResponse:
-            t("The server sent a response that couldn't be read.")
+            t("The server sent a response that couldn’t be read.")
         case .invalidAddress:
-            t("That doesn't look like a server address. Try something like http://192.168.1.20:8383.")
+            t("That doesn’t look like a server address. Try something like http://192.168.1.20:8383.")
         case .unreachable:
-            t("Couldn't reach the server, at home or over Tailscale. Make sure Flexarr is running, and that Tailscale is connected on this device.")
+            t("Couldn’t reach the server, at home or over Tailscale. Make sure Flexarr is running, and that Tailscale is connected on this device.")
         }
     }
 }

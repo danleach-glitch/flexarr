@@ -262,7 +262,7 @@ public static class BookEndpoints
 
         return await converter.ConvertAsync(part.FileId, part.Path, ct) is { } converted
             ? Results.File(converted, "audio/mp4", enableRangeProcessing: true)
-            : Problems.Of("This book file couldn't be converted.", status: 500);
+            : Problems.Of("This book file couldn’t be converted.", status: 500);
     }
 
     private static string ContentType(string path) => Path.GetExtension(path).ToLowerInvariant() switch

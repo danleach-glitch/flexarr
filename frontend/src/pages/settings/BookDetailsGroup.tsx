@@ -32,7 +32,7 @@ export function BookDetailsGroup() {
     try {
       setSettings(await saveBookMetadataSettings(changes))
     } catch {
-      setError(t("That didn't save. Try again."))
+      setError(t('That didn’t save. Try again.'))
     }
   }
 

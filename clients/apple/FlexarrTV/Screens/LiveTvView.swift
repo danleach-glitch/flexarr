@@ -28,7 +28,7 @@ struct LiveTvView: View {
         Group {
             if let channels {
                 if channels.isEmpty {
-                    StatusView(state: .empty(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr's user.")))
+                    StatusView(state: .empty(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.")))
                 } else {
                     HStack(alignment: .top, spacing: 50) {
                         sidebar

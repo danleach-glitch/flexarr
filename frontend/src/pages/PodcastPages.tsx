@@ -84,12 +84,12 @@ function PodcastsGate({ children }: { children: ReactNode }) {
       <section className="podcast-empty panel">
         {status.data.needsLibrary ? (
           <>
-            <h2>{t("Podcasts aren't ready yet")}</h2>
+            <h2>{t('Podcasts aren’t ready yet')}</h2>
             <p className="muted">{t('Restart Flexarr to set them up.')}</p>
           </>
         ) : (
           <>
-            <h2>{t("Podcasts aren't available on this profile")}</h2>
+            <h2>{t('Podcasts aren’t available on this profile')}</h2>
             <p className="muted">{t('The main profile can change which libraries this profile sees in Settings › Profiles.')}</p>
           </>
         )}
@@ -129,7 +129,7 @@ function PodcastsHome() {
     try {
       const result = await importOpml(chosen)
       setImporting(
-        t("{added, plural, one {Followed # show} other {Followed # shows}}{already, plural, =0 {} other {, # already followed}}{failed, plural, =0 {} other {, # couldn't be read}}.", {
+        t('{added, plural, one {Followed # show} other {Followed # shows}}{already, plural, =0 {} other {, # already followed}}{failed, plural, =0 {} other {, # couldn’t be read}}.', {
           added: result.added,
           already: result.alreadySubscribed,
           failed: result.failed.length,
@@ -309,7 +309,7 @@ function EpisodeRow({
   const actions: MenuAction[] = [
     // Up Next lives on the server, so it's the same on the phone.
     { label: t(Words.playNext), run: () => addToUpNext(episode.id, true).then(onChanged) },
-    { label: t('Add to Up Next'), run: () => addToUpNext(episode.id).then(onChanged) },
+    { label: t('Add to Up next'), run: () => addToUpNext(episode.id).then(onChanged) },
     ...(showPodcast ? [{ label: t('Go to {title}', { title: episode.podcastTitle }), run: () => navigate(`/podcasts/${episode.podcastId}`) }] : []),
     // Part way through: forget the place without marking it played, which takes it out of the listening list.
     ...(progress !== null && !played ? ['divider' as const, { label: t('Mark as unplayed'), run: () => mark(false) }] : []),
@@ -468,7 +468,7 @@ function PodcastBrowse() {
           <input
             type="search"
             className="podcast-search"
-            placeholder={t("Search podcasts, or paste a feed's address")}
+            placeholder={t('Search podcasts, or paste a feed’s address')}
             aria-label={t('Search podcasts')}
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
@@ -482,7 +482,7 @@ function PodcastBrowse() {
         <>
           {results.error && <p className="error">{results.error.message}</p>}
           {results.loading && !results.data && <p className="muted">{t('Searching…')}</p>}
-          {results.data?.length === 0 && <p className="muted">{t("Nothing found for “{query}”. If you have the show's feed address, paste it here instead.", { query })}</p>}
+          {results.data?.length === 0 && <p className="muted">{t('Nothing found for “{query}”. If you have the show’s feed address, paste it here instead.', { query })}</p>}
           <DirectoryGrid podcasts={results.data ?? []} />
         </>
       ) : (
@@ -727,7 +727,7 @@ function PodcastShow() {
 
       {podcast.error && (
         <p className="podcast-notice" role="status">
-          {t("The feed couldn't be checked last time: {error}", { error: podcast.error })}
+          {t('The feed couldn’t be checked last time: {error}', { error: podcast.error })}
         </p>
       )}
 
@@ -736,7 +736,7 @@ function PodcastShow() {
           title={t('Mark all as played?')}
           confirmLabel={t(Words.markAsPlayed)}
           busy={marking === 'busy'}
-          error={marking === 'failed' ? t("That didn't work. Try again.") : undefined}
+          error={marking === 'failed' ? t('That didn’t work. Try again.') : undefined}
           onConfirm={markAllPlayed}
           onClose={() => setMarking(null)}
         >

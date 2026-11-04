@@ -62,7 +62,7 @@ final class ProfilePickerTour: XCTestCase {
         guard let profile, profile != "Home" else { return XCTFail("the sidebar should start with the profile") }
         logFocus("profile \(profile)")
 
-        press(.select, wait: 3) // straight to "Who's watching?"
+        press(.select, wait: 3) // straight to "Who’s watching?"
         shot("23-switch-picker")
         logFocus("switch picker start")
         let startFocused = focusedLabel()

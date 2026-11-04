@@ -332,7 +332,7 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
             } else {
                 // A phone signed in as the main profile is asked to allow it; a computer is the way round.
                 Text(
-                    t("Allow").let { allow -> styledParts(t("On a phone signed in to Flexarr, tap {allow} when it asks — check it shows this code:", "allow" to allow), allow) },
+                    t("Allow").let { allow -> styledParts(t("On a phone signed in to Flexarr, tap {allow} when it asks. Check it shows this code:", "allow" to allow), allow) },
                     fontSize = 17.sp,
                     color = Flexarr.screen,
                 )

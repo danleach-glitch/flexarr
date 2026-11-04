@@ -135,7 +135,7 @@ public static class PeopleEndpoints
 
             if (!await images.SaveAsync(id, http.Body, ct))
             {
-                return Problems.Of("That file isn't a picture Flexarr can read. Try a JPEG or PNG.", status: 400);
+                return Problems.Of("That file isn’t a picture Flexarr can read. Try a JPEG or PNG.", status: 400);
             }
 
             // Always a new ?v=: the file is replaced in place, so the URL alone wouldn't change.

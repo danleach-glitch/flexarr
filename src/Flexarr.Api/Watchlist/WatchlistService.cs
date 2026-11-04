@@ -212,7 +212,7 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         {
             if (item is null && (await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(existing.Kind))
             {
-                return (null, new WatchlistRefusal(403, existing.Kind == MediaKind.Movie ? Loc.Mark("This profile can't add movies.") : Loc.Mark("This profile can't add shows.")));
+                return (null, new WatchlistRefusal(403, existing.Kind == MediaKind.Movie ? Loc.Mark("This profile can’t add movies.") : Loc.Mark("This profile can’t add shows.")));
             }
 
             entry = existing;
@@ -238,7 +238,7 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         }
         else if (add.LibraryItemId is not null)
         {
-            return (null, new WatchlistRefusal(404, Loc.Mark("That title isn't in the library.")));
+            return (null, new WatchlistRefusal(404, Loc.Mark("That title isn’t in the library.")));
         }
         else if (add.MediaType is not ("movie" or "tv") || add.TmdbId is not > 0)
         {
@@ -249,12 +249,12 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
             var kind = add.MediaType == "movie" ? MediaKind.Movie : MediaKind.Series;
             if ((await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(kind))
             {
-                return (null, new WatchlistRefusal(403, kind == MediaKind.Movie ? Loc.Mark("This profile can't add movies.") : Loc.Mark("This profile can't add shows.")));
+                return (null, new WatchlistRefusal(403, kind == MediaKind.Movie ? Loc.Mark("This profile can’t add movies.") : Loc.Mark("This profile can’t add shows.")));
             }
 
             if (options.CurrentValue.Seerr?.Instance is not { } instance)
             {
-                return (null, new WatchlistRefusal(409, Loc.Mark("Titles that aren't in the library need a Seerr server. Add one under Settings › Connections.")));
+                return (null, new WatchlistRefusal(409, Loc.Mark("Titles that aren’t in the library need a Seerr server. Add one under Settings › Connections.")));
             }
 
             JsonElement? title;
@@ -264,12 +264,12 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
             }
             catch (Exception ex) when (SeerrFailed(ex, ct))
             {
-                return (null, new WatchlistRefusal(502, Loc.Mark("Seerr didn't answer. Try again in a moment.")));
+                return (null, new WatchlistRefusal(502, Loc.Mark("Seerr didn’t answer. Try again in a moment.")));
             }
 
             if (title is not { } t)
             {
-                return (null, new WatchlistRefusal(404, Loc.Mark("TMDB doesn't know that title.")));
+                return (null, new WatchlistRefusal(404, Loc.Mark("TMDB doesn’t know that title.")));
             }
 
             var region = await RegionAsync(instance, ct);
@@ -289,7 +289,7 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
             db.Entry(entry).State = EntityState.Detached;
             return await FindAsync(profileId, add, includeRemoved: false, ct) is { } other
                 ? (new WatchlistAdded(await DtoAsync(profileId, other, ct), false), null)
-                : (null, new WatchlistRefusal(409, Loc.Mark("That couldn't be added. Try again.")));
+                : (null, new WatchlistRefusal(409, Loc.Mark("That couldn’t be added. Try again.")));
         }
 
         if (source == WatchlistSource.Flexarr)

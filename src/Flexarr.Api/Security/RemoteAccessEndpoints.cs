@@ -73,7 +73,7 @@ public static class RemoteAccessEndpoints
             var language = string.IsNullOrWhiteSpace(choice.Language) ? null : choice.Language.Trim();
             if (language is not null && !Flexarr.Core.Localization.LanguageCode.IsValid(language))
             {
-                return Localization.Problems.Field("That isn't a language code.", field: "language");
+                return Localization.Problems.Field("That isn’t a language code.", field: "language");
             }
 
             if (await db.Profiles.FindAsync([profile.Id], ct) is not { } found)
@@ -118,7 +118,7 @@ public static class RemoteAccessEndpoints
             // Tagged devices (family guests among them) all share this login: linking it would give every one a profile.
             if (string.Equals(request.Login.Trim(), "tagged-devices", StringComparison.OrdinalIgnoreCase))
             {
-                return Problems.Field("Tagged devices can't be linked to a profile. Invite guests from Family invites instead.", field: "login");
+                return Problems.Field("Tagged devices can’t be linked to a profile. Invite guests from Family invites instead.", field: "login");
             }
 
             // One profile per Tailscale account: unlink it wherever it was first.

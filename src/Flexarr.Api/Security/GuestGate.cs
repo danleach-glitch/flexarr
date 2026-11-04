@@ -67,7 +67,7 @@ public static class GuestGate
             // it waits rather than being let in; answers are kept, so this only happens before the first one.
             http.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             http.Response.Headers.RetryAfter = "5";
-            await http.Response.WriteAsJsonAsync(new { title = Loc.T("Flexarr couldn't check this device just now. Try again in a moment."), status = 503 }, http.RequestAborted);
+            await http.Response.WriteAsJsonAsync(new { title = Loc.T("Flexarr couldn’t check this device just now. Try again in a moment."), status = 503 }, http.RequestAborted);
             return;
         }
 

@@ -158,7 +158,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         let oldest = show.subscription?.oldestFirst == true
         let page = (try? await client.podcastEpisodes(show.id, sort: oldest ? .oldest : .newest, unplayed: true, take: 40))?.items ?? []
         let list = CPListTemplate(title: show.title, sections: [CPListSection(items: await items(page, client: client, showsPodcast: false))])
-        list.emptyViewSubtitleVariants = [t("You're up to date.")]
+        list.emptyViewSubtitleVariants = [t("You’re up to date.")]
         interfaceController?.pushTemplate(list, animated: true, completion: nil)
     }
 

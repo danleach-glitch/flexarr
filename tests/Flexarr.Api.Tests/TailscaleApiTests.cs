@@ -73,7 +73,7 @@ public class TailscaleApiTests
         using var __ = api;
         fake.AcceptClient = false;
 
-        Assert.Contains("didn't accept the OAuth client", await api.CheckClientAsync(CancellationToken.None), StringComparison.Ordinal);
+        Assert.Contains("didn’t accept the OAuth client", await api.CheckClientAsync(CancellationToken.None), StringComparison.Ordinal);
     }
 
     [Fact]

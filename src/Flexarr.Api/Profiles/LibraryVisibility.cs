@@ -60,7 +60,7 @@ public static class LibraryVisibility
     {
         builder.AddEndpointFilter(async (context, next) =>
             context.HttpContext.RequestServices.GetRequiredService<FlexarrDbContext>().IsLimited()
-                ? Problems.Of("That isn't available on a profile with an age limit.", status: 403)
+                ? Problems.Of("That isn’t available on a profile with an age limit.", status: 403)
                 : await next(context));
         return builder;
     }
@@ -73,7 +73,7 @@ public static class LibraryVisibility
     {
         builder.AddEndpointFilter(async (context, next) =>
             context.HttpContext.RequestServices.GetRequiredService<FlexarrDbContext>().ServesKids
-                ? Problems.Of("That isn't available on a kids profile.", status: 403)
+                ? Problems.Of("That isn’t available on a kids profile.", status: 403)
                 : await next(context));
         return builder;
     }

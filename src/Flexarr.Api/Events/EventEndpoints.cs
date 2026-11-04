@@ -33,7 +33,7 @@ public static class EventEndpoints
         var kidsSettings = LibraryVisibility.KidsSettingsVersion;
         if (!current.IsTrusted)
         {
-            await Problems.Of("Only the API key or a signed-in browser or device can follow what's playing.", status: 403).ExecuteAsync(http);
+            await Problems.Of("Only the API key or a signed-in browser or device can follow what’s playing.", status: 403).ExecuteAsync(http);
             return;
         }
 

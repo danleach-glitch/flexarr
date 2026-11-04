@@ -69,7 +69,7 @@ final class EngineTransport: PlayerTransport {
     /// viewer's choice, `.some(nil)` for off, or the server's).
     func start(at seconds: Double, audioIndex: Int?, subtitleKey: String??, matchContent: Bool) {
         guard let url = client.url(for: info.url) else {
-            phase = .failed(t("The server's address couldn't be read."))
+            phase = .failed(t("The server’s address couldn’t be read."))
             return
         }
         var options = LoadOptions()
@@ -145,7 +145,7 @@ final class EngineTransport: PlayerTransport {
             if self.engine.videoRoute == .software, self.engine.sourceVideoFormat == .hlg {
                 log.warning("HLG on the software route; handing it to the server", ["playbackId": self.info.playbackId])
                 self.engine.stop()
-                self.phase = .failed(t("HLG video can't be shown on this route."))
+                self.phase = .failed(t("HLG video can’t be shown on this route."))
                 return
             }
             // The engine chose the subtitles as it opened; one it couldn't name by id is chosen by key now.
@@ -679,7 +679,7 @@ final class EngineTransport: PlayerTransport {
                 log.warning("Rebuild \(attempt) failed", error: error, ["playbackId": info.playbackId])
             }
         }
-        phase = .failed(t("Playback couldn't pick up where it left off."))
+        phase = .failed(t("Playback couldn’t pick up where it left off."))
     }
 
     private func withDeadline(seconds: Double, _ work: @escaping @MainActor @Sendable () async throws -> Void) async throws {

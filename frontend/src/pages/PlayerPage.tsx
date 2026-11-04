@@ -584,7 +584,7 @@ export function PlayerPage() {
     const onError = () => {
       if (method.current === 'DirectPlay') convertInsteadRef.current()
       else if (method.current === 'Transcode') void recoverRef.current()
-      else setError({ message: t("This file couldn't be played."), kind: 'other' })
+      else setError({ message: t('This file couldn’t be played.'), kind: 'other' })
     }
     const onEnded = () => {
       if (session.current) void reportProgress(session.current, el.currentTime, true, true).catch(() => undefined)
@@ -1619,7 +1619,7 @@ export function PlayerPage() {
             <button
               className={speed !== 1 ? 'player-quality active' : 'player-quality'}
               aria-expanded={menu === 'speed'}
-              aria-label={t('Speed: {speed}', { speed: speedLabel(speed) })}
+              aria-label={t('Speed, {speed}', { speed: speedLabel(speed) })}
               onClick={() => setMenu(menu === 'speed' ? null : 'speed')}
             >
               {speedLabel(speed)}

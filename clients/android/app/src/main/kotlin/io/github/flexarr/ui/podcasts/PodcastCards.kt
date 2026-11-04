@@ -178,7 +178,7 @@ fun PodcastEpisodeRow(
             add(MenuAction(if (download.isDownloaded) t("Remove download") else t("Stop download")) { model.downloads.delete(download.id) })
         }
         // Part way through: unplayed forgets the place, so it leaves the listening list.
-        if (episode.progress != null) add(MenuAction(t("Mark as unplayed")) { setPlayed(false) })
+        if (model.hasPlace(episode)) add(MenuAction(t("Mark as unplayed")) { setPlayed(false) })
     }
     // The iPhone's swipe actions, each also in the menu above (so TalkBack has them once, as custom actions).
     val startSwipe = buildList {
@@ -302,7 +302,7 @@ internal fun EpisodeSheet(model: AppModel, episode: PodcastEpisode, setPlayed: (
                     tint = if (isPlayed) Flexarr.go else Flexarr.screen,
                     iconSize = if (isPlayed) 30.dp else 22.dp,
                 )
-                if (shown.progress != null && played == null) {
+                if (model.hasPlace(shown) && played == null) {
                     // Part way through: forget the place without marking it played.
                     LabeledAction(t("Mark as unplayed"), Icons.Outlined.Circle, {
                         setPlayed(false)
@@ -332,6 +332,7 @@ fun dateLine(published: String?): String? {
 /** Marks an episode played or unplayed for screens that don't keep their own list: sent, then screens reload. */
 fun setEpisodePlayed(model: AppModel, episode: PodcastEpisode, played: Boolean) {
     val client = model.client ?: return
+    model.marked(episode.id, played)
     model.scope.launch {
         runCatching { client.setWatched(episode.id, played) }.onSuccess { if (played) model.downloads.markedPlayed(episode.id) }
         model.watchStateChanged()

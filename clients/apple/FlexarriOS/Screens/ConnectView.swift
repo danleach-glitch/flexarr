@@ -227,7 +227,7 @@ private struct PairWithServer: View {
                         }
                         NumberedStep(2) {
                             markdown(pairing.setupNeedsCode
-                                ? t("Type in the setup code from the server's log, then click **Set up Flexarr**.")
+                                ? t("Type in the setup code from the server’s log, then click **Set up Flexarr**.")
                                 : t("Click **Set up Flexarr**."))
                         }
                         NumberedStep(3) { markdown(t("Go to **Settings**, then **Security**, then **Connect a device**.")) }
@@ -251,7 +251,7 @@ private struct PairWithServer: View {
 
                 HStack(spacing: 10) {
                     ProgressView()
-                    Text(t("This screen moves on by itself once it's allowed."))
+                    Text(t("This screen moves on by itself once it’s allowed."))
                         .font(.footnote)
                         .foregroundStyle(Color.usher)
                 }

@@ -165,7 +165,7 @@ public static class PodcastEndpoints
 
                 if (found?.FeedUrl is null)
                 {
-                    return Problems.Of("Apple's directory doesn't give a feed for this show, so it can't be added.", status: StatusCodes.Status422UnprocessableEntity);
+                    return Problems.Of("Apple’s directory doesn’t give a feed for this show, so it can’t be added.", status: StatusCodes.Status422UnprocessableEntity);
                 }
 
                 feedUrl = found.FeedUrl;
@@ -174,13 +174,13 @@ public static class PodcastEndpoints
 
             if (string.IsNullOrEmpty(feedUrl))
             {
-                return Problems.Field("Give the podcast's feed address.", field: "feedUrl");
+                return Problems.Field("Give the podcast’s feed address.", field: "feedUrl");
             }
 
             var result = await library.AddAsync(feedUrl, request.ITunesId, artwork, ct);
             return result.PodcastId is { } id
                 ? Results.Ok(await PodcastAsync(db, id, profile.Id, ct))
-                : Results.Problem(Loc.T(result.Error!), statusCode: StatusCodes.Status422UnprocessableEntity, title: Loc.T("The podcast couldn't be added"));
+                : Results.Problem(Loc.T(result.Error!), statusCode: StatusCodes.Status422UnprocessableEntity, title: Loc.T("The podcast couldn’t be added"));
         }).NotForAgeLimited();
 
         group.MapGet("/{id:guid}", async (Guid id, FlexarrDbContext db, CurrentProfile profile, PodcastRefreshQueue queue, TimeProvider clock, CancellationToken ct) =>
@@ -541,7 +541,7 @@ public static class PodcastEndpoints
             // (and its connection) up for a long while.
             if (!await OpmlImporting.WaitAsync(0, ct))
             {
-                return Problems.Of("Another podcast import is still running. Try again when it's finished.", status: StatusCodes.Status429TooManyRequests);
+                return Problems.Of("Another podcast import is still running. Try again when it’s finished.", status: StatusCodes.Status429TooManyRequests);
             }
 
             int added = 0, already = 0;
@@ -693,12 +693,12 @@ public static class Opml
         }
         catch (System.Xml.XmlException ex)
         {
-            throw new FormatException(Loc.Mark("That file isn't OPML: it isn't valid XML."), ex);
+            throw new FormatException(Loc.Mark("That file isn’t OPML: it isn’t valid XML."), ex);
         }
 
         if (document.Root?.Name.LocalName != "opml")
         {
-            throw new FormatException(Loc.Mark("That file isn't OPML."));
+            throw new FormatException(Loc.Mark("That file isn’t OPML."));
         }
 
         return document.Descendants("outline")

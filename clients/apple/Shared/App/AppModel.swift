@@ -1393,10 +1393,30 @@ final class AppModel {
     }
 
     /// Marks a book finished (it leaves Continue listening) or not.
+    /// Finished or unread, from anywhere: loaded in the player, it's let go (its place would undo it), and its download
+    /// says the same.
     func setBookFinished(_ book: ItemSummary, _ finished: Bool) async {
         guard let client else { return }
+        releaseFromPlayer(book.id)
+        BookPlaces.forget(book.id)
         try? await client.setBookFinished(book.id, finished: finished)
+        if finished { player.offlineLibrary?.markedPlayed(itemId: book.id) } else { player.offlineLibrary?.forgetPosition(itemId: book.id) }
         watchStateChanged()
+    }
+
+    /// Heard part way: by what the server said, or, loaded in the player, where it is now (the list it's shown in may be
+    /// from before it was played). What its ring shows, and so whether Mark as unplayed is offered.
+    func hasPlace(_ episode: PodcastEpisode) -> Bool {
+        guard !episode.isPlayed else { return false }
+        return episode.progress != nil || (music.current?.id == episode.id && music.position > 0)
+    }
+
+    /// Marked played or unplayed (finished or unread) while it's the one loaded in the audio player: the player lets it
+    /// go without sending its place. Otherwise its ring and Play would carry on from that place, and its next report
+    /// would undo the change. A whole podcast marked played lets go of its episode that's loaded.
+    func releaseFromPlayer(_ itemId: String) {
+        guard let current = music.current, current.id == itemId || (current.kind == .podcastEpisode && current.parentId == itemId) else { return }
+        music.discard(current.id)
     }
 
     /// Starts a book over from the beginning, keeping when it was finished.
@@ -1564,8 +1584,10 @@ final class AppModel {
         #endif
     }
 
-    func setWatched(_ item: ItemSummary, _ watched: Bool) async {
+    /// `keepingPlayer`: Now Playing's own Mark as played, which goes on to what's next rather than stopping.
+    func setWatched(_ item: ItemSummary, _ watched: Bool, keepingPlayer: Bool = false) async {
         guard let client else { return }
+        if !keepingPlayer { releaseFromPlayer(item.id) }
         try? await client.setWatched(item.id, watched: watched)
         if watched { player.offlineLibrary?.markedPlayed(itemId: item.id) } else { player.offlineLibrary?.forgetPosition(itemId: item.id) }
         watchStateChanged()
@@ -1840,17 +1862,17 @@ struct ConnectionError: LocalizedError {
         } else if let error = error as? URLError {
             switch error.code {
             case .cannotFindHost, .dnsLookupFailed:
-                message = t("Couldn't find that server. Check the address, or use its IP address instead of the name.")
+                message = t("Couldn’t find that server. Check the address, or use its IP address instead of the name.")
             case .cannotConnectToHost, .networkConnectionLost:
-                message = t("The server isn't answering at that address. Make sure Flexarr is running and the port is right (usually 8383).")
+                message = t("The server isn’t answering at that address. Make sure Flexarr is running and the port is right (usually 8383).")
             case .timedOut:
                 message = t("The server took too long to answer. Is it on the same network as this {device}?", ["device": ThisDevice.name])
             case .notConnectedToInternet:
-                message = t("This {device} isn't connected to a network.", ["device": ThisDevice.name])
+                message = t("This {device} isn’t connected to a network.", ["device": ThisDevice.name])
             case .appTransportSecurityRequiresSecureConnection:
                 message = t("Plain http only works for local addresses (.local names or IP addresses). Use https for anything else.")
             case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate, .serverCertificateNotYetValid:
-                message = t("The server's https certificate isn't trusted. Try its http address on your local network.")
+                message = t("The server’s https certificate isn’t trusted. Try its http address on your local network.")
             case .cancelled:
                 message = t("The request was cancelled.")
             default:

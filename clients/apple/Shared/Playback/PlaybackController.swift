@@ -14,9 +14,10 @@ private let log = FlexarrLog("playback")
 @MainActor
 protocol OfflineLibrary: AnyObject {
     func record(itemId: String, position: Double, finished: Bool)
-    /// Marked unwatched part way through: a download starts from the top again, and its unsent place is dropped.
+    /// Marked unwatched (or unread, or taken out of Continue watching): a download starts from the top again, no longer
+    /// finished, and its unsent place is dropped.
     func forgetPosition(itemId: String)
-    /// Marked watched (an item, or a whole show): a podcast episode's download goes.
+    /// Marked watched (an item, or a whole show): a download says it's finished, and a podcast episode's goes.
     func markedPlayed(itemId: String)
     func nextInfo(after info: PlaybackInfo) -> PlaybackInfo?
 }
@@ -201,7 +202,7 @@ final class PlaybackController: NSObject {
         do {
             try present(info)
         } catch {
-            show(.other, message: t("This download couldn't be played. Delete it and download it again."), retry: nil)
+            show(.other, message: t("This download couldn’t be played. Delete it and download it again."), retry: nil)
         }
     }
 
@@ -704,7 +705,7 @@ final class PlaybackController: NSObject {
                     self?.endSubtitleSync(doneWith: status.key ?? key)
                     return
                 case .failed:
-                    self?.endSubtitleSync(failure: status.error ?? t("The subtitles couldn't be re-synced."))
+                    self?.endSubtitleSync(failure: status.error ?? t("The subtitles couldn’t be re-synced."))
                     return
                 case .idle:
                     self?.endSubtitleSync(failure: t("The re-sync stopped before it finished."))
@@ -735,7 +736,7 @@ final class PlaybackController: NSObject {
         updateSubtitleSearch()
         log.warning("Subtitles weren't re-synced: \(message)", ["playbackId": info?.playbackId])
         guard let current = info, current.item.id == sync.itemId, let screen, screen.presentedViewController == nil else { return }
-        let alert = UIAlertController(title: t("Couldn't re-sync subtitles"), message: message, preferredStyle: .alert)
+        let alert = UIAlertController(title: t("Couldn’t re-sync subtitles"), message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: t("OK"), style: .default))
         screen.present(alert, animated: true)
     }

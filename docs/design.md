@@ -107,6 +107,7 @@ Flexarr looks like one product everywhere, and behaves like it belongs on each d
 
 The same words on every client and in the guide. The ones every client shares are kept once, in `languages/words.json`, and used in code as `Words.x` (see [languages.md](languages.md)): change a word there and `make strings` changes it everywhere.
 
+- Sentence case for every label, and curly apostrophes (Couldn’t, the show’s). A list or place keeps its first capital mid-sentence only when it reads as a name: **Add to Up next**, but **Add to watchlist** and **Add to favourites**.
 - **Movies** (never "Films"), **shows**, **episodes**. Library names people chose themselves are theirs.
 - **Play**, **Resume from 32:10**, **Resume S1E3**, **Start over** (never "Play from beginning" or "Play from the start").
 - **Skip intro**, **Skip recap**, **Next episode in 10**: sentence case, like every label. The countdown's Cancel is an ✕, the right half of the Next episode pill (labelled Cancel for screen readers).

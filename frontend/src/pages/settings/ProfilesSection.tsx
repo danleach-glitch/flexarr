@@ -101,7 +101,7 @@ export function ProfilesSection() {
                 <strong className="profile-name">
                   {p.name}
                   {p.isMain && (
-                    <span className="profile-crown" title={t('Main profile: manages the server')}>
+                    <span className="profile-crown" title={t('Main profile, manages the server')}>
                       <Crown />
                     </span>
                   )}

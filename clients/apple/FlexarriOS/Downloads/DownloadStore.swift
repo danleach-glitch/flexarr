@@ -345,7 +345,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         let states = collection.trackIds.map { entry(for: $0)?.state }
         // A track never asked for (the requests were cut short) counts as failed, unless they're still being made.
         if !queueing.contains(collection.id), states.contains(where: { $0 == nil }) {
-            return .failed(t("Some tracks weren't downloaded. Try again."))
+            return .failed(t("Some tracks weren’t downloaded. Try again."))
         }
         return LocalCollection.status(of: states)
     }
@@ -535,11 +535,21 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         }
     }
 
-    /// Marked played here: a podcast episode's download goes at once, or a show's when all its episodes were.
+    /// Marked played here: the download is the same episode or book, so it's finished too, from the start, with no place
+    /// of its own left to send. A podcast episode's download goes at once, or a show's when all its episodes were; a book
+    /// goes on as one heard to the end does (the next in its series, deleted if Settings says so).
     func markedPlayed(itemId: String) {
         for download in downloads where download.item.kind == .podcastEpisode && (download.item.id == itemId || download.item.parentId == itemId) {
             if !isPlaying(download.item.id) { delete(download.id) }
         }
+        guard let download = entry(for: itemId), download.item.kind != .podcastEpisode else { return }
+        update(download.id) {
+            $0.position = 0
+            $0.unsent = nil
+            $0.finishedAt = $0.finishedAt ?? Date()
+            if let manifest = $0.book?.manifest { $0.book?.manifest = manifest.withProgress(BookProgress(positionSeconds: 0, finished: true, finishedAt: Date())) }
+        }
+        if download.book != nil { bookFinished(itemId: itemId) }
     }
 
     /// Makes the phone hold what the server says it should: the newest unplayed episodes of each podcast that
@@ -817,7 +827,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         case .received where !local.isDownloaded, .expired:
             update(remote.id) { $0.state = .failed(t("This download ran out on the server. Download it again.")) }
         case .failed:
-            update(remote.id) { $0.state = .failed(remote.error ?? t("The server couldn't get this ready.")) }
+            update(remote.id) { $0.state = .failed(remote.error ?? t("The server couldn’t get this ready.")) }
         default:
             break
         }
@@ -997,10 +1007,12 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     }
 
     func forgetPosition(itemId: String) {
-        guard let download = entry(for: itemId), download.finishedAt == nil else { return }
+        guard let download = entry(for: itemId) else { return }
         update(download.id) {
             $0.position = 0
             $0.unsent = nil
+            $0.finishedAt = nil
+            if let manifest = $0.book?.manifest { $0.book?.manifest = manifest.withProgress(BookProgress(positionSeconds: 0, finished: false)) }
         }
     }
 

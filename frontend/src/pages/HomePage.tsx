@@ -51,7 +51,7 @@ export function HomePage() {
     return (
       <section className="welcome">
         <h1>{t('Nothing to watch yet')}</h1>
-        <p>{t("Point Flexarr at the folders where your movies and shows live, and they'll appear here with artwork.")}</p>
+        <p>{t('Point Flexarr at the folders where your movies and shows live, and they’ll appear here with artwork.')}</p>
         <div className="welcome-actions">
           {admin && (
             <Link className="button" to="/setup">

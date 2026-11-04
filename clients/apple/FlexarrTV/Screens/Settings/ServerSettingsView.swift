@@ -55,7 +55,7 @@ struct ServerSettingsView: View {
             .padding(.top, 30)
 
             SettingsLinkRow(title: t("Send diagnostics"), symbol: "stethoscope",
-                            help: t("Send this Apple TV's recent log to your server, to look into a problem.")) {
+                            help: t("Send this Apple TV’s recent log to your server, to look into a problem.")) {
                 DiagnosticsSettingsView()
             }
         }

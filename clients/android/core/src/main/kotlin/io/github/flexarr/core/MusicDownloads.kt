@@ -54,7 +54,7 @@ object CollectionRules {
     fun status(tracks: List<LocalDownload?>, queueing: Boolean, progress: (LocalDownload) -> Double = { it.progress }): CollectionStatus {
         if (!queueing && tracks.any { it == null }) return CollectionStatus.Failed(t("Some tracks weren’t downloaded. Try again."))
         if (tracks.isEmpty()) return CollectionStatus.Preparing
-        tracks.firstOrNull { it?.phase == LocalPhase.Failed }?.let { return CollectionStatus.Failed(it.failure ?: t("Couldn’t download this.")) }
+        tracks.firstOrNull { it?.phase == LocalPhase.Failed }?.let { return CollectionStatus.Failed(it.failure ?: t("Couldn’t download this")) }
         val fractions = tracks.map { track ->
             when {
                 track == null -> 0.0

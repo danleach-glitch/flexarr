@@ -78,7 +78,7 @@ public static class RemoteGuestEndpoints
                 : id == settings.RemoteGuests.ClientId ? settings.RemoteGuests.ClientSecret : "";
             if (id.Length > 0 && secret.Length == 0)
             {
-                return Problems.Field("Paste the client's secret too.", field: "clientSecret");
+                return Problems.Field("Paste the client’s secret too.", field: "clientSecret");
             }
 
             // Tried before it's kept: a client Tailscale refuses, or one that can do more than Flexarr needs, never stays.
@@ -187,7 +187,7 @@ public static class RemoteGuestEndpoints
                 {
                     // It may have reached the relay (and the TV): kept, so its key still works; it goes by itself after
                     // GuestInvites.CodeLifetime if nobody uses it.
-                    return Problems.Of("Flexarr's relay was slow to answer. If their screen asks to join, that's it; if not, try again.", status: 502);
+                    return Problems.Of("Flexarr’s relay was slow to answer. If their screen asks to join, that’s it; if not, try again.", status: 502);
                 }
 
                 return Results.Ok(ToDto(invite, new Dictionary<string, string> { [profile.Id] = profile.Name }));
@@ -210,7 +210,7 @@ public static class RemoteGuestEndpoints
                     await invites.CancelAsync(invite.Id, CancellationToken.None);
                 }
 
-                return Problems.Of("Couldn't reach Flexarr's relay. Try again in a minute.", status: 502);
+                return Problems.Of("Couldn’t reach Flexarr’s relay. Try again in a minute.", status: 502);
             }
             catch (OperationCanceledException) when (invite is not null)
             {
@@ -241,8 +241,8 @@ public static class RemoteGuestEndpoints
             if (await tailnet.SetRelayPortAsync(port, ct) is { } problem)
             {
                 return request.Enabled
-                    ? Problems.Of("Tailscale couldn't start the relay: {problem}", new { problem }, status: 502)
-                    : Problems.Of("Tailscale couldn't stop the relay: {problem}", new { problem }, status: 502);
+                    ? Problems.Of("Tailscale couldn’t start the relay: {problem}", new { problem }, status: 502)
+                    : Problems.Of("Tailscale couldn’t stop the relay: {problem}", new { problem }, status: 502);
             }
 
             settings.RemoteGuests.RelayPort = port;
@@ -320,7 +320,7 @@ public static class RemoteGuestEndpoints
 
         if (profile.Id == PlaybackState.DefaultUser)
         {
-            return (null, owner, Problems.Field("Guests can't have the main profile. Make them a profile of their own.", field: "profileId"));
+            return (null, owner, Problems.Field("Guests can’t have the main profile. Make them a profile of their own.", field: "profileId"));
         }
 
         return (profile, owner, null);
@@ -334,8 +334,8 @@ public static class RemoteGuestEndpoints
         var snapshot = await tailnet.SnapshotAsync(ct);
         var problem = kind switch
         {
-            Updates.InstallKind.Docker => Loc.T("Family invites need Tailscale on the server, which Flexarr in Docker can't use yet."),
-            Updates.InstallKind.MacApp => Loc.T("Family invites aren't in the Mac app yet."),
+            Updates.InstallKind.Docker => Loc.T("Family invites need Tailscale on the server, which Flexarr in Docker can’t use yet."),
+            Updates.InstallKind.MacApp => Loc.T("Family invites aren’t in the Mac app yet."),
             _ when snapshot is null => Loc.T("Install Tailscale on the server and sign in to it."),
             _ when !snapshot.Running => Loc.T("Tailscale is installed but not connected. Sign in to Tailscale on the server."),
             _ => null,
@@ -348,7 +348,7 @@ public static class RemoteGuestEndpoints
 
     internal static RelayDto RelayStatus(int? port, TailnetSnapshot? snapshot) =>
         new(port, port is not null && snapshot?.RelayPort == port,
-            port is not null && snapshot is not null && snapshot.RelayPort != port ? Loc.T("Tailscale on the server isn't relaying yet. It needs Tailscale 1.86 or newer.") : null);
+            port is not null && snapshot is not null && snapshot.RelayPort != port ? Loc.T("Tailscale on the server isn’t relaying yet. It needs Tailscale 1.86 or newer.") : null);
 
     /// <summary>Guests' devices with how each reaches this server now, matched to the tailnet by address.</summary>
     internal static List<GuestDeviceDto> Describe(IEnumerable<SignIn> guests, TailnetSnapshot? snapshot, IReadOnlyDictionary<string, string> profileNames, int flexarrPort = 0)

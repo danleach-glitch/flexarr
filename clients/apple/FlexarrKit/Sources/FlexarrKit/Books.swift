@@ -254,6 +254,12 @@ public struct BookManifest: Codable, Sendable, Hashable {
                             progress: fresh.progress, speed: speed ?? fresh.speed, listening: fresh.listening, nextInSeries: fresh.nextInSeries)
     }
 
+    /// The same manifest at another place (a downloaded book marked finished or unread elsewhere).
+    public func withProgress(_ progress: BookProgress) -> BookManifest {
+        BookManifest(itemId: itemId, durationSeconds: durationSeconds, files: files, chapters: chapters, bookmarks: bookmarks,
+                     progress: progress, speed: speed, listening: listening, nextInSeries: nextInSeries)
+    }
+
     /// The same manifest at another speed.
     public func withSpeed(_ speed: Double) -> BookManifest {
         BookManifest(itemId: itemId, durationSeconds: durationSeconds, files: files, chapters: chapters, bookmarks: bookmarks,
@@ -812,8 +818,8 @@ public struct DeletionPlan: Decodable, Sendable, Equatable {
     /// What the question before deleting a book says.
     public var bookMessage: String {
         files.isEmpty
-            ? t("Flexarr deletes it from the library: there are no files on disk. You can't undo this.")
-            : t("{count, plural, one {Flexarr deletes its file from disk. Folders it leaves empty go too. You can't undo this.} other {Flexarr deletes its # files from disk. Folders it leaves empty go too. You can't undo this.}}",
+            ? t("Flexarr deletes it from the library: there are no files on disk. You can’t undo this.")
+            : t("{count, plural, one {Flexarr deletes its file from disk. Folders it leaves empty go too. You can’t undo this.} other {Flexarr deletes its # files from disk. Folders it leaves empty go too. You can’t undo this.}}",
                 ["count": files.count])
     }
 }

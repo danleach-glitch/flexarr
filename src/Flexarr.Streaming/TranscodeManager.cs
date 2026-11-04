@@ -119,7 +119,7 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
 
                 if (preparing)
                 {
-                    throw new TranscodeLimitException(Loc.T("Flexarr is busy playing on other screens, so this wasn't got ready ahead of time."));
+                    throw new TranscodeLimitException(Loc.T("Flexarr is busy playing on other screens, so this wasn’t got ready ahead of time."));
                 }
 
                 var share = PerProfileLimit;

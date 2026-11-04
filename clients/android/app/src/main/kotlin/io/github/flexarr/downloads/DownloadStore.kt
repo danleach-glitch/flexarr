@@ -728,6 +728,17 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             .forEach { remove(it.id, tellServer = true) }
     }
 
+    /**
+     * Marked played or unplayed elsewhere: the download says the same, finished or not started, with no place of its own
+     * left to send. (A played podcast episode's download then goes, in [markedPlayed].)
+     */
+    fun marked(itemId: String, played: Boolean) {
+        val download = entry(itemId) ?: return
+        update(download.id) {
+            it.copy(position = 0.0, unsent = null, finishedAtMillis = if (played) it.finishedAtMillis ?: System.currentTimeMillis() else null)
+        }
+    }
+
     /** Marked played here: a podcast episode's download goes at once, or a show's when all its episodes were. */
     fun markedPlayed(itemId: String) {
         podcastEpisodes.filter { (it.item.id == itemId || it.item.parentId == itemId) && !model.podcasts.isPlayingFile(it.item.id) }

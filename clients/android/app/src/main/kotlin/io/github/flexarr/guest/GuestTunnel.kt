@@ -94,7 +94,7 @@ class GuestTunnel(context: Context) : LoopbackTunnel {
         } catch (e: Exception) {
             val status = status()
             flexarrLog.warning("The tunnel didn't start (${status.state}): ${status.error ?: e.message}")
-            val message = status.error ?: e.message ?: t("The tunnel didn't start")
+            val message = status.error ?: e.message ?: t("The tunnel didn’t start")
             // Tailscale refuses a used or run-out key as "invalid key", which is the same to the guest as needing one.
             val refused = status.state == "needs-login" || message.contains("invalid key", ignoreCase = true)
             if (refused && authKey.isEmpty()) onRefused?.invoke()

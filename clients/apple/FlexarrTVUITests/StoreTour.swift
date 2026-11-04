@@ -98,7 +98,7 @@ final class StoreTour: XCTestCase {
         for _ in 0..<3 where !app.buttons["Play"].firstMatch.hasFocus { press(.down, wait: 1.5) }
         guard app.buttons["Play"].firstMatch.hasFocus else { return XCTFail("the album's Play should have focus") }
         press(.select, wait: 7)
-        app.openSidebarRow("Now Playing", wait: 4)
+        app.openSidebarRow("Now playing", wait: 4)
         shot("store-now-playing")
         // From Play/Pause, past Next and Repeat to Lyrics.
         press(.right, times: 3, wait: 1)

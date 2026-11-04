@@ -295,7 +295,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         var settings = options.CurrentValue.RemoteGuests;
         if (!settings.Enabled)
         {
-            throw new InviteException(Loc.T("Family invites aren't turned on."), StatusCodes.Status404NotFound);
+            throw new InviteException(Loc.T("Family invites aren’t turned on."), StatusCodes.Status404NotFound);
         }
 
         // Counted with those being made right now, so two made at once can't both take the last place.
@@ -331,12 +331,12 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         var check = await policy.CheckAsync(ct);
         if (!check.Safe)
         {
-            throw new InviteException((check.Problems.Count > 0 ? check.Problems[0] : null) ?? Loc.T("The tailnet policy doesn't confine guests to Flexarr yet."));
+            throw new InviteException((check.Problems.Count > 0 ? check.Problems[0] : null) ?? Loc.T("The tailnet policy doesn’t confine guests to Flexarr yet."));
         }
 
         if (await tailnet.SnapshotAsync(ct) is not { Running: true, Address: { } address })
         {
-            throw new InviteException(Loc.T("Tailscale isn't running on the server."));
+            throw new InviteException(Loc.T("Tailscale isn’t running on the server."));
         }
 
         var now = clock.GetUtcNow().UtcDateTime;
@@ -352,7 +352,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         }
         catch (HttpRequestException ex)
         {
-            throw new InviteException(Loc.T("Couldn't reach Tailscale ({error}).", new { error = ex.Message }), StatusCodes.Status502BadGateway);
+            throw new InviteException(Loc.T("Couldn’t reach Tailscale ({error}).", new { error = ex.Message }), StatusCodes.Status502BadGateway);
         }
 
         var token = Base64Url(RandomNumberGenerator.GetBytes(32));
@@ -413,7 +413,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     {
         if (string.IsNullOrEmpty(token) || token.Length > 128)
         {
-            throw new InviteException(Loc.T("That invite isn't valid."), StatusCodes.Status400BadRequest);
+            throw new InviteException(Loc.T("That invite isn’t valid."), StatusCodes.Status400BadRequest);
         }
 
         var hash = Hash(token);

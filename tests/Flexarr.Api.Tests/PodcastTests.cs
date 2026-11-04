@@ -324,7 +324,7 @@ public sealed class PodcastTests : IDisposable
         // A host that stops answering is noted, not fatal.
         _host.Files.TryRemove(moved, out _);
         refreshed = await (await client.PostAsync(Api($"podcasts/{id}/refresh"), null)).Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("The feed isn't there any more.", refreshed.GetProperty("error").GetString());
+        Assert.Equal("The feed isn’t there any more.", refreshed.GetProperty("error").GetString());
         Assert.Equal(5, refreshed.GetProperty("episodeCount").GetInt32());
     }
 
