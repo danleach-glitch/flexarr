@@ -57,7 +57,7 @@ export function MusicRequestButton({
       setSent('Requested')
     } catch (e) {
       setSent(e instanceof ApiError && e.status === 409 ? 'refused' : 'failed')
-      setMessage(e instanceof ApiError && e.messages[0] ? e.messages[0] : 'The request didn’t go through.')
+      setMessage(e instanceof ApiError && e.messages[0] ? e.messages[0] : t('The request didn’t go through.'))
     }
   }
 
@@ -80,7 +80,21 @@ export function MusicRequestButton({
   if (kind === 'album' && (libraryItemId || state === 'Available')) return <span className="external-state">{t('In your library')}</span>
   const className = size === 'small' ? 'button small quiet' : 'button quiet'
   // A grid of cards is a row of the same words to a screen reader: each says whose it is (a page's own needn't).
-  const named = (label: string) => (size === 'small' && title ? `${label} ${title}` : undefined)
+  const named = (action: 'following' | 'requested' | 'retry' | 'follow' | 'request') => {
+    if (size !== 'small' || !title) return undefined
+    switch (action) {
+      case 'following':
+        return t('Following {title}', { title })
+      case 'requested':
+        return t('Requested {title}', { title })
+      case 'retry':
+        return t('Try again {title}', { title })
+      case 'follow':
+        return t('Follow {title}', { title })
+      default:
+        return t('Request album {title}', { title })
+    }
+  }
   if (state === 'Requested' || state === 'PartlyAvailable') {
     const Icon = kind === 'artist' ? icon.following : icon.requested
     return (
@@ -88,19 +102,27 @@ export function MusicRequestButton({
         <AsyncButton
           className={className}
           aria-pressed
-          aria-label={named(kind === 'artist' ? 'Following' : 'Requested')}
+          aria-label={named(kind === 'artist' ? 'following' : 'requested')}
           onClick={() => setAsking(true)}
           disabled={offline}
-          title={offline ? 'Lidarr isn’t answering.' : kind === 'artist' ? 'Stop following' : 'Unrequest'}
+          title={offline ? t('Lidarr isn’t answering.') : kind === 'artist' ? t('Stop following') : t('Unrequest')}
         >
-          <Icon aria-hidden /> {kind === 'artist' ? 'Following' : 'Requested'}
+          <Icon aria-hidden /> {kind === 'artist' ? t('Following') : t('Requested')}
         </AsyncButton>
         {offline && size === 'large' && <span className="external-state">{t('Lidarr isn’t answering.')}</span>}
         {asking && (
           <ConfirmDialog
-            title={kind === 'artist' ? `Stop following ${title ?? 'this artist'}?` : `Unrequest ${title ?? 'this album'}?`}
-            confirmLabel={kind === 'artist' ? 'Stop following' : 'Unrequest'}
-            cancelLabel={kind === 'artist' ? 'Keep following' : 'Keep it'}
+            title={
+              kind === 'artist'
+                ? title
+                  ? t('Stop following {name}?', { name: title })
+                  : t('Stop following this artist?')
+                : title
+                  ? t('Unrequest {name}?', { name: title })
+                  : t('Unrequest this album?')
+            }
+            confirmLabel={kind === 'artist' ? t('Stop following') : t('Unrequest')}
+            cancelLabel={kind === 'artist' ? t('Keep following') : t('Keep it')}
             danger
             error={undoError}
             onConfirm={undo}
@@ -130,12 +152,12 @@ export function MusicRequestButton({
       <AsyncButton
         className={className}
         onClick={send}
-        aria-label={named(state === 'failed' ? 'Try again' : kind === 'artist' ? 'Follow' : 'Request album')}
+        aria-label={named(state === 'failed' ? 'retry' : kind === 'artist' ? 'follow' : 'request')}
         busy={state === 'sending'}
         disabled={offline}
-        title={offline ? 'Lidarr isn’t answering.' : message}
+        title={offline ? t('Lidarr isn’t answering.') : message}
       >
-        <Icon aria-hidden /> {state === 'failed' ? 'Try again' : kind === 'artist' ? 'Follow' : 'Request album'}
+        <Icon aria-hidden /> {state === 'failed' ? t('Try again') : kind === 'artist' ? t('Follow') : t('Request album')}
       </AsyncButton>
       {offline && size === 'large' && <span className="external-state">{t('Lidarr isn’t answering.')}</span>}
       {state === 'failed' && message && (
@@ -168,7 +190,7 @@ export function MusicExternalCard({ item, showArtist = true, unanswered = false 
   return (
     <div className={`card external-card music-external-card music-external-${item.kind}`}>
       {to ? (
-        <Link to={to} aria-label={item.libraryItemId ? `${item.title}, in your library` : `${item.title}, more about it`}>
+        <Link to={to} aria-label={item.libraryItemId ? t('{title}, in your library', { title: item.title }) : t('{title}, more about it', { title: item.title })}>
           {art}
         </Link>
       ) : (

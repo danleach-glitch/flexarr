@@ -88,7 +88,7 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
   if (state === 'done') {
     return (
       <div className="panel connect-tv" role="status">
-        <h2>{details?.deviceName ?? 'The device'} is connected</h2>
+        <h2>{details?.deviceName ? t('{name} is connected', { name: details.deviceName }) : t('The device is connected')}</h2>
         <p className="muted">{t('It signs in within a couple of seconds. You can put this away.')}</p>
       </div>
     )
@@ -118,16 +118,18 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
     const home = details.zone === 'Local'
     return (
       <div className="panel connect-tv">
-        <h2>Connect {details.deviceName}?</h2>
+        <h2>{t('Connect {name}?', { name: details.deviceName })}</h2>
         <p className="connect-tv-big-code">{details.code}</p>
-        <p className="muted">Asked {askedFrom(details)}.</p>
+        <p className="muted">{t('Asked {where}.', { where: askedFrom(details) })}</p>
         {home ? (
           <p>
-            Only allow this if your device is showing <strong>{details.code}</strong> {t('right now. If someone sent you this link, choose Don’t allow.')}
+            {t.rich('Only allow this if your device is showing {code} right now. If someone sent you this link, choose Don’t allow.', { code: <strong>{details.code}</strong> })}
           </p>
         ) : (
           <p className="panel advice">
-            This request didn’t come from your home network. Only allow it if your device is showing <strong>{details.code}</strong> {t('and you started it just now. If someone sent you this link, choose Don’t allow.')}
+            {t.rich('This request didn’t come from your home network. Only allow it if your device is showing {code} and you started it just now. If someone sent you this link, choose Don’t allow.', {
+              code: <strong>{details.code}</strong>,
+            })}
           </p>
         )}
         <p className="field-help">{t('It signs in to Flexarr like any other device. You can sign it out later in Settings › Security.')}</p>
@@ -155,12 +157,12 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
       <p className="muted">{t('Open Flexarr on the TV, iPhone or iPad and enter the code it shows. A TV also shows a QR code to scan with your phone.')}</p>
       <div className="field-row">
         <label className="grow">
-          Code
+          {t('Code')}
           <input
             type="text"
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
-            placeholder={t('ABC-123')}
+            placeholder="ABC-123"
             autoCapitalize="characters"
             autoComplete="off"
             spellCheck={false}

@@ -185,13 +185,13 @@ function takeLinkedSetupCode() {
 function whereTheCodeIs(install: InstallKind | undefined) {
   switch (install) {
     case 'MacApp':
-      return 'It’s in the Flexarr menu at the top of your screen.'
+      return t('It’s in the Flexarr menu at the top of your screen.')
     case 'MacLaunchAgent':
-      return 'It’s in the file setup-code.txt, in the .flexarr/data folder in your home folder.'
+      return t('It’s in the file setup-code.txt, in the .flexarr/data folder in your home folder.')
     case 'Docker':
-      return 'The Flexarr container’s log has it, and a link that fills it in for you.'
+      return t('The Flexarr container’s log has it, and a link that fills it in for you.')
     default:
-      return 'The server’s log has it, and a link that fills it in for you.'
+      return t('The server’s log has it, and a link that fills it in for you.')
   }
 }
 
@@ -364,12 +364,12 @@ export default function App() {
     <div className={codePage ? 'connect connect-code' : 'connect'}>
       <p className="wordmark">
         <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
-        {t('flexarr')}
+        flexarr
       </p>
       {codePage && <p className="connect-tagline">{t('Your entertainment, on every screen.')}</p>}
       <section className="panel" aria-label={t('Server status')}>
         {state.kind === 'loading' && <p className="muted">{t('Connecting…')}</p>}
-        {state.kind === 'error' && <p className="error">Can't reach the server ({state.message}). Check that Flexarr is running, then reload.</p>}
+        {state.kind === 'error' && <p className="error">{t("Can't reach the server ({message}). Check that Flexarr is running, then reload.", { message: state.message })}</p>}
         {state.kind === 'unauthorized' && state.setupOpen && (
           <form className="setup-welcome api-key-form" onSubmit={setUp}>
             <h1>{t('Welcome to your Flexarr server')}</h1>
@@ -379,7 +379,7 @@ export default function App() {
             ) : (
               <>
                 <label htmlFor="setupCode">{t('Setup code')}</label>
-                <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder={t('ABCD-EFGH')} required />
+                <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required />
                 {state.wrongCode && <p className="error">{t("That isn't this server's setup code.")}</p>}
                 <p className="muted small-print setup-code-help">
                   {whereTheCodeIs(setupInstall)}{' '}
@@ -394,11 +394,11 @@ export default function App() {
             </p>
             <div className="field-row">
               <label>
-                PIN (required)
+                {t('PIN (required)')}
                 <input name="setupPin" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title={t('4 to 8 digits')} placeholder={t('4 to 8 digits')} required />
               </label>
               <label>
-                Confirm PIN
+                {t('Confirm PIN')}
                 <input name="setupPinAgain" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title={t('4 to 8 digits')} required />
               </label>
             </div>
@@ -413,16 +413,20 @@ export default function App() {
           // Arrived from a device's code: this browser isn't signed in, and only a signed-in main profile can let a device in.
           <div className="setup-welcome">
             {/* The same steps, words and look as the app's own code screen. */}
-            <h1>Connect this {thisDevice}</h1>
+            <h1>{t('{device, select, iPad {Connect this iPad} iPhone {Connect this iPhone} other {Connect this device}}', { device: thisDevice })}</h1>
             <ol className="setup-steps">
               <li>
                 <span>
-                  On your computer, open <strong>{window.location.origin}</strong> {t('in a web browser.')}
+                  {t.rich('On your computer, open {address} in a web browser.', { address: <strong>{window.location.origin}</strong> })}
                 </span>
               </li>
               <li>
                 <span>
-                  Go to <strong>{t('Settings')}</strong>, then <strong>{t('Security')}</strong>, then <strong>{t('Connect a device')}</strong>.
+                  {t.rich('Go to {settings}, then {security}, then {connect}.', {
+                    settings: <strong>{t('Settings')}</strong>,
+                    security: <strong>{t('Security')}</strong>,
+                    connect: <strong>{t('Connect a device')}</strong>,
+                  })}
                 </span>
               </li>
               <li>

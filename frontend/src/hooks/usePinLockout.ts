@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ApiError } from '../api/client'
+import { t } from '../i18n'
 
 /** How long a lockout lasts: what the server said, or else read from its message ("Try again in 29 seconds"). */
 export function lockoutSeconds(error: ApiError): number | undefined {
@@ -10,10 +11,14 @@ export function lockoutSeconds(error: ApiError): number | undefined {
   return /in a minute/.test(message) ? 60 : undefined
 }
 
-/** "29 seconds", "a minute", "3 minutes", as the server words it. */
-export function waitFor(seconds: number) {
+/** "Too many wrong PINs. Try again in 29 seconds.", as the server words it, one sentence for each way of saying the wait. */
+function lockoutMessage(seconds: number) {
   const minutes = Math.ceil(seconds / 60)
-  return seconds < 60 ? `${seconds} second${seconds === 1 ? '' : 's'}` : minutes <= 1 ? 'a minute' : `${minutes} minutes`
+  return seconds < 60
+    ? t('Too many wrong PINs. Try again in {count, plural, one {# second} other {# seconds}}.', { count: seconds })
+    : minutes <= 1
+      ? t('Too many wrong PINs. Try again in a minute.')
+      : t('Too many wrong PINs. Try again in {count, plural, one {# minute} other {# minutes}}.', { count: minutes })
 }
 
 /**
@@ -44,7 +49,7 @@ export function usePinLockout(onOver?: () => void) {
     remaining,
     locked: remaining > 0,
     /** "Too many wrong PINs. Try again in 29 seconds.", counting down, while locked. */
-    message: remaining > 0 ? `Too many wrong PINs. Try again in ${waitFor(remaining)}.` : undefined,
+    message: remaining > 0 ? lockoutMessage(remaining) : undefined,
     lockFrom(error: unknown) {
       const seconds = error instanceof ApiError && error.status === 429 ? lockoutSeconds(error) : undefined
       if (seconds === undefined) return false

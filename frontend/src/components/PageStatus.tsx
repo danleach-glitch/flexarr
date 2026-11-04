@@ -20,7 +20,7 @@ export function PageError({ error, message, onRetry }: { error: Error; message?:
 }
 
 /** A page still loading: one spinner, the same everywhere. `label` is what screen readers hear. */
-export function PageLoading({ label = 'Loading' }: { label?: string }) {
+export function PageLoading({ label = t('Loading') }: { label?: string }) {
   return (
     <div className="page-message page-status" aria-busy="true">
       <span className="page-spinner" role="status" aria-label={label} />

@@ -39,7 +39,7 @@ export function PairingPrompt() {
   if (connected) {
     return (
       <section className="pairing-prompt pairing-prompt-done" role="status" aria-label={t('Device connected')}>
-        <p className="pairing-prompt-title">“{connected.deviceName}” is connected</p>
+        <p className="pairing-prompt-title">{t('“{name}” is connected', { name: connected.deviceName })}</p>
       </section>
     )
   }
@@ -63,7 +63,7 @@ export function PairingPrompt() {
 /** "Apple TV · asking from your home network (192.168.1.70)", or "It’s asking …" when it hasn't said what it is. */
 const asking = (details: PairingDetails) => {
   const type = deviceTypeName(details.deviceType)
-  return type ? `${type}, asking ${askedFrom(details)}` : `It’s asking ${askedFrom(details)}.`
+  return type ? t('{type}, asking {where}', { type, where: askedFrom(details) }) : t('It’s asking {where}.', { where: askedFrom(details) })
 }
 
 function Prompt({
@@ -125,11 +125,12 @@ function Prompt({
         <DeviceTypeIcon type={details.deviceType} />
       </span>
       <div className="pairing-prompt-body">
-        <p className="pairing-prompt-title">Connect “{details.deviceName}”?</p>
+        <p className="pairing-prompt-title">{t('Connect “{name}”?', { name: details.deviceName })}</p>
         <p className="muted">{asking(details)}</p>
         <p>
-          {details.zone !== 'Local' && 'This didn’t come from your home network. '}
-          Check its screen shows <strong className="pairing-code">{details.code}</strong>.
+          {details.zone !== 'Local'
+            ? t.rich('This didn’t come from your home network. Check its screen shows {code}.', { code: <strong className="pairing-code">{details.code}</strong> })
+            : t.rich('Check its screen shows {code}.', { code: <strong className="pairing-code">{details.code}</strong> })}
         </p>
         {needsPin && asksPin && (
           <label className="field">

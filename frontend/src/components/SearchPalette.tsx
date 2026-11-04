@@ -47,27 +47,27 @@ interface Result {
   recentItem?: boolean
 }
 
-function titleDetail(t: ItemSummary): string {
-  if (t.kind === 'Artist') return t.childCount === 1 ? '1 album' : `${t.childCount} albums`
-  if (t.kind === 'Audiobook') return authorsLine(t) ?? 'Audiobook'
-  return [t.kind === 'Series' ? 'Series' : 'Movie', year(t)].filter(Boolean).join(', ')
+function titleDetail(item: ItemSummary): string {
+  if (item.kind === 'Artist') return t('{count, plural, one {# album} other {# albums}}', { count: item.childCount })
+  if (item.kind === 'Audiobook') return authorsLine(item) ?? t('Audiobook')
+  return [item.kind === 'Series' ? t('Series') : t('Movie'), year(item)].filter(Boolean).join(', ')
 }
 
 function flatten(results: SearchResults): Result[] {
   return [
-    ...results.titles.map((t) => ({
-      key: t.id,
-      group: 'Titles',
-      title: t.title,
-      detail: titleDetail(t),
-      image: imageUrl(t.artwork.poster, 92),
-      href: itemLink(t),
+    ...results.titles.map((title) => ({
+      key: title.id,
+      group: t('Titles'),
+      title: title.title,
+      detail: titleDetail(title),
+      image: imageUrl(title.artwork.poster, 92),
+      href: itemLink(title),
       thumb: 'titles',
-      itemId: t.id,
+      itemId: title.id,
     })),
     ...results.albums.map((a) => ({
       key: a.id,
-      group: 'Albums',
+      group: t('Albums'),
       title: a.title,
       detail: [a.seriesTitle, a.year].filter(Boolean).join(', '),
       image: imageUrl(a.artwork.poster, 92),
@@ -78,7 +78,7 @@ function flatten(results: SearchResults): Result[] {
     // A track opens its album (it has no page of its own), with the artist and album named beneath it.
     ...results.tracks.map(({ item, album }) => ({
       key: item.id,
-      group: 'Tracks',
+      group: t('Tracks'),
       title: item.title,
       detail: [item.seriesTitle, album].filter(Boolean).join(', '),
       image: imageUrl(item.artwork.poster, 92),
@@ -91,7 +91,7 @@ function flatten(results: SearchResults): Result[] {
     // Audiobooks and their series, apart from films and shows (servers before 0.58 leave them out).
     ...(results.books ?? []).map((b) => ({
       key: b.id,
-      group: 'Audiobooks',
+      group: t('Audiobooks'),
       title: b.title,
       detail: authorsLine(b),
       image: imageUrl(b.artwork.poster, 92),
@@ -101,9 +101,9 @@ function flatten(results: SearchResults): Result[] {
     })),
     ...(results.bookSeries ?? []).map((series) => ({
       key: `bs-${series.id}`,
-      group: 'Book series',
+      group: t('Book series'),
       title: series.name,
-      detail: series.bookCount === 1 ? '1 book' : `${series.bookCount} books`,
+      detail: t('{count, plural, one {# book} other {# books}}', { count: series.bookCount }),
       image: undefined,
       href: `/book-series/${series.id}`,
       thumb: 'genres',
@@ -111,9 +111,9 @@ function flatten(results: SearchResults): Result[] {
     })),
     ...results.people.map((p) => ({
       key: p.id,
-      group: 'People',
+      group: t('People'),
       title: p.name,
-      detail: p.credits === 1 ? '1 title in your library' : `${p.credits} titles in your library`,
+      detail: t('{count, plural, one {# title in your library} other {# titles in your library}}', { count: p.credits }),
       image: imageUrl(p.image, 92),
       href: `/person/${p.id}`,
       thumb: 'people',
@@ -121,7 +121,7 @@ function flatten(results: SearchResults): Result[] {
     })),
     ...results.episodes.map((e) => ({
       key: e.id,
-      group: 'Episodes',
+      group: t('Episodes'),
       title: e.title,
       detail: episodeCode(e),
       image: imageUrl(e.artwork.thumb ?? e.artwork.poster, 185),
@@ -139,11 +139,11 @@ function genreResults(results: SearchResults): Result[] {
   return results.genres.flatMap((g): Result[] => {
     const here = places.filter((p) => p.name === g)
     if (here.length === 0) {
-      return [{ key: `g-${g}`, group: 'Genres', title: g, detail: null, image: undefined, href: `/discover?genre=${encodeURIComponent(g)}`, thumb: 'genres', itemId: null }]
+      return [{ key: `g-${g}`, group: t('Genres'), title: g, detail: null, image: undefined, href: `/discover?genre=${encodeURIComponent(g)}`, thumb: 'genres', itemId: null }]
     }
     return here.map((p) => ({
       key: `g-${g}-${p.libraryId}`,
-      group: 'Genres',
+      group: t('Genres'),
       title: g,
       detail: p.library,
       image: undefined,
@@ -154,20 +154,20 @@ function genreResults(results: SearchResults): Result[] {
   })
 }
 
-const OUTSIDE = 'Not in your library'
 
 /** Films and shows (Seerr's) and artists and albums (Deezer's) that the library doesn't have, opening their own pages. */
 function outsideResults(titles: ExternalTitle[], music: { artists: MusicExternal[]; albums: MusicExternal[] }): Result[] {
   const wanted = <T extends { libraryItemId: string | null; availability: ExternalTitle['availability'] }>(x: T) => x.libraryItemId == null && x.availability !== 'Available'
-  const requested = (x: { availability: ExternalTitle['availability'] }) => (x.availability === 'Requested' ? 'Requested' : null)
+  const requested = (x: { availability: ExternalTitle['availability'] }) => (x.availability === 'Requested' ? t('Requested') : null)
+  const outside = t('Not in your library')
   return [
-    ...titles.filter(wanted).slice(0, 6).map((t) => ({
-      key: `x-${t.mediaType}-${t.tmdbId}`,
-      group: OUTSIDE,
-      title: t.title,
-      detail: [t.mediaType === 'tv' ? 'Series' : 'Movie', t.year, requested(t)].filter(Boolean).join(', '),
-      image: t.poster ? imageUrl(t.poster, 92) : undefined,
-      href: `/discover/${t.mediaType}/${t.tmdbId}`,
+    ...titles.filter(wanted).slice(0, 6).map((title) => ({
+      key: `x-${title.mediaType}-${title.tmdbId}`,
+      group: outside,
+      title: title.title,
+      detail: [title.mediaType === 'tv' ? t('Series') : t('Movie'), title.year, requested(title)].filter(Boolean).join(', '),
+      image: title.poster ? imageUrl(title.poster, 92) : undefined,
+      href: `/discover/${title.mediaType}/${title.tmdbId}`,
       thumb: 'titles',
       itemId: null,
     })),
@@ -177,9 +177,9 @@ function outsideResults(titles: ExternalTitle[], music: { artists: MusicExternal
       return [
         {
           key: `x-${m.kind}-${m.deezerId}`,
-          group: OUTSIDE,
+          group: outside,
           title: m.title,
-          detail: [m.kind === 'artist' ? 'Artist' : m.artist, m.kind === 'album' ? m.year : null, requested(m)].filter(Boolean).join(', '),
+          detail: [m.kind === 'artist' ? t('Artist') : m.artist, m.kind === 'album' ? m.year : null, requested(m)].filter(Boolean).join(', '),
           image: m.image ? imageUrl(m.image, 92) : undefined,
           href,
           thumb: m.kind === 'artist' ? 'people' : 'albums',
@@ -194,14 +194,14 @@ function outsideResults(titles: ExternalTitle[], music: { artists: MusicExternal
 function recentResults(recent: RecentSearches | null): Result[] {
   if (!recent) return []
   return [
-    ...recent.queries.map((q) => ({ key: `q-${q}`, group: 'Recent searches', title: q, detail: null, image: undefined, href: '', thumb: 'recent', itemId: null, recentQuery: q })),
+    ...recent.queries.map((q) => ({ key: `q-${q}`, group: t('Recent searches'), title: q, detail: null, image: undefined, href: '', thumb: 'recent', itemId: null, recentQuery: q })),
     ...recent.items.map((item) => {
       const episode = item.kind === 'Episode'
       const book = isBook(item)
       const square = item.kind === 'Album' || item.kind === 'Track' || book
       return {
         key: `i-${item.id}`,
-        group: 'Recently opened',
+        group: t('Recently opened'),
         title: item.title,
         detail: episode
           ? [item.seriesTitle, episodeCode(item)].filter(Boolean).join(', ')
@@ -392,7 +392,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
           <kbd>{t('esc')}</kbd>
         </label>
         <div className="palette-results" id="search-results" role="listbox">
-          {query.trim() && !loading && results.length === 0 && <p className="palette-empty">Nothing in your library matches “{query.trim()}”.</p>}
+          {query.trim() && !loading && results.length === 0 && <p className="palette-empty">{t('Nothing in your library matches “{query}”.', { query: query.trim() })}</p>}
           {groups.map(([group, items], g) => (
             <div key={group} role="group" aria-label={group}>
               {!query.trim() && g === 0 ? (
@@ -427,12 +427,12 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
                       </span>
                     </button>
                     {track && (
-                      <button className="icon-button palette-play" aria-label={`Play ${r.title}`} onClick={() => play(r, track)}>
+                      <button className="icon-button palette-play" aria-label={t('Play {title}', { title: r.title })} onClick={() => play(r, track)}>
                         <icon.play />
                       </button>
                     )}
                     {(r.recentQuery !== undefined || r.recentItem) && (
-                      <button className="icon-button palette-play" aria-label={`Remove ${r.title} from recent searches`} onClick={() => forget(r)}>
+                      <button className="icon-button palette-play" aria-label={t('Remove {title} from recent searches', { title: r.title })} onClick={() => forget(r)}>
                         <Close />
                       </button>
                     )}

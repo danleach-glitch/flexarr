@@ -19,7 +19,7 @@ const BACKDROP_WIDTHS = [780, 1280, 1920]
 export function Facts({ item, extra = [] }: { item: ItemSummary; extra?: (string | null | undefined)[] }) {
   const facts = [
     year(item)?.toString(),
-    item.kind === 'Series' ? (item.childCount === 1 ? '1 season' : `${item.childCount} seasons`) : formatDuration(item.durationSeconds ?? (item.runtimeMinutes ?? 0) * 60),
+    item.kind === 'Series' ? t('{count, plural, one {# season} other {# seasons}}', { count: item.childCount }) : formatDuration(item.durationSeconds ?? (item.runtimeMinutes ?? 0) * 60),
     ...extra,
   ].filter(Boolean)
   return (
@@ -148,13 +148,13 @@ export function Hero({ items, overviews, resume, resumes, top }: {
         {book ? (
           <p className="facts">
             {item.book?.authors && <span>{item.book.authors}</span>}
-            {item.book?.narrator && <span>Read by {item.book.narrator}</span>}
+            {item.book?.narrator && <span>{t('Read by {narrator}', { narrator: item.book.narrator })}</span>}
             {formatDuration(item.book?.durationSeconds ?? item.durationSeconds) && <span>{formatDuration(item.book?.durationSeconds ?? item.durationSeconds)}</span>}
           </p>
         ) : music ? (
           <p className="facts">
             {item.kind === 'Album' && item.year && <span>{item.year}</span>}
-            {item.childCount > 0 && <span>{item.childCount} {item.kind === 'Album' ? (item.childCount === 1 ? 'track' : 'tracks') : item.childCount === 1 ? 'album' : 'albums'}</span>}
+            {item.childCount > 0 && <span>{item.kind === 'Album' ? t('{count, plural, one {# track} other {# tracks}}', { count: item.childCount }) : t('{count, plural, one {# album} other {# albums}}', { count: item.childCount })}</span>}
           </p>
         ) : (
           <Facts item={item} />
@@ -172,7 +172,7 @@ export function Hero({ items, overviews, resume, resumes, top }: {
             <MusicActions item={item} resuming={resuming} />
           ) : (
             <AsyncButton className="button" onClick={() => (resuming ? navigate(`/play/${resuming.id}`) : play(item))}>
-              <icon.play /> {resuming ? (episode ? `Resume ${episode}` : 'Resume') : 'Play'}
+              <icon.play /> {resuming ? (episode ? t('Resume {episode}', { episode }) : t('Resume')) : t('Play')}
             </AsyncButton>
           )}
           <Link className="button quiet" to={`/item/${item.id}`}>
@@ -203,7 +203,7 @@ function MusicActions({ item, resuming }: { item: ItemSummary; resuming: ItemSum
     const tracks = radio ? await getRadio(item.id) : await getTracks(item.id)
     if (tracks.length === 0) return
     if (item.kind === 'Artist' && !radio) return player.play(shuffled(tracks), 0, { openNowPlaying: true })
-    const found = resuming ? tracks.findIndex((t) => t.id === resuming.id) : -1
+    const found = resuming ? tracks.findIndex((track) => track.id === resuming.id) : -1
     // Part way in only on the track it belongs to (a track left half way); otherwise from the start of it.
     const at = found >= 0 && resuming && !resuming.userData.watched ? resuming.userData.positionSeconds : 0
     player.play(tracks, Math.max(0, found), { openNowPlaying: true, at })
@@ -211,7 +211,7 @@ function MusicActions({ item, resuming }: { item: ItemSummary; resuming: ItemSum
   return (
     <>
       <AsyncButton className="button" onClick={() => playMusic()}>
-        <icon.play /> {resuming ? 'Resume' : 'Play'}
+        <icon.play /> {resuming ? t('Resume') : t('Play')}
       </AsyncButton>
       {item.kind === 'Artist' && (
         <AsyncButton className="button quiet" onClick={() => playMusic(true)}>
@@ -228,7 +228,7 @@ function BookPlay({ item }: { item: ItemSummary }) {
   const resumable = item.userData.positionSeconds > 0 && !item.userData.watched
   return (
     <AsyncButton className="button" onClick={() => player.play([item])}>
-      <icon.play /> {resumable ? 'Resume' : 'Play'}
+      <icon.play /> {resumable ? t('Resume') : t('Play')}
     </AsyncButton>
   )
 }

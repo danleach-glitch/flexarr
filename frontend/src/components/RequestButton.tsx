@@ -51,7 +51,7 @@ export function RequestButton({
       setSent('Requested')
     } catch (e) {
       setSent(e instanceof ApiError && (e.status === 409 || e.status === 403) ? 'refused' : 'failed')
-      setMessage(e instanceof ApiError && e.messages[0] ? e.messages[0] : 'The request didn’t go through.')
+      setMessage(e instanceof ApiError && e.messages[0] ? e.messages[0] : t('The request didn’t go through.'))
     }
   }
 
@@ -79,17 +79,17 @@ export function RequestButton({
           aria-pressed
           onClick={() => setAsking(true)}
           disabled={offline}
-          title={offline ? 'Seerr isn’t answering.' : 'Unrequest'}
-          aria-label={label ? label.replace(/^Request\b/, 'Unrequest') : undefined}
+          title={offline ? t('Seerr isn’t answering.') : t('Unrequest')}
+          aria-label={label ? (name ? t('Unrequest {name}', { name }) : label) : undefined}
         >
           <icon.requested aria-hidden /> {t('Requested')}
         </AsyncButton>
         {offlineNote}
         {asking && (
           <ConfirmDialog
-            title={`Unrequest ${what ?? (title.mediaType === 'movie' ? 'this movie' : 'this show')}?`}
-            confirmLabel="Unrequest"
-            cancelLabel="Keep it"
+            title={what ? t('Unrequest {name}?', { name: what }) : title.mediaType === 'movie' ? t('Unrequest this movie?') : t('Unrequest this show?')}
+            confirmLabel={t('Unrequest')}
+            cancelLabel={t('Keep it')}
             danger
             error={undoError}
             onConfirm={undo}
@@ -120,10 +120,10 @@ export function RequestButton({
         onClick={send}
         busy={state === 'sending'}
         disabled={offline}
-        title={offline ? 'Seerr isn’t answering.' : message}
+        title={offline ? t('Seerr isn’t answering.') : message}
         aria-label={label}
       >
-        <icon.request aria-hidden /> {state === 'failed' ? 'Try again' : 'Request'}
+        <icon.request aria-hidden /> {state === 'failed' ? t('Try again') : t('Request')}
       </AsyncButton>
       {offlineNote}
       {size === 'large' && state === 'failed' && message && (

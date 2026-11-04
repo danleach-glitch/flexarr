@@ -1,12 +1,13 @@
 import type { SetupGuide, SetupStep } from '../api/client'
+import { tk } from '../i18n'
 
-/** What's left once the guide is put away, each with where it's done in Settings. */
+/** What's left once the guide is put away, each with where it's done in Settings. Labels are shown through t(). */
 export const setupItems: { id: SetupStep; label: string; settings: string }[] = [
-  { id: 'apps', label: 'Connect Sonarr, Radarr or Lidarr', settings: '/settings/connections' },
-  { id: 'libraries', label: 'Add your libraries', settings: '/settings/libraries' },
-  { id: 'profiles', label: 'Add everyone who watches', settings: '/settings/profiles' },
-  { id: 'devices', label: 'Connect a TV or phone', settings: '/settings/tv' },
-  { id: 'away', label: 'Watch away from home', settings: '/settings/remote' },
+  { id: 'apps', label: tk('Connect Sonarr, Radarr or Lidarr'), settings: '/settings/connections' },
+  { id: 'libraries', label: tk('Add your libraries'), settings: '/settings/libraries' },
+  { id: 'profiles', label: tk('Add everyone who watches'), settings: '/settings/profiles' },
+  { id: 'devices', label: tk('Connect a TV or phone'), settings: '/settings/tv' },
+  { id: 'away', label: tk('Watch away from home'), settings: '/settings/remote' },
 ]
 
 export const isDone = (guide: SetupGuide, id: SetupStep) => guide[id] || guide.skipped.includes(id)

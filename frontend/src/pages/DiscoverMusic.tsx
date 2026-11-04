@@ -23,7 +23,7 @@ export function DiscoverSwitch({ music }: { music: boolean }) {
 /** Discover › Music: rows from Deezer matched against the library, then genre tiles. */
 export function MusicDiscover() {
   const discover = useApi(getMusicDiscover, [])
-  if (discover.error) return <PageError error={discover.error} message="Deezer didn’t answer." onRetry={discover.reload} />
+  if (discover.error) return <PageError error={discover.error} message={t('Deezer didn’t answer.')} onRetry={discover.reload} />
   if (!discover.data) return <PageLoading />
   const { rows, genres } = discover.data
   if (rows.length === 0 && genres.length === 0) return <p className="muted discover-note">{t('Nothing to suggest yet.')}</p>
@@ -64,11 +64,11 @@ export function MusicGenrePage({ id }: { id: string }) {
           <p className="detail-kicker">
             <Link to="/discover?view=music">{t('Music')}</Link>
           </p>
-          <h1>{genre.data?.name ?? 'Genre'}</h1>
+          <h1>{genre.data?.name ?? t('Genre')}</h1>
         </div>
       </header>
       {genre.error ? (
-        <PageError error={genre.error} message="Deezer didn’t answer." onRetry={genre.reload} />
+        <PageError error={genre.error} message={t('Deezer didn’t answer.')} onRetry={genre.reload} />
       ) : !genre.data ? (
         <PageLoading />
       ) : genre.data.artists.length === 0 ? (
@@ -87,21 +87,21 @@ export function MusicGenrePage({ id }: { id: string }) {
 /** Artists and albums anywhere (Deezer's), marked when you have them. */
 export function MusicSearchResults({ query }: { query: string }) {
   const results = useApi((signal) => searchMusic(query, signal), [query])
-  if (results.error) return <PageError error={results.error} message="Deezer didn’t answer." onRetry={results.reload} />
+  if (results.error) return <PageError error={results.error} message={t('Deezer didn’t answer.')} onRetry={results.reload} />
   if (!results.data) return <p className="muted">{t('Searching…')}</p>
   const { artists, albums } = results.data
-  if (artists.length === 0 && albums.length === 0) return <p className="muted">Nothing found for “{query}”.</p>
+  if (artists.length === 0 && albums.length === 0) return <p className="muted">{t('Nothing found for “{query}”.', { query })}</p>
   return (
     <>
       {(
         [
-          ['Artists', artists],
-          ['Albums', albums],
+          ['artists', t('Artists'), artists],
+          ['albums', t('Albums'), albums],
         ] as const
       ).map(
-        ([label, found]) =>
+        ([key, label, found]) =>
           found.length > 0 && (
-            <section key={label} className="discover-results">
+            <section key={key} className="discover-results">
               <h2 className="settings-subhead">
                 {label} <span className="health-count">{found.length}</span>
               </h2>

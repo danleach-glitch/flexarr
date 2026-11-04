@@ -83,8 +83,8 @@ export function ProfilePicker({
       onChosen(await selectProfile(cleared.id))
     } catch (e) {
       if (lockout.lockFrom(e)) setError(undefined)
-      else if (e instanceof ApiError && e.status === 404) setError(`Take the PIN off in Settings › Profiles, signed in as the main profile.`)
-      else setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : 'Couldn’t take the PIN off.')
+      else if (e instanceof ApiError && e.status === 404) setError(t('Take the PIN off in Settings › Profiles, signed in as the main profile.'))
+      else setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : t('Couldn’t take the PIN off.'))
       setPin('')
     } finally {
       setChecking(false)
@@ -112,13 +112,13 @@ export function ProfilePicker({
         // The parent's was right: back to this profile's own, keeping the parent's for when it is.
         knownParentPin.current = parentPin
         ask(profile)
-        setError(`That isn’t ${profile.name}’s PIN.`)
+        setError(t('That isn’t {name}’s PIN.', { name: profile.name }))
         return
       }
       if (lockout.lockFrom(e)) {
         setError(undefined)
       } else {
-        setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : 'Couldn’t switch profile.')
+        setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : t('Couldn’t switch profile.'))
       }
       setPin('')
     } finally {
@@ -172,7 +172,7 @@ export function ProfilePicker({
         clearApiCache()
         onChosen(asking)
       })
-      .catch((e: unknown) => setError(e instanceof UnauthorizedError ? 'That isn’t the right key.' : 'Couldn’t sign in.'))
+      .catch((e: unknown) => setError(e instanceof UnauthorizedError ? t('That isn’t the right key.') : t('Couldn’t sign in.')))
       .finally(() => setChecking(false))
   }
 
@@ -180,12 +180,12 @@ export function ProfilePicker({
     <div className="profile-picker">
       <p className="wordmark">
         <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
-        {t('flexarr')}
+        flexarr
       </p>
       {asking && usingKey ? (
         <form className="pin-pad" onSubmit={signInWithKey}>
           <Avatar profile={asking} size={88} />
-          <h1>Sign in as {asking.name}</h1>
+          <h1>{t('Sign in as {name}', { name: asking.name })}</h1>
           <label className="field">
             <span className="field-label">{t('API key')}</span>
             <input name="apiKey" type="password" autoComplete="off" autoFocus={!touchScreen()} required />
@@ -227,8 +227,8 @@ export function ProfilePicker({
           ) : (
             <Avatar profile={asking} size={88} />
           )}
-          <h1>{parent || forgetting || asksAdminPin(asking) ? 'Enter the admin PIN' : `Enter ${asking.name}’s PIN`}</h1>
-          {forgetting && <p className="muted">It takes {asking.name}’s PIN off.</p>}
+          <h1>{parent || forgetting || asksAdminPin(asking) ? t('Enter the admin PIN') : t('Enter {name}’s PIN', { name: asking.name })}</h1>
+          {forgetting && <p className="muted">{t('It takes {name}’s PIN off.', { name: asking.name })}</p>}
           <input
             ref={field}
             className="pin-display"
@@ -246,16 +246,19 @@ export function ProfilePicker({
               <p className="error">{lockout.message}</p>
               {(asking.isMain || parent) && (
                 <p className="muted">
-                  Forgotten it?{' '}
-                  <button type="button" className="text-button" onClick={() => setUsingKey(true)}>
-                    {t('Use the API key instead')}
-                  </button>
+                  {t.rich('Forgotten it? {button}', {
+                    button: (
+                      <button type="button" className="text-button" onClick={() => setUsingKey(true)}>
+                        {t('Use the API key instead')}
+                      </button>
+                    ),
+                  })}
                 </p>
               )}
             </div>
           ) : (
             <p className={error ? 'error' : 'muted pin-status'} role={error ? 'alert' : 'status'}>
-              {error ?? (checking ? 'Checking…' : '')}
+              {error ?? (checking ? t('Checking…') : '')}
             </p>
           )}
           {!asking.isMain && !parent && !forgetting && !locked && (

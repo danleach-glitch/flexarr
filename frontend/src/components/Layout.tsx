@@ -182,7 +182,7 @@ export function Layout() {
         </button>
         <Link to="/" className="wordmark topbar-wordmark" aria-label={t('Flexarr home')}>
           <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
-          {t('flexarr')}
+          flexarr
         </Link>
         <div className="topbar-tools">
           <button className="search-trigger" onClick={() => setSearching(true)}>
@@ -198,12 +198,12 @@ export function Layout() {
           )}
           {me && profiles && (profiles.length > 1 || canSignOut || access?.kidsLock) && (
             <div className="profile-menu-anchor" ref={profileAnchor}>
-              <button className="profile-button" aria-expanded={profileMenu} aria-label={`Profile: ${me.name}`} onClick={() => setProfileMenu(!profileMenu)}>
+              <button className="profile-button" aria-expanded={profileMenu} aria-label={t('Profile: {name}', { name: me.name })} onClick={() => setProfileMenu(!profileMenu)}>
                 <Avatar profile={me} size={34} />
               </button>
               {profileMenu && (
                 <div className="profile-menu" role="menu">
-                  <p className="muted">Watching as {me.name}</p>
+                  <p className="muted">{t('Watching as {name}', { name: me.name })}</p>
                   {profiles.length > 1 && (
                     <AsyncButton
                       role="menuitem"
@@ -223,7 +223,7 @@ export function Layout() {
                         window.location.assign('/')
                       }}
                     >
-                      {other && !asksPin(other) ? `Switch to ${other.name}` : 'Switch profile'}
+                      {other && !asksPin(other) ? t('Switch to {name}', { name: other.name }) : t('Switch profile')}
                     </AsyncButton>
                   )}
                   {(isAdmin || access?.canUnlock) && (
@@ -236,7 +236,7 @@ export function Layout() {
                     <button
                       role="menuitem"
                       onClick={async () => {
-                        if (!confirm('Sign out of this browser? Signing in again takes the API key.')) return
+                        if (!confirm(t('Sign out of this browser? Signing in again takes the API key.'))) return
                         setProfileMenu(false)
                         // Whatever the server says, start again from the top: the sign-in page if it's needed.
                         await signOut().catch(() => undefined)
@@ -258,7 +258,7 @@ export function Layout() {
           <div className="sidebar-head">
             <Link to="/" className="wordmark" aria-label={t('Flexarr home')}>
               <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
-              <span className="sidebar-label">{t('flexarr')}</span>
+              <span className="sidebar-label">flexarr</span>
             </Link>
             <button className="icon-button sidebar-close" aria-label={t('Close menu')} onClick={() => setDrawer(false)}>
               <Close />
@@ -266,7 +266,7 @@ export function Layout() {
           </div>
           {/* Libraries scroll on their own below the wordmark, however many there are. */}
           <nav aria-label={t('Main')} className="sidebar-nav">
-            <NavLink to="/" end className="sidebar-link" title={tip('Home')}>
+            <NavLink to="/" end className="sidebar-link" title={tip(t('Home'))}>
               <icon.home />
               <span className="sidebar-label">{t('Home')}</span>
             </NavLink>
@@ -278,7 +278,7 @@ export function Layout() {
                 {shownLibraries.map((library) => {
                   if (library.type === 'Podcasts')
                     return (
-                      <NavLink key={library.id} to="/podcasts" className="sidebar-link" title={tip('Podcasts')}>
+                      <NavLink key={library.id} to="/podcasts" className="sidebar-link" title={tip(t('Podcasts'))}>
                         <icon.podcasts />
                         <span className="sidebar-label">{t('Podcasts')}</span>
                       </NavLink>
@@ -301,45 +301,45 @@ export function Layout() {
             )}
             {/* A child's profile has no watchlist or collections. */}
             {shows.watchlist && (
-              <NavLink to="/watchlist" className="sidebar-link" title={tip('Watchlist')}>
+              <NavLink to="/watchlist" className="sidebar-link" title={tip(t('Watchlist'))}>
                 <icon.watchlist />
                 <span className="sidebar-label">{t('Watchlist')}</span>
               </NavLink>
             )}
             {shows.collections && (
-              <NavLink to="/collections" className="sidebar-link" title={tip('Collections')}>
+              <NavLink to="/collections" className="sidebar-link" title={tip(t('Collections'))}>
                 <icon.collections />
                 <span className="sidebar-label">{t('Collections')}</span>
               </NavLink>
             )}
             {shows.playlists && (
-              <NavLink to="/playlists" className="sidebar-link" title={tip('Playlists')}>
+              <NavLink to="/playlists" className="sidebar-link" title={tip(t('Playlists'))}>
                 <Playlist />
                 <span className="sidebar-label">{t('Playlists')}</span>
               </NavLink>
             )}
             {liveTvLink && (
-              <NavLink to="/livetv" className="sidebar-link" title={tip('Live TV')}>
+              <NavLink to="/livetv" className="sidebar-link" title={tip(t('Live TV'))}>
                 <icon.liveTv />
                 <span className="sidebar-label">{t('Live TV')}</span>
               </NavLink>
             )}
             {shows.discover && (
-              <NavLink to="/discover" className="sidebar-link" title={tip('Discover')}>
+              <NavLink to="/discover" className="sidebar-link" title={tip(t('Discover'))}>
                 <icon.discover />
                 <span className="sidebar-label">{t('Discover')}</span>
               </NavLink>
             )}
             {shows.upcoming && (
-              <NavLink to="/upcoming" className="sidebar-link" title={tip('Coming soon')}>
+              <NavLink to="/upcoming" className="sidebar-link" title={tip(t('Coming soon'))}>
                 <icon.comingSoon />
                 <span className="sidebar-label">{t('Coming soon')}</span>
               </NavLink>
             )}
           </nav>
-          <button className="sidebar-link sidebar-toggle" aria-expanded={!rail} title={tip('Expand sidebar')} onClick={toggleRail}>
+          <button className="sidebar-link sidebar-toggle" aria-expanded={!rail} title={tip(t('Expand sidebar'))} onClick={toggleRail}>
             <ChevronsLeft style={rail ? { transform: 'scaleX(-1)' } : undefined} />
-            <span className="sidebar-label">{rail ? 'Expand sidebar' : 'Collapse sidebar'}</span>
+            <span className="sidebar-label">{rail ? t('Expand sidebar') : t('Collapse sidebar')}</span>
           </button>
         </aside>
       )}

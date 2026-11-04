@@ -94,7 +94,7 @@ export function KidsLockMenuItems({ access, profiles, onClose }: { access: Me | 
           } else setAsking(locked ? 'release' : 'lock')
         }}
       >
-        {locked ? 'Turn off child lock' : 'Child lock'}
+        {locked ? t('Turn off child lock') : t('Child lock')}
       </button>
       {error && (
         <p className="error" role="alert">
@@ -103,8 +103,8 @@ export function KidsLockMenuItems({ access, profiles, onClose }: { access: Me | 
       )}
       {asking && (
         <ParentPinDialog
-          title={asking === 'lock' ? 'Turn on child lock' : 'Turn off child lock'}
-          action={asking === 'lock' ? 'Turn on' : 'Turn off'}
+          title={asking === 'lock' ? t('Turn on child lock') : t('Turn off child lock')}
+          action={asking === 'lock' ? t('Turn on') : t('Turn off')}
           onCancel={() => {
             setAsking(undefined)
             onClose()

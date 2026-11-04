@@ -90,12 +90,12 @@ export function LibraryRequested({ library, viewSwitch }: { library: Library; vi
       {error && !data ? (
         <PageError error={error} onRetry={reload} />
       ) : !rows ? (
-        <PageLoading label={music ? 'Loading requested albums' : `Loading requested ${library.type === 'Movies' ? 'movies' : 'shows'}`} />
+        <PageLoading label={music ? t('Loading requested albums') : library.type === 'Movies' ? t('Loading requested movies') : t('Loading requested shows')} />
       ) : (
         <>
           {!answering && (
             <p className="page-message muted" role="status">
-              {service} isn’t answering.
+              {t('{service} isn’t answering.', { service })}
             </p>
           )}
           {rows.length === 0 ? (
@@ -129,7 +129,7 @@ function albumRow(item: MusicRequested): Row {
     subtitle: link ? <Link to={link}>{item.artist}</Link> : item.artist,
     image: item.image,
     link,
-    linkLabel: `${item.title}, by ${item.artist}`,
+    linkLabel: t('{title}, by {artist}', { title: item.title, artist: item.artist }),
     state: item.state,
     progress: item.progress,
     releaseDate: item.releaseDate,
@@ -141,8 +141,8 @@ function albumRow(item: MusicRequested): Row {
 function titleRow(item: TitleRequested): Row {
   const seasons = item.seasons?.length
     ? item.seasons.length === 1
-      ? `Season ${item.seasons[0]}`
-      : `Seasons ${item.seasons.slice(0, -1).join(', ')} and ${item.seasons[item.seasons.length - 1]}`
+      ? t('Season {number}', { number: item.seasons[0] })
+      : t('Seasons {list} and {last}', { list: item.seasons.slice(0, -1).join(', '), last: item.seasons[item.seasons.length - 1] })
     : null
   return {
     key: `${item.mediaType}:${item.tmdbId}`,
@@ -195,18 +195,18 @@ function RequestedCard({ row, square, offline, service, onGone }: { row: Row; sq
       <span className="card-subtitle">{row.subtitle}</span>
       <span className={`requested-state requested-${row.state}`}>{requestedState(row)}</span>
       {row.state === 'downloading' && row.progress != null && (
-        <progress className="requested-progress" value={row.progress} max={1} aria-label={`${row.title} downloading`} />
+        <progress className="requested-progress" value={row.progress} max={1} aria-label={t('{title} downloading', { title: row.title })} />
       )}
       <div className="external-card-actions">
-        <AsyncButton className="button small quiet" aria-label={`Unrequest ${row.title}`} onClick={() => setAsking(true)} disabled={offline} title={offline ? `${service} isn’t answering.` : undefined}>
+        <AsyncButton className="button small quiet" aria-label={t('Unrequest {title}', { title: row.title })} onClick={() => setAsking(true)} disabled={offline} title={offline ? t('{service} isn’t answering.', { service }) : undefined}>
           {t('Unrequest')}
         </AsyncButton>
       </div>
       {asking && (
         <ConfirmDialog
-          title={`Unrequest ${row.title}?`}
-          confirmLabel="Unrequest"
-          cancelLabel="Keep it"
+          title={t('Unrequest {name}?', { name: row.title })}
+          confirmLabel={t('Unrequest')}
+          cancelLabel={t('Keep it')}
           danger
           error={error}
           onConfirm={unrequest}

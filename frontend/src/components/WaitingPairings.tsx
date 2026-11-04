@@ -9,7 +9,10 @@ import { DeviceTypeIcon } from './DeviceTypeIcon'
 import { t } from '../i18n'
 
 /** "Apple TV · from your home network (192.168.1.70)", or just where from when it hasn't said what it is. */
-const where = (details: PairingDetails) => [deviceTypeName(details.deviceType), askedFrom(details)].filter(Boolean).join(', ')
+const where = (details: PairingDetails) => {
+  const type = deviceTypeName(details.deviceType)
+  return type ? t('{type}, {where}', { type, where: askedFrom(details) }) : askedFrom(details)
+}
 
 /**
  * Every device showing a code right now, to allow without typing the code (main profile only, and not from servers
@@ -30,7 +33,7 @@ export function WaitingPairings() {
       ) : (
         <ul className="plain-list sign-in-list">
           {list.map((details) => (
-            <Row key={details.code} details={details} onAllowed={() => setDone(`“${details.deviceName}” is connected. It signs in within a couple of seconds.`)} />
+            <Row key={details.code} details={details} onAllowed={() => setDone(t('“{name}” is connected. It signs in within a couple of seconds.', { name: details.deviceName }))} />
           ))}
         </ul>
       )}
@@ -97,7 +100,7 @@ function Row({ details, onAllowed }: { details: PairingDetails; onAllowed: () =>
           busy={state === 'declining'}
           disabled={state === 'approving'}
           onClick={() => decline()}
-          aria-label={`Don’t allow ${details.deviceName}`}
+          aria-label={t('Don’t allow {name}', { name: details.deviceName })}
         >
           {t('Don’t allow')}
         </AsyncButton>
@@ -106,7 +109,7 @@ function Row({ details, onAllowed }: { details: PairingDetails; onAllowed: () =>
           busy={state === 'approving'}
           disabled={state === 'declining'}
           onClick={() => allow()}
-          aria-label={`Allow ${details.deviceName}`}
+          aria-label={t('Allow {name}', { name: details.deviceName })}
         >
           {t('Allow')}
         </AsyncButton>

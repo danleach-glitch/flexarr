@@ -65,7 +65,7 @@ export function UpcomingPage() {
                 data-week-start={d.getDay() === 1 || undefined}
               >
                 <h2 className="day-row-date">
-                  <span className="day-row-weekday">{key === todayKey ? 'Today' : d.toLocaleDateString(locale(), { weekday: 'short' })}</span>
+                  <span className="day-row-weekday">{key === todayKey ? t('Today') : d.toLocaleDateString(locale(), { weekday: 'short' })}</span>
                   <span className="day-row-day">{d.toLocaleDateString(locale(), { day: 'numeric', month: 'short' })}</span>
                 </h2>
                 {items.length > 0 ? (
@@ -102,9 +102,14 @@ function CalendarEntry({ items }: { items: UpcomingItem[] }) {
   const many = items.length > 1
   const sameSeason = items.every((i) => i.seasonNumber === item.seasonNumber)
   const code = (i: UpcomingItem) => episodeCode({ seasonNumber: i.seasonNumber, episodeNumber: i.episodeNumber, episodeNumberEnd: null, airDate: null })
-  const label = !many ? subtitle(item) : sameSeason ? `${code(item)}–E${String(last.episodeNumber ?? 0).padStart(2, '0')}, ${items.length} episodes` : `${items.length} episodes`
+  const episodes = t('{count, plural, one {# episode} other {# episodes}}', { count: items.length })
+  const label = !many
+    ? subtitle(item)
+    : sameSeason
+      ? t('{range}, {episodes}', { range: `${code(item)}–E${String(last.episodeNumber ?? 0).padStart(2, '0')}`, episodes })
+      : episodes
   const ready = items.every((i) => i.available)
-  const state = many ? (ready ? 'Ready to watch' : items.some((i) => i.download) ? 'Downloading' : null) : status(item)
+  const state = many ? (ready ? t('Ready to watch') : items.some((i) => i.download) ? t('Downloading') : null) : status(item)
   return (
     <EntryLink item={item} className="calendar-entry" data-ready={ready || undefined}>
       <span className="calendar-poster">{item.poster && <img src={imageUrl(item.poster, 92)} alt="" loading="lazy" />}</span>
@@ -128,7 +133,7 @@ function EntryLink({ item, className, children, ...rest }: { item: UpcomingItem;
   const manage = webLink(item.manageUrl)
   if (manage)
     return (
-      <a href={manage} target="_blank" rel="noreferrer" className={className} title={`Open in ${sourceName(item)}`} {...rest}>
+      <a href={manage} target="_blank" rel="noreferrer" className={className} title={t('Open in {app}', { app: sourceName(item) })} {...rest}>
         {children}
       </a>
     )
@@ -146,8 +151,8 @@ function subtitle(item: UpcomingItem) {
 }
 
 function status(item: UpcomingItem) {
-  if (item.available) return 'Ready to watch'
-  if (item.download) return `Downloading ${Math.round(item.download.progress * 100)}%`
+  if (item.available) return t('Ready to watch')
+  if (item.download) return t('Downloading {percent}%', { percent: Math.round(item.download.progress * 100) })
   return null
 }
 
@@ -175,10 +180,10 @@ function DownloadRow({ download: d }: { download: Download }) {
         </span>
         {attention && webLink(d.manageUrl) ? (
           <a className="download-attention" href={webLink(d.manageUrl)} target="_blank" rel="noreferrer">
-            Needs attention: open {sourceName(d)}
+            {t('Needs attention: open {app}', { app: sourceName(d) })}
           </a>
         ) : (
-          <span className={attention ? 'download-attention' : 'muted'}>{attention ? `Needs attention in ${sourceName(d)}` : text}</span>
+          <span className={attention ? 'download-attention' : 'muted'}>{attention ? t('Needs attention in {app}', { app: sourceName(d) }) : text}</span>
         )}
       </span>
     </li>
@@ -189,9 +194,9 @@ function DownloadRow({ download: d }: { download: Download }) {
 function downloadStatus(state: DownloadState): { text: string; attention?: true } {
   const status = state.status?.toLowerCase() ?? ''
   if (status.includes('blocked') || status.includes('failed') || status.includes('warning')) return { text: '', attention: true }
-  if (state.progress >= 0.999 || status.includes('importpending') || status.includes('importing')) return { text: 'Downloaded, waiting to be imported' }
-  if (status.includes('paused')) return { text: `Paused at ${Math.round(state.progress * 100)}%` }
-  if (status.includes('queued') || status.includes('delay')) return { text: 'Queued' }
+  if (state.progress >= 0.999 || status.includes('importpending') || status.includes('importing')) return { text: t('Downloaded, waiting to be imported') }
+  if (status.includes('paused')) return { text: t('Paused at {percent}%', { percent: Math.round(state.progress * 100) }) }
+  if (status.includes('queued') || status.includes('delay')) return { text: t('Queued') }
   const left = friendlyTimeLeft(state.timeLeft)
-  return { text: `${Math.round(state.progress * 100)}%${left ? `, ${left}` : ''}` }
+  return { text: left ? t('{percent}%, {left}', { percent: Math.round(state.progress * 100), left }) : t('{percent}%', { percent: Math.round(state.progress * 100) }) }
 }

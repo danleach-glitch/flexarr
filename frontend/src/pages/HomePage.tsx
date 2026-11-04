@@ -13,7 +13,7 @@ import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
 import { showsChecklist } from '../lib/setupGuide'
-import { t } from '../i18n'
+import { t, tk } from '../i18n'
 
 export function HomePage() {
   const { libraries } = useLibraries()
@@ -95,7 +95,7 @@ export function HomePage() {
             <Fragment key={row.id}>{newEpisodes}</Fragment>
           ) : row.style === 'upcoming' ? (
             data.upcoming.length > 0 && (
-              <Row key={row.id} title={data.downloading > 0 ? `Coming soon (${data.downloading} downloading)` : 'Coming soon'} link="/upcoming" style="wide">
+              <Row key={row.id} title={data.downloading > 0 ? t('Coming soon ({count} downloading)', { count: data.downloading }) : t('Coming soon')} link="/upcoming" style="wide">
                 {data.upcoming.map((item) => (
                   <UpcomingCard key={item.id} item={item} />
                 ))}
@@ -111,21 +111,28 @@ export function HomePage() {
   )
 }
 
-const kinds: Record<Library['type'], string> = { Movies: 'movies', TvShows: 'shows', Music: 'music', Podcasts: 'podcasts', HomeVideos: 'home videos', Audiobooks: 'audiobooks' }
+const kinds: Record<Library['type'], string> = {
+  Movies: tk('movies'),
+  TvShows: tk('shows'),
+  Music: tk('music'),
+  Podcasts: tk('podcasts'),
+  HomeVideos: tk('home videos'),
+  Audiobooks: tk('audiobooks'),
+}
 
 /** Libraries are there but hold nothing Flexarr recognised: still scanning, or nothing found in their folders. */
 /** A child's Home with nothing to watch yet: one line. */
 function NothingFor({ name }: { name: string | undefined }) {
   return (
     <section className="welcome">
-      <h1>{name ? `Nothing here for ${name} yet` : 'Nothing here yet'}</h1>
+      <h1>{name ? t('Nothing here for {name} yet', { name }) : t('Nothing here yet')}</h1>
     </section>
   )
 }
 
 function EmptyLibraries({ libraries }: { libraries: Library[] }) {
   const names = list(libraries.map((l) => l.name))
-  const wanted = list([...new Set(libraries.map((l) => kinds[l.type]))])
+  const wanted = list([...new Set(libraries.map((l) => t(kinds[l.type])))])
   const folders = libraries.flatMap((l) => l.folders)
   const scanning = libraries.filter((l) => l.scan)
   if (scanning.length > 0) {
@@ -135,8 +142,9 @@ function EmptyLibraries({ libraries }: { libraries: Library[] }) {
       <section className="welcome">
         <h1>{t('Looking through your library')}</h1>
         <p>
-          Flexarr is reading the files in {names}
-          {total > 0 && ` (${done} of ${total})`}. Your {wanted} appear here as they’re recognised.
+          {total > 0
+            ? t('Flexarr is reading the files in {names} ({done} of {total}). Your {wanted} appear here as they’re recognised.', { names, done, total, wanted })
+            : t('Flexarr is reading the files in {names}. Your {wanted} appear here as they’re recognised.', { names, wanted })}
         </p>
       </section>
     )
@@ -144,9 +152,7 @@ function EmptyLibraries({ libraries }: { libraries: Library[] }) {
   return (
     <section className="welcome">
       <h1>{t('Your library is empty')}</h1>
-      <p>
-        Add files to {folders.length > 1 ? 'your library folders' : 'your library folder'}, or connect Sonarr or Radarr.
-      </p>
+      <p>{folders.length > 1 ? t('Add files to your library folders, or connect Sonarr or Radarr.') : t('Add files to your library folder, or connect Sonarr or Radarr.')}</p>
       {folders.length > 0 && (
         <ul className="welcome-folders" aria-label={t('Folders')}>
           {folders.map((folder) => (
@@ -170,7 +176,7 @@ function EmptyLibraries({ libraries }: { libraries: Library[] }) {
 
 /** "Films", "Films and TV", "Films, TV and Music". */
 function list(names: string[]) {
-  return names.length < 2 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+  return names.length < 2 ? (names[0] ?? '') : t('{list} and {last}', { list: names.slice(0, -1).join(', '), last: names[names.length - 1] })
 }
 
 /** A remembered yes or no in this tab's storage, which may be missing. */

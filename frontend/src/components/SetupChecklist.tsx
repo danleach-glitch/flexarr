@@ -20,14 +20,12 @@ export function SetupChecklist({ guide }: { guide: SetupGuide }) {
     <section className="setup-checklist" aria-labelledby="setup-checklist-title">
       <div className="setup-checklist-head">
         <h2 id="setup-checklist-title">{t('Finish setting up')}</h2>
-        <span className="muted">
-          {done} of {items.length}
-        </span>
+        <span className="muted">{t('{done} of {total}', { done, total: items.length })}</span>
       </div>
       <ul>
         {items.map((i) => (
           <li key={i.id} className={isDone(guide, i.id) ? 'done' : undefined}>
-            <Link to={i.settings}>{i.label}</Link>
+            <Link to={i.settings}>{t(i.label)}</Link>
           </li>
         ))}
       </ul>
