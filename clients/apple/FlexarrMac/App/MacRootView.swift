@@ -16,6 +16,8 @@ struct MacRootView: View {
     /// The welcome cards have been seen or skipped. `-FlexarrWelcomed NO` shows them again.
     @AppStorage("FlexarrWelcomed") private var welcomed = false
     @State private var showsDownloads = false
+    /// The splash, for a moment at launch.
+    @State private var splashing = true
 
     var body: some View {
         ZStack {
@@ -46,6 +48,15 @@ struct MacRootView: View {
                         .id("\(credentials.address)#\(credentials.profileToken ?? "")")
                         .transition(.opacity)
                 }
+            }
+            if splashing {
+                SplashView()
+                    .transition(.opacity)
+                    .zIndex(2)
+                    .task {
+                        try? await Task.sleep(for: .milliseconds(900))
+                        withAnimation(.easeOut(duration: 0.35)) { splashing = false }
+                    }
             }
             // The window becomes the player while something plays (docs/mac-player.md).
             if let screen = player.shown {

@@ -60,6 +60,9 @@ enum DebugSnapshots {
         case "item":
             navigation.selection = .home
             navigation.router(for: .home).path = [.itemID(value)]
+        case "push":
+            // push:comingSoon opens Coming soon on the place showing, as a row's See all does.
+            if value == "comingSoon", let selection = navigation.selection { navigation.router(for: selection).path.append(.comingSoon) }
         case "play":
             if let url = URL(string: "flexarr://play/\(value)") { currentModel?.open(url: url) }
         default:

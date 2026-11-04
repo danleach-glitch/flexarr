@@ -107,9 +107,9 @@ struct ProfilePickerView: View {
                 Text(t("Who’s watching?"))
                     .font(.marquee(40, weight: .heavy))
                     .foregroundStyle(Color.screen)
-                    .padding(.top, marksCurrent ? 28 : 80)
+                    .padding(.top, Self.centred ? 0 : marksCurrent ? 28 : 80)
 
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 110, maximum: 150), spacing: 20)], spacing: 28) {
+                LazyVGrid(columns: gridColumns, spacing: 28) {
                     ForEach(model.profiles) { profile in
                         Button { Task { await press(profile) } } label: {
                             VStack(spacing: 10) {
@@ -154,6 +154,7 @@ struct ProfilePickerView: View {
                     }
                 }
                 .padding(.horizontal, 32)
+                .fixedSize(horizontal: Self.centred, vertical: false)
 
                 if let error {
                     Text(error)
@@ -165,8 +166,23 @@ struct ProfilePickerView: View {
 
             }
             .frame(maxWidth: .infinity)
+            #if os(macOS)
+            // The whole window: in the middle of it, as the Apple TV's.
+            .containerRelativeFrame(.vertical, alignment: .center)
+            #endif
         }
     }
+
+    /// The Mac fills its window with the picker, centred, a row of up to six; the phones flow theirs from the top.
+    #if os(macOS)
+    private static let centred = true
+    private var gridColumns: [GridItem] {
+        Array(repeating: GridItem(.fixed(150), spacing: 28), count: max(1, min(model.profiles.count, 6)))
+    }
+    #else
+    private static let centred = false
+    private var gridColumns: [GridItem] { [GridItem(.adaptive(minimum: 110, maximum: 150), spacing: 20)] }
+    #endif
 
     /// The padlock at the corner of each kids profile's picture, clear of its initial: open while child lock can be
     /// turned on (it locks to that profile), closed while it's on.

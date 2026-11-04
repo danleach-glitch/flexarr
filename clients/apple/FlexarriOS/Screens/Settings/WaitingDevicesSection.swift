@@ -1,7 +1,7 @@
 import FlexarrKit
 import SwiftUI
 
-/// "Devices waiting to connect", on Settings for the main profile: each device showing a code, to allow or turn away
+/// "Devices waiting to connect", on Settings for the main profile, only while one is: each device showing a code, to allow or turn away
 /// here (one swiped off the prompt stays waiting, and turns up here). The same `PairingPrompts` as the prompt, so
 /// answering one in either place answers it in both.
 struct WaitingDevicesSection: View {
@@ -9,27 +9,22 @@ struct WaitingDevicesSection: View {
     @Environment(PushNotifications.self) private var notifications
 
     var body: some View {
-        Section {
-            if pairing.waiting.isEmpty {
-                Text(t("No devices are waiting. When one asks to connect, it shows here and your phone asks you."))
-                    .font(.subheadline)
-                    .foregroundStyle(Color.usher)
-                    .listRowBackground(Color.seat)
-            } else {
+        if !pairing.waiting.isEmpty {
+            Section {
                 ForEach(pairing.waiting) { request in
                     WaitingDeviceRow(request: request, step: pairing.step(for: request.code))
                         .listRowBackground(Color.seat)
                 }
+            } header: {
+                Text(t("Devices waiting to connect"))
+            } footer: {
+                // Without them, a device asking is only heard about while Flexarr is open here.
+                if !notifications.isOn {
+                    Text(t("Turn on Notifications to be asked when Flexarr isn’t open."))
+                }
             }
-        } header: {
-            Text(t("Devices waiting to connect"))
-        } footer: {
-            // Without them, a device asking is only heard about while Flexarr is open here.
-            if !notifications.isOn {
-                Text(t("Turn on Notifications to be asked when Flexarr isn’t open."))
-            }
+            .animation(.easeInOut(duration: 0.2), value: pairing.waiting)
         }
-        .animation(.easeInOut(duration: 0.2), value: pairing.waiting)
     }
 }
 

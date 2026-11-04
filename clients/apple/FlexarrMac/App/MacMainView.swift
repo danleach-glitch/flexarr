@@ -47,6 +47,7 @@ struct MacMainView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var downloads
     @State private var navigation = MacNavigation.shared
+    @State private var choosingProfile = false
 
     var body: some View {
         NavigationSplitView {
@@ -74,6 +75,8 @@ struct MacMainView: View {
                     }
                 }
             }
+            .safeAreaInset(edge: .top, spacing: 0) { profileRow }
+            .safeAreaInset(edge: .bottom, spacing: 0) { brandRow }
             .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 300)
         } detail: {
             if let selection = navigation.selection {
@@ -97,6 +100,23 @@ struct MacMainView: View {
             await model.loadLibraries()
             if model.libraries.isEmpty, model.librariesError != nil, !downloads.downloads.isEmpty { navigation.selection = .downloads }
         }
+        // Who's watching? fills the window, as at launch; Esc or Cancel goes back.
+        .overlay {
+            if choosingProfile {
+                ZStack(alignment: .topTrailing) {
+                    // It closes itself once a profile's chosen (below): a dismiss here has no sheet to close.
+                    ProfilePickerView(marksCurrent: true)
+                    Button(t(Words.cancel)) { choosingProfile = false }
+                        .keyboardShortcut(.cancelAction)
+                        .padding(20)
+                }
+                .background(Color.room)
+                .ignoresSafeArea()
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: choosingProfile)
+        .onChange(of: model.currentProfile?.id) { _, _ in choosingProfile = false }
         .sheet(item: Bindable(model).addingToPlaylist) { AddToPlaylistSheet(request: $0).frame(minWidth: 420, minHeight: 480) }
         .onChange(of: model.pendingRoute) { _, route in
             if route != nil { navigation.selection = .home }
@@ -109,6 +129,40 @@ struct MacMainView: View {
             model.pendingSettings = false
             if !model.isKids { navigation.selection = .settings }
         }
+    }
+
+    /// Who's watching, at the top of the sidebar: switching profile opens Who's watching? over the window.
+    @ViewBuilder
+    private var profileRow: some View {
+        if let current = model.currentProfile {
+            Button { choosingProfile = true } label: {
+                HStack(spacing: 10) {
+                    ProfileAvatar(profile: current, size: 28)
+                    Text(current.name).font(.body.weight(.semibold)).lineLimit(1)
+                    Spacer(minLength: 0)
+                    if model.offersProfilePicker {
+                        Image(systemName: "chevron.up.chevron.down").font(.caption).foregroundStyle(Color.usher)
+                    }
+                }
+                .padding(.horizontal, 16).padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!model.offersProfilePicker)
+            .accessibilityLabel(t("Profile: {name}", ["name": current.name]))
+        }
+    }
+
+    /// The Flexarr mark, the name and this app's version, at the foot of the sidebar.
+    private var brandRow: some View {
+        HStack(spacing: 8) {
+            BrandMark(size: 22)
+            Text(verbatim: "Flexarr").font(.marquee(18))
+            Spacer(minLength: 0)
+            Text(verbatim: Bundle.main.shortVersion).font(.caption).monospacedDigit().foregroundStyle(Color.usher)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder

@@ -100,6 +100,9 @@ struct LibraryView: View {
         }
         .navigationTitle(initialGenre ?? library.name)
         .toolbar {
+            #if os(macOS)
+            ToolbarItem(placement: .principal) { switchControl.fixedSize() }
+            #endif
             if showing == .all || showing == .albums {
                 ToolbarItem(placement: .topBarTrailing) { sortAndFilter }
             }
@@ -141,9 +144,19 @@ struct LibraryView: View {
             .zIndex(current ? 1 : 0)
     }
 
-    /// Browse, All (movies, shows or folders) and Genres, as one segmented control at the top of each view.
+    /// Browse, All (movies, shows or folders) and Genres, as one segmented control at the top of each view. On the Mac
+    /// it's in the window's toolbar instead (`switchControl`), as Mac apps put theirs.
     @ViewBuilder
     private var viewSwitch: some View {
+        #if !os(macOS)
+        switchControl
+            .padding(.horizontal, Layout.edge)
+            .padding(.bottom, 4)
+        #endif
+    }
+
+    @ViewBuilder
+    private var switchControl: some View {
         if (Self.hasBrowse(library, genre: initialGenre) || hasGenres) && !(music && initialGenre != nil) {
             Picker(t("Show"), selection: $showing) {
                 if Self.hasBrowse(library, genre: initialGenre) { Text(t(Words.browse)).tag(Showing.browse) }
@@ -152,8 +165,7 @@ struct LibraryView: View {
                 if hasGenres { Text(t(Words.genres)).tag(Showing.genres) }
             }
             .pickerStyle(.segmented)
-            .padding(.horizontal, Layout.edge)
-            .padding(.bottom, 4)
+            .labelsHidden()
         }
     }
 
