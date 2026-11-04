@@ -113,16 +113,26 @@ def call_end(src, pos):
 
 
 CTX = re.compile(r"\bctx\s*[:=]\s*[\"']([^\"']*)[\"']")
+WORD = re.compile(r"Words\.([A-Za-z][A-Za-z0-9]*)\b")
+
+# The shared words (languages/words.json), {name: key}; set by strings.py before scanning.
+WORDS = {}
 
 
-def scan_text(src, lang, call):
-    """[(key, line, error)] for one file's source."""
+def scan_text(src, lang, call, literal=None):
+    """[(key, line, error)] for one file's source. Keys typed as literals (not Words.x) also go in `literal`."""
     found = []
     for m in call.finditer(src):
         line = src.count("\n", 0, m.start()) + 1
         before = src[src.rfind("\n", 0, m.start()) + 1:m.start()]
         if re.search(r"(^|\s)//", before) or before.lstrip().startswith(("*", "/*")):
             continue  # a comment: an example, not a lookup
+        w = WORD.match(src, m.end())
+        if w:
+            import words as shared
+            key = shared.by_name(WORDS, w.group(1))
+            found.append((key, line, None) if key else (None, line, f"Words.{w.group(1)} isn't in languages/words.json"))
+            continue
         try:
             lit = read_literal(src, m.end(), lang)
         except ScanError as e:
@@ -143,14 +153,17 @@ def scan_text(src, lang, call):
             if not CONTEXT.match(c.group(1)):
                 found.append((None, line, f"context {c.group(1)!r} must be lowercase words with hyphens"))
                 continue
-            found.append((f"{c.group(1)}::{text}", line, None))
+            key = f"{c.group(1)}::{text}"
         else:
-            found.append((text, line, None))
+            key = text
+        found.append((key, line, None))
+        if literal is not None:
+            literal.append((key, line))
     return found
 
 
-def scan(root=ROOT, sources=SOURCES):
-    """({key: set of scopes}, [error lines])."""
+def scan(root=ROOT, sources=SOURCES, typed=None):
+    """({key: set of scopes}, [error lines]). Keys typed as literals go in `typed` as {key: ["file:line"]}."""
     keys, errors = {}, []
     for s in sources:
         base = root / s.root
@@ -160,11 +173,15 @@ def scan(root=ROOT, sources=SOURCES):
             rel = path.relative_to(root).as_posix()
             if path.suffix not in s.suffixes or not path.is_file() or s.skip.search("/" + rel):
                 continue
-            for key, line, error in scan_text(path.read_text(encoding="utf-8"), s.lang, s.call):
+            literal = []
+            for key, line, error in scan_text(path.read_text(encoding="utf-8"), s.lang, s.call, literal):
                 if error:
                     errors.append(f"{rel}:{line}: {error}")
                 else:
                     keys.setdefault(key, set()).add(s.scope)
+            if typed is not None:
+                for key, line in literal:
+                    typed.setdefault(key, []).append(f"{rel}:{line}")
     return keys, errors
 
 

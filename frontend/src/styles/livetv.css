@@ -89,7 +89,7 @@
 .livetv-card-head .livetv-logo {
   position: absolute;
   top: 16%;
-  left: 20%;
+  inset-inline-start: 20%;
   width: 60%;
   height: 68%;
 }
@@ -97,7 +97,7 @@
 .livetv-card-number {
   position: absolute;
   top: 8px;
-  left: 10px;
+  inset-inline-start: 10px;
   font-variant-numeric: tabular-nums;
   font-size: var(--step--1);
   font-weight: 700;
@@ -180,7 +180,7 @@
 .livetv-card .livetv-star {
   position: absolute;
   top: 4px;
-  right: 4px;
+  inset-inline-end: 4px;
   opacity: 0;
   transition: opacity 0.15s ease;
 }
@@ -208,7 +208,7 @@
 .chip-star {
   width: 14px;
   height: 14px;
-  margin-right: 6px;
+  margin-inline-end: 6px;
   color: var(--screen);
 }
 
@@ -272,7 +272,7 @@
 }
 
 .livetv-row-number {
-  text-align: right;
+  text-align: end;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   color: var(--usher);
@@ -290,7 +290,7 @@
 .livetv-row-logo .livetv-logo {
   position: absolute;
   top: 6px;
-  left: 8px;
+  inset-inline-start: 8px;
   width: calc(100% - 16px);
   height: calc(100% - 12px);
 }
@@ -350,7 +350,7 @@
 
 .livetv-row .livetv-star {
   flex: none;
-  margin-right: 8px;
+  margin-inline-end: 8px;
 }
 
 .livetv-row:not(:hover, :focus-within) .livetv-star:not(.on) {
@@ -418,13 +418,13 @@
 
 .livetv-guide-times > span {
   flex: none;
-  padding-left: 8px;
+  padding-inline-start: 8px;
 }
 
 .livetv-guide-corner,
 .livetv-guide-channel {
   position: sticky;
-  left: 0;
+  inset-inline-start: 0;
   z-index: 1;
   flex: none;
   width: 200px;
@@ -445,7 +445,7 @@
   align-items: center;
   gap: 10px;
   padding: 0 12px;
-  border-right: 1px solid var(--aisle);
+  border-inline-end: 1px solid var(--aisle);
   color: inherit;
   font-size: var(--step--1);
   font-weight: 700;
@@ -484,7 +484,7 @@
   border-radius: var(--radius-control);
   background: var(--seat-raised);
   color: inherit;
-  text-align: left;
+  text-align: start;
   font-size: var(--step--1);
   overflow: hidden;
   cursor: pointer;
@@ -512,7 +512,7 @@
 .livetv-guide-none {
   position: absolute;
   top: 50%;
-  left: 12px;
+  inset-inline-start: 12px;
   transform: translateY(-50%);
   font-size: var(--step--1);
 }
@@ -569,7 +569,7 @@
   align-items: center;
   gap: 8px;
   min-height: 32px;
-  margin-left: 10px;
+  margin-inline-start: 10px;
   padding: 0 12px;
   border: 1px solid rgb(255 255 255 / 0.3);
   border-radius: 999px;
@@ -607,7 +607,7 @@
 .live-channel-list {
   position: absolute;
   top: 0;
-  right: 0;
+  inset-inline-end: 0;
   bottom: 0;
   z-index: 3;
   width: min(380px, 100%);
@@ -631,7 +631,7 @@
   border-radius: var(--radius-control);
   background: none;
   color: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -711,7 +711,7 @@
 .record-dot {
   width: 0.8em;
   height: 0.8em;
-  margin-right: 0.35em;
+  margin-inline-end: 0.35em;
   vertical-align: -0.05em;
   color: var(--record);
   flex: none;
@@ -824,7 +824,7 @@
 
 .record-badge {
   display: inline-block;
-  margin-right: 0.4em;
+  margin-inline-end: 0.4em;
   padding: 1px 5px;
   border-radius: 999px;
   background: var(--record);

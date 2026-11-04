@@ -6,6 +6,7 @@ import { MixCard } from './MixCard'
 import { PlaylistCard } from './PlaylistCover'
 import { Row } from './Row'
 import { UpcomingCard } from './UpcomingCard'
+import { t, Words } from '../i18n'
 
 /**
  * Rows of titles as the server lays them out, for Home and each library's Browse view. Coming soon's titles travel
@@ -16,7 +17,7 @@ export function HomeRows({ rows, upcoming = [] }: { rows: HomeRow[]; upcoming?: 
   return rows.map((row) =>
     row.style === 'upcoming' ? (
       upcoming.length > 0 && (
-        <Row key={row.id} title="Coming soon" link="/upcoming" style="wide">
+        <Row key={row.id} title={t(Words.comingSoon)} link="/upcoming" style="wide">
           {upcoming.map((item) => (
             <UpcomingCard key={item.id} item={item} />
           ))}

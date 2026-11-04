@@ -4,9 +4,10 @@ import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
 import { episodeCode, formatClock } from '../../lib/format'
 import { SettingLink, SettingsGroup, SettingsHeader } from './shared'
+import { locale, t, Words } from '../../i18n'
 
 /** "Sonarr, Radarr and Lidarr" */
-const list = (names: string[]) => (names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`)
+const list = (names: string[]) => new Intl.ListFormat(locale(), { type: 'conjunction' }).format(names)
 
 /** How the server is doing at a glance: who's watching, what it's working on, and a line for each part of Settings. */
 export function OverviewSection() {
@@ -23,20 +24,20 @@ export function OverviewSection() {
   const down = arr?.filter((a) => !a.ok).map((a) => a.name) ?? []
   const up = arr?.filter((a) => a.ok).map((a) => a.name) ?? []
   const connections = !arr
-    ? 'Checking…'
+    ? t('Checking…')
     : arr.length === 0
-      ? 'Nothing connected yet. Add Sonarr, Radarr or Lidarr for artwork and details.'
+      ? t('Nothing connected yet. Add Sonarr, Radarr or Lidarr for artwork and details.')
       : down.length > 0
-        ? `${list(down)} can’t be reached`
-        : `${list([...up, ...(seerr?.reachable ? ['Seerr'] : [])])} connected`
+        ? t('{apps} can’t be reached', { apps: list(down) })
+        : t('{apps} connected', { apps: list([...up, ...(seerr?.reachable ? ['Seerr'] : [])]) })
 
   return (
     <section>
-      <SettingsHeader title="Overview" />
+      <SettingsHeader title={t('Overview')} />
 
-      <SettingsGroup title="Watching now">
-        {!data && <p className="muted">Loading…</p>}
-        {data && data.streams.filter((s) => !s.warming).length === 0 && <p className="muted">Nobody’s watching anything.</p>}
+      <SettingsGroup title={t('Watching now')}>
+        {!data && <p className="muted">{t('Loading…')}</p>}
+        {data && data.streams.filter((s) => !s.warming).length === 0 && <p className="muted">{t('Nobody’s watching anything.')}</p>}
         {data?.streams.map((s) => (
           <div key={s.sessionId} className="setting-row static stream">
             <span className="setting-text">
@@ -50,43 +51,47 @@ export function OverviewSection() {
                 )}
               </strong>
               <span className="muted">
-                {s.warming ? 'Getting ready to play' : `${s.paused ? 'Paused at' : 'At'} ${formatClock(s.positionSeconds)} of ${formatClock(s.durationSeconds)}`}
+                {s.warming
+                  ? t('Getting ready to play')
+                  : s.paused
+                    ? t('Paused at {position} of {duration}', { position: formatClock(s.positionSeconds), duration: formatClock(s.durationSeconds) })
+                    : t('At {position} of {duration}', { position: formatClock(s.positionSeconds), duration: formatClock(s.durationSeconds) })}
               </span>
             </span>
-            <span className="tag">{s.method === 'DirectPlay' ? 'Original file' : `Converting to ${s.transcode}`}</span>
+            <span className="tag">{s.method === 'DirectPlay' ? t('Original file') : t('Converting to {format}', { format: s.transcode })}</span>
           </div>
         ))}
       </SettingsGroup>
 
-      <SettingsGroup title="Server">
+      <SettingsGroup title={t('Server')}>
         <SettingLink
           to="/settings/libraries"
-          label="Libraries"
-          help={libraries ? `${libraries.length.toLocaleString()} ${libraries.length === 1 ? 'library' : 'libraries'}\u2003${titles.toLocaleString()} titles` : '…'}
+          label={t(Words.libraries)}
+          help={libraries ? `${t('{count, plural, one {# library} other {# libraries}}', { count: libraries.length })}\u2003${t('{count, plural, one {# title} other {# titles}}', { count: titles })}` : '…'}
         />
         <SettingLink
           to="/settings/health"
-          label="Library health"
+          label={t('Library health')}
           help={
             health
-              ? `Score ${health.score}${health.withProblems > 0 ? `{'\u2003'}${health.withProblems.toLocaleString()} ${health.withProblems === 1 ? 'title needs' : 'titles need'} a look` : '\u2003all in good shape'}`
+              ? `${t('Score {score}', { score: health.score })}\u2003${health.withProblems > 0 ? t('{count, plural, one {# title needs} other {# titles need}} a look', { count: health.withProblems }) : t('all in good shape')}`
               : '…'
           }
         />
-        <SettingLink to="/settings/connections" label="Connections" help={<span className={down.length > 0 ? 'error' : undefined}>{connections}</span>} />
-        <SettingLink to="/settings/remote" label="Remote access" help={status ? (status.remoteUrl ? 'Remote access is on, over Tailscale' : 'Home network only. Remote access is off') : '…'} />
-        <SettingLink to="/settings/security" label="Security" help="The admin PIN, the API key and signed-in devices" />
-        <SettingLink to="/settings/about" label="About" help={status ? `Flexarr ${status.version.split('+')[0]}` : '…'} />
+        <SettingLink to="/settings/connections" label={t('Connections')} help={<span className={down.length > 0 ? 'error' : undefined}>{connections}</span>} />
+        <SettingLink to="/settings/remote" label={t('Remote access')} help={status ? (status.remoteUrl ? t('Remote access is on, over Tailscale') : t('Home network only. Remote access is off')) : '…'} />
+        <SettingLink to="/settings/security" label={t('Security')} help={t('The admin PIN, the API key and signed-in devices')} />
+        <SettingLink to="/settings/about" label={t('About')} help={status ? `Flexarr ${status.version.split('+')[0]}` : '…'} />
       </SettingsGroup>
 
       {data && (
-        <SettingsGroup title="Background work" note="Episodes you start watching are analysed first. The rest happens while the server is idle.">
+        <SettingsGroup title={t('Background work')} note={t('Episodes you start watching are analysed first. The rest happens while the server is idle.')}>
           <div className="setting-row static meter">
-            {data.scan ? <ScanProgress scan={data.scan} /> : <span className="muted">No scans running.</span>}
+            {data.scan ? <ScanProgress scan={data.scan} /> : <span className="muted">{t('No scans running.')}</span>}
           </div>
           <div className="setting-row static meter">
             <span>
-              Intros and credits found for {data.episodesAnalysed.toLocaleString()} of {data.episodesTotal.toLocaleString()} episodes
+              {t('Intros and credits found for {done, number} of {count, plural, one {# episode} other {# episodes}}', { done: data.episodesAnalysed, count: data.episodesTotal })}
             </span>
             <span className="scan-track">
               <span style={{ width: `${data.episodesTotal ? Math.round((data.episodesAnalysed / data.episodesTotal) * 100) : 100}%` }} />
@@ -94,7 +99,7 @@ export function OverviewSection() {
           </div>
           <div className="setting-row static meter">
             <span>
-              Artwork and details for {data.itemsWithMetadata.toLocaleString()} of {data.itemsTotal.toLocaleString()} titles
+              {t('Artwork and details for {done, number} of {count, plural, one {# title} other {# titles}}', { done: data.itemsWithMetadata, count: data.itemsTotal })}
             </span>
           </div>
         </SettingsGroup>

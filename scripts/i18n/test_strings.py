@@ -194,5 +194,12 @@ class WrapTests(unittest.TestCase):
         self.assertIn('Text("$n items")', out)
 
 
+
+class DuplicateTests(unittest.TestCase):
+    def test_groups_case_and_punctuation(self):
+        groups = strings.near_duplicates(["Mark as watched", "Mark as Watched", "music::Play", "Play", "Delete", "Delete…", "Other"])
+        self.assertEqual(groups, [["Mark as Watched", "Mark as watched"]])
+
+
 if __name__ == "__main__":
     unittest.main()

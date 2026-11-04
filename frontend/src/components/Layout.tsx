@@ -19,6 +19,7 @@ import { UnlockPrompt } from './UnlockDialog'
 import { Avatar } from './ProfilePicker'
 import { KidsLockMenuItems } from './KidsLock'
 import { SearchPalette } from './SearchPalette'
+import { t, Words } from '../i18n'
 
 const railKey = 'flexarr.sidebarRail'
 
@@ -171,38 +172,38 @@ export function Layout() {
   return (
     <div className={['shell', rail && 'rail', bare && 'bare', nowPlaying && 'has-now-playing', kids && 'kids'].filter(Boolean).join(' ')}>
       <a className="skip-link" href="#main">
-        Skip to content
+        {t('Skip to content')}
       </a>
       {/* Over the page, beside the sidebar: search, settings and the profile on the right. Phones add the menu that
           slides the sidebar in, and the wordmark. */}
       <header className={scrolled ? 'topbar solid' : 'topbar'}>
-        <button className="icon-button topbar-menu" aria-label="Menu" aria-expanded={drawer} aria-controls="sidebar" onClick={() => setDrawer(true)}>
+        <button className="icon-button topbar-menu" aria-label={t('Menu')} aria-expanded={drawer} aria-controls="sidebar" onClick={() => setDrawer(true)}>
           <MenuIcon />
         </button>
-        <Link to="/" className="wordmark topbar-wordmark" aria-label="Flexarr home">
+        <Link to="/" className="wordmark topbar-wordmark" aria-label={t('Flexarr home')}>
           <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
           flexarr
         </Link>
         <div className="topbar-tools">
           <button className="search-trigger" onClick={() => setSearching(true)}>
             <icon.search />
-            <span>Search</span>
+            <span>{t(Words.search)}</span>
             <kbd>⌘K</kbd>
           </button>
           {/* Every profile has settings of its own; the server's are the main profile's. */}
           {!kids && (
-            <NavLink to="/settings" className="icon-button" aria-label="Settings">
+            <NavLink to="/settings" className="icon-button" aria-label={t(Words.settings)}>
               <icon.settings />
             </NavLink>
           )}
           {me && profiles && (profiles.length > 1 || canSignOut || access?.kidsLock) && (
             <div className="profile-menu-anchor" ref={profileAnchor}>
-              <button className="profile-button" aria-expanded={profileMenu} aria-label={`Profile: ${me.name}`} onClick={() => setProfileMenu(!profileMenu)}>
+              <button className="profile-button" aria-expanded={profileMenu} aria-label={t('Profile: {name}', { name: me.name })} onClick={() => setProfileMenu(!profileMenu)}>
                 <Avatar profile={me} size={34} />
               </button>
               {profileMenu && (
                 <div className="profile-menu" role="menu">
-                  <p className="muted">Watching as {me.name}</p>
+                  <p className="muted">{t('Watching as {name}', { name: me.name })}</p>
                   {profiles.length > 1 && (
                     <AsyncButton
                       role="menuitem"
@@ -222,12 +223,12 @@ export function Layout() {
                         window.location.assign('/')
                       }}
                     >
-                      {other && !asksPin(other) ? `Switch to ${other.name}` : 'Switch profile'}
+                      {other && !asksPin(other) ? t('Switch to {name}', { name: other.name }) : t('Switch profile')}
                     </AsyncButton>
                   )}
                   {(isAdmin || access?.canUnlock) && (
                     <Link role="menuitem" to="/settings/profiles" onClick={() => setProfileMenu(false)}>
-                      Manage profiles
+                      {t('Manage profiles')}
                     </Link>
                   )}
                   <KidsLockMenuItems access={access} profiles={profiles} onClose={() => setProfileMenu(false)} />
@@ -235,14 +236,14 @@ export function Layout() {
                     <button
                       role="menuitem"
                       onClick={async () => {
-                        if (!confirm('Sign out of this browser? Signing in again takes the API key.')) return
+                        if (!confirm(t('Sign out of this browser? Signing in again takes the API key.'))) return
                         setProfileMenu(false)
                         // Whatever the server says, start again from the top: the sign-in page if it's needed.
                         await signOut().catch(() => undefined)
                         window.location.assign('/')
                       }}
                     >
-                      Sign out of this browser
+                      {t('Sign out of this browser')}
                     </button>
                   )}
                 </div>
@@ -255,31 +256,31 @@ export function Layout() {
       {!bare && (
         <aside id="sidebar" className={drawer ? 'sidebar open' : 'sidebar'} ref={sidebar}>
           <div className="sidebar-head">
-            <Link to="/" className="wordmark" aria-label="Flexarr home">
+            <Link to="/" className="wordmark" aria-label={t('Flexarr home')}>
               <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
               <span className="sidebar-label">flexarr</span>
             </Link>
-            <button className="icon-button sidebar-close" aria-label="Close menu" onClick={() => setDrawer(false)}>
+            <button className="icon-button sidebar-close" aria-label={t('Close menu')} onClick={() => setDrawer(false)}>
               <Close />
             </button>
           </div>
           {/* Libraries scroll on their own below the wordmark, however many there are. */}
-          <nav aria-label="Main" className="sidebar-nav">
-            <NavLink to="/" end className="sidebar-link" title={tip('Home')}>
+          <nav aria-label={t('Main')} className="sidebar-nav">
+            <NavLink to="/" end className="sidebar-link" title={tip(t(Words.home))}>
               <icon.home />
-              <span className="sidebar-label">Home</span>
+              <span className="sidebar-label">{t(Words.home)}</span>
             </NavLink>
             {shownLibraries.length > 0 && (
               <>
                 <h2 className="sidebar-heading">
-                  <span className="sidebar-label">Libraries</span>
+                  <span className="sidebar-label">{t(Words.libraries)}</span>
                 </h2>
                 {shownLibraries.map((library) => {
                   if (library.type === 'Podcasts')
                     return (
-                      <NavLink key={library.id} to="/podcasts" className="sidebar-link" title={tip('Podcasts')}>
+                      <NavLink key={library.id} to="/podcasts" className="sidebar-link" title={tip(t(Words.podcasts))}>
                         <icon.podcasts />
-                        <span className="sidebar-label">Podcasts</span>
+                        <span className="sidebar-label">{t(Words.podcasts)}</span>
                       </NavLink>
                     )
                   const Icon = libraryIcons[library.type] ?? icon.movies
@@ -287,7 +288,7 @@ export function Layout() {
                     <NavLink key={library.id} to={`/library/${library.id}`} className="sidebar-link" title={tip(library.name)}>
                       <Icon />
                       <span className="sidebar-label">{library.name}</span>
-                      {library.scan && <span className="scan-dot" aria-label="Scanning" />}
+                      {library.scan && <span className="scan-dot" aria-label={t('Scanning')} />}
                     </NavLink>
                   )
                 })}
@@ -295,50 +296,50 @@ export function Layout() {
             )}
             {(Object.values(shows).some(Boolean) || liveTvLink) && (
               <h2 className="sidebar-heading">
-                <span className="sidebar-label">Browse</span>
+                <span className="sidebar-label">{t(Words.browse)}</span>
               </h2>
             )}
             {/* A child's profile has no watchlist or collections. */}
             {shows.watchlist && (
-              <NavLink to="/watchlist" className="sidebar-link" title={tip('Watchlist')}>
+              <NavLink to="/watchlist" className="sidebar-link" title={tip(t(Words.watchlist))}>
                 <icon.watchlist />
-                <span className="sidebar-label">Watchlist</span>
+                <span className="sidebar-label">{t(Words.watchlist)}</span>
               </NavLink>
             )}
             {shows.collections && (
-              <NavLink to="/collections" className="sidebar-link" title={tip('Collections')}>
+              <NavLink to="/collections" className="sidebar-link" title={tip(t(Words.collections))}>
                 <icon.collections />
-                <span className="sidebar-label">Collections</span>
+                <span className="sidebar-label">{t(Words.collections)}</span>
               </NavLink>
             )}
             {shows.playlists && (
-              <NavLink to="/playlists" className="sidebar-link" title={tip('Playlists')}>
+              <NavLink to="/playlists" className="sidebar-link" title={tip(t('Playlists'))}>
                 <Playlist />
-                <span className="sidebar-label">Playlists</span>
+                <span className="sidebar-label">{t('Playlists')}</span>
               </NavLink>
             )}
             {liveTvLink && (
-              <NavLink to="/livetv" className="sidebar-link" title={tip('Live TV')}>
+              <NavLink to="/livetv" className="sidebar-link" title={tip(t(Words.liveTv))}>
                 <icon.liveTv />
-                <span className="sidebar-label">Live TV</span>
+                <span className="sidebar-label">{t(Words.liveTv)}</span>
               </NavLink>
             )}
             {shows.discover && (
-              <NavLink to="/discover" className="sidebar-link" title={tip('Discover')}>
+              <NavLink to="/discover" className="sidebar-link" title={tip(t(Words.discover))}>
                 <icon.discover />
-                <span className="sidebar-label">Discover</span>
+                <span className="sidebar-label">{t(Words.discover)}</span>
               </NavLink>
             )}
             {shows.upcoming && (
-              <NavLink to="/upcoming" className="sidebar-link" title={tip('Coming soon')}>
+              <NavLink to="/upcoming" className="sidebar-link" title={tip(t(Words.comingSoon))}>
                 <icon.comingSoon />
-                <span className="sidebar-label">Coming soon</span>
+                <span className="sidebar-label">{t(Words.comingSoon)}</span>
               </NavLink>
             )}
           </nav>
-          <button className="sidebar-link sidebar-toggle" aria-expanded={!rail} title={tip('Expand sidebar')} onClick={toggleRail}>
+          <button className="sidebar-link sidebar-toggle" aria-expanded={!rail} title={tip(t('Expand sidebar'))} onClick={toggleRail}>
             <ChevronsLeft style={rail ? { transform: 'scaleX(-1)' } : undefined} />
-            <span className="sidebar-label">{rail ? 'Expand sidebar' : 'Collapse sidebar'}</span>
+            <span className="sidebar-label">{rail ? t('Expand sidebar') : t('Collapse sidebar')}</span>
           </button>
         </aside>
       )}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { setPlaybackPreferences, type PlaybackPreferences } from '../../api/client'
 import { SaveStatus, ToggleRow } from './shared'
 import { errorText } from './useSettings'
+import { t } from '../../i18n'
 
 /**
  * Books and podcasts in Continue watching, or a Continue listening row of their own: the profile's own playback
@@ -29,7 +30,7 @@ export function ContinueWatchingRow({ loaded, help }: { loaded: PlaybackPreferen
 
   return (
     <ToggleRow
-      label="Books and podcasts in Continue watching"
+      label={t('Books and podcasts in Continue watching')}
       help={error ? <SaveStatus error={error} /> : help}
       checked={preferences.listeningInContinue}
       onChange={(on) => void change(on)}

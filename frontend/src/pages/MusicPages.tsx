@@ -21,6 +21,7 @@ import { shuffled } from '../lib/shuffle'
 import { albumTypeLabel } from '../lib/albums'
 import { DetailsEditor } from '../components/DetailsEditor'
 import { MusicMatchDialog } from '../components/MusicMatchDialog'
+import { t, tk, Words } from '../i18n'
 
 /**
  * The queue actions for a set of tracks, as a menu offers them, and (given what they belong to: a track, album or
@@ -28,13 +29,14 @@ import { MusicMatchDialog } from '../components/MusicMatchDialog'
  */
 export function queueActions(player: AudioPlayer, tracks: () => Promise<ItemSummary[]> | ItemSummary[], item?: PlaylistAddition): MenuAction[] {
   return [
-    { label: 'Play next', run: async () => player.playNext(await tracks()) },
-    { label: 'Add to queue', run: async () => player.enqueue(await tracks()) },
-    ...(item ? [{ label: 'Add to playlist…', run: () => openAddToPlaylist({ id: item.id, title: item.title }) }] : []),
+    { label: t(Words.playNext), run: async () => player.playNext(await tracks()) },
+    { label: t(Words.addToQueue), run: async () => player.enqueue(await tracks()) },
+    ...(item ? [{ label: t('Add to playlist…'), run: () => openAddToPlaylist({ id: item.id, title: item.title }) }] : []),
   ]
 }
 
-const sectionTitles = ['Albums', 'EPs and singles', 'Live and compilations', 'Other'] as const
+/** The shelves' English names, which key them; said through t(title) where shown. */
+const sectionTitles = [Words.albums, tk('EPs and singles'), tk('Live and compilations'), tk('Other')] as const
 type SectionTitle = (typeof sectionTitles)[number]
 
 // Where each kind is shelved. Anything else (plain albums, soundtracks the artist made, albums nobody has typed) is
@@ -97,7 +99,7 @@ function useLibraryCare(detail: ItemDetail, onChange?: () => void): { actions: M
   if (!(me?.isAdmin === true || me?.canUnlock === true)) return { actions: [], dialog: null }
   const changed = () => onChange?.()
   return {
-    actions: [...(detail.item.kind === 'Album' ? [{ label: 'Edit…', run: () => setOpen('edit') }] : []), { label: 'Fix match…', run: () => setOpen('match') }],
+    actions: [...(detail.item.kind === 'Album' ? [{ label: t('Edit…'), run: () => setOpen('edit') }] : []), { label: t('Fix match…'), run: () => setOpen('match') }],
     dialog:
       open === 'edit' ? (
         <DetailsEditor detail={detail} onSaved={changed} onClose={() => setOpen(null)} />
@@ -119,7 +121,7 @@ function useDeletion(detail: ItemDetail): { actions: MenuAction[]; dialog: React
   const parent = detail.ancestors[0]
   if (!(me?.isAdmin === true || me?.canUnlock === true)) return { actions: [], dialog: null }
   return {
-    actions: [{ label: 'Delete…', run: () => setDeleting(true), danger: true }],
+    actions: [{ label: t('Delete…'), run: () => setDeleting(true), danger: true }],
     dialog: deleting ? (
       <DeleteDialog
         item={item}
@@ -171,18 +173,18 @@ export function AlbumPage({ detail, onChange }: { detail: ItemDetail; onChange?:
             )}
             {kind && <span>{kind}</span>}
             {item.year && <span>{item.year}</span>}
-            <span>{tracks.length === 1 ? '1 track' : `${tracks.length} tracks`}</span>
+            <span>{t('{count, plural, one {# track} other {# tracks}}', { count: tracks.length })}</span>
             {total > 0 && <span>{formatDuration(total)}</span>}
           </p>
           <div className="detail-actions">
             <button className="button" onClick={() => player.play(tracks, 0, { openNowPlaying: true })} disabled={tracks.length === 0}>
-              <icon.play /> Play
+              <icon.play /> {t(Words.play)}
             </button>
             <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0, { openNowPlaying: true })} disabled={tracks.length < 2}>
-              <icon.shuffle /> Shuffle
+              <icon.shuffle /> {t(Words.shuffle)}
             </button>
             <MoreButton
-              label={`More for ${item.title}`}
+              label={t('More for {title}', { title: item.title })}
               actions={andThen(tracks.length > 0 ? queueActions(player, () => tracks, item) : [], [...care.actions, ...deletion.actions])}
               disabled={tracks.length === 0 && deletion.actions.length === 0 && care.actions.length === 0}
             />
@@ -196,7 +198,7 @@ export function AlbumPage({ detail, onChange }: { detail: ItemDetail; onChange?:
           const newDisc = discs > 1 && (i === 0 || (tracks[i - 1].discNumber ?? 1) !== (track.discNumber ?? 1))
           return (
             <li key={track.id}>
-              {newDisc && <h2 className="tracklist-disc">Disc {track.discNumber ?? 1}</h2>}
+              {newDisc && <h2 className="tracklist-disc">{t('Disc {number}', { number: track.discNumber ?? 1 })}</h2>}
               <div className="track-row" onContextMenu={(e) => openMenu(i, { x: e.clientX, y: e.clientY })(e)}>
                 <button className={isCurrent ? 'track current' : 'track'} onClick={() => player.play(tracks, i)} aria-current={isCurrent || undefined}>
                   <span className="track-number">{isCurrent && player.playing ? <Play /> : (track.trackNumber ?? i + 1)}</span>
@@ -208,7 +210,7 @@ export function AlbumPage({ detail, onChange }: { detail: ItemDetail; onChange?:
                 </button>
                 <button
                   className="icon-button track-menu-button"
-                  aria-label={`More for ${track.title}`}
+                  aria-label={t('More for {title}', { title: track.title })}
                   aria-haspopup="menu"
                   aria-expanded={trackMenu?.index === i}
                   onClick={(e) => {
@@ -226,9 +228,9 @@ export function AlbumPage({ detail, onChange }: { detail: ItemDetail; onChange?:
       <PlayingLyrics tracks={tracks} />
       {trackMenu && tracks[trackMenu.index] && (
         <Menu
-          label={`More for ${tracks[trackMenu.index].title}`}
+          label={t('More for {title}', { title: tracks[trackMenu.index].title })}
           at={trackMenu.at}
-          actions={[{ label: 'Play', run: () => player.play(tracks, trackMenu.index) }, ...queueActions(player, () => [tracks[trackMenu.index]], tracks[trackMenu.index])]}
+          actions={[{ label: t(Words.play), run: () => player.play(tracks, trackMenu.index) }, ...queueActions(player, () => [tracks[trackMenu.index]], tracks[trackMenu.index])]}
           onClose={() => setTrackMenu(null)}
         />
       )}
@@ -306,19 +308,19 @@ export function ArtistPage({ detail, onChange }: { detail: ItemDetail; onChange?
         <div className="music-header-text">
           <h1>{item.title}</h1>
           <p className="facts">
-            <span>{waiting ? 'No albums yet' : albums.length === 1 ? '1 album' : `${albums.length} albums`}</span>
+            <span>{waiting ? t('No albums yet') : t('{count, plural, one {# album} other {# albums}}', { count: albums.length })}</span>
           </p>
           <div className="detail-actions">
             {!waiting && (
               <>
                 <AsyncButton className="button" onClick={() => playAll(false)} disabled={loading}>
-                  <icon.play /> Play
+                  <icon.play /> {t(Words.play)}
                 </AsyncButton>
                 <AsyncButton className="button quiet" onClick={() => playAll(true)} disabled={loading}>
-                  <icon.shuffle /> Shuffle
+                  <icon.shuffle /> {t(Words.shuffle)}
                 </AsyncButton>
                 <AsyncButton className="button quiet" onClick={() => startRadio()} disabled={loading}>
-                  <icon.radio /> Radio
+                  <icon.radio /> {t(Words.radio)}
                 </AsyncButton>
               </>
             )}
@@ -338,7 +340,7 @@ export function ArtistPage({ detail, onChange }: { detail: ItemDetail; onChange?
             )}
             {(!waiting || deletion.actions.length > 0 || careActions.length > 0) && (
               <MoreButton
-                label={`More for ${item.title}`}
+                label={t('More for {title}', { title: item.title })}
                 actions={andThen(waiting ? [] : queueActions(player, () => getTracks(item.id), item), [...careActions, ...deletion.actions])}
               />
             )}
@@ -350,7 +352,7 @@ export function ArtistPage({ detail, onChange }: { detail: ItemDetail; onChange?
         return (
           <section key={section.title} className="music-section" aria-labelledby={headingId}>
             <h2 id={headingId} className="music-section-title">
-              {section.title}
+              {t(section.title)}
             </h2>
             <div className="poster-grid music-albums">
               {section.albums.map((album) => (
@@ -363,7 +365,7 @@ export function ArtistPage({ detail, onChange }: { detail: ItemDetail; onChange?
       {extras.data && extras.data.missing.length > 0 && (
         <section className="music-section music-missing" aria-labelledby="music-section-missing">
           <h2 id="music-section-missing" className="music-section-title">
-            Not in your library
+            {t(Words.notInYourLibrary)}
           </h2>
           <div className="poster-grid music-albums">
             {extras.data.missing.map((a, i) => (
@@ -373,7 +375,7 @@ export function ArtistPage({ detail, onChange }: { detail: ItemDetail; onChange?
         </section>
       )}
       {extras.data && extras.data.similar.length > 0 && (
-        <Row title="Fans also like">
+        <Row title={t(Words.fansAlsoLike)}>
           {extras.data.similar.map((s, i) => (
             <MusicExternalCard key={`${i}-${s.deezerId}`} item={s} unanswered={extras.data?.lidarrAnswered === false} />
           ))}

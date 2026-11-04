@@ -3,6 +3,7 @@ import { ApiError, downloadSubtitles, searchSubtitles, type SubtitleResult } fro
 import { useApi } from '../hooks/useApi'
 import { useModal } from '../hooks/useModal'
 import { AsyncButton } from './AsyncButton'
+import { t, Words } from '../i18n'
 
 interface Props {
   itemId: string
@@ -40,14 +41,14 @@ export function SubtitleSearchDialog({ itemId, fileId, title, onDownloaded, onCl
   return (
     <div className="dialog-backdrop" onClick={() => !busy && onClose()}>
       <div className="panel fix-match subtitle-search" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="subtitle-search-title" onClick={(e) => e.stopPropagation()}>
-        <h2 id="subtitle-search-title">Subtitles for {title}</h2>
-        <p className="muted">From the subtitle sites Bazarr searches, in the languages it’s set up for. The one you choose is saved beside the video.</p>
+        <h2 id="subtitle-search-title">{t('Subtitles for {title}', { title })}</h2>
+        <p className="muted">{t('From the subtitle sites Bazarr searches, in the languages it’s set up for. The one you choose is saved beside the video.')}</p>
 
         <div className="fix-match-results" aria-busy={results.loading}>
-          {results.loading && <p className="muted">Searching… This can take a minute.</p>}
+          {results.loading && <p className="muted">{t('Searching… This can take a minute.')}</p>}
           {results.error && <p className="error">{message(results.error)}</p>}
-          {list?.length === 0 && <p className="muted">No subtitles found.</p>}
-          <ul role="listbox" aria-label="Subtitles">
+          {list?.length === 0 && <p className="muted">{t('No subtitles found.')}</p>}
+          <ul role="listbox" aria-label={t(Words.subtitles)}>
             {list?.map((r) => (
               <li key={r.id}>
                 <button
@@ -61,12 +62,12 @@ export function SubtitleSearchDialog({ itemId, fileId, title, onDownloaded, onCl
                 >
                   <span className="fix-match-text">
                     <strong>{r.languageLabel}</strong>
-                    <span className="subtitle-release">{r.release || 'Release not named'}</span>
+                    <span className="subtitle-release">{r.release || t('Release not named')}</span>
                     <span className="muted">
-                      {[r.provider, r.uploader && `by ${r.uploader}`, `${r.score}% match`].filter(Boolean).join('\u2003')}
+                      {[r.provider, r.uploader && t('by {name}', { name: r.uploader }), t('{score}% match', { score: r.score })].filter(Boolean).join('\u2003')}
                     </span>
                   </span>
-                  {r.matchesFile && <span className="tag keep">Matches your file</span>}
+                  {r.matchesFile && <span className="tag keep">{t('Matches your file')}</span>}
                 </button>
               </li>
             ))}
@@ -81,13 +82,13 @@ export function SubtitleSearchDialog({ itemId, fileId, title, onDownloaded, onCl
 
         <div className="form-actions">
           <AsyncButton className="text-button fix-match-reset" disabled={busy || !list?.length} onClick={() => download(undefined)}>
-            Pick the best for me
+            {t('Pick the best for me')}
           </AsyncButton>
           <button className="button quiet" onClick={onClose} disabled={busy}>
-            Cancel
+            {t(Words.cancel)}
           </button>
           <AsyncButton className="button" disabled={!chosen || busy} busy={busy && !!chosen} onClick={() => download(chosen)}>
-            {busy ? 'Downloading…' : 'Download'}
+            {busy ? t('Downloading…') : t(Words.download)}
           </AsyncButton>
         </div>
       </div>

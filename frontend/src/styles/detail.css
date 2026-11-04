@@ -389,7 +389,7 @@
 .trailer-close {
   position: absolute;
   top: 12px;
-  right: 12px;
+  inset-inline-end: 12px;
 }
 
 @media (max-width: 760px) {
@@ -516,7 +516,7 @@
   border: 0;
   border-radius: var(--radius-control);
   background: none;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -541,7 +541,7 @@
 .track-menu-button {
   width: 36px;
   height: 36px;
-  margin-right: 6px;
+  margin-inline-end: 6px;
   color: var(--usher);
   opacity: 0;
   transition: opacity 0.15s;
@@ -576,7 +576,7 @@
 .track-number {
   color: var(--usher);
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  text-align: end;
 }
 
 .track-number svg {
@@ -654,7 +654,7 @@
   background: none;
   color: inherit;
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -675,8 +675,8 @@
 
 .now-playing {
   position: fixed;
-  left: calc(var(--sidebar-width, 0px) + 16px);
-  right: 16px;
+  inset-inline-start: calc(var(--sidebar-width, 0px) + 16px);
+  inset-inline-end: 16px;
   bottom: 16px;
   z-index: 50;
   display: grid;
@@ -786,7 +786,7 @@ button.now-playing-cover:focus-visible .now-playing-expand {
 .np-view-close {
   position: absolute;
   top: 20px;
-  right: 24px;
+  inset-inline-end: 24px;
   z-index: 1;
   width: 48px;
   height: 48px;
@@ -983,7 +983,7 @@ a.np-view-artist:hover {
 }
 
 .np-view-next span {
-  margin-right: 8px;
+  margin-inline-end: 8px;
   font-size: var(--step--1);
   font-weight: 700;
   color: rgb(255 255 255 / 0.5);
@@ -1049,8 +1049,8 @@ a.np-view-artist:hover {
 .np-view-marks {
   position: absolute;
   top: 0;
-  right: 0;
-  left: 0;
+  inset-inline-end: 0;
+  inset-inline-start: 0;
   height: 18px;
   pointer-events: none;
 }
@@ -1060,7 +1060,7 @@ a.np-view-artist:hover {
   top: 7px;
   width: 2px;
   height: 4px;
-  margin-left: -1px;
+  margin-inline-start: -1px;
   background: rgb(0 0 0 / 0.55);
   z-index: 1;
 }
@@ -1120,7 +1120,7 @@ a.np-view-artist:hover {
 
 .np-view-tools .now-playing-count {
   top: 0;
-  right: 0;
+  inset-inline-end: 0;
   background: var(--screen);
   color: var(--room);
 }
@@ -1165,7 +1165,7 @@ a.np-view-artist:hover {
   color: rgb(255 255 255 / 0.85);
   font: inherit;
   font-size: 15px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -1443,7 +1443,7 @@ a.np-view-artist:hover {
 }
 
 .now-playing-seek span:first-child {
-  text-align: right;
+  text-align: end;
 }
 
 .now-playing-seek input {
@@ -1488,7 +1488,7 @@ a.np-view-artist:hover {
 .now-playing-count {
   position: absolute;
   top: 5px;
-  right: 3px;
+  inset-inline-end: 3px;
   min-width: 16px;
   padding: 0 4px;
   border-radius: var(--radius-control);
@@ -1502,7 +1502,7 @@ a.np-view-artist:hover {
 
 .queue-panel {
   position: fixed;
-  right: 16px;
+  inset-inline-end: 16px;
   bottom: calc(var(--now-playing-height, 88px) + 28px);
   z-index: 55;
   display: flex;
@@ -1559,7 +1559,7 @@ a.np-view-artist:hover {
 
 .queue-item.now {
   grid-template-columns: minmax(0, 1fr);
-  padding-left: 4px;
+  padding-inline-start: 4px;
 }
 
 .queue-item:not(.now):hover,
@@ -1598,7 +1598,7 @@ a.np-view-artist:hover {
   background: none;
   color: inherit;
   font: inherit;
-  text-align: left;
+  text-align: start;
 }
 
 button.queue-track {
@@ -1686,7 +1686,7 @@ button.queue-track:focus-visible {
   }
 
   .now-playing {
-    left: 16px;
+    inset-inline-start: 16px;
     bottom: calc(16px + env(safe-area-inset-bottom));
     grid-template-columns: minmax(0, 1fr) auto auto;
     gap: 8px;
@@ -1704,8 +1704,8 @@ button.queue-track:focus-visible {
   }
 
   .queue-panel {
-    left: 16px;
-    right: 16px;
+    inset-inline-start: 16px;
+    inset-inline-end: 16px;
     bottom: calc(var(--now-playing-height, 64px) + 28px + env(safe-area-inset-bottom));
     width: auto;
   }
@@ -1852,7 +1852,7 @@ button.queue-track:focus-visible {
 }
 
 .playlist-entry .queue-actions {
-  margin-right: 6px;
+  margin-inline-end: 6px;
   opacity: 0;
   transition: opacity 0.15s;
 }
@@ -1936,7 +1936,7 @@ button.queue-track:focus-visible {
   background: none;
   color: inherit;
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 

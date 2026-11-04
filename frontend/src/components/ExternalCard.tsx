@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { imageUrl, type ExternalTitle } from '../api/client'
 import { RequestButton } from './RequestButton'
 import { WatchlistButton } from './WatchlistButton'
+import { t, Words } from '../i18n'
 
 /** A title from outside the library: its poster opens it (in Flexarr if you have it), with request and watchlist buttons. */
 export function ExternalCard({ title }: { title: ExternalTitle }) {
@@ -19,12 +20,12 @@ export function ExternalCard({ title }: { title: ExternalTitle }) {
     <div className="card external-card">
       <Link
         to={title.libraryItemId ? `/item/${title.libraryItemId}` : `/discover/${title.mediaType}/${title.tmdbId}`}
-        aria-label={title.libraryItemId ? `${title.title}, in your library` : `${title.title}, more about it`}
+        aria-label={title.libraryItemId ? t('{title}, in your library', { title: title.title }) : t('{title}, more about it', { title: title.title })}
       >
         {poster}
       </Link>
       <span className="card-title">{title.title}</span>
-      <span className="card-subtitle">{[title.mediaType === 'tv' ? 'Series' : 'Movie', title.year].filter(Boolean).join(', ')}</span>
+      <span className="card-subtitle">{[title.mediaType === 'tv' ? t(Words.series) : t('Movie'), title.year].filter(Boolean).join(', ')}</span>
       <div className="external-card-actions">
         <RequestButton key={requested ? 'requested' : 'asked'} title={requested ? { ...title, availability: 'Requested' } : title} />
         <WatchlistButton

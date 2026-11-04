@@ -18,6 +18,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, More, Next, Notes, SkipBack, Sk
 import { icon } from './icons.generated'
 import { Menu, type MenuPoint } from './ItemMenu'
 import { PodcastTools } from './PodcastTools'
+import { locale, t, Words } from '../i18n'
 
 /**
  * Now Playing over the whole window: the cover large, the track's name, where it's got to and the controls, with light
@@ -117,10 +118,10 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
   const style = { '--ambient': track.accentColor ?? `rgb(${r} ${g} ${b})`, '--glow': `rgb(${r} ${g} ${b})` } as CSSProperties
 
   return (
-    <div ref={view} className="np-view" role="dialog" aria-modal="true" aria-label="Now playing" style={style}>
+    <div ref={view} className="np-view" role="dialog" aria-modal="true" aria-label={t(Words.nowPlaying)} style={style}>
       <Aurora colours={colours} analyser={player.analyser} playing={player.playing} still={!visualiser} />
       <div className="np-view-veil" aria-hidden="true" />
-      <button ref={closeButton} className="icon-button np-view-close" onClick={onClose} aria-label="Close Now Playing">
+      <button ref={closeButton} className="icon-button np-view-close" onClick={onClose} aria-label={t('Close Now Playing')}>
         <ChevronDown />
       </button>
 
@@ -128,12 +129,12 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
         {book && showingNotes && player.book ? (
           <div className="np-view-details">
             <section>
-              <h3>Chapters</h3>
+              <h3>{t('Chapters')}</h3>
               <ChapterList chapters={chapters} current={chapter} playing={player.playing} onSeek={player.seek} />
             </section>
             {player.book.bookmarks.length > 0 && (
               <section>
-                <h3>Bookmarks</h3>
+                <h3>{t('Bookmarks')}</h3>
                 <BookmarkList bookmarks={player.book.bookmarks} chapters={player.book.chapters} onJump={player.seek} onRemove={player.removeBookmark} />
               </section>
             )}
@@ -164,17 +165,17 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
 
           {chapters.length > 0 && (
             <div className="np-view-chapter">
-              <button className="icon-button" onClick={() => player.seek(previousChapterStart(chapters, time))} aria-label="Previous chapter">
+              <button className="icon-button" onClick={() => player.seek(previousChapterStart(chapters, time))} aria-label={t('Previous chapter')}>
                 <ChevronLeft />
               </button>
-              <button className="np-view-chapter-name" onClick={() => setShowingNotes(true)} title="Show the chapters">
+              <button className="np-view-chapter-name" onClick={() => setShowingNotes(true)} title={t('Show the chapters')}>
                 {chapters[chapter ?? 0].title}
               </button>
               <button
                 className="icon-button"
                 onClick={() => player.seek(chapters[(chapter ?? -1) + 1].startSeconds)}
                 disabled={(chapter ?? -1) + 1 >= chapters.length}
-                aria-label="Next chapter"
+                aria-label={t('Next chapter')}
               >
                 <ChevronRight />
               </button>
@@ -197,7 +198,7 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
               max={Math.max(1, Math.floor(length))}
               value={Math.min(scrub.shown, Math.floor(length))}
               {...scrub.inputProps}
-              aria-label="Seek"
+              aria-label={t('Seek')}
               className={scrub.scrubbing ? 'scrubbing' : undefined}
               style={{ '--progress': `${length > 0 ? (Math.min(scrub.shown, length) / length) * 100 : 0}%` } as CSSProperties}
             />
@@ -211,23 +212,23 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
 
           <div className="np-view-controls">
             {skips ? (
-              <button className="icon-button np-view-skip" onClick={() => player.skipBy(-back)} aria-label={`Back ${back} seconds`}>
+              <button className="icon-button np-view-skip" onClick={() => player.skipBy(-back)} aria-label={t('Back {seconds} seconds', { seconds: back })}>
                 <SkipBack seconds={back} />
               </button>
             ) : (
-              <button className="icon-button np-view-skip" onClick={player.previous} aria-label="Previous track">
+              <button className="icon-button np-view-skip" onClick={player.previous} aria-label={t('Previous track')}>
                 <Next style={{ transform: 'scaleX(-1)' }} />
               </button>
             )}
-            <button className="icon-button np-view-toggle" onClick={player.toggle} aria-label={player.playing ? 'Pause' : 'Play'}>
+            <button className="icon-button np-view-toggle" onClick={player.toggle} aria-label={player.playing ? t('Pause') : t(Words.play)}>
               {player.playing ? <icon.pause /> : <icon.play />}
             </button>
             {skips ? (
-              <button className="icon-button np-view-skip" onClick={() => player.skipBy(forward)} aria-label={`Forward ${forward} seconds`}>
+              <button className="icon-button np-view-skip" onClick={() => player.skipBy(forward)} aria-label={t('Forward {seconds} seconds', { seconds: forward })}>
                 <SkipForward seconds={forward} />
               </button>
             ) : (
-              <button className="icon-button np-view-skip" onClick={player.next} aria-label="Next track" disabled={!upNext}>
+              <button className="icon-button np-view-skip" onClick={player.next} aria-label={t('Next track')} disabled={!upNext}>
                 <Next />
               </button>
             )}
@@ -240,13 +241,13 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
                 className={showingNotes ? 'icon-button np-view-tool active' : 'icon-button np-view-tool'}
                 onClick={() => setShowingNotes(!showingNotes)}
                 aria-pressed={showingNotes}
-                aria-label="Chapters and bookmarks"
-                title={showingNotes ? 'Show the cover' : 'Chapters and bookmarks'}
+                aria-label={t('Chapters and bookmarks')}
+                title={showingNotes ? t('Show the cover') : t('Chapters and bookmarks')}
               >
                 <Notes />
               </button>
               {chapters.length > 0 && (
-                <span className="np-view-scopes" role="group" aria-label="Seek bar covers">
+                <span className="np-view-scopes" role="group" aria-label={t('Seek bar covers')}>
                   {(['chapter', 'book'] as const).map((s) => (
                     // The choice shows as made even where no chapter covers the time (before the first, say), when
                     // Chapter has nothing to cover and waits, off, until one does.
@@ -256,9 +257,9 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
                       onClick={() => setScope(s)}
                       aria-pressed={s === scope}
                       disabled={s === 'chapter' && chapter === null}
-                      title={s === 'chapter' && chapter === null ? 'No chapter here' : undefined}
+                      title={s === 'chapter' && chapter === null ? t('No chapter here') : undefined}
                     >
-                      {s === 'chapter' ? 'Chapter' : 'Book'}
+                      {s === 'chapter' ? t('Chapter') : t('Book')}
                     </button>
                   ))}
                 </span>
@@ -273,12 +274,12 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
                 className={showingNotes ? 'icon-button np-view-tool active' : 'icon-button np-view-tool'}
                 onClick={() => setShowingNotes(!showingNotes)}
                 aria-pressed={showingNotes}
-                aria-label="Notes"
-                title={showingNotes ? 'Show the cover' : 'Chapters and notes'}
+                aria-label={t('Notes')}
+                title={showingNotes ? t('Show the cover') : t('Chapters and notes')}
               >
                 <Notes />
               </button>
-              <button className="icon-button np-view-tool" onClick={toggleMenu} aria-label="More" aria-haspopup="menu" aria-expanded={menuAt !== null}>
+              <button className="icon-button np-view-tool" onClick={toggleMenu} aria-label={t('More')} aria-haspopup="menu" aria-expanded={menuAt !== null}>
                 <More />
               </button>
               {menuAt && (
@@ -286,16 +287,16 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
                   label={track.title}
                   at={menuAt}
                   actions={[
-                    ...(track.parentId ? [{ label: 'Go to podcast', run: () => navigate(`/podcasts/${track.parentId}`) }] : []),
+                    ...(track.parentId ? [{ label: t('Go to podcast'), run: () => navigate(`/podcasts/${track.parentId}`) }] : []),
                     {
-                      label: 'Mark as played',
+                      label: t(Words.markAsPlayed),
                       run: async () => {
                         await setWatched(track.id, true)
                         // Played: on to what comes next, as if it had finished.
                         player.seek(Math.max(0, duration - 0.5))
                       },
                     },
-                    ...(details?.podcast?.link ? [{ label: 'Share podcast', run: () => sharePodcast(details.podcast!) }] : []),
+                    ...(details?.podcast?.link ? [{ label: t('Share podcast'), run: () => sharePodcast(details.podcast!) }] : []),
                   ]}
                   onClose={() => setMenuAt(null)}
                 />
@@ -305,7 +306,7 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
 
           {upNext && (
             <p className="np-view-next">
-              <span>Up next</span> {upNext.title}
+              <span>{t(Words.upNext)}</span> {upNext.title}
               {upNext.trackArtist || upNext.seriesTitle ? `\u2003${upNext.trackArtist ?? upNext.seriesTitle}` : ''}
             </p>
           )}
@@ -322,7 +323,7 @@ function EndsAt({ remaining }: { remaining: number }) {
     const timer = window.setInterval(() => setNow(Date.now()), 5000)
     return () => window.clearInterval(timer)
   }, [])
-  return <span>Ends {new Date(now + remaining * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+  return <span>{t('Ends {time}', { time: new Date(now + remaining * 1000).toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' }) })}</span>
 }
 
 /** The episode playing's whole notes, its chapters and its show, once they've come. */
@@ -392,25 +393,25 @@ function EpisodeDetails({
     <div className="np-view-details">
       {chapters.length > 0 && (
         <section>
-          <h3>Chapters</h3>
+          <h3>{t('Chapters')}</h3>
           <ChapterList chapters={chapters} current={current} playing={playing} onSeek={onSeek} />
         </section>
       )}
       <section>
-        <h3>Episode notes</h3>
+        <h3>{t('Episode notes')}</h3>
         {episode ? (
           <>
             <p className="np-view-facts">
-              {[episodeDate(episode.publishedAt), formatDuration(episode.durationSeconds ?? 0), episode.explicit ? 'Explicit' : null].filter(Boolean).join('\u2003')}
+              {[episodeDate(episode.publishedAt), formatDuration(episode.durationSeconds ?? 0), episode.explicit ? t('Explicit') : null].filter(Boolean).join('\u2003')}
             </p>
             {episode.overview ? (
               <EpisodeNotes text={episode.overview} duration={episode.durationSeconds} onSeek={onSeek} />
             ) : (
-              <p className="np-view-facts">This episode has no notes.</p>
+              <p className="np-view-facts">{t('This episode has no notes.')}</p>
             )}
           </>
         ) : (
-          <p className="np-view-facts">Loading…</p>
+          <p className="np-view-facts">{t('Loading…')}</p>
         )}
       </section>
     </div>

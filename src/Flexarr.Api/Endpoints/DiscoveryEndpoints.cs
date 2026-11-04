@@ -98,7 +98,7 @@ public static partial class DiscoveryEndpoints
             {
                 // "or listening" only when there's something to listen to in it, not for every profile that could.
                 var listeningIn = continueRow.Any(i => i.Kind is MediaKind.Audiobook or MediaKind.PodcastEpisode);
-                rows.Add(new HomeRowDto("continue", listeningIn ? Loc.T("Continue watching or listening") : Loc.T("Continue watching"), "wide", continueRow));
+                rows.Add(new HomeRowDto("continue", listeningIn ? Loc.T("Continue watching or listening") : Loc.T(Words.ContinueWatching), "wide", continueRow));
             }
 
             // Titles from this profile's watchlist it can play now; nothing until something on the list is in. A kids profile has none.
@@ -119,7 +119,7 @@ public static partial class DiscoveryEndpoints
             if (options.LiveTv?.Account is not null && !db.ServesKids && LayoutEndpoints.IsOn(homeLayout.Home, "live-tv"))
             {
                 var channels = await LiveTv.LiveTvEndpoints.HomeChannelsAsync(db, me, DateTime.UtcNow, ct);
-                rows.Add(new HomeRowDto("live-tv", Loc.T("Live TV"), "live", [], "/livetv", Channels: channels));
+                rows.Add(new HomeRowDto("live-tv", Loc.T(Words.LiveTv), "live", [], "/livetv", Channels: channels));
             }
 
             // One row for each library, or (as it starts) one for all the film libraries and one for all the TV ones.
@@ -238,7 +238,7 @@ public static partial class DiscoveryEndpoints
             }
 
             // Coming soon is a row like the others (its titles travel in Upcoming), so it can be moved or switched off.
-            rows.Add(new HomeRowDto("upcoming", Loc.T("Coming soon"), "upcoming", []));
+            rows.Add(new HomeRowDto("upcoming", Loc.T(Words.ComingSoon), "upcoming", []));
             // New podcast episodes: the apps fetch them; Home only says where they go. Built in, straight after Continue
             // watching (or first, without one), where the apps put it before the server placed it.
             if (libraries.Any(l => l.Type == LibraryType.Podcasts))
@@ -321,7 +321,7 @@ public static partial class DiscoveryEndpoints
 
             // Continue Watching, narrowed to this library (the hero leads with it either way).
             var continueWatching = await ContinueWatchingAsync(db, me, RowSize, id, ct);
-            rows.Add(new HomeRowDto("continue", Loc.T("Continue watching"), "wide", continueWatching));
+            rows.Add(new HomeRowDto("continue", Loc.T(Words.ContinueWatching), "wide", continueWatching));
 
             if (On("recent"))
             {
@@ -345,7 +345,7 @@ public static partial class DiscoveryEndpoints
                     LogUpcomingFailed(services.GetRequiredService<ILoggerFactory>().CreateLogger("Flexarr.Home"), ex);
                 }
 
-                rows.Add(new HomeRowDto("upcoming", Loc.T("Coming soon"), "upcoming", []));
+                rows.Add(new HomeRowDto("upcoming", Loc.T(Words.ComingSoon), "upcoming", []));
             }
 
             if (On("top"))

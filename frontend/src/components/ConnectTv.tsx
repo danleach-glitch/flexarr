@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { ApiError, approvePairing, askForProfile, declinePairing, getPairing, type PairingDetails } from '../api/client'
 import { askedFrom, pairingError, setPairingOpenElsewhere } from '../lib/pairing'
 import { AsyncButton } from './AsyncButton'
+import { t } from '../i18n'
 
 /**
  * Approving a TV: it shows a code (and a QR code that opens this with the code filled in). Approving gives the TV a
@@ -87,8 +88,8 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
   if (state === 'done') {
     return (
       <div className="panel connect-tv" role="status">
-        <h2>{details?.deviceName ?? 'The device'} is connected</h2>
-        <p className="muted">It signs in within a couple of seconds. You can put this away.</p>
+        <h2>{details?.deviceName ? t('{name} is connected', { name: details.deviceName }) : t('The device is connected')}</h2>
+        <p className="muted">{t('It signs in within a couple of seconds. You can put this away.')}</p>
       </div>
     )
   }
@@ -107,7 +108,7 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
             window.location.assign(`/link${initialCode || code ? `?code=${encodeURIComponent((initialCode || code).trim())}` : ''}`)
           }}
         >
-          Switch to the main profile
+          {t('Switch to the main profile')}
         </button>
       )}
     </div>
@@ -117,27 +118,28 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
     const home = details.zone === 'Local'
     return (
       <div className="panel connect-tv">
-        <h2>Connect {details.deviceName}?</h2>
+        <h2>{t('Connect {name}?', { name: details.deviceName })}</h2>
         <p className="connect-tv-big-code">{details.code}</p>
-        <p className="muted">Asked {askedFrom(details)}.</p>
+        <p className="muted">{t('Asked {where}.', { where: askedFrom(details) })}</p>
         {home ? (
           <p>
-            Only allow this if your device is showing <strong>{details.code}</strong> right now. If someone sent you this link, choose Don’t allow.
+            {t.rich('Only allow this if your device is showing {code} right now. If someone sent you this link, choose Don’t allow.', { code: <strong>{details.code}</strong> })}
           </p>
         ) : (
           <p className="panel advice">
-            This request didn’t come from your home network. Only allow it if your device is showing <strong>{details.code}</strong> and you started it just now. If
-            someone sent you this link, choose Don’t allow.
+            {t.rich('This request didn’t come from your home network. Only allow it if your device is showing {code} and you started it just now. If someone sent you this link, choose Don’t allow.', {
+              code: <strong>{details.code}</strong>,
+            })}
           </p>
         )}
-        <p className="field-help">It signs in to Flexarr like any other device. You can sign it out later in Settings › Security.</p>
+        <p className="field-help">{t('It signs in to Flexarr like any other device. You can sign it out later in Settings › Security.')}</p>
         {errorLine}
         <div className="form-actions">
           <AsyncButton className="button quiet" busy={state === 'declining'} disabled={state === 'approving'} onClick={() => decline()} autoFocus={!home}>
-            Don’t allow
+            {t('Don’t allow')}
           </AsyncButton>
           <AsyncButton className="button" busy={state === 'approving'} disabled={state === 'declining'} onClick={() => allow()} autoFocus={home}>
-            Allow
+            {t('Allow')}
           </AsyncButton>
         </div>
       </div>
@@ -146,16 +148,16 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
 
   return (
     <form className="panel connect-tv" onSubmit={submit}>
-      {titled && <h2>Connect a device</h2>}
+      {titled && <h2>{t('Connect a device')}</h2>}
       {state === 'declined' && (
         <p className="key-note" role="status">
-          Not connected. The device shows Not allowed, with Try again.
+          {t('Not connected. The device shows Not allowed, with Try again.')}
         </p>
       )}
-      <p className="muted">Open Flexarr on the TV, iPhone or iPad and enter the code it shows. A TV also shows a QR code to scan with your phone.</p>
+      <p className="muted">{t('Open Flexarr on the TV, iPhone or iPad and enter the code it shows. A TV also shows a QR code to scan with your phone.')}</p>
       <div className="field-row">
         <label className="grow">
-          Code
+          {t('Code')}
           <input
             type="text"
             value={code}
@@ -172,7 +174,7 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
       {errorLine}
       <div className="form-actions">
         <AsyncButton type="submit" className="button" busy={state === 'checking'} disabled={!code.trim()}>
-          Continue
+          {t('Continue')}
         </AsyncButton>
       </div>
     </form>

@@ -1,6 +1,7 @@
 import { useId, useState, type ReactNode } from 'react'
 import { useModal } from '../hooks/useModal'
 import { AsyncButton } from './AsyncButton'
+import { t, Words } from '../i18n'
 
 /**
  * Asks before doing something that can't easily be taken back. Escape and the backdrop close it (unless it's busy, or
@@ -11,7 +12,7 @@ export function ConfirmDialog({
   title,
   children,
   confirmLabel,
-  cancelLabel = 'Cancel',
+  cancelLabel = t(Words.cancel),
   danger = false,
   busy = false,
   error,

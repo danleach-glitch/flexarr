@@ -9,11 +9,12 @@ import { parse, ReleaseNotes } from './changelog'
 import { SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 import { webLink } from '../../lib/links'
+import { locale, t } from '../../i18n'
 
 const guide = 'https://flexarr.io/guide/updating'
 
 function day(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
+  return new Date(iso).toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 /** Which Flexarr this is, whether there's a newer one, and installing it (by hand, or overnight by itself). */
@@ -58,37 +59,37 @@ export function UpdatesSection() {
 
   return (
     <section>
-      <SettingsHeader title="Updates">
-        The version this server runs, and new releases. Updating keeps your settings, profiles and history.
+      <SettingsHeader title={t('Updates')}>
+        {t('The version this server runs, and new releases. Updating keeps your settings, profiles and history.')}
       </SettingsHeader>
 
       <SettingsGroup
-        title="This server"
+        title={t('This server')}
         note={
           current?.install === 'Docker'
-            ? 'Docker updates Flexarr from outside, so it tells you about new versions but can’t install them.'
+            ? t('Docker updates Flexarr from outside, so it tells you about new versions but can’t install them.')
             : current?.install === 'MacApp'
-              ? 'The Mac App Store installs new versions of Flexarr Server.'
+              ? t('The Mac App Store installs new versions of Flexarr Server.')
               : undefined
         }
         action={
           <AsyncButton className="button small" onClick={check}>
-            Check for updates
+            {t('Check for updates')}
           </AsyncButton>
         }
       >
         {loaded.error && !current && (
           <p className="error" role="alert">
-            Couldn’t load updates: {loaded.error.message}
+            {t('Couldn’t load updates: {message}', { message: loaded.error.message })}
           </p>
         )}
-        {!current && !loaded.error && <p className="muted">Loading…</p>}
+        {!current && !loaded.error && <p className="muted">{t('Loading…')}</p>}
         {current && (
           <>
-            <SettingRow as="div" label="Version" help={current.isDevelopment ? 'A development build, between releases.' : undefined}>
+            <SettingRow as="div" label={t('Version')} help={current.isDevelopment ? t('A development build, between releases.') : undefined}>
               <span className="setting-value">{current.version}</span>
             </SettingRow>
-            <SettingRow as="div" label="Status" help={checkedLine(current)}>
+            <SettingRow as="div" label={t('Status')} help={checkedLine(current)}>
               <span className="setting-value">{statusLine(current)}</span>
             </SettingRow>
           </>
@@ -119,7 +120,7 @@ export function UpdatesSection() {
             <h3 className="settings-subhead">Flexarr {current.latest.version}</h3>
             {current.canInstall && (
               <button className="button small" onClick={() => setConfirming(true)}>
-                Update now
+                {t('Update now')}
               </button>
             )}
           </div>
@@ -131,7 +132,7 @@ export function UpdatesSection() {
           </div>
           <p className="settings-note">
             <a href={webLink(current.latest.url)} target="_blank" rel="noreferrer">
-              This release on GitHub <External />
+              {t('This release on GitHub')} <External />
             </a>
           </p>
         </div>
@@ -140,17 +141,17 @@ export function UpdatesSection() {
       {current?.install === 'MacLaunchAgent' && !current.isDevelopment && <Automatic updates={current} onSaved={setUpdates} />}
 
       {confirming && current?.latest && (
-        <ConfirmDialog title={`Update to Flexarr ${current.latest.version}?`} confirmLabel={current.inUse.length ? 'Update anyway' : 'Update now'} error={installError}
+        <ConfirmDialog title={t('Update to Flexarr {version}?', { version: current.latest.version })} confirmLabel={current.inUse.length ? t('Update anyway') : t('Update now')} error={installError}
           onConfirm={install}
           onClose={() => {
             setConfirming(false)
             setInstallError(undefined)
           }}
         >
-          <p>Flexarr downloads the update, then restarts to install it, which takes a minute or two. If the new version doesn’t start, the one you have now is put back.</p>
+          <p>{t('Flexarr downloads the update, then restarts to install it, which takes a minute or two. If the new version doesn’t start, the one you have now is put back.')}</p>
           {current.inUse.length > 0 && (
             <>
-              <p>Restarting interrupts what’s going on now:</p>
+              <p>{t('Restarting interrupts what’s going on now:')}</p>
               <ul>
                 {current.inUse.map((reason) => (
                   <li key={reason}>{reason}</li>
@@ -165,15 +166,15 @@ export function UpdatesSection() {
 }
 
 function statusLine(updates: Updates) {
-  if (updates.isDevelopment) return updates.latest ? `Latest release: ${updates.latest.version}` : 'Updated by deploying'
-  if (updates.available && updates.latest) return `Flexarr ${updates.latest.version} is available`
-  if (updates.latest) return 'Up to date'
-  return updates.lastChecked ? 'Unknown' : 'Not checked yet'
+  if (updates.isDevelopment) return updates.latest ? t('Latest release: {version}', { version: updates.latest.version }) : t('Updated by deploying')
+  if (updates.available && updates.latest) return t('Flexarr {version} is available', { version: updates.latest.version })
+  if (updates.latest) return t('Up to date')
+  return updates.lastChecked ? t('Unknown') : t('Not checked yet')
 }
 
 function checkedLine(updates: Updates) {
-  if (updates.isDevelopment) return 'Development builds aren’t updated from here: a release could be older than this.'
-  return `${updates.lastChecked ? `Checked ${relativeTime(updates.lastChecked)}. ` : ''}Flexarr checks once a day.`
+  if (updates.isDevelopment) return t('Development builds aren’t updated from here: a release could be older than this.')
+  return `${updates.lastChecked ? `${t('Checked {time}.', { time: relativeTime(updates.lastChecked) })} ` : ''}${t('Flexarr checks once a day.')}`
 }
 
 /** How the last update went, for a week after. */
@@ -182,7 +183,7 @@ function LastResult({ result }: { result: NonNullable<Updates['lastResult']> }) 
   if (now - new Date(result.at).getTime() > 7 * 24 * 3600 * 1000) return null
   return result.ok ? (
     <p className="muted update-result" role="status">
-      Updated from {result.from} to {result.to} {relativeTime(result.at)}.
+      {t('Updated from {from} to {to} {time}.', { from: result.from, to: result.to, time: relativeTime(result.at) })}
     </p>
   ) : (
     <p className="error update-result" role="alert">
@@ -195,12 +196,13 @@ function Downloading({ updates }: { updates: Updates }) {
   const { received, total, version, downloading } = updates.progress
   const share = total ? Math.min(1, received / total) : undefined
   return (
-    <SettingsGroup title={`Downloading ${downloading ?? `Flexarr ${version ?? ''}`}`}>
+    <SettingsGroup title={t('Downloading {what}', { what: downloading ?? `Flexarr ${version ?? ''}` })}>
       <div className="update-progress" role="status">
-        <progress max={1} value={share} aria-label="Download progress" />
+        <progress max={1} value={share} aria-label={t('Download progress')} />
         <span className="muted">
-          {formatSize(received)}
-          {total ? ` of ${formatSize(total)}` : ''}. Flexarr restarts to install it once it’s downloaded.
+          {total
+            ? t('{received} of {total}. Flexarr restarts to install it once it’s downloaded.', { received: formatSize(received), total: formatSize(total) })
+            : t('{received}. Flexarr restarts to install it once it’s downloaded.', { received: formatSize(received) })}
         </span>
       </div>
     </SettingsGroup>
@@ -212,12 +214,18 @@ function HowToUpdate({ updates }: { updates: Updates }) {
   if (updates.install === 'Docker')
     return (
       <div className="panel update-howto">
-        <p>Flexarr runs in Docker here, and a container can’t replace itself. To update, get the new image and recreate the container. With Docker Compose, in the folder with your <code>docker-compose.yml</code>:</p>
+        <p>
+          {t.rich('Flexarr runs in Docker here, and a container can’t replace itself. To update, get the new image and recreate the container. With Docker Compose, in the folder with your {file}:', {
+            file: <code>docker-compose.yml</code>,
+          })}
+        </p>
         <pre className="update-command">docker compose pull flexarr{'\n'}docker compose up -d flexarr</pre>
         <p className="muted">
-          If your image’s tag names a version (like <code>:0.50</code>), change it first. On Synology or Unraid, update the container the way the platform does. To update automatically, a tool like Watchtower can do it.{' '}
+          {t.rich('If your image’s tag names a version (like {tag}), change it first. On Synology or Unraid, update the container the way the platform does. To update automatically, a tool like Watchtower can do it.', {
+            tag: <code>:0.50</code>,
+          })}{' '}
           <a href={`${guide}#docker`} target="_blank" rel="noreferrer">
-            More in the guide
+            {t('More in the guide')}
           </a>
         </p>
       </div>
@@ -226,23 +234,25 @@ function HowToUpdate({ updates }: { updates: Updates }) {
     return (
       <div className="panel update-howto">
         <p>
-          To update, open the App Store on the Mac running Flexarr Server and choose <strong>Updates</strong>. A new version can take a day or two to reach the App Store after it’s released.
+          {t.rich('To update, open the App Store on the Mac running Flexarr Server and choose {updates}. A new version can take a day or two to reach the App Store after it’s released.', {
+            updates: <strong>{t('Updates')}</strong>,
+          })}
         </p>
       </div>
     )
   if (updates.install === 'MacLaunchAgent')
     return (
       <div className="panel update-howto">
-        <p>This release has no Mac build to install, so update with the install script, from the Mac you installed from:</p>
+        <p>{t('This release has no Mac build to install, so update with the install script, from the Mac you installed from:')}</p>
         <pre className="update-command">cd flexarr{'\n'}git pull{'\n'}make deploy DEPLOY_HOST=&lt;your-mac&gt;</pre>
       </div>
     )
   return (
     <div className="panel update-howto">
       <p>
-        This server wasn’t installed in a way Flexarr can update by itself. Update it the way it was installed.{' '}
+        {t('This server wasn’t installed in a way Flexarr can update by itself. Update it the way it was installed.')}{' '}
         <a href={guide} target="_blank" rel="noreferrer">
-          How to update
+          {t('How to update')}
         </a>
       </p>
     </div>
@@ -258,7 +268,7 @@ function Automatic({ updates, onSaved }: { updates: Updates; onSaved: (updates: 
     setError(undefined)
     try {
       onSaved(await saveUpdateSettings(update))
-      setSaved('Saved')
+      setSaved(t('Saved'))
       setTimeout(() => setSaved(undefined), 3000)
     } catch (e) {
       setError(errorText(e))
@@ -267,7 +277,7 @@ function Automatic({ updates, onSaved }: { updates: Updates; onSaved: (updates: 
 
   return (
     <SettingsGroup
-      title="Automatic updates"
+      title={t('Automatic updates')}
       note={
         error ? (
           <span className="error" role="alert">
@@ -279,8 +289,8 @@ function Automatic({ updates, onSaved }: { updates: Updates; onSaved: (updates: 
       }
     >
       <ToggleRow
-        label="Install updates automatically"
-        help="Between 4 and 5 in the morning, once nothing is playing or recording. A busy night waits for the next."
+        label={t('Install updates automatically')}
+        help={t('Between 4 and 5 in the morning, once nothing is playing or recording. A busy night waits for the next.')}
         checked={updates.automatic}
         onChange={(on) => void save({ automatic: on })}
       />
@@ -321,10 +331,16 @@ function Restarting({ to }: { to: string }) {
 
   return (
     <section>
-      <SettingsHeader title="Updating">Flexarr is restarting to install {to ? `version ${to}` : 'the update'}. This page reloads when it’s back.</SettingsHeader>
+      <SettingsHeader title={t('Updating')}>
+        {to
+          ? t('Flexarr is restarting to install version {version}. This page reloads when it’s back.', { version: to })
+          : t('Flexarr is restarting to install the update. This page reloads when it’s back.')}
+      </SettingsHeader>
       {late && (
         <p className="muted" role="status">
-          It’s taking a while, which a big library’s first start after an update can. If it doesn’t come back, the log of the update is in <code>~/.flexarr/logs/update.log</code> on the server.
+          {t.rich('It’s taking a while, which a big library’s first start after an update can. If it doesn’t come back, the log of the update is in {file} on the server.', {
+            file: <code>~/.flexarr/logs/update.log</code>,
+          })}
         </p>
       )}
     </section>

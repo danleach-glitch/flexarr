@@ -6,6 +6,7 @@ import { Row } from '../components/Row'
 import { PosterCard } from '../components/Cards'
 import { useApi } from '../hooks/useApi'
 import { DiscoverSwitch, MusicDiscover, MusicGenrePage, MusicSearchResults } from './DiscoverMusic'
+import { t, Words } from '../i18n'
 
 export function DiscoverPage() {
   const [params, setParams] = useSearchParams()
@@ -43,16 +44,16 @@ export function DiscoverPage() {
         <header className="library-header">
           <div>
             <p className="detail-kicker">
-              <Link to="/discover">Discover</Link>
+              <Link to="/discover">{t(Words.discover)}</Link>
             </p>
             <h1>{genre}</h1>
-            <p className="muted">{items.data ? `${items.data.total.toLocaleString()} titles, best rated first` : ' '}</p>
+            <p className="muted">{items.data ? t('{count, plural, other {# titles, best rated first}}', { count: items.data.total }) : ' '}</p>
           </div>
-          <div className="genre-chips" role="group" aria-label="Show">
+          <div className="genre-chips" role="group" aria-label={t('Show')}>
             {[
-              ['', 'Everything'],
-              ['Movie', 'Movies'],
-              ['Series', 'Shows'],
+              ['', t('Everything')],
+              ['Movie', t(Words.movies)],
+              ['Series', t(Words.shows)],
             ].map(([value, label]) => (
               <button key={value} className="chip" aria-pressed={kind === value} onClick={() => setParams(value ? { genre, kind: value } : { genre })}>
                 {label}
@@ -69,7 +70,7 @@ export function DiscoverPage() {
     )
   }
 
-  const placeholder = music ? 'Search for any artist or album' : 'Search for any movie or show'
+  const placeholder = music ? t('Search for any artist or album') : t('Search for any movie or show')
   const searchBox = (
     <input type="search" className="discover-search" placeholder={placeholder} aria-label={placeholder} value={typed} onChange={(e) => setTyped(e.target.value)} />
   )
@@ -77,7 +78,7 @@ export function DiscoverPage() {
 
   const heading = (
     <div className="library-heading">
-      <h1>Discover</h1>
+      <h1>{t(Words.discover)}</h1>
       {switcher}
     </div>
   )
@@ -89,7 +90,7 @@ export function DiscoverPage() {
           {heading}
           {searchBox}
         </header>
-        {musicStatus.data?.reachable === false && <p className="muted discover-note">Lidarr isn’t answering.</p>}
+        {musicStatus.data?.reachable === false && <p className="muted discover-note">{t('Lidarr isn’t answering.')}</p>}
         {query ? <MusicSearchResults query={query} /> : <MusicDiscover />}
       </div>
     )
@@ -103,22 +104,22 @@ export function DiscoverPage() {
           {searchBox}
         </header>
         {results.error && <p className="error">{results.error.message}</p>}
-        {results.loading && !results.data && <p className="muted">Searching…</p>}
-        {results.data && results.data.length === 0 && <p className="muted">Nothing found for “{query}”. Try a different spelling, or the original title.</p>}
+        {results.loading && !results.data && <p className="muted">{t('Searching…')}</p>}
+        {results.data && results.data.length === 0 && <p className="muted">{t('Nothing found for “{query}”. Try a different spelling, or the original title.', { query })}</p>}
         {results.data && results.data.length > 0 && (
           <>
             <p className="muted discover-search-note">
-              {results.data.filter((t) => t.libraryItemId).length > 0
-                ? `${results.data.filter((t) => t.libraryItemId).length} already in your library. Request anything else to add it.`
-                : 'Request anything to add it to your library.'}
+              {results.data.filter((title) => title.libraryItemId).length > 0
+                ? t('{count, plural, other {# already in your library. Request anything else to add it.}}', { count: results.data.filter((title) => title.libraryItemId).length })
+                : t('Request anything to add it to your library.')}
             </p>
             {(
               [
-                ['tv', 'Shows'],
-                ['movie', 'Movies'],
+                ['tv', t(Words.shows)],
+                ['movie', t(Words.movies)],
               ] as const
             ).map(([type, label]) => {
-              const found = results.data!.filter((t) => t.mediaType === type)
+              const found = results.data!.filter((title) => title.mediaType === type)
               return (
                 found.length > 0 && (
                   <section key={type} className="discover-results">
@@ -126,8 +127,8 @@ export function DiscoverPage() {
                       {label} <span className="health-count">{found.length}</span>
                     </h2>
                     <div className="poster-grid">
-                      {found.map((t) => (
-                        <ExternalCard key={`${t.mediaType}-${t.tmdbId}`} title={t} />
+                      {found.map((title) => (
+                        <ExternalCard key={`${title.mediaType}-${title.tmdbId}`} title={title} />
                       ))}
                     </div>
                   </section>
@@ -150,12 +151,12 @@ export function DiscoverPage() {
         <div className="discover-external">
           {external.data.map((row) => (
             <Row key={row.id} title={row.title}>
-              {row.items.map((t) => (
-                <ExternalCard key={`${t.mediaType}-${t.tmdbId}`} title={t} />
+              {row.items.map((title) => (
+                <ExternalCard key={`${title.mediaType}-${title.tmdbId}`} title={title} />
               ))}
             </Row>
           ))}
-          <h2 className="section-title">Your library by genre</h2>
+          <h2 className="section-title">{t('Your library by genre')}</h2>
         </div>
       )}
       <div className="genre-grid">
@@ -164,7 +165,13 @@ export function DiscoverPage() {
             {g.backdrop && <img src={imageUrl(g.backdrop, 780)} alt="" loading="lazy" />}
             <span className="genre-name">{g.name}</span>
             <span className="genre-count">
-              {[g.movies && `${g.movies} movies`, g.shows && `${g.shows} shows`].filter(Boolean).join(' and ')}
+              {g.movies && g.shows
+                ? t('{movies, plural, other {# movies}} and {shows, plural, other {# shows}}', { movies: g.movies, shows: g.shows })
+                : g.movies
+                  ? t('{count, plural, other {# movies}}', { count: g.movies })
+                  : g.shows
+                    ? t('{count, plural, other {# shows}}', { count: g.shows })
+                    : ''}
             </span>
           </Link>
         ))}

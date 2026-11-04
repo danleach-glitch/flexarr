@@ -1,4 +1,5 @@
 import type { RequestDestination } from '../../api/client'
+import { t } from '../../i18n'
 
 /**
  * Which library a kind of request goes to. Seerr's default library stands for "not chosen" (null), so a profile that
@@ -19,7 +20,7 @@ export function RequestLibrarySelect({
   const shown = choices.some((d) => d.id === value) ? value! : (fallback?.id ?? '')
   return (
     <select aria-label={label} value={shown} onChange={(e) => onChange(e.target.value === '' || e.target.value === fallback?.id ? null : e.target.value)}>
-      {!fallback && <option value="">Wherever Seerr adds them</option>}
+      {!fallback && <option value="">{t('Wherever Seerr adds them')}</option>}
       {choices.map((d) => (
         <option key={d.id} value={d.id}>
           {d.name}

@@ -13,16 +13,20 @@ import { Check, More } from './icons'
 import { icon } from './icons.generated'
 import { hasMenu, ItemMenu, type MenuPoint } from './ItemMenu'
 import { WatchedToggle } from './WatchedToggle'
+import { t } from '../i18n'
 
 function Progress({ item }: { item: ItemSummary }) {
   const progress = progressOf(item)
   if (progress === null) return null
   return (
-    <span className="progress" aria-label={`${Math.round(progress * 100)}% ${listensTo(item) ? 'listened' : 'watched'}`}>
+    <span className="progress" aria-label={listensTo(item) ? t('{percent}% listened', { percent: Math.round(progress * 100) }) : t('{percent}% watched', { percent: Math.round(progress * 100) })}>
       <span style={{ width: `${progress * 100}%` }} />
     </span>
   )
 }
+
+/** "Resume Dune" or "Play Dune", for a play button's label. */
+const playLabelFor = (resume: boolean, title: string) => (resume ? t('Resume {title}', { title }) : t('Play {title}', { title }))
 
 /** Books and podcast episodes play in the audio player rather than the video one. */
 const listensTo = (item: ItemSummary) => item.kind === 'Audiobook' || item.kind === 'PodcastEpisode'
@@ -35,7 +39,7 @@ function WatchState({ item }: { item: ItemSummary }) {
   if (toggles(item)) return null
   if (item.userData.watched) {
     return (
-      <span className="watched-mark" aria-label="Watched">
+      <span className="watched-mark" aria-label={t('Watched')}>
         <Check />
       </span>
     )
@@ -49,16 +53,16 @@ function WatchState({ item }: { item: ItemSummary }) {
 function subtitle(item: ItemSummary): string | null {
   switch (item.kind) {
     case 'Series':
-      if (item.homeVideo) return item.childCount === 1 ? '1 folder' : `${item.childCount} folders`
-      return item.childCount === 1 ? '1 season' : `${item.childCount} seasons`
+      if (item.homeVideo) return t('{count, plural, one {# folder} other {# folders}}', { count: item.childCount })
+      return t('{count, plural, one {# season} other {# seasons}}', { count: item.childCount })
     case 'Season':
-      if (item.homeVideo) return item.childCount === 1 ? '1 video' : `${item.childCount} videos`
-      return item.childCount === 1 ? '1 episode' : `${item.childCount} episodes`
+      if (item.homeVideo) return t('{count, plural, one {# video} other {# videos}}', { count: item.childCount })
+      return t('{count, plural, one {# episode} other {# episodes}}', { count: item.childCount })
     case 'Episode':
       return episodeCode(item)
     case 'Artist':
       // A followed artist none of whose music has arrived says nothing rather than "0 albums".
-      return item.childCount === 0 ? null : item.childCount === 1 ? '1 album' : `${item.childCount} albums`
+      return item.childCount === 0 ? null : t('{count, plural, one {# album} other {# albums}}', { count: item.childCount })
     case 'Album':
       return [item.seriesTitle, item.year].filter(Boolean).join(', ')
     case 'Audiobook':
@@ -118,7 +122,7 @@ function CardShell({ item, to, className, art, playLabel, onOpen, overlay, conti
       {menu && (
         <button
           className="card-menu-button"
-          aria-label={`More for ${cardLabel(item)}`}
+          aria-label={t('More for {title}', { title: cardLabel(item) })}
           aria-haspopup="menu"
           aria-expanded={menuAt !== null}
           onClick={(e) => {
@@ -164,27 +168,27 @@ export const PosterCard = memo(function PosterCard({ item, playLoneEpisode = fal
   const video = !lone && (item.kind === 'Movie' || item.kind === 'Episode' || item.kind === 'Series' || (item.kind === 'Season' && item.seriesId != null))
   const videoLabel =
     item.kind === 'Series'
-      ? `Play the next episode of ${item.title}`
+      ? t('Play the next episode of {title}', { title: item.title })
       : item.kind === 'Season'
-        ? `Play the next episode of ${item.seriesTitle ?? item.title}`
-        : `${progressOf(item) !== null ? 'Resume' : 'Play'} ${cardLabel(item)}`
+        ? t('Play the next episode of {title}', { title: item.seriesTitle ?? item.title })
+        : playLabelFor(progressOf(item) !== null, cardLabel(item))
   return (
     <CardShell
       item={item}
       to={itemLink(item)}
       onOpen={lone ? () => play(item) : undefined}
-      playLabel={lone ? `Play the new episode of ${item.title}` : undefined}
+      playLabel={lone ? t('Play the new episode of {title}', { title: item.title }) : undefined}
       className={item.kind === 'Artist' ? 'poster-card artist-card' : 'poster-card'}
       overlay={
         book ? (
-          <button className="card-play" aria-label={`${progressOf(item) !== null ? 'Resume' : 'Play'} ${item.title}`} onClick={() => player.play([item])}>
+          <button className="card-play" aria-label={playLabelFor(progressOf(item) !== null, item.title)} onClick={() => player.play([item])}>
             <icon.play />
           </button>
         ) : music ? (
           // Hovering the artwork shows a play button, as on Spotify; the artwork itself still opens the page.
           <AsyncButton
             className="card-play"
-            aria-label={`Play ${item.title}`}
+            aria-label={t('Play {title}', { title: item.title })}
             onClick={() =>
               getTracks(item.id).then((tracks) => {
                 if (tracks.length > 0) player.play(tracks, 0, { openNowPlaying: true })
@@ -232,7 +236,7 @@ export function WideCard({ item, showSeries = true, continueWatching = false }: 
     <CardShell
       item={item}
       to={isEpisode || item.kind === 'Movie' ? `/play/${item.id}` : itemLink(item)}
-      playLabel={isEpisode || item.kind === 'Movie' ? `${progressOf(item) !== null ? 'Resume' : 'Play'} ${cardLabel(item)}` : undefined}
+      playLabel={isEpisode || item.kind === 'Movie' ? playLabelFor(progressOf(item) !== null, cardLabel(item)) : undefined}
       className="wide-card"
       continueWatching={continueWatching}
       art={
@@ -272,7 +276,7 @@ function ListenCard({ item, continueWatching }: { item: ItemSummary; continueWat
       item={item}
       to={page}
       onOpen={() => player.play([item])}
-      playLabel={`${resumable ? 'Resume' : 'Play'} ${item.title}`}
+      playLabel={playLabelFor(resumable, item.title)}
       className="wide-card listen-card"
       continueWatching={continueWatching}
       art={
@@ -309,7 +313,7 @@ export function Top10Card({ item, rank }: { item: ItemSummary; rank: number }) {
             <Artwork src={item.artwork.poster} title={item.title} width={342} accent={item.accentColor} />
           </div>
           <span className="visually-hidden">
-            Number {rank}: {item.title}
+            {t('Number {rank}: {title}', { rank, title: item.title })}
           </span>
         </>
       }
@@ -330,7 +334,7 @@ export function TrackCard({ item, queue, index }: { item: ItemSummary; queue: It
       item={item}
       to={album}
       onOpen={() => player.play(queue, index)}
-      playLabel={`Play ${item.title}`}
+      playLabel={t('Play {title}', { title: item.title })}
       className={current ? 'track-card current' : 'track-card'}
       art={
         <div className="card-frame">

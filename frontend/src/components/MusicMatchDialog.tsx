@@ -6,6 +6,7 @@ import { useApi } from '../hooks/useApi'
 import { useModal } from '../hooks/useModal'
 import { AsyncButton } from './AsyncButton'
 import { Search } from './icons'
+import { t, Words } from '../i18n'
 
 /** Which cover to keep: the match's own, the one there now, or another result's (by its coverValue). */
 type CoverChoice = { kind: 'own' } | { kind: 'current' } | { kind: 'other'; value: string }
@@ -76,10 +77,14 @@ export function MusicMatchDialog({ detail, onFixed, onClose }: { detail: ItemDet
   return (
     <div className="dialog-backdrop" onClick={() => !busy && onClose()}>
       <div className="panel fix-match music-match" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="fix-match-title" onClick={(e) => e.stopPropagation()}>
-        <h2 id="fix-match-title">Fix match</h2>
-        <p className="muted">Which {album ? 'album' : 'artist'} is this? The one you choose stays matched, and nothing changes in Lidarr.</p>
+        <h2 id="fix-match-title">{t('Fix match')}</h2>
+        <p className="muted">
+          {album
+            ? t('Which album is this? The one you choose stays matched, and nothing changes in Lidarr.')
+            : t('Which artist is this? The one you choose stays matched, and nothing changes in Lidarr.')}
+        </p>
         {album && detail.path && (
-          <ul className="fix-match-paths" aria-label="Folder">
+          <ul className="fix-match-paths" aria-label={t('Folder')}>
             <li>
               <code>{detail.path}</code>
             </li>
@@ -87,17 +92,17 @@ export function MusicMatchDialog({ detail, onFixed, onClose }: { detail: ItemDet
         )}
 
         <form className="fix-match-search" onSubmit={search} role="search">
-          <input type="search" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={album ? 'Artist and album' : 'Artist'} autoFocus disabled={busy} />
+          <input type="search" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={album ? t('Artist and album') : t('Artist')} autoFocus disabled={busy} />
           <AsyncButton className="button quiet" type="submit" disabled={busy} busy={results.loading}>
-            <Search /> Search
+            <Search /> {t(Words.search)}
           </AsyncButton>
         </form>
 
         <div className="fix-match-results" aria-busy={results.loading}>
-          {results.loading && !results.data && <p className="muted">Searching…</p>}
+          {results.loading && !results.data && <p className="muted">{t('Searching…')}</p>}
           {searchError && <p className="error">{searchError}</p>}
-          {results.data?.length === 0 && <p className="muted">Nothing found. Try fewer words, or the artist alone.</p>}
-          <ul role="listbox" aria-label="Results">
+          {results.data?.length === 0 && <p className="muted">{t('Nothing found. Try fewer words, or the artist alone.')}</p>}
+          <ul role="listbox" aria-label={t('Results')}>
             {results.data?.map((m) => (
               <li key={key(m)}>
                 <button type="button" role="option" aria-selected={chosen && key(chosen) === key(m)} className="fix-match-result" disabled={busy} onClick={() => choose(m)}>
@@ -108,7 +113,7 @@ export function MusicMatchDialog({ detail, onFixed, onClose }: { detail: ItemDet
                       {m.year && <span className="muted"> ({m.year})</span>}
                     </strong>
                     <span className="muted meta-line">
-                      {[m.artist, albumTypeLabel(m.type as AlbumType | null), m.tracks ? (album ? `${m.tracks} tracks` : `${m.tracks} albums`) : null]
+                      {[m.artist, albumTypeLabel(m.type as AlbumType | null), m.tracks ? (album ? t('{count, plural, one {# track} other {# tracks}}', { count: m.tracks }) : t('{count, plural, one {# album} other {# albums}}', { count: m.tracks })) : null]
                         .filter((fact): fact is string => !!fact)
                         .map((fact) => (
                           <span key={fact}>{fact}</span>
@@ -116,7 +121,7 @@ export function MusicMatchDialog({ detail, onFixed, onClose }: { detail: ItemDet
                     </span>
                   </span>
                   <span className={m.current ? 'tag keep' : 'tag'}>
-                    {m.current ? 'Current match' : m.inLibrary ? 'In your library' : m.followed ? 'Following' : m.provider === 'lidarr' ? `In ${m.instance ?? 'Lidarr'}` : 'Deezer'}
+                    {m.current ? t('Current match') : m.inLibrary ? t(Words.inYourLibrary) : m.followed ? t(Words.following) : m.provider === 'lidarr' ? t('In {app}', { app: m.instance ?? 'Lidarr' }) : 'Deezer'}
                   </span>
                 </button>
               </li>
@@ -126,22 +131,22 @@ export function MusicMatchDialog({ detail, onFixed, onClose }: { detail: ItemDet
 
         {chosen && (covers.length > 0 || current) && (
           <fieldset className="music-match-covers">
-            <legend>Cover</legend>
-            <div role="radiogroup" aria-label="Cover">
+            <legend>{t('Cover')}</legend>
+            <div role="radiogroup" aria-label={t('Cover')}>
               {current && (
-                <CoverOption src={current} label="Keep this one" selected={coverIs({ kind: 'current' })} disabled={busy} onSelect={() => setCover({ kind: 'current' })} />
+                <CoverOption src={current} label={t('Keep this one')} selected={coverIs({ kind: 'current' })} disabled={busy} onSelect={() => setCover({ kind: 'current' })} />
               )}
               {covers.map((m) => {
                 const own = chosen.coverValue === m.coverValue
                 const choice: CoverChoice = own ? { kind: 'own' } : { kind: 'other', value: m.coverValue! }
-                return <CoverOption key={m.coverValue} src={m.cover!} label={own ? `${chosen.title}’s` : `From ${m.title}`} selected={coverIs(choice)} disabled={busy} onSelect={() => setCover(choice)} />
+                return <CoverOption key={m.coverValue} src={m.cover!} label={own ? t('{title}’s', { title: chosen.title }) : t('From {title}', { title: m.title })} selected={coverIs(choice)} disabled={busy} onSelect={() => setCover(choice)} />
               })}
             </div>
           </fieldset>
         )}
         {chosen && detail.detailsLocked && !chosen.current && (
           <p className="fix-match-note" role="status">
-            The details you edited are replaced by {chosen.title}’s.
+            {t('The details you edited are replaced by {title}’s.', { title: chosen.title })}
           </p>
         )}
         {error && (
@@ -153,14 +158,14 @@ export function MusicMatchDialog({ detail, onFixed, onClose }: { detail: ItemDet
         <div className="form-actions">
           {detail.matchLocked && (
             <AsyncButton className="text-button fix-match-reset" disabled={busy} onClick={() => run(() => resetMusicMatch(item.id))}>
-              Match automatically again
+              {t('Match automatically again')}
             </AsyncButton>
           )}
           <button className="button quiet" onClick={onClose} disabled={busy}>
-            Cancel
+            {t(Words.cancel)}
           </button>
           <AsyncButton className="button" disabled={!chosen || busy} onClick={() => chosen && use(chosen)}>
-            {chosen ? `Use ${chosen.title}` : 'Choose one'}
+            {chosen ? t('Use {title}', { title: chosen.title }) : t('Choose one')}
           </AsyncButton>
         </div>
       </div>
@@ -199,17 +204,17 @@ function MusicMatchPending({ error, onClose }: { error?: string; onClose: () => 
         aria-busy={!error}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="fix-match-title">Fix match</h2>
+        <h2 id="fix-match-title">{t('Fix match')}</h2>
         {error ? (
           <p className="error" role="alert">
             {error}
           </p>
         ) : (
-          <p className="muted">Loading…</p>
+          <p className="muted">{t('Loading…')}</p>
         )}
         <div className="form-actions">
           <button className="button quiet" onClick={onClose}>
-            {error ? 'Close' : 'Cancel'}
+            {error ? t('Close') : t(Words.cancel)}
           </button>
         </div>
       </div>

@@ -15,13 +15,14 @@ import { Overview } from '../components/Overview'
 import { PlainScore } from '../components/Hero'
 import { ScoreChips } from '../components/ScoreChips'
 import { hasScores, scoresOf } from '../lib/scores'
+import { t, Words } from '../i18n'
 
 /** A film or show from Discover that isn't in the library: what it is, how it's rated, its trailer, and a request. */
 export function ExternalTitlePage() {
   const { mediaType = '', tmdbId = '' } = useParams()
   const { data, error, reload } = useApi((signal) => getExternalTitle(mediaType, tmdbId, signal), [mediaType, tmdbId])
 
-  if (error) return <PageError error={error} message={error.message.includes('404') ? 'Flexarr can’t find that title.' : undefined} onRetry={reload} />
+  if (error) return <PageError error={error} message={error.message.includes('404') ? t('Flexarr can’t find that title.') : undefined} onRetry={reload} />
   if (!data) return <div className="detail-hero hero-loading" aria-busy="true" />
   // Something you have opens as itself.
   if (data.libraryItemId) return <Navigate to={`/item/${data.libraryItemId}`} replace />
@@ -34,8 +35,8 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
   const [requested, setRequested] = useState(false)
   const facts = [
     title.year?.toString(),
-    title.mediaType === 'tv' ? (title.seasons ? (title.seasons === 1 ? '1 season' : `${title.seasons} seasons`) : null) : title.runtimeMinutes ? formatDuration(title.runtimeMinutes * 60) : null,
-    title.mediaType === 'tv' ? 'Series' : 'Movie',
+    title.mediaType === 'tv' ? (title.seasons ? t('{count, plural, one {# season} other {# seasons}}', { count: title.seasons }) : null) : title.runtimeMinutes ? formatDuration(title.runtimeMinutes * 60) : null,
+    title.mediaType === 'tv' ? t(Words.series) : t('Movie'),
     title.status && !['Released', 'Ended'].includes(title.status) ? title.status : null,
   ].filter(Boolean)
 
@@ -68,7 +69,7 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
             )}
             {title.trailerYouTubeId && (
               <button className="button quiet" onClick={() => setTrailer(true)}>
-                <Film /> Trailer
+                <Film /> {t(Words.trailer)}
               </button>
             )}
           </div>
@@ -87,7 +88,7 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
       <div className="detail-body">
         {title.cast.length > 0 && (
           <section className="cast">
-            <Row title="Cast" style="people">
+            <Row title={t('Cast')} style="people">
               {title.cast.map((c) => (
                 <div key={`${c.name}-${c.character}`} className="card person-card">
                   <div className="card-frame">
@@ -102,13 +103,13 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
               <dl className="crew">
                 {title.madeBy.length > 0 && (
                   <div>
-                    <dt>{title.mediaType === 'tv' ? 'Created by' : 'Directed by'}</dt>
+                    <dt>{title.mediaType === 'tv' ? t('Created by') : t('Directed by')}</dt>
                     <dd>{title.madeBy.join(', ')}</dd>
                   </div>
                 )}
                 {title.studio && (
                   <div>
-                    <dt>{title.mediaType === 'tv' ? 'Network' : 'Studio'}</dt>
+                    <dt>{title.mediaType === 'tv' ? t('Network') : t('Studio')}</dt>
                     <dd>{title.studio}</dd>
                   </div>
                 )}
@@ -117,7 +118,7 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
           </section>
         )}
         {title.recommendations.length > 0 && (
-          <Row title="If you like this">
+          <Row title={t('If you like this')}>
             {title.recommendations.map((r) => (
               <ExternalCard key={`${r.mediaType}-${r.tmdbId}`} title={r} />
             ))}

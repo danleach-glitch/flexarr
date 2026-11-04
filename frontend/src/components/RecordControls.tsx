@@ -12,6 +12,7 @@ import {
 } from '../api/client'
 import { AsyncButton } from './AsyncButton'
 import { RecordDot, SeriesDots } from './icons'
+import { t } from '../i18n'
 
 /**
  * Recording a programme from the guide: this showing, or every showing of its title (on this channel or any, new
@@ -46,7 +47,7 @@ export function RecordControls({ programme, channelId, now, onChanged }: { progr
     try {
       const result = await action()
       if (result && typeof result === 'object' && 'clashes' in result && (result as Recording).clashes) {
-        setError('This clashes with recordings already on the list: every stream is wanted then, so it won’t record unless one of them is taken off.')
+        setError(t('This clashes with recordings already on the list: every stream is wanted then, so it won’t record unless one of them is taken off.'))
       }
       setLoaded((n) => n + 1)
       onChanged()
@@ -63,40 +64,48 @@ export function RecordControls({ programme, channelId, now, onChanged }: { progr
       <div className="record-buttons">
         {recording ? (
           <AsyncButton className="button quiet small" disabled={busy} onClick={() => act(() => removeRecording(recording.id))}>
-            <RecordDot className="record-dot" /> {recordingNow ? 'Stop recording' : 'Don’t record'}
+            <RecordDot className="record-dot" /> {recordingNow ? t('Stop recording') : t('Don’t record')}
           </AsyncButton>
         ) : (
           <AsyncButton className="button small" disabled={busy} onClick={() => act(() => recordProgramme(programme.id))}>
-            <RecordDot className="record-dot" /> Record
+            <RecordDot className="record-dot" /> {t('Record')}
           </AsyncButton>
         )}
         {series ? (
           <AsyncButton className="button quiet small" disabled={busy} onClick={() => act(() => removeSeries(series.id))}>
-            <SeriesDots className="record-dot" /> Stop recording the series
+            <SeriesDots className="record-dot" /> {t('Stop recording the series')}
           </AsyncButton>
         ) : (
           <AsyncButton className="button quiet small" disabled={busy} onClick={() => act(() => recordSeries(programme.id, { anyChannel, newOnly }))}>
-            <SeriesDots className="record-dot" /> Record series
+            <SeriesDots className="record-dot" /> {t('Record series')}
           </AsyncButton>
         )}
       </div>
       {!series && (
         <div className="record-options">
           <label>
-            <input type="checkbox" checked={anyChannel} onChange={(e) => setAnyChannel(e.target.checked)} /> On any channel
+            <input type="checkbox" checked={anyChannel} onChange={(e) => setAnyChannel(e.target.checked)} /> {t('On any channel')}
           </label>
           <label>
-            <input type="checkbox" checked={newOnly} onChange={(e) => setNewOnly(e.target.checked)} /> New episodes only
+            <input type="checkbox" checked={newOnly} onChange={(e) => setNewOnly(e.target.checked)} /> {t('New episodes only')}
           </label>
         </div>
       )}
       {series && (
         <p className="muted record-note">
-          Every showing of {series.title} {series.channelName ? `on ${series.channelName}` : 'on any channel'}
-          {series.newOnly ? ' (new episodes only)' : ''} is recorded.
+          {series.channelName
+            ? t('{newOnly, select, yes {Every showing of {title} on {channel} (new episodes only) is recorded.} other {Every showing of {title} on {channel} is recorded.}}', {
+                newOnly: series.newOnly ? 'yes' : 'no',
+                title: series.title,
+                channel: series.channelName,
+              })
+            : t('{newOnly, select, yes {Every showing of {title} on any channel (new episodes only) is recorded.} other {Every showing of {title} on any channel is recorded.}}', {
+                newOnly: series.newOnly ? 'yes' : 'no',
+                title: series.title,
+              })}
         </p>
       )}
-      {recording?.clashes && !error && <p className="error record-note">This won’t record: recordings scheduled before it want every stream then.</p>}
+      {recording?.clashes && !error && <p className="error record-note">{t('This won’t record: recordings scheduled before it want every stream then.')}</p>}
       {error && (
         <p className="error record-note" role="alert">
           {error}

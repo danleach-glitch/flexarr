@@ -4,6 +4,7 @@ import { isBook } from '../lib/books'
 import { episodeName } from '../lib/format'
 import { Check } from './icons'
 import { announceWatched } from '../hooks/watched'
+import { t, Words } from '../i18n'
 
 /**
  * The watched tick on a film's or episode's artwork, as a switch: solid when watched (click to unmark), a faint ring on
@@ -33,8 +34,8 @@ export function WatchedToggle({ item, onChanged }: { item: ItemSummary; onChange
       type="button"
       className={watched ? 'watched-toggle on' : 'watched-toggle'}
       aria-pressed={watched}
-      aria-label={book ? (watched ? `Finished: mark ${name} as unread` : `Mark ${name} as finished`) : watched ? `Watched: mark ${name} as unwatched` : `Mark ${name} as watched`}
-      title={book ? (watched ? 'Finished. Click to mark as unread' : 'Mark as finished') : watched ? 'Watched. Click to mark unwatched' : 'Mark as watched'}
+      aria-label={book ? (watched ? t('Finished: mark {name} as unread', { name }) : t('Mark {name} as finished', { name })) : watched ? t('Watched: mark {name} as unwatched', { name }) : t('Mark {name} as watched', { name })}
+      title={book ? (watched ? t('Finished. Click to mark as unread') : t(Words.markAsFinished)) : watched ? t('Watched. Click to mark unwatched') : t(Words.markAsWatched)}
       onClick={toggle}
     >
       <Check />

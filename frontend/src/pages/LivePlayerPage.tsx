@@ -16,6 +16,7 @@ import { prefersNativeHls } from '../lib/profile'
 import { unshaped, useSoundSettings, useSoundShaping } from '../lib/soundSettings'
 import { useSoundChain } from '../hooks/soundChain'
 import { programmeTime, progress } from '../lib/livetv'
+import { t, Words } from '../i18n'
 
 const HIDE_CHROME_MS = 3000
 /** Within this many seconds of the newest segment counts as live (players sit a few segments back). */
@@ -67,7 +68,7 @@ export default function LivePlayerPage() {
     if (!prefersNativeHls() && Hls.isSupported()) {
       // Start a few segments back from the newest, and never jump forward on its own: the viewer may have rewound.
       const player = new Hls({ liveSyncDurationCount: 3, liveMaxLatencyDurationCount: Infinity, backBufferLength: 120, maxBufferLength: 30 })
-      const stopped = () => setError('The channel stopped sending. Try again, or pick another channel.')
+      const stopped = () => setError(t('The channel stopped sending. Try again, or pick another channel.'))
       const onMediaError = mediaErrorRecovery(player, stopped)
       player.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal || hls.current !== player) return
@@ -110,9 +111,9 @@ export default function LivePlayerPage() {
         setWaiting(false)
         const problem = e instanceof ApiError && e.status === 409 ? e.problem : undefined
         if (problem && typeof problem.recordingId === 'string' && typeof problem.channelId === 'string') {
-          setBlocked({ recordingId: problem.recordingId, channelId: problem.channelId, channelName: String(problem.channelName ?? 'that channel') })
+          setBlocked({ recordingId: problem.recordingId, channelId: problem.channelId, channelName: String(problem.channelName ?? t('that channel')) })
         }
-        setError(e instanceof ApiError && e.messages.length ? e.messages.join(' ') : 'The channel couldn’t be played.')
+        setError(e instanceof ApiError && e.messages.length ? e.messages.join(' ') : t('The channel couldn’t be played.'))
       }
     },
     [attach],
@@ -144,7 +145,7 @@ export default function LivePlayerPage() {
         hls.current?.destroy()
         hls.current = null
         viewer.current = undefined
-        setError(e.messages.join(' ') || 'A recording needed the stream.')
+        setError(e.messages.join(' ') || t('A recording needed the stream.'))
       }
     })
   }, HEARTBEAT_MS)
@@ -287,10 +288,10 @@ export default function LivePlayerPage() {
         }}
       />
 
-      {waiting && !error && <div className="player-spinner" role="status" aria-label="Loading" />}
+      {waiting && !error && <div className="player-spinner" role="status" aria-label={t('Loading')} />}
 
       <header className="player-top">
-        <button className="icon-button" onClick={exit} aria-label="Back to Live TV">
+        <button className="icon-button" onClick={exit} aria-label={t('Back to Live TV')}>
           <Back />
         </button>
         {channel && (
@@ -316,7 +317,7 @@ export default function LivePlayerPage() {
             {blocked ? (
               <>
                 <button className="button" autoFocus onClick={() => navigate(`/live/${blocked.channelId}`, { replace: true })}>
-                  Watch {blocked.channelName}
+                  {t('Watch {name}', { name: blocked.channelName })}
                 </button>
                 <AsyncButton
                   className="button quiet"
@@ -327,26 +328,26 @@ export default function LivePlayerPage() {
                     void start(id)
                   }}
                 >
-                  Stop the recording
+                  {t('Stop the recording')}
                 </AsyncButton>
               </>
             ) : (
               <button className="button" autoFocus onClick={() => void start(id)}>
-                Try again
+                {t('Try again')}
               </button>
             )}
             <button className="button quiet" onClick={() => setList(true)}>
-              Other channels
+              {t('Other channels')}
             </button>
             <button className="button quiet" onClick={exit}>
-              Go back
+              {t('Go back')}
             </button>
           </div>
         </div>
       )}
 
       {list && (
-        <aside className="live-channel-list" aria-label="Channels">
+        <aside className="live-channel-list" aria-label={t('Channels')}>
           <ol>
             {/* Favourites first, then the rest in number order. */}
             {[...channels.filter(isFavourite), ...channels.filter((c) => !isFavourite(c))].map((c) => (
@@ -365,9 +366,9 @@ export default function LivePlayerPage() {
                   <span className="live-channel-text">
                     <strong>
                       {c.name}
-                      {isFavourite(c) && <Star filled className="chip-star live-list-star" aria-label="Favourite" />}
+                      {isFavourite(c) && <Star filled className="chip-star live-list-star" aria-label={t('Favourite')} />}
                     </strong>
-                    <span className="muted">{c.now?.title ?? 'No listings'}</span>
+                    <span className="muted">{c.now?.title ?? t('No listings')}</span>
                   </span>
                 </button>
               </li>
@@ -386,11 +387,11 @@ export default function LivePlayerPage() {
           className="scrubber"
           role="slider"
           tabIndex={0}
-          aria-label="Rewind"
+          aria-label={t('Rewind')}
           aria-valuemin={0}
           aria-valuemax={Math.round(span)}
           aria-valuenow={Math.round(window_.time - window_.start)}
-          aria-valuetext={atLive ? 'Live' : `${formatClock(behind)} behind live`}
+          aria-valuetext={atLive ? t('Live') : t('{time} behind live', { time: formatClock(behind) })}
           onPointerDown={(e) => {
             const rect = e.currentTarget.getBoundingClientRect()
             seekTo(window_.start + ((e.clientX - rect.left) / rect.width) * span)
@@ -402,17 +403,17 @@ export default function LivePlayerPage() {
           </div>
         </div>
         <div className="player-buttons">
-          <button className="icon-button" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
+          <button className="icon-button" onClick={toggle} aria-label={playing ? t('Pause') : t(Words.play)}>
             {playing ? <icon.pause /> : <icon.play />}
           </button>
-          <button className="icon-button" onClick={() => seekTo(window_.time - 10)} aria-label="Back 10 seconds">
+          <button className="icon-button" onClick={() => seekTo(window_.time - 10)} aria-label={t('Back 10 seconds')}>
             <Replay10 />
           </button>
-          <button className="icon-button" onClick={() => seekTo(window_.time + 10)} aria-label="Forward 10 seconds" disabled={atLive}>
+          <button className="icon-button" onClick={() => seekTo(window_.time + 10)} aria-label={t('Forward 10 seconds')} disabled={atLive}>
             <Forward10 />
           </button>
           <div className="player-volume">
-            <button className="icon-button" onClick={() => video.current && (video.current.muted = !video.current.muted)} aria-label={muted ? 'Unmute' : 'Mute'}>
+            <button className="icon-button" onClick={() => video.current && (video.current.muted = !video.current.muted)} aria-label={muted ? t('Unmute') : t('Mute')}>
               {muted || volume === 0 ? <Muted /> : <Volume />}
             </button>
             <input
@@ -421,7 +422,7 @@ export default function LivePlayerPage() {
               max={1}
               step={0.05}
               value={muted ? 0 : volume}
-              aria-label="Volume"
+              aria-label={t('Volume')}
               onChange={(e) => {
                 if (!video.current) return
                 video.current.volume = Number(e.target.value)
@@ -429,21 +430,21 @@ export default function LivePlayerPage() {
               }}
             />
           </div>
-          <button className={atLive ? 'live-badge on' : 'live-badge'} onClick={goLive} disabled={atLive} aria-label={atLive ? 'Live' : 'Jump to live'}>
+          <button className={atLive ? 'live-badge on' : 'live-badge'} onClick={goLive} disabled={atLive} aria-label={atLive ? t('Live') : t('Jump to live')}>
             <span className="live-dot" aria-hidden="true" />
-            {atLive ? 'Live' : `−${formatClock(behind)}`}
+            {atLive ? t('Live') : `−${formatClock(behind)}`}
           </button>
           <span className="player-spacer" />
-          <button className="icon-button" onClick={() => step(-1)} aria-label="Previous channel">
+          <button className="icon-button" onClick={() => step(-1)} aria-label={t('Previous channel')}>
             <ChevronUp />
           </button>
-          <button className="icon-button" onClick={() => step(1)} aria-label="Next channel">
+          <button className="icon-button" onClick={() => step(1)} aria-label={t('Next channel')}>
             <ChevronDown />
           </button>
           <button className="player-quality" onClick={() => setList((open) => !open)} aria-expanded={list}>
-            Channels
+            {t('Channels')}
           </button>
-          <button className="icon-button" onClick={toggleFullscreen} aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}>
+          <button className="icon-button" onClick={toggleFullscreen} aria-label={fullscreen ? t('Exit full screen') : t('Full screen')}>
             {fullscreen ? <ExitFullscreen /> : <Fullscreen />}
           </button>
         </div>

@@ -1,3 +1,4 @@
+import { currentLanguage, t } from '../i18n'
 import { linkSpeed } from '../lib/linkSpeed'
 import type {
   Activity,
@@ -76,7 +77,7 @@ const LEGACY_API_KEY_STORAGE = 'flexarr.apiKey'
 /** Thrown when the server rejects the request for a missing or wrong API key. */
 export class UnauthorizedError extends Error {
   constructor() {
-    super('API key required')
+    super(t('API key required'))
   }
 }
 
@@ -173,6 +174,11 @@ export async function setupStatus(): Promise<{ open: boolean; install?: InstallK
  * server's log, and `pin` the admin PIN, which guards the server's settings; either being wrong is an ApiError
  * with status 400.
  */
+/** Sets the profile's language: a code from /languages, or null to follow each device. */
+export function setProfileLanguage(language: string | null) {
+  return request<{ language: string | null }>('PUT', '/me/language', { language })
+}
+
 export async function claimSetup(code: string, pin: string) {
   const response = await fetch('/api/v1/setup/claim', {
     method: 'POST',
@@ -201,7 +207,8 @@ export async function migrateStoredApiKey() {
 
 /** The chosen profile, plus the header that lets the session cookie make changes (another site can't send it). */
 export function authHeaders(): Record<string, string> {
-  const headers: Record<string, string> = { 'X-Requested-With': 'flexarr' }
+  // The server answers in the language shown here (the profile's own choice wins over it, server side).
+  const headers: Record<string, string> = { 'X-Requested-With': 'flexarr', 'Accept-Language': currentLanguage().code }
   const profile = profileToken()
   if (profile) headers['X-Flexarr-Profile'] = profile
   return headers
@@ -303,7 +310,7 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   if (response.status === 403 && !changes && (await lockedHere(path))) {
     clearApiCache()
     lapsedListeners.forEach((listener) => listener())
-    throw new ApiError(403, 'Forbidden', ['Settings are locked here. Unlock them to see this.'])
+    throw new ApiError(403, 'Forbidden', [t('Settings are locked here. Unlock them to see this.')])
   }
   if (response.status === 401) signedOut(path)
   if (!response.ok) throw await failure(response)
@@ -365,7 +372,7 @@ export const FETCH_TIMEOUT_MS = 30_000
 /** A GET that fails after FETCH_TIMEOUT_MS if the server hasn't answered, or as soon as `signal` aborts. */
 function timedGet<T>(path: string, signal?: AbortSignal): Promise<T> {
   const timeout = new AbortController()
-  const timer = setTimeout(() => timeout.abort(new DOMException('The server took too long to answer.', 'TimeoutError')), FETCH_TIMEOUT_MS)
+  const timer = setTimeout(() => timeout.abort(new DOMException(t('The server took too long to answer.'), 'TimeoutError')), FETCH_TIMEOUT_MS)
   const onAbort = () => timeout.abort(signal?.reason)
   if (signal?.aborted) onAbort()
   else signal?.addEventListener('abort', onAbort, { once: true })
@@ -1993,6 +2000,8 @@ export interface Me {
   kidsLock?: boolean
   /** A family guest's device: it stays on its profile. Absent from servers before 0.57. */
   isGuest?: boolean
+  /** The profile's chosen language (a BCP 47 code); null follows the browser. Absent from servers before 0.61. */
+  language?: string | null
 }
 
 export interface RemoteAccess {

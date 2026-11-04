@@ -1,4 +1,5 @@
 import { ApiError } from '../api/client'
+import { t } from '../i18n'
 
 /**
  * A page that couldn't load, the same on every page and like the apps' StatusView: what happened, and Try again
@@ -11,7 +12,7 @@ export function PageError({ error, message, onRetry }: { error: Error; message?:
       <p className="error">{message ?? error.message}</p>
       {onRetry && !gone && (
         <button type="button" className="button quiet small" onClick={onRetry}>
-          Try again
+          {t('Try again')}
         </button>
       )}
     </div>
@@ -19,7 +20,7 @@ export function PageError({ error, message, onRetry }: { error: Error; message?:
 }
 
 /** A page still loading: one spinner, the same everywhere. `label` is what screen readers hear. */
-export function PageLoading({ label = 'Loading' }: { label?: string }) {
+export function PageLoading({ label = t('Loading') }: { label?: string }) {
   return (
     <div className="page-message page-status" aria-busy="true">
       <span className="page-spinner" role="status" aria-label={label} />

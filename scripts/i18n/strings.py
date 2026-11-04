@@ -146,7 +146,21 @@ def build(now=None, write_check=False):
             problems.add("languages.json", f"{code} needs a name and a direction (ltr or rtl)")
     rules = plurals.load()
 
-    found, scan_errors = scan.scan()
+    import words as shared  # noqa: E402  (languages/words.json)
+    word_keys = shared.load()
+    for prob in shared.validate(word_keys):
+        problems.append(prob)
+    scan.WORDS = word_keys
+    typed = {}
+    found, scan_errors = scan.scan(typed=typed)
+    by_key = {v: k for k, v in word_keys.items()}
+    for key, places in sorted(typed.items()):
+        if key in by_key:
+            for place in places:
+                problems.append(f"{place}: {key!r} is a shared word: use Words.{by_key[key]}")
+    # Every shared word is offered to every platform, used yet or not.
+    for key in word_keys.values():
+        found.setdefault(key, set()).update(SCOPES)
     import native  # noqa: E402  (the text the operating systems read themselves)
     for key, scopes in native.collect().items():
         found.setdefault(key, set()).update(scopes)
@@ -191,6 +205,7 @@ def build(now=None, write_check=False):
     for code in packs:
         out[PACKS / f"{code}.json"] = dump(packs[code])
         out[STATE / f"{code}.json"] = dump(state[code])
+    out.update(shared.outputs(word_keys))
     out[TS_PLURALS] = plurals.typescript(rules)
     out[SWIFT_PLURALS] = plurals.swift(rules)
     out[KOTLIN_PLURALS] = plurals.kotlin(rules, "io.github.flexarr.core.i18n")
@@ -223,6 +238,22 @@ def build(now=None, write_check=False):
 
     out.update(native.outputs(found, built, registry))
     return out, problems
+
+
+def near_duplicates(keys):
+    """Groups of English that differ only in case, punctuation or spacing (Up Next / Up next, couldn't / couldn’t),
+    the candidates for one string or a shared word. Contexts count: music::Play isn't a duplicate of Play."""
+    groups = {}
+    for key in keys:
+        ctx = key.split("::")[0] if scan.CONTEXT_KEY.match(key) else ""
+        norm = re.sub(r"[\s.,!?…:;’'\"“”()–—-]+", " ", scan.english(key)).strip().casefold()
+        groups.setdefault((ctx, norm), []).append(key)
+    def usual(key):
+        # A question or "…" button beside its plain form, or a capital only at the start, is a different use, not a slip.
+        e = re.sub(r"[\s.?…]+$", "", scan.english(key))
+        return e[:1].lower() + e[1:]
+
+    return [sorted(g) for g in groups.values() if len(g) > 1 and len({usual(k) for k in g}) > 1]
 
 
 def stale_files(out):
@@ -261,6 +292,13 @@ def main(argv):
             path.write_text(text, encoding="utf-8")
     english = json.loads(out[PACKS / "en.json"])
     print(f"{len(english)} strings; packs: {', '.join(c for c in load_packs()) or 'none yet'}")
+    dupes = near_duplicates(english)
+    if dupes and "--duplicates" in argv:
+        print("Near-duplicates (make them one string, or a shared word in languages/words.json):")
+        for g in dupes:
+            print("  " + "  |  ".join(repr(k) for k in g))
+    elif dupes:
+        print(f"{len(dupes)} near-duplicate groups: `python3 scripts/i18n/strings.py --duplicates` lists them")
     return 0
 
 

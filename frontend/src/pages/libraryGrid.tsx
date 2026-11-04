@@ -3,6 +3,7 @@ import { useNavigationType } from 'react-router'
 import { forgetPage, freshly, getItem, keepPage, keptPage, wasDeleted, type ItemSummary, type Paged } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { useWatchedChanges, watchedSince } from '../hooks/watched'
+import { t } from '../i18n'
 
 export const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
 const JUMP_PAGE = 500
@@ -307,11 +308,11 @@ export function ShowMore({ loaded, total, pageSize, busy, error, onMore }: {
     <div className="load-more">
       {error && (
         <p className="error" role="alert">
-          More couldn’t be loaded.
+          {t('More couldn’t be loaded.')}
         </p>
       )}
       <AsyncButton className="button quiet" onClick={onMore} disabled={busy}>
-        {error ? 'Try again' : `Show ${Math.min(pageSize, total - loaded)} more`}
+        {error ? t('Try again') : t('Show {count} more', { count: Math.min(pageSize, total - loaded) })}
       </AsyncButton>
     </div>
   )
@@ -330,10 +331,14 @@ function JumpFailed({ letter, jump, short }: { letter: string; jump: (letter: st
   return (
     <p className="alpha-failed" role="alert">
       <span className="error">
-        {short ? `Couldn’t load ${letter}.` : `${letter === '#' ? 'Numbers and symbols' : letter} couldn’t be loaded.`}
+        {short
+          ? t('Couldn’t load {letter}.', { letter })
+          : letter === '#'
+            ? t('Numbers and symbols couldn’t be loaded.')
+            : t('{letter} couldn’t be loaded.', { letter })}
       </span>
       <button type="button" className="button quiet small" onClick={() => jump(letter)}>
-        Try again
+        {t('Try again')}
       </button>
     </p>
   )
@@ -345,14 +350,14 @@ export function AlphaPicker({ jump, jumping, failed, empty }: AlphaProps) {
     <div className="alpha-picker">
       {failed && !jumping && <JumpFailed letter={failed} jump={jump} short />}
       <label>
-        <span className="visually-hidden">Jump to letter</span>
+        <span className="visually-hidden">{t('Jump to letter')}</span>
         <select
           value=""
           onChange={(e) => {
             if (e.target.value) jump(e.target.value)
           }}
         >
-          <option value="">{jumping ? 'Loading…' : 'Jump to…'}</option>
+          <option value="">{jumping ? t('Loading…') : t('Jump to…')}</option>
           {LETTERS.map((l) => (
             <option key={l} value={l} disabled={empty.has(l)}>
               {l}
@@ -368,13 +373,13 @@ export function AlphaPicker({ jump, jumping, failed, empty }: AlphaProps) {
 export function AlphaRail({ jump, jumping, failed, empty }: AlphaProps) {
   return (
     <>
-      <nav className="alpha-rail" aria-label="Jump to letter" aria-busy={jumping ? true : undefined}>
+      <nav className="alpha-rail" aria-label={t('Jump to letter')} aria-busy={jumping ? true : undefined}>
         {LETTERS.map((l) => (
-          <button key={l} className={jumping === l ? 'jumping' : undefined} onClick={() => jump(l)} disabled={empty.has(l)} aria-label={l === '#' ? 'Numbers and symbols' : undefined}>
+          <button key={l} className={jumping === l ? 'jumping' : undefined} onClick={() => jump(l)} disabled={empty.has(l)} aria-label={l === '#' ? t('Numbers and symbols') : undefined}>
             {l}
             {jumping === l && (
               <span className="alpha-loading" aria-hidden="true">
-                Loading…
+                {t('Loading…')}
               </span>
             )}
           </button>
@@ -386,7 +391,7 @@ export function AlphaRail({ jump, jumping, failed, empty }: AlphaProps) {
         )}
       </nav>
       <p className="visually-hidden" role="status">
-        {jumping ? `Loading titles up to ${jumping === '#' ? 'numbers and symbols' : jumping}…` : ''}
+        {jumping ? (jumping === '#' ? t('Loading titles up to numbers and symbols…') : t('Loading titles up to {letter}…', { letter: jumping })) : ''}
       </p>
     </>
   )

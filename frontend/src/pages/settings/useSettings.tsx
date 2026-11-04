@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ApiError, getSettings, saveSettings } from '../../api/client'
 import { AsyncButton } from '../../components/AsyncButton'
 import { useApi } from '../../hooks/useApi'
+import { t } from '../../i18n'
 
 /** What went wrong, in the server's words when it gave some. */
 export const errorText = (e: unknown) => (e instanceof ApiError && e.messages.length ? e.messages.join(' ') : e instanceof Error ? e.message : String(e))
@@ -11,11 +12,11 @@ export function useSettings() {
   const { data, error, loading, reload } = useApi(getSettings, [])
   const [saved, setSaved] = useState<string>()
   const [saveError, setSaveError] = useState<string>()
-  const save = async (update: Parameters<typeof saveSettings>[0], message = 'Saved') => {
+  const save = async (update: Parameters<typeof saveSettings>[0], message?: string) => {
     setSaveError(undefined)
     try {
       await saveSettings(update)
-      setSaved(message)
+      setSaved(message ?? t('Saved'))
       reload()
       setTimeout(() => setSaved(undefined), 3000)
       return true
@@ -28,14 +29,14 @@ export function useSettings() {
   const waiting = error ? (
     <div className="panel">
       <p className="error" role="alert">
-        Couldn’t load the settings: {error.message}
+        {t('Couldn’t load the settings: {message}', { message: error.message })}
       </p>
       <AsyncButton className="button quiet small" busy={loading} onClick={reload}>
-        Try again
+        {t('Try again')}
       </AsyncButton>
     </div>
   ) : (
-    <p className="muted">Loading…</p>
+    <p className="muted">{t('Loading…')}</p>
   )
   return { settings: data, error, save, saved, saveError, waiting }
 }

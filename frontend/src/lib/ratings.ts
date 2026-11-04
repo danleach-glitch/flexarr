@@ -1,3 +1,5 @@
+import { t } from '../i18n'
+
 /** The age limits a profile can have, youngest first, as the UK writes them. */
 export const ratingSteps = [
   { age: 0, label: 'U' },
@@ -13,6 +15,6 @@ export const ratingLabel = (age: number) => ratingSteps.find((s) => s.age === ag
 /** What an age limit lets through, for a profile's line in Settings: "Kids · up to PG", "Up to 15". */
 export function ageLimitText(limit: { maxRatingAge?: number | null; isKids?: boolean }) {
   if (limit.maxRatingAge == null) return null
-  const upTo = `up to ${ratingLabel(limit.maxRatingAge)}`
-  return limit.isKids ? `Kids profile, ${upTo}` : upTo[0].toUpperCase() + upTo.slice(1)
+  const rating = ratingLabel(limit.maxRatingAge)
+  return limit.isKids ? t('Kids profile, up to {rating}', { rating }) : t('Up to {rating}', { rating })
 }

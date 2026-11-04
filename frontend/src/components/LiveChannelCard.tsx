@@ -3,19 +3,20 @@ import { Link } from 'react-router'
 import type { LiveChannel } from '../api/client'
 import { clock, programmeTime, programmeTitle, progress } from '../lib/livetv'
 import { FavouriteButton } from './FavouriteButton'
+import { t } from '../i18n'
 
 /** A channel: its logo, number and what's on with how far through, then what's next; opens the channel. */
 export function ChannelCard({ channel: c, favourite, onToggle }: { channel: LiveChannel; favourite: boolean; onToggle: () => void }) {
   return (
     <div className="livetv-card">
-      <Link className="livetv-card-link" to={`/live/${c.id}`} aria-label={`${c.name}${c.now ? `, now ${c.now.title}` : ''}`}>
+      <Link className="livetv-card-link" to={`/live/${c.id}`} aria-label={c.now ? t('{name}, now {title}', { name: c.name, title: c.now.title }) : c.name}>
       <div className="livetv-card-head">
         <ChannelLogo channel={c} />
         <span className="livetv-card-number">{c.number}</span>
       </div>
       <div className="livetv-card-body">
         <span className="livetv-card-channel muted">{c.name}</span>
-        <strong className="livetv-card-title">{c.now ? programmeTitle(c.now) : 'No listings'}</strong>
+        <strong className="livetv-card-title">{c.now ? programmeTitle(c.now) : t('No listings')}</strong>
         {c.now && (
           <>
             <div className="livetv-progress" aria-hidden="true">
@@ -26,7 +27,7 @@ export function ChannelCard({ channel: c, favourite, onToggle }: { channel: Live
         )}
         {c.next && (
           <span className="muted livetv-card-next">
-            Next: {clock.format(new Date(c.next.start))} {c.next.title}
+            {t('Next: {time} {title}', { time: clock.format(new Date(c.next.start)), title: c.next.title })}
           </span>
         )}
       </div>

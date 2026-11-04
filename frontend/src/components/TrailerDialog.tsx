@@ -1,4 +1,5 @@
 import { useModal } from '../hooks/useModal'
+import { t } from '../i18n'
 
 // A YouTube video id: anything else (from metadata we don't control) never reaches the embed's address.
 const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/
@@ -9,11 +10,11 @@ export function TrailerDialog({ videoId, title, onClose }: { videoId: string; ti
 
   return (
     <div className="dialog-backdrop" onClick={onClose}>
-      <div className="trailer" ref={dialog} role="dialog" aria-modal="true" aria-label={`${title} trailer`} onClick={(e) => e.stopPropagation()}>
+      <div className="trailer" ref={dialog} role="dialog" aria-modal="true" aria-label={t('{title} trailer', { title })} onClick={(e) => e.stopPropagation()}>
         {YOUTUBE_ID.test(videoId) ? (
           <iframe
             src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`}
-            title={`${title} trailer`}
+            title={t('{title} trailer', { title })}
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
             // YouTube refuses embeds that don't say which site they're on (error 153). The app otherwise sends no
             // referrer off-site, so this iframe alone sends Flexarr's origin, never a page path.
@@ -21,10 +22,10 @@ export function TrailerDialog({ videoId, title, onClose }: { videoId: string; ti
             allowFullScreen
           />
         ) : (
-          <p className="page-message muted">This trailer can’t be played.</p>
+          <p className="page-message muted">{t('This trailer can’t be played.')}</p>
         )}
         <button className="button quiet small trailer-close" onClick={onClose} autoFocus>
-          Close
+          {t('Close')}
         </button>
       </div>
     </div>

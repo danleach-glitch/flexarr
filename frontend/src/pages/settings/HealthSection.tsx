@@ -10,6 +10,7 @@ import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
 import { episodeCode, formatSize, relativeTime, unreadableReason } from '../../lib/format'
 import { SettingsHeader } from './shared'
+import { locale, t, tk, Words } from '../../i18n'
 
 function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
   const check = useApi(getHealthCheck, [])
@@ -28,18 +29,20 @@ function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
   }, [running, onFinished])
 
   const report = check.data
-  const labels = { Missing: 'Missing from disk', Empty: 'Empty files', Unreadable: 'Still unreadable' } as const
+  const labels = { Missing: t('Missing from disk'), Empty: t('Empty files'), Unreadable: t('Still unreadable') }
   return (
     <div className="panel health-check">
       <div className="health-check-head">
         <div>
-          <strong>Health check</strong>
+          <strong>{t('Health check')}</strong>
           <p className="muted">
             {running && report
-              ? `Checking files: ${report.checked.toLocaleString()} of ${report.total.toLocaleString()}`
+              ? t('Checking files: {checked, number} of {total, number}', { checked: report.checked, total: report.total })
               : report?.finishedAt
-                ? `Last checked ${relativeTime(report.finishedAt)}: ${report.total.toLocaleString()} files, ${report.problems.length ? `${report.problems.length.toLocaleString()} with problems` : 'no problems'}.`
-                : 'Looks at every file: whether it’s still on disk, not empty, and readable.'}
+                ? report.problems.length
+                  ? t('Last checked {time}: {total, plural, one {# file} other {# files}}, {problems, number} with problems.', { time: relativeTime(report.finishedAt), total: report.total, problems: report.problems.length })
+                  : t('Last checked {time}: {total, plural, one {# file} other {# files}}, no problems.', { time: relativeTime(report.finishedAt), total: report.total })
+                : t('Looks at every file: whether it’s still on disk, not empty, and readable.')}
           </p>
         </div>
         <AsyncButton
@@ -50,7 +53,7 @@ function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
             check.reload()
           }}
         >
-          Run health check
+          {t('Run health check')}
         </AsyncButton>
       </div>
       {running && report && report.total > 0 && (
@@ -65,13 +68,13 @@ function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
           return (
             <div key={kind} className="health-check-group">
               <h4>
-                {labels[kind]} ({found.length.toLocaleString()})
+                {labels[kind]} ({found.length.toLocaleString(locale())})
               </h4>
               <ul className="health-check-list">
                 {found.slice(0, 100).map(({ file, item }) => (
                   <li key={file.fileId}>
                     <span>
-                      <strong>{item ? (item.seriesTitle ? `${item.seriesTitle} ${episodeCode(item)}` : item.title) : 'Unknown title'}</strong>
+                      <strong>{item ? (item.seriesTitle ? `${item.seriesTitle} ${episodeCode(item)}` : item.title) : t('Unknown title')}</strong>
                       <code>{file.path}</code>
                     </span>
                     {item && (
@@ -81,13 +84,13 @@ function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
                         onClick={async () => {
                           try {
                             await searchAgain(item.id)
-                            setRequested((r) => ({ ...r, [item.id]: 'Search started' }))
+                            setRequested((r) => ({ ...r, [item.id]: t('Search started') }))
                           } catch (e) {
-                            setRequested((r) => ({ ...r, [item.id]: e instanceof ApiError && e.messages[0] ? e.messages[0] : 'Search failed' }))
+                            setRequested((r) => ({ ...r, [item.id]: e instanceof ApiError && e.messages[0] ? e.messages[0] : t('Search failed') }))
                           }
                         }}
                       >
-                        {requested[item.id] ?? 'Search again'}
+                        {requested[item.id] ?? t('Search again')}
                       </AsyncButton>
                     )}
                   </li>
@@ -108,14 +111,14 @@ export function HealthSection() {
   const [copyErrors, setCopyErrors] = useState<Record<string, string>>({})
   const [confirmAll, setConfirmAll] = useState(false)
   const [matching, setMatching] = useState<ItemSummary>()
-  if (!data) return <p className="muted">Checking your library…</p>
+  if (!data) return <p className="muted">{t('Checking your library…')}</p>
 
   async function upgrade(id: string) {
     try {
       await searchAgain(id)
-      setRequested((r) => ({ ...r, [id]: 'Search started' }))
+      setRequested((r) => ({ ...r, [id]: t('Search started') }))
     } catch (e) {
-      setRequested((r) => ({ ...r, [id]: e instanceof ApiError && e.messages[0] ? e.messages[0] : 'Search failed' }))
+      setRequested((r) => ({ ...r, [id]: e instanceof ApiError && e.messages[0] ? e.messages[0] : t('Search failed') }))
     }
   }
 
@@ -145,7 +148,7 @@ export function HealthSection() {
       await deleteCopy(fileId)
       reload()
     } catch (e) {
-      setCopyErrors((c) => ({ ...c, [fileId]: e instanceof ApiError && e.messages[0] ? e.messages[0] : 'Couldn’t delete it' }))
+      setCopyErrors((c) => ({ ...c, [fileId]: e instanceof ApiError && e.messages[0] ? e.messages[0] : t('Couldn’t delete it') }))
     }
   }
 
@@ -155,68 +158,64 @@ export function HealthSection() {
   const needsConnection = score.artworkNeedsConnection ?? 0
   const withoutArtwork = score.missingArtwork + needsConnection
   // Albums count as titles on servers that check music.
-  const titlesNoun = score.albumsWithoutCover === undefined ? 'movies and episodes' : 'movies, episodes and albums'
+  const music = score.albumsWithoutCover === undefined ? 'no' : 'yes'
   const breakdown = [
-    [score.duplicates, 'with spare copies'],
-    [score.unreadable, 'unreadable'],
-    [score.fileProblems, 'missing or empty files'],
-    [score.standardDefinition, 'only in SD'],
-    [score.albumsWithoutCover ?? 0, 'albums without a cover'],
-    [score.duplicateAlbums ?? 0, 'albums twice'],
-    [score.albumsWithRepeatedTracks ?? 0, 'albums with tracks twice'],
-    [score.splitArtists ?? 0, 'artists under two names'],
+    [score.duplicates, tk('{count} with spare copies')],
+    [score.unreadable, tk('{count} unreadable')],
+    [score.fileProblems, tk('{count} missing or empty files')],
+    [score.standardDefinition, tk('{count} only in SD')],
+    [score.albumsWithoutCover ?? 0, tk('{count} albums without a cover')],
+    [score.duplicateAlbums ?? 0, tk('{count} albums twice')],
+    [score.albumsWithRepeatedTracks ?? 0, tk('{count} albums with tracks twice')],
+    [score.splitArtists ?? 0, tk('{count} artists under two names')],
   ] as const
 
   // Groups with nothing in them drop out, so what's left is what needs a look; this line says what's fine.
   const clear = [
-    data.duplicates.length === 0 && 'every title has a single copy',
-    data.unreadable.length === 0 && 'every file opened cleanly',
-    data.standardDefinitionTotal === 0 && 'every movie has an HD copy',
+    data.duplicates.length === 0 && t('every title has a single copy'),
+    data.unreadable.length === 0 && t('every file opened cleanly'),
+    data.standardDefinitionTotal === 0 && t('every movie has an HD copy'),
   ].filter((s): s is string => !!s)
 
   return (
     <section className="health">
-      <SettingsHeader title="Library health" back={{ to: '/settings/libraries', label: 'Libraries' }} />
+      <SettingsHeader title={t('Library health')} back={{ to: '/settings/libraries', label: t(Words.libraries) }} />
 
       <div className="panel health-score" data-grade={score.score >= 95 ? 'good' : score.score >= 80 ? 'fair' : 'poor'}>
         <div className="health-score-number">
           <span className="health-score-value">{score.score}</span>
-          <span className="health-score-label">Health score</span>
+          <span className="health-score-label">{t('Health score')}</span>
         </div>
         <div>
           <p className="health-score-summary">
             {score.withProblems === 0
-              ? `All ${score.titles.toLocaleString()} ${titlesNoun} are in good shape.`
-              : `${(score.titles - score.withProblems).toLocaleString()} of ${score.titles.toLocaleString()} ${titlesNoun} have no problems.`}
+              ? t('{music, select, yes {All {count, number} movies, episodes and albums are in good shape.} other {All {count, number} movies and episodes are in good shape.}}', { music, count: score.titles })
+              : t('{music, select, yes {{fine, number} of {count, number} movies, episodes and albums have no problems.} other {{fine, number} of {count, number} movies and episodes have no problems.}}', { music, fine: score.titles - score.withProblems, count: score.titles })}
           </p>
           <ul className="health-score-breakdown">
             {breakdown
               .filter(([n]) => n > 0)
               .map(([n, label]) => (
                 <li key={label}>
-                  <strong>{n.toLocaleString()}</strong> {label}
+                  {t.rich(label, { count: <strong>{n.toLocaleString(locale())}</strong> })}
                 </li>
               ))}
             {data.held.length > 0 && (
               <li>
-                <strong>{data.held.length.toLocaleString()}</strong> {data.held.length === 1 ? 'folder' : 'folders'} on hold
+                {t.rich('{count, plural, one {{n} folder on hold} other {{n} folders on hold}}', { count: data.held.length, n: <strong>{data.held.length.toLocaleString(locale())}</strong> })}
               </li>
             )}
             {withoutArtwork > 0 && (
               <li>
-                <strong>{withoutArtwork.toLocaleString()}</strong> without artwork
-                {needsConnection === withoutArtwork ? (
-                  <>
-                    : <Link to="/settings/connections">connect Radarr or Sonarr</Link> to fill it in
-                  </>
-                ) : (
-                  needsConnection > 0 && (
-                    <>
-                      {' '}
-                      (<Link to="/settings/connections">connect Radarr or Sonarr</Link> to fill in {needsConnection.toLocaleString()})
-                    </>
-                  )
-                )}
+                {needsConnection === withoutArtwork
+                  ? t.rich('{count} without artwork: {connect} to fill it in', { count: <strong>{withoutArtwork.toLocaleString(locale())}</strong>, connect: <Link to="/settings/connections">{t('connect Radarr or Sonarr')}</Link> })
+                  : needsConnection > 0
+                    ? t.rich('{count} without artwork ({connect} to fill in {needs})', {
+                        count: <strong>{withoutArtwork.toLocaleString(locale())}</strong>,
+                        connect: <Link to="/settings/connections">{t('connect Radarr or Sonarr')}</Link>,
+                        needs: needsConnection.toLocaleString(locale()),
+                      })
+                    : t.rich('{count} without artwork', { count: <strong>{withoutArtwork.toLocaleString(locale())}</strong> })}
               </li>
             )}
           </ul>
@@ -227,18 +226,18 @@ export function HealthSection() {
 
       {data.held.length > 0 && <HeldFolders folders={data.held} onConfirmed={reload} />}
 
-      {clear.length > 0 && <p className="muted health-clear">All clear: {clear.join(', ')}.</p>}
+      {clear.length > 0 && <p className="muted health-clear">{t('All clear: {list}.', { list: clear.join(', ') })}</p>}
 
       <HealthGroup
-        title="Spare copies"
+        title={t('Spare copies')}
         count={data.duplicates.length}
         // Stays while spares are removed, so the last of them going doesn't take the progress with it.
         shown={removing !== null}
-        lede={`More than one file for the same movie or episode. Removing spares frees ${formatSize(data.reclaimableBytes)}; the best copy, and the one Sonarr or Radarr use, always stay.`}
+        lede={t('More than one file for the same movie or episode. Removing spares frees {size}; the best copy, and the one Sonarr or Radarr use, always stay.', { size: formatSize(data.reclaimableBytes) })}
         action={
           data.duplicates.length > 0 && (
             <AsyncButton className="button danger small" busy={removing !== null && removing.done < removing.total} onClick={() => setConfirmAll(true)}>
-              Remove all spare copies ({formatSize(data.reclaimableBytes)})
+              {t('Remove all spare copies ({size})', { size: formatSize(data.reclaimableBytes) })}
             </AsyncButton>
           )
         }
@@ -247,14 +246,14 @@ export function HealthSection() {
           <div className="health-progress" role="status">
             <span>
               {removing.done < removing.total
-                ? `Removing spare copies: ${removing.done.toLocaleString()} of ${removing.total.toLocaleString()} titles`
+                ? t('Removing spare copies: {done, number} of {total, plural, one {# title} other {# titles}}', { done: removing.done, total: removing.total })
                 : removing.total - removing.kept - removing.failed > 0
-                  ? `Removed spare copies of ${(removing.total - removing.kept - removing.failed).toLocaleString()} titles, freeing ${formatSize(removing.freed)}.`
-                  : 'Nothing was removed.'}
+                  ? t('Removed spare copies of {count, plural, one {# title} other {# titles}}, freeing {size}.', { count: removing.total - removing.kept - removing.failed, size: formatSize(removing.freed) })
+                  : t('Nothing was removed.')}
               {removing.done === removing.total &&
                 removing.kept > 0 &&
-                ` ${removing.kept.toLocaleString()} kept every copy: Sonarr or Radarr use a different copy from the best one. Open a title to delete the copy you don’t want.`}
-              {removing.failed > 0 && ` ${removing.failed} couldn’t be removed (see the server log).`}
+                ` ${t('{count, number} kept every copy: Sonarr or Radarr use a different copy from the best one. Open a title to delete the copy you don’t want.', { count: removing.kept })}`}
+              {removing.failed > 0 && ` ${t('{count, number} couldn’t be removed (see the server log).', { count: removing.failed })}`}
             </span>
             <span className="scan-track" aria-hidden="true">
               <span style={{ width: `${(removing.done / Math.max(1, removing.total)) * 100}%` }} />
@@ -264,7 +263,7 @@ export function HealthSection() {
         {data.duplicates.slice(0, shown).map((d) => (
           <details key={d.item.id} className="health-row-expandable">
             <summary>
-              <HealthRowMain item={d.item} detail={`${d.files.length} copies, ${formatSize(d.reclaimableBytes)} spare`} />
+              <HealthRowMain item={d.item} detail={t('{count, plural, one {# copy} other {# copies}}, {size} spare', { count: d.files.length, size: formatSize(d.reclaimableBytes) })} />
               <AsyncButton
                 className="button quiet small"
                 onClick={(e) => {
@@ -272,7 +271,7 @@ export function HealthSection() {
                   return removeSpares([d.item.id])
                 }}
               >
-                Remove spares
+                {t('Remove spares')}
               </AsyncButton>
             </summary>
             <ul className="health-copies">
@@ -283,11 +282,11 @@ export function HealthSection() {
                 const identical = same(f) && d.files.filter(same).length > 1
                 return (
                   <li key={f.id}>
-                    <span className={f.keep || identical ? 'tag keep' : 'tag'}>{identical ? 'Identical' : f.keep ? 'Best' : 'Spare'}</span>
+                    <span className={f.keep || identical ? 'tag keep' : 'tag'}>{identical ? t('Identical') : f.keep ? t('Best') : t('Spare')}</span>
                     <span title={f.path}>{fileName(f.path)}</span>
                     <span className="muted">{[f.resolution, f.videoCodec?.toUpperCase(), formatSize(f.size)].filter(Boolean).join(', ')}</span>
                     <AsyncButton className="text-button" onClick={() => removeCopy(f.id)}>
-                      Delete this copy
+                      {t('Delete this copy')}
                     </AsyncButton>
                     {copyErrors[f.id] && (
                       <span className="error" role="alert">
@@ -302,37 +301,37 @@ export function HealthSection() {
         ))}
         {data.duplicates.length > shown && (
           <button className="button quiet small health-more" onClick={() => setShown((n) => n + 100)}>
-            Show more ({(data.duplicates.length - shown).toLocaleString()} left)
+            {t('Show more ({count, number} left)', { count: data.duplicates.length - shown })}
           </button>
         )}
       </HealthGroup>
 
-      <HealthGroup title="Files that can’t be read" count={data.unreadable.length} lede="Usually a damaged or unfinished download. A new copy fixes playback.">
+      <HealthGroup title={t('Files that can’t be read')} count={data.unreadable.length} lede={t('Usually a damaged or unfinished download. A new copy fixes playback.')}>
         {data.unreadable.map((u) => (
           <div key={u.fileId} className="health-row">
-            <HealthRowMain item={u.item} file={u.path} detail={`Can’t be read: ${unreadableReason(u.error)}`} />
+            <HealthRowMain item={u.item} file={u.path} detail={t('Can’t be read: {reason}', { reason: unreadableReason(u.error) })} />
             {u.item &&
               searchable.has(u.item.kind) &&
               (data.downloading[u.item.id] ? (
                 <DownloadingNote state={data.downloading[u.item.id]} />
               ) : (
                 <AsyncButton className="button quiet small" onClick={() => upgrade(u.item!.id)} disabled={!!requested[u.item.id]}>
-                  {requested[u.item.id] ?? 'Get a new copy'}
+                  {requested[u.item.id] ?? t('Get a new copy')}
                 </AsyncButton>
               ))}
           </div>
         ))}
       </HealthGroup>
 
-      <HealthGroup title="Only in standard definition" count={data.standardDefinitionTotal} lede="Your best copy is below 720p. Radarr can look for a better one.">
+      <HealthGroup title={t('Only in standard definition')} count={data.standardDefinitionTotal} lede={t('Your best copy is below 720p. Radarr can look for a better one.')}>
         {data.standardDefinition.map((item) => (
           <div key={item.id} className="health-row">
-            <HealthRowMain item={item} detail="Best copy is SD" />
+            <HealthRowMain item={item} detail={t('Best copy is SD')} />
             {data.downloading[item.id] ? (
               <DownloadingNote state={data.downloading[item.id]} />
             ) : (
               <AsyncButton className="button quiet small" onClick={() => upgrade(item.id)} disabled={!!requested[item.id]}>
-                {requested[item.id] ?? 'Find a better copy'}
+                {requested[item.id] ?? t('Find a better copy')}
               </AsyncButton>
             )}
           </div>
@@ -341,31 +340,31 @@ export function HealthSection() {
 
       {data.matchedByTitle.length > 0 && (
         <HealthGroup
-          title="Check these matches"
+          title={t('Check these matches')}
           count={data.matchedByTitle.length}
-          lede="Sonarr and Radarr don’t manage these, so their details came from searching for the folder’s name, which can find the wrong one: an older show with the same name, or a remake. Fixing a match adds the title to Sonarr or Radarr. Ignore one that’s right and it stays as it is."
+          lede={t('Sonarr and Radarr don’t manage these, so their details came from searching for the folder’s name, which can find the wrong one: an older show with the same name, or a remake. Fixing a match adds the title to Sonarr or Radarr. Ignore one that’s right and it stays as it is.')}
         >
           {data.matchedByTitle.map((item) => (
             <div key={item.id} className="health-row">
-              <HealthRowMain item={item} detail={requested[item.id] ?? 'Matched by title'} />
+              <HealthRowMain item={item} detail={requested[item.id] ?? t('Matched by title')} />
               <div className="health-row-actions">
                 <AsyncButton
                   className="button quiet small"
-                  disabled={requested[item.id] === 'Keeping this match…'}
+                  disabled={requested[item.id] === t('Keeping this match…')}
                   onClick={async () => {
-                    setRequested((r) => ({ ...r, [item.id]: 'Keeping this match…' }))
+                    setRequested((r) => ({ ...r, [item.id]: t('Keeping this match…') }))
                     try {
                       await keepMatch(item.id)
                       reload()
                     } catch (e) {
-                      setRequested((r) => ({ ...r, [item.id]: e instanceof ApiError && e.messages[0] ? e.messages[0] : 'Couldn’t keep this match' }))
+                      setRequested((r) => ({ ...r, [item.id]: e instanceof ApiError && e.messages[0] ? e.messages[0] : t('Couldn’t keep this match') }))
                     }
                   }}
                 >
-                  Ignore
+                  {t('Ignore')}
                 </AsyncButton>
                 <button className="button quiet small" onClick={() => setMatching(item)}>
-                  Fix match
+                  {t('Fix match')}
                 </button>
               </div>
             </div>
@@ -375,22 +374,22 @@ export function HealthSection() {
 
       {data.missingArtwork.length > 0 && (
         <HealthGroup
-          title="Missing artwork"
+          title={t('Missing artwork')}
           count={data.missingArtwork.length}
           lede={
             score.missingArtwork === 0 && needsConnection > 0
-              ? 'Artwork comes from Radarr and Sonarr. Connect them in Settings › Connections to fill it in.'
+              ? t('Artwork comes from Radarr and Sonarr. Connect them in Settings › Connections to fill it in.')
               : needsConnection > 0
-                ? `${needsConnection.toLocaleString()} ${needsConnection === 1 ? 'needs' : 'need'} Radarr or Sonarr connected in Settings › Connections to fill it in. The rest aren’t found there: fix the match to choose the right title, or rename the folder to “Title (Year)”.`
-                : 'Not found in Sonarr or Radarr. Fix the match to choose the right title, or rename the folder to “Title (Year)”.'
+                ? t('{count, plural, one {# needs} other {# need}} Radarr or Sonarr connected in Settings › Connections to fill it in. The rest aren’t found there: fix the match to choose the right title, or rename the folder to “Title (Year)”.', { count: needsConnection })
+                : t('Not found in Sonarr or Radarr. Fix the match to choose the right title, or rename the folder to “Title (Year)”.')
           }
         >
           {data.missingArtwork.map((item) => (
             <div key={item.id} className="health-row">
-              <HealthRowMain item={item} detail="No poster or details" />
+              <HealthRowMain item={item} detail={t('No poster or details')} />
               {(item.kind === 'Movie' || item.kind === 'Series') && (
                 <button className="button quiet small" onClick={() => setMatching(item)}>
-                  Fix match
+                  {t('Fix match')}
                 </button>
               )}
             </div>
@@ -404,9 +403,9 @@ export function HealthSection() {
 
       {confirmAll && (
         <ConfirmDialog
-          title={`Remove ${data.duplicates.length.toLocaleString()} spare copies?`}
-          cancelLabel="Keep them"
-          confirmLabel="Remove spare copies"
+          title={t('{count, plural, one {Remove # spare copy?} other {Remove # spare copies?}}', { count: data.duplicates.length })}
+          cancelLabel={t('Keep them')}
+          confirmLabel={t('Remove spare copies')}
           danger
           onClose={() => setConfirmAll(false)}
           onConfirm={() => {
@@ -415,8 +414,7 @@ export function HealthSection() {
           }}
         >
           <p>
-            This deletes the spare files from disk, freeing {formatSize(data.reclaimableBytes)}. For each title the best copy, and the one Sonarr or Radarr use, are kept.
-            You can’t undo this.
+            {t('This deletes the spare files from disk, freeing {size}. For each title the best copy, and the one Sonarr or Radarr use, are kept. You can’t undo this.', { size: formatSize(data.reclaimableBytes) })}
           </p>
         </ConfirmDialog>
       )}
@@ -438,10 +436,10 @@ function HeldFolders({ folders, onConfirmed }: { folders: HeldFolder[]; onConfir
   const [errors, setErrors] = useState<Record<number, string>>({})
   const why = (f: HeldFolder) =>
     f.reason === 'FolderMissing'
-      ? 'The folder isn’t there. Is its drive or share connected?'
+      ? t('The folder isn’t there. Is its drive or share connected?')
       : f.reason === 'FolderEmpty'
-        ? `The folder is empty but held ${f.known.toLocaleString()} files. Is its drive or share mounted?`
-        : `${f.missing.toLocaleString()} of its ${f.known.toLocaleString()} files went at once. If that’s a clear-out, it goes through by itself after a day of scans finding the same.`
+        ? t('The folder is empty but held {count, plural, one {# file} other {# files}}. Is its drive or share mounted?', { count: f.known })
+        : t('{missing, number} of its {count, plural, one {# file} other {# files}} went at once. If that’s a clear-out, it goes through by itself after a day of scans finding the same.', { missing: f.missing, count: f.known })
 
   async function confirm(f: HeldFolder) {
     setAsking(null)
@@ -449,16 +447,16 @@ function HeldFolders({ folders, onConfirmed }: { folders: HeldFolder[]; onConfir
       await confirmHeldRemoval(f)
       onConfirmed()
     } catch (e) {
-      setErrors((x) => ({ ...x, [f.folderId]: e instanceof ApiError && e.messages[0] ? e.messages[0] : 'Couldn’t confirm it' }))
+      setErrors((x) => ({ ...x, [f.folderId]: e instanceof ApiError && e.messages[0] ? e.messages[0] : t('Couldn’t confirm it') }))
       if (e instanceof ApiError && e.status === 409) onConfirmed() // Show what the scans found now.
     }
   }
 
   return (
     <HealthGroup
-      title="Folders on hold"
+      title={t('Folders on hold')}
       count={folders.length}
-      lede="Scans are keeping these folders’ titles, in case a drive or share is having trouble. Titles you deleted on purpose stay listed until you confirm it."
+      lede={t('Scans are keeping these folders’ titles, in case a drive or share is having trouble. Titles you deleted on purpose stay listed until you confirm it.')}
     >
       {folders.map((f) => (
         <div key={f.folderId} className="health-row health-row-held">
@@ -476,30 +474,29 @@ function HeldFolders({ folders, onConfirmed }: { folders: HeldFolder[]; onConfir
           </span>
           {f.canConfirm &&
             (f.confirmed ? (
-              <span className="tag">Removal confirmed, scanning</span>
+              <span className="tag">{t('Removal confirmed, scanning')}</span>
             ) : (
               <button className="button danger small" onClick={() => setAsking(f)}>
-                Confirm removal
+                {t('Confirm removal')}
               </button>
             ))}
         </div>
       ))}
       {asking && (
         <ConfirmDialog
-          title={`Remove ${asking.missing.toLocaleString()} ${heldNoun(asking)} from ${asking.library}?`}
-          cancelLabel="Not yet"
-          confirmLabel="Remove from Flexarr"
+          title={t('Remove {what} from {library}?', { what: heldNoun(asking), library: asking.library })}
+          cancelLabel={t('Not yet')}
+          confirmLabel={t('Remove from Flexarr')}
           danger
           onClose={() => setAsking(null)}
           onConfirm={() => confirm(asking)}
         >
-          <p>Flexarr can’t find them in this folder:</p>
+          <p>{t('Flexarr can’t find them in this folder:')}</p>
           <p>
             <code className="confirm-dialog-path">{asking.path}</code>
           </p>
           <p>
-            Flexarr hides them now and removes them a day later. Watch history is kept for 30 days in case they come back. No files are touched. If the
-            drive is just disconnected, reconnect it instead.
+            {t('Flexarr hides them now and removes them a day later. Watch history is kept for 30 days in case they come back. No files are touched. If the drive is just disconnected, reconnect it instead.')}
           </p>
         </ConfirmDialog>
       )}
@@ -509,16 +506,10 @@ function HeldFolders({ folders, onConfirmed }: { folders: HeldFolder[]; onConfir
 
 /** What a held folder's missing files are, by the kind of library: "4 films". */
 function heldNoun(f: HeldFolder) {
-  const one = f.missing === 1
-  const nouns: Partial<Record<string, [string, string]>> = {
-    Movies: ['movie', 'movies'],
-    TvShows: ['episode', 'episodes'],
-    HomeVideos: ['video', 'videos'],
-    Music: ['track', 'tracks'],
-    Audiobooks: ['audiobook file', 'audiobook files'],
-  }
-  const [single, plural] = (f.libraryType && nouns[f.libraryType]) || ['file', 'files']
-  return one ? single : plural
+  return t(
+    '{type, select, Movies {{count, plural, one {# movie} other {# movies}}} TvShows {{count, plural, one {# episode} other {# episodes}}} HomeVideos {{count, plural, one {# video} other {# videos}}} Music {{count, plural, one {# track} other {# tracks}}} Audiobooks {{count, plural, one {# audiobook file} other {# audiobook files}}} other {{count, plural, one {# file} other {# files}}}}',
+    { type: f.libraryType ?? 'other', count: f.missing },
+  )
 }
 
 /** In place of a search button: Sonarr or Radarr already have a new copy on the way. */
@@ -526,10 +517,10 @@ function DownloadingNote({ state }: { state: LibraryHealth['downloading'][string
   const status = state.status?.toLowerCase() ?? ''
   const text =
     state.progress >= 0.999 || status.includes('import')
-      ? 'Downloaded, waiting to import'
+      ? t('Downloaded, waiting to import')
       : status.includes('queued') || status.includes('delay')
-        ? 'Queued to download'
-        : `Downloading ${Math.round(state.progress * 100)}%`
+        ? t('Queued to download')
+        : t('Downloading {percent}%', { percent: Math.round(state.progress * 100) })
   return <span className="tag health-downloading">{text}</span>
 }
 
@@ -577,43 +568,43 @@ function MusicHealth({ data, onChanged }: { data: LibraryHealth; onChanged: () =
 
   return (
     <>
-      <HealthGroup title="Albums without a cover" count={coverless.length} lede="No cover beside the files, in them or from Lidarr. Fix the match to choose one.">
+      <HealthGroup title={t('Albums without a cover')} count={coverless.length} lede={t('No cover beside the files, in them or from Lidarr. Fix the match to choose one.')}>
         {coverless.map((item) => (
           <div key={item.id} className="health-row">
-            <HealthRowMain item={item} detail={item.seriesTitle ?? 'No cover'} />
+            <HealthRowMain item={item} detail={item.seriesTitle ?? t('No cover')} />
             <button className="button quiet small" onClick={() => setMatching(item.id)}>
-              Fix match
+              {t('Fix match')}
             </button>
           </div>
         ))}
       </HealthGroup>
 
-      <HealthGroup title="Albums twice" count={twice.length} lede="The same release more than once. Merge makes them one album; the files stay where they are.">
+      <HealthGroup title={t('Albums twice')} count={twice.length} lede={t('The same release more than once. Merge makes them one album; the files stay where they are.')}>
         {twice.map((d) => (
           <div key={d.albums.map((a) => a.id).join()} className="health-row">
-            <HealthRowMain item={d.albums[0]} detail={[d.artist, `${d.albums.length} copies: ${names(d.albums)}`].filter(Boolean).join('\u2003')} />
+            <HealthRowMain item={d.albums[0]} detail={[d.artist, t('{count, plural, one {# copy} other {# copies}}: {names}', { count: d.albums.length, names: names(d.albums) })].filter(Boolean).join('\u2003')} />
             <button className="button quiet small" onClick={() => startMerge({ kind: 'albums', items: d.albums })}>
-              Merge
+              {t('Merge')}
             </button>
           </div>
         ))}
       </HealthGroup>
 
-      <HealthGroup title="Artists under two names" count={split.length} lede="One artist filed under different spellings, usually from their files’ tags. Merge makes them one; the files stay where they are.">
+      <HealthGroup title={t('Artists under two names')} count={split.length} lede={t('One artist filed under different spellings, usually from their files’ tags. Merge makes them one; the files stay where they are.')}>
         {split.map((s) => (
           <div key={s.artists.map((a) => a.id).join()} className="health-row">
             <HealthRowMain item={s.artists[0]} detail={names(s.artists)} />
             <button className="button quiet small" onClick={() => startMerge({ kind: 'artists', items: s.artists })}>
-              Merge
+              {t('Merge')}
             </button>
           </div>
         ))}
       </HealthGroup>
 
-      <HealthGroup title="Tracks twice" count={repeated.length} lede="Albums with the same track more than once, usually two copies in one folder. Remove the spare in Lidarr or the Finder.">
+      <HealthGroup title={t('Tracks twice')} count={repeated.length} lede={t('Albums with the same track more than once, usually two copies in one folder. Remove the spare in Lidarr or the Finder.')}>
         {repeated.map((r) => (
           <div key={r.album.id} className="health-row">
-            <HealthRowMain item={r.album} detail={[r.artist, r.repeated === 1 ? '1 track twice' : `${r.repeated} tracks twice`].filter(Boolean).join('\u2003')} />
+            <HealthRowMain item={r.album} detail={[r.artist, t('{count, plural, one {# track twice} other {# tracks twice}}', { count: r.repeated })].filter(Boolean).join('\u2003')} />
           </div>
         ))}
       </HealthGroup>
@@ -621,15 +612,19 @@ function MusicHealth({ data, onChanged }: { data: LibraryHealth; onChanged: () =
       {matching && <MusicMatchById id={matching} onFixed={onChanged} onClose={() => setMatching(undefined)} />}
       {merging && (
         <ConfirmDialog
-          title={merging.kind === 'albums' ? 'Merge these albums?' : 'Merge these artists?'}
-          confirmLabel="Merge"
+          title={merging.kind === 'albums' ? t('Merge these albums?') : t('Merge these artists?')}
+          confirmLabel={t('Merge')}
           busy={busy}
           error={error}
           onClose={() => setMerging(undefined)}
           onConfirm={() => void merge()}
         >
-          <p>Which one to keep? The others’ {merging.kind === 'albums' ? 'tracks' : 'albums'} move to it, and new ones land there too. No files are moved or deleted.</p>
-          <div className="health-merge-choices" role="radiogroup" aria-label="Keep">
+          <p>
+            {merging.kind === 'albums'
+              ? t('Which one to keep? The others’ tracks move to it, and new ones land there too. No files are moved or deleted.')
+              : t('Which one to keep? The others’ albums move to it, and new ones land there too. No files are moved or deleted.')}
+          </p>
+          <div className="health-merge-choices" role="radiogroup" aria-label={t('Keep')}>
             {merging.items.map((i) => (
               <label key={i.id} className="health-merge-choice">
                 <input type="radio" name="keep" checked={keep === i.id} onChange={() => setKeep(i.id)} disabled={busy} />
@@ -651,7 +646,7 @@ function HealthGroup({ title, count, lede, action, shown, children }: { title: s
       <header>
         <div>
           <h3 className="settings-subhead">
-            {title} <span className="health-count">{count.toLocaleString()}</span>
+            {title} <span className="health-count">{count.toLocaleString(locale())}</span>
           </h3>
           <p className="muted">{lede}</p>
         </div>
@@ -675,7 +670,7 @@ function HealthRowMain({ item, file, detail }: { item: ItemSummary | null; file?
             {item.kind === 'Episode' ? `${item.seriesTitle ?? ''} ${episodeCode(item)} ${item.title}` : `${item.title}${item.year ? ` (${item.year})` : ''}`}
           </Link>
         ) : (
-          <strong>Unknown title</strong>
+          <strong>{t('Unknown title')}</strong>
         )}
         <span className="muted">
           {detail}
