@@ -58,3 +58,31 @@ extension NSImage {
     }
 }
 #endif
+
+extension View {
+    /// A list page on the Mac: room either side, and its rows' icons spaced from their words, as a Mac's Settings
+    /// window has them. The phones' lists already have both.
+    @ViewBuilder
+    func macReadable() -> some View {
+        #if os(macOS)
+        self
+            .contentMargins(.horizontal, 28, for: .scrollContent)
+            .contentMargins(.vertical, 12, for: .scrollContent)
+            .labelStyle(SpacedLabelStyle())
+        #else
+        self
+        #endif
+    }
+}
+
+#if os(macOS)
+/// An icon then its words, with room between them.
+struct SpacedLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 12) {
+            configuration.icon
+            configuration.title
+        }
+    }
+}
+#endif

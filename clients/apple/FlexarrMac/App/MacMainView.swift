@@ -50,7 +50,10 @@ struct MacMainView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var downloads
     @State private var navigation = MacNavigation.shared
-    @State private var offersDiscover = false
+    /// What Discover has to show: films and shows with Seerr connected, music with Lidarr (and a profile that sees music).
+    @State private var discoversTitles = false
+    @State private var discoversMusic = false
+    private var offersDiscover: Bool { discoversTitles || discoversMusic }
 
     var body: some View {
         NavigationSplitView {
@@ -62,7 +65,7 @@ struct MacMainView: View {
                         Label(t(Words.watchlist), systemImage: Symbol.watchlist).tag(SidebarItem.watchlist)
                     }
                     // Not for kids, who never request; not for a profile that hid it from the menu.
-                    // Only with Seerr connected, which is where it comes from.
+                    // Only with Seerr or Lidarr connected, which is where it comes from.
                     if offersDiscover && !model.isKids && !model.hidesFromMenu(.discover) {
                         Label(t(Words.discover), systemImage: Symbol.discover).tag(SidebarItem.discover)
                     }
@@ -105,7 +108,8 @@ struct MacMainView: View {
         }
         .task(id: model.isOffline) {
             guard !model.isOffline else { return }
-            offersDiscover = (try? await model.client?.requestStatus())?.configured == true
+            discoversTitles = (try? await model.client?.requestStatus())?.configured == true
+            discoversMusic = (try? await model.client?.musicRequestStatus())?.configured == true
             await model.loadLibraries()
             if model.libraries.isEmpty, model.librariesError != nil, !downloads.downloads.isEmpty { navigation.selection = .downloads }
         }
@@ -165,7 +169,7 @@ struct MacMainView: View {
         case .watchlist:
             WatchlistView()
         case .discover:
-            MacDiscoverView()
+            MacDiscoverView(offersTitles: discoversTitles, offersMusic: discoversMusic)
         case .entry(.library(let library)):
             RouteDestination(route: .library(library, .title))
         case .entry(.podcasts):
@@ -196,7 +200,8 @@ struct MacStack<Content: View>: View {
         NavigationStack(path: $router.path) {
             content()
                 .environment(router)
-                .navigationDestination(for: Route.self) { RouteDestination(route: $0).environment(router) }
+                .macPageToolbar()
+                .navigationDestination(for: Route.self) { RouteDestination(route: $0).environment(router).macPageToolbar() }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             if model.isOffline { OfflineBar() }
@@ -215,5 +220,13 @@ struct MacStack<Content: View>: View {
         if case .watchlist = route, !model.hasWatchlist { return }
         if router.path.last == route { return }
         router.push(route)
+    }
+}
+
+private extension View {
+    /// The window's toolbar over the page rather than a band above it: back, the page's switch and search sit on the
+    /// page itself, which runs up under them (macOS fades what scrolls beneath).
+    func macPageToolbar() -> some View {
+        toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
     }
 }

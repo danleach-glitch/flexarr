@@ -5,6 +5,7 @@ import SwiftUI
 /// the library opens; anything else opens what's known about it.
 struct ComingSoonView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var days: [UpcomingDay.Day]?
     @State private var error: String?
 
@@ -12,6 +13,26 @@ struct ComingSoonView: View {
         Group {
             if let days, days.isEmpty {
                 StatusView(state: .empty(t("Nothing is scheduled. Monitored shows and movies appear here as their dates get close.")))
+            } else if let days, sizeClass == .regular {
+                // An iPad or a Mac: each day's titles as cards across the page, rather than rows the page's width.
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 28) {
+                        ForEach(days) { day in
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text(UpcomingDay.heading(day.date))
+                                    .font(.marquee(26, weight: .bold))
+                                    .foregroundStyle(Color.screen)
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 300, maximum: 420), spacing: 14, alignment: .top)],
+                                          alignment: .leading, spacing: 14) {
+                                    ForEach(day.entries) { ComingSoonEntryRow(entry: $0, carded: true) }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, Layout.edge)
+                    .padding(.vertical, 20)
+                }
+                .refreshable { await load() }
             } else if let days {
                 List {
                     ForEach(days) { day in
@@ -58,15 +79,17 @@ private struct ComingSoonEntryRow: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
     let entry: UpcomingDay.Entry
+    /// A card in a grid (an iPad or a Mac), with a bigger poster, rather than a list row.
+    var carded = false
     @State private var showingAbout = false
 
     var body: some View {
         Button {
             if let id = entry.first.libraryItemId { router.push(.itemID(id)) } else { showingAbout = true }
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: carded ? 14 : 12) {
                 Color.seat
-                    .frame(width: 46, height: 69)
+                    .frame(width: carded ? 64 : 46, height: carded ? 96 : 69)
                     .overlay {
                         RemoteImage(url: model.client?.imageURL(entry.first.poster ?? entry.first.still, width: 140)) {
                             Image(systemName: entry.first.kind == .movie ? "film" : "tv").foregroundStyle(Color.usher)
@@ -88,6 +111,10 @@ private struct ComingSoonEntryRow: View {
                 }
                 .lineLimit(2)
                 Spacer(minLength: 0)
+            }
+            .padding(carded ? 10 : 0)
+            .background {
+                if carded { RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).fill(Color.seat) }
             }
             .contentShape(Rectangle())
         }

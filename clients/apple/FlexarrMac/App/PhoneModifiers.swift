@@ -33,8 +33,8 @@ extension ToolbarPlacement {
 enum PhoneDrawerDisplayMode { case always, automatic }
 
 extension SearchFieldPlacement {
-    /// The search field under the navigation bar: the Mac's goes in the toolbar.
-    static func navigationBarDrawer(displayMode: PhoneDrawerDisplayMode) -> SearchFieldPlacement { .toolbar }
+    /// The search field under the navigation bar: the Mac's goes in the middle of the toolbar.
+    static func navigationBarDrawer(displayMode: PhoneDrawerDisplayMode) -> SearchFieldPlacement { .toolbarPrincipal }
 }
 
 extension TabViewStyle where Self == DefaultTabViewStyle {

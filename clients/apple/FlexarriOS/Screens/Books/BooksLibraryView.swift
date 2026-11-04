@@ -174,6 +174,9 @@ struct BooksLibraryView: View {
             .animation(.easeInOut(duration: 0.8), value: featured?.id))
         .navigationTitle(genre ?? browse.library.name)
         .toolbar {
+            #if os(macOS)
+            if genre == nil { ToolbarItem(placement: .principal) { tabControl.fixedSize() } }
+            #endif
             if browse.browse == .all {
                 ToolbarItem(placement: .topBarTrailing) { filterMenu }
             }
@@ -206,15 +209,24 @@ struct BooksLibraryView: View {
     }
 
     /// Browse, All books, Genres, Series and Authors, as one segmented control like the other libraries' view switch.
+    /// On the Mac it's in the window's toolbar, as theirs is.
+    @ViewBuilder
     private var tabs: some View {
+        #if !os(macOS)
+        tabControl
+            .padding(.horizontal, Layout.edge)
+            .padding(.bottom, 4)
+        #endif
+    }
+
+    private var tabControl: some View {
         Picker(t("Show"), selection: Binding(get: { browse.browse }, set: { browse.browse = $0 })) {
             ForEach(BookBrowse.allCases) { tab in
                 Text(tab.label).tag(tab)
             }
         }
         .pickerStyle(.segmented)
-        .padding(.horizontal, Layout.edge)
-        .padding(.bottom, 4)
+        .labelsHidden()
     }
 
     @ViewBuilder

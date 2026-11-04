@@ -89,6 +89,8 @@ struct MacPlayerControls: View {
         }
         .foregroundStyle(.white)
         .environment(\.colorScheme, .dark)
+        // Up to the window's very top: the close button sits beside the window's own buttons, not under them.
+        .ignoresSafeArea()
     }
 
     // MARK: Top
@@ -116,15 +118,10 @@ struct MacPlayerControls: View {
                 .help(t("Picture in Picture"))
                 .accessibilityLabel(t("Picture in Picture"))
             }
-            Button { screen?.toggleFullScreen() } label: {
-                Image(systemName: state.isFullScreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                    .font(.system(size: 14, weight: .semibold)).frame(width: 34, height: 34)
-            }
-            .buttonStyle(GlassCircle())
-            .help(state.isFullScreen ? t("Exit full screen") : t("Full screen"))
-            .accessibilityLabel(state.isFullScreen ? t("Exit full screen") : t("Full screen"))
         }
-        .padding(.horizontal, 24).padding(.top, state.isFullScreen ? 24 : 36).padding(.bottom, 40)
+        // Level with the window's close, minimise and zoom buttons, clear of them on the left.
+        .padding(.leading, state.isFullScreen ? 24 : 84).padding(.trailing, 20)
+        .padding(.top, state.isFullScreen ? 20 : 8).padding(.bottom, 40)
         .background(LinearGradient(colors: [.black.opacity(0.6), .clear], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
     }
 
@@ -272,6 +269,12 @@ struct MacPlayerControls: View {
             MacRoutePicker(player: state.avPlayer)
                 .frame(width: 26, height: 22)
                 .help(t("AirPlay"))
+            Button { screen?.toggleFullScreen() } label: {
+                Image(systemName: state.isFullScreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+            }
+            .buttonStyle(.plain)
+            .help(state.isFullScreen ? t("Exit full screen") : t("Full screen"))
+            .accessibilityLabel(state.isFullScreen ? t("Exit full screen") : t("Full screen"))
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)

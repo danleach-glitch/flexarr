@@ -239,15 +239,21 @@ struct ActionRowLayout: SwiftUI.Layout {
 
 /// A round action with its name underneath (the row under Play on a title's page).
 struct LabeledActionStyle: ButtonStyle {
+    /// Side by side at their own width, beside a Play that isn't full width (an iPad or a Mac); otherwise they share
+    /// the row under Play evenly, as on a phone.
+    var packed = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .labelStyle(Stacked())
+            .labelStyle(Stacked(packed: packed))
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
             .opacity(configuration.isPressed ? 0.85 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 
     private struct Stacked: LabelStyle {
+        var packed = false
+
         func makeBody(configuration: Configuration) -> some View {
             VStack(spacing: 6) {
                 configuration.icon
@@ -262,7 +268,8 @@ struct LabeledActionStyle: ButtonStyle {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity)
+            .frame(width: packed ? 76 : nil)
+            .frame(maxWidth: packed ? nil : .infinity)
             .contentShape(Rectangle())
         }
     }

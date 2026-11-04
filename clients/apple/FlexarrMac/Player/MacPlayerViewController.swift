@@ -121,6 +121,8 @@ final class PlayerViewController: NSViewController {
         super.viewDidAppear()
         view.window?.makeFirstResponder(view)
         guard let window = view.window, fullScreenObservers.isEmpty else { return }
+        // Full screen from the player's button, F, a double-click or the window's green button.
+        window.collectionBehavior.insert(.fullScreenPrimary)
         state.isFullScreen = window.styleMask.contains(.fullScreen)
         let center = NotificationCenter.default
         fullScreenObservers = [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification].map { name in
@@ -344,7 +346,9 @@ final class PlayerViewController: NSViewController {
     }
 
     func toggleFullScreen() {
-        view.window?.toggleFullScreen(nil)
+        guard let window = view.window ?? NSApp.keyWindow else { return }
+        window.collectionBehavior.insert(.fullScreenPrimary)
+        window.toggleFullScreen(nil)
     }
 
     func close() {

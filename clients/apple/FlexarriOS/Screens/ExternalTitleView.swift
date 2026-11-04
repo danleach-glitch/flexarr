@@ -101,39 +101,52 @@ struct ExternalTitleView: View {
     /// is a button too: it asks, then takes the request back for the household, as music's does.
     private var actions: some View {
         let state = model.titleState(title)
-        return VStack(spacing: 18) {
-            VStack(alignment: .leading, spacing: 6) {
-                requestButton(state)
-                if seerrPaused, state == .requestable || state == .requested {
-                    Text(TitleWords.seerrNotAnswering).font(.footnote).foregroundStyle(Color.usher)
-                } else if case .refused(let reason) = outcome, state == .requestable {
-                    Text(reason).font(.footnote).foregroundStyle(Color.usher)
-                } else if case .failed(let reason) = outcome, state == .requestable {
-                    Text(reason).font(.footnote).foregroundStyle(Color.usher)
-                }
+        let wide = sizeClass == .regular
+        // An iPad or a Mac: Request at its own width with Trailer and Watchlist beside it.
+        return Group {
+            if wide {
+                HStack(alignment: .top, spacing: 20) { requestColumn(state); secondary(packed: true) }
+            } else {
+                VStack(spacing: 18) { requestColumn(state); secondary(packed: false) }
+                    .frame(maxWidth: 560, alignment: .leading)
             }
-
-            HStack(alignment: .top, spacing: 8) {
-                if trailer != nil {
-                    Button { showingTrailer = true } label: { Label(t(Words.trailer), systemImage: Symbol.trailer) }
-                }
-                if model.hasWatchlist, let onList = onWatchlist ?? detail?.onWatchlist {
-                    Button {
-                        Task {
-                            if await model.setOnWatchlist(WatchlistKey(title), !onList) != nil {
-                                onWatchlist = !onList
-                                await load() // adding can request it too
-                            }
-                        }
-                    } label: {
-                        Label(t(Words.watchlist), systemImage: onList ? Symbol.onWatchlist : Symbol.watchlist)
-                    }
-                    .accessibilityLabel(onList ? t(Words.removeFromWatchlist) : t(Words.addToWatchlist))
-                }
-            }
-            .buttonStyle(LabeledActionStyle())
         }
-        .frame(maxWidth: 560, alignment: .leading)
+    }
+
+    private func requestColumn(_ state: TitleRequestState) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            requestButton(state)
+            if seerrPaused, state == .requestable || state == .requested {
+                Text(TitleWords.seerrNotAnswering).font(.footnote).foregroundStyle(Color.usher)
+            } else if case .refused(let reason) = outcome, state == .requestable {
+                Text(reason).font(.footnote).foregroundStyle(Color.usher)
+            } else if case .failed(let reason) = outcome, state == .requestable {
+                Text(reason).font(.footnote).foregroundStyle(Color.usher)
+            }
+        }
+        .frame(maxWidth: sizeClass == .regular ? 320 : nil, alignment: .leading)
+    }
+
+    private func secondary(packed: Bool) -> some View {
+        HStack(alignment: .top, spacing: packed ? 4 : 8) {
+            if trailer != nil {
+                Button { showingTrailer = true } label: { Label(t(Words.trailer), systemImage: Symbol.trailer) }
+            }
+            if model.hasWatchlist, let onList = onWatchlist ?? detail?.onWatchlist {
+                Button {
+                    Task {
+                        if await model.setOnWatchlist(WatchlistKey(title), !onList) != nil {
+                            onWatchlist = !onList
+                            await load() // adding can request it too
+                        }
+                    }
+                } label: {
+                    Label(t(Words.watchlist), systemImage: onList ? Symbol.onWatchlist : Symbol.watchlist)
+                }
+                .accessibilityLabel(onList ? t(Words.removeFromWatchlist) : t(Words.addToWatchlist))
+            }
+        }
+        .buttonStyle(LabeledActionStyle(packed: packed))
     }
 
     /// "R   2026   1h 59m   Movie".
