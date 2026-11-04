@@ -76,7 +76,7 @@ describe('Setup guide', () => {
 
     expect(await screen.findByRole('heading', { name: 'Connect your apps' })).toBeInTheDocument()
     expect(sent(api, 'PUT', '/settings')).toEqual({ serverName: 'Smith House' })
-    expect(document.title).toBe('Smith House · Flexarr')
+    expect(document.title).toBe('Smith House – Flexarr')
   })
 
   it('leaves the server’s name alone when it isn’t changed, and hides it on servers without one', async () => {

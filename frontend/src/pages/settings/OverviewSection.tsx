@@ -65,7 +65,7 @@ export function OverviewSection() {
       </SettingsGroup>
 
       <SettingsGroup title={t('Server')}>
-        <ServerNameRow />
+        <ServerNameRow name={status ? (status.serverName ?? null) : undefined} />
         <SettingLink
           to="/settings/libraries"
           label={t(Words.libraries)}

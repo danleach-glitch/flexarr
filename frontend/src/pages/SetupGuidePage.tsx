@@ -227,6 +227,8 @@ function NameStep({ nav }: { nav: StepNav }) {
   const chosen = color ?? main.color
   // The server goes by its machine's name until it's given one (older servers have neither).
   const serverNow = settings?.defaultServerName == null ? undefined : (settings.serverName ?? settings.defaultServerName)
+  // Shown while settings load, so the card doesn't grow under the pointer; gone once an older server says it has none.
+  const askServerName = !settings || serverNow !== undefined
   const serverShown = serverName ?? serverNow ?? ''
 
   async function save(e: FormEvent) {
@@ -248,7 +250,7 @@ function NameStep({ nav }: { nav: StepNav }) {
   }
 
   return (
-    <form onSubmit={save} aria-label={t('Your name')}>
+    <form onSubmit={save} aria-labelledby="onboard-title">
       <div className="onboard-me">
         <Avatar profile={{ name: shown.trim() || '?', color: chosen, image: main.image }} size={88} />
         <div className="onboard-me-fields">
@@ -268,14 +270,21 @@ function NameStep({ nav }: { nav: StepNav }) {
               />
             ))}
           </div>
+          {askServerName && (
+            <label className="onboard-server-name">
+              <span>{t('Server name')}</span>
+              <input
+                type="text"
+                value={serverShown}
+                maxLength={SERVER_NAME_MAX}
+                placeholder={settings?.defaultServerName ?? ''}
+                disabled={!settings}
+                onChange={(e) => setServerName(e.target.value)}
+              />
+            </label>
+          )}
         </div>
       </div>
-      {serverNow !== undefined && (
-        <label className="field onboard-server-name">
-          <span className="field-label">{t('Server name')}</span>
-          <input type="text" value={serverShown} maxLength={SERVER_NAME_MAX} placeholder={settings?.defaultServerName ?? ''} onChange={(e) => setServerName(e.target.value)} />
-        </label>
-      )}
       {error && (
         <p className="onboard-error" role="alert">
           {error}
