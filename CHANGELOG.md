@@ -32,8 +32,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Counts read properly for one of something: "1 track", "1 season" and "1 channel" where some said "1 tracks".
 - Dates and numbers follow your browser's own way of writing them everywhere, including the live TV guide and recordings.
 - Going from page to page in the newest Chrome no longer shows "Something went wrong".
+- Settings › Security lists a Mac running the coming Flexarr app for Mac as a Mac, with a computer beside it, as do family invites and devices asking to connect.
 
 ### Website
+- flexarr.io/apps and the guide introduce the Flexarr app for Mac, in development: your libraries in a Mac window, a full-screen player, and downloads, on the same App Store page as the iPhone and Apple TV app.
 - flexarr.io/why is now linked from every page: how Flexarr compares with Plex, Jellyfin and Emby and with the Infuse, Plezy, Swiftfin and Rivulet apps, brought up to 0.60.0 with music requests, scores, fixing matches, what a show is missing and audiobooks.
 
 ## 0.60.0 · 3 November 2026
