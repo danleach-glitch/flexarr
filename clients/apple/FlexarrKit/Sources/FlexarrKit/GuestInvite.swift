@@ -24,7 +24,7 @@ public struct GuestInvite: Codable, Sendable, Equatable {
     /// When it stops working.
     public let e: Date?
 
-    public var ownerName: String { n.trimmingCharacters(in: .whitespaces).isEmpty ? "Someone" : n }
+    public var ownerName: String { n.trimmingCharacters(in: .whitespaces).isEmpty ? FlexarrKit.t(tk("Someone")) : n }
     public var profileName: String { p }
     public var deviceName: String { g }
     public var tailnetTarget: String { a }

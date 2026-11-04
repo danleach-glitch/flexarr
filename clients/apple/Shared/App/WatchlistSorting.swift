@@ -7,10 +7,10 @@ enum WatchlistSort: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .status: "Ready first"
-        case .added: "Recently added"
-        case .release: "Release date"
-        case .title: "Title"
+        case .status: t("Ready first")
+        case .added: t(Words.recentlyAdded)
+        case .release: t("Release date")
+        case .title: t("Title")
         }
     }
 
@@ -45,6 +45,6 @@ extension WatchlistEntry {
     /// "On Netflix", or the services it's on; nil when none are known.
     var streamingLabel: String? {
         guard let streaming, !streaming.isEmpty else { return nil }
-        return streaming.count == 1 ? "On \(streaming[0])" : streaming.joined(separator: ", ")
+        return streaming.count == 1 ? t("On {service}", ["service": streaming[0]]) : streaming.joined(separator: t(", "))
     }
 }

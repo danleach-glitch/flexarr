@@ -9,17 +9,17 @@ struct TunnelProblemView: View {
     var onDownloads: (() -> Void)?
     @State private var confirmLeave = false
 
-    private var owner: String { model.credentials?.guest?.ownerName ?? "the host" }
+    private var owner: String { model.credentials?.guest?.ownerName ?? t("the host") }
 
     var body: some View {
         VStack(spacing: 20) {
             Image(systemName: "wifi.exclamationmark")
                 .font(.system(size: 44))
                 .foregroundStyle(Color.silver)
-            Text("Can’t reach \(owner)’s Flexarr")
+            Text(t("Can’t reach {owner}’s Flexarr", ["owner": owner]))
                 .font(.title2.weight(.semibold))
                 .multilineTextAlignment(.center)
-            Text("Check this device’s internet, or that \(owner)’s server is on.")
+            Text(t("Check this device’s internet, or that {owner}’s server is on.", ["owner": owner]))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             // Side by side while they fit, one above another at larger text sizes.
@@ -64,7 +64,7 @@ private struct LeaveGuestConfirmation: ViewModifier {
             LeaveGuestPrompt(owner: owner, isPresented: $isPresented, onLeave: onLeave)
         }
         #else
-        content.confirmationDialog("Leave \(owner)’s Flexarr?", isPresented: $isPresented, titleVisibility: .visible) {
+        content.confirmationDialog(t("Leave {owner}’s Flexarr?", ["owner": owner]), isPresented: $isPresented, titleVisibility: .visible) {
             Button(t("Leave"), role: .destructive, action: onLeave)
         } message: {
             // Signing out deletes the iPhone's downloads.
@@ -85,7 +85,7 @@ private struct LeaveGuestPrompt: View {
 
     var body: some View {
         VStack(spacing: 36) {
-            Text("Leave \(owner)’s Flexarr?")
+            Text(t("Leave {owner}’s Flexarr?", ["owner": owner]))
                 .font(.system(size: 52, weight: .bold))
                 .foregroundStyle(Color.screen)
                 .multilineTextAlignment(.center)

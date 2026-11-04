@@ -25,27 +25,27 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .unauthorized:
-            "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against the API key in Settings on the web. Over Tailscale, your Tailscale account needs linking in Settings › Remote access."
+            t("The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against the API key in Settings on the web. Over Tailscale, your Tailscale account needs linking in Settings › Remote access.")
         case .recordingInTheWay(let recording):
             recording.message
         case .parentPinNeeded(let message):
-            message ?? "Enter the admin PIN."
+            message ?? t("Enter the admin PIN.")
         case .ownPinWrong(let message):
-            message ?? "That PIN isn’t right."
+            message ?? t("That PIN isn’t right.")
         case .kidsLocked(let message):
-            message ?? "Child lock is on for this device."
+            message ?? t("Child lock is on for this device.")
         case .guestRemoved(let message):
-            message ?? "This device was removed from the server."
+            message ?? t("This device was removed from the server.")
         case .http(let status, let message):
-            message ?? "The server answered with an error (HTTP \(status))."
+            message ?? t("The server answered with an error (HTTP {status}).", ["status": String(status)])
         case .unexpectedResponse:
-            "That address answered, but not like a Flexarr server. Check the host name and port."
+            t("That address answered, but not like a Flexarr server. Check the host name and port.")
         case .invalidResponse:
-            "The server sent a response that couldn't be read."
+            t("The server sent a response that couldn't be read.")
         case .invalidAddress:
-            "That doesn't look like a server address. Try something like http://192.168.1.20:8383."
+            t("That doesn't look like a server address. Try something like http://192.168.1.20:8383.")
         case .unreachable:
-            "Couldn't reach the server, at home or over Tailscale. Make sure Flexarr is running, and that Tailscale is connected on this device."
+            t("Couldn't reach the server, at home or over Tailscale. Make sure Flexarr is running, and that Tailscale is connected on this device.")
         }
     }
 }

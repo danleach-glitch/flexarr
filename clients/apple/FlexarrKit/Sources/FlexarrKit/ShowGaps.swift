@@ -14,7 +14,7 @@ public struct MissingSeason: Codable, Sendable, Hashable, Identifiable {
     public let availability: Availability
 
     public var id: Int { seasonNumber }
-    public var title: String { name ?? "Season \(seasonNumber)" }
+    public var title: String { name ?? t("Season {number}", ["number": String(seasonNumber)]) }
 
     public init(seasonNumber: Int, name: String?, episodes: Int, year: Int?, poster: String?, availability: Availability) {
         self.seasonNumber = seasonNumber
@@ -38,7 +38,7 @@ public struct ShowEpisode: Codable, Sendable, Hashable, Identifiable {
 
     public var id: String { "S\(seasonNumber)E\(episodeNumber)" }
     /// "S2E4".
-    public var code: String { id }
+    public var code: String { t(Words.seasonEpisodeShort, ["season": String(seasonNumber), "episode": String(episodeNumber)]) }
 
     public init(seasonNumber: Int, episodeNumber: Int, title: String?, airDate: Date?, still: String?, monitored: Bool) {
         self.seasonNumber = seasonNumber
@@ -52,8 +52,8 @@ public struct ShowEpisode: Codable, Sendable, Hashable, Identifiable {
     /// "Airs 12 Nov", "Airs 3 Jan 2028" (a year only when it isn't this one), or "Airs today".
     public func airs(now: Date = Date(), calendar: Calendar = .current, locale: Locale = Localization.locale) -> String? {
         guard let airDate else { return nil }
-        if calendar.isDate(airDate, inSameDayAs: now) { return "Airs today" }
-        return aired(now: now, calendar: calendar, locale: locale).map { "Airs " + $0 }
+        if calendar.isDate(airDate, inSameDayAs: now) { return t("Airs today") }
+        return aired(now: now, calendar: calendar, locale: locale).map { t("Airs {date}", ["date": $0]) }
     }
 
     /// When a missing episode aired: "12 Nov", or "12 Nov 2021" when it wasn't this year.
@@ -79,7 +79,7 @@ public struct SeasonCount: Codable, Sendable, Hashable {
     }
 
     /// "8 of 10" when some aired episodes are missing; nil when the season is whole.
-    public var label: String? { have < aired ? "\(have) of \(aired)" : nil }
+    public var label: String? { have < aired ? t("{have} of {aired}", ["have": have, "aired": aired]) : nil }
 }
 
 /// What a show has that the library doesn't, and what's coming. Absent from servers before 0.59 (no section there).
@@ -156,8 +156,12 @@ public struct MissingBook: Codable, Sendable, Hashable, Identifiable {
     public var id: String { asin }
     /// "Book 3, 2021".
     public var caption: String? {
-        let parts = [sequence.map { "Book \($0)" }, year.map(String.init)].compactMap(\.self)
-        return parts.isEmpty ? nil : parts.joined(separator: ", ")
+        switch (sequence, year) {
+        case let (sequence?, year?): t("Book {number}, {year}", ["number": sequence, "year": String(year)])
+        case let (sequence?, nil): t("Book {number}", ["number": sequence])
+        case let (nil, year?): String(year)
+        case (nil, nil): nil
+        }
     }
 
     public init(asin: String, title: String, sequence: String?, authors: [String], year: Int?, cover: String?) {

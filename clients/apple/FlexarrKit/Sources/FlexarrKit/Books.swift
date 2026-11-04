@@ -77,7 +77,8 @@ public struct BookSeriesRef: Codable, Sendable, Hashable, Identifiable {
     /// "Book 3 of 7", "Book 1.5", or nil without a number.
     public var placeLabel: String? {
         guard let sequence, !sequence.isEmpty else { return nil }
-        return bookCount > 1 && Double(sequence).map({ $0 <= Double(bookCount) }) == true ? "Book \(sequence) of \(bookCount)" : "Book \(sequence)"
+        return bookCount > 1 && Double(sequence).map({ $0 <= Double(bookCount) }) == true 
+            ? t("Book {number} of {count}", ["number": sequence, "count": bookCount]) : t("Book {number}", ["number": sequence])
     }
 }
 
@@ -390,10 +391,10 @@ public enum BookProgressFilter: String, CaseIterable, Sendable, Identifiable {
 
     public var label: String {
         switch self {
-        case .any: "All"
-        case .notStarted: "Not started"
-        case .inProgress: "In progress"
-        case .finished: "Finished"
+        case .any: t("All")
+        case .notStarted: t("Not started")
+        case .inProgress: t("In progress")
+        case .finished: t("Finished")
         }
     }
 }
@@ -404,13 +405,13 @@ public enum BookSort: String, CaseIterable, Sendable, Identifiable {
 
     public var label: String {
         switch self {
-        case .title: "A–Z"
-        case .author: "Author"
-        case .series: "Series"
-        case .added: "Recently added"
-        case .released: "Year"
-        case .length: "Length"
-        case .listened: "Recently listened"
+        case .title: t(Words.sortAToZ)
+        case .author: t(Words.author)
+        case .series: t(Words.series)
+        case .added: t(Words.recentlyAdded)
+        case .released: t(Words.year)
+        case .length: t(Words.length)
+        case .listened: t(Words.recentlyListened)
         }
     }
 
@@ -475,11 +476,11 @@ public enum BookLength: String, CaseIterable, Sendable, Identifiable {
 
     public var label: String {
         switch self {
-        case .any: "Any length"
-        case .short: "Under 5 hours"
-        case .medium: "5 to 10 hours"
-        case .long: "10 to 20 hours"
-        case .epic: "Over 20 hours"
+        case .any: t("Any length")
+        case .short: t("Under 5 hours")
+        case .medium: t("5 to 10 hours")
+        case .long: t("10 to 20 hours")
+        case .epic: t("Over 20 hours")
         }
     }
 
@@ -640,7 +641,7 @@ public enum BookSpeed {
 
     /// "1.25×", "2×".
     public static func label(_ speed: Double) -> String {
-        String(format: "%g×", (speed * 100).rounded() / 100)
+        t("{speed}×", ["speed": (speed * 100).rounded() / 100])
     }
 }
 
@@ -662,7 +663,7 @@ extension ItemSummary {
     public var bookAuthors: String? {
         guard let book, let authors = book.authors, !authors.isEmpty else { return nil }
         let named = authors.split(separator: ",").count
-        return book.authorCount > named ? "\(authors) and \(book.authorCount - named) more" : authors
+        return book.authorCount > named ? t("{authors} and {count} more", ["authors": authors, "count": book.authorCount - named]) : authors
     }
 }
 
@@ -810,11 +811,9 @@ public struct DeletionPlan: Decodable, Sendable, Equatable {
 
     /// What the question before deleting a book says.
     public var bookMessage: String {
-        let what = switch files.count {
-        case 0: "Flexarr deletes it from the library: there are no files on disk."
-        case 1: "Flexarr deletes its file from disk."
-        default: "Flexarr deletes its \(files.count) files from disk."
-        }
-        return files.isEmpty ? "\(what) You can't undo this." : "\(what) Folders it leaves empty go too. You can't undo this."
+        files.isEmpty
+            ? t("Flexarr deletes it from the library: there are no files on disk. You can't undo this.")
+            : t("{count, plural, one {Flexarr deletes its file from disk. Folders it leaves empty go too. You can't undo this.} other {Flexarr deletes its # files from disk. Folders it leaves empty go too. You can't undo this.}}",
+                ["count": files.count])
     }
 }

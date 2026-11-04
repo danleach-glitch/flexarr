@@ -7,7 +7,7 @@ public enum ServerSupport {
     public static let minimumVersion = "0.50.0"
 
     /// What the connect screen and the banner say (docs/design.md, Words).
-    public static let updateMessage = "Update your Flexarr server"
+    public static var updateMessage: String { t(Words.updateYourServer) }
 
     /// Whether `version` ("0.49.2", "0.60.0-dev.1a2b3c4", "0.59.0+d4c892c…") is older than `minimumVersion`. A dev
     /// build counts by its numbers, so "0.60.0-dev.x" is new enough; a version that doesn't read never counts as old.

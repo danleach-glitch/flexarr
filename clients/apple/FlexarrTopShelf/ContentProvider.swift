@@ -19,11 +19,11 @@ final class ContentProvider: TVTopShelfContentProvider {
         // The albums this profile played last, as square covers; Play plays the album.
         let listening = home.rows.first(where: { $0.id == "music-recent" })?.items.filter { $0.kind == .album } ?? []
         let books = await continueListening(client: client).filter { seen.insert($0.id).inserted }
-        var sections = [section("Continue watching", watching, style: style, client: client),
-                        section("Continue listening", books, style: style, client: client),
-                        section("Recently played", listening, style: style, client: client),
-                        section("Recently added", recent, style: style, client: client)].compactMap { $0 }
-        if sections.isEmpty, let featured = section("Featured", home.featured, style: style, client: client) {
+        var sections = [section(t(Words.continueWatching), watching, style: style, client: client),
+                        section(t("Continue listening"), books, style: style, client: client),
+                        section(t("Recently played"), listening, style: style, client: client),
+                        section(t(Words.recentlyAdded), recent, style: style, client: client)].compactMap { $0 }
+        if sections.isEmpty, let featured = section(t("Featured"), home.featured, style: style, client: client) {
             sections = [featured]
         }
         return sections.isEmpty ? nil : TVTopShelfSectionedContent(sections: sections)
@@ -56,7 +56,12 @@ final class ContentProvider: TVTopShelfContentProvider {
         item.setImageURL(small, for: .screenScale1x)
         item.setImageURL(large, for: .screenScale2x)
         if summary.kind == .episode {
-            let number = [summary.seasonNumber.map { "S\($0)" }, summary.episodeNumber.map { "E\($0)" }].compactMap { $0 }.joined()
+            let number = switch (summary.seasonNumber, summary.episodeNumber) {
+            case let (season?, episode?): t(Words.seasonEpisodeShort, ["season": String(season), "episode": String(episode)])
+            case let (nil, episode?): t("E{episode}", ["episode": String(episode)])
+            case let (season?, nil): t("S{season}", ["season": String(season)])
+            case (nil, nil): ""
+            }
             item.title = [summary.seriesTitle ?? summary.title, number].filter { !$0.isEmpty }.joined(separator: "  ")
         } else if summary.kind == .album, let artist = summary.seriesTitle {
             // Album titles repeat ("Greatest Hits"): the artist says whose, as an episode's show does.

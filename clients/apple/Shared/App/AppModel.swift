@@ -518,7 +518,7 @@ final class AppModel {
             }
             // Not if it's been replaced meanwhile (another profile chosen, or connected again).
             guard credentials == refused else { return }
-            signedOutNotice = "This \(ThisDevice.name) was signed out."
+            signedOutNotice = t("This {device} was signed out.", ["device": ThisDevice.name])
             signedOutAsGuest = false
             forget()
         }
@@ -729,7 +729,7 @@ final class AppModel {
                     return
                 }
                 if second == 15 {
-                    if self.tunnelProblem == nil, !self.isOffline { self.tunnelProblem = "Still connecting" }
+                    if self.tunnelProblem == nil, !self.isOffline { self.tunnelProblem = t("Still connecting") }
                     return
                 }
             }
@@ -771,8 +771,9 @@ final class AppModel {
 
     /// The host removed this device (or deleted it from their tailnet): signed out, back to joining, saying why.
     private func removedAsGuest(_ guest: GuestTunnelInfo?) {
-        let owner = guest.map(\.ownerName).flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : "\($0)’s Flexarr" }
-        signedOutNotice = "You no longer have access to \(owner ?? "this Flexarr")."
+        let owner = guest.map(\.ownerName).flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 }
+        signedOutNotice = owner.map { t("You no longer have access to {owner}’s Flexarr.", ["owner": $0]) }
+            ?? t("You no longer have access to this Flexarr.")
         forget()
         signedOutAsGuest = true
     }
@@ -795,10 +796,10 @@ final class AppModel {
 
         var errorDescription: String? {
             switch self {
-            case .usedUp: "That invite has run out or been used."
-            case .paused(let owner): "\(owner)’s Flexarr isn’t taking guests just now."
-            case .otherServer: "This invite led to a different server than it named. Ask for a new one."
-            case .unreachable(let owner): "Can’t reach \(owner)’s Flexarr. Check this device’s internet."
+            case .usedUp: t("That invite has run out or been used.")
+            case .paused(let owner): t("{owner}’s Flexarr isn’t taking guests just now.", ["owner": owner])
+            case .otherServer: t("This invite led to a different server than it named. Ask for a new one.")
+            case .unreachable(let owner): t("Can’t reach {owner}’s Flexarr. Check this device’s internet.", ["owner": owner])
             case .failed(let why): why
             }
         }
@@ -841,7 +842,7 @@ final class AppModel {
             switch error {
             case FlexarrClientError.http(410, _): throw JoinError.usedUp
             case FlexarrClientError.http(503, _): throw JoinError.paused(owner: invite.ownerName)
-            case FlexarrClientError.http(_, let message): throw JoinError.failed(message ?? "The server refused the invite.")
+            case FlexarrClientError.http(_, let message): throw JoinError.failed(message ?? t("The server refused the invite."))
             default:
                 log.warning("Redeeming the invite failed: \(error.localizedDescription)")
                 throw JoinError.unreachable(owner: invite.ownerName)
@@ -1659,7 +1660,7 @@ final class AppModel {
             player.closePlayer()
             if command.handOff == true {
                 if let title { pendingRoute = .item(title) }
-                handOffNotice = "Now playing on \(command.sentBy ?? "your phone")"
+                handOffNotice = command.sentBy.map { t("Now playing on {device}", ["device": $0]) } ?? t("Now playing on your phone")
             }
         case .seek, .skip, .next, .previous, .skipSegment, .audioTrack, .subtitleTrack, .rate:
             if player.remote(command) { return }
@@ -1722,10 +1723,10 @@ final class AppModel {
         // https://flexarr.io/join#… or flexarr://join#…: a family invite, asked about first.
         if let invite = GuestInvite.parse(url.absoluteString) {
             if !GuestInvite.guestInvitesOffered {
-                inviteNotice = "Update Flexarr to join."
+                inviteNotice = t("Update Flexarr to join.")
             } else if credentials != nil, credentials?.isGuest != true {
                 // Its own server isn't left behind by a link: signing out is a choice made in Settings.
-                inviteNotice = "Sign out in Settings first, then open the invite again."
+                inviteNotice = t("Sign out in Settings first, then open the invite again.")
             } else {
                 pendingInvite = invite
             }
@@ -1835,23 +1836,23 @@ struct ConnectionError: LocalizedError {
         if let error = error as? ConnectionError {
             message = error.message
         } else if let error = error as? FlexarrClientError {
-            message = error.errorDescription ?? "Something went wrong."
+            message = error.errorDescription ?? t("Something went wrong.")
         } else if let error = error as? URLError {
             switch error.code {
             case .cannotFindHost, .dnsLookupFailed:
-                message = "Couldn't find that server. Check the address, or use its IP address instead of the name."
+                message = t("Couldn't find that server. Check the address, or use its IP address instead of the name.")
             case .cannotConnectToHost, .networkConnectionLost:
-                message = "The server isn't answering at that address. Make sure Flexarr is running and the port is right (usually 8383)."
+                message = t("The server isn't answering at that address. Make sure Flexarr is running and the port is right (usually 8383).")
             case .timedOut:
-                message = "The server took too long to answer. Is it on the same network as this \(ThisDevice.name)?"
+                message = t("The server took too long to answer. Is it on the same network as this {device}?", ["device": ThisDevice.name])
             case .notConnectedToInternet:
-                message = "This \(ThisDevice.name) isn't connected to a network."
+                message = t("This {device} isn't connected to a network.", ["device": ThisDevice.name])
             case .appTransportSecurityRequiresSecureConnection:
-                message = "Plain http only works for local addresses (.local names or IP addresses). Use https for anything else."
+                message = t("Plain http only works for local addresses (.local names or IP addresses). Use https for anything else.")
             case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate, .serverCertificateNotYetValid:
-                message = "The server's https certificate isn't trusted. Try its http address on your local network."
+                message = t("The server's https certificate isn't trusted. Try its http address on your local network.")
             case .cancelled:
-                message = "The request was cancelled."
+                message = t("The request was cancelled.")
             default:
                 message = error.localizedDescription
             }

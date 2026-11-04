@@ -104,8 +104,8 @@ extension Array where Element == MusicExternal {
         let albums = filter { $0.recordType == nil || $0.recordType == "album" }
         let short = filter { $0.recordType == "ep" || $0.recordType == "single" }
         let compilations = filter { $0.recordType == "compile" }
-        return [MusicShelf(title: "Albums", items: albums), MusicShelf(title: "EPs and singles", items: short),
-                MusicShelf(title: "Compilations", items: compilations)].filter { !$0.items.isEmpty }
+        return [MusicShelf(title: t(Words.albums), items: albums), MusicShelf(title: t("EPs and singles"), items: short),
+                MusicShelf(title: t("Compilations"), items: compilations)].filter { !$0.items.isEmpty }
     }
 }
 

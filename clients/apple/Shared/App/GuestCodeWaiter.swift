@@ -58,7 +58,7 @@ final class GuestCodeWaiter {
                     continue
                 } catch {
                     if Task.isCancelled { return }
-                    problem = "Can’t get a code just now."
+                    problem = t("Can’t get a code just now.")
                     noCode = true
                     return
                 }
