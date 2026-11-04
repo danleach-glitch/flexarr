@@ -47,14 +47,23 @@ function parsedFor(key: string, message: string): Part[] | null {
   return parts
 }
 
+const CONTEXT_KEY = /^([a-z][a-z-]*)::([\s\S]*)$/
+
+/** A shared word can carry its context in its key (music::Play): split it off. */
+function split(english: string, ctx?: string): [string, string | undefined] {
+  const m = ctx ? null : CONTEXT_KEY.exec(english)
+  return m ? [m[2], m[1]] : [english, ctx]
+}
+
 function lookup(english: string, ctx?: string): { key: string; translated?: string } {
   const key = ctx ? `${ctx}::${english}` : english
   return { key, translated: pack.messages[key] }
 }
 
 /** A string in the current language. */
-export function t(english: string, values?: Values): string {
-  const { ctx, ...rest } = values ?? {}
+export function t(message: string, values?: Values): string {
+  const { ctx: given, ...rest } = values ?? {}
+  const [english, ctx] = split(message, given)
   const { key, translated } = lookup(english, ctx)
   if (translated !== undefined) {
     const parts = parsedFor(key, translated)
@@ -71,8 +80,9 @@ export function t(english: string, values?: Values): string {
 }
 
 /** A string with React nodes dropped into it: t.rich('Resume {title} from {time}', { title: <b>{title}</b>, time }). */
-t.rich = function rich(english: string, values?: Record<string, ReactNode> & { ctx?: string }): ReactNode {
-  const { ctx, ...rest } = values ?? {}
+t.rich = function rich(message: string, values?: Record<string, ReactNode> & { ctx?: string }): ReactNode {
+  const { ctx: given, ...rest } = values ?? {}
+  const [english, ctx] = split(message, typeof given === 'string' ? given : undefined)
   const { key, translated } = lookup(english, ctx)
   let out: (string | ReactNode)[] | undefined
   const parts = translated !== undefined ? parsedFor(key, translated) : null
