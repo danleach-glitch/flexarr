@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.profiles
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
@@ -129,7 +131,7 @@ fun ProfilePicker(
             // The admin PIN was right: back to the chosen profile's own.
             asking = profile
             parent = null
-            error = "That isn’t ${profile.name}’s PIN."
+            error = t("That isn’t {name}’s PIN.", "name" to profile.name)
             return false
         } catch (e: Exception) {
             error = e.message
@@ -191,10 +193,10 @@ fun ProfilePicker(
             forgetting = null
             choose(cleared, null)
         } catch (e: FlexarrException.ParentPinNeeded) {
-            error = e.message ?: "That isn’t the admin PIN."
+            error = e.message ?: t("That isn’t the admin PIN.")
             false
         } catch (e: FlexarrException.Http) {
-            error = if (e.status == 404) "Take the PIN off in Settings › Profiles on the web." else e.message
+            error = if (e.status == 404) t("Take the PIN off in Settings › Profiles on the web.") else e.message
             false
         } catch (e: Exception) {
             error = e.message
@@ -206,8 +208,8 @@ fun ProfilePicker(
         if (forgot != null) {
             PinEntry(
                 profile = null,
-                title = "Enter the admin PIN",
-                note = "It takes ${forgot.name}’s PIN off.",
+                title = t("Enter the admin PIN"),
+                note = t("It takes {name}’s PIN off.", "name" to forgot.name),
                 model = model,
                 error = error,
                 onEdit = { error = null },
@@ -217,7 +219,7 @@ fun ProfilePicker(
         } else if (lockStep != null) {
             PinEntry(
                 profile = null,
-                title = "Enter the admin PIN",
+                title = t("Enter the admin PIN"),
                 model = model,
                 error = error,
                 onEdit = { error = null },
@@ -230,7 +232,7 @@ fun ProfilePicker(
             val adminPin = parentFor != null || pinFor.takesAdminPin
             PinEntry(
                 profile = if (adminPin) null else pinFor,
-                title = if (adminPin) "Enter the admin PIN" else null,
+                title = if (adminPin) t("Enter the admin PIN") else null,
                 model = model,
                 error = error,
                 onEdit = { error = null },
@@ -249,7 +251,7 @@ fun ProfilePicker(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(32.dp),
             ) {
-                Text("Who’s watching?", style = marquee(40), modifier = Modifier.padding(top = if (marksCurrent) 28.dp else 80.dp))
+                Text(t("Who’s watching?"), style = marquee(40), modifier = Modifier.padding(top = if (marksCurrent) 28.dp else 80.dp))
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(110.dp),
                     horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -294,7 +296,7 @@ fun ProfilePicker(
                                     }
                                 },
                                 onLongClick = if (padlock) toggleLock else null,
-                                onLongClickLabel = if (model.kidsLock) "Turn off child lock" else "Child lock",
+                                onLongClickLabel = if (model.kidsLock) t("Turn off child lock") else t("Child lock"),
                             ),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -319,7 +321,7 @@ fun ProfilePicker(
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(profile.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1)
                                 Text(
-                                    if (current) "Watching now" else if (profile.takesPin) "PIN" else " ",
+                                    if (current) t("Watching now") else if (profile.takesPin) t("PIN") else " ",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = Flexarr.usher,
@@ -390,7 +392,7 @@ private fun PinEntry(
         } else {
             Icon(Icons.Filled.Lock, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(72.dp))
         }
-        Text(title ?: "Enter ${profile?.name}’s PIN", style = marquee(32), textAlign = TextAlign.Center)
+        Text(title ?: t("Enter {name}’s PIN", "name" to profile?.name), style = marquee(32), textAlign = TextAlign.Center)
         note?.let { Text(it, fontSize = 15.sp, color = Flexarr.usher, textAlign = TextAlign.Center) }
         BasicTextField(
             value = pin,
@@ -405,10 +407,10 @@ private fun PinEntry(
             textStyle = TextStyle(fontSize = 22.sp, color = Flexarr.screen, textAlign = TextAlign.Center),
             cursorBrush = SolidColor(Flexarr.screen),
             modifier = Modifier.width(220.dp).clip(RoundedCornerShape(Tokens.radiusControl)).background(Flexarr.seat).padding(vertical = 12.dp).focusRequester(focus)
-                .semantics { contentDescription = "PIN" },
+                .semantics { contentDescription = t("PIN") },
         )
         Text(
-            error ?: if (checking) "Checking" else " ",
+            error ?: if (checking) t("Checking") else " ",
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
             color = if (error == null) Flexarr.usher else Flexarr.danger,
@@ -417,10 +419,10 @@ private fun PinEntry(
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ActionButton("Cancel", onClick = onCancel)
-            ActionButton("Continue", onClick = ::submit, prominent = true, enabled = pin.length >= 4 && !checking)
+            ActionButton(t(Words.cancel), onClick = onCancel)
+            ActionButton(t("Continue"), onClick = ::submit, prominent = true, enabled = pin.length >= 4 && !checking)
         }
-        onForgot?.let { TextButton(onClick = it) { Text("Forgot PIN?", fontSize = 15.sp, color = Flexarr.usher) } }
+        onForgot?.let { TextButton(onClick = it) { Text(t("Forgot PIN?"), fontSize = 15.sp, color = Flexarr.usher) } }
     }
 }
 

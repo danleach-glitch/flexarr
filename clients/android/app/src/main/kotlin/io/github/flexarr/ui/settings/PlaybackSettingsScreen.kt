@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -84,58 +86,58 @@ fun PlaybackSettingsScreen(model: AppModel) {
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle("Playback", onBack = { navigator.back() }) }
+            item { PageTitle(t("Playback"), onBack = { navigator.back() }) }
             preferences?.let { current ->
                 item {
                     Group(
-                        header = "Your profile, on every device",
-                        footer = "The next episode starts after a 10-second countdown. Subtitles that run early or late can be moved on Apple TV or the web. In the black bars puts subtitles below the picture of movies wider than the screen.",
+                        header = t("Your profile, on every device"),
+                        footer = t("The next episode starts after a 10-second countdown. Subtitles that run early or late can be moved on Apple TV or the web. In the black bars puts subtitles below the picture of movies wider than the screen."),
                     ) {
-                        Toggle("Auto-play the next episode", current.autoPlayNext, { save(current.copy(autoPlayNext = it), current) })
+                        Toggle(t(Words.autoPlayNext), current.autoPlayNext, { save(current.copy(autoPlayNext = it), current) })
                         Divider()
-                        Toggle("Skip intros", current.skipIntros, { save(current.copy(skipIntros = it), current) })
+                        Toggle(t("Skip intros"), current.skipIntros, { save(current.copy(skipIntros = it), current) })
                         Divider()
-                        Toggle("Skip recaps", current.skipRecaps, { save(current.copy(skipRecaps = it), current) })
+                        Toggle(t("Skip recaps"), current.skipRecaps, { save(current.copy(skipRecaps = it), current) })
                         Divider()
-                        Toggle("Skip credits", current.skipCredits, { save(current.copy(skipCredits = it), current) })
+                        Toggle(t(Words.skipCredits), current.skipCredits, { save(current.copy(skipCredits = it), current) })
                         Divider()
-                        Picker("Subtitle size", SubtitleSize.choices, current.shownSubtitleSize, { it.label }) {
+                        Picker(t("Subtitle size"), SubtitleSize.choices, current.shownSubtitleSize, { it.label }) {
                             save(current.copy(subtitleSize = it), current)
                         }
                         Divider()
-                        Picker("Subtitle position", SubtitlePosition.choices, current.shownSubtitlePosition, { it.label }) {
+                        Picker(t("Subtitle position"), SubtitlePosition.choices, current.shownSubtitlePosition, { it.label }) {
                             save(current.copy(subtitlePosition = it), current)
                         }
                         Divider()
-                        Toggle("Subtitles in the black bars", current.subtitlesInBlackBars ?: false, { save(current.copy(subtitlesInBlackBars = it), current) })
+                        Toggle(t("Subtitles in the black bars"), current.subtitlesInBlackBars ?: false, { save(current.copy(subtitlesInBlackBars = it), current) })
                     }
                 }
             }
             item {
-                Group(header = "This phone") {
-                    Picker("Skip back and forward", PlayerSettings.skipChoices, skipSeconds, { "$it seconds" }) {
+                Group(header = t("This phone")) {
+                    Picker(t("Skip back and forward"), PlayerSettings.skipChoices, skipSeconds, { t("{seconds} seconds", "seconds" to it) }) {
                         skipSeconds = it
                         PlayerSettings.setSkipSeconds(context, it)
                     }
                 }
             }
             item {
-                Group(header = "Sound") {
-                    Picker("Dialogue boost", SoundSettings.DialogueBoost.entries, sound.dialogueBoost, { it.name }) { boost ->
+                Group(header = t("Sound")) {
+                    Picker(t("Dialogue boost"), SoundSettings.DialogueBoost.entries, sound.dialogueBoost, { it.label }) { boost ->
                         SoundSettings.update(context) { it.copy(dialogueBoost = boost) }
                     }
                     Divider()
-                    Picker("Night mode", SoundSettings.NightMode.entries, sound.nightMode, { if (it == SoundSettings.NightMode.Scheduled) "On a schedule" else it.name }) { mode ->
+                    Picker(t("Night mode"), SoundSettings.NightMode.entries, sound.nightMode, { if (it == SoundSettings.NightMode.Scheduled) t("On a schedule") else it.label }) { mode ->
                         SoundSettings.update(context) { it.copy(nightMode = mode) }
                     }
                     if (sound.nightMode == SoundSettings.NightMode.Scheduled) {
                         Divider()
-                        Picker("From", hours, sound.nightStart, SoundSettings::clock) { at -> SoundSettings.update(context) { it.copy(nightStart = at) } }
+                        Picker(t("From"), hours, sound.nightStart, SoundSettings::clock) { at -> SoundSettings.update(context) { it.copy(nightStart = at) } }
                         Divider()
-                        Picker("Until", hours, sound.nightEnd, SoundSettings::clock) { at -> SoundSettings.update(context) { it.copy(nightEnd = at) } }
+                        Picker(t("Until"), hours, sound.nightEnd, SoundSettings::clock) { at -> SoundSettings.update(context) { it.copy(nightEnd = at) } }
                     }
                     Divider()
-                    Picker("Speakers", SoundSettings.Speakers.entries, sound.speakers, { it.label }) { speakers ->
+                    Picker(t("Speakers"), SoundSettings.Speakers.entries, sound.speakers, { it.label }) { speakers ->
                         SoundSettings.update(context) { it.copy(speakers = speakers) }
                     }
                 }

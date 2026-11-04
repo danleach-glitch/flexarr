@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
@@ -318,7 +319,7 @@ fun TvStatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Bo
                 if (retry != null) {
                     // Nothing else on the screen to focus: Try again takes it, so OK tries.
                     val again = remember { FocusRequester() }
-                    TvActionButton("Try again", onClick = retry, prominent = true, modifier = Modifier.focusRequester(again))
+                    TvActionButton(t("Try again"), onClick = retry, prominent = true, modifier = Modifier.focusRequester(again))
                     LaunchedEffect(message) { repeat(10) { if (runCatching { again.requestFocus() }.getOrDefault(false)) return@LaunchedEffect; delay(50) } }
                 }
             }

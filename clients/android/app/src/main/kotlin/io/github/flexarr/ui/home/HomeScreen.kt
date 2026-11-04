@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.home
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -218,8 +220,8 @@ fun HomeScreen(model: AppModel) {
                 // Big enough to find at a glance, and to touch.
                 Box(
                     Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(4.dp).minimumInteractiveComponentSize().clip(CircleShape)
-                        .pressable({ choosingProfile = true }, onClickLabel = "Switch profile")
-                        .semantics { contentDescription = "Profile: ${current.name}" },
+                        .pressable({ choosingProfile = true }, onClickLabel = t("Switch profile"))
+                        .semantics { contentDescription = t("Profile: {name}", "name" to current.name) },
                     contentAlignment = Alignment.Center,
                 ) {
                     ProfileAvatar(model, current, size = 44)
@@ -315,7 +317,7 @@ internal fun FeaturedPager(
 private fun HeroSlide(home: Home, item: ItemSummary, height: Dp) {
     val navigator = LocalNavigator.current
     val glow = glowColor(item.accentColor)
-    Box(Modifier.fillMaxWidth().heightIn(min = height).pressable({ navigator.openItem(item.id) }, onClickLabel = "Open")) {
+    Box(Modifier.fillMaxWidth().heightIn(min = height).pressable({ navigator.openItem(item.id) }, onClickLabel = t("Open"))) {
         // Fades out rather than painting the room colour, so there's no seam with the rows below.
         RemoteImage(
             item.artwork.backdrop,
@@ -337,13 +339,13 @@ private fun HeroSlide(home: Home, item: ItemSummary, height: Dp) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
                 val resume = home.resuming(item)
                 ActionButton(
-                    if (resume != null || item.isResumable) "Resume" else "Play",
+                    if (resume != null || item.isResumable) t("Resume") else t(Words.play),
                     onClick = { if (resume != null) navigator.play(resume) else navigator.playBest(item) },
                     icon = FlexarrIcons.play,
                     prominent = true,
                     ambient = glow,
                 )
-                ActionButton("More info", onClick = { navigator.openItem(item.id) }, icon = FlexarrIcons.details, ambient = glow)
+                ActionButton(t("More info"), onClick = { navigator.openItem(item.id) }, icon = FlexarrIcons.details, ambient = glow)
             }
         }
     }
@@ -405,11 +407,11 @@ private fun NewEpisodesRow(model: AppModel, episodes: List<PodcastEpisode>) {
     var opened by remember { mutableStateOf<PodcastEpisode?>(null) }
     val width = PosterWidth * 1.15f
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionHeading("New podcasts")
+        SectionHeading(t("New podcasts"))
         LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
             items(episodes, key = { it.id }) { episode ->
                 Column(
-                    Modifier.width(width).pressable({ opened = episode }, onClickLabel = "Show the episode")
+                    Modifier.width(width).pressable({ opened = episode }, onClickLabel = t("Show the episode"))
                         .semantics(mergeDescendants = true) { contentDescription = "${episode.title}, ${episode.podcastTitle}" },
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
@@ -436,14 +438,14 @@ private fun NewEpisodesRow(model: AppModel, episodes: List<PodcastEpisode>) {
 private fun ComingSoonRow(items: List<UpcomingItem>, downloading: Int) {
     val navigator = LocalNavigator.current
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionHeading(if (downloading > 0) "Coming soon ($downloading downloading)" else "Coming soon", onSeeAll = navigator::openComingSoon)
+        SectionHeading(if (downloading > 0) t("Coming soon ({count} downloading)", "count" to downloading) else t(Words.comingSoon), onSeeAll = navigator::openComingSoon)
         LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
             items(items, key = { it.id }) { item ->
                 val opens = item.libraryItemId
                 // Every card does something: one in the library opens, anything else the full page, where it's described.
                 Column(
                     Modifier.width(WideWidth)
-                        .pressable({ if (opens != null) navigator.openItem(opens) else navigator.openComingSoon() }, onClickLabel = if (opens != null) "Open" else "See all")
+                        .pressable({ if (opens != null) navigator.openItem(opens) else navigator.openComingSoon() }, onClickLabel = if (opens != null) t("Open") else t("See all"))
                         .semantics(mergeDescendants = true) {},
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
@@ -493,7 +495,7 @@ private fun EmptyHome(message: EmptyHomeMessage) {
                 message.folders.forEach { Text(it, fontSize = 13.sp, fontFamily = FontFamily.Monospace, color = Flexarr.screen) }
             }
         }
-        Text("Pull down to refresh.", fontSize = 13.sp, color = Flexarr.usher, fontWeight = FontWeight.Normal)
+        Text(t("Pull down to refresh."), fontSize = 13.sp, color = Flexarr.usher, fontWeight = FontWeight.Normal)
     }
 }
 
@@ -503,7 +505,7 @@ private fun NothingYet(name: String) {
     // As the empty Home looks, as the iPhone's does.
     Column(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 24.dp).padding(top = 72.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Icon(Icons.Outlined.VideoLibrary, contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(44.dp))
-        Text("Nothing here for $name yet", style = marquee(34))
+        Text(t("Nothing here for {name} yet", "name" to name), style = marquee(34))
     }
 }
 

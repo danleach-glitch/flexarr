@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
+import androidx.compose.material.icons.filled.Language
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -144,7 +147,7 @@ internal fun TvPlaybackSettings(model: AppModel) {
         PlaybackChoice.SubtitleSize -> if (current != null) {
             BackHandler(onBack = ::close)
             TvSettingsChoicePage(
-                "Subtitle size", "For this profile on every device.", SubtitleSize.choices, { it.label }, current.shownSubtitleSize,
+                t("Subtitle size"), t("For this profile on every device."), SubtitleSize.choices, { it.label }, current.shownSubtitleSize,
                 choose = { save(current.copy(subtitleSize = it), current) }, onDone = ::close,
             )
             return
@@ -152,7 +155,7 @@ internal fun TvPlaybackSettings(model: AppModel) {
         PlaybackChoice.SubtitlePosition -> if (current != null) {
             BackHandler(onBack = ::close)
             TvSettingsChoicePage(
-                "Subtitle position", "For this profile on every device.", SubtitlePosition.choices, { it.label }, current.shownSubtitlePosition,
+                t("Subtitle position"), t("For this profile on every device."), SubtitlePosition.choices, { it.label }, current.shownSubtitlePosition,
                 choose = { save(current.copy(subtitlePosition = it), current) }, onDone = ::close,
             )
             return
@@ -160,7 +163,7 @@ internal fun TvPlaybackSettings(model: AppModel) {
         PlaybackChoice.Skip -> {
             BackHandler(onBack = ::close)
             TvSettingsChoicePage(
-                "Skip back and forward", "A press of left or right on the remote.", PlayerSettings.skipChoices, { "$it seconds" }, skipSeconds,
+                t("Skip back and forward"), t("A press of left or right on the remote."), PlayerSettings.skipChoices, { t("{count, plural, one {# second} other {# seconds}}", "count" to it) }, skipSeconds,
                 choose = {
                     skipSeconds = it
                     PlayerSettings.setSkipSeconds(context, it)
@@ -172,7 +175,7 @@ internal fun TvPlaybackSettings(model: AppModel) {
         PlaybackChoice.DialogueBoost -> {
             BackHandler(onBack = ::close)
             TvSettingsChoicePage(
-                "Dialogue boost", null, SoundSettings.DialogueBoost.entries, { it.name }, sound.dialogueBoost,
+                t("Dialogue boost"), null, SoundSettings.DialogueBoost.entries, ::dialogueBoostLabel, sound.dialogueBoost,
                 choose = { boost -> SoundSettings.update(context) { it.copy(dialogueBoost = boost) } }, onDone = ::close,
             )
             return
@@ -180,7 +183,7 @@ internal fun TvPlaybackSettings(model: AppModel) {
         PlaybackChoice.NightMode -> {
             BackHandler(onBack = ::close)
             TvSettingsChoicePage(
-                "Night mode", null, SoundSettings.NightMode.entries, ::nightModeLabel, sound.nightMode,
+                t("Night mode"), null, SoundSettings.NightMode.entries, ::nightModeLabel, sound.nightMode,
                 choose = { mode -> SoundSettings.update(context) { it.copy(nightMode = mode) } }, onDone = ::close,
             )
             return
@@ -188,7 +191,7 @@ internal fun TvPlaybackSettings(model: AppModel) {
         PlaybackChoice.NightFrom -> {
             BackHandler(onBack = ::close)
             TvSettingsChoicePage(
-                "Night mode from", null, NIGHT_HOURS, SoundSettings::clock, sound.nightStart,
+                t("Night mode from"), null, NIGHT_HOURS, SoundSettings::clock, sound.nightStart,
                 choose = { at -> SoundSettings.update(context) { it.copy(nightStart = at) } }, onDone = ::close,
             )
             return
@@ -196,7 +199,7 @@ internal fun TvPlaybackSettings(model: AppModel) {
         PlaybackChoice.NightUntil -> {
             BackHandler(onBack = ::close)
             TvSettingsChoicePage(
-                "Night mode until", null, NIGHT_HOURS, SoundSettings::clock, sound.nightEnd,
+                t("Night mode until"), null, NIGHT_HOURS, SoundSettings::clock, sound.nightEnd,
                 choose = { at -> SoundSettings.update(context) { it.copy(nightEnd = at) } }, onDone = ::close,
             )
             return
@@ -204,7 +207,7 @@ internal fun TvPlaybackSettings(model: AppModel) {
         PlaybackChoice.Speakers -> {
             BackHandler(onBack = ::close)
             TvSettingsChoicePage(
-                "Speakers", null, SoundSettings.Speakers.entries, { it.label }, sound.speakers,
+                t("Speakers"), null, SoundSettings.Speakers.entries, ::speakersLabel, sound.speakers,
                 choose = { speakers -> SoundSettings.update(context) { it.copy(speakers = speakers) } }, onDone = ::close,
             )
             return
@@ -218,109 +221,127 @@ internal fun TvPlaybackSettings(model: AppModel) {
     TakeFocus(focus, key = focusOn, ready = loaded)
     fun Modifier.focusFor(row: PlaybackChoice?) = if (row == focusOn) focusRequester(focus) else this
 
-    TvSettingsPage("Playback", summary = if (saveFailed) "That change couldn’t be saved on the server, so it’s been put back." else null) {
+    TvSettingsPage(t("Playback"), summary = if (saveFailed) t("That change couldn’t be saved on the server, so it’s been put back.") else null) {
         if (current != null) {
-            item { TvSettingsGroupLabel(model.currentProfile?.let { "${it.name}, on every device" } ?: "Your profile, on every device") }
+            item { TvSettingsGroupLabel(model.currentProfile?.let { t("{name}, on every device", "name" to it.name) } ?: t("Your profile, on every device")) }
             item {
                 TvSettingsToggle(
-                    "Auto-play the next episode", current.autoPlayNext, { save(current.copy(autoPlayNext = !current.autoPlayNext), current) },
+                    t(Words.autoPlayNext), current.autoPlayNext, { save(current.copy(autoPlayNext = !current.autoPlayNext), current) },
                     modifier = Modifier.focusFor(null), icon = Icons.Filled.SkipNext,
-                    help = "The next episode starts after a 10-second countdown.",
+                    help = t(Words.autoPlayNextHelp),
                 )
             }
             item {
                 TvSettingsToggle(
-                    "Skip intros", current.skipIntros, { save(current.copy(skipIntros = !current.skipIntros), current) }, icon = Icons.Filled.FastForward,
-                    help = "Jumps past a show’s opening titles by itself. Off, a Skip intro button shows instead.",
+                    t("Skip intros"), current.skipIntros, { save(current.copy(skipIntros = !current.skipIntros), current) }, icon = Icons.Filled.FastForward,
+                    help = t("Jumps past a show’s opening titles by itself. Off, a Skip intro button shows instead."),
                 )
             }
             item {
                 TvSettingsToggle(
-                    "Skip recaps", current.skipRecaps, { save(current.copy(skipRecaps = !current.skipRecaps), current) }, icon = Icons.Filled.History,
-                    help = "Jumps past the “Previously on” at the start of an episode.",
+                    t("Skip recaps"), current.skipRecaps, { save(current.copy(skipRecaps = !current.skipRecaps), current) }, icon = Icons.Filled.History,
+                    help = t("Jumps past the “Previously on” at the start of an episode."),
                 )
             }
             item {
                 TvSettingsToggle(
-                    "Skip credits", current.skipCredits, { save(current.copy(skipCredits = !current.skipCredits), current) }, icon = Icons.Filled.Theaters,
-                    help = "Ends the episode as the credits start.",
+                    t(Words.skipCredits), current.skipCredits, { save(current.copy(skipCredits = !current.skipCredits), current) }, icon = Icons.Filled.Theaters,
+                    help = t(Words.skipCreditsHelp),
                 )
             }
             item {
                 TvSettingsRow(
-                    "Subtitle size", onClick = { choosing = PlaybackChoice.SubtitleSize }, modifier = Modifier.focusFor(PlaybackChoice.SubtitleSize),
+                    t("Subtitle size"), onClick = { choosing = PlaybackChoice.SubtitleSize }, modifier = Modifier.focusFor(PlaybackChoice.SubtitleSize),
                     icon = Icons.Filled.ClosedCaption, value = current.shownSubtitleSize.label, accessory = TvSettingAccessory.Chevron,
-                    help = "How big subtitles are. Subtitles that run early or late can be moved from the player’s Subtitles menu.",
+                    help = t("How big subtitles are. Subtitles that run early or late can be moved from the player’s Subtitles menu."),
                 )
             }
             item {
                 TvSettingsRow(
-                    "Subtitle position", onClick = { choosing = PlaybackChoice.SubtitlePosition }, modifier = Modifier.focusFor(PlaybackChoice.SubtitlePosition),
+                    t("Subtitle position"), onClick = { choosing = PlaybackChoice.SubtitlePosition }, modifier = Modifier.focusFor(PlaybackChoice.SubtitlePosition),
                     icon = Icons.Filled.Height, value = current.shownSubtitlePosition.label, accessory = TvSettingAccessory.Chevron,
-                    help = "Raise subtitles clear of text in the picture or the edge of the TV. Styled subtitles keep the places they were made for.",
+                    help = t("Raise subtitles clear of text in the picture or the edge of the TV. Styled subtitles keep the places they were made for."),
                 )
             }
             item {
                 val inBars = current.subtitlesInBlackBars ?: false
                 TvSettingsToggle(
-                    "Subtitles in the black bars", inBars, { save(current.copy(subtitlesInBlackBars = !inBars), current) }, icon = Icons.Filled.CallToAction,
-                    help = "In movies wider than the TV, subtitles go in the black bar below the picture rather than over it.",
+                    t("Subtitles in the black bars"), inBars, { save(current.copy(subtitlesInBlackBars = !inBars), current) }, icon = Icons.Filled.CallToAction,
+                    help = t("In movies wider than the TV, subtitles go in the black bar below the picture rather than over it."),
                 )
             }
         } else if (!loaded) {
             // The server's half arrives a moment later; this keeps the rows below from jumping up and back.
-            item { TvSettingsGroupLabel("Your profile, on every device") }
+            item { TvSettingsGroupLabel(t("Your profile, on every device")) }
             item { CircularProgressIndicator(Modifier.padding(start = 16.dp, top = 10.dp, bottom = 10.dp).size(20.dp), color = Flexarr.screen, strokeWidth = 2.dp) }
         }
 
-        item { TvSettingsGroupLabel("This TV") }
+        item { TvSettingsGroupLabel(t("This TV")) }
         item {
             TvSettingsRow(
-                "Skip back and forward", onClick = { choosing = PlaybackChoice.Skip }, modifier = Modifier.focusFor(PlaybackChoice.Skip),
-                icon = skipIcon(skipSeconds), value = "$skipSeconds seconds", accessory = TvSettingAccessory.Chevron,
-                help = "How far a press of left or right on the remote moves while something plays.",
+                t("Skip back and forward"), onClick = { choosing = PlaybackChoice.Skip }, modifier = Modifier.focusFor(PlaybackChoice.Skip),
+                icon = skipIcon(skipSeconds), value = t("{count, plural, one {# second} other {# seconds}}", "count" to skipSeconds), accessory = TvSettingAccessory.Chevron,
+                help = t("How far a press of left or right on the remote moves while something plays."),
             )
         }
         item {
             TvSettingsRow(
-                "Dialogue boost", onClick = { choosing = PlaybackChoice.DialogueBoost }, modifier = Modifier.focusFor(PlaybackChoice.DialogueBoost),
-                icon = Icons.Filled.RecordVoiceOver, value = sound.dialogueBoost.name, accessory = TvSettingAccessory.Chevron,
-                help = "Makes voices easier to follow under music and effects.",
+                t("Dialogue boost"), onClick = { choosing = PlaybackChoice.DialogueBoost }, modifier = Modifier.focusFor(PlaybackChoice.DialogueBoost),
+                icon = Icons.Filled.RecordVoiceOver, value = dialogueBoostLabel(sound.dialogueBoost), accessory = TvSettingAccessory.Chevron,
+                help = t("Makes voices easier to follow under music and effects."),
             )
         }
         item {
             TvSettingsRow(
-                "Night mode", onClick = { choosing = PlaybackChoice.NightMode }, modifier = Modifier.focusFor(PlaybackChoice.NightMode),
+                t("Night mode"), onClick = { choosing = PlaybackChoice.NightMode }, modifier = Modifier.focusFor(PlaybackChoice.NightMode),
                 icon = Icons.Filled.Bedtime, accessory = TvSettingAccessory.Chevron,
                 value = if (sound.nightMode == SoundSettings.NightMode.Scheduled) sound.nightHours else nightModeLabel(sound.nightMode),
-                help = "Quietens loud scenes and lifts quiet ones.",
+                help = t("Quietens loud scenes and lifts quiet ones."),
             )
         }
         if (sound.nightMode == SoundSettings.NightMode.Scheduled) {
             item {
                 TvSettingsRow(
-                    "Night mode from", onClick = { choosing = PlaybackChoice.NightFrom }, modifier = Modifier.focusFor(PlaybackChoice.NightFrom),
+                    t("Night mode from"), onClick = { choosing = PlaybackChoice.NightFrom }, modifier = Modifier.focusFor(PlaybackChoice.NightFrom),
                     icon = Icons.Filled.NightsStay, value = SoundSettings.clock(sound.nightStart), accessory = TvSettingAccessory.Chevron,
                 )
             }
             item {
                 TvSettingsRow(
-                    "Night mode until", onClick = { choosing = PlaybackChoice.NightUntil }, modifier = Modifier.focusFor(PlaybackChoice.NightUntil),
+                    t("Night mode until"), onClick = { choosing = PlaybackChoice.NightUntil }, modifier = Modifier.focusFor(PlaybackChoice.NightUntil),
                     icon = Icons.Filled.WbTwilight, value = SoundSettings.clock(sound.nightEnd), accessory = TvSettingAccessory.Chevron,
                 )
             }
         }
         item {
             TvSettingsRow(
-                "Speakers", onClick = { choosing = PlaybackChoice.Speakers }, modifier = Modifier.focusFor(PlaybackChoice.Speakers),
-                icon = Icons.Filled.Speaker, value = sound.speakers.label, accessory = TvSettingAccessory.Chevron,
-                help = "Auto plays every channel what’s connected takes.",
+                t("Speakers"), onClick = { choosing = PlaybackChoice.Speakers }, modifier = Modifier.focusFor(PlaybackChoice.Speakers),
+                icon = Icons.Filled.Speaker, value = speakersLabel(sound.speakers), accessory = TvSettingAccessory.Chevron,
+                help = t("Auto plays every channel what’s connected takes."),
             )
         }
     }
 }
 
-private fun nightModeLabel(mode: SoundSettings.NightMode) = if (mode == SoundSettings.NightMode.Scheduled) "On a schedule" else mode.name
+private fun nightModeLabel(mode: SoundSettings.NightMode) = when (mode) {
+    SoundSettings.NightMode.Off -> t("Off")
+    SoundSettings.NightMode.On -> t("On")
+    SoundSettings.NightMode.Scheduled -> t("On a schedule")
+}
+
+private fun dialogueBoostLabel(boost: SoundSettings.DialogueBoost) = when (boost) {
+    SoundSettings.DialogueBoost.Off -> t("Off")
+    SoundSettings.DialogueBoost.Low -> t("Low")
+    SoundSettings.DialogueBoost.Medium -> t("Medium")
+    SoundSettings.DialogueBoost.High -> t("High")
+}
+
+/** "5.1" reads the same in every language. */
+private fun speakersLabel(speakers: SoundSettings.Speakers) = when (speakers) {
+    SoundSettings.Speakers.Auto -> t("Auto")
+    SoundSettings.Speakers.Stereo -> t("Stereo")
+    SoundSettings.Speakers.Surround -> speakers.label
+}
 
 /** Night mode's hours, on the hour. */
 private val NIGHT_HOURS = (0 until 24).map { it * 60 }
@@ -333,13 +354,56 @@ private fun skipIcon(seconds: Int): ImageVector = when (seconds) {
 
 /** What a film or TV library's tab opens on, for every library on this TV. As the Apple TV's LibrarySettingsView. */
 @Composable
+internal fun TvLanguageSettings(model: AppModel) {
+    val focus = remember { FocusRequester() }
+    TakeFocus(focus)
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    fun choose(code: String?) {
+        if (saving) return
+        saving = true
+        error = null
+        model.scope.launch {
+            try {
+                model.setLanguage(code)
+            } catch (e: io.github.flexarr.core.FlexarrException) {
+                error = e.message
+            } finally {
+                saving = false
+            }
+        }
+    }
+
+    TvSettingsPage(io.github.flexarr.core.i18n.t("Language"), summary = error ?: io.github.flexarr.core.i18n.t("This profile’s own, on every device.")) {
+        item {
+            TvSettingsRow(
+                io.github.flexarr.core.i18n.t("Device language"), onClick = { choose(null) },
+                modifier = if (model.profileLanguage == null) Modifier.focusRequester(focus) else Modifier,
+                icon = Icons.Filled.Language,
+                accessory = if (model.profileLanguage == null) TvSettingAccessory.Checkmark else TvSettingAccessory.None,
+            )
+        }
+        model.languages.forEach { language ->
+            item {
+                TvSettingsRow(
+                    language.name, onClick = { choose(language.code) },
+                    modifier = if (model.profileLanguage == language.code) Modifier.focusRequester(focus) else Modifier,
+                    accessory = if (model.profileLanguage == language.code) TvSettingAccessory.Checkmark else TvSettingAccessory.None,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 internal fun TvLibrarySettings() {
     val context = LocalContext.current
     val opensOn = TvLibraryOpening.saved(context)
     val focus = remember { FocusRequester() }
     TakeFocus(focus)
-    TvSettingsPage("Libraries", summary = null) {
-        item { TvSettingsGroupLabel("Open on") }
+    TvSettingsPage(t(Words.libraries), summary = null) {
+        item { TvSettingsGroupLabel(t("Open on")) }
         TvLibraryOpening.entries.forEach { opening ->
             item {
                 TvSettingsRow(
@@ -355,9 +419,9 @@ internal fun TvLibrarySettings() {
 
 private val TvLibraryOpening.help: String
     get() = when (this) {
-        TvLibraryOpening.Browse -> "A library opens on its highlights: what you’re watching in it, the latest, the best not yet watched and its biggest genres."
-        TvLibraryOpening.All -> "A library opens on every title, A to Z, with sorting, genres and a letter rail to jump through it."
-        TvLibraryOpening.Genres -> "A movie or TV library opens on its genres, each with a picture from one of its titles. Home videos open on Browse."
+        TvLibraryOpening.Browse -> t("A library opens on its highlights: what you’re watching in it, the latest, the best not yet watched and its biggest genres.")
+        TvLibraryOpening.All -> t("A library opens on every title, A to Z, with sorting, genres and a letter rail to jump through it.")
+        TvLibraryOpening.Genres -> t("A movie or TV library opens on its genres, each with a picture from one of its titles. Home videos open on Browse.")
     }
 
 private val TvLibraryOpening.icon: ImageVector
@@ -398,7 +462,7 @@ internal fun TvSidebarSettings(model: AppModel, libraries: Loader<List<Library>>
                     // Podcasts (not in the sidebar) keep their place among the rest.
                     model.setLibraryOrder(libraryOrder(model.currentProfile?.libraryOrder.orEmpty(), order.map { it.id }))
                 } catch (e: FlexarrException) {
-                    problem = "Couldn’t save the order. ${e.message}"
+                    problem = t("Couldn’t save the order. {reason}", "reason" to e.message.orEmpty())
                     moved = null
                     moving = null
                 }
@@ -415,10 +479,10 @@ internal fun TvSidebarSettings(model: AppModel, libraries: Loader<List<Library>>
     }
 
     TvSettingsPage(
-        "Sidebar",
-        summary = problem ?: "Home is always first, and Discover, Search and Settings last. Your other devices list your libraries in this order too.",
+        t("Sidebar"),
+        summary = problem ?: t("Home is always first, and Discover, Search and Settings last. Your other devices list your libraries in this order too."),
     ) {
-        item { TvSettingsGroupLabel("Between Home and Search") }
+        item { TvSettingsGroupLabel(t("Between Home and Search")) }
         items(entries, key = { it.id }) { entry ->
             val picked = moving == entry.id
             val into = remember { BringIntoViewRequester() }
@@ -446,8 +510,8 @@ internal fun TvSidebarSettings(model: AppModel, libraries: Loader<List<Library>>
                         }
                     },
                 icon = entry.icon,
-                value = if (picked) "Move up or down" else null,
-                help = if (picked) "Press up or down to move ${entry.title}, then press OK to put it down." else "Press OK to pick up ${entry.title}, then press up or down to move it.",
+                value = if (picked) t("Move up or down") else null,
+                help = if (picked) t("Press up or down to move {name}, then press OK to put it down.", "name" to entry.title) else t("Press OK to pick up {name}, then press up or down to move it.", "name" to entry.title),
                 accessory = if (picked) TvSettingAccessory.Moving else TvSettingAccessory.Handle,
             )
         }
@@ -467,44 +531,44 @@ internal fun TvServerSettings(model: AppModel, libraries: Loader<List<Library>>,
 
     val guest = model.credentials?.guest
     TvSettingsPage(
-        "Server",
+        t("Server"),
         summary = if (guest != null) {
             null
         } else if (remote == null) {
-            "To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This TV picks the address up by itself."
+            t("To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This TV picks the address up by itself.")
         } else {
-            "Away from home, this TV reaches the server over Tailscale, which needs to be connected on it."
+            t("Away from home, this TV reaches the server over Tailscale, which needs to be connected on it.")
         },
     ) {
-        item { TvSettingsGroupLabel("Connection") }
+        item { TvSettingsGroupLabel(t("Connection")) }
         // A guest's server is only ever reached through the tunnel: no address to show.
         if (guest != null) {
-            item { TvSettingsFact("Connected by invite", guest.ownerName.ifEmpty { null }?.let { "$it’s Flexarr" }.orEmpty()) }
+            item { TvSettingsFact(t("Connected by invite"), guest.ownerName.ifEmpty { null }?.let { t("{owner}’s Flexarr", "owner" to it) }.orEmpty()) }
         } else {
-            item { TvSettingsFact("Address", shortAddress(model.credentials?.address)) }
+            item { TvSettingsFact(t("Address"), shortAddress(model.credentials?.address)) }
         }
         if (remote != null && guest == null) {
-            item { TvSettingsFact("Away from home", shortAddress(remote)) }
-            item { TvSettingsFact("Connected", if (client.addresses.isAway) "Away, over Tailscale" else "At home") }
+            item { TvSettingsFact(t("Away from home"), shortAddress(remote)) }
+            item { TvSettingsFact(t("Connected"), if (client.addresses.isAway) t("Away, over Tailscale") else t("At home")) }
         }
 
-        item { TvSettingsGroupLabel("Server") }
+        item { TvSettingsGroupLabel(t("Server")) }
         when (val state = status.state) {
             is Load.Loaded -> {
-                item { TvSettingsFact("Version", ServerVersion.short(state.value.version)) }
-                item { TvSettingsFact("Running on", state.value.osDescription) }
-                state.value.startTime?.let(::upSince)?.let { item { TvSettingsFact("Up since", it) } }
+                item { TvSettingsFact(t("Version"), ServerVersion.short(state.value.version)) }
+                item { TvSettingsFact(t("Running on"), state.value.osDescription) }
+                state.value.startTime?.let(::upSince)?.let { item { TvSettingsFact(t("Up since"), it) } }
             }
-            is Load.Failed -> item { TvSettingsFact("Status", state.message) }
-            Load.Loading -> item { TvSettingsFact("Status", "Checking") }
+            is Load.Failed -> item { TvSettingsFact(t("Status"), state.message) }
+            Load.Loading -> item { TvSettingsFact(t("Status"), t("Checking")) }
         }
-        item { TvSettingsFact("Libraries", (libraries.state as? Load.Loaded)?.value?.joinToString(", ") { it.name }.orEmpty()) }
+        item { TvSettingsFact(t(Words.libraries), (libraries.state as? Load.Loaded)?.value?.joinToString(", ") { it.name }.orEmpty()) }
 
-        item { TvSettingsGroupLabel("Error reports") }
+        item { TvSettingsGroupLabel(t("Error reports")) }
         item {
             // As the server says now, or as this TV last heard while it can't be asked.
             val reportsOn = (status.state as? Load.Loaded)?.value?.let { it.errorReports?.enabled == true } ?: ErrorReports.isOn
-            TvSettingsFact("Error reports", if (reportsOn) "On" else "Off")
+            TvSettingsFact(t("Error reports"), if (reportsOn) t("On") else t("Off"))
         }
         item { TvSettingsNote(ErrorReports.PRIVACY_NOTE) }
 
@@ -512,16 +576,16 @@ internal fun TvServerSettings(model: AppModel, libraries: Loader<List<Library>>,
         // it's busy it ignores a press rather than turning off, which on a TV would take focus away from it.
         item {
             TvSettingsRow(
-                if (checking) "Checking…" else "Check again", onClick = { if (!checking) status.retry() },
+                if (checking) t("Checking…") else t("Check again"), onClick = { if (!checking) status.retry() },
                 modifier = Modifier.padding(top = 15.dp).then(if (onDiagnosticsRow) Modifier else Modifier.focusRequester(focus)),
-                icon = Icons.Filled.Refresh, help = "Ask the server how it is now.",
+                icon = Icons.Filled.Refresh, help = t("Ask the server how it is now."),
             )
         }
         item {
             TvSettingsRow(
-                "Send diagnostics", onClick = onDiagnostics, modifier = if (onDiagnosticsRow) Modifier.focusRequester(focus) else Modifier,
+                t("Send diagnostics"), onClick = onDiagnostics, modifier = if (onDiagnosticsRow) Modifier.focusRequester(focus) else Modifier,
                 icon = Icons.Filled.MedicalServices, accessory = TvSettingAccessory.Chevron,
-                help = "Send this TV’s recent log to your server, to look into a problem.",
+                help = t("Send this TV’s recent log to your server, to look into a problem."),
             )
         }
     }
@@ -550,11 +614,11 @@ internal fun TvDiagnosticsSettings(model: AppModel) {
             outcome = try {
                 val id = LogHub.sendDiagnostics(client, diagnosticsHeader(model), note)
                 note = ""
-                "Sent to your server ($id). Mention that if you ask for help."
+                t("Sent to your server ({id}). Mention that if you ask for help.", "id" to id)
             } catch (e: FlexarrException) {
                 when {
                     e is FlexarrException.UnexpectedResponse || (e is FlexarrException.Http && e.status in setOf(404, 405)) ->
-                        "This server doesn’t take diagnostics yet. Update Flexarr on it, then try again."
+                        t("This server doesn’t take diagnostics yet. Update Flexarr on it, then try again.")
                     else -> e.message
                 }
             } finally {
@@ -564,19 +628,19 @@ internal fun TvDiagnosticsSettings(model: AppModel) {
     }
 
     TvSettingsPage(
-        "Send diagnostics",
-        summary = "Sends what this TV has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)",
+        t("Send diagnostics"),
+        summary = t("Sends what this TV has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)"),
     ) {
         item {
             TvSettingsRow(
-                "Note", onClick = { if (!sending) editingNote = true }, modifier = Modifier.focusRequester(focus), icon = Icons.Filled.EditNote,
-                value = note.ifEmpty { "Optional" }, help = "What happened and roughly when, so it’s easy to find in the log.",
+                t("Note"), onClick = { if (!sending) editingNote = true }, modifier = Modifier.focusRequester(focus), icon = Icons.Filled.EditNote,
+                value = note.ifEmpty { t("Optional") }, help = t("What happened and roughly when, so it’s easy to find in the log."),
             )
         }
         item {
             TvSettingsRow(
-                if (sending) "Sending…" else "Send", onClick = ::send, icon = Icons.AutoMirrored.Filled.Send,
-                help = "Send the log now, with the note.",
+                if (sending) t("Sending…") else t("Send"), onClick = ::send, icon = Icons.AutoMirrored.Filled.Send,
+                help = t("Send the log now, with the note."),
             )
         }
         item {
@@ -603,11 +667,11 @@ private fun NoteDialog(initial: String, onDone: (String) -> Unit, onCancel: () -
     val field = remember { FocusRequester() }
     Dialog(onDismissRequest = onCancel) {
         Column(Modifier.width(440.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("Note", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            TvTextField(draft, { draft = it }, "What happened?", Modifier.fillMaxWidth().focusRequester(field))
+            Text(t("Note"), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            TvTextField(draft, { draft = it }, t("What happened?"), Modifier.fillMaxWidth().focusRequester(field))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TvActionButton("Done", onClick = { onDone(draft) }, prominent = true)
-                TvActionButton("Cancel", onClick = onCancel)
+                TvActionButton(t(Words.done), onClick = { onDone(draft) }, prominent = true)
+                TvActionButton(t(Words.cancel), onClick = onCancel)
             }
         }
     }

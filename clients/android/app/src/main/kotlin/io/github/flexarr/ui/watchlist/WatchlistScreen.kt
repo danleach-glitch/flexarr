@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.watchlist
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -91,19 +94,19 @@ fun WatchlistScreen(model: AppModel) {
     var kind by rememberSaveable { mutableStateOf(WatchlistKind.All) }
     var sort by rememberSaveable { mutableStateOf(WatchlistSort.ReadyFirst) }
     // A refresh that fails leaves the list showing, so say so.
-    val loader = rememberLoader(model.credentials, model.watchlistVersion, onRefreshFailed = { navigator.tellFailure("Couldn’t refresh your watchlist", it) }) {
+    val loader = rememberLoader(model.credentials, model.watchlistVersion, onRefreshFailed = { navigator.tellFailure(t("Couldn’t refresh your watchlist"), it) }) {
         model.loadWatchlist().orEmpty()
     }
     val hasEntries = (loader.state as? Load.Loaded)?.value?.isNotEmpty() == true
     RoomBackground(ambient = null) {
         Column {
-            PageTitle("Watchlist", onBack = { navigator.back() }) {
+            PageTitle(t(Words.watchlist), onBack = { navigator.back() }) {
                 if (hasEntries) FilterMenu(filter, { filter = it }, kind, { kind = it }, sort, { sort = it })
             }
             Loaded(loader) { entries ->
                 PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
                     if (entries.isEmpty()) {
-                        StatusView("Nothing here yet.", empty = true)
+                        StatusView(t("Nothing here yet."), empty = true)
                     } else Column {
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = Edge),
@@ -114,7 +117,7 @@ fun WatchlistScreen(model: AppModel) {
                         }
                         val shown = remember(entries, filter, kind, sort) { sort.sorted(entries.filter { filter.matches(it) && kind.matches(it) }) }
                         if (shown.isEmpty()) {
-                            StatusView("Nothing on your watchlist matches.", empty = true)
+                            StatusView(t("Nothing on your watchlist matches."), empty = true)
                         } else {
                             LazyVerticalGrid(
                                 columns = GridCells.Adaptive(GridMinimum),
@@ -146,7 +149,7 @@ private fun EntryCard(model: AppModel, entry: WatchlistEntry) {
     val canRequest = entry.status == WatchlistStatus.NotAvailable && entry.tmdbId != null
     fun request() {
         requesting = true
-        navigator.watchlistChange("Couldn’t request this") {
+        navigator.watchlistChange(t("Couldn’t request this")) {
             try {
                 model.request(entry)
             } finally {
@@ -155,8 +158,8 @@ private fun EntryCard(model: AppModel, entry: WatchlistEntry) {
         }
     }
     val actions = buildList {
-        if (canRequest && !requesting) add(MenuAction("Request") { request() })
-        add(MenuAction("Remove from watchlist", FlexarrIcons.offWatchlist) { navigator.watchlistChange("Couldn’t remove this from your watchlist") { model.removeFromWatchlist(entry) } })
+        if (canRequest && !requesting) add(MenuAction(t(Words.request)) { request() })
+        add(MenuAction(t(Words.removeFromWatchlist), FlexarrIcons.offWatchlist) { navigator.watchlistChange(t("Couldn’t remove this from your watchlist")) { model.removeFromWatchlist(entry) } })
     }
     // A show in the library with nothing to play yet still has its page.
     val libraryId = entry.libraryItemId
@@ -187,7 +190,7 @@ private fun EntryCard(model: AppModel, entry: WatchlistEntry) {
                 if (canRequest) {
                     // 28 to see, 48 to touch: the reserved space around it takes the taps too.
                     Text(
-                        "Request",
+                        t(Words.request),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Flexarr.screen,
@@ -216,16 +219,16 @@ private fun FilterMenu(
     val filtered = filter != WatchlistFilter.Everything || kind != WatchlistKind.All
     Box {
         IconButton(onClick = { open = true }) {
-            Icon(Icons.Filled.FilterList, contentDescription = "Filter", tint = if (filtered) Flexarr.silver else Flexarr.screen)
+            Icon(Icons.Filled.FilterList, contentDescription = t("Filter"), tint = if (filtered) Flexarr.silver else Flexarr.screen)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            MenuHeading("Show")
+            MenuHeading(t("Show"))
             WatchlistFilter.entries.forEach { option -> Choice(option.label, option == filter) { open = false; onFilter(option) } }
             HorizontalDivider(color = Flexarr.aisle)
-            MenuHeading("Kind")
+            MenuHeading(t("Kind"))
             WatchlistKind.entries.forEach { option -> Choice(option.label, option == kind) { open = false; onKind(option) } }
             HorizontalDivider(color = Flexarr.aisle)
-            MenuHeading("Sort")
+            MenuHeading(t("Sort"))
             WatchlistSort.entries.forEach { option -> Choice(option.label, option == sort) { open = false; onSort(option) } }
         }
     }
@@ -248,8 +251,8 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
 
 /** "On its way", "Out 5 Mar 2027" (in the phone's own date format), or the year. */
 private fun statusLine(entry: WatchlistEntry): String? = when (entry.status) {
-    WatchlistStatus.OnItsWay -> "On its way"
-    WatchlistStatus.Coming -> entry.releaseDay?.let { "Out ${it.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))}" } ?: "Coming"
+    WatchlistStatus.OnItsWay -> t("On its way")
+    WatchlistStatus.Coming -> entry.releaseDay?.let { t("Out {date}", "date" to it.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(io.github.flexarr.core.i18n.Localization.locale))) } ?: t("Coming")
     // The year's in the kind line, for a title the library hasn't got.
     else -> if (entry.libraryItemId == null) null else entry.year?.toString()
 }

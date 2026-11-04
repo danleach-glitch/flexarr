@@ -1,5 +1,6 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.t
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.serializer
 
@@ -84,9 +85,9 @@ data class Podcast(
     /** "3 unplayed", "Up to date", "1,204 episodes": what a show's card says under its name. */
     val countLine: String
         get() = if (isSubscribed) {
-            if (unplayedCount == 0) "Up to date" else "${Format.count(unplayedCount)} unplayed"
+            if (unplayedCount == 0) t("Up to date") else t("{count} unplayed", "count" to unplayedCount)
         } else {
-            if (episodeCount == 1) "1 episode" else "${Format.count(episodeCount)} episodes"
+            t("{count, plural, one {# episode} other {# episodes}}", "count" to episodeCount)
         }
 }
 
@@ -134,7 +135,7 @@ data class PodcastEpisode(
     /** "1h 6m", or "24m left" part way through, or "Played". */
     val timeLine: String?
         get() {
-            if (isPlayed) return "Played"
+            if (isPlayed) return t("Played")
             val duration = durationSeconds ?: return null
             if (userData.positionSeconds > 0) return Format.remaining(duration - userData.positionSeconds)
             return Format.runtime(duration)

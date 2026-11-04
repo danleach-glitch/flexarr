@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.music
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.background
@@ -178,8 +180,8 @@ fun MusicLibraryScreen(model: AppModel, libraryId: String, genre: String? = null
                     is Load.Failed -> StatusView(state.message, browse.retry)
                     Load.Loading -> StatusView()
                 }
-                MusicView.Artists -> MusicGrid(artists, artistGrid, emptyMessage = "Nothing in this library yet.", count = ::artistCount) { ArtistCard(it) }
-                MusicView.Albums -> MusicGrid(albums, albumGrid, emptyMessage = "No albums yet.", count = ::albumCount) { AlbumCard(it, showsArtist = true) }
+                MusicView.Artists -> MusicGrid(artists, artistGrid, emptyMessage = t("Nothing in this library yet."), count = ::artistCount) { ArtistCard(it) }
+                MusicView.Albums -> MusicGrid(albums, albumGrid, emptyMessage = t("No albums yet."), count = ::albumCount) { AlbumCard(it, showsArtist = true) }
                 MusicView.Genres -> when (val state = genres.state) {
                     is Load.Loaded -> state.value?.let { list -> LibraryGenreGrid(list, caption = { albumCount(it.count) }, music = true) { navigator.openMusicGenre(libraryId, it.name) } } ?: StatusView()
                     is Load.Failed -> StatusView(state.message, genres.retry)
@@ -194,7 +196,7 @@ fun MusicLibraryScreen(model: AppModel, libraryId: String, genre: String? = null
 @Composable
 private fun BrowseView(model: AppModel, browse: MusicBrowse, state: LazyGridState, onFeatured: (Int) -> Unit, onSeeAllArtists: () -> Unit) {
     val home = browse.home
-    if (home.featured.isEmpty() && home.rows.isEmpty() && browse.artists.isEmpty()) return StatusView("Nothing in this library yet.", empty = true)
+    if (home.featured.isEmpty() && home.rows.isEmpty() && browse.artists.isEmpty()) return StatusView(t("Nothing in this library yet."), empty = true)
     LazyVerticalGrid(
         columns = GridCells.Fixed(1),
         state = state,
@@ -212,7 +214,7 @@ private fun BrowseView(model: AppModel, browse: MusicBrowse, state: LazyGridStat
         if (browse.artists.isNotEmpty()) {
             fullWidth(key = "your-artists") {
                 val width = PosterWidth * 1.15f
-                Shelf("Your artists", onSeeAll = onSeeAllArtists.takeIf { browse.artistTotal > browse.artists.size }, seeAllLabel = "See all artists") {
+                Shelf(t(Words.yourArtists), onSeeAll = onSeeAllArtists.takeIf { browse.artistTotal > browse.artists.size }, seeAllLabel = t("See all artists")) {
                     items(browse.artists, key = { it.id }) { ArtistCard(it, Modifier.width(width)) }
                 }
             }
@@ -228,7 +230,7 @@ private fun BrowseView(model: AppModel, browse: MusicBrowse, state: LazyGridStat
 private fun MusicHeroSlide(home: Home, item: ItemSummary, height: Dp) {
     val navigator = LocalNavigator.current
     val glow = glowColor(item.accentColor)
-    Box(Modifier.fillMaxWidth().heightIn(min = height).pressable({ navigator.open(item) }, onClickLabel = "Open")) {
+    Box(Modifier.fillMaxWidth().heightIn(min = height).pressable({ navigator.open(item) }, onClickLabel = t("Open"))) {
         RemoteImage(item.artwork.backdrop, 1000, Modifier.matchParentSize().fadeOut()) {
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glow.copy(alpha = 0.4f), Flexarr.room))))
         }
@@ -249,12 +251,12 @@ private fun MusicHeroSlide(home: Home, item: ItemSummary, height: Dp) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
                 if (item.kind == MediaKind.Album) {
                     val resume = home.resuming(item)
-                    ActionButton(if (resume != null) "Resume" else "Play", onClick = { navigator.playAlbum(item, resume) }, icon = FlexarrIcons.play, prominent = true, ambient = glow)
+                    ActionButton(if (resume != null) t("Resume") else t(Words.play), onClick = { navigator.playAlbum(item, resume) }, icon = FlexarrIcons.play, prominent = true, ambient = glow)
                 } else {
-                    ActionButton("Play", onClick = { navigator.playArtist(item, radio = false) }, icon = FlexarrIcons.play, prominent = true, ambient = glow)
-                    ActionButton("Radio", onClick = { navigator.playArtist(item, radio = true) }, icon = FlexarrIcons.radio, ambient = glow)
+                    ActionButton(t(Words.play), onClick = { navigator.playArtist(item, radio = false) }, icon = FlexarrIcons.play, prominent = true, ambient = glow)
+                    ActionButton(t(Words.radio), onClick = { navigator.playArtist(item, radio = true) }, icon = FlexarrIcons.radio, ambient = glow)
                 }
-                ActionButton("More info", onClick = { navigator.open(item) }, icon = FlexarrIcons.details, ambient = glow)
+                ActionButton(t("More info"), onClick = { navigator.open(item) }, icon = FlexarrIcons.details, ambient = glow)
             }
         }
     }
@@ -281,9 +283,9 @@ private fun MusicGridScreen(model: AppModel, libraryId: String, view: MusicView,
         Column {
             PageTitle((library.state as? Load.Loaded)?.value?.name.orEmpty(), onBack = { navigator.back() }) { SortMenu(view.sorts, sort) { sort = it } }
             if (albums) {
-                MusicGrid(pager, grid, emptyMessage = "No albums yet.", count = ::albumCount) { AlbumCard(it, showsArtist = true) }
+                MusicGrid(pager, grid, emptyMessage = t("No albums yet."), count = ::albumCount) { AlbumCard(it, showsArtist = true) }
             } else {
-                MusicGrid(pager, grid, emptyMessage = "Nothing in this library yet.", count = ::artistCount) { ArtistCard(it) }
+                MusicGrid(pager, grid, emptyMessage = t("Nothing in this library yet."), count = ::artistCount) { ArtistCard(it) }
             }
         }
     }
@@ -304,11 +306,11 @@ private fun MusicGenreScreen(model: AppModel, libraryId: String, genre: String) 
     RoomBackground(ambient = ambient, intensity = 0.18f) {
         Column {
             PageTitle(genre, onBack = { navigator.back() }) { SortMenu(MusicView.Albums.sorts, sort) { sort = it } }
-            MusicGrid(albums, grid, emptyMessage = "No $genre albums here.", count = ::albumCount, header = {
+            MusicGrid(albums, grid, emptyMessage = t("No {genre} albums here.", "genre" to genre), count = ::albumCount, header = {
                 Row(Modifier.padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     val glow = ambient ?: Flexarr.silver
-                    ActionButton("Play", onClick = { navigator.playGenre(libraryId, genre, shuffled = false) }, icon = FlexarrIcons.play, prominent = true, ambient = glow)
-                    ActionButton("Shuffle", onClick = { navigator.playGenre(libraryId, genre, shuffled = true) }, icon = FlexarrIcons.shuffle, ambient = glow)
+                    ActionButton(t(Words.play), onClick = { navigator.playGenre(libraryId, genre, shuffled = false) }, icon = FlexarrIcons.play, prominent = true, ambient = glow)
+                    ActionButton(t(Words.shuffle), onClick = { navigator.playGenre(libraryId, genre, shuffled = true) }, icon = FlexarrIcons.shuffle, ambient = glow)
                 }
             }) { AlbumCard(it, showsArtist = true) }
         }
@@ -349,7 +351,7 @@ internal class MusicPager(private val page: suspend (skip: Int, take: Int) -> Pa
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            if (items.isEmpty()) error = e.message ?: "Something went wrong."
+            if (items.isEmpty()) error = e.message ?: t("Something went wrong.")
         } finally {
             loading = false
         }
@@ -433,9 +435,9 @@ private fun MusicGrid(
 private fun SortMenu(sorts: List<LibrarySort>, sort: LibrarySort, onSort: (LibrarySort) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }) { Icon(Icons.Filled.FilterList, contentDescription = "Sort", tint = Flexarr.screen) }
+        IconButton(onClick = { open = true }) { Icon(Icons.Filled.FilterList, contentDescription = t("Sort"), tint = Flexarr.screen) }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            Text("Sort by", fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+            Text(t("Sort by"), fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
             sorts.forEach { option ->
                 DropdownMenuItem(
                     text = { Text(option.label, fontWeight = if (option == sort) FontWeight.Bold else FontWeight.Normal) },

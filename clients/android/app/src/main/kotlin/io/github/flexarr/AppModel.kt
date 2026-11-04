@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.MusicRequestStatus
 import io.github.flexarr.core.RequestStatus
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.requestRefusal
 import io.github.flexarr.core.requestStatus
 import io.github.flexarr.core.musicRequestStatus
@@ -92,6 +93,38 @@ private val flexarrLog = FlexarrLog("signin")
  * the [savedSignIn] (read once at launch, as decrypting it takes a moment).
  */
 class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
+    /** The languages the server offers (English first); empty from servers before 0.61. Settings › Language shows when there's more than English. */
+    var languages by mutableStateOf(emptyList<io.github.flexarr.core.i18n.LanguageInfo>())
+        private set
+
+    /** The profile's chosen language (null: the device's). */
+    var profileLanguage by mutableStateOf<String?>(null)
+        private set
+
+    /** The language shown: the whole app is keyed on it, so a new one redraws everything in it. */
+    var languageCode by mutableStateOf(io.github.flexarr.core.i18n.Localization.code)
+        private set
+
+    init {
+        io.github.flexarr.core.i18n.Localization.onChange {
+            android.os.Handler(android.os.Looper.getMainLooper()).post { languageCode = io.github.flexarr.core.i18n.Localization.code }
+        }
+    }
+
+    private suspend fun settleLanguage(client: FlexarrClient) {
+        languages = runCatching { client.languages() }.getOrDefault(emptyList())
+        io.github.flexarr.core.i18n.Localization.settle(profileLanguage, languages) { code -> runCatching { client.languagePack(code) }.getOrNull() }
+        io.github.flexarr.core.i18n.Localization.lastShown = io.github.flexarr.core.i18n.Localization.code.takeIf { it != "en" }
+    }
+
+    /** Picks the profile's language on every device (null: each device's own) and shows it here. */
+    suspend fun setLanguage(code: String?) {
+        val client = client ?: return
+        client.setLanguage(code)
+        profileLanguage = code
+        settleLanguage(client)
+    }
+
     sealed interface Phase {
         data object SignedOut : Phase
         data class SignedIn(val credentials: ServerCredentials) : Phase
@@ -884,8 +917,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     fun offerInvite(invite: GuestInvite?, fromCode: Boolean = false) {
         when {
-            invite == null -> inviteProblem = "That invite isn’t complete. Ask for the link again."
-            phase is Phase.SignedIn -> inviteProblem = "Sign out in Settings first, then open the invite again."
+            invite == null -> inviteProblem = t("That invite isn’t complete. Ask for the link again.")
+            phase is Phase.SignedIn -> inviteProblem = t("Sign out in Settings first, then open the invite again.")
             else -> {
                 offeredInvite = invite
                 inviteFromCode = fromCode
@@ -923,7 +956,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 joinProblem = e.message
                 joinCanRetry = e.canRetry
             } catch (e: Exception) {
-                joinProblem = "That didn’t work."
+                joinProblem = t("That didn’t work.")
                 joinCanRetry = true
             } finally {
                 joining = false
@@ -1165,7 +1198,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 if (credentials?.guest != guest) return@launch
                 if (network.isOffline) return@launch goOffline()
             }
-            if (tunnelProblem == null && !offlineAsGuest && !serverUnreachable && credentials?.guest == guest) tunnelProblem = "Still connecting"
+            if (tunnelProblem == null && !offlineAsGuest && !serverUnreachable && credentials?.guest == guest) tunnelProblem = t("Still connecting")
         }
         try {
             withContext(Dispatchers.IO) { tunnel.port() }
@@ -1177,7 +1210,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         } catch (e: TunnelException) {
             if (credentials?.guest != guest || e.needsLogin) return false
             flexarrLog.warning("The guest tunnel didn't start: ${e.message}")
-            if (offlineAsGuest || network.isOffline) goOffline() else tunnelProblem = e.message ?: "The tunnel didn't start"
+            if (offlineAsGuest || network.isOffline) goOffline() else tunnelProblem = e.message ?: t("The tunnel didn't start")
             return false
         } finally {
             early.cancel()
@@ -1216,6 +1249,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             }
             val list = listed.await().getOrThrow()
             val me = signIn.await()
+            // In the profile's language (or the device's) before the first screen, so it doesn't change under you.
+            profileLanguage = me?.language
+            settleLanguage(client)
             // A token for a profile that's since been removed acts as nobody: forget it and ask again.
             val credentials = credentials
             if (list.none { it.isCurrent } && credentials?.profileToken != null) {
@@ -1464,9 +1500,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                     notifications.forget()
                     forget()
                     signedOutNotice = if (kept) {
-                        "This device was signed out. Its downloads are kept, and catch up when it connects to this server again."
+                        t("This device was signed out. Its downloads are kept, and catch up when it connects to this server again.")
                     } else {
-                        "This device was signed out."
+                        t("This device was signed out.")
                     }
                 }
             } catch (_: Exception) {
@@ -1486,7 +1522,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         downloads.signedOut(null)
         notifications.forget()
         forget()
-        signedOutNotice = if (owner != null) "You no longer have access to $owner’s Flexarr." else "You no longer have access to this Flexarr."
+        signedOutNotice = if (owner != null) t("You no longer have access to {name}’s Flexarr.", "name" to owner) else t("You no longer have access to this Flexarr.")
         signedOutAsGuest = true
     }
 

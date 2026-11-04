@@ -1,5 +1,6 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.t
 import kotlinx.serialization.Serializable
 
 // Albums and playlists downloaded whole, as the iPhone app's LocalCollection: each track is a download of its own (the
@@ -51,9 +52,9 @@ object CollectionRules {
      * being made ([queueing]). [progress] is how far a transfer under way has got.
      */
     fun status(tracks: List<LocalDownload?>, queueing: Boolean, progress: (LocalDownload) -> Double = { it.progress }): CollectionStatus {
-        if (!queueing && tracks.any { it == null }) return CollectionStatus.Failed("Some tracks weren’t downloaded. Try again.")
+        if (!queueing && tracks.any { it == null }) return CollectionStatus.Failed(t("Some tracks weren’t downloaded. Try again."))
         if (tracks.isEmpty()) return CollectionStatus.Preparing
-        tracks.firstOrNull { it?.phase == LocalPhase.Failed }?.let { return CollectionStatus.Failed(it.failure ?: "Couldn’t download this.") }
+        tracks.firstOrNull { it?.phase == LocalPhase.Failed }?.let { return CollectionStatus.Failed(it.failure ?: t("Couldn’t download this.")) }
         val fractions = tracks.map { track ->
             when {
                 track == null -> 0.0
@@ -83,8 +84,8 @@ object CollectionRules {
     fun facts(collection: LocalCollection, here: List<ItemSummary>): List<String> = buildList {
         collection.album?.releaseYear?.let { add(it.toString()) }
         val total = collection.trackIds.size
-        add(if (total == 1) "1 track" else "$total tracks")
+        add(t("{count, plural, one {# track} other {# tracks}}", "count" to total))
         totalRuntime(here)?.let(::add)
-        add(if (here.size == total) "Downloaded" else "${here.size} here")
+        add(if (here.size == total) t("Downloaded") else t("{count} here", "count" to here.size))
     }
 }

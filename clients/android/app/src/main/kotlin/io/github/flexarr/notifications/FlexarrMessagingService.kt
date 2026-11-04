@@ -1,5 +1,7 @@
 package io.github.flexarr.notifications
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -58,7 +60,7 @@ class FlexarrMessagingService : FirebaseMessagingService() {
         val sealed = message.data["e"] ?: return
         val key = applicationContext.appModel.notifications.savedKey()
         val payload = key?.let { runCatching { PushPayload.open(sealed, it) }.onFailure { e -> log.warning("Couldn't open a notification", e) }.getOrNull() }
-        show(this, payload ?: PushPayload(title = "Flexarr", body = "Something new is ready."))
+        show(this, payload ?: PushPayload(title = t("Flexarr"), body = t("Something new is ready.")))
     }
 
     companion object {
@@ -69,14 +71,14 @@ class FlexarrMessagingService : FirebaseMessagingService() {
         /** The channels Android's settings list: what's new, the morning list (quieter), and devices asking to connect (urgent). */
         fun createChannels(context: Context) {
             val manager = context.getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(NotificationChannel(CHANNEL, "New in your library", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "Movies, shows, podcast episodes, recordings and requests as they arrive"
+            manager.createNotificationChannel(NotificationChannel(CHANNEL, t("New in your library"), NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = t("Movies, shows, podcast episodes, recordings and requests as they arrive")
             })
-            manager.createNotificationChannel(NotificationChannel(UPCOMING_CHANNEL, "Upcoming", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "Each morning, what's airing today"
+            manager.createNotificationChannel(NotificationChannel(UPCOMING_CHANNEL, t("Upcoming"), NotificationManager.IMPORTANCE_LOW).apply {
+                description = t("Each morning, what's airing today")
             })
-            manager.createNotificationChannel(NotificationChannel(DEVICES_CHANNEL, "Devices asking to connect", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "A TV, phone or tablet waiting for you to let it in"
+            manager.createNotificationChannel(NotificationChannel(DEVICES_CHANNEL, t("Devices asking to connect"), NotificationManager.IMPORTANCE_HIGH).apply {
+                description = t("A TV, phone or tablet waiting for you to let it in")
             })
         }
 
@@ -109,13 +111,13 @@ class FlexarrMessagingService : FirebaseMessagingService() {
                 PushPayload.PODCAST -> info["episode"]?.let { AppLink.PodcastEpisode(it) }
                 else -> null
             }
-            play?.let { builder.addAction(R.drawable.ic_pip_play, "Play", activity(context, id + 1, it)) }
+            play?.let { builder.addAction(R.drawable.ic_pip_play, t(Words.play), activity(context, id + 1, it)) }
             val download = when (payload.category) {
                 PushPayload.VIDEO -> info["play"]
                 PushPayload.PODCAST -> info["episode"]
                 else -> null
             }
-            download?.let { builder.addAction(0, "Download", DownloadReceiver.intent(context, id, it, podcast = payload.category == PushPayload.PODCAST)) }
+            download?.let { builder.addAction(0, t(Words.download), DownloadReceiver.intent(context, id, it, podcast = payload.category == PushPayload.PODCAST)) }
             runCatching {
                 NotificationManagerCompat.from(context).notify(id, builder.build())
                 payload.thread?.let { thread -> NotificationManagerCompat.from(context).notify(summaryId(thread), summary(context, payload, thread, opens)) }
@@ -158,8 +160,8 @@ class FlexarrMessagingService : FirebaseMessagingService() {
                 // Its name, for "“Living room” is connected": as the app heard it, else from the title the server wrote.
                 val name = model.pairing.waiting.firstOrNull { it.code == code }?.deviceName
                     ?: payload.title.removeSuffix(" wants to connect").takeIf { it != payload.title && it.isNotBlank() }
-                builder.addAction(PairingReceiver.action(context, "Allow", code, name, allow = true))
-                builder.addAction(PairingReceiver.action(context, "Don’t allow", code, name, allow = false))
+                builder.addAction(PairingReceiver.action(context, t("Allow"), code, name, allow = true))
+                builder.addAction(PairingReceiver.action(context, t("Don’t allow"), code, name, allow = false))
             }
             runCatching { NotificationManagerCompat.from(context).notify(id, builder.build()) }
                 .onFailure { log.warning("Couldn't show a notification", it) }
@@ -278,7 +280,7 @@ class PairingReceiver : BroadcastReceiver() {
         val client = model.client
         FlexarrMessagingService.cancelPairing(context, code)
         if (client == null) {
-            if (allow) FlexarrMessagingService.showPairingAnswer(context, code, "Couldn’t allow it", "Open Flexarr to allow it.", AppLink.Home)
+            if (allow) FlexarrMessagingService.showPairingAnswer(context, code, t("Couldn’t allow it"), t("Open Flexarr to allow it."), AppLink.Home)
             return
         }
         val pending = goAsync()
@@ -287,8 +289,8 @@ class PairingReceiver : BroadcastReceiver() {
                 if (allow) {
                     model.pairing.allow(client, code)
                     model.pairing.finished(code)
-                    val title = name?.let { "“$it” is connected" } ?: "It’s connected"
-                    FlexarrMessagingService.showPairingAnswer(context, code, title, "It’ll be ready in a moment.", AppLink.Home)
+                    val title = name?.let { t("“{name}” is connected", "name" to it) } ?: t("It’s connected")
+                    FlexarrMessagingService.showPairingAnswer(context, code, title, t("It’ll be ready in a moment."), AppLink.Home)
                 } else {
                     model.pairing.decline(client, code)
                 }
@@ -303,8 +305,8 @@ class PairingReceiver : BroadcastReceiver() {
                     val needsPin = status == 403 && model.canUnlock
                     // Gone or not this profile's to allow: the app, rather than the prompt for a code that's no use.
                     val retry = needsPin || status !in setOf(403, 404)
-                    val title = name?.let { "Couldn’t allow “$it”" } ?: "Couldn’t allow it"
-                    val text = if (needsPin) "Open Flexarr to allow it with the admin PIN." else pairingProblem(e, outside = true)
+                    val title = name?.let { t("Couldn’t allow “{name}”", "name" to it) } ?: t("Couldn’t allow it")
+                    val text = if (needsPin) t("Open Flexarr to allow it with the admin PIN.") else pairingProblem(e, outside = true)
                     FlexarrMessagingService.showPairingAnswer(context, code, title, text, if (retry) AppLink.Pairing(code) else AppLink.Home)
                 }
             } finally {

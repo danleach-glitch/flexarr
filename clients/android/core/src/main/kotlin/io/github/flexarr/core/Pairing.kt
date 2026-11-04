@@ -1,5 +1,6 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.t
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.serializer
 import java.time.Instant
@@ -37,27 +38,27 @@ data class WaitingDevice(
     /** "asking from your home network (192.168.1.70)", "asking over Tailscale"… */
     private val asking: String
         get() {
-            val address = requestedFrom?.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()
+            val address = requestedFrom?.takeIf { it.isNotBlank() }
             return when (zone) {
-                "Local" -> "asking from your home network$address"
-                "Tailscale" -> "asking over Tailscale$address"
-                else -> if (requestedFrom.isNullOrBlank()) "asking from outside your home network" else "asking from $requestedFrom, outside your home network"
+                "Local" -> if (address == null) t("asking from your home network") else t("asking from your home network ({address})", "address" to address)
+                "Tailscale" -> if (address == null) t("asking over Tailscale") else t("asking over Tailscale ({address})", "address" to address)
+                else -> if (address == null) t("asking from outside your home network") else t("asking from {address}, outside your home network", "address" to address)
             }
         }
 
     /** Where it's asking from, in a sentence: "It's asking from your home network (192.168.1.70)." */
-    val whereFrom: String get() = "It’s $asking."
+    val whereFrom: String get() = t("It’s {asking}.", "asking" to asking)
 
     /** What it is and where it's asking from: "Apple TV · asking from your home network (192.168.1.70)", else [whereFrom]. */
-    val summary: String get() = kind?.let { "$it, $asking" } ?: whereFrom
+    val summary: String get() = kind?.let { t("{kind}, {asking}", "kind" to it, "asking" to asking) } ?: whereFrom
 
     /** Short, for a list: "Apple TV · home network", "Tailscale", "outside your home network". */
     val shortSummary: String
         get() {
             val network = when (zone) {
-                "Local" -> "home network"
+                "Local" -> t("home network")
                 "Tailscale" -> "Tailscale"
-                else -> "outside your home network"
+                else -> t("outside your home network")
             }
             return listOfNotNull(kind, network).joinToString(", ")
         }

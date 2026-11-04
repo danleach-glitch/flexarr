@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.media3.common.Player
 import io.github.flexarr.core.Format
+import io.github.flexarr.core.i18n.t
 import kotlinx.coroutines.CoroutineScope
 import kotlin.math.ceil
 
@@ -68,7 +69,7 @@ class VideoSleep(scope: CoroutineScope, private val player: Player, private val 
                 phase = Phase.Asking
                 onChange()
             }
-            detail = "Pausing in " + Format.timestamp(ceil(left))
+            detail = t("Pausing in {time}", "time" to Format.timestamp(ceil(left)))
             player.volume = (left / 10).toFloat().coerceIn(0f, 1f)
         } else if (phase == Phase.Asking) {
             endAsking()

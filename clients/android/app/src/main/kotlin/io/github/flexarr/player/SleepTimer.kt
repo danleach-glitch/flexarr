@@ -3,6 +3,7 @@ package io.github.flexarr.player
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import io.github.flexarr.core.i18n.t
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -18,16 +19,16 @@ class SleepTimer(private val scope: CoroutineScope) {
         val label: String
 
         data class Minutes(val minutes: Int) : Setting {
-            override val label get() = "$minutes minutes"
+            override val label get() = t("{count, plural, one {# minute} other {# minutes}}", "count" to minutes)
         }
 
         data object EndOfEpisode : Setting {
-            override val label get() = "End of episode"
+            override val label get() = t("End of episode")
         }
 
         /** A book's: stops where the chapter playing ends. */
         data object EndOfChapter : Setting {
-            override val label get() = "End of chapter"
+            override val label get() = t("End of chapter")
         }
     }
 
@@ -83,7 +84,7 @@ class SleepTimer(private val scope: CoroutineScope) {
 
     /** "Sleep timer · 12 min left" while minutes run. */
     val menuTitle: String
-        get() = remaining?.let { "Sleep timer, ${kotlin.math.ceil(it / 60).toInt()} min left" } ?: "Sleep timer"
+        get() = remaining?.let { t("Sleep timer, {minutes} min left", "minutes" to kotlin.math.ceil(it / 60).toInt()) } ?: t("Sleep timer")
 
     companion object {
         /** The lengths offered, in minutes. */

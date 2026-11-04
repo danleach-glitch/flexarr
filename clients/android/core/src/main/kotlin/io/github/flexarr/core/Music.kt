@@ -1,5 +1,8 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.tk
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 
@@ -43,7 +46,7 @@ data class PlaylistSummary(
     val updatedAt: String? = null,
 ) {
     /** "12 tracks". */
-    val trackCountLabel: String get() = if (trackCount == 1) "1 track" else "$trackCount tracks"
+    val trackCountLabel: String get() = t("{count, plural, one {# track} other {# tracks}}", "count" to trackCount)
 }
 
 /** The id of the "Made for you" row of the profile's daily music mixes, on Home and a music library's page. */
@@ -226,7 +229,7 @@ suspend fun FlexarrClient.musicBrowse(libraryId: String): Home {
         // Neither: the artists still show.
         emptyList()
     }
-    val rows = if (lists.isEmpty()) emptyList() else listOf(HomeRow(MUSIC_PLAYLISTS_ROW_ID, "Your playlists", HomeRowStyle.Playlists, emptyList(), playlists = lists))
+    val rows = if (lists.isEmpty()) emptyList() else listOf(HomeRow(MUSIC_PLAYLISTS_ROW_ID, t("Your playlists"), HomeRowStyle.Playlists, emptyList(), playlists = lists))
     return Home(featured = emptyList(), rows = rows)
 }
 
@@ -271,12 +274,14 @@ fun albumStart(tracks: List<ItemSummary>, resume: ItemSummary?): AlbumStart {
 }
 
 /** A music library's views, switched at the top of its page as a film library's are. */
-enum class MusicView(val label: String) {
-    Browse("Browse"),
-    Artists("Artists"),
-    Albums("Albums"),
-    Genres("Genres"),
+enum class MusicView(private val english: String) {
+    Browse(tk(Words.browse)),
+    Artists(tk(Words.artists)),
+    Albums(tk(Words.albums)),
+    Genres(tk(Words.genres)),
     ;
+
+    val label: String get() = t(english)
 
     /** Albums and Genres need a server from 0.59 ([libraryAlbums] isn't null); before it, Browse and Artists. */
     val needsAlbums: Boolean get() = this == Albums || this == Genres
@@ -296,7 +301,7 @@ enum class MusicView(val label: String) {
 }
 
 /** "1 artist", "1,204 artists". */
-fun artistCount(total: Int): String = if (total == 1) "1 artist" else "${Format.count(total)} artists"
+fun artistCount(total: Int): String = t("{count, plural, one {# artist} other {# artists}}", "count" to total)
 
 /** "1 album", "38 albums". */
-fun albumCount(total: Int): String = if (total == 1) "1 album" else "${Format.count(total)} albums"
+fun albumCount(total: Int): String = t("{count, plural, one {# album} other {# albums}}", "count" to total)

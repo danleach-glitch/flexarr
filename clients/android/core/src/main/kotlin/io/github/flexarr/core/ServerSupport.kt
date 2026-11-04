@@ -1,5 +1,8 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
+
 /**
  * The oldest server these apps support. Anything a newer server added is optional in the models ("Absent from servers
  * before …"); anything older than this is not catered for, and the apps say so: the connect screen won't sign in to
@@ -9,7 +12,7 @@ object ServerSupport {
     const val MINIMUM_VERSION = "0.50.0"
 
     /** What the connect screen and the notice say (docs/design.md, Words). */
-    const val UPDATE_MESSAGE = "Update your Flexarr server"
+    val UPDATE_MESSAGE: String get() = t(Words.updateYourServer)
 
     /**
      * Whether [version] ("0.49.2", "0.60.0-dev.1a2b3c4", "0.59.0+d4c892c…") is older than [MINIMUM_VERSION]. A dev build

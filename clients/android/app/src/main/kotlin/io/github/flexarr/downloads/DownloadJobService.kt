@@ -1,5 +1,6 @@
 package io.github.flexarr.downloads
 
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.logging.FlexarrLog
 import android.annotation.SuppressLint
 import android.app.job.JobInfo
@@ -40,7 +41,7 @@ class DownloadJobService : JobService() {
         val id = params.extras.getString(UserInitiatedTransfers.ID) ?: return false
         val store = appModel.downloads
         // Android asks for the notification straight away (within seconds) and shows it while the job runs.
-        notify(params, store.byId(id), "Getting ready")
+        notify(params, store.byId(id), t("Getting ready"))
         transfers[params.jobId] = scope.launch {
             val transfer = DownloadTransfer(
                 this@DownloadJobService,
@@ -68,7 +69,7 @@ class DownloadJobService : JobService() {
         return when (params.stopReason) {
             JobParameters.STOP_REASON_CANCELLED_BY_APP -> false
             JobParameters.STOP_REASON_USER -> {
-                params.extras.getString(UserInitiatedTransfers.ID)?.let { appModel.downloads.failed(it, "The download was stopped. Try again.") }
+                params.extras.getString(UserInitiatedTransfers.ID)?.let { appModel.downloads.failed(it, t("The download was stopped. Try again.")) }
                 false
             }
             else -> true

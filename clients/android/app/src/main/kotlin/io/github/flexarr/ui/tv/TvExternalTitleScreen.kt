@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -106,9 +108,9 @@ internal fun TvExternalTitleScreen(model: AppModel, preview: ExternalTitle, open
         } catch (e: CancellationException) {
             throw e
         } catch (e: FlexarrException.Http) {
-            error = if (e.status == 404) "Flexarr can’t find that title." else e.message
+            error = if (e.status == 404) t("Flexarr can’t find that title.") else e.message
         } catch (e: Exception) {
-            error = e.message ?: "Something went wrong."
+            error = e.message ?: t("Something went wrong.")
         }
     }
 
@@ -189,23 +191,23 @@ private fun Header(title: ExternalTitle, preview: ExternalTitle, detail: Externa
 
 /** "R   2026   1h 59m   Film". */
 private fun facts(title: ExternalTitle, detail: ExternalDetail?, scores: Boolean): List<String> {
-    if (detail == null) return listOfNotNull(title.year?.toString(), if (title.isShow) "Show" else "Movie")
+    if (detail == null) return listOfNotNull(title.year?.toString(), if (title.isShow) t("Show") else t("Movie"))
     val length = if (detail.isShow) {
-        detail.seasons?.let { if (it == 1) "1 season" else "$it seasons" }
+        detail.seasons?.let { t("{count, plural, one {# season} other {# seasons}}", "count" to it) }
     } else {
         detail.runtimeMinutes?.let { Format.runtime(minutes = it) }
     }
     val status = detail.status?.takeIf { it != "Released" && it != "Ended" }
     // TMDB's score when there's no IMDb score to show beside its mark.
-    val tmdb = detail.tmdbRating?.takeIf { scores && detail.scores.imdb == null }?.let { String.format(Locale.ROOT, "%.1f/10", it) }
-    return listOfNotNull(detail.certification, detail.year?.toString(), length, if (detail.isShow) "Show" else "Movie", status, tmdb)
+    val tmdb = detail.tmdbRating?.takeIf { scores && detail.scores.imdb == null }?.let { String.format(io.github.flexarr.core.i18n.Localization.locale, "%.1f/10", it) }
+    return listOfNotNull(detail.certification, detail.year?.toString(), length, if (detail.isShow) t("Show") else t("Movie"), status, tmdb)
 }
 
 @Composable
 private fun Sections(detail: ExternalDetail, open: (ExternalTitle) -> Unit, focus: FocusMemory) {
     if (detail.cast.isNotEmpty()) {
         Column {
-            TvRowHeading("Cast")
+            TvRowHeading(t("Cast"))
             // Not buttons: these people aren't in the library, so there's nowhere for them to go.
             LazyRow(contentPadding = PaddingValues(horizontal = TvLayout.Edge, vertical = 15.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                 items(detail.cast) { CastFace(it) }
@@ -214,12 +216,12 @@ private fun Sections(detail: ExternalDetail, open: (ExternalTitle) -> Unit, focu
     }
     if (detail.madeBy.isNotEmpty() || detail.studio != null) {
         Row(Modifier.padding(horizontal = TvLayout.Edge), horizontalArrangement = Arrangement.spacedBy(40.dp)) {
-            if (detail.madeBy.isNotEmpty()) Labeled(if (detail.isShow) "Created by" else "Directed by", detail.madeBy.joinToString(", "))
-            detail.studio?.let { Labeled(if (detail.isShow) "Network" else "Studio", it) }
+            if (detail.madeBy.isNotEmpty()) Labeled(if (detail.isShow) t("Created by") else t("Directed by"), detail.madeBy.joinToString(", "))
+            detail.studio?.let { Labeled(if (detail.isShow) t("Network") else t("Studio"), it) }
         }
     }
     if (detail.recommendations.isNotEmpty()) {
-        DiscoverRow("If you like this", detail.recommendations, open, cardModifier = { Modifier.focusMemory(focus, "like/${it.id}") })
+        DiscoverRow(t("If you like this"), detail.recommendations, open, cardModifier = { Modifier.focusMemory(focus, "like/${it.id}") })
     }
 }
 
@@ -265,7 +267,7 @@ private fun RequestButton(model: AppModel, title: ExternalTitle, focus: FocusMem
     val state = model.titleState(key, title.availability, inLibrary = title.libraryItemId != null)
     val pressable = state.pressable(model)
     val label = when {
-        state == TitleRequestState.CanRequest && failure != null -> "Try again"
+        state == TitleRequestState.CanRequest && failure != null -> t("Try again")
         state == TitleRequestState.InLibrary || state == TitleRequestState.Partly || state == TitleRequestState.None -> title.availability.label ?: state.label()
         else -> state.label()
     }
@@ -294,7 +296,7 @@ private fun RequestButton(model: AppModel, title: ExternalTitle, focus: FocusMem
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {
-                            failure = e.message ?: "Something went wrong."
+                            failure = e.message ?: t("Something went wrong.")
                         }
                     }
                     TitleRequestState.Requested -> confirming = true
@@ -319,7 +321,7 @@ private fun RequestButton(model: AppModel, title: ExternalTitle, focus: FocusMem
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    failure = e.message ?: "Something went wrong."
+                    failure = e.message ?: t("Something went wrong.")
                 }
             }
         }
@@ -355,7 +357,7 @@ internal fun TvGenreScreen(client: FlexarrClient, name: String) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            error = e.message ?: "Something went wrong."
+            error = e.message ?: t("Something went wrong.")
         }
     }
     // The rest of the genre as the grid nears the end of what's loaded, so "412 titles" means all 412 are there.
@@ -400,14 +402,14 @@ internal fun TvGenreScreen(client: FlexarrClient, name: String) {
                         Text(name, style = marquee(36))
                         val total = page?.total
                         Text(
-                            if (total == null) " " else "${NumberFormat.getIntegerInstance().format(total)} ${if (total == 1) "title" else "titles"}, best rated first",
+                            if (total == null) " " else t("{count, plural, one {# title} other {# titles}}, best rated first", "count" to total),
                             fontSize = 13.sp,
                             color = Flexarr.usher,
                         )
                     }
                     Spacer(Modifier.weight(1f))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(null to "Everything", MediaKind.Movie to "Movies", MediaKind.Series to "Shows").forEach { (choice, label) ->
+                        listOf(null to t("Everything"), MediaKind.Movie to t(Words.movies), MediaKind.Series to t(Words.shows)).forEach { (choice, label) ->
                             TvPill(label, selected = kind == choice, onClick = { kind = choice })
                         }
                     }

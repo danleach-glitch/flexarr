@@ -1,5 +1,8 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -49,7 +52,10 @@ import io.github.flexarr.ui.theme.Flexarr
 // button: on a TV the focused one is white and the other grey; on the phone Next is white and the X grey.
 
 /** The pill's width doesn't follow the countdown: it holds its "Next episode in 10" width from the countdown's start. */
-private const val HOLD_WIDTH_OF = "Next episode in 10"
+private val holdWidthOf: String get() = t(Words.nextEpisodeIn, "seconds" to 10)
+
+/** Skip intro or Skip recap, in the language shown (anything else the pill says is Next episode). */
+private fun isSkip(title: String) = title == t(Words.skipIntro) || title == t(Words.skipRecap)
 
 /** What the pill last showed, so it fades out as it was (not as a shorter "Next episode" first). */
 private class PromptShown {
@@ -68,7 +74,7 @@ internal fun FadingPrompt(title: String?, countingDown: Boolean, modifier: Modif
     val shown = remember { PromptShown() }
     if (title != null) {
         if (!shown.visible) shown.held = false
-        if (countingDown && title.startsWith("Next episode")) shown.held = true
+        if (countingDown && !isSkip(title)) shown.held = true
         shown.title = title
         shown.countingDown = countingDown
         shown.visible = true
@@ -84,7 +90,7 @@ internal fun FadingPrompt(title: String?, countingDown: Boolean, modifier: Modif
 }
 
 // Next episode shows ▶▶, as on Apple; Skip intro and recap their skip-ahead.
-private fun promptIcon(title: String): ImageVector = if (title.startsWith("Skip")) Icons.Filled.SkipNext else Icons.Filled.FastForward
+private fun promptIcon(title: String): ImageVector = if (isSkip(title)) Icons.Filled.SkipNext else Icons.Filled.FastForward
 
 /** The Next half's shape: a capsule by itself, its left end only with the X beside it. */
 private fun nextShape(countingDown: Boolean) = if (countingDown) RoundedCornerShape(topStartPercent = 50, bottomStartPercent = 50) else RoundedCornerShape(percent = 50)
@@ -98,7 +104,7 @@ private val restingFill get() = Flexarr.aisle.copy(alpha = 0.85f)
 private fun PromptLabel(title: String, held: Boolean, color: Color, fontSize: TextUnit) {
     val style = TextStyle(color = color, fontSize = fontSize, fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum")
     Box(contentAlignment = Alignment.CenterStart) {
-        if (held) BasicText(HOLD_WIDTH_OF, style = style, maxLines = 1, modifier = Modifier.alpha(0f).clearAndSetSemantics {})
+        if (held) BasicText(holdWidthOf, style = style, maxLines = 1, modifier = Modifier.alpha(0f).clearAndSetSemantics {})
         BasicText(title, style = style, maxLines = 1)
     }
 }
@@ -120,7 +126,7 @@ internal fun PromptPill(title: String, countingDown: Boolean, held: Boolean, onT
         }
         if (countingDown) {
             Box(
-                Modifier.fillMaxHeight().pressable(onCancel).semantics { contentDescription = "Cancel" }.padding(vertical = 8.dp)
+                Modifier.fillMaxHeight().pressable(onCancel).semantics { contentDescription = t(Words.cancel) }.padding(vertical = 8.dp)
                     .clip(xShape).background(restingFill).padding(start = 11.dp, end = 14.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -163,7 +169,7 @@ internal fun TvPromptPill(title: String, countingDown: Boolean, held: Boolean, o
             PromptLabel(title, held, tint, 14.5.sp)
         }
         if (countingDown) {
-            TvPromptHalf(onCancel, xShape, Modifier.semantics { contentDescription = "Cancel" }, start = 10.dp, end = 13.dp) { tint ->
+            TvPromptHalf(onCancel, xShape, Modifier.semantics { contentDescription = t(Words.cancel) }, start = 10.dp, end = 13.dp) { tint ->
                 Icon(Icons.Filled.Close, contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
             }
         }

@@ -2,6 +2,8 @@ package io.github.flexarr.data
 
 import android.content.Context
 import androidx.core.content.edit
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.tk
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,14 +23,26 @@ data class SoundSettings(
     val nightStart: Int = 22 * 60,
     val nightEnd: Int = 7 * 60,
 ) {
-    enum class Speakers(val label: String, val channels: Int?) {
-        Auto("Auto", null), Stereo("Stereo", 2), Surround("5.1", 6)
+    enum class Speakers(private val english: String, val channels: Int?) {
+        Auto(tk("Auto"), null), Stereo(tk("Stereo"), 2), Surround("5.1", 6);
+
+        val label: String get() = t(english)
     }
 
     /** [db]: the lift each strength gives the dialogue, the same in every app. */
-    enum class DialogueBoost(val db: Double) { Off(0.0), Low(3.0), Medium(6.0), High(9.0) }
+    enum class DialogueBoost(val db: Double, private val english: String) {
+        Off(0.0, tk("Off")), Low(3.0, tk("Low")), Medium(6.0, tk("Medium")), High(9.0, tk("High"));
 
-    enum class NightMode { Off, On, Scheduled }
+        /** Its name in the language shown ([name] is what's kept). */
+        val label: String get() = t(english)
+    }
+
+    enum class NightMode(private val english: String) {
+        Off(tk("Off")), On(tk("On")), Scheduled(tk("Scheduled"));
+
+        /** Its name in the language shown ([name] is what's kept). */
+        val label: String get() = t(english)
+    }
 
     /** What the sound does at [now], with the schedule worked out. */
     fun shaping(now: LocalTime): Shaping = Shaping(

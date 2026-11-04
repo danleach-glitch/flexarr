@@ -1,5 +1,8 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.tk
 import kotlinx.serialization.Serializable
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
@@ -233,19 +236,24 @@ enum class BookShelf(val id: String) {
 data class BookSeriesSearch(val id: String, val name: String, val bookCount: Int = 0)
 
 /** A library's books, filtered by progress. */
-enum class BookProgressFilter(val raw: String, val label: String) {
-    NotStarted("notstarted", "Not started"), InProgress("inprogress", "In progress"), Finished("finished", "Finished")
+enum class BookProgressFilter(val raw: String, private val english: String) {
+    NotStarted("notstarted", tk("Not started")), InProgress("inprogress", tk("In progress")), Finished("finished", tk("Finished"));
+
+    val label: String get() = t(english)
 }
 
 /** Orders `GET /libraries/{id}/books` takes. */
-enum class BookSort(val raw: String, val label: String) {
-    Title("title", "A–Z"),
-    Author("author", "Author"),
-    Series("series", "Series"),
-    Added("added", "Recently added"),
-    Released("released", "Year"),
-    Length("length", "Length"),
-    Listened("listened", "Recently listened"),
+enum class BookSort(val raw: String, private val english: String) {
+    Title("title", tk(Words.sortAToZ)),
+    Author("author", tk(Words.author)),
+    Series("series", tk(Words.series)),
+    Added("added", tk(Words.recentlyAdded)),
+    Released("released", tk(Words.year)),
+    Length("length", tk(Words.length)),
+    Listened("listened", tk(Words.recentlyListened)),
+    ;
+
+    val label: String get() = t(english)
 }
 
 enum class BookPersonRole(val raw: String) { Author("author"), Narrator("narrator") }
@@ -393,12 +401,11 @@ data class DeletionPlan(val managedBy: String? = null, val files: List<String> =
     /** What the question before deleting a book says. */
     val bookMessage: String
         get() {
-            val what = when (files.size) {
-                0 -> "Flexarr deletes it from the library: there are no files on disk."
-                1 -> "Flexarr deletes its file from disk."
-                else -> "Flexarr deletes its ${files.size} files from disk."
-            }
-            return if (files.isEmpty()) "$what You can’t undo this." else "$what Folders it leaves empty go too. You can’t undo this."
+            if (files.isEmpty()) return t("Flexarr deletes it from the library: there are no files on disk. You can’t undo this.")
+            return t(
+                "{count, plural, one {Flexarr deletes its file from disk.} other {Flexarr deletes its # files from disk.}} Folders it leaves empty go too. You can’t undo this.",
+                "count" to files.size,
+            )
         }
 }
 
@@ -449,7 +456,7 @@ fun FlexarrClient.bookFileRequest(relativeUrl: String, fromByte: Long = 0): Requ
 /** "Book 3 of 7", "Book 1.5", or null outside a series. */
 fun bookNumberLine(sequence: String?, count: Int?): String? {
     val number = sequence?.takeIf { it.isNotBlank() } ?: return null
-    return if (count != null && count > 1 && number.toDoubleOrNull()?.let { it == Math.floor(it) && it >= 1 } == true) "Book $number of $count" else "Book $number"
+    return if (count != null && count > 1 && number.toDoubleOrNull()?.let { it == Math.floor(it) && it >= 1 } == true) t("Book {number} of {count}", "number" to number, "count" to count) else t("Book {number}", "number" to number)
 }
 
 /** "Lee Child, Andrew Child and 2 more". */
@@ -457,7 +464,7 @@ val BookSummary.authorLine: String?
     get() {
         val names = authors?.takeIf { it.isNotBlank() } ?: return null
         val shown = names.split(", ").size
-        return if (authorCount > shown) "$names and ${authorCount - shown} more" else names
+        return if (authorCount > shown) t("{names} and {count} more", "names" to names, "count" to authorCount - shown) else names
     }
 
 /** The book's length, from its summary or as a plain item. */
@@ -473,5 +480,5 @@ fun bookTimeLine(duration: Double, position: Double, speed: Double, finished: Bo
     val rate = speed.coerceAtLeast(0.25)
     if (finished || position <= 0) return Format.runtime(duration / rate)
     val left = (duration - position).coerceAtLeast(0.0) / rate
-    return Format.remaining(left) ?: "Less than a minute left"
+    return Format.remaining(left) ?: t("Less than a minute left")
 }

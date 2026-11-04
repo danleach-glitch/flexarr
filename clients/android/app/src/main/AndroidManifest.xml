@@ -36,6 +36,7 @@
     <application
         android:name=".FlexarrApplication"
         android:allowBackup="false"
+        android:localeConfig="@xml/locales_config"
         android:banner="@drawable/tv_banner"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"

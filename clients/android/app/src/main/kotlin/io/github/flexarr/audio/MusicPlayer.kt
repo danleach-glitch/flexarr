@@ -1,5 +1,6 @@
 package io.github.flexarr.audio
 
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.player.mediaSources
 import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
@@ -246,7 +247,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
 
         override fun onPlayerError(error: PlaybackException) {
             flexarrLog.warning("Track failed", error)
-            errorMessage = "This track couldn’t be played."
+            errorMessage = t("This track couldn’t be played.")
             dropUpcoming()
             endSession()
             player.clearMediaItems()

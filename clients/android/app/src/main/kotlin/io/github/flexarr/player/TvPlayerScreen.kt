@@ -1,5 +1,7 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -290,8 +292,8 @@ private fun Controls(controller: PlaybackController, scrubTo: Double?, onScrub: 
                 // A film has neither episode button; an episode has both. Previous always works (with nothing before,
                 // it starts this one again); Next is dimmed at the last.
                 if (info?.item?.kind == MediaKind.Episode) {
-                    TvActionButton("Previous episode", onClick = { controller.playPrevious(); onInteract() }, icon = Icons.Filled.SkipPrevious)
-                    TvActionButton("Next episode", onClick = { controller.playNext(); onInteract() }, icon = Icons.Filled.SkipNext, enabled = info.next != null)
+                    TvActionButton(t("Previous episode"), onClick = { controller.playPrevious(); onInteract() }, icon = Icons.Filled.SkipPrevious)
+                    TvActionButton(t("Next episode"), onClick = { controller.playNext(); onInteract() }, icon = Icons.Filled.SkipNext, enabled = info.next != null)
                 }
                 Spacer(Modifier.weight(1f))
                 TvMenuButtons(controller, controller.sleep, controller.tvMenus(), menuButtons, onOpen = onMenu)
@@ -361,7 +363,7 @@ private fun Timeline(controller: PlaybackController, scrubTo: Double?, onScrub: 
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(if (controller.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, contentDescription = if (controller.isPlaying) "Playing" else "Paused", modifier = Modifier.size(16.dp))
+            Icon(if (controller.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, contentDescription = if (controller.isPlaying) t("Playing") else t("Paused"), modifier = Modifier.size(16.dp))
             Text(Format.timestamp(shown), fontSize = 13.sp, style = TimeStyle, modifier = Modifier.padding(start = 6.dp).widthIn(min = 64.dp))
             Spacer(Modifier.weight(1f))
             Text("−" + Format.timestamp((controller.duration - shown).coerceAtLeast(0.0)), fontSize = 13.sp, style = TimeStyle, textAlign = TextAlign.End)
@@ -386,7 +388,7 @@ private fun TvAudioSync(controller: PlaybackController, onDone: () -> Unit, modi
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Audio sync", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.7f))
+        Text(t("Audio sync"), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.7f))
         Column(
             Modifier.focusRequester(value).focusable(interactionSource = source)
                 .border(2.dp, if (focused) Flexarr.screen else Color.Transparent, RoundedCornerShape(Tokens.radiusPanel))
@@ -406,13 +408,13 @@ private fun TvAudioSync(controller: PlaybackController, onDone: () -> Unit, modi
         ) {
             Text("‹  " + PlaybackController.syncLabel(seconds) + "  ›", fontSize = 26.sp, fontWeight = FontWeight.Bold, style = TimeStyle)
             Text(
-                if (seconds > 0.0005) "Sound later" else if (seconds < -0.0005) "Sound earlier" else "As the file is",
+                if (seconds > 0.0005) t("Sound later") else if (seconds < -0.0005) t("Sound earlier") else t("As the file is"),
                 fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White.copy(alpha = 0.6f),
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            TvActionButton("Reset", onClick = { controller.setAudioDelay(0.0) })
-            TvActionButton("Done", onClick = onDone, prominent = true, ambient = Flexarr.screen)
+            TvActionButton(t("Reset"), onClick = { controller.setAudioDelay(0.0) })
+            TvActionButton(t(Words.done), onClick = onDone, prominent = true, ambient = Flexarr.screen)
         }
     }
 }
@@ -426,7 +428,7 @@ private fun PlayerError(controller: PlaybackController, message: String, onClose
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             val retry = controller.retryLabel
             if (retry != null) TvActionButton(retry, onClick = controller::retry, prominent = true, modifier = Modifier.focusRequester(first))
-            TvActionButton("Close", onClick = onClose, prominent = retry == null, modifier = if (retry == null) Modifier.focusRequester(first) else Modifier)
+            TvActionButton(t("Close"), onClick = onClose, prominent = retry == null, modifier = if (retry == null) Modifier.focusRequester(first) else Modifier)
         }
     }
 }

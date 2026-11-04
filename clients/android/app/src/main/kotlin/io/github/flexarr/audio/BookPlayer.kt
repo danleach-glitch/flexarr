@@ -29,6 +29,7 @@ import io.github.flexarr.core.BookSessionClock
 import io.github.flexarr.core.BookSpeed
 import io.github.flexarr.core.ChapterSleep
 import io.github.flexarr.core.endBookSession
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.reportBookSession
 import io.github.flexarr.core.BookTimeline
 import io.github.flexarr.core.Bookmark
@@ -241,7 +242,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
                 return
             }
             flexarrLog.warning("Book failed", error)
-            errorMessage = "This book couldn’t be played."
+            errorMessage = t("This book couldn’t be played.")
             endSession()
         }
     }
@@ -319,7 +320,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         if (startDownloaded(book, from)) return
         val client = client ?: run {
             isLoading = false
-            errorMessage = "Connect to your server to play this book."
+            errorMessage = t("Connect to your server to play this book.")
             return
         }
         val started = StartTiming(StartTiming.BOOK)
@@ -339,7 +340,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
                 }
                 val manifest = info.book ?: run {
                     runCatching { client.stopPlayback(info.sessionId) }
-                    errorMessage = "This server can’t play books yet."
+                    errorMessage = t("This server can’t play books yet.")
                     return@launch
                 }
                 sessionId = info.sessionId

@@ -40,6 +40,7 @@ import io.github.flexarr.core.ServerVersion
 import io.github.flexarr.core.artistName
 import io.github.flexarr.core.displayTitle
 import io.github.flexarr.core.episodeSubtitle
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.nextEpisode
 import io.github.flexarr.logging.FlexarrLog
 import kotlinx.coroutines.Job
@@ -193,7 +194,7 @@ class Casting private constructor(private val context: Context, private val mode
         val manifest = books.manifest ?: return
         if (manifest.files.size != 1) {
             declined += book.id
-            Toast.makeText(context, "This book can’t be cast yet.", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, t("This book can’t be cast yet."), Toast.LENGTH_LONG).show()
             return
         }
         val at = books.position
@@ -229,7 +230,7 @@ class Casting private constructor(private val context: Context, private val mode
                 // Before 0.55 a converted stream doesn't say a Chromecast's player may read it.
                 if (info.method == PlaybackMethod.Transcode && !streamsConverted(client)) {
                     runCatching { client.stopPlayback(info.sessionId) }
-                    return@launch fail(request.itemId, "To cast this, update Flexarr on the server to 0.55 or later.", request.startPositionSeconds)
+                    return@launch fail(request.itemId, t("To cast this, update Flexarr on the server to 0.55 or later."), request.startPositionSeconds)
                 }
                 val now = describe(kind, info, episode, client)
                 playing = now
@@ -245,7 +246,7 @@ class Casting private constructor(private val context: Context, private val mode
             } catch (e: Exception) {
                 if (mine != generation) return@launch
                 flexarrLog.warning("Couldn't cast ${request.itemId}", e)
-                fail(request.itemId, e.message ?: "This couldn’t be cast.", request.startPositionSeconds)
+                fail(request.itemId, e.message ?: t("This couldn’t be cast."), request.startPositionSeconds)
             } finally {
                 if (mine == generation) isLoading = false
             }
@@ -408,7 +409,7 @@ class Casting private constructor(private val context: Context, private val mode
             flexarrLog.warning("The Chromecast couldn't play ${now.title}", error)
             val at = position
             endSession()
-            fail(now.itemId, "The Chromecast couldn’t play this.", at)
+            fail(now.itemId, t("The Chromecast couldn’t play this."), at)
         }
     }
 

@@ -1,5 +1,6 @@
 package io.github.flexarr
 
+import io.github.flexarr.core.i18n.t
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import io.github.flexarr.logging.FlexarrLog
 import android.Manifest
@@ -34,6 +35,8 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
+        // The device's languages may have changed while the app was away (FlexarrApplication set them at launch).
+        io.github.flexarr.core.i18n.Localization.deviceLanguages = android.os.LocaleList.getDefault().toLanguageTags().split(',')
         // Upright on a phone; a tablet turns either way, as an iPad does (and a TV is a TV).
         requestedOrientation = if (isTelevision || resources.configuration.smallestScreenWidthDp >= 600) {
             ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -45,9 +48,17 @@ class MainActivity : ComponentActivity() {
             openLink(intent)
         }
         setContent {
-            FlexarrTheme {
-                if (usesTvInterface) TvRoot(appModel) else FlexarrRoot(appModel)
-                DownloadNotificationsQuestion(appModel)
+            // A new language redraws everything in it, mirrored for right-to-left ones.
+            androidx.compose.runtime.key(appModel.languageCode) {
+                androidx.compose.runtime.CompositionLocalProvider(
+                    androidx.compose.ui.platform.LocalLayoutDirection provides
+                        if (io.github.flexarr.core.i18n.Localization.isRightToLeft) androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr,
+                ) {
+                    FlexarrTheme {
+                        if (usesTvInterface) TvRoot(appModel) else FlexarrRoot(appModel)
+                        DownloadNotificationsQuestion(appModel)
+                    }
+                }
             }
         }
     }
@@ -67,7 +78,7 @@ class MainActivity : ComponentActivity() {
             // Asked about first ("Join Dan's Flexarr as Gran?"): it could have come from any app or web page.
             // Not in builds without family invites yet (BuildConfig.GUEST_INVITES), which say so.
             is AppLink.Join ->
-                if (BuildConfig.GUEST_INVITES) appModel.offerInvite(GuestInvite.decode(link.payload)) else appModel.inviteProblem = "Update Flexarr to join."
+                if (BuildConfig.GUEST_INVITES) appModel.offerInvite(GuestInvite.decode(link.payload)) else appModel.inviteProblem = t("Update Flexarr to join.")
             else -> appModel.pendingLink = link
         }
     }

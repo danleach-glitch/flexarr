@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.downloads
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -100,12 +103,12 @@ fun DownloadsScreen(model: AppModel) {
     opened?.let { id -> return OfflineCollectionScreen(model, id, onBack = { opened = null }) }
     RoomBackground(ambient = null) {
         Column {
-            PageTitle("Downloads")
+            PageTitle(t(Words.downloads))
             if (store.downloads.isEmpty() && store.musicCollections.isEmpty() && model.bookDownloads.books.isEmpty()) {
                 StatusView(
                     // Offline there's nothing to be done about it.
-                    if (model.serverUnreachable) "Nothing downloaded."
-                    else "Download movies, episodes, albums, playlists and podcast episodes to watch and listen with no connection. Look for Download on a title’s page.",
+                    if (model.serverUnreachable) t("Nothing downloaded.")
+                    else t("Download movies, episodes, albums, playlists and podcast episodes to watch and listen with no connection. Look for Download on a title’s page."),
                     empty = true,
                 )
                 return@Column
@@ -121,14 +124,14 @@ fun DownloadsScreen(model: AppModel) {
                 },
             ) {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                    section("Movies", store.films) { DownloadRow(model, it) }
+                    section(t(Words.movies), store.films) { DownloadRow(model, it) }
                     store.shows.forEach { (show, episodes) -> section(show, episodes) { DownloadRow(model, it) } }
-                    section("Music", store.musicCollections) { CollectionRow(model, it, onOpen = { opened = it.id }) }
-                    section("Audiobooks", model.bookDownloads.books) { BookDownloadRow(model, it) }
-                    section("Podcasts", store.podcastEpisodes) { PodcastDownloadRow(model, it) }
+                    section(t(Words.music), store.musicCollections) { CollectionRow(model, it, onOpen = { opened = it.id }) }
+                    section(t(Words.audiobooks), model.bookDownloads.books) { BookDownloadRow(model, it) }
+                    section(t(Words.podcasts), store.podcastEpisodes) { PodcastDownloadRow(model, it) }
                     item {
                         Text(
-                            "${Format.bytes(store.bytesUsed + model.bookDownloads.bytesUsed)} used on this phone.",
+                            t("{size} used on this phone.", "size" to Format.bytes(store.bytesUsed + model.bookDownloads.bytesUsed)),
                             fontSize = 13.sp,
                             color = Flexarr.usher,
                             modifier = Modifier.padding(horizontal = Edge),
@@ -161,7 +164,7 @@ private fun DownloadRow(model: AppModel, download: LocalDownload) {
         subtitle = null,
         artWidth = 112.dp,
         placeholder = Icons.Filled.Movie,
-        doneLine = listOfNotNull(download.quality.label.takeIf { download.quality != DownloadQuality.Unknown }, download.sizeBytes?.let(Format::bytes), if (download.finishedAtMillis != null) "Watched" else null),
+        doneLine = listOfNotNull(download.quality.label.takeIf { download.quality != DownloadQuality.Unknown }, download.sizeBytes?.let(Format::bytes), if (download.finishedAtMillis != null) t("Watched") else null),
         onPlay = { context.startActivity(PlayerActivity.offlineIntent(context, download.id)) },
     )
 }
@@ -190,26 +193,26 @@ private fun BookDownloadRow(model: AppModel, book: io.github.flexarr.core.LocalB
             book.item.book?.authors?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             @Composable fun caption(text: String) = Text(text, fontSize = 12.sp, color = Flexarr.usher, style = io.github.flexarr.ui.podcasts.Tabular)
             when {
-                book.phase == LocalPhase.Failed -> Text(book.failure ?: "Couldn’t download this.", fontSize = 12.sp, color = Flexarr.danger)
+                book.phase == LocalPhase.Failed -> Text(book.failure ?: t("Couldn’t download this."), fontSize = 12.sp, color = Flexarr.danger)
                 !book.isDownloaded -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     val progress = store.progress(book)
-                    caption("Downloading, ${(progress * 100).toInt()}%")
+                    caption(t("Downloading, {percent}%", "percent" to (progress * 100).toInt()))
                     LinearProgressIndicator(progress = { progress.toFloat() }, color = Flexarr.silver, trackColor = Flexarr.aisle, modifier = Modifier.fillMaxWidth().padding(end = 4.dp))
                 }
                 else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.go, modifier = Modifier.size(14.dp))
-                    caption(listOfNotNull(Format.bytes(book.estimatedBytes), if (book.finishedAtMillis != null) "Finished" else null).joinToString("   "))
+                    Icon(Icons.Filled.ArrowCircleDown, contentDescription = t("Downloaded"), tint = Flexarr.go, modifier = Modifier.size(14.dp))
+                    caption(listOfNotNull(Format.bytes(book.estimatedBytes), if (book.finishedAtMillis != null) t("Finished") else null).joinToString("   "))
                 }
             }
         }
         Box {
-            IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = "More for ${book.item.title}", tint = Flexarr.usher) }
+            IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = t("More for {title}", "title" to book.item.title), tint = Flexarr.usher) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
                 if (book.phase == LocalPhase.Failed) {
-                    DropdownMenuItem(text = { Text("Try again") }, onClick = { menu = false; navigator.downloadBook(book.item) })
+                    DropdownMenuItem(text = { Text(t("Try again")) }, onClick = { menu = false; navigator.downloadBook(book.item) })
                 }
                 DropdownMenuItem(
-                    text = { Text(if (book.isDownloaded) "Remove download" else "Stop download", color = Flexarr.danger) },
+                    text = { Text(if (book.isDownloaded) t("Remove download") else t("Stop download"), color = Flexarr.danger) },
                     onClick = { menu = false; store.remove(book.itemId) },
                 )
             }
@@ -227,7 +230,7 @@ private fun PodcastDownloadRow(model: AppModel, download: LocalDownload) {
         subtitle = download.item.seriesTitle,
         artWidth = 63.dp,
         placeholder = Icons.Filled.Mic,
-        doneLine = listOfNotNull(download.sizeBytes?.let(Format::bytes), if (download.finishedAtMillis != null) "Played" else null),
+        doneLine = listOfNotNull(download.sizeBytes?.let(Format::bytes), if (download.finishedAtMillis != null) t("Played") else null),
         onPlay = { model.podcasts.play(download.item.asPodcastEpisode()) },
     )
 }
@@ -264,16 +267,16 @@ private fun DownloadListRow(
             DownloadStatusLine(model, download, doneLine)
         }
         Box {
-            IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = "More for $title", tint = Flexarr.usher) }
+            IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = t("More for {title}", "title" to title), tint = Flexarr.usher) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
                 if (download.phase == LocalPhase.Failed) {
-                    DropdownMenuItem(text = { Text("Try again") }, onClick = {
+                    DropdownMenuItem(text = { Text(t("Try again")) }, onClick = {
                         menu = false
                         model.scope.launch { runCatching { store.download(download.item.id, download.quality, automatic = false) } }
                     })
                 }
                 DropdownMenuItem(
-                    text = { Text(if (download.isDownloaded) "Remove download" else "Stop download", color = Flexarr.danger) },
+                    text = { Text(if (download.isDownloaded) t("Remove download") else t("Stop download"), color = Flexarr.danger) },
                     onClick = { menu = false; store.delete(download.id) },
                 )
             }
@@ -286,22 +289,22 @@ private fun DownloadStatusLine(model: AppModel, download: LocalDownload, doneLin
     val store = model.downloads
     @Composable fun caption(text: String) = Text(text, fontSize = 12.sp, color = Flexarr.usher, style = io.github.flexarr.ui.podcasts.Tabular)
     when {
-        store.isWaitingForWiFi(download) -> caption("Waiting for Wi-Fi")
+        store.isWaitingForWiFi(download) -> caption(t("Waiting for Wi-Fi"))
         download.phase == LocalPhase.Preparing -> caption(gettingReady(download.progress))
         download.phase == LocalPhase.Downloading -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             val progress = store.progress(download)
-            caption("Downloading, ${(progress * 100).toInt()}%")
+            caption(t("Downloading, {percent}%", "percent" to (progress * 100).toInt()))
             LinearProgressIndicator(progress = { progress.toFloat() }, color = Flexarr.silver, trackColor = Flexarr.aisle, modifier = Modifier.fillMaxWidth().padding(end = 4.dp))
         }
-        download.phase == LocalPhase.Failed -> Text(download.failure ?: "Couldn’t download this.", fontSize = 12.sp, color = Flexarr.danger)
+        download.phase == LocalPhase.Failed -> Text(download.failure ?: t("Couldn’t download this."), fontSize = 12.sp, color = Flexarr.danger)
         else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.go, modifier = Modifier.size(14.dp))
+            Icon(Icons.Filled.ArrowCircleDown, contentDescription = t("Downloaded"), tint = Flexarr.go, modifier = Modifier.size(14.dp))
             caption(doneLine.joinToString("   "))
         }
     }
 }
 
-private fun gettingReady(progress: Double) = if (progress > 0 && progress < 1) "Getting ready, ${(progress * 100).toInt()}%" else "Getting ready"
+private fun gettingReady(progress: Double) = if (progress > 0 && progress < 1) t("Getting ready, {percent}%", "percent" to (progress * 100).toInt()) else t("Getting ready")
 
 /**
  * What a download is doing, at a glance, the same everywhere: an arrow to download; an hourglass while the server gets
@@ -347,12 +350,12 @@ internal fun DownloadRing(fraction: Float) {
 
 /** What a screen reader says for a download's state. */
 fun downloadDescription(download: LocalDownload?, waitingForWiFi: Boolean): String = when {
-    waitingForWiFi -> "Waiting for Wi-Fi"
-    download == null -> "Download"
-    download.phase == LocalPhase.Preparing -> "Getting ready on the server"
-    download.phase == LocalPhase.Downloading -> "Downloading, ${(download.progress * 100).toInt()}%"
-    download.phase == LocalPhase.Downloaded -> "Downloaded"
-    else -> "Couldn’t download"
+    waitingForWiFi -> t("Waiting for Wi-Fi")
+    download == null -> t(Words.download)
+    download.phase == LocalPhase.Preparing -> t("Getting ready on the server")
+    download.phase == LocalPhase.Downloading -> t("Downloading, {percent}%", "percent" to (download.progress * 100).toInt())
+    download.phase == LocalPhase.Downloaded -> t("Downloaded")
+    else -> t("Couldn’t download")
 }
 
 /**
@@ -373,18 +376,18 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
             try {
                 store.download(item)
             } catch (e: Exception) {
-                problem = e.message ?: "Couldn’t download this."
+                problem = e.message ?: t("Couldn’t download this.")
             }
         }
     }
 
     val label = when {
-        waiting -> "Waiting for Wi-Fi"
-        download == null -> "Download"
-        download.phase == LocalPhase.Preparing -> "Getting ready"
+        waiting -> t("Waiting for Wi-Fi")
+        download == null -> t(Words.download)
+        download.phase == LocalPhase.Preparing -> t("Getting ready")
         download.phase == LocalPhase.Downloading -> "${(store.progress(download) * 100).toInt()}%"
-        download.phase == LocalPhase.Downloaded -> "Downloaded"
-        else -> "Couldn’t download"
+        download.phase == LocalPhase.Downloaded -> t("Downloaded")
+        else -> t("Couldn’t download")
     }
     Box(modifier) {
         Column(
@@ -393,7 +396,7 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
                 .pressable({
                     when {
                         download == null -> start()
-                        download.phase == LocalPhase.Failed -> problem = download.failure ?: "Couldn’t download this."
+                        download.phase == LocalPhase.Failed -> problem = download.failure ?: t("Couldn’t download this.")
                         else -> removing = true
                     }
                 })
@@ -415,29 +418,29 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
     if (removing && download != null) {
         AlertDialog(
             onDismissRequest = { removing = false },
-            title = { Text(if (download.isDownloaded) "Remove this download?" else "Stop this download?") },
+            title = { Text(if (download.isDownloaded) t("Remove this download?") else t("Stop this download?")) },
             confirmButton = {
                 TextButton(onClick = { removing = false; store.delete(download.id) }) {
-                    Text(if (download.isDownloaded) "Remove download" else "Stop download", color = Flexarr.danger)
+                    Text(if (download.isDownloaded) t("Remove download") else t("Stop download"), color = Flexarr.danger)
                 }
             },
-            dismissButton = { TextButton(onClick = { removing = false }) { Text("Cancel", color = Flexarr.screen) } },
+            dismissButton = { TextButton(onClick = { removing = false }) { Text(t(Words.cancel), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }
     problem?.let { message ->
         AlertDialog(
             onDismissRequest = { problem = null },
-            title = { Text("Couldn’t download this") },
+            title = { Text(t("Couldn’t download this")) },
             text = { Text(message) },
             confirmButton = {
                 TextButton(onClick = {
                     problem = null
                     download?.let { store.delete(it.id) }
                     start()
-                }) { Text("Try again", color = Flexarr.screen) }
+                }) { Text(t("Try again"), color = Flexarr.screen) }
             },
-            dismissButton = { TextButton(onClick = { problem = null }) { Text("Cancel", color = Flexarr.screen) } },
+            dismissButton = { TextButton(onClick = { problem = null }) { Text(t(Words.cancel), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }
@@ -469,29 +472,29 @@ fun EpisodeDownloadButton(model: AppModel, episodeId: String, title: String) {
     if (removing && download != null) {
         AlertDialog(
             onDismissRequest = { removing = false },
-            title = { Text(if (download.isDownloaded) "Remove this download?" else "Stop this download?") },
+            title = { Text(if (download.isDownloaded) t("Remove this download?") else t("Stop this download?")) },
             confirmButton = {
                 TextButton(onClick = { removing = false; store.delete(download.id) }) {
-                    Text(if (download.isDownloaded) "Remove download" else "Stop download", color = Flexarr.danger)
+                    Text(if (download.isDownloaded) t("Remove download") else t("Stop download"), color = Flexarr.danger)
                 }
             },
-            dismissButton = { TextButton(onClick = { removing = false }) { Text("Cancel", color = Flexarr.screen) } },
+            dismissButton = { TextButton(onClick = { removing = false }) { Text(t(Words.cancel), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }
     problem?.let { message ->
         AlertDialog(
             onDismissRequest = { problem = null },
-            title = { Text("Couldn’t download this") },
+            title = { Text(t("Couldn’t download this")) },
             text = { Text(message) },
             confirmButton = {
                 TextButton(onClick = {
                     problem = null
                     download?.let { store.delete(it.id) }
                     model.scope.launch { runCatching { store.downloadEpisode(episodeId) } }
-                }) { Text("Try again", color = Flexarr.screen) }
+                }) { Text(t("Try again"), color = Flexarr.screen) }
             },
-            dismissButton = { TextButton(onClick = { problem = null }) { Text("Cancel", color = Flexarr.screen) } },
+            dismissButton = { TextButton(onClick = { problem = null }) { Text(t(Words.cancel), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }

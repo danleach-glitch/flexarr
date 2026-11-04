@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -69,10 +72,10 @@ fun TvComingSoonScreen(model: AppModel) {
                 val days = state.value
                 val first = remember { FocusRequester() }
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 28.dp, bottom = 45.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    item(key = "title") { Text("Coming soon", style = marquee(32), modifier = Modifier.padding(start = TvLayout.Edge, bottom = 8.dp)) }
+                    item(key = "title") { Text(t(Words.comingSoon), style = marquee(32), modifier = Modifier.padding(start = TvLayout.Edge, bottom = 8.dp)) }
                     if (days.isEmpty()) {
                         item(key = "empty") {
-                            Box(Modifier.size(960.dp, 250.dp)) { TvStatusView("Nothing is scheduled. Monitored shows and movies appear here as their dates get close.", empty = true) }
+                            Box(Modifier.size(960.dp, 250.dp)) { TvStatusView(t("Nothing is scheduled. Monitored shows and movies appear here as their dates get close."), empty = true) }
                         }
                     }
                     days.forEachIndexed { dayIndex, day ->
@@ -145,7 +148,7 @@ internal fun TvSeeAllCard(onClick: () -> Unit) {
     TvArtworkButton(
         ambient = Flexarr.silver,
         onClick = onClick,
-        contentDescription = "See all coming soon",
+        contentDescription = t("See all coming soon"),
         artwork = {
             Column(
                 Modifier.size(width, TvLayout.WideWidth * 9f / 16f).background(Flexarr.seat),
@@ -153,7 +156,7 @@ internal fun TvSeeAllCard(onClick: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Icon(FlexarrIcons.comingSoon, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(27.dp))
-                Text("See all", fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
+                Text(t("See all"), fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
             }
         },
     )
@@ -171,11 +174,11 @@ private fun TvUpcomingAbout(item: UpcomingItem, detail: String, onClose: () -> U
             Text(item.cardTitle, style = marquee(32))
             Text(detail, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f))
             val at = item.date.atZone(ZoneId.systemDefault())
-            val day = at.format(DateTimeFormatter.ofPattern("EEEE d MMMM"))
-            val time = if (item.kind == MediaKind.Episode) " " + at.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)) else ""
+            val day = at.format(DateTimeFormatter.ofPattern("EEEE d MMMM", io.github.flexarr.core.i18n.Localization.locale))
+            val time = if (item.kind == MediaKind.Episode) " " + at.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(io.github.flexarr.core.i18n.Localization.locale)) else ""
             Text("${item.`when`} $day$time".trim(), fontSize = 13.sp, color = Flexarr.usher)
             item.overview?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 14.5.sp, lineHeight = 21.sp, color = Flexarr.screen.copy(alpha = 0.88f)) }
-            TvActionButton("Close", onClick = onClose, modifier = Modifier.padding(top = 10.dp).focusRequester(close))
+            TvActionButton(t("Close"), onClick = onClose, modifier = Modifier.padding(top = 10.dp).focusRequester(close))
         }
     }
     LaunchedEffect(Unit) { runCatching { close.requestFocus() } }

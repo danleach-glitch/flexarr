@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.connect
 
+import io.github.flexarr.core.i18n.t
 import android.os.SystemClock
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -74,7 +75,7 @@ fun rememberGuestCode(model: AppModel, attempt: Int): GuestCodeState {
             } catch (_: GuestTvCode.Failure.CodeTaken) {
                 continue
             } catch (e: Exception) {
-                state.problem = "Can’t get a code just now."
+                state.problem = t("Can’t get a code just now.")
                 delay(10_000)
                 continue
             }
@@ -93,7 +94,7 @@ fun rememberGuestCode(model: AppModel, attempt: Int): GuestCodeState {
                 } catch (_: GuestTvCode.Failure.BadInvite) {
                     // Said until the guest asks for a new code: one shown straight away would clear it unread.
                     state.code = null
-                    state.problem = "That invite couldn’t be opened. Ask for another."
+                    state.problem = t("That invite couldn’t be opened. Ask for another.")
                     state.badInvite = true
                     return@LaunchedEffect
                 } catch (_: Exception) {

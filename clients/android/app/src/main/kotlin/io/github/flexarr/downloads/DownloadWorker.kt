@@ -1,5 +1,6 @@
 package io.github.flexarr.downloads
 
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
 import android.content.pm.ServiceInfo
@@ -54,7 +55,7 @@ class DownloadWorker(context: Context, parameters: WorkerParameters) : Coroutine
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val local = inputData.getString(ID)?.let { id -> onMain { store.byId(id) } }
-        return foregroundInfo(local, "Downloading")
+        return foregroundInfo(local, t("Downloading"))
     }
 
     private fun foregroundInfo(download: LocalDownload?, status: String, fraction: Double? = null): ForegroundInfo {

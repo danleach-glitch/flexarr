@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.ui.getsReadyOnFocus
 
 import androidx.compose.animation.Crossfade
@@ -255,7 +257,7 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
             ) {
                 val resume = home.resuming(item)
                 TvActionButton(
-                    if (resume != null || item.isResumable) "Resume" else "Play",
+                    if (resume != null || item.isResumable) t("Resume") else t(Words.play),
                     onClick = {
                         when {
                             item.kind == MediaKind.Album -> navigator.playAlbum(item, resume)
@@ -271,12 +273,12 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
                 )
                 if (item.kind == MediaKind.Artist) {
                     TvActionButton(
-                        "Radio", onClick = { navigator.playArtist(item, radio = true) }, icon = FlexarrIcons.radio, ambient = glow,
+                        t(Words.radio), onClick = { navigator.playArtist(item, radio = true) }, icon = FlexarrIcons.radio, ambient = glow,
                         modifier = Modifier.onFocusChanged { radioFocused = it.hasFocus },
                     )
                 }
                 TvActionButton(
-                    "More info",
+                    t("More info"),
                     onClick = { if (item.kind.isMusic) navigator.open(item) else navigator.openItem(item.id) },
                     icon = FlexarrIcons.details,
                     ambient = glow,
@@ -302,7 +304,7 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
 private fun ComingSoonRow(items: List<UpcomingItem>, downloading: Int) {
     val navigator = LocalNavigator.current
     Column {
-        TvRowHeading(if (downloading > 0) "Coming soon ($downloading downloading)" else "Coming soon")
+        TvRowHeading(if (downloading > 0) t("Coming soon ({count} downloading)", "count" to downloading) else t(Words.comingSoon))
         LazyRow(
             contentPadding = PaddingValues(start = TvLayout.Edge, end = TvLayout.Edge, top = 14.dp, bottom = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(TvLayout.RowSpacing),
@@ -358,14 +360,14 @@ private fun HomeRowView(row: HomeRow) {
 @Composable
 internal fun TvSeeAllCard(wide: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, height: Dp? = null) {
     val width = if (wide) TvLayout.WideWidth else TvLayout.PosterWidth
-    TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, modifier = modifier, contentDescription = "See all", artwork = {
+    TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, modifier = modifier, contentDescription = t("See all"), artwork = {
         Column(
             Modifier.size(width, height ?: if (wide) width * 9f / 16f else width * 1.5f),
             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(Icons.Outlined.GridView, contentDescription = null, tint = Flexarr.screen.copy(alpha = 0.85f), modifier = Modifier.size(24.dp))
-            Text("See all", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f))
+            Text(t("See all"), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f))
         }
     })
 }

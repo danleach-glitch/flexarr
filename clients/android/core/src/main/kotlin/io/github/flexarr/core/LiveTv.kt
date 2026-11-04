@@ -1,5 +1,6 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.t
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
@@ -223,7 +224,7 @@ data class RecordingInTheWay(val recordingId: String, val channelId: String, val
             fun field(name: String) = (problem[name] as? JsonPrimitive)?.takeIf { it.isString }?.content
             val recordingId = field("recordingId") ?: return null
             val channelId = field("channelId") ?: return null
-            return RecordingInTheWay(recordingId, channelId, field("channelName") ?: "that channel", field("detail") ?: "Every stream is recording.")
+            return RecordingInTheWay(recordingId, channelId, field("channelName") ?: t("that channel"), field("detail") ?: t("Every stream is recording."))
         }
     }
 }

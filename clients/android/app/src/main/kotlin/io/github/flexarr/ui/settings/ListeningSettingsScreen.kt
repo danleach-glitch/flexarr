@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -73,7 +74,7 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
             runCatching { client.bookListening() }.onSuccess { books = it }.onFailure { problem = it.message }
         }
         runCatching { client.playbackPreferences() }.onSuccess { playback = it }
-        if (model.podcastPreferences?.takeIf { hasPodcasts } == null && books == null) loadFailed = problem ?: "Your settings couldn’t be loaded."
+        if (model.podcastPreferences?.takeIf { hasPodcasts } == null && books == null) loadFailed = problem ?: t("Your settings couldn’t be loaded.")
     }
 
     val podcasts = model.podcastPreferences?.takeIf { hasPodcasts }
@@ -160,29 +161,29 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle("Podcasts and audiobooks", onBack = { navigator.back() }) }
+            item { PageTitle(t("Podcasts and audiobooks"), onBack = { navigator.back() }) }
             val speed = podcasts?.speed ?: books?.speed
             if (speed == null) item { loadFailed?.let { StatusView(it, retry = { attempt++ }) } ?: StatusView() }
             if (speed != null) item {
                 Group(
-                    header = "Your profile, on every device",
-                    footer = "A book with a speed of its own keeps it. Smart rewind starts a little earlier after a pause.",
+                    header = t("Your profile, on every device"),
+                    footer = t("A book with a speed of its own keeps it. Smart rewind starts a little earlier after a pause."),
                 ) {
                     // The speed as podcasts play it (up to 4×), not snapped to books' steps.
-                    Picker("Speed", (BookSpeed.presets + speed).distinct().sorted(), speed, PodcastPlayer::speedLabel) {
+                    Picker(t("Speed"), (BookSpeed.presets + speed).distinct().sorted(), speed, PodcastPlayer::speedLabel) {
                         update(PodcastPreferencesUpdate(speed = it), BookListeningUpdate(speed = it))
                     }
                     listening?.let { known ->
                         Divider()
-                        Picker("Skip back", steps(known.skipBackSeconds), known.skipBackSeconds, ::seconds) {
+                        Picker(t("Skip back"), steps(known.skipBackSeconds), known.skipBackSeconds, ::seconds) {
                             update(PodcastPreferencesUpdate(skipBackSeconds = it), BookListeningUpdate(skipBackSeconds = it))
                         }
                         Divider()
-                        Picker("Skip forward", steps(known.skipForwardSeconds), known.skipForwardSeconds, ::seconds) {
+                        Picker(t("Skip forward"), steps(known.skipForwardSeconds), known.skipForwardSeconds, ::seconds) {
                             update(PodcastPreferencesUpdate(skipForwardSeconds = it), BookListeningUpdate(skipForwardSeconds = it))
                         }
                         Divider()
-                        Toggle("Smart rewind", known.smartRewind, {
+                        Toggle(t("Smart rewind"), known.smartRewind, {
                             update(PodcastPreferencesUpdate(smartRewind = it), BookListeningUpdate(smartRewind = it))
                         })
                     }
@@ -190,14 +191,14 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
                     playback?.let { current ->
                         current.listeningInContinue?.let { on ->
                             Divider()
-                            Toggle("Books and podcasts in Continue watching", on, { savePlayback(current.copy(listeningInContinue = it), current) })
+                            Toggle(t("Books and podcasts in Continue watching"), on, { savePlayback(current.copy(listeningInContinue = it), current) })
                         }
                     }
                 }
             }
             if (saveFailed) item {
                 Text(
-                    "That didn’t save. Try again.",
+                    t("That didn’t save. Try again."),
                     fontSize = 15.sp,
                     color = Flexarr.danger,
                     modifier = Modifier.padding(horizontal = Edge).semantics { liveRegion = LiveRegionMode.Polite },
@@ -205,17 +206,17 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
             }
             podcasts?.let { known ->
                 item {
-                    Group(header = "Automatic downloads", footer = "On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted.") {
-                        Toggle("Download new episodes", known.autoDownload, { updatePodcasts(PodcastPreferencesUpdate(autoDownload = it), reconciles = true) })
+                    Group(header = t("Automatic downloads"), footer = t("On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted.")) {
+                        Toggle(t("Download new episodes"), known.autoDownload, { updatePodcasts(PodcastPreferencesUpdate(autoDownload = it), reconciles = true) })
                         Divider()
-                        Stepper("Keep the newest ${known.keepEpisodes}", known.keepEpisodes, 1..50, enabled = known.autoDownload) {
+                        Stepper(t("Keep the newest {count}", "count" to known.keepEpisodes), known.keepEpisodes, 1..50, enabled = known.autoDownload) {
                             updatePodcasts(PodcastPreferencesUpdate(keepEpisodes = it), reconciles = true)
                         }
                     }
                 }
                 item {
-                    Group(footer = "New episodes can come as notifications.") {
-                        SettingsLink("Notifications", Icons.Filled.Notifications, value = null, onClick = onNotifications)
+                    Group(footer = t("New episodes can come as notifications.")) {
+                        SettingsLink(t("Notifications"), Icons.Filled.Notifications, value = null, onClick = onNotifications)
                     }
                 }
             }
@@ -225,4 +226,4 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
 
 private fun steps(current: Int) = (BookListening.skipChoices + current).distinct().sorted()
 
-private fun seconds(value: Int) = "$value seconds"
+private fun seconds(value: Int) = t("{seconds} seconds", "seconds" to value)

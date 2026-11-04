@@ -1,5 +1,7 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -372,7 +374,7 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
             interaction++
         }
         Box(
-            Modifier.fillMaxSize().semantics { onClick(label = if (controlsVisible) "Hide controls" else "Show controls") { toggleControls(); true } }.pointerInput(Unit) {
+            Modifier.fillMaxSize().semantics { onClick(label = if (controlsVisible) t("Hide controls") else t("Show controls")) { toggleControls(); true } }.pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { toggleControls() },
                     onDoubleTap = { offset ->
@@ -397,7 +399,7 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
                 Text(message, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     controller.retryLabel?.let { ActionButton(it, onClick = controller::retry, prominent = true) }
-                    ActionButton("Close", onClick = onClose, prominent = controller.retryLabel == null)
+                    ActionButton(t("Close"), onClick = onClose, prominent = controller.retryLabel == null)
                 }
             }
         }
@@ -467,7 +469,7 @@ private fun Controls(controller: PlaybackController, onClose: () -> Unit, onPict
         Box(Modifier.fillMaxWidth().height(160.dp).align(Alignment.BottomCenter).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)))))
 
         Row(Modifier.fillMaxWidth().safeDrawingPadding().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Top) {
-            GlassButton(Icons.Filled.Close, "Close", size = 44, onClick = onClose)
+            GlassButton(Icons.Filled.Close, t("Close"), size = 44, onClick = onClose)
             if (info != null) {
                 Column(Modifier.weight(1f).padding(top = 2.dp)) {
                     Text(info.item.displayTitle, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -477,7 +479,7 @@ private fun Controls(controller: PlaybackController, onClose: () -> Unit, onPict
             }
             GlassCastButton()
             if (LocalContext.current.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
-                GlassButton(Icons.Filled.PictureInPictureAlt, "Picture in picture", size = 44, onClick = onPictureInPicture)
+                GlassButton(Icons.Filled.PictureInPictureAlt, t("Picture in picture"), size = 44, onClick = onPictureInPicture)
             }
         }
 
@@ -485,14 +487,14 @@ private fun Controls(controller: PlaybackController, onClose: () -> Unit, onPict
             // A film has neither episode button; an episode has both. Previous always works (with nothing before, it
             // starts this one again); Next is dimmed at the last.
             val episode = info?.item?.kind == MediaKind.Episode
-            if (episode) GlassButton(Icons.Filled.SkipPrevious, "Previous episode") { controller.playPrevious(); onInteract() }
+            if (episode) GlassButton(Icons.Filled.SkipPrevious, t("Previous episode")) { controller.playPrevious(); onInteract() }
             SkipButton(-controller.skipSeconds) { controller.skip(-controller.skipSeconds); onInteract() }
-            GlassButton(if (controller.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (controller.isPlaying) "Pause" else "Play", size = 76) {
+            GlassButton(if (controller.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (controller.isPlaying) t("Pause") else t(Words.play), size = 76) {
                 controller.togglePlayPause()
                 onInteract()
             }
             SkipButton(controller.skipSeconds) { controller.skip(controller.skipSeconds); onInteract() }
-            if (episode) GlassButton(Icons.Filled.SkipNext, "Next episode", enabled = info.next != null) { controller.playNext(); onInteract() }
+            if (episode) GlassButton(Icons.Filled.SkipNext, t("Next episode"), enabled = info.next != null) { controller.playNext(); onInteract() }
         }
 
         Column(Modifier.align(Alignment.BottomCenter), horizontalAlignment = Alignment.End) {
@@ -529,8 +531,8 @@ private fun Timeline(controller: PlaybackController, onInteract: () -> Unit, mod
                 valueRange = 0f..duration.toFloat(),
                 colors = SliderDefaults.colors(thumbColor = Flexarr.screen, activeTrackColor = Flexarr.screen, inactiveTrackColor = Flexarr.screen.copy(alpha = 0.3f)),
                 modifier = Modifier.fillMaxWidth().semantics {
-                    contentDescription = "Position"
-                    stateDescription = "${Format.timestamp(shown)} of ${Format.timestamp(controller.duration)}"
+                    contentDescription = t("Position")
+                    stateDescription = t("{position} of {duration}", "position" to Format.timestamp(shown), "duration" to Format.timestamp(controller.duration))
                 },
             )
             // While scrubbing, the picture at the head's place, above it, as on iPhone.
@@ -592,7 +594,8 @@ internal fun GlassButton(icon: ImageVector, label: String, size: Int = 56, enabl
 @Composable
 internal fun SkipButton(seconds: Int, enabled: Boolean = true, onClick: () -> Unit) {
     val back = seconds < 0
-    val label = "${if (back) "Back" else "Forward"} ${kotlin.math.abs(seconds)} seconds"
+    val label = if (back) t("{count, plural, one {Back # second} other {Back # seconds}}", "count" to -seconds)
+    else t("{count, plural, one {Forward # second} other {Forward # seconds}}", "count" to seconds)
     when (kotlin.math.abs(seconds)) {
         10 -> GlassButton(if (back) Icons.Filled.Replay10 else Icons.Filled.Forward10, label, enabled = enabled, onClick = onClick)
         30 -> GlassButton(if (back) Icons.Filled.Replay30 else Icons.Filled.Forward30, label, enabled = enabled, onClick = onClick)

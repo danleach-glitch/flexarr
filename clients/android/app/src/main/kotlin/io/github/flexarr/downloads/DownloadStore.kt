@@ -2,6 +2,7 @@ package io.github.flexarr.downloads
 
 import android.Manifest
 import android.content.pm.PackageManager
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.logging.FlexarrLog
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -215,7 +216,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** Episodes by show, in episode order; the shows by name. */
     val shows: List<Pair<String, List<LocalDownload>>>
         get() = downloads.filter { it.item.kind == MediaKind.Episode }
-            .groupBy { it.item.seriesTitle ?: "Episodes" }
+            .groupBy { it.item.seriesTitle ?: t("Episodes") }
             .map { (show, episodes) -> show to episodes.sortedWith(compareBy({ it.item.seasonNumber ?: 0 }, { it.item.episodeNumber ?: 0 })) }
             .sortedBy { it.first }
 

@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -87,7 +89,7 @@ internal fun TvTraktSettings(model: AppModel) {
     // doesn't forget it was there.
     val notImport = Modifier.onFocusChanged { if (it.hasFocus) onImport = false }
 
-    TvSettingsPage("Trakt", summary = "Keep what you watch, your place and your watchlist in step with Trakt.") {
+    TvSettingsPage("Trakt", summary = t("Keep what you watch, your place and your watchlist in step with Trakt.")) {
         when {
             trakt.unreachable -> {
                 item { TvSettingsNote(TraktWords.UNREACHABLE, Modifier.padding(vertical = 4.dp)) }
@@ -100,9 +102,9 @@ internal fun TvTraktSettings(model: AppModel) {
             }
             status == null || !status.available -> item { TvSettingsNote(TraktWords.UNAVAILABLE, Modifier.padding(vertical = 4.dp)) }
             status.isConnected -> {
-                item { TvSettingsFact("Account", status.username ?: "Connected") }
+                item { TvSettingsFact(t("Account"), status.username ?: t("Connected")) }
                 item { TvSettingsFact(status.syncedText(), "") }
-                if (status.queued > 0) item { TvSettingsFact("Waiting to send", "${status.queued}") }
+                if (status.queued > 0) item { TvSettingsFact(t("Waiting to send"), String.format(io.github.flexarr.core.i18n.Localization.locale, "%d", status.queued)) }
                 status.syncNote?.let { note -> item { TvSettingsNote(note, Modifier.padding(vertical = 4.dp)) } }
 
                 val offersImport = status.importedAt == null || status.importing
@@ -114,11 +116,11 @@ internal fun TvTraktSettings(model: AppModel) {
                             status.importing -> TvSettingsRow(TraktWords.IMPORTING, onClick = {}, modifier = top, icon = Icons.Filled.History)
                             preview != null -> TvSettingsRow(
                                 TraktWords.IMPORT_CONFIRM, onClick = { trakt.run(TraktSpot.History) { it.confirmTraktImport() } }, modifier = top, icon = Icons.Filled.History,
-                                value = preview.summary(), help = preview.details() + " Nothing is marked unwatched, on either side.",
+                                value = preview.summary(), help = preview.details() + " " + t("Nothing is marked unwatched, on either side."),
                             )
                             else -> TvSettingsRow(
                                 TraktWords.IMPORT, onClick = { trakt.run(TraktSpot.History) { client -> trakt.preview = client.previewTraktImport() } },
-                                modifier = top, icon = Icons.Filled.History, help = "See what changes first.",
+                                modifier = top, icon = Icons.Filled.History, help = t("See what changes first."),
                             )
                         }
                     }
@@ -128,20 +130,20 @@ internal fun TvTraktSettings(model: AppModel) {
                 trakt.historyProblem(status)?.let { item { Problem(it) } }
                 item {
                     TvSettingsRow(
-                        if (trakt.syncing) TraktWords.SYNCING else "Sync now", onClick = { trakt.sync() },
+                        if (trakt.syncing) TraktWords.SYNCING else t("Sync now"), onClick = { trakt.sync() },
                         modifier = notImport.then(if (offersImport) Modifier else Modifier.padding(top = 18.dp).focusRequester(focus)),
-                        icon = Icons.Filled.Sync, help = "Flexarr syncs every few minutes by itself.",
+                        icon = Icons.Filled.Sync, help = t("Flexarr syncs every few minutes by itself."),
                     )
                 }
                 item {
                     TvSettingsRow(
-                        "Disconnect", onClick = { if (!trakt.working) confirmDisconnect = true }, modifier = notImport, icon = Icons.Filled.LinkOff, destructive = true,
-                        help = "Stop syncing this profile with Trakt.",
+                        t("Disconnect"), onClick = { if (!trakt.working) confirmDisconnect = true }, modifier = notImport, icon = Icons.Filled.LinkOff, destructive = true,
+                        help = t("Stop syncing this profile with Trakt."),
                     )
                 }
                 trakt.problemAt(TraktSpot.Account)?.let { item { Problem(it) } }
                 trakt.lists?.takeIf { it.isNotEmpty() }?.let { lists ->
-                    item { TvSettingsGroupLabel("Lists", Modifier.padding(top = 10.dp)) }
+                    item { TvSettingsGroupLabel(t("Lists"), Modifier.padding(top = 10.dp)) }
                     item { TvSettingsNote(TraktWords.LISTS_NOTE, Modifier.padding(bottom = 4.dp)) }
                     lists.forEach { list ->
                         item(key = list.id) {
@@ -180,7 +182,7 @@ internal fun TvTraktSettings(model: AppModel) {
                 }
                 item {
                     TvSettingsRow(
-                        "Cancel", onClick = { trakt.run(TraktSpot.Account) { it.cancelTraktConnect() } }, modifier = Modifier.focusRequester(focus),
+                        t(Words.cancel), onClick = { trakt.run(TraktSpot.Account) { it.cancelTraktConnect() } }, modifier = Modifier.focusRequester(focus),
                         icon = Icons.Filled.Close,
                     )
                 }
@@ -205,11 +207,11 @@ internal fun TvTraktSettings(model: AppModel) {
                 Text(TraktWords.DISCONNECT_TITLE, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text(TraktWords.DISCONNECT_TEXT, fontSize = 14.sp, color = Flexarr.usher)
                 Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TvActionButton("Disconnect", onClick = {
+                    TvActionButton(t("Disconnect"), onClick = {
                         confirmDisconnect = false
                         trakt.run(TraktSpot.Account) { it.disconnectTrakt() }
                     }, prominent = true, ambient = Flexarr.danger)
-                    TvActionButton("Cancel", onClick = { confirmDisconnect = false }, modifier = Modifier.focusRequester(cancel))
+                    TvActionButton(t(Words.cancel), onClick = { confirmDisconnect = false }, modifier = Modifier.focusRequester(cancel))
                 }
             }
         }

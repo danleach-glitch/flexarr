@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -205,7 +207,7 @@ fun TvMusicLibraryScreen(
             loaded == null -> TvStatusView()
             featured.isEmpty() && !hasCards -> Column(Modifier.padding(start = TvLayout.Edge, top = 28.dp)) {
                 top?.invoke()
-                TvStatusView("Nothing in this library yet.", empty = true)
+                TvStatusView(t("Nothing in this library yet."), empty = true)
             }
             else -> LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
                 if (featured.isNotEmpty()) {
@@ -226,7 +228,7 @@ fun TvMusicLibraryScreen(
                 }
                 if (artists.isNotEmpty()) {
                     item(key = "your-artists") {
-                        Shelf("Your artists") {
+                        Shelf(t(Words.yourArtists)) {
                             itemsIndexed(artists, key = { _, it -> it.id }) { index, artist ->
                                 val takes = index == 0 && rows.isEmpty() && featured.isEmpty()
                                 TvArtistCard(artist, onClick = { navigator.open(artist) }, modifier = if (takes) Modifier.focusRequester(first) else Modifier)
@@ -356,9 +358,9 @@ private fun MusicHeader(
             below()
             Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(13.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (showsPlay) {
-                    TvActionButton("Play", onClick = onPlay, icon = FlexarrIcons.play, prominent = true, ambient = ambient, enabled = canPlay && !busy, modifier = Modifier.focusRequester(play))
-                    RoundAction("Shuffle", FlexarrIcons.shuffle, ambient, { focusedName = it }, enabled = canShuffle && !busy, onClick = onShuffle)
-                    onRadio?.let { RoundAction("Radio", FlexarrIcons.radio, ambient, { focusedName = it }, enabled = canPlay && !busy, onClick = it) }
+                    TvActionButton(t(Words.play), onClick = onPlay, icon = FlexarrIcons.play, prominent = true, ambient = ambient, enabled = canPlay && !busy, modifier = Modifier.focusRequester(play))
+                    RoundAction(t(Words.shuffle), FlexarrIcons.shuffle, ambient, { focusedName = it }, enabled = canShuffle && !busy, onClick = onShuffle)
+                    onRadio?.let { RoundAction(t(Words.radio), FlexarrIcons.radio, ambient, { focusedName = it }, enabled = canPlay && !busy, onClick = it) }
                 }
                 extra { focusedName = it }
                 if (busy) CircularProgressIndicator(Modifier.size(20.dp), color = Flexarr.screen, strokeWidth = 2.dp)
@@ -486,17 +488,17 @@ fun TvArtistScreen(model: AppModel, id: String) {
                         ) }
                     }
                     if (albums.isNotEmpty()) {
-                        item(key = "albums-heading") { TvRowHeading("Albums", Modifier.padding(top = 14.dp)) }
+                        item(key = "albums-heading") { TvRowHeading(t(Words.albums), Modifier.padding(top = 14.dp)) }
                         gridRows(albums, key = "albums") { _, album -> TvAlbumCard(album, onClick = { navigator.open(album) }, modifier = Modifier.focusMemory(focus, "own/${album.id}"), onArtistPage = true) }
                     } else if (extrasChecked && extras?.missing.isNullOrEmpty()) {
-                        item(key = "empty") { Box(Modifier.height(100.dp)) { TvStatusView("No albums yet.", empty = true) } }
+                        item(key = "empty") { Box(Modifier.height(100.dp)) { TvStatusView(t("No albums yet."), empty = true) } }
                     }
                     extras?.missing?.takeIf { it.isNotEmpty() }?.let { missing ->
-                        item(key = "missing-heading") { TvRowHeading("Not in your library", Modifier.padding(top = 14.dp)) }
+                        item(key = "missing-heading") { TvRowHeading(t(Words.notInYourLibrary), Modifier.padding(top = 14.dp)) }
                         requestableAlbumRows(model, missing, "missing", focus)
                     }
                     extras?.similar?.takeIf { it.isNotEmpty() }?.let { similar ->
-                        item(key = "similar") { TvMusicExternalRow("Fans also like", similar, cardModifier = { Modifier.focusMemory(focus, "similar/${it.id}") }) }
+                        item(key = "similar") { TvMusicExternalRow(t(Words.fansAlsoLike), similar, cardModifier = { Modifier.focusMemory(focus, "similar/${it.id}") }) }
                     }
                 } }
             }
@@ -561,14 +563,14 @@ fun TvAlbumScreen(model: AppModel, id: String) {
                     }
                     item(key = "gap") { Spacer(Modifier.height(21.dp)) }
                     if (tracks.isEmpty()) {
-                        item(key = "empty") { Box(Modifier.height(100.dp)) { TvStatusView("No tracks yet.", empty = true) } }
+                        item(key = "empty") { Box(Modifier.height(100.dp)) { TvStatusView(t("No tracks yet."), empty = true) } }
                     } else {
                         val discs = discs(tracks)
                         discs.forEach { (disc, discTracks) ->
                             if (discs.size > 1) {
                                 item(key = "disc-$disc") {
                                     Text(
-                                        "Disc $disc",
+                                        t("Disc {number}", "number" to disc),
                                         style = marquee(17, Flexarr.usher).copy(fontWeight = FontWeight.Bold),
                                         modifier = Modifier.padding(start = TvLayout.Edge + 15.dp, top = if (disc == discs.first().first) 0.dp else 15.dp, bottom = 5.dp),
                                     )
@@ -605,7 +607,7 @@ fun TvAlbumScreen(model: AppModel, id: String) {
 @Composable
 private fun MoreAction(title: String, actions: List<MenuAction>, ambient: Color, onFocusName: (String?) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    RoundAction("More", FlexarrIcons.more, ambient, onFocusName) { open = true }
+    RoundAction(t("More"), FlexarrIcons.more, ambient, onFocusName) { open = true }
     if (open) TvItemMenu(title, actions, onDismiss = { open = false })
 }
 
@@ -613,7 +615,7 @@ private fun MoreAction(title: String, actions: List<MenuAction>, ambient: Color,
 private fun albumFacts(item: ItemSummary, tracks: List<ItemSummary>): List<String> = buildList {
     item.releaseYear?.let { add(it.toString()) }
     val count = if (tracks.isEmpty()) item.childCount else tracks.size
-    if (count > 0) add(if (count == 1) "1 track" else "$count tracks")
+    if (count > 0) add(t("{count, plural, one {# track} other {# tracks}}", "count" to count))
     totalRuntime(tracks)?.let(::add)
 }
 
@@ -651,7 +653,7 @@ fun TvPlaylistScreen(model: AppModel, id: String) {
                     }
                     item(key = "gap") { Spacer(Modifier.height(21.dp)) }
                     if (tracks.isEmpty()) {
-                        item(key = "empty") { Box(Modifier.height(100.dp)) { TvStatusView("Nothing in this playlist yet.", empty = true) } }
+                        item(key = "empty") { Box(Modifier.height(100.dp)) { TvStatusView(t("Nothing in this playlist yet."), empty = true) } }
                     }
                     // A track can be in a playlist twice: each place is its own row.
                     itemsIndexed(state.value.tracks, key = { _, entry -> entry.entryId }) { index, entry ->

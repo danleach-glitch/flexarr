@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -60,7 +62,7 @@ internal fun TvShowMissing(
     var confirming by remember { mutableStateOf<MissingSeason?>(null) }
     if (!missing.isEmpty) {
         Column {
-            TvRowHeading("Not in your library")
+            TvRowHeading(t(Words.notInYourLibrary))
             if (missing.seasons.isNotEmpty()) {
                 LazyRow(contentPadding = PaddingValues(horizontal = TvLayout.Edge, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(TvLayout.RowSpacing)) {
                     items(missing.seasons, key = { "missing-season-${it.seasonNumber}" }) { season ->
@@ -71,9 +73,9 @@ internal fun TvShowMissing(
                             state == TitleRequestState.Requested -> state.label() to { if (canAsk) confirming = season }
                             state == TitleRequestState.Refused -> state.label() to null
                             state != null && requested -> state.label() to null
-                            requested -> "Requested" to null
-                            missing.canRequest -> "Request" to { if (canAsk) onRequest(season) }
-                            missing.canSearch -> "Search" to { onSearch(season.seasonNumber, null) }
+                            requested -> t(Words.requested) to null
+                            missing.canRequest -> t(Words.request) to { if (canAsk) onRequest(season) }
+                            missing.canSearch -> t(Words.search) to { onSearch(season.seasonNumber, null) }
                             else -> null to null
                         }
                         // Request or Requested that can't be pressed now (a kids profile, or Seerr not answering): greyed, as on the phones.
@@ -93,17 +95,17 @@ internal fun TvShowMissing(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "Season $season: ${episodes.size} ${if (episodes.size == 1) "episode" else "episodes"}",
+                        t("Season {season}: {count, plural, one {# episode} other {# episodes}}", "season" to season, "count" to episodes.size),
                         fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher,
                     )
                     // The whole season's missing episodes, as on the web and the phones.
                     if (missing.canSearch) {
                         TvActionButton(
-                            if (searched) "Searching" else "Search",
+                            if (searched) t("Searching") else t(Words.search),
                             onClick = { onSearch(season, null) },
                             icon = FlexarrIcons.search,
                             enabled = !searched,
-                            contentDescription = "Search for season $season’s missing episodes",
+                            contentDescription = t("Search for season {season}’s missing episodes", "season" to season),
                         )
                     }
                 }
@@ -118,7 +120,7 @@ internal fun TvShowMissing(
     confirming?.let { season -> TvTitleUndoMenu(season.title, onDismiss = { confirming = null }) { onUnrequest(season) } }
     if (missing.upcoming.isNotEmpty()) {
         Column {
-            TvRowHeading("Coming up")
+            TvRowHeading(t("Coming up"))
             LazyRow(contentPadding = PaddingValues(horizontal = TvLayout.Edge, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                 items(missing.upcoming, key = { "upcoming-${it.code}" }) { episode ->
                     EpisodeCard(episode, detail = episode.airDate?.let { ShowMissing.airsLabel(it) }, onClick = {})
@@ -151,7 +153,7 @@ private fun SeasonCard(season: MissingSeason, status: String?, requested: Boolea
                 season.detail.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 11.sp, color = Flexarr.usher, maxLines = 1) }
                 status?.let {
                     Row(Modifier.alpha(if (dimmed) 0.5f else 1f), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(if (requested) FlexarrIcons.requested else if (it == "Search") FlexarrIcons.search else FlexarrIcons.request, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(13.dp))
+                        Icon(if (requested) FlexarrIcons.requested else if (it == t(Words.search)) FlexarrIcons.search else FlexarrIcons.request, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(13.dp))
                         Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
                     }
                 }

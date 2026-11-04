@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.music
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import io.github.flexarr.appModel
@@ -117,7 +119,7 @@ private fun musicActions(subject: MusicMenuSubject, items: List<MusicMenu.Item>,
         }
     }
 
-    fun play(shuffled: Boolean) = withTracks("Couldn’t play this") { tracks ->
+    fun play(shuffled: Boolean) = withTracks(t("Couldn’t play this")) { tracks ->
         model.music.play(tracks, shuffled = shuffled, albums = albums)
         // The TV shows Now Playing over everything when asked; the phone opens its sheet.
         if (context.usesTvInterface) model.nowPlayingRequests++ else model.showsMusicPlayer = true
@@ -125,20 +127,20 @@ private fun musicActions(subject: MusicMenuSubject, items: List<MusicMenu.Item>,
 
     return items.map { item ->
         when (item) {
-            MusicMenu.Item.PLAY -> MenuAction("Play", FlexarrIcons.play) { onPlay?.invoke() ?: play(shuffled = false) }
-            MusicMenu.Item.SHUFFLE -> MenuAction("Shuffle", FlexarrIcons.shuffle) { play(shuffled = true) }
-            MusicMenu.Item.PLAY_NEXT -> MenuAction("Play next", FlexarrIcons.playNext) {
-                withTracks("Couldn’t add this to the queue") { model.music.playNext(it, albums) }
+            MusicMenu.Item.PLAY -> MenuAction(t(Words.play), FlexarrIcons.play) { onPlay?.invoke() ?: play(shuffled = false) }
+            MusicMenu.Item.SHUFFLE -> MenuAction(t(Words.shuffle), FlexarrIcons.shuffle) { play(shuffled = true) }
+            MusicMenu.Item.PLAY_NEXT -> MenuAction(t(Words.playNext), FlexarrIcons.playNext) {
+                withTracks(t("Couldn’t add this to the queue")) { model.music.playNext(it, albums) }
             }
-            MusicMenu.Item.ADD_TO_QUEUE -> MenuAction("Add to queue", FlexarrIcons.addToQueue) {
-                withTracks("Couldn’t add this to the queue") { model.music.enqueue(it, albums) }
+            MusicMenu.Item.ADD_TO_QUEUE -> MenuAction(t(Words.addToQueue), FlexarrIcons.addToQueue) {
+                withTracks(t("Couldn’t add this to the queue")) { model.music.enqueue(it, albums) }
             }
-            MusicMenu.Item.ADD_TO_PLAYLIST -> MenuAction("Add to playlist…", FlexarrIcons.addToPlaylist) {
+            MusicMenu.Item.ADD_TO_PLAYLIST -> MenuAction(t("Add to playlist…"), FlexarrIcons.addToPlaylist) {
                 navigator.addingToPlaylist = PlaylistAddition(subject.id, subject.title)
             }
-            MusicMenu.Item.GO_TO_ARTIST -> MenuAction("Go to artist", FlexarrIcons.goToArtist) { artistId?.let(navigator::openLibraryArtist) }
-            MusicMenu.Item.DOWNLOAD -> MenuAction("Download", FlexarrIcons.download) {
-                withTracks("Couldn’t download this") { tracks ->
+            MusicMenu.Item.GO_TO_ARTIST -> MenuAction(t(Words.goToArtist), FlexarrIcons.goToArtist) { artistId?.let(navigator::openLibraryArtist) }
+            MusicMenu.Item.DOWNLOAD -> MenuAction(t(Words.download), FlexarrIcons.download) {
+                withTracks(t("Couldn’t download this")) { tracks ->
                     when (subject) {
                         is MusicMenuSubject.Playlist -> model.downloads.download(subject.playlist, tracks)
                         is MusicMenuSubject.Item -> model.downloads.download(subject.item, tracks)
