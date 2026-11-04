@@ -74,7 +74,7 @@ struct MainTabView: View {
             }
             // The libraries and Live TV, in the order chosen in Settings › Sidebar: however many there are, the
             // sidebar scrolls rather than pushing Search and Settings out of reach as a tab bar would.
-            TabSection("Libraries") {
+            TabSection(t(Words.libraries)) {
                 ForEach(TabBarEntry.ordered(model: model, stored: tabBarOrder)) { entry in
                     Tab(value: entry.tab) {
                         switch entry {

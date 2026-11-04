@@ -17,35 +17,35 @@ struct SettingsView: View {
     @State private var trakt: TraktStatus?
 
     var body: some View {
-        SettingsPage(title: "Settings", summary: "Flexarr for Apple TV \(Bundle.main.shortVersion)") {
+        SettingsPage(title: t(Words.settings), summary: t("Flexarr for Apple TV {version}", ["version": Bundle.main.shortVersion])) {
             if let profile = model.currentProfile {
-                SettingsGroupLabel("Watching as")
+                SettingsGroupLabel(t("Watching as"))
                 if model.offersProfilePicker {
-                    SettingsRow(title: profile.name, profile: profile, value: "Switch", help: "Switch to another profile. Each has its own Continue watching, watch history and playback settings.") {
+                    SettingsRow(title: profile.name, profile: profile, value: t("Switch"), help: t("Switch to another profile. Each has its own Continue watching, watch history and playback settings.")) {
                         choosingProfile = true
                     }
                 } else {
-                    SettingsFact("Profile", profile.name, profile: profile)
+                    SettingsFact(t("Profile"), profile.name, profile: profile)
                 }
             }
 
-            SettingsLinkRow(title: "Playback", symbol: "play.rectangle", value: playsFilesDirectly ? "Files play directly" : "Server streams",
-                            help: "Auto-play, skipping intros and credits, subtitle size, and how this Apple TV plays files.") {
+            SettingsLinkRow(title: t("Playback"), symbol: "play.rectangle", value: playsFilesDirectly ? t("Files play directly") : t("Server streams"),
+                            help: t("Auto-play, skipping intros and credits, subtitle size, and how this Apple TV plays files.")) {
                 PlaybackSettingsView()
             }
             .padding(.top, model.currentProfile == nil ? 0 : 36)
-            SettingsLinkRow(title: "Libraries", symbol: "rectangle.stack", value: "Open on \(libraryOpensOn.label)",
-                            help: "What each library opens on: its highlights (Browse), everything, or its genres. Music has its own.") {
+            SettingsLinkRow(title: t(Words.libraries), symbol: "rectangle.stack", value: t("Open on {view}", ["view": libraryOpensOn.label]),
+                            help: t("What each library opens on: its highlights (Browse), everything, or its genres. Music has its own.")) {
                 LibrarySettingsView()
             }
             if let first = TabBarEntry.ordered(model: model, stored: tabBarOrder).first {
-                SettingsLinkRow(title: "Sidebar", symbol: "sidebar.left", value: "\(first.title) first",
-                                help: "The order of your libraries and Live TV in the sidebar, between Home and Discover.") {
+                SettingsLinkRow(title: t("Sidebar"), symbol: "sidebar.left", value: t("{name} first", ["name": first.title]),
+                                help: t("The order of your libraries and Live TV in the sidebar, between Home and Discover.")) {
                     TabBarSettingsView()
                 }
             }
-            SettingsLinkRow(title: "Home screen", symbol: "rectangle.topthird.inset.filled", value: topShelf.label,
-                            help: "What the Apple TV's Top Shelf shows when Flexarr is in the top row.") {
+            SettingsLinkRow(title: t("Home screen"), symbol: "rectangle.topthird.inset.filled", value: topShelf.label,
+                            help: t("What the Apple TV's Top Shelf shows when Flexarr is in the top row.")) {
                 HomeScreenSettingsView()
             }
             // Once the server offers more than English (from 0.61).
@@ -56,25 +56,25 @@ struct SettingsView: View {
                 }
             }
             if model.profiles.count > 1 {
-                SettingsLinkRow(title: "Profiles", symbol: "person.2", value: asksWhoIsWatching ? "Ask who's watching" : "Last profile",
-                                help: "Whether Flexarr asks who's watching each time it opens on this Apple TV.") {
+                SettingsLinkRow(title: t("Profiles"), symbol: "person.2", value: asksWhoIsWatching ? t("Ask who's watching") : t("Last profile"),
+                                help: t("Whether Flexarr asks who's watching each time it opens on this Apple TV.")) {
                     ProfileSettingsView()
                 }
             }
             if let trakt, trakt.available {
                 SettingsLinkRow(title: "Trakt", symbol: "arrow.triangle.2.circlepath",
-                                value: trakt.state == .connected ? trakt.username ?? "On" : trakt.state == .needsSignIn ? "Signed out" : "Off",
-                                help: "Keep what this profile watches, and its watchlist, in step with Trakt.") {
+                                value: trakt.state == .connected ? trakt.username ?? t("On") : trakt.state == .needsSignIn ? t("Signed out") : t("Off"),
+                                help: t("Keep what this profile watches, and its watchlist, in step with Trakt.")) {
                     TraktSettingsView()
                 }
             }
-            SettingsLinkRow(title: "Server", symbol: "server.rack", value: connection,
-                            help: "The server this Apple TV uses: its address, how it's reached and what it's running.") {
+            SettingsLinkRow(title: t("Server"), symbol: "server.rack", value: connection,
+                            help: t("The server this Apple TV uses: its address, how it's reached and what it's running.")) {
                 ServerSettingsView()
             }
 
-            SettingsRow(title: "Sign out", symbol: "rectangle.portrait.and.arrow.right",
-                        help: "Disconnect this Apple TV from the server. You'll need to connect it again to watch.", destructive: true) {
+            SettingsRow(title: t("Sign out"), symbol: "rectangle.portrait.and.arrow.right",
+                        help: t("Disconnect this Apple TV from the server. You'll need to connect it again to watch."), destructive: true) {
                 confirmSignOut = true
             }
             .padding(.top, 36)
@@ -96,15 +96,15 @@ struct SettingsView: View {
 
     private var connection: String? {
         guard model.credentials?.remoteAddress != nil else { return model.credentials?.address.host() }
-        return model.client?.addresses.isAway == true ? "Away" : "At home"
+        return model.client?.addresses.isAway == true ? t("Away") : t("At home")
     }
 }
 
 extension TopShelfStyle {
     var label: String {
         switch self {
-        case .wide: "Wide artwork"
-        case .posters: "Posters"
+        case .wide: t("Wide artwork")
+        case .posters: t("Posters")
         }
     }
 }

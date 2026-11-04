@@ -162,7 +162,7 @@ struct RootView: View {
         } message: {
             Text(model.liveTv.errorMessage ?? "")
         }
-        .alert(model.player.problem == .takenOver ? "Stopped for another screen" : "Couldn't play this", isPresented: Binding(
+        .alert(model.player.problem == .takenOver ? t("Stopped for another screen") : t("Couldn't play this"), isPresented: Binding(
             get: { model.player.errorMessage != nil },
             set: { if !$0 { model.player.errorMessage = nil } }
         )) {
@@ -179,7 +179,7 @@ struct RootView: View {
             }
         } message: {
             if model.player.problem == .takenOver {
-                Text("\(model.player.errorMessage ?? "")\n\nThe other screen will stop if you watch here.")
+                Text(t("{message}\n\nThe other screen will stop if you watch here.", ["message": model.player.errorMessage ?? ""]))
             } else {
                 Text(model.player.errorMessage ?? "")
             }

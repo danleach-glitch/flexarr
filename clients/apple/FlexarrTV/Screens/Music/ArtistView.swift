@@ -49,7 +49,7 @@ struct ArtistView: View {
                                 .focusSection()
                             }
                         } else if page.detail != nil, !hasOutside {
-                            StatusView(state: .empty("No albums yet."))
+                            StatusView(state: .empty(t("No albums yet.")))
                                 .frame(height: 200)
                         }
                         if let missing = extras?.missing, !missing.isEmpty {
@@ -67,7 +67,7 @@ struct ArtistView: View {
                         }
                         if let similar = extras?.similar, !similar.isEmpty {
                             // The row runs to the screen's edges, as rows elsewhere do.
-                            ExternalMusicRow(title: "Fans also like", items: similar, artists: true)
+                            ExternalMusicRow(title: t(Words.fansAlsoLike), items: similar, artists: true)
                                 .padding(.horizontal, -Layout.edge)
                         }
                     }
@@ -155,9 +155,9 @@ struct ArtistView: View {
     /// Follow focused too, as pressing it does nothing).
     private var focusedName: String? {
         switch focusedAction {
-        case .shuffle: return "Shuffle"
-        case .radio: return "Radio"
-        case .more: return "More"
+        case .shuffle: return t(Words.shuffle)
+        case .radio: return t(Words.radio)
+        case .more: return t("More")
         default: break
         }
         if paused && actions.has(.follow) { return MusicWords.lidarrNotAnswering }

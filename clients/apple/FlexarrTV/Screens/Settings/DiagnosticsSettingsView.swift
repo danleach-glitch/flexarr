@@ -10,16 +10,16 @@ struct DiagnosticsSettingsView: View {
     @State private var draft = ""
 
     var body: some View {
-        SettingsPage(title: "Send diagnostics",
-                     summary: "Sends what this Apple TV has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)") {
-            SettingsRow(title: "Note", symbol: "square.and.pencil", value: upload.note.isEmpty ? "Optional" : upload.note,
-                        help: "What happened and roughly when, so it's easy to find in the log.") {
+        SettingsPage(title: t("Send diagnostics"),
+                     summary: t("Sends what this Apple TV has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)")) {
+            SettingsRow(title: t("Note"), symbol: "square.and.pencil", value: upload.note.isEmpty ? t("Optional") : upload.note,
+                        help: t("What happened and roughly when, so it's easy to find in the log.")) {
                 draft = upload.note
                 editingNote = true
             }
             .disabled(upload.isSending)
-            SettingsRow(title: upload.isSending ? "Sending…" : "Send", symbol: "paperplane",
-                        help: "Send the log now, with the note.") {
+            SettingsRow(title: upload.isSending ? t("Sending…") : t("Send"), symbol: "paperplane",
+                        help: t("Send the log now, with the note.")) {
                 Task { await upload.send(model: model) }
             }
             .disabled(upload.isSending)

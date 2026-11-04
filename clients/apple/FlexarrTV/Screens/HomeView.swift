@@ -307,10 +307,10 @@ struct HomeHero: View {
     }
 
     private var playLabel: String {
-        guard item.kind == .audiobook else { return resuming(item) != nil || item.isResumable ? "Resume" : "Play" }
+        guard item.kind == .audiobook else { return resuming(item) != nil || item.isResumable ? t("Resume") : t(Words.play) }
         // A book picks up from its place, as its page says.
         let position = model.music.current?.id == item.id ? model.music.position : item.userData.positionSeconds
-        return position > 0 && !item.userData.watched ? "Resume from \(Format.timestamp(position))" : "Play"
+        return position > 0 && !item.userData.watched ? t(Words.resumeFrom, ["time": Format.timestamp(position)]) : t(Words.play)
     }
 
     /// A book's title, author and narrator: it has no clear logo, and the cover beside them is the picture.
@@ -329,7 +329,7 @@ struct HomeHero: View {
                     .lineLimit(1)
             }
             if let narrator = item.book?.narrator {
-                Text("Read by \(narrator)")
+                Text(t("Read by {narrator}", ["narrator": narrator]))
                     .font(.system(size: 25, weight: .medium))
                     .foregroundStyle(Color.usher)
                     .lineLimit(1)
@@ -584,11 +584,11 @@ struct ComingSoonRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            RowHeading(title: downloading > 0 ? "Coming soon (\(downloading) downloading)" : "Coming soon")
+            RowHeading(title: downloading > 0 ? t("Coming soon ({count} downloading)", ["count": downloading]) : t(Words.comingSoon))
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                     ForEach(items) { UpcomingCard(item: $0) }
-                    ArtworkButton(ambient: .silver, accessibilityText: "See all coming soon") {
+                    ArtworkButton(ambient: .silver, accessibilityText: t("See all coming soon")) {
                         router.push(.comingSoon)
                     } artwork: {
                         VStack(spacing: 14) {

@@ -35,7 +35,7 @@ struct DiscoverMusicContent: View {
                 if !discover.genres.isEmpty {
                     let genres = discover.genres
                     VStack(alignment: .leading, spacing: 30) {
-                        RowHeading(title: "Genres")
+                        RowHeading(title: t(Words.genres))
                         // Not lazy: the grid starts below the screen, and Down can only move to tiles that are there.
                         Grid(alignment: .topLeading, horizontalSpacing: GenreTile.spacing, verticalSpacing: 44) {
                             ForEach(Array(stride(from: 0, to: genres.count, by: GenreTile.across)), id: \.self) { start in
@@ -100,11 +100,11 @@ struct DiscoverMusicSearchView: View {
             VStack(alignment: .leading, spacing: 30) {
                 if let results {
                     if results.isEmpty {
-                        StatusView(state: .empty("Nothing found for \u{201C}\(searched)\u{201D}."))
+                        StatusView(state: .empty(t("Nothing found for \u{201C}{query}\u{201D}.", ["query": searched])))
                             .frame(height: 300)
                     } else {
-                        if !results.artists.isEmpty { ExternalMusicRow(title: "Artists", items: results.artists, artists: true) }
-                        if !results.albums.isEmpty { ExternalMusicRow(title: "Albums", items: results.albums, artists: false) }
+                        if !results.artists.isEmpty { ExternalMusicRow(title: t(Words.artists), items: results.artists, artists: true) }
+                        if !results.albums.isEmpty { ExternalMusicRow(title: t(Words.albums), items: results.albums, artists: false) }
                     }
                 } else if let error {
                     StatusView(state: .failed(error) { Task { await search() } })
@@ -116,7 +116,7 @@ struct DiscoverMusicSearchView: View {
         .scrollClipDisabled()
         .ignoresSafeArea(edges: .horizontal)
         .background(RoomBackground(ambient: nil))
-        .searchable(text: $query, prompt: "Any artist or album")
+        .searchable(text: $query, prompt: t("Any artist or album"))
         .task(id: query) {
             try? await Task.sleep(for: .milliseconds(350))
             guard !Task.isCancelled else { return }

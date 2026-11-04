@@ -1,3 +1,4 @@
+import FlexarrKit
 import SwiftUI
 
 /// The order of the libraries and Live TV in the sidebar, for the profile on every device. Select one to pick it up,
@@ -12,13 +13,13 @@ struct TabBarSettingsView: View {
     private var entries: [TabBarEntry] { TabBarEntry.ordered(model: model, stored: stored) }
 
     var body: some View {
-        SettingsPage(title: "Sidebar", summary: model.libraryOrder == nil ? "Home is always first, and Discover, Search and Settings last."
-                     : "Home is always first, and Discover, Search and Settings last. Your other devices list your libraries in this order too.") {
-            SettingsGroupLabel("Between Home and Search")
+        SettingsPage(title: t("Sidebar"), summary: model.libraryOrder == nil ? t("Home is always first, and Discover, Search and Settings last.")
+                     : t("Home is always first, and Discover, Search and Settings last. Your other devices list your libraries in this order too.")) {
+            SettingsGroupLabel(t("Between Home and Search"))
             ForEach(entries) { entry in
-                SettingsRow(title: entry.title, symbol: entry.symbol, value: moving == entry.id ? "Move up or down" : nil,
-                            help: moving == entry.id ? "Press up or down to move \(entry.title), then select to put it down."
-                                : "Select to pick up \(entry.title), then press up or down to move it.",
+                SettingsRow(title: entry.title, symbol: entry.symbol, value: moving == entry.id ? t("Move up or down") : nil,
+                            help: moving == entry.id ? t("Press up or down to move {name}, then select to put it down.", ["name": entry.title])
+                                : t("Select to pick up {name}, then press up or down to move it.", ["name": entry.title]),
                             accessory: moving == entry.id ? .moving : .handle) {
                     moving = moving == entry.id ? nil : entry.id
                 }

@@ -13,9 +13,9 @@ enum LibraryOpening: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .browse: "Browse"
-        case .all: "All titles"
-        case .genres: "Genres"
+        case .browse: t(Words.browse)
+        case .all: t("All titles")
+        case .genres: t(Words.genres)
         }
     }
 
@@ -67,12 +67,12 @@ struct LibraryViewSwitch: View {
 
     var body: some View {
         let all = switch library.type {
-        case .tvShows: "All shows"
-        case .homeVideos: "All folders"
-        case .audiobooks: "All books"
-        default: "All movies"
+        case .tvShows: t("All shows")
+        case .homeVideos: t("All folders")
+        case .audiobooks: t("All books")
+        default: t("All movies")
         }
-        ViewSwitch(choices: [(.browse, "Browse"), (.all, all)] + (LibraryOpening.hasGenres(library) ? [(.genres, "Genres")] : []),
+        ViewSwitch(choices: [(.browse, t(Words.browse)), (.all, all)] + (LibraryOpening.hasGenres(library) ? [(.genres, t(Words.genres))] : []),
                    selection: Binding { view == .genres && !LibraryOpening.hasGenres(library) ? .browse : view } set: { view = $0 },
                    focusChanged: focusChanged)
     }
@@ -192,7 +192,7 @@ struct LibraryBrowseView: View {
                         .padding(.top, LibraryViewSwitch.topInset)
                     Group {
                         if browse != nil {
-                            StatusView(state: .empty(library.scan == nil ? "Nothing in this library yet." : "Titles appear here as the scan finds them."))
+                            StatusView(state: .empty(library.scan == nil ? t("Nothing in this library yet.") : t("Titles appear here as the scan finds them.")))
                         } else if let error {
                             StatusView(state: .failed(error) { Task { await load() } })
                         } else {

@@ -50,7 +50,7 @@ struct NowPlayingView: View {
                     .padding(.bottom, 60)
                 }
             } else {
-                StatusView(state: .empty("Nothing is playing."))
+                StatusView(state: .empty(t("Nothing is playing.")))
             }
         }
         .defaultFocus($focusedControl, .playPause)
@@ -157,7 +157,7 @@ struct NowPlayingView: View {
                 .buttonStyle(RoundControlStyle(size: 96))
                 .focused($focusedControl, equals: .previous)
             Button { music.togglePlayPause() } label: {
-                Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? Symbol.pause : Symbol.play)
+                Label(music.isPlaying ? t("Pause") : t(Words.play), systemImage: music.isPlaying ? Symbol.pause : Symbol.play)
             }
             .buttonStyle(RoundControlStyle(size: 120, active: true))
             .focused($focusedControl, equals: .playPause)

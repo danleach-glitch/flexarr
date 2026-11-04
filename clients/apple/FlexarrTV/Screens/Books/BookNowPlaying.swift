@@ -69,7 +69,8 @@ struct BookNowPlaying<Cover: View>: View {
         if let offer = music.jumpOffer {
             HStack(spacing: 24) {
                 Button { music.acceptJump() } label: {
-                    Label("Jump to \(Format.timestamp(offer.positionSeconds))\(offer.device.map { " from \($0)" } ?? "")", systemImage: "arrow.uturn.forward")
+                    Label(offer.device.map { t("Jump to {time} from {device}", ["time": Format.timestamp(offer.positionSeconds), "device": $0]) }
+                          ?? t("Jump to {time}", ["time": Format.timestamp(offer.positionSeconds)]), systemImage: "arrow.uturn.forward")
                 }
                 .buttonStyle(ActionButtonStyle(ambient: track.ambientColor, prominent: true))
                 .focused($focused, equals: .offer)
@@ -79,7 +80,7 @@ struct BookNowPlaying<Cover: View>: View {
             .focusSection()
         } else if let next = music.nextBookOffer {
             HStack(spacing: 24) {
-                Button { music.playNextBook() } label: { Label("Play \(next.title)", systemImage: Symbol.play) }
+                Button { music.playNextBook() } label: { Label(t("Play {title}", ["title": next.title]), systemImage: Symbol.play) }
                     .buttonStyle(ActionButtonStyle(ambient: next.ambientColor, prominent: true))
                     .focused($focused, equals: .offer)
             }
@@ -100,7 +101,7 @@ struct BookNowPlaying<Cover: View>: View {
                 HStack {
                     Text(Format.timestamp(into))
                     Spacer()
-                    Text(showsChapter ? "Chapter" : "Book")
+                    Text(showsChapter ? t("Chapter") : t("Book"))
                         .foregroundStyle(Color.screen.opacity(0.7))
                     Spacer()
                     Text(length > 0 ? "-" + Format.timestamp(max(0, length - into) / max(0.5, music.speed)) : "")
@@ -115,8 +116,8 @@ struct BookNowPlaying<Cover: View>: View {
         .buttonStyle(TimelineStyle())
         .focused($focused, equals: .timeline)
         .frame(maxWidth: 900)
-        .accessibilityLabel(showsChapter ? "Chapter progress" : "Book progress")
-        .accessibilityHint("Switches between the chapter and the whole book")
+        .accessibilityLabel(showsChapter ? t("Chapter progress") : t("Book progress"))
+        .accessibilityHint(t("Switches between the chapter and the whole book"))
     }
 
     private var controls: some View {
@@ -125,15 +126,15 @@ struct BookNowPlaying<Cover: View>: View {
             Button { music.previousChapter() } label: { Label(t("Previous chapter"), systemImage: "backward.end.fill") }
                 .buttonStyle(RoundControlStyle(size: 84))
                 .focused($focused, equals: .previousChapter)
-            Button { music.skip(by: -music.skipBack) } label: { Label("Back \(back) seconds", systemImage: "gobackward.\(back)") }
+            Button { music.skip(by: -music.skipBack) } label: { Label(t("Back {count, plural, one {# second} other {# seconds}}", ["count": back]), systemImage: "gobackward.\(back)") }
                 .buttonStyle(RoundControlStyle(size: 96))
                 .focused($focused, equals: .back)
             Button { music.togglePlayPause() } label: {
-                Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? Symbol.pause : Symbol.play)
+                Label(music.isPlaying ? t("Pause") : t(Words.play), systemImage: music.isPlaying ? Symbol.pause : Symbol.play)
             }
             .buttonStyle(RoundControlStyle(size: 120, active: true))
             .focused($focused, equals: .playPause)
-            Button { music.skip(by: music.skipForward) } label: { Label("Forward \(forward) seconds", systemImage: "goforward.\(forward)") }
+            Button { music.skip(by: music.skipForward) } label: { Label(t("Forward {count, plural, one {# second} other {# seconds}}", ["count": forward]), systemImage: "goforward.\(forward)") }
                 .buttonStyle(RoundControlStyle(size: 96))
                 .focused($focused, equals: .forward)
             Button { music.nextChapter() } label: { Label(t("Next chapter"), systemImage: "forward.end.fill") }
@@ -151,7 +152,7 @@ struct BookNowPlaying<Cover: View>: View {
             }
             .buttonStyle(RoundControlStyle(size: 84, active: music.speed != 1))
             .focused($focused, equals: .speed)
-            .accessibilityLabel("Speed, \(BookSpeed.label(music.speed))")
+            .accessibilityLabel(t("Speed, {speed}", ["speed": BookSpeed.label(music.speed)]))
             Button { music.stop() } label: { Label(t("Stop"), systemImage: "stop.fill") }
                 .buttonStyle(RoundControlStyle(size: 84))
                 .focused($focused, equals: .stop)

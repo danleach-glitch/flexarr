@@ -14,11 +14,11 @@ enum BookOpening: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .browse: "Browse"
-        case .all: "All books"
-        case .genres: "Genres"
-        case .series: "Series"
-        case .authors: "Authors"
+        case .browse: t(Words.browse)
+        case .all: t("All books")
+        case .genres: t(Words.genres)
+        case .series: t(Words.series)
+        case .authors: t("Authors")
         }
     }
 
@@ -121,10 +121,10 @@ struct BookSeriesGridView: View {
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 40) {
-                BookPageHeading(view: view, title: "Series", count: loaded ? (total == 1 ? "1 series" : "\(total.formatted()) series") : nil)
+                BookPageHeading(view: view, title: t(Words.series), count: loaded ? (t("{count, plural, one {# series} other {# series}}", ["count": total])) : nil)
                     .padding(.top, view == nil ? 20 : LibraryViewSwitch.topInset)
                 if loaded, series.isEmpty {
-                    StatusView(state: .empty("No series yet.")).frame(height: 500)
+                    StatusView(state: .empty(t("No series yet."))).frame(height: 500)
                 } else if loaded {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {
                         ForEach(Array(series.enumerated()), id: \.element.id) { index, one in
@@ -208,14 +208,14 @@ struct BookAuthorsGridView: View {
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 40) {
-                BookPageHeading(view: view, title: "Authors", count: loaded ? (total == 1 ? "1 author" : "\(total.formatted()) authors") : nil)
+                BookPageHeading(view: view, title: t("Authors"), count: loaded ? (t("{count, plural, one {# author} other {# authors}}", ["count": total])) : nil)
                     .padding(.top, view == nil ? 20 : LibraryViewSwitch.topInset)
                 if loaded, people.isEmpty {
-                    StatusView(state: .empty("No authors yet.")).frame(height: 500)
+                    StatusView(state: .empty(t("No authors yet."))).frame(height: 500)
                 } else if loaded {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {
                         ForEach(Array(people.enumerated()), id: \.element.id) { index, person in
-                            PersonCard(name: person.name, detail: person.bookCount == 1 ? "1 book" : "\(person.bookCount) books", image: person.image,
+                            PersonCard(name: person.name, detail: t("{count, plural, one {# book} other {# books}}", ["count": person.bookCount]), image: person.image,
                                        focus: $focused, focusID: person.id) {
                                 router.push(.person(id: person.id, name: person.name))
                             }

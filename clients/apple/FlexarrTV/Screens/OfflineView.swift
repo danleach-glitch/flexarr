@@ -21,11 +21,12 @@ struct OfflineView: View {
                 .foregroundStyle(Color.silver)
                 .accessibilityHidden(true)
             // As the tunnel's problem screen words it.
-            Text(owner.map { "Can’t reach \($0)’s Flexarr" } ?? "Can’t reach this Flexarr")
+            Text(owner.map { t("Can’t reach {owner}’s Flexarr", ["owner": $0]) } ?? t("Can’t reach this Flexarr"))
                 .font(.system(size: 52, weight: .bold))
                 .foregroundStyle(Color.screen)
                 .accessibilityAddTraits(.isHeader)
-            Text(owner.map { "Check this device’s internet, or that \($0)’s server is on." } ?? "Check this device’s internet, or that its server is on.")
+            Text(owner.map { t("Check this device’s internet, or that {owner}’s server is on.", ["owner": $0]) }
+                 ?? t("Check this device’s internet, or that its server is on."))
                 .font(.system(size: 30))
                 .foregroundStyle(Color.usher)
             HStack(spacing: 30) {
@@ -39,7 +40,7 @@ struct OfflineView: View {
                     }
                 }
                 .buttonStyle(ActionButtonStyle(prominent: true))
-                Button(owner == nil ? "Sign out" : "Leave") {
+                Button(owner == nil ? t("Sign out") : t("Leave")) {
                     if owner == nil { confirmSignOut = true } else { confirmLeave = true }
                 }
                 .buttonStyle(ActionButtonStyle())

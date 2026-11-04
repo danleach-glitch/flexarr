@@ -77,7 +77,7 @@ struct BookGridView: View {
             VStack(alignment: .leading, spacing: 40) {
                 header
                 if loaded, books.isEmpty {
-                    if isFiltered { noMatches } else { StatusView(state: .empty("No books yet.")).frame(height: 500) }
+                    if isFiltered { noMatches } else { StatusView(state: .empty(t("No books yet."))).frame(height: 500) }
                 } else if loaded {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {
                         ForEach(Array(books.enumerated()), id: \.element.id) { index, book in
@@ -130,7 +130,7 @@ struct BookGridView: View {
 
     /// "42 books", with what they're narrowed to.
     private var summary: String {
-        var parts = [total == 1 ? "1 book" : "\(total.formatted()) books"]
+        var parts = [t("{count, plural, one {# book} other {# books}}", ["count": total])]
         if filter.progress != .any { parts.append(filter.progress.label.lowercased()) }
         let length = BookLength(filter)
         if length != .any { parts.append(length.label.lowercased()) }
@@ -161,7 +161,7 @@ struct BookGridView: View {
         }
         .focused($focusedControl, equals: "sort")
         .buttonStyle(PillButtonStyle(selected: false))
-        .accessibilityLabel("Sort by \(filter.sort.label)")
+        .accessibilityLabel(t("Sort by {order}", ["order": filter.sort.label]))
     }
 
     private var isReversed: Bool {

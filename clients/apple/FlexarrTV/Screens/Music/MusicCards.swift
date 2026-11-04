@@ -127,7 +127,7 @@ struct ArtistCard: View {
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(Color.screen)
                 if item.childCount > 0 {
-                    Text(item.childCount == 1 ? "1 album" : "\(item.childCount) albums")
+                    Text(t("{count, plural, one {# album} other {# albums}}", ["count": item.childCount]))
                         .font(.system(size: 21))
                         .foregroundStyle(Color.usher)
                 }
@@ -264,7 +264,7 @@ struct MusicDestination: View {
             if let album = item.parentId {
                 AlbumView(id: album, preview: nil, highlighted: item.id)
             } else {
-                StatusView(state: .empty("This track isn't part of an album."))
+                StatusView(state: .empty(t("This track isn't part of an album.")))
             }
         }
     }

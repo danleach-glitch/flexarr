@@ -179,24 +179,25 @@ private struct PairWithServer: View {
                     if pairing.needsSetup {
                         VStack(alignment: .leading, spacing: 20) {
                             NumberedStep(1) {
-                                Text("On your computer, open **\(server.address.absoluteString)** in a web browser.")
+                                markdown(t("On your computer, open **{address}** in a web browser.", ["address": server.address.absoluteString]))
                             }
                             NumberedStep(2) {
-                                Text(pairing.setupNeedsCode
-                                    ? "Type in the setup code from the server's log, then click **Set up Flexarr**."
-                                    : "Click **Set up Flexarr**.")
+                                markdown(pairing.setupNeedsCode
+                                    ? t("Type in the setup code from the server's log, then click **Set up Flexarr**.")
+                                    : t("Click **Set up Flexarr**."))
                             }
-                            NumberedStep(3) { Text(t("Go to **Settings**, then **Security**, then **Connect a device**.")) }
+                            NumberedStep(3) { markdown(t("Go to **Settings**, then **Security**, then **Connect a device**.")) }
                             NumberedStep(4) { Text(t("Type in this code:")) }
                         }
                         code(start, renewed: pairing.renewedAt != nil)
                     } else {
-                        Text(t("On a phone signed in to Flexarr, tap **Allow** when it asks. Check it shows this code:"))
+                        markdown(t("On a phone signed in to Flexarr, tap **Allow** when it asks. Check it shows this code:"))
                             .font(.system(size: 30))
                             .foregroundStyle(Color.screen)
                             .fixedSize(horizontal: false, vertical: true)
                         code(start, renewed: pairing.renewedAt != nil)
-                        Text("Or on a computer, open **\(server.address.appending(path: "settings/tv").absoluteString)** and type in the code.")
+                        markdown(t("Or on a computer, open **{address}** and type in the code.",
+                                   ["address": server.address.appending(path: "settings/tv").absoluteString]))
                             .font(.system(size: 26))
                             .foregroundStyle(Color.usher)
                             .fixedSize(horizontal: false, vertical: true)
@@ -272,7 +273,7 @@ private struct NumberedStep<Content: View>: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 18) {
-            Text("\(number)")
+            Text(number.formatted(.number.locale(Localization.locale)))
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(Color.room)
                 .frame(width: 42, height: 42)
@@ -328,7 +329,7 @@ private struct ManualConnect: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 34) {
-            field("Server address") {
+            field(t("Server address")) {
                 TextField(t("http://192.168.1.20:8383"), text: $address)
                     .textContentType(.URL)
                     .keyboardType(.URL)
@@ -339,7 +340,7 @@ private struct ManualConnect: View {
                     .onSubmit { if usesKey { focus = .key } else { connect() } }
             }
             if usesKey {
-                field("API key") {
+                field(t("API key")) {
                     SecureField(t("Paste or type your API key"), text: $apiKey)
                         .focused($focus, equals: .key)
                         .submitLabel(.go)
@@ -407,7 +408,7 @@ private struct ManualConnect: View {
         guard !isConnecting else { return }
         if !usesKey {
             guard let server = FlexarrClient.normalizeAddress(address) else {
-                error = "That doesn’t look like a server address. Try one like http://192.168.1.20:8383."
+                error = t("That doesn’t look like a server address. Try one like http://192.168.1.20:8383.")
                 return
             }
             onPair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
@@ -443,18 +444,18 @@ private struct GuestCode: View {
             if let joining = waiter.joining {
                 HStack(spacing: 20) {
                     ProgressView()
-                    Text("Joining \(joining.ownerName)’s Flexarr…")
+                    Text(t("Joining {owner}’s Flexarr…", ["owner": joining.ownerName]))
                         .font(.system(size: 32, weight: .semibold))
                         .foregroundStyle(Color.screen)
                 }
             } else if let offer = waiter.offer {
                 // Anyone who heard the code could have sent an invite: one click to say it's the right one.
-                Text("Join \(offer.ownerName)’s Flexarr?")
+                Text(t("Join {owner}’s Flexarr?", ["owner": offer.ownerName]))
                     .font(.system(size: 44, weight: .bold))
                     .foregroundStyle(Color.screen)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
-                Text("You’ll watch as \(offer.profileName).")
+                Text(t("You’ll watch as {profile}.", ["profile": offer.profileName]))
                     .font(.system(size: 30))
                     .foregroundStyle(Color.usher)
                 HStack(spacing: 30) {
@@ -462,7 +463,7 @@ private struct GuestCode: View {
                         .buttonStyle(ActionButtonStyle(prominent: true))
                         .focused($focus, equals: .main)
                         // VoiceOver lands here, not on the title: it says whose.
-                        .accessibilityLabel("Join \(offer.ownerName)’s Flexarr")
+                        .accessibilityLabel(t("Join {owner}’s Flexarr", ["owner": offer.ownerName]))
                     Button(t("Not now")) { waiter.newCode() }
                         .buttonStyle(ActionButtonStyle(prominent: false))
                 }
@@ -477,7 +478,7 @@ private struct GuestCode: View {
                             .buttonStyle(ActionButtonStyle(prominent: true))
                             .focused($focus, equals: .main)
                     }
-                    Button(waiter.noCode ? "Try again" : "New code") { waiter.newCode() }
+                    Button(waiter.noCode ? t("Try again") : t("New code")) { waiter.newCode() }
                         .buttonStyle(ActionButtonStyle(prominent: !waiter.canTryAgain))
                         .focused($focus, equals: .newCode)
                 }
@@ -493,7 +494,7 @@ private struct GuestCode: View {
                 Text(waiter.code?.display ?? "····-····")
                     .font(.system(size: 110, weight: .bold, design: .monospaced))
                     .foregroundStyle(Color.screen)
-                    .accessibilityLabel(waiter.code.map { $0.code.map(String.init).joined(separator: " ") } ?? "Getting a code")
+                    .accessibilityLabel(waiter.code.map { $0.code.map(String.init).joined(separator: " ") } ?? t("Getting a code"))
                 Text(t("They type it into Settings › Remote access in Flexarr."))
                     .font(.system(size: 26))
                     .foregroundStyle(Color.usher)
@@ -519,7 +520,7 @@ private struct GuestCode: View {
         // The invite arrived while the code showed: said aloud.
         .onChange(of: waiter.offer?.token) { _, token in
             guard token != nil, let offer = waiter.offer else { return }
-            AccessibilityNotification.Announcement("Join \(offer.ownerName)’s Flexarr?").post()
+            AccessibilityNotification.Announcement(t("Join {owner}’s Flexarr?", ["owner": offer.ownerName])).post()
         }
         // Polls only while the app is in front; back in front, the same code carries on.
         .task(id: "\(waiter.round)#\(scenePhase == .active)") {
@@ -527,4 +528,9 @@ private struct GuestCode: View {
             await waiter.run()
         }
     }
+}
+
+/// Translated text with **bold** in it: `Text(String)` shows the asterisks, so the Markdown is read first.
+private func markdown(_ text: String) -> Text {
+    Text((try? AttributedString(markdown: text)) ?? AttributedString(text))
 }

@@ -28,7 +28,7 @@ struct LiveTvView: View {
         Group {
             if let channels {
                 if channels.isEmpty {
-                    StatusView(state: .empty("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr's user."))
+                    StatusView(state: .empty(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr's user.")))
                 } else {
                     HStack(alignment: .top, spacing: 50) {
                         sidebar
@@ -109,12 +109,12 @@ struct LiveTvView: View {
                     .foregroundStyle(Color.screen)
                     .padding(.bottom, 24)
             }
-            categoryButton(.favourites, "Favourites", systemImage: "star.fill")
+            categoryButton(.favourites, t("Favourites"), systemImage: "star.fill")
             // A recording is for everyone, so a profile with an age limit has none to see or set.
             if !model.hasAgeLimit {
-                categoryButton(.recordings, "Recordings", systemImage: "record.circle")
+                categoryButton(.recordings, t("Recordings"), systemImage: "record.circle")
             }
-            categoryButton(.all, "All channels", systemImage: "square.grid.3x3.fill")
+            categoryButton(.all, t("All channels"), systemImage: "square.grid.3x3.fill")
             if groups.count > 1 {
                 ForEach(groups, id: \.self) { categoryButton(.group($0), $0, systemImage: nil) }
             }

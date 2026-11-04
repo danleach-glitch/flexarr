@@ -88,7 +88,7 @@ struct LibraryView: View {
                     StatusView(state: .failed(error) { Task { await reload() } })
                         .frame(height: 500)
                 } else if items.isEmpty && !isLoading {
-                    StatusView(state: .empty(genre == nil ? "Nothing in this library yet." : "No \(genre!) \(content.noun) here."))
+                    StatusView(state: .empty(genre.map(noneInGenre) ?? t("Nothing in this library yet.")))
                         .frame(height: 500)
                 } else {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 64) {
@@ -204,10 +204,10 @@ struct LibraryView: View {
                     Menu {
                         Button(t("All genres")) { genre = nil }
                         ForEach(genres, id: \.name) { g in
-                            Button("\(g.name)  (\(g.count))") { genre = g.name }
+                            Button("\(g.name)  (\(g.count.formatted(.number.locale(Localization.locale))))") { genre = g.name }
                         }
                     } label: {
-                        Label(genre ?? "All genres", systemImage: "line.3.horizontal.decrease")
+                        Label(genre ?? t("All genres"), systemImage: "line.3.horizontal.decrease")
                     }
                     .focused($focusedControl, equals: "genre")
                     .buttonStyle(PillButtonStyle(selected: genre != nil))
@@ -319,6 +319,15 @@ struct LibraryView: View {
         focusedItem = first.id
     }
 
+    /// "No Rock albums here."
+    private func noneInGenre(_ genre: String) -> String {
+        switch content {
+        case .titles: t("No {genre} titles here.", ["genre": genre])
+        case .artists: t("No {genre} artists here.", ["genre": genre])
+        case .albums: t("No {genre} albums here.", ["genre": genre])
+        }
+    }
+
     /// From the switch, as the tab opens (see `focusesContent`): to the first title, once it's loaded.
     private func focusFirstTitleOnArrival() {
         guard takesFocus.wrappedValue, switchFocused, let first = items.first else { return }
@@ -418,7 +427,7 @@ struct LetterRail: View {
                 .buttonStyle(LetterButtonStyle(jumping: jumping == letter))
                 .disabled(empty.contains(letter))
                 .focused(focus, equals: "letter-\(letter)")
-                .accessibilityLabel(letter == "#" ? "Numbers and symbols" : letter)
+                .accessibilityLabel(letter == "#" ? t("Numbers and symbols") : letter)
             }
         }
         .focusSection()

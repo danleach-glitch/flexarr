@@ -76,7 +76,7 @@ struct LiveGuideGrid: View {
         }
         .alert(details?.displayTitle ?? "", isPresented: Binding(get: { details != nil }, set: { if !$0 { details = nil } })) {
             if let channel = detailsChannel {
-                Button("Watch \(channel.name) now") { onWatch(channel) }
+                Button(t("Watch {channel} now", ["channel": channel.name])) { onWatch(channel) }
                 if records, let details, details.end > now {
                     Button(DvrActions.recordLabel(details)) { act { try await toggleRecording(details, on: channel) } }
                     Button(DvrActions.seriesLabel(details)) { act { try await DvrActions.toggleSeries(details, on: channel.id, client: $0) } }
@@ -173,7 +173,7 @@ struct LiveGuideGrid: View {
                         }
                         if let onFavourite {
                             Button { onFavourite(channel) } label: {
-                                Label(channel.isFavourite ? "Remove from Favourites" : "Add to Favourites",
+                                Label(channel.isFavourite ? t("Remove from Favourites") : t("Add to Favourites"),
                                       systemImage: channel.isFavourite ? "star.slash" : "star")
                             }
                         }
@@ -204,7 +204,7 @@ struct LiveGuideGrid: View {
             HStack(spacing: 8) {
                 if programme.isSetToRecord {
                     Circle().fill(Self.recordRed).frame(width: 14, height: 14)
-                        .accessibilityLabel(programme.isRecordingNow ? "Recording now" : "Set to record")
+                        .accessibilityLabel(programme.isRecordingNow ? t("Recording now") : t("Set to record"))
                 } else if programme.series == true {
                     Image(systemName: "square.stack.fill").font(.system(size: 16)).foregroundStyle(Self.recordRed)
                         .accessibilityLabel(t(Words.series))
@@ -299,8 +299,11 @@ struct LiveGuideGrid: View {
 
     private func describe(_ programme: LiveProgramme) -> String {
         var lines = ["\(Self.day(programme.start)) \(Self.clock.string(from: programme.start)) – \(Self.clock.string(from: programme.end))"]
-        if let season = programme.season { lines.append(programme.episode.map { "Series \(season), episode \($0)" } ?? "Series \(season)") }
-        if programme.isNew { lines.append("New") }
+        if let season = programme.season {
+            lines.append(programme.episode.map { t("Series {season}, episode {episode}", ["season": season, "episode": $0]) }
+                         ?? t("Series {season}", ["season": season]))
+        }
+        if programme.isNew { lines.append(t("New")) }
         if let description = programme.description { lines.append(description) }
         return lines.joined(separator: "\n")
     }
@@ -312,8 +315,8 @@ struct LiveGuideGrid: View {
 
     private static func day(_ date: Date) -> String {
         let calendar = Calendar.current
-        if calendar.isDateInToday(date) { return "Today" }
-        if calendar.isDateInTomorrow(date) { return "Tomorrow" }
+        if calendar.isDateInToday(date) { return t("Today") }
+        if calendar.isDateInTomorrow(date) { return t("Tomorrow") }
         return date.formatted(.dateTime.weekday(.wide).locale(Localization.locale))
     }
 }

@@ -52,7 +52,7 @@ struct MusicLibraryView: View {
                         StatusView(state: .loading)
                             .frame(height: 500)
                     } else if browse.isEmpty {
-                        StatusView(state: .empty("Nothing in this library yet."))
+                        StatusView(state: .empty(t("Nothing in this library yet.")))
                             .frame(height: 500)
                     } else {
                         rows
@@ -115,14 +115,14 @@ struct MusicLibraryView: View {
         VStack(alignment: .leading, spacing: 44) {
             ForEach(browse.rows) { MusicRowView(row: $0, library: browse.library, column: $column) { Task { await load() } } }
             if browse.rows.isEmpty, !browse.playlists.isEmpty {
-                fallbackRow("Your playlists", ids: browse.playlists.map(\.id)) {
+                fallbackRow(t("Your playlists"), ids: browse.playlists.map(\.id)) {
                     ForEach(browse.playlists) { playlist in
                         PlaylistCard(playlist: playlist, focus: $focusedCard) { router.push(.playlist(playlist)) }
                     }
                 }
             }
             if browse.rows.isEmpty, !browse.recentAlbums.isEmpty {
-                fallbackRow("New albums", ids: browse.recentAlbums.map(\.id)) {
+                fallbackRow(t("New albums"), ids: browse.recentAlbums.map(\.id)) {
                     ForEach(browse.recentAlbums) { album in
                         AlbumCard(item: album, showsArtist: true, focus: $focusedCard) { router.push(.item(album)) }
                     }
@@ -133,7 +133,7 @@ struct MusicLibraryView: View {
                 // See all only when there are more than the row shows; it opens every artist over Browse, so Menu
                 // comes back here, as a film row's See all does.
                 let more = browse.total > artists.count
-                fallbackRow("Your artists", ids: artists.map(\.id) + (more ? ["see-all-artists"] : [])) {
+                fallbackRow(t(Words.yourArtists), ids: artists.map(\.id) + (more ? ["see-all-artists"] : [])) {
                     ForEach(artists) { artist in
                         ArtistCard(item: artist, focus: $focusedCard) { router.push(.item(artist)) }
                     }

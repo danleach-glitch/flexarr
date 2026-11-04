@@ -15,7 +15,7 @@ struct ComingSoonView: View {
                     .foregroundStyle(Color.screen)
                     .padding(.horizontal, Layout.edge)
                 if let days, days.isEmpty {
-                    StatusView(state: .empty("Nothing is scheduled. Monitored shows and movies appear here as their dates get close."))
+                    StatusView(state: .empty(t("Nothing is scheduled. Monitored shows and movies appear here as their dates get close.")))
                         .frame(height: 500)
                 } else if let days {
                     ForEach(days) { day in
@@ -83,7 +83,7 @@ struct UpcomingCard: View {
             .contextMenu {
                 if let id = item.libraryItemId {
                     Button { router.push(.itemID(id)) } label: {
-                        Label(item.kind == .movie ? "Go to movie" : item.kind == .audiobook ? "Go to book" : "Go to show", systemImage: Symbol.details)
+                        Label(item.kind == .movie ? t("Go to movie") : item.kind == .audiobook ? t("Go to book") : t(Words.goToShow), systemImage: Symbol.details)
                     }
                 }
                 if !(item.overview ?? "").isEmpty {

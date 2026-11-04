@@ -24,7 +24,7 @@ struct ShowGapsSection: View {
         VStack(alignment: .leading, spacing: 40) {
             if gaps.hasMissing {
                 VStack(alignment: .leading, spacing: 0) {
-                    RowHeading(title: "Not in your library")
+                    RowHeading(title: t(Words.notInYourLibrary))
                     if !gaps.seasons.isEmpty {
                         ScrollView(.horizontal) {
                             LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
@@ -50,7 +50,7 @@ struct ShowGapsSection: View {
             }
             if !gaps.upcoming.isEmpty {
                 VStack(alignment: .leading, spacing: 16) {
-                    RowHeading(title: "Coming up")
+                    RowHeading(title: t("Coming up"))
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(gaps.upcoming) { episode in
                             listRow {
@@ -147,7 +147,7 @@ struct ShowGapsSection: View {
     }
 
     private func caption(_ season: MissingSeason) -> String {
-        [season.episodes > 0 ? (season.episodes == 1 ? "1 episode" : "\(season.episodes) episodes") : nil,
+        [season.episodes > 0 ? t("{count, plural, one {# episode} other {# episodes}}", ["count": season.episodes]) : nil,
          season.year.map(String.init)].compactMap(\.self).joined(separator: ", ")
     }
 
@@ -155,7 +155,7 @@ struct ShowGapsSection: View {
     private func status(_ action: MissingSeasonAction) -> (title: String, symbol: String)? {
         switch action {
         case .request: (TitleWords.request, Symbol.request)
-        case .search: ("Search", Symbol.search)
+        case .search: (t(Words.search), Symbol.search)
         case .requested: (TitleWords.requested, Symbol.requested)
         default: nil
         }
@@ -163,7 +163,7 @@ struct ShowGapsSection: View {
 
     private func missingEpisodes(season: Int, episodes: [ShowEpisode]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Season \(season): \(episodes.count == 1 ? "1 episode" : "\(episodes.count) episodes")")
+            Text(t("Season {season}: {count, plural, one {# episode} other {# episodes}}", ["season": season, "count": episodes.count]))
                 .font(.system(size: 30, weight: .bold))
                 .foregroundStyle(Color.screen)
             listRow {
@@ -177,10 +177,10 @@ struct ShowGapsSection: View {
                     guard !busy, !asked.contains(-season) else { return }
                     Task { await search(season, episodesOnly: true) }
                 } label: {
-                    Label(asked.contains(-season) ? "Searching" : "Search", systemImage: Symbol.search)
+                    Label(asked.contains(-season) ? t("Searching") : t(Words.search), systemImage: Symbol.search)
                 }
                 .buttonStyle(ActionButtonStyle())
-                .accessibilityLabel("Search for season \(season)'s missing episodes")
+                .accessibilityLabel(t("Search for season {season}'s missing episodes", ["season": season]))
                 .padding(.top, 8)
             }
         }

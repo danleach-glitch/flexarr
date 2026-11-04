@@ -138,13 +138,13 @@ struct ExternalMusicCard: View {
             if showsYear { if let year = item.year { parts.append(String(year)) } } else if let artist = item.artist { parts.append(artist) }
             switch model.albumState(item) {
             case .requested: parts.append(MusicWords.requested)
-            case .inLibrary: parts.append("In your library")
+            case .inLibrary: parts.append(t(Words.inYourLibrary))
             default: break
             }
         } else if model.isFollowing(item) {
             parts.append(MusicWords.following)
         } else if item.libraryItemId != nil {
-            parts.append("In your library")
+            parts.append(t(Words.inYourLibrary))
         }
         return parts.isEmpty ? nil : parts.joined(separator: "  ")
     }

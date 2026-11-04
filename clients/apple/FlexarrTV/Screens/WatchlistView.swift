@@ -29,9 +29,9 @@ struct WatchlistView: View {
         shown = sort.sorted((entries ?? []).filter { (showing == nil || $0.status == showing) && (kind == nil || $0.mediaType == kind) })
     }
 
-    private static let statuses: [(WatchlistStatus?, String)] = [
-        (nil, "Everything"), (.ready, "Ready to watch"), (.onItsWay, "On its way"), (.coming, "Coming"), (.notAvailable, "Not available"),
-    ]
+    private static var statuses: [(WatchlistStatus?, String)] {
+        [(nil, t("Everything")), (.ready, t("Ready to watch")), (.onItsWay, t("On its way")), (.coming, t("Coming")), (.notAvailable, t("Not available"))]
+    }
 
     var body: some View {
         ScrollView(.vertical) {
@@ -40,7 +40,7 @@ struct WatchlistView: View {
                     .font(.marquee(64, weight: .heavy))
                     .foregroundStyle(Color.screen)
                 if let entries, entries.isEmpty {
-                    StatusView(state: .empty("Nothing here yet.")).frame(height: 500)
+                    StatusView(state: .empty(t("Nothing here yet."))).frame(height: 500)
                 } else if entries != nil {
                     filters
                     if let error {
@@ -49,7 +49,7 @@ struct WatchlistView: View {
                             .foregroundStyle(Color.usher)
                     }
                     if shown.isEmpty {
-                        StatusView(state: .empty("Nothing on your watchlist matches.")).frame(height: 300)
+                        StatusView(state: .empty(t("Nothing on your watchlist matches."))).frame(height: 300)
                     }
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 64) {
                         ForEach(shown) { entry in
@@ -108,7 +108,7 @@ struct WatchlistView: View {
                 }
             } label: {
                 // The kind shows here too, so a filtered list says why shows (or films) are missing.
-                Label([kind == "movie" ? "Movies" : kind == "tv" ? "Shows" : nil, sort.label].compactMap { $0 }.joined(separator: ", "),
+                Label([kind == "movie" ? t(Words.movies) : kind == "tv" ? t(Words.shows) : nil, sort.label].compactMap { $0 }.joined(separator: ", "),
                       systemImage: "line.3.horizontal.decrease")
             }
             .buttonStyle(PillButtonStyle(selected: kind != nil || sort != .status))
@@ -160,10 +160,10 @@ struct WatchlistView: View {
     /// Where it's got to, then where it streams: "On its way   On Netflix", "Request   On Prime Video".
     private func note(_ entry: WatchlistEntry) -> String {
         let status: String? = switch entry.status {
-        case .onItsWay: "On its way"
-        case .coming: entry.releaseDate.flatMap(Self.out) ?? "Coming"
+        case .onItsWay: t("On its way")
+        case .coming: entry.releaseDate.flatMap(Self.out) ?? t("Coming")
         // As the other apps' Request button: pressing the card opens its page, where Request is.
-        case .notAvailable: "Request"
+        case .notAvailable: t(Words.request)
         default: nil
         }
         return [status, entry.streamingLabel].compactMap { $0 }.joined(separator: "   ")
@@ -174,7 +174,7 @@ struct WatchlistView: View {
         guard let date = try? Date(raw, strategy: .iso8601.year().month().day()) else { return nil }
         var style = Date.FormatStyle(date: .abbreviated, time: .omitted, locale: Localization.locale)
         style.timeZone = TimeZone(identifier: "UTC") ?? .gmt
-        return "Out \(date.formatted(style))"
+        return t("Out {date}", ["date": date.formatted(style)])
     }
 
     private func load() async {
@@ -213,7 +213,7 @@ struct WatchlistActionButton: View {
             Label(t(Words.watchlist), systemImage: onList ? "bookmark.fill" : "bookmark")
         }
         .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: iconOnly))
-        .accessibilityLabel(onList ? "Remove from watchlist" : "Add to watchlist")
+        .accessibilityLabel(onList ? t(Words.removeFromWatchlist) : t(Words.addToWatchlist))
         .onChange(of: on) { _, _ in changed = nil }
         // Watching something can take it off while the page keeps the same value: the next refresh tells.
         .onChange(of: model.watchlistItems) { _, _ in changed = nil }
