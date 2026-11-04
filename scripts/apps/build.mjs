@@ -97,9 +97,11 @@ const data = load();
 
 const external = href => /^https:/.test(href);
 const pill = p => `<span class="pill ${p.status}">${statuses[p.status].label}</span>`;
+// Links that open a new tab end in an arrow.
+const arrow = '<svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>';
 const button = (l, i) => {
   const kind = l.store || l.primary ? 'button primary' : i === 0 ? 'button quiet' : 'more';
-  return `<a class="${kind}" href="${escape(l.href)}"${external(l.href) ? ' target="_blank" rel="noopener"' : ''}>${l.store ? stores[l.store] : ''}${escape(l.label)}</a>`;
+  return `<a class="${kind}" href="${escape(l.href)}"${external(l.href) ? ' target="_blank" rel="noopener"' : ''}>${l.store ? stores[l.store] : ''}${escape(l.label)}${external(l.href) ? arrow : ''}</a>`;
 };
 
 // Out now, coming soon (built, waiting on a store), or on the way (still being made: a lighter, dashed card).
@@ -216,7 +218,8 @@ const html = `<!doctype html>
     .links .button { min-height: 46px; padding: 0 18px; font-size: 0.95rem; }
     .links .button.primary { box-shadow: none; }
     .links .button svg { width: 18px; height: 18px; }
-    .more { font-weight: 700; text-decoration: none; }
+    .links .arrow, .links .button svg.arrow { width: 14px; height: 14px; margin-left: 6px; flex: none; opacity: 0.7; }
+    .more { display: inline-flex; align-items: center; font-weight: 700; text-decoration: none; }
     .more:hover { text-decoration: underline; }
 
     .pill { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 999px; font-size: 0.85rem; font-weight: 700; white-space: nowrap; color: var(--c); background: color-mix(in srgb, var(--c) 13%, transparent); }

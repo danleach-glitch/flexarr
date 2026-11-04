@@ -27,7 +27,7 @@
       "requires": "iOS or iPadOS 18.2 or later",
       "summary": "Downloads for offline, podcasts with widgets and alerts, Siri, Picture in Picture and AirPlay. Free.",
       "links": [
-        { "label": "Download on the App Store", "href": "https://apps.apple.com/app/flexarr/id6826618084", "store": "apple" }
+        { "label": "App Store", "href": "https://apps.apple.com/app/flexarr/id6826618084", "store": "apple" }
       ]
     },
     {
@@ -70,7 +70,7 @@
       "summary": "Every Apple TV, iPhone and iPad becomes a media player, so your home can react to what you're watching: lights down when a film starts.",
       "links": [
         { "label": "Get it on GitHub", "href": "https://github.com/danleach-glitch/flexarr-home-assistant" },
-        { "label": "How to set it up", "href": "/guide/home-assistant" }
+        { "label": "Guide", "href": "/guide/home-assistant" }
       ]
     },
     {
