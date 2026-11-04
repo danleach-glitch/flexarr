@@ -61,7 +61,7 @@ struct ListeningSettingsView: View {
                         .settingsRow()
                     }
                 } header: {
-                    Text(t("Your profile, on every device"))
+                    PageTopHeader(t("Your profile, on every device"))
                 } footer: {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(t("A book with a speed of its own keeps it. Smart rewind starts a little earlier after a pause."))

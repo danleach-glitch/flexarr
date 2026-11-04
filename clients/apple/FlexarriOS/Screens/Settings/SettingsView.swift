@@ -268,6 +268,18 @@ extension View {
     }
 }
 
+/// The header of a Settings page's first section: on the Mac the page's own title is right above it, so it's left out.
+struct PageTopHeader: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        #if !os(macOS)
+        Text(text)
+        #endif
+    }
+}
+
 /// A page inside Settings gets the Mac's back button (FlexarrMac's capsule); Settings itself, a sidebar place, has none.
 private struct SettingsBack: ViewModifier {
     let isSubpage: Bool
