@@ -83,11 +83,11 @@ struct MacPlayerControls: View {
             }
             if let asking = state.sleepAsking { sleepQuestion(asking) }
             if state.asleep {
-                Color.black.opacity(0.7).ignoresSafeArea()
+                Color.room.opacity(0.7).ignoresSafeArea()
                     .onTapGesture { screen?.wakeFromSleep() }
             }
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(Color.screen)
         .environment(\.colorScheme, .dark)
         // Up to the window's very top: the close button sits beside the window's own buttons, not under them.
         .ignoresSafeArea()
@@ -111,7 +111,7 @@ struct MacPlayerControls: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(state.title).font(.system(size: 22, weight: .bold)).lineLimit(1)
                 if let subtitle = state.subtitle, !subtitle.isEmpty {
-                    Text(subtitle).font(.system(size: 15, weight: .medium)).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+                    Text(subtitle).font(.system(size: 15, weight: .medium)).foregroundStyle(Color.screen.opacity(0.75)).lineLimit(1)
                 }
             }
             Spacer(minLength: 24)
@@ -126,7 +126,7 @@ struct MacPlayerControls: View {
         }
         .padding(.horizontal, Self.edge)
         .padding(.top, topInset).padding(.bottom, 60)
-        .background(LinearGradient(colors: [.black.opacity(0.7), .clear], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
+        .background(LinearGradient(colors: [Color.room.opacity(0.7), .clear], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
     }
 
     // MARK: Bottom
@@ -143,7 +143,7 @@ struct MacPlayerControls: View {
             ZStack {
                 HStack {
                     if let detail = state.detail {
-                        Text(detail).font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                        Text(detail).font(.system(size: 13, weight: .medium)).foregroundStyle(Color.screen.opacity(0.6)).lineLimit(1)
                     }
                     Spacer()
                     menus
@@ -153,7 +153,7 @@ struct MacPlayerControls: View {
             .padding(.top, 4)
         }
         .padding(.horizontal, Self.edge).padding(.top, 80).padding(.bottom, state.isFullScreen ? 36 : 28)
-        .background(LinearGradient(colors: [.clear, .black.opacity(0.8)], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
+        .background(LinearGradient(colors: [.clear, Color.room.opacity(0.8)], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
     }
 
     private var transport: some View {
@@ -246,6 +246,7 @@ struct MacPlayerControls: View {
                     }
                 } label: { Image(systemName: "waveform") }
                 .help(t("Audio"))
+                .accessibilityLabel(t("Audio"))
                 .popover(isPresented: Binding(get: { state.audioSyncOpen }, set: { state.audioSyncOpen = $0 })) {
                     AudioSyncPopover(state: state, screen: screen)
                 }
@@ -253,6 +254,7 @@ struct MacPlayerControls: View {
             if !state.subtitleTracks.isEmpty || state.subtitleSearch.available {
                 Menu { subtitleMenu } label: { Image(systemName: "captions.bubble") }
                     .help(t(Words.subtitles))
+                    .accessibilityLabel(t(Words.subtitles))
             }
             if !state.isLive, state.maxRate > 1 {
                 Menu {
@@ -266,6 +268,8 @@ struct MacPlayerControls: View {
                     if state.rate == 1 { Image(systemName: "gauge.with.dots.needle.67percent") } else { Text(PlayerViewController.rateLabel(state.rate)).monospacedDigit() }
                 }
                 .help(t("Speed"))
+                .accessibilityLabel(t("Speed"))
+                .accessibilityValue(PlayerViewController.rateLabel(state.rate))
             }
             if !state.isLive {
                 Menu {
@@ -278,14 +282,15 @@ struct MacPlayerControls: View {
                     .pickerStyle(.inline)
                 } label: { Image(systemName: state.sleepSetting == nil ? "moon.zzz" : "moon.zzz.fill") }
                 .help(t("Sleep timer"))
+                .accessibilityLabel(t("Sleep timer"))
             }
             MacRoutePicker(player: state.avPlayer)
                 .frame(width: 44, height: 44)
                 .help(t("AirPlay"))
+                .accessibilityLabel(t("AirPlay"))
             Button { screen?.toggleFullScreen() } label: {
                 Image(systemName: state.isFullScreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
             }
-            .buttonStyle(.plain)
             .help(state.isFullScreen ? t("Exit full screen") : t("Full screen"))
             .accessibilityLabel(state.isFullScreen ? t("Exit full screen") : t("Full screen"))
         }
@@ -336,10 +341,10 @@ struct MacPlayerControls: View {
 
     private func sleepQuestion(_ detail: String) -> some View {
         ZStack {
-            Color.black.opacity(0.55).ignoresSafeArea()
+            Color.room.opacity(0.55).ignoresSafeArea()
             VStack(spacing: 14) {
                 Text(t("Still watching?")).font(.system(size: 30, weight: .bold))
-                Text(detail).font(.title3.weight(.medium)).monospacedDigit().foregroundStyle(.white.opacity(0.75))
+                Text(detail).font(.title3.weight(.medium)).monospacedDigit().foregroundStyle(Color.screen.opacity(0.75))
                 HStack(spacing: 12) {
                     Button(t("+{minutes} min", ["minutes": 15])) { screen?.setSleep(.minutes(15)) }
                         .buttonStyle(.borderedProminent).tint(Color.screen).foregroundStyle(Color.room)
@@ -389,15 +394,15 @@ private struct MacScrubber: View {
             let duration = max(state.duration, 0.001)
             let shown = dragging ?? state.position
             ZStack(alignment: .leading) {
-                Capsule().fill(.white.opacity(0.22))
-                Capsule().fill(.white.opacity(0.35)).frame(width: width * min(1, state.buffered / duration))
+                Capsule().fill(Color.screen.opacity(0.22))
+                Capsule().fill(Color.screen.opacity(0.35)).frame(width: width * min(1, state.buffered / duration))
                 ForEach(Array(state.markers.enumerated()), id: \.offset) { _, marker in
                     Rectangle().fill(Color.silver.opacity(0.7))
                         .frame(width: max(2, width * (marker.end - marker.start) / duration), height: 3)
                         .offset(x: width * marker.start / duration)
                 }
-                Capsule().fill(.white).frame(width: width * min(1, shown / duration))
-                Circle().fill(.white).frame(width: hover != nil || dragging != nil ? 14 : 0)
+                Capsule().fill(Color.screen).frame(width: width * min(1, shown / duration))
+                Circle().fill(Color.screen).frame(width: hover != nil || dragging != nil ? 14 : 0)
                     .offset(x: width * min(1, shown / duration) - 7)
             }
             .frame(height: hover != nil || dragging != nil ? 7 : 5)
@@ -426,6 +431,15 @@ private struct MacScrubber: View {
                 })
         }
         .frame(height: 18)
+        // VoiceOver: the time, and up or down a step to move ten seconds.
+        .accessibilityElement()
+        .accessibilityLabel(t("Timeline"))
+        .accessibilityValue(PlayerViewController.clock(state.position))
+        .accessibilityAdjustableAction { direction in
+            guard state.duration > 0 else { return }
+            let step: Double = direction == .increment ? 10 : direction == .decrement ? -10 : 0
+            screen?.seek(to: max(0, min(state.duration, state.position + step)))
+        }
     }
 
     private func preview(at seconds: Double) -> some View {
@@ -439,7 +453,7 @@ private struct MacScrubber: View {
             }
             Text(PlayerViewController.clock(seconds)).font(.caption.weight(.semibold)).monospacedDigit()
                 .padding(.horizontal, 6).padding(.vertical, 2)
-                .background(.black.opacity(0.6), in: Capsule())
+                .background(Color.room.opacity(0.6), in: Capsule())
         }
     }
 }
@@ -474,7 +488,7 @@ private struct HoverCircle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .frame(minWidth: 44, minHeight: 44)
-            .background(Circle().fill(.white.opacity(configuration.isPressed ? 0.24 : hovering ? 0.14 : 0)))
+            .background(Circle().fill(Color.screen.opacity(configuration.isPressed ? 0.24 : hovering ? 0.14 : 0)))
             .contentShape(Circle())
             .onHover { hovering = $0 }
             .animation(.easeOut(duration: 0.12), value: hovering)
@@ -497,7 +511,7 @@ private struct MacRoutePicker: NSViewRepresentable {
     func makeNSView(context: Context) -> AVRoutePickerView {
         let picker = AVRoutePickerView()
         picker.isRoutePickerButtonBordered = false
-        picker.setRoutePickerButtonColor(.white, for: .normal)
+        picker.setRoutePickerButtonColor(NSColor(Color.screen), for: .normal)
         picker.setRoutePickerButtonColor(NSColor(Color.silver), for: .active)
         picker.player = player
         return picker
