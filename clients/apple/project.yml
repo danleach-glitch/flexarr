@@ -266,6 +266,9 @@ targets:
         # Big Shoulders Display, the marquee type (Shared/Fonts), copied to Resources.
         ATSApplicationFontsPath: .
         FlexarrGuestInvites: $(FLEXARR_GUEST_INVITES)
+        # "direct" in the copy downloaded from flexarr.io (scripts/mac-player-dmg.sh), which then says when a newer
+        # one is out; the App Store's updates itself.
+        FlexarrDistribution: $(FLEXARR_DISTRIBUTION)
         # Shared with the notification extension, which opens the server's sealed notifications with the key kept there.
         FlexarrAppGroup: group.$(FLEXARR_MAC_PLAYER_BUNDLE_ID)
         # Export compliance: as the iPhone app's (see FlexarriOS).
@@ -291,6 +294,7 @@ targets:
         # group shared with the notification extension; those need the provisioning profile the upload signs with.
         FLEXARR_MAC_ENTITLEMENTS: FlexarrMac/FlexarrMac.entitlements
         CODE_SIGN_ENTITLEMENTS: $(FLEXARR_MAC_ENTITLEMENTS)
+        FLEXARR_DISTRIBUTION: store
   # Opens the server's sealed notifications on the Mac, as FlexarrNotificationService does on the iPhone (same source).
   FlexarrMacNotificationService:
     type: app-extension

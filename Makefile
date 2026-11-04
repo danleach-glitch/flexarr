@@ -1,4 +1,4 @@
-.PHONY: tunnel tunnel-test tunnel-apple tunnel-android guide apps tokens strings languages apple-install ios-install ios-upload ios-dsyms tv-upload mac-upload android-bundle android-upload android-listing setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
+.PHONY: tunnel tunnel-test tunnel-apple tunnel-android guide apps tokens strings languages apple-install ios-install ios-upload ios-dsyms tv-upload mac-upload mac-player-dmg android-bundle android-upload android-listing setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
 
 export DOTNET_CLI_TELEMETRY_OPTOUT := 1
 
@@ -180,6 +180,12 @@ mac-player-install: tunnel-apple ## Build the Mac app (the player) and install i
 	codesign --force --options runtime -s "Apple Development" --entitlements clients/apple/FlexarrMacNotificationService/FlexarrMacNotificationService.entitlements "$$app/Contents/PlugIns/FlexarrMacNotificationService.appex" && \
 	codesign --force --options runtime -s "Apple Development" --entitlements clients/apple/FlexarrMac/FlexarrMac.entitlements "$$app" && \
 	rm -rf "$(MAC_PLAYER_DIR)/Flexarr.app" && cp -R "$$app" "$(MAC_PLAYER_DIR)/" && open "$(MAC_PLAYER_DIR)/Flexarr.app"
+
+# The Mac app as Flexarr.dmg for downloading from flexarr.io: Developer ID, notarised (scripts/mac-player-dmg.sh, which
+# says what it needs). scripts/release.sh publish makes it for each release.
+#   make mac-player-dmg [VERSION=x.y.z]
+mac-player-dmg: ## Build the Mac app (the player) as a signed, notarised Flexarr.dmg in build/apple
+	scripts/mac-player-dmg.sh $(VERSION)
 
 # Archive the Mac app and upload it to App Store Connect. Pass the iOS app's bundle ID to ship it on the iPhone and Apple
 # TV listing (universal purchase, docs/mac-player.md); the notification extension becomes <bundle id>.NotificationService.

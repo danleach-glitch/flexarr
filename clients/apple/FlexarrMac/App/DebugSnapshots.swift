@@ -7,7 +7,7 @@ import SwiftUI
 /// `-FlexarrSnapshotPlaces 01-home=home,03-movie=item:<id>` names each picture and where to go for it (`home`,
 /// `search`, `settings`, `downloads`, `watchlist`, `library:<id or name>`, `item:<id>`, `play:<id>`; a bare place is
 /// named after itself). Each is saved as `mac-<name>.png` a few seconds after it opens, and with
-/// `-FlexarrSnapshotQuit YES` the app quits after the last.
+/// `-FlexarrSnapshotQuit YES` the app quits after the last. `-FlexarrWindowSize <w>x<h>` sizes the window first.
 ///
 /// macOS doesn't draw a window covered by others, so the window must be in front while this runs. The app is
 /// sandboxed, so the folder is inside its container: ~/Library/Containers/<bundle id>/Data/tmp/<folder>.
@@ -26,12 +26,27 @@ enum DebugSnapshots {
         let wait = max(2, defaults.double(forKey: "FlexarrSnapshotWait"))
         Task {
             try? await Task.sleep(for: .seconds(wait * 2))
+            // `-FlexarrWindowSize 1440x900`: the whole window that size in points (title bar included), so the pictures
+            // come out at the Mac App Store's sizes (2880×1800 on a Retina screen).
+            if let size = defaults.string(forKey: "FlexarrWindowSize")?.split(separator: "x").compactMap({ Double($0) }), size.count == 2,
+               let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }) {
+                window.setFrame(NSRect(x: 40, y: 40, width: size[0], height: size[1]), display: true)
+                try? await Task.sleep(for: .seconds(wait))
+            }
             for (name, place) in places {
                 let playing = place.hasPrefix("play:")
                 go(to: place)
                 try? await Task.sleep(for: .seconds(playing ? wait * 2 : wait))
                 if playing { PlayerHost.shared.screen?.showControls() }
                 save(to: FileManager.default.temporaryDirectory.appending(path: folder).appending(path: "mac-\(name).png"))
+                // `-FlexarrSnapshotHold <seconds>`: says the place is showing and stays on it, for a capture of the window
+                // from outside (screencapture -l), which, unlike the picture above, has the sidebar's glass and the video.
+                let hold = defaults.double(forKey: "FlexarrSnapshotHold")
+                if hold > 0 {
+                    print("FlexarrSnapshot ready \(name)")
+                    fflush(stdout)
+                    try? await Task.sleep(for: .seconds(hold))
+                }
                 // Leave the player before the next place.
                 if playing {
                     PlayerHost.shared.screen?.close()

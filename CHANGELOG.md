@@ -39,6 +39,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Website
 - flexarr.io/apps and the guide introduce the Flexarr app for Mac, in development: your libraries in a Mac window, a full-screen player, and downloads, on the same App Store page as the iPhone and Apple TV app.
+- The Flexarr app for Mac will come as a download from flexarr.io as well as from the App Store. The downloaded copy says when a newer version is out, with a button to get it.
 - flexarr.io/why is now linked from every page: how Flexarr compares with Plex, Jellyfin and Emby and with the Infuse, Plezy, Swiftfin and Rivulet apps, brought up to 0.60.0 with music requests, scores, fixing matches, what a show is missing and audiobooks.
 
 ## 0.60.0 · 3 November 2026
