@@ -165,7 +165,7 @@ fun TvArtistCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Mo
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(item.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (item.childCount > 0) {
-                Text(if (item.childCount == 1) "1 album" else "${item.childCount} albums", fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1)
+                Text(t("{count, plural, one {# album} other {# albums}}", "count" to item.childCount), fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1)
             }
         }
     }
@@ -290,7 +290,7 @@ fun TvTrackRow(
                 if (isCurrent) {
                     Icon(
                         if (isPlaying) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeDown,
-                        contentDescription = if (isPlaying) "Playing" else "Paused",
+                        contentDescription = if (isPlaying) t("Playing") else t("Paused"),
                         modifier = Modifier.size(13.dp),
                     )
                 } else {

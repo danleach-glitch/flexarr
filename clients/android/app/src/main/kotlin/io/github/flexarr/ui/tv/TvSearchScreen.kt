@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import android.app.Activity
 import android.content.Intent
@@ -257,15 +258,15 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                 // Nothing typed: the last few searches to run again, and the titles opened from search.
                 words.isEmpty() && !recents.isEmpty -> {
                     if (recents.queries.isNotEmpty()) item(key = "recent-searches") {
-                        Section("Recent searches") {
+                        Section(t("Recent searches")) {
                             items(recents.queries, key = { it }) { text ->
                                 TvActionButton(text, onClick = { query = text }, icon = Icons.Filled.History, onLongClick = { forgetting = text })
                             }
-                            item(key = "clear") { TvActionButton("Clear", onClick = ::clear) }
+                            item(key = "clear") { TvActionButton(t("Clear"), onClick = ::clear) }
                         }
                     }
                     if (recents.items.isNotEmpty()) item(key = "recently-opened") {
-                        Section("Recently opened") {
+                        Section(t("Recently opened")) {
                             items(recents.items.filter { it.showsOnTv }, key = { it.id }) { item ->
                                 TvPosterCard(item, onClick = {
                                     record(null, item.id)
@@ -276,26 +277,26 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                     }
                 }
                 found != null && found.titles.isEmpty() && found.albums.isEmpty() && found.episodes.isEmpty() && found.people.isEmpty() && beyond.isEmpty() && beyondMusic.isEmpty() -> item(key = "none") {
-                    Box(Modifier.height(200.dp)) { TvStatusView("Nothing matches “${query.trim()}”.", empty = true) }
+                    Box(Modifier.height(200.dp)) { TvStatusView(t("Nothing matches “{query}”.", "query" to query.trim()), empty = true) }
                 }
                 found != null -> {
                     // The server lists artists among the titles: films and shows here, artists with the albums below, as on the phones.
                     val titles = found.titles.filter { it.showsOnTv && it.kind != MediaKind.Artist }
                     val artists = found.titles.filter { it.kind == MediaKind.Artist }
                     if (titles.isNotEmpty()) item(key = "titles") {
-                        Section("Movies and shows") { items(titles, key = { it.id }) { TvPosterCard(it, onClick = { record(words, it.id); navigator.open(it) }) } }
+                        Section(t(Words.moviesAndShows)) { items(titles, key = { it.id }) { TvPosterCard(it, onClick = { record(words, it.id); navigator.open(it) }) } }
                     }
                     if (artists.isNotEmpty()) item(key = "artists") {
-                        Section("Artists") { items(artists, key = { it.id }) { TvArtistCard(it, onClick = { record(words, it.id); navigator.open(it) }) } }
+                        Section(t(Words.artists)) { items(artists, key = { it.id }) { TvArtistCard(it, onClick = { record(words, it.id); navigator.open(it) }) } }
                     }
                     if (found.albums.isNotEmpty()) item(key = "albums") {
-                        Section("Albums") { items(found.albums, key = { it.id }) { TvAlbumCard(it, onClick = { record(words, it.id); navigator.open(it) }, showsArtist = true) } }
+                        Section(t(Words.albums)) { items(found.albums, key = { it.id }) { TvAlbumCard(it, onClick = { record(words, it.id); navigator.open(it) }, showsArtist = true) } }
                     }
                     if (found.episodes.isNotEmpty()) item(key = "episodes") {
-                        Section("Episodes") { items(found.episodes, key = { it.id }) { TvWideCard(it, onClick = { record(words, it.id); navigator.openItem(it.id) }, width = 220.dp) } }
+                        Section(t("Episodes")) { items(found.episodes, key = { it.id }) { TvWideCard(it, onClick = { record(words, it.id); navigator.openItem(it.id) }, width = 220.dp) } }
                     }
                     if (beyond.isNotEmpty() || beyondMusic.isNotEmpty()) item(key = "beyond") {
-                        Section("Not in your library") {
+                        Section(t(Words.notInYourLibrary)) {
                             items(beyond, key = { "title-${it.key}" }) { title ->
                                 TvExternalCard(title, onClick = {
                                     record(words, null)
@@ -312,9 +313,9 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                         }
                     }
                     if (found.people.isNotEmpty()) item(key = "people") {
-                        Section("People") {
+                        Section(t("People")) {
                             items(found.people, key = { it.id }) { person ->
-                                TvPersonCard(person.name, if (person.credits == 1) "1 title" else "${person.credits} titles", person.image) {
+                                TvPersonCard(person.name, t("{count, plural, one {# title} other {# titles}}", "count" to person.credits), person.image) {
                                     record(words, null)
                                     navigator.openPerson(person.id, person.name)
                                 }
@@ -327,7 +328,7 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
         }
     }
     forgetting?.let { text ->
-        TvItemMenu(text, listOf(MenuAction("Remove") { forget(text) }), onDismiss = { forgetting = null })
+        TvItemMenu(text, listOf(MenuAction(t("Remove")) { forget(text) }), onDismiss = { forgetting = null })
     }
 }
 
@@ -353,7 +354,7 @@ private fun SearchField(value: String, onValue: (String) -> Unit, modifier: Modi
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     TvTextField(
-        value, onValue, "Movies, shows, episodes and people",
+        value, onValue, t("Movies, shows, episodes and people"),
         modifier.onPreviewKeyEvent { event ->
             event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown && focusManager.moveFocus(FocusDirection.Down)
         },
@@ -396,7 +397,7 @@ fun TvPersonScreen(model: AppModel, id: String, name: String) {
                         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text(name, style = marquee(36).copy(fontWeight = FontWeight.ExtraBold))
                             person?.let { titles(it).size }?.takeIf { it > 0 }?.let { count ->
-                                Text(if (count == 1) "1 title in your library" else "$count titles in your library", fontSize = 13.sp, color = Flexarr.usher)
+                                Text(t("{count, plural, one {# title in your library} other {# titles in your library}}", "count" to count), fontSize = 13.sp, color = Flexarr.usher)
                             }
                         }
                     }
@@ -461,7 +462,7 @@ private fun TvBiography(name: String, text: String, modifier: Modifier = Modifie
                     modifier = Modifier.weight(1f, fill = false).verticalScroll(scroll),
                 )
                 TvActionButton(
-                    "Close", onClick = { open = false },
+                    t("Close"), onClick = { open = false },
                     modifier = Modifier.focusRequester(close).onPreviewKeyEvent { event ->
                         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                         val step = when (event.key) {

@@ -75,7 +75,7 @@ fun TvComingSoonScreen(model: AppModel) {
                     item(key = "title") { Text(t(Words.comingSoon), style = marquee(32), modifier = Modifier.padding(start = TvLayout.Edge, bottom = 8.dp)) }
                     if (days.isEmpty()) {
                         item(key = "empty") {
-                            Box(Modifier.size(960.dp, 250.dp)) { TvStatusView("Nothing is scheduled. Monitored shows and movies appear here as their dates get close.", empty = true) }
+                            Box(Modifier.size(960.dp, 250.dp)) { TvStatusView(t("Nothing is scheduled. Monitored shows and movies appear here as their dates get close."), empty = true) }
                         }
                     }
                     days.forEachIndexed { dayIndex, day ->
@@ -178,7 +178,7 @@ private fun TvUpcomingAbout(item: UpcomingItem, detail: String, onClose: () -> U
             val time = if (item.kind == MediaKind.Episode) " " + at.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(io.github.flexarr.core.i18n.Localization.locale)) else ""
             Text("${item.`when`} $day$time".trim(), fontSize = 13.sp, color = Flexarr.usher)
             item.overview?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 14.5.sp, lineHeight = 21.sp, color = Flexarr.screen.copy(alpha = 0.88f)) }
-            TvActionButton("Close", onClick = onClose, modifier = Modifier.padding(top = 10.dp).focusRequester(close))
+            TvActionButton(t("Close"), onClick = onClose, modifier = Modifier.padding(top = 10.dp).focusRequester(close))
         }
     }
     LaunchedEffect(Unit) { runCatching { close.requestFocus() } }

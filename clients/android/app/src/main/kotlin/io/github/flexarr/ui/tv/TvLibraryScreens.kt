@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -169,12 +171,12 @@ fun TvMusicLibraryTab(model: AppModel, library: Library, takeFocus: Boolean, onF
 @Composable
 private fun LibraryViewSwitch(library: Library, selected: TvLibraryOpening, hasGenres: Boolean, takesFocus: Boolean, onFocusTaken: () -> Unit, onSelect: (TvLibraryOpening) -> Unit) {
     val all = when (library.type) {
-        LibraryType.TvShows -> "All shows"
-        LibraryType.HomeVideos -> "All folders"
-        else -> "All movies"
+        LibraryType.TvShows -> t("All shows")
+        LibraryType.HomeVideos -> t("All folders")
+        else -> t("All movies")
     }
-    val choices = listOf(TvLibraryOpening.Browse to "Browse", TvLibraryOpening.All to all) +
-        (if (hasGenres) listOf(TvLibraryOpening.Genres to "Genres") else emptyList())
+    val choices = listOf(TvLibraryOpening.Browse to t(Words.browse), TvLibraryOpening.All to all) +
+        (if (hasGenres) listOf(TvLibraryOpening.Genres to t(Words.genres)) else emptyList())
     val requester = remember { FocusRequester() }
     LaunchedEffect(takesFocus) {
         if (!takesFocus) return@LaunchedEffect
@@ -197,7 +199,7 @@ private fun LibraryBrowse(model: AppModel, library: Library, takeFocus: Boolean,
                 RoomBackground(ambient = null) {
                     Column(Modifier.padding(start = TvLayout.Edge, top = 28.dp)) {
                         switch()
-                        TvStatusView(if (library.scan == null) "Nothing in this library yet." else "Titles appear here as the scan finds them.", empty = true)
+                        TvStatusView(if (library.scan == null) t("Nothing in this library yet.") else t("Titles appear here as the scan finds them."), empty = true)
                     }
                 }
             } else {
@@ -243,7 +245,7 @@ private fun LibraryGenres(model: AppModel, library: Library, takeFocus: Boolean,
                     item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.padding(bottom = 18.dp)) { switch() } }
                     if (genres.isEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
-                            Box(Modifier.height(300.dp)) { TvStatusView("No genres here yet. They come with each ${if (music) "album" else "title"}’s details once a scan has found them.", empty = true) }
+                            Box(Modifier.height(300.dp)) { TvStatusView(if (music) t("No genres here yet. They come with each album’s details once a scan has found them.") else t("No genres here yet. They come with each title’s details once a scan has found them."), empty = true) }
                         }
                     }
                     itemsIndexed(genres, key = { _, genre -> genre.name }) { index, genre ->
@@ -261,8 +263,8 @@ private fun LibraryGenres(model: AppModel, library: Library, takeFocus: Boolean,
 
 private fun genreCaption(library: Library, genre: GenreCount): String {
     if (library.type == LibraryType.Music) return albumCount(genre.count)
-    val noun = if (library.type == LibraryType.TvShows) (if (genre.count == 1) "show" else "shows") else (if (genre.count == 1) "movie" else "movies")
-    return "${genre.count} $noun"
+    return if (library.type == LibraryType.TvShows) t("{count, plural, one {# show} other {# shows}}", "count" to genre.count)
+    else t("{count, plural, one {# movie} other {# movies}}", "count" to genre.count)
 }
 
 private const val GENRES_ACROSS = 5
@@ -286,7 +288,7 @@ enum class TvGridContent {
 
     /** "1,204 titles", "1 artist", "38 albums". */
     fun count(total: Int): String = when (this) {
-        Titles -> if (total == 1) "1 title" else "%,d titles".format(total)
+        Titles -> t("{count, plural, one {# title} other {# titles}}", "count" to total)
         Artists -> artistCount(total)
         Albums -> albumCount(total)
     }
@@ -512,12 +514,14 @@ fun TvLibraryGrid(
                     Box(Modifier.height(300.dp)) { TvStatusView(error, retry = { attempt++ }) }
                 }
                 items.isEmpty() && loadedOnce && !loading -> item(span = { GridItemSpan(maxLineSpan) }) {
-                    val noun = when (content) {
-                        TvGridContent.Albums -> "albums"
-                        TvGridContent.Artists -> "artists"
-                        TvGridContent.Titles -> "titles"
+                    val none = genre?.let {
+                        when (content) {
+                            TvGridContent.Albums -> t("No {genre} albums here.", "genre" to it)
+                            TvGridContent.Artists -> t("No {genre} artists here.", "genre" to it)
+                            TvGridContent.Titles -> t("No {genre} titles here.", "genre" to it)
+                        }
                     }
-                    Box(Modifier.height(300.dp)) { TvStatusView(genre?.let { "No $it $noun here." } ?: "Nothing in this library yet.", empty = true) }
+                    Box(Modifier.height(300.dp)) { TvStatusView(none ?: t("Nothing in this library yet."), empty = true) }
                 }
                 else -> itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
                     val modifier = when {
@@ -546,8 +550,8 @@ fun TvLibraryGrid(
     if (choosingGenre) {
         val all = (genres.state as? Load.Loaded)?.value.orEmpty()
         TvChoiceMenu(
-            "Genre",
-            listOf("All genres" to null) + all.map { "${it.name}  (${it.count})" to it.name },
+            t("Genre"),
+            listOf(t("All genres") to null) + all.map { "${it.name}  (${it.count})" to it.name },
             selected = genre,
             onChoose = {
                 genre = it
@@ -583,15 +587,15 @@ private fun Header(
             Text(count, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
             if (genrePlay != null) {
                 Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(13.dp)) {
-                    TvActionButton("Play", onClick = { genrePlay(false) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient)
-                    TvActionButton("Shuffle", onClick = { genrePlay(true) }, icon = FlexarrIcons.shuffle, ambient = ambient)
+                    TvActionButton(t(Words.play), onClick = { genrePlay(false) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient)
+                    TvActionButton(t(Words.shuffle), onClick = { genrePlay(true) }, icon = FlexarrIcons.shuffle, ambient = ambient)
                 }
             }
         }
         Spacer(Modifier.weight(1f))
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             content.sorts.forEach { option -> TvPill(option.label, selected = sort == option, onClick = { onSort(option) }) }
-            if (hasGenres) TvPill(genre ?: "All genres", selected = genre != null, onClick = onGenre)
+            if (hasGenres) TvPill(genre ?: t("All genres"), selected = genre != null, onClick = onGenre)
         }
     }
 }

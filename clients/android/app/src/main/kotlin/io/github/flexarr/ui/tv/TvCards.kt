@@ -81,7 +81,7 @@ fun TvPosterCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Mo
 private fun posterSubtitle(item: ItemSummary): String? {
     val unwatched = item.userData.unwatchedCount
     if (item.kind == MediaKind.Series && unwatched != null && unwatched > 0) {
-        return listOfNotNull(item.releaseYear?.toString(), "$unwatched new").joinToString("  ")
+        return listOfNotNull(item.releaseYear?.toString(), t("{count} new", "count" to unwatched)).joinToString("  ")
     }
     return item.releaseYear?.toString()
 }
@@ -184,7 +184,7 @@ fun TvEpisodeCard(episode: ItemSummary, overview: String?, isCurrent: Boolean, o
         onClick = onClick,
         onLongClick = { menu = true },
         modifier = modifier.width(width),
-        contentDescription = listOfNotNull(episode.episodeNumber?.let { "Episode $it" }, episode.title).joinToString(", "),
+        contentDescription = listOfNotNull(episode.episodeNumber?.let { t("Episode {number}", "number" to it) }, episode.title).joinToString(", "),
         artwork = {
             Box(Modifier.size(width, width * 9f / 16f)) {
                 RemoteImage(episode.artwork.thumb ?: episode.artwork.backdrop, 500, Modifier.fillMaxSize()) {
@@ -203,7 +203,7 @@ fun TvEpisodeCard(episode: ItemSummary, overview: String?, isCurrent: Boolean, o
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     val color = if (isCurrent) Flexarr.screen else Flexarr.usher
-                    Text(episode.episodeNumber?.let { "Episode $it" } ?: "Special", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = color)
+                    Text(episode.episodeNumber?.let { t("Episode {number}", "number" to it) } ?: t("Special"), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = color)
                     episodeTime(episode)?.let { Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = color) }
                 }
                 Text(episode.title, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.88f), maxLines = 1, overflow = TextOverflow.Ellipsis)

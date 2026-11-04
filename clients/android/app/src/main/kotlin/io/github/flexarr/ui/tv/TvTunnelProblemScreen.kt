@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -53,8 +54,8 @@ fun TvTunnelProblemScreen(model: AppModel) {
         Text(title, fontSize = 26.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         Text(line, fontSize = 16.sp, color = Flexarr.usher, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 560.dp))
         Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(15.dp)) {
-            TvActionButton("Try again", onClick = model::retryGuestTunnel, prominent = true, modifier = Modifier.focusRequester(again))
-            TvActionButton("Leave", onClick = { confirmLeave = true })
+            TvActionButton(t("Try again"), onClick = model::retryGuestTunnel, prominent = true, modifier = Modifier.focusRequester(again))
+            TvActionButton(t("Leave"), onClick = { confirmLeave = true })
         }
     }
     TakeFocus(again, key = confirmLeave, ready = !confirmLeave)
@@ -64,12 +65,12 @@ fun TvTunnelProblemScreen(model: AppModel) {
         val owner = model.credentials?.guest?.ownerName?.ifEmpty { null }
         Dialog(onDismissRequest = { confirmLeave = false }) {
             Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text(owner?.let { "Leave $it’s Flexarr?" } ?: "Leave this Flexarr?", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(owner?.let { t("Leave {owner}’s Flexarr?", "owner" to it) } ?: t("Leave this Flexarr?"), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text(t("Joining again takes a new code."), fontSize = 14.sp, color = Flexarr.usher)
                 // As the Apple TV: Cancel first, and where focus starts; Leave after it.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TvActionButton("Cancel", onClick = { confirmLeave = false }, prominent = true, modifier = Modifier.focusRequester(cancel))
-                    TvActionButton("Leave", onClick = {
+                    TvActionButton(t(Words.cancel), onClick = { confirmLeave = false }, prominent = true, modifier = Modifier.focusRequester(cancel))
+                    TvActionButton(t("Leave"), onClick = {
                         confirmLeave = false
                         model.signOut()
                     }, ambient = Flexarr.danger)

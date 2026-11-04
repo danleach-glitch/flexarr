@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.ui.getsReadyOnFocus
 
 import androidx.compose.foundation.background
@@ -203,7 +205,7 @@ fun TvDetailScreen(model: AppModel, id: String) {
     Box(Modifier.fillMaxSize().background(Flexarr.room)) {
         when {
             // A book (from a link, say) never opens as a film: the TV has no book screens yet.
-            item?.kind == MediaKind.Audiobook -> TvStatusView("Listen to this on your phone or the web.", empty = true)
+            item?.kind == MediaKind.Audiobook -> TvStatusView(t("Listen to this on your phone or the web."), empty = true)
             loaded != null && item != null -> {
                 val series = if (item.kind == MediaKind.Series) item else loaded.ancestors.firstOrNull { it.kind == MediaKind.Series }
                 val ambient = glowColor(item.accentColor)
@@ -236,7 +238,7 @@ fun TvDetailScreen(model: AppModel, id: String) {
                                 },
                                 onSearch = { season, episodes ->
                                     asked = asked + season
-                                    navigator.watchlistChange("Couldn’t search for season $season") {
+                                    navigator.watchlistChange(t("Couldn’t search for season {season}", "season" to season)) {
                                         try {
                                             client.searchMissing(item.id, season, episodes)
                                         } catch (e: Exception) {
@@ -349,21 +351,21 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
                         TvActionButton(playLabel(playable, item), onClick = { navigator.play(playable, from = from) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient, modifier = focusFirst().getsReadyOnFocus(playable))
                     }
                     DetailActions.Button.START_OVER -> target?.let { playable ->
-                        TvActionButton("Start over", onClick = { navigator.play(playable, fromBeginning = true, from = from) }, icon = FlexarrIcons.startOver, ambient = ambient)
+                        TvActionButton(t(Words.startOver), onClick = { navigator.play(playable, fromBeginning = true, from = from) }, icon = FlexarrIcons.startOver, ambient = ambient)
                     }
                     DetailActions.Button.SHUFFLE -> if (item.childCount > 0) {
-                        RoundAction("Shuffle", FlexarrIcons.shuffle, ambient, { focusedName = it }, focusFirst()) { navigator.shuffle(item) }
+                        RoundAction(t(Words.shuffle), FlexarrIcons.shuffle, ambient, { focusedName = it }, focusFirst()) { navigator.shuffle(item) }
                     }
                     DetailActions.Button.TRAILER -> trailerIntent?.let { intent ->
-                        RoundAction("Trailer", FlexarrIcons.trailer, ambient, { focusedName = it }, focusFirst()) {
+                        RoundAction(t(Words.trailer), FlexarrIcons.trailer, ambient, { focusedName = it }, focusFirst()) {
                             runCatching { context.startActivity(intent) }.onFailure {
-                                scope.launch { navigator.notices.showSnackbar("Couldn’t open the trailer") }
+                                scope.launch { navigator.notices.showSnackbar(t("Couldn’t open the trailer")) }
                             }
                         }
                     }
                     // Pressed in once it's watched ("Watched", a filled tick); pressing it again unmarks it.
                     DetailActions.Button.WATCHED -> RoundAction(
-                        if (watched) "Watched" else "Mark as watched",
+                        if (watched) t("Watched") else t(Words.markAsWatched),
                         if (watched) FlexarrIcons.isWatched else FlexarrIcons.watched,
                         ambient,
                         { focusedName = it },
@@ -373,7 +375,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
                         val on = onWatchlist
                         if (on != null && model.hasWatchlist && (item.kind == MediaKind.Movie || item.kind == MediaKind.Series)) {
                             RoundAction(
-                                if (on) "Remove from watchlist" else "Add to watchlist",
+                                if (on) t(Words.removeFromWatchlist) else t(Words.addToWatchlist),
                                 if (on) FlexarrIcons.onWatchlist else FlexarrIcons.watchlist,
                                 ambient,
                                 { focusedName = it },
@@ -385,7 +387,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
                         }
                     }
                     DetailActions.Button.DOWNLOAD -> Unit
-                    DetailActions.Button.MORE -> RoundAction("More", FlexarrIcons.more, ambient, { focusedName = it }, focusFirst()) { more = true }
+                    DetailActions.Button.MORE -> RoundAction(t("More"), FlexarrIcons.more, ambient, { focusedName = it }, focusFirst()) { more = true }
                 }
             }
         }
@@ -397,8 +399,8 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
             when (entry) {
                 // Only a phone's row runs out of room.
                 is DetailActions.MenuItem.Moved -> null
-                DetailActions.MenuItem.Subtitles -> file?.let { found -> MenuAction("Search for subtitles") { searchingSubtitlesFor = found.id } }
-                DetailActions.MenuItem.GoToShow -> series?.let { show -> MenuAction("Go to show") { navigator.openItem(show.id) } }
+                DetailActions.MenuItem.Subtitles -> file?.let { found -> MenuAction(t("Search for subtitles")) { searchingSubtitlesFor = found.id } }
+                DetailActions.MenuItem.GoToShow -> series?.let { show -> MenuAction(t(Words.goToShow)) { navigator.openItem(show.id) } }
             }
         }
         TvItemMenu(item.displayTitle, entries, onDismiss = { more = false })
@@ -409,7 +411,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
             Box(Modifier.fillMaxSize()) {
                 TvSubtitleSearch(client, item.id, fileId, onDownloaded = { saved ->
                     searchingSubtitlesFor = null
-                    scope.launch { navigator.notices.showSnackbar("${saved.label} subtitles saved") }
+                    scope.launch { navigator.notices.showSnackbar(t("{language} subtitles saved", "language" to saved.label)) }
                 }, onClose = { searchingSubtitlesFor = null }, modifier = Modifier.align(Alignment.CenterEnd))
             }
         }
@@ -461,8 +463,8 @@ internal fun youTubeAppIntent(context: android.content.Context, id: String): Int
 private fun playLabel(target: ItemSummary, container: ItemSummary): String {
     val resume = target.isResumable
     val code = target.episodeCode
-    if (container.kind == MediaKind.Series && code != null) return if (resume) "Resume $code" else "Play $code"
-    return if (resume) "Resume from ${Format.timestamp(target.userData.positionSeconds)}" else "Play"
+    if (container.kind == MediaKind.Series && code != null) return if (resume) t(Words.resumeEpisode, "episode" to code) else t("Play {episode}", "episode" to code)
+    return if (resume) t(Words.resumeFrom, "time" to Format.timestamp(target.userData.positionSeconds)) else t(Words.play)
 }
 
 @Composable
@@ -508,7 +510,7 @@ private fun Sections(
     val cast = detail.credits.sortedBy { rank[it.role] ?: 4 }
     if (cast.isNotEmpty()) {
         Column {
-            TvRowHeading("Cast and crew")
+            TvRowHeading(t(Words.castAndCrew))
             LazyRow(contentPadding = PaddingValues(horizontal = TvLayout.Edge, vertical = 15.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                 items(cast.take(30)) { credit -> TvPersonCard(credit.name, credit.character ?: credit.role.raw, credit.image, onClick = { navigator.openPerson(credit.personId, credit.name) }) }
             }
@@ -516,7 +518,7 @@ private fun Sections(
     }
     if (similar.isNotEmpty()) {
         Column {
-            TvRowHeading("More like this")
+            TvRowHeading(t(Words.moreLikeThis))
             LazyRow(contentPadding = PaddingValues(start = TvLayout.Edge, end = TvLayout.Edge, top = 14.dp, bottom = 20.dp), horizontalArrangement = Arrangement.spacedBy(TvLayout.RowSpacing)) {
                 items(similar.filter { it.showsOnTv }, key = { it.id }) { other -> TvPosterCard(other, onClick = { navigator.open(other) }) }
             }
@@ -569,10 +571,10 @@ private fun FileInfo(file: MediaFile, studio: String?) {
     val video = listOfNotNull(file.height?.let { "${it}p" }, file.videoCodec?.uppercase(Locale.ROOT), file.pictureLabel).joinToString(" ")
     val audio = listOfNotNull(file.audioCodec?.uppercase(Locale.ROOT), file.audioChannels?.let(::channelsLabel)).joinToString(" ")
     val facts = listOfNotNull(
-        video.takeIf { it.isNotEmpty() }?.let { "Video" to it },
-        audio.takeIf { it.isNotEmpty() }?.let { "Audio" to it },
-        studio?.let { "Studio" to it },
-        "Size" to fileSizeLabel(file.size),
+        video.takeIf { it.isNotEmpty() }?.let { t("Video") to it },
+        audio.takeIf { it.isNotEmpty() }?.let { t("Audio") to it },
+        studio?.let { t("Studio") to it },
+        t("Size") to fileSizeLabel(file.size),
     )
     Row(Modifier.padding(horizontal = TvLayout.Edge), horizontalArrangement = Arrangement.spacedBy(25.dp)) {
         facts.forEach { (label, value) ->

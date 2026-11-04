@@ -205,7 +205,7 @@ fun TvDiscoverScreen(model: AppModel) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            error = e.message ?: "Something went wrong."
+            error = e.message ?: t("Something went wrong.")
         }
     }
     LaunchedEffect(model.credentials) {
@@ -226,7 +226,7 @@ fun TvDiscoverScreen(model: AppModel) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            if (music == null) musicError = e.message ?: "Something went wrong."
+            if (music == null) musicError = e.message ?: t("Something went wrong.")
         }
     }
     BackHandler(enabled = !browsing, onBack = ::pop)
@@ -236,20 +236,20 @@ fun TvDiscoverScreen(model: AppModel) {
     // on, as the Apple TV's: Music has its own search inside it.
     val seerr = content?.status?.configured != false
     val choices = buildList {
-        add("Browse")
-        if (seerr) add("Search")
-        if (musicOn) add("Music")
+        add(Words.browse)
+        if (seerr) add(Words.search)
+        if (musicOn) add(Words.music)
     }
     val switch: (@Composable (Modifier) -> Unit)? = if (seerr || musicOn) {
         { modifier ->
             TvViewSwitch(
-                choices,
-                selected = choices.indexOf(if (showsMusic) "Music" else "Browse"),
+                choices.map { t(it) },
+                selected = choices.indexOf(if (showsMusic) Words.music else Words.browse),
                 onSelect = { index ->
                     when (choices[index]) {
-                        "Search" -> pages.add(DiscoverPage.Search)
-                        "Music" -> if (!showsMusic) { musicMode = true; focusSwitch = true }
-                        "Browse" -> if (showsMusic) { musicMode = false; focusSwitch = true }
+                        Words.search -> pages.add(DiscoverPage.Search)
+                        Words.music -> if (!showsMusic) { musicMode = true; focusSwitch = true }
+                        Words.browse -> if (showsMusic) { musicMode = false; focusSwitch = true }
                     }
                 },
                 modifier = modifier,
@@ -355,7 +355,7 @@ private fun DiscoverBrowse(
                         }
                     }
                     if (genres.isNotEmpty()) {
-                        item(key = "genres") { TvRowHeading("Your library by genre") }
+                        item(key = "genres") { TvRowHeading(t("Your library by genre")) }
                         items(genres.chunked(GenreTileAcross), key = { "genres/" + it.first().name }) { line ->
                             Row(Modifier.padding(horizontal = TvLayout.Edge), horizontalArrangement = Arrangement.spacedBy(GenreTileSpacing)) {
                                 line.forEach { genre ->
@@ -371,17 +371,21 @@ private fun DiscoverBrowse(
 }
 
 /** "12 films and 3 shows". */
-private fun genreCounts(genre: Genre): String =
-    listOfNotNull(
-        if (genre.movies > 0) (if (genre.movies == 1) "1 movie" else "${genre.movies} movies") else null,
-        if (genre.shows > 0) (if (genre.shows == 1) "1 show" else "${genre.shows} shows") else null,
-    ).joinToString(" and ")
+private fun genreCounts(genre: Genre): String = when {
+    genre.movies > 0 && genre.shows > 0 -> t(
+        "{movies, plural, one {# movie} other {# movies}} and {shows, plural, one {# show} other {# shows}}",
+        "movies" to genre.movies, "shows" to genre.shows,
+    )
+    genre.movies > 0 -> t("{count, plural, one {# movie} other {# movies}}", "count" to genre.movies)
+    genre.shows > 0 -> t("{count, plural, one {# show} other {# shows}}", "count" to genre.shows)
+    else -> ""
+}
 
 /** Why there are no rows to request from: Seerr isn't connected, or isn't answering. */
 private fun seerrNote(content: DiscoverContent, rows: List<ExternalRow>): String? {
     if (rows.isNotEmpty()) return null
-    if (!content.status.configured) return "Connect Seerr under Settings › Connections on the web to find new movies and shows here and request them."
-    return if (content.status.reachable) null else "Seerr isn’t answering, so there’s nothing new to request just now."
+    if (!content.status.configured) return t("Connect Seerr under Settings › Connections on the web to find new movies and shows here and request them.")
+    return if (content.status.reachable) null else t("Seerr isn’t answering, so there’s nothing new to request just now.")
 }
 
 // Search
@@ -411,7 +415,7 @@ private fun DiscoverSearch(client: FlexarrClient, open: (ExternalTitle) -> Unit)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            error = e.message ?: "Something went wrong."
+            error = e.message ?: t("Something went wrong.")
         }
     }
     // Straight to the field (and the keyboard) as the search opens; coming back from a title, the card that had focus.
@@ -428,14 +432,14 @@ private fun DiscoverSearch(client: FlexarrClient, open: (ExternalTitle) -> Unit)
             when {
                 found != null && found.isEmpty() -> item(key = "empty") {
                     Box(Modifier.fillMaxWidth().height(150.dp)) {
-                        TvStatusView("Nothing found for “$searched”. Try a different spelling, or the original title.", empty = true)
+                        TvStatusView(t("Nothing found for “{query}”. Try a different spelling, or the original title.", "query" to searched), empty = true)
                     }
                 }
                 found != null -> {
                     val owned = found.count { it.libraryItemId != null }
                     item(key = "summary") {
                         Text(
-                            if (owned > 0) "$owned already in your library. Request anything else to add it." else "Request anything to add it to your library.",
+                            if (owned > 0) t("{count} already in your library. Request anything else to add it.", "count" to owned) else t("Request anything to add it to your library."),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = Flexarr.usher,
@@ -444,8 +448,8 @@ private fun DiscoverSearch(client: FlexarrClient, open: (ExternalTitle) -> Unit)
                     }
                     val shows = found.filter { it.isShow }
                     val films = found.filter { !it.isShow }
-                    if (shows.isNotEmpty()) item(key = "shows") { DiscoverRow("Shows", shows, open, cardModifier = { Modifier.focusMemory(focus, "shows/${it.id}") }) }
-                    if (films.isNotEmpty()) item(key = "films") { DiscoverRow("Movies", films, open, cardModifier = { Modifier.focusMemory(focus, "films/${it.id}") }) }
+                    if (shows.isNotEmpty()) item(key = "shows") { DiscoverRow(t(Words.shows), shows, open, cardModifier = { Modifier.focusMemory(focus, "shows/${it.id}") }) }
+                    if (films.isNotEmpty()) item(key = "films") { DiscoverRow(t(Words.movies), films, open, cardModifier = { Modifier.focusMemory(focus, "films/${it.id}") }) }
                 }
                 error != null -> item(key = "error") {
                     Box(Modifier.fillMaxWidth().height(150.dp)) { TvStatusView(error, retry = { attempt++ }) }
@@ -457,7 +461,7 @@ private fun DiscoverSearch(client: FlexarrClient, open: (ExternalTitle) -> Unit)
 
 /** The search field, opening the TV's keyboard; Search on the keyboard goes down to the results. */
 @Composable
-private fun SearchField(value: String, onValue: (String) -> Unit, modifier: Modifier, placeholder: String = "Any movie or show") {
+private fun SearchField(value: String, onValue: (String) -> Unit, modifier: Modifier, placeholder: String = t("Any movie or show")) {
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     TvTextField(
@@ -503,7 +507,7 @@ private fun MusicBrowse(
                 }
             }
             item(key = "search") {
-                TvActionButton("Search", onClick = onSearch, icon = FlexarrIcons.search, modifier = Modifier.padding(start = TvLayout.Edge).focusMemory(focus, "search"))
+                TvActionButton(t(Words.search), onClick = onSearch, icon = FlexarrIcons.search, modifier = Modifier.padding(start = TvLayout.Edge).focusMemory(focus, "search"))
             }
             when {
                 music == null -> item(key = "status") {
@@ -514,7 +518,7 @@ private fun MusicBrowse(
                         TvMusicExternalRow(row.title, row.items, cardModifier = { Modifier.focusMemory(focus, "${row.id}/${it.id}") })
                     }
                     if (genres.isNotEmpty()) {
-                        item(key = "genres") { TvRowHeading("Genres") }
+                        item(key = "genres") { TvRowHeading(t(Words.genres)) }
                         itemsIndexed(genres.chunked(GenreTileAcross), key = { index, _ -> "genres/$index" }) { _, line ->
                             Row(Modifier.padding(horizontal = TvLayout.Edge), horizontalArrangement = Arrangement.spacedBy(GenreTileSpacing)) {
                                 line.forEach { genre ->
@@ -556,7 +560,7 @@ private fun MusicSearchScreen(client: FlexarrClient) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            error = e.message ?: "Something went wrong."
+            error = e.message ?: t("Something went wrong.")
         }
     }
     LaunchedEffect(results != null) {
@@ -571,11 +575,11 @@ private fun MusicSearchScreen(client: FlexarrClient) {
             val found = results
             when {
                 found != null && found.isEmpty -> item(key = "empty") {
-                    Box(Modifier.fillMaxWidth().height(150.dp)) { TvStatusView("Nothing found for “$searched”.", empty = true) }
+                    Box(Modifier.fillMaxWidth().height(150.dp)) { TvStatusView(t("Nothing found for “{query}”.", "query" to searched), empty = true) }
                 }
                 found != null -> {
-                    if (found.artists.isNotEmpty()) item(key = "artists") { TvMusicExternalRow("Artists", found.artists, cardModifier = { Modifier.focusMemory(focus, "artists/${it.id}") }) }
-                    if (found.albums.isNotEmpty()) item(key = "albums") { TvMusicExternalRow("Albums", found.albums, cardModifier = { Modifier.focusMemory(focus, "albums/${it.id}") }) }
+                    if (found.artists.isNotEmpty()) item(key = "artists") { TvMusicExternalRow(t(Words.artists), found.artists, cardModifier = { Modifier.focusMemory(focus, "artists/${it.id}") }) }
+                    if (found.albums.isNotEmpty()) item(key = "albums") { TvMusicExternalRow(t(Words.albums), found.albums, cardModifier = { Modifier.focusMemory(focus, "albums/${it.id}") }) }
                 }
                 error != null -> item(key = "error") {
                     Box(Modifier.fillMaxWidth().height(150.dp)) { TvStatusView(error, retry = { attempt++ }) }
@@ -600,7 +604,7 @@ private fun TvMusicGenreScreen(client: FlexarrClient, id: Long, name: String) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            error = e.message ?: "Something went wrong."
+            error = e.message ?: t("Something went wrong.")
         }
     }
     LaunchedEffect(genre != null) {
@@ -611,7 +615,7 @@ private fun TvMusicGenreScreen(client: FlexarrClient, id: Long, name: String) {
             item(key = "header") { Text(genre?.name ?: name, style = marquee(36), modifier = Modifier.padding(start = TvLayout.Edge)) }
             val shown = genre
             when {
-                shown != null && shown.artists.isEmpty() -> item(key = "empty") { Box(Modifier.fillMaxWidth().height(200.dp)) { TvStatusView("No artists here yet.", empty = true) } }
+                shown != null && shown.artists.isEmpty() -> item(key = "empty") { Box(Modifier.fillMaxWidth().height(200.dp)) { TvStatusView(t("No artists here yet."), empty = true) } }
                 shown != null -> itemsIndexed(shown.artists.chunked(MusicGenreAcross), key = { index, _ -> "artists/$index" }) { _, line ->
                     Row(Modifier.padding(horizontal = TvLayout.Edge), horizontalArrangement = Arrangement.spacedBy(TvLayout.RowSpacing), verticalAlignment = Alignment.Top) {
                         line.forEach { artist -> TvMusicExternalCard(artist, onClick = { navigator.openMusic(artist) }, modifier = Modifier.focusMemory(focus, artist.id)) }
@@ -683,10 +687,10 @@ private val ExternalTitle.state: String? get() = if (isInLibrary) null else avai
 internal val Availability.label: String?
     get() = when (this) {
         Availability.None -> null
-        Availability.Requested -> "Requested"
-        Availability.PartlyAvailable -> "Partly in your library"
-        Availability.Available -> "In your library"
-        Availability.Unknown -> "Not available"
+        Availability.Requested -> t(Words.requested)
+        Availability.PartlyAvailable -> t(Words.partlyInYourLibrary)
+        Availability.Available -> t(Words.inYourLibrary)
+        Availability.Unknown -> t("Not available")
     }
 
 /**

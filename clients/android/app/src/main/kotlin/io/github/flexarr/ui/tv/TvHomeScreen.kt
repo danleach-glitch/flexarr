@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.ui.getsReadyOnFocus
 
@@ -131,7 +132,7 @@ internal fun TvHomeRows(home: Home, emptyMessage: EmptyHomeMessage?, takeFocus: 
     val ambient = animateColorAsState(
         featured.getOrNull(featuredIndex % featured.size.coerceAtLeast(1))?.let { glowColor(it.accentColor) } ?: Flexarr.room,
         tween(800),
-        label = t("ambient"),
+        label = "ambient",
     )
     val list = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -222,7 +223,7 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
     }
 
     Box(Modifier.fillMaxWidth().height(450.dp)) {
-        Crossfade(item, animationSpec = tween(600), label = t("backdrop")) { shown ->
+        Crossfade(item, animationSpec = tween(600), label = "backdrop") { shown ->
             Box(Modifier.fillMaxSize().fadeOut(0.55f, 0.95f)) {
                 RemoteImage(shown.artwork.backdrop, tvBackdropWidth(), Modifier.fillMaxWidth().height(540.dp)) {}
                 // A scrim so text stays legible, then the ambient colour bleeding in from the corner.
@@ -231,7 +232,7 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
             }
         }
         Column(Modifier.align(Alignment.BottomStart).padding(start = TvLayout.Edge, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
-            Crossfade(item, animationSpec = tween(600), label = t("title")) { shown ->
+            Crossfade(item, animationSpec = tween(600), label = "title") { shown ->
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (shown.kind == MediaKind.Album) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -256,7 +257,7 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
             ) {
                 val resume = home.resuming(item)
                 TvActionButton(
-                    if (resume != null || item.isResumable) "Resume" else "Play",
+                    if (resume != null || item.isResumable) t("Resume") else t(Words.play),
                     onClick = {
                         when {
                             item.kind == MediaKind.Album -> navigator.playAlbum(item, resume)
@@ -272,12 +273,12 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
                 )
                 if (item.kind == MediaKind.Artist) {
                     TvActionButton(
-                        "Radio", onClick = { navigator.playArtist(item, radio = true) }, icon = FlexarrIcons.radio, ambient = glow,
+                        t(Words.radio), onClick = { navigator.playArtist(item, radio = true) }, icon = FlexarrIcons.radio, ambient = glow,
                         modifier = Modifier.onFocusChanged { radioFocused = it.hasFocus },
                     )
                 }
                 TvActionButton(
-                    "More info",
+                    t("More info"),
                     onClick = { if (item.kind.isMusic) navigator.open(item) else navigator.openItem(item.id) },
                     icon = FlexarrIcons.details,
                     ambient = glow,
@@ -290,7 +291,7 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
                 Row(Modifier.padding(top = 3.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     items.indices.forEach { i ->
                         val current = i == index % items.size
-                        val width by animateDpAsState(if (current) 17.dp else 6.dp, label = t("dot"))
+                        val width by animateDpAsState(if (current) 17.dp else 6.dp, label = "dot")
                         Box(Modifier.size(width, 6.dp).background(Flexarr.screen.copy(alpha = if (current) 1f else 0.3f), CircleShape))
                     }
                 }
@@ -303,7 +304,7 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
 private fun ComingSoonRow(items: List<UpcomingItem>, downloading: Int) {
     val navigator = LocalNavigator.current
     Column {
-        TvRowHeading(if (downloading > 0) "Coming soon ($downloading downloading)" else "Coming soon")
+        TvRowHeading(if (downloading > 0) t("Coming soon ({count} downloading)", "count" to downloading) else t(Words.comingSoon))
         LazyRow(
             contentPadding = PaddingValues(start = TvLayout.Edge, end = TvLayout.Edge, top = 14.dp, bottom = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(TvLayout.RowSpacing),

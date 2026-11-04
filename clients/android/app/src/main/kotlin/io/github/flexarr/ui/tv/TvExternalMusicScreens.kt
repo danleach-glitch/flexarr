@@ -200,7 +200,7 @@ internal class TvMusicAsk(private val model: AppModel) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                failure = e.message ?: "Something went wrong."
+                failure = e.message ?: t("Something went wrong.")
             }
         }
     }
@@ -214,7 +214,7 @@ internal class TvMusicAsk(private val model: AppModel) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                failure = e.message ?: "Something went wrong."
+                failure = e.message ?: t("Something went wrong.")
             }
         }
     }
@@ -284,7 +284,7 @@ internal fun TvRequestableAlbum(model: AppModel, item: MusicExternal, focus: Foc
     val state = model.requestState(item)
     var confirming by remember { mutableStateOf(false) }
     val on = state == MusicRequestState.Requested || state == MusicRequestState.Sending
-    val label = if (state == MusicRequestState.CanRequest && ask.failure != null) "Try again" else state.chipLabel()
+    val label = if (state == MusicRequestState.CanRequest && ask.failure != null) t("Try again") else state.chipLabel()
     val canAsk = model.canAskForMusicHere
     val enabled = when (state) {
         MusicRequestState.CanRequest -> canAsk
@@ -388,8 +388,8 @@ internal fun TvMusicRequestRound(
     val isArtist = item.isArtist
     val on = state == MusicRequestState.Requested || state == MusicRequestState.Sending
     val name = when {
-        on -> if (isArtist) "Following" else "Requested"
-        ask.failure != null -> "Try again"
+        on -> if (isArtist) t(Words.following) else t(Words.requested)
+        ask.failure != null -> t("Try again")
         else -> state.label(isArtist).orEmpty()
     }
     val enabled = model.canAskForMusicHere && !model.isUndoingMusic(keys) && (state == MusicRequestState.CanRequest || state == MusicRequestState.Requested)
@@ -427,8 +427,11 @@ private fun TvExternalMusicHeader(title: String, titleSize: Int, art: @Composabl
     }
 }
 
-private fun loadFailure(e: Exception, what: String): String =
-    if (e is FlexarrException.Http && e.status == 404) "Flexarr can’t find that $what." else e.message ?: "Something went wrong."
+private fun loadFailure(e: Exception, isArtist: Boolean): String = when {
+    e !is FlexarrException.Http || e.status != 404 -> e.message ?: t("Something went wrong.")
+    isArtist -> t("Flexarr can’t find that artist.")
+    else -> t("Flexarr can’t find that album.")
+}
 
 /**
  * An artist from outside the library: photo and name, Follow, their releases (albums, EPs and singles,
@@ -445,7 +448,7 @@ fun TvExternalArtistScreen(model: AppModel, deezerId: Long) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            throw IllegalStateException(loadFailure(e, "artist"), e)
+            throw IllegalStateException(loadFailure(e, isArtist = true), e)
         }
     }
     val focus = rememberFocusMemory()
@@ -467,11 +470,11 @@ fun TvExternalArtistScreen(model: AppModel, deezerId: Long) {
                             art = { Box(Modifier.shadow(15.dp, CircleShape)) { TvMusicArtwork(artist.image, artist.name, circular = true, size = 180.dp) } },
                             below = {
                                 if (model.lidarrSilentHere) Text(LidarrNotAnswering, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
-                                if (artist.albums.isNotEmpty()) TvFactsLine(listOf(if (artist.albums.size == 1) "1 album" else "${artist.albums.size} albums"))
+                                if (artist.albums.isNotEmpty()) TvFactsLine(listOf(t("{count, plural, one {# album} other {# albums}}", "count" to artist.albums.size)))
                             },
                             buttons = { onFocusName ->
                                 if (libraryId != null) {
-                                    TvActionButton("In your library", onClick = { navigator.openLibraryArtist(libraryId) }, icon = FlexarrIcons.music, prominent = true, modifier = Modifier.focusMemory(focus, "library"))
+                                    TvActionButton(t(Words.inYourLibrary), onClick = { navigator.openLibraryArtist(libraryId) }, icon = FlexarrIcons.music, prominent = true, modifier = Modifier.focusMemory(focus, "library"))
                                 }
                                 // Nothing of theirs plays here: Follow is the page's one action (MusicActions).
                                 TvMusicRequestRound(
@@ -488,7 +491,7 @@ fun TvExternalArtistScreen(model: AppModel, deezerId: Long) {
                         requestableAlbumRows(model, albums, title, focus)
                     }
                     if (artist.similar.isNotEmpty()) {
-                        item(key = "similar") { TvMusicExternalRow("Fans also like", artist.similar, cardModifier = { Modifier.focusMemory(focus, "similar/${it.id}") }) }
+                        item(key = "similar") { TvMusicExternalRow(t(Words.fansAlsoLike), artist.similar, cardModifier = { Modifier.focusMemory(focus, "similar/${it.id}") }) }
                     }
                 } }
             }
@@ -516,7 +519,7 @@ fun TvExternalAlbumScreen(model: AppModel, deezerId: Long) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            throw IllegalStateException(loadFailure(e, "album"), e)
+            throw IllegalStateException(loadFailure(e, isArtist = false), e)
         }
     }
     (page.state as? Load.Loaded)?.value?.libraryItemId?.let { id ->
@@ -576,7 +579,7 @@ fun TvExternalAlbumScreen(model: AppModel, deezerId: Long) {
                     itemsIndexed(album.tracks, key = { index, _ -> "track-$index" }) { index, track ->
                         if (multiDisc && (index == 0 || album.tracks[index - 1].disc != track.disc)) {
                             Text(
-                                "Disc ${track.disc}",
+                                t("Disc {number}", "number" to track.disc),
                                 style = marquee(17, Flexarr.usher).copy(fontWeight = FontWeight.Bold),
                                 modifier = Modifier.padding(start = TvLayout.Edge + 15.dp, top = if (index == 0) 0.dp else 15.dp, bottom = 5.dp),
                             )
@@ -594,7 +597,7 @@ fun TvExternalAlbumScreen(model: AppModel, deezerId: Long) {
 /** "Album, 2001   14 tracks   1h 1m". */
 private fun albumFacts(album: MusicAlbumDetail): List<String> = buildList {
     album.summary.kindLine?.let(::add)
-    if (album.tracks.isNotEmpty()) add(if (album.tracks.size == 1) "1 track" else "${album.tracks.size} tracks")
+    if (album.tracks.isNotEmpty()) add(t("{count, plural, one {# track} other {# tracks}}", "count" to album.tracks.size))
     if (album.durationSeconds > 0) Format.runtime(album.durationSeconds.toDouble())?.let(::add)
 }
 

@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import android.text.format.DateFormat
 import androidx.compose.foundation.background
@@ -228,11 +229,11 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
         when {
             loaded == null && error != null -> TvStatusView(error, retry = { scope.launch { load() } })
             loaded == null -> TvStatusView()
-            loaded.isEmpty() -> TvStatusView("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.", empty = true)
+            loaded.isEmpty() -> TvStatusView(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user."), empty = true)
             else -> Row(Modifier.fillMaxSize().padding(start = TvLayout.Edge, top = 15.dp), horizontalArrangement = Arrangement.spacedBy(25.dp)) {
                 // Back from the guide, focus returns to the category being shown, not whichever is nearest (which would show it).
                 LazyColumn(Modifier.width(200.dp).fillMaxHeight().focusRestorer(), verticalArrangement = Arrangement.spacedBy(5.dp), contentPadding = PaddingValues(bottom = 30.dp)) {
-                    val entries = listOf<Pair<Category, String>>(Category.Favourites to "Favourites", Category.Recordings to "Recordings", Category.All to "All channels") +
+                    val entries = listOf<Pair<Category, String>>(Category.Favourites to t("Favourites"), Category.Recordings to t("Recordings"), Category.All to t("All channels")) +
                         (if (groups.size > 1) groups.map { Category.Group(it) to it } else emptyList())
                     items(entries, key = { it.second + it.first::class.simpleName }) { (value, title) ->
                         CategoryButton(
@@ -294,7 +295,7 @@ private fun CategoryButton(title: String, selected: Boolean, icon: androidx.comp
                 if (icon != null) Icon(icon, contentDescription = null, tint = if (icon == Icons.Filled.Star && !focused) StarColor else androidx.tv.material3.LocalContentColor.current, modifier = Modifier.size(15.dp))
             }
             Text(title, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            count?.let { Text("%,d".format(it), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.alpha(0.6f)) }
+            count?.let { Text(String.format(io.github.flexarr.core.i18n.Localization.locale, "%,d", it), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.alpha(0.6f)) }
         }
     }
 }
@@ -367,7 +368,7 @@ fun TvLiveGuideGrid(
     val byChannel = remember(guide) { guide?.channels?.associate { it.id to it.programmes }.orEmpty() }
     val list = rememberLazyListState()
     val context = LocalContext.current
-    val clock = remember { DateTimeFormatter.ofPattern(if (DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm a") }
+    val clock = remember { DateTimeFormatter.ofPattern(if (DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm a", io.github.flexarr.core.i18n.Localization.locale) }
     fun time(instant: Instant) = clock.format(instant.atZone(ZoneId.systemDefault()))
 
     LaunchedEffect(Unit) {
@@ -499,7 +500,7 @@ fun TvLiveGuideGrid(
 
     details?.let { (programme, channel) ->
         GuideDialog(programme.displayTitle, describe(programme, ::time), onDismiss = { details = null }, actions = buildList {
-            add(MenuAction("Watch ${channel.name} now") { onWatch(channel) })
+            add(MenuAction(t("Watch {channel} now", "channel" to channel.name)) { onWatch(channel) })
             if (programme.end > now) {
                 add(MenuAction(recordLabel(programme)) { act { toggleRecording(client, programme, channel.id) } })
                 add(MenuAction(seriesLabel(programme)) { act { toggleSeries(client, programme, channel.id); null } })
@@ -512,11 +513,11 @@ fun TvLiveGuideGrid(
                 add(MenuAction(recordLabel(programme)) { act { toggleRecording(client, programme, channel.id) } })
                 add(MenuAction(seriesLabel(programme)) { act { toggleSeries(client, programme, channel.id); null } })
             }
-            if (onFavourite != null) add(MenuAction(if (channel.isFavourite) "Remove from Favourites" else "Add to Favourites") { onFavourite(channel) })
+            if (onFavourite != null) add(MenuAction(if (channel.isFavourite) t("Remove from Favourites") else t("Add to Favourites")) { onFavourite(channel) })
         }, onDismiss = { menu = null })
     }
     notice?.let { message ->
-        GuideDialog("Recording", message, onDismiss = { notice = null }, actions = emptyList())
+        GuideDialog(t("Recording"), message, onDismiss = { notice = null }, actions = emptyList())
     }
 }
 
@@ -615,7 +616,7 @@ private fun GuideDialog(title: String, message: String, onDismiss: () -> Unit, a
                     action.run()
                 }, prominent = index == 0, modifier = Modifier.fillMaxWidth().then(if (index == 0) Modifier.focusRequester(first) else Modifier))
             }
-            TvActionButton(if (actions.isEmpty()) "OK" else "Close", onClick = onDismiss, modifier = Modifier.fillMaxWidth().then(if (actions.isEmpty()) Modifier.focusRequester(first) else Modifier))
+            TvActionButton(if (actions.isEmpty()) t("OK") else t("Close"), onClick = onDismiss, modifier = Modifier.fillMaxWidth().then(if (actions.isEmpty()) Modifier.focusRequester(first) else Modifier))
         }
     }
     LaunchedEffect(Unit) {
@@ -626,8 +627,8 @@ private fun GuideDialog(title: String, message: String, onDismiss: () -> Unit, a
 
 private fun describe(programme: LiveProgramme, time: (Instant) -> String): String = buildList {
     add("${day(programme.start)} ${time(programme.start)} – ${time(programme.end)}")
-    programme.season?.let { season -> add(programme.episode?.let { "Series $season, episode $it" } ?: "Series $season") }
-    if (programme.isNew) add("New")
+    programme.season?.let { season -> add(programme.episode?.let { t("Series {season}, episode {episode}", "season" to season, "episode" to it) } ?: t("Series {season}", "season" to season)) }
+    if (programme.isNew) add(t("New"))
     programme.description?.let(::add)
 }.joinToString("\n")
 
@@ -637,8 +638,8 @@ private fun day(instant: Instant): String {
     val date = instant.atZone(ZoneId.systemDefault()).toLocalDate()
     val today = LocalDate.now()
     return when (date) {
-        today -> "Today"
-        today.plusDays(1) -> "Tomorrow"
+        today -> t("Today")
+        today.plusDays(1) -> t("Tomorrow")
         else -> date.dayOfWeek.getDisplayName(TextStyle.FULL, io.github.flexarr.core.i18n.Localization.locale)
     }
 }
@@ -683,7 +684,7 @@ private fun TvLiveRecordings(model: AppModel, onChanged: () -> Unit, onUpcoming:
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                notice = e.message ?: "That couldn’t be done. Try again in a moment."
+                notice = e.message ?: t("That couldn’t be done. Try again in a moment.")
             }
             load()
             onChanged()
@@ -691,7 +692,7 @@ private fun TvLiveRecordings(model: AppModel, onChanged: () -> Unit, onUpcoming:
     }
 
     fun detail(recording: Recording) = listOfNotNull(
-        if (recording.season != null && recording.episode != null) "S${recording.season}E${recording.episode}" else null,
+        if (recording.season != null && recording.episode != null) t(Words.seasonEpisodeShort, "season" to recording.season, "episode" to recording.episode) else null,
         recording.subtitle,
         recording.channelName,
         day(recording.start),
@@ -700,27 +701,31 @@ private fun TvLiveRecordings(model: AppModel, onChanged: () -> Unit, onUpcoming:
     val loaded = recordings
     when {
         loaded != null -> LazyColumn(verticalArrangement = Arrangement.spacedBy(5.dp), contentPadding = PaddingValues(top = 6.dp, bottom = 30.dp, end = TvLayout.Edge)) {
-            item { Heading("Coming up") }
+            item { Heading(t("Coming up")) }
             if (loaded.upcoming.isEmpty()) {
                 item { Text(t("Nothing set to record. In the guide, press and hold a programme and choose Record, or Record series."), fontSize = 13.sp, color = Flexarr.usher) }
             }
             items(loaded.upcoming, key = { "u" + it.id }) { recording ->
                 RecordingRow(recording.title, detail(recording), recordingNow = recording.isRecordingNow, warning = when {
-                    recording.clashes -> "Won’t record: every stream is wanted by recordings scheduled before it."
+                    recording.clashes -> t("Won’t record: every stream is wanted by recordings scheduled before it.")
                     recording.state != "scheduled" -> recording.reason
                     else -> null
                 }) { confirmingRecording = recording }
             }
             if (loaded.series.isNotEmpty()) {
-                item { Heading("Series", Modifier.padding(top = 12.dp)) }
+                item { Heading(t(Words.series), Modifier.padding(top = 12.dp)) }
                 items(loaded.series, key = { "s" + it.id }) { series ->
-                    val line = "${series.channelName?.let { "On $it" } ?: "On any channel"}, ${series.upcoming} coming up, ${series.recorded} recorded" +
-                        if (series.newOnly) ", new episodes only" else ""
+                    val line = listOfNotNull(
+                        series.channelName?.let { t("On {channel}", "channel" to it) } ?: t("On any channel"),
+                        t("{count} coming up", "count" to series.upcoming),
+                        t("{count} recorded", "count" to series.recorded),
+                        if (series.newOnly) t("new episodes only") else null,
+                    ).joinToString(", ")
                     RecordingRow(series.title, line, recordingNow = false, warning = null) { confirmingSeries = series }
                 }
             }
             if (loaded.recent.isNotEmpty()) {
-                item { Heading("Recorded", Modifier.padding(top = 12.dp)) }
+                item { Heading(t("Recorded"), Modifier.padding(top = 12.dp)) }
                 items(loaded.recent, key = { "r" + it.id }) { recording ->
                     RecordingRow(recording.title, detail(recording), recordingNow = false, warning = null, enabled = recording.itemId != null) {
                         recording.itemId?.let { navigator.play(it) }
@@ -735,21 +740,21 @@ private fun TvLiveRecordings(model: AppModel, onChanged: () -> Unit, onUpcoming:
     confirmingRecording?.let { recording ->
         GuideDialog(
             recording.title,
-            if (recording.isRecordingNow) "What’s recorded so far is kept." else "${recording.channelName}, ${day(recording.start)}",
+            if (recording.isRecordingNow) t("What’s recorded so far is kept.") else "${recording.channelName}, ${day(recording.start)}",
             onDismiss = { confirmingRecording = null },
-            actions = listOf(MenuAction(if (recording.isRecordingNow) "Stop recording" else "Don’t record") { act { client.removeRecording(recording.id) } }),
+            actions = listOf(MenuAction(if (recording.isRecordingNow) t("Stop recording") else t("Don’t record")) { act { client.removeRecording(recording.id) } }),
         )
     }
     confirmingSeries?.let { series ->
         GuideDialog(
             series.title,
-            "Its scheduled showings come off the list. What it’s recorded stays.",
+            t("Its scheduled showings come off the list. What it’s recorded stays."),
             onDismiss = { confirmingSeries = null },
-            actions = listOf(MenuAction("Stop recording the series") { act { client.removeSeries(series.id) } }),
+            actions = listOf(MenuAction(t("Stop recording the series")) { act { client.removeSeries(series.id) } }),
         )
     }
     notice?.let { message ->
-        GuideDialog("Recording", message, onDismiss = { notice = null }, actions = emptyList())
+        GuideDialog(t("Recording"), message, onDismiss = { notice = null }, actions = emptyList())
     }
 }
 

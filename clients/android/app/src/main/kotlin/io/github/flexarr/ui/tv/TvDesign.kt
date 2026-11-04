@@ -208,7 +208,7 @@ fun TvArtworkButton(
 ) {
     val source = remember { MutableInteractionSource() }
     val focused by source.collectIsFocusedAsState()
-    val drop by animateDpAsState(if (focused) 7.dp else 0.dp, spring(dampingRatio = 0.8f, stiffness = 500f), label = t("caption"))
+    val drop by animateDpAsState(if (focused) 7.dp else 0.dp, spring(dampingRatio = 0.8f, stiffness = 500f), label = "caption")
     Column(modifier, verticalArrangement = Arrangement.spacedBy(9.dp)) {
         Surface(
             onClick = onClick,
@@ -319,7 +319,7 @@ fun TvStatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Bo
                 if (retry != null) {
                     // Nothing else on the screen to focus: Try again takes it, so OK tries.
                     val again = remember { FocusRequester() }
-                    TvActionButton("Try again", onClick = retry, prominent = true, modifier = Modifier.focusRequester(again))
+                    TvActionButton(t("Try again"), onClick = retry, prominent = true, modifier = Modifier.focusRequester(again))
                     LaunchedEffect(message) { repeat(10) { if (runCatching { again.requestFocus() }.getOrDefault(false)) return@LaunchedEffect; delay(50) } }
                 }
             }

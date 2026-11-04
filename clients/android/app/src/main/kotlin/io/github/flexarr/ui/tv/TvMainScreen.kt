@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
@@ -112,12 +113,12 @@ import io.github.flexarr.ui.theme.FlexarrIcons
 /** A screen of its own in the sidebar: Home, a library, Discover, Search or Settings. [route] is its first screen's. */
 private data class TvTab(val route: String, val title: String, val icon: ImageVector) {
     companion object {
-        val Home = TvTab("home", "Home", FlexarrIcons.home)
-        val LiveTv = TvTab("tab/livetv", "Live TV", FlexarrIcons.liveTv)
-        val Discover = TvTab("discover", "Discover", FlexarrIcons.discover)
-        val Watchlist = TvTab("watchlist", "Watchlist", FlexarrIcons.watchlist)
-        val Search = TvTab("search", "Search", FlexarrIcons.search)
-        val Settings = TvTab("settings", "Settings", FlexarrIcons.settings)
+        val Home get() = TvTab("home", t(Words.home), FlexarrIcons.home)
+        val LiveTv get() = TvTab("tab/livetv", t(Words.liveTv), FlexarrIcons.liveTv)
+        val Discover get() = TvTab("discover", t(Words.discover), FlexarrIcons.discover)
+        val Watchlist get() = TvTab("watchlist", t(Words.watchlist), FlexarrIcons.watchlist)
+        val Search get() = TvTab("search", t(Words.search), FlexarrIcons.search)
+        val Settings get() = TvTab("settings", t(Words.settings), FlexarrIcons.settings)
 
         fun library(library: Library) = TvTab("tab/library/${library.id}", library.name, library.icon)
     }
@@ -152,7 +153,7 @@ fun TvMainScreen(model: AppModel) {
     var sidebarOpen by remember { mutableStateOf(false) }
     // The Now Playing bar's room at the foot, so the last row isn't under it.
     var barShown by remember { mutableStateOf(false) }
-    val barRoom by animateDpAsState(if (barShown) NOW_PLAYING_BAR_ROOM else 0.dp, label = t("bar room"))
+    val barRoom by animateDpAsState(if (barShown) NOW_PLAYING_BAR_ROOM else 0.dp, label = "bar room")
     var choosingProfile by remember { mutableStateOf(false) }
     // Now Playing over everything, as Play or Shuffle opens it (the Music app's way): Back closes it, back to where
     // it was pressed.
@@ -322,7 +323,7 @@ fun TvMainScreen(model: AppModel) {
                 @Composable
                 fun MissingLibrary() = when (val state = libraries.state) {
                     is Load.Failed -> TvStatusView(state.message, retry = libraries.retry)
-                    is Load.Loaded -> TvStatusView("This library isn’t here any more.", empty = true)
+                    is Load.Loaded -> TvStatusView(t("This library isn’t here any more."), empty = true)
                     Load.Loading -> TvStatusView()
                 }
                 fun arrives(route: String) = arrivingAt == route
@@ -471,7 +472,7 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
                 // Music that's playing gets a place of its own, as the Music app does: the surest way to reach it.
                 if (nowPlaying) {
                     item(key = "now-playing") {
-                        SidebarRow("Now Playing", selected = false, onClick = onNowPlaying, icon = { Icon(FlexarrIcons.nowPlaying, contentDescription = null, modifier = Modifier.size(20.dp)) })
+                        SidebarRow(t("Now Playing"), selected = false, onClick = onNowPlaying, icon = { Icon(FlexarrIcons.nowPlaying, contentDescription = null, modifier = Modifier.size(20.dp)) })
                     }
                 }
                 items(tabs, key = { it.route }) { tab ->
@@ -491,7 +492,7 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
             // The logo and the app's version, quietly at the foot.
             Row(Modifier.padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 BrandMark(13.dp)
-                Text(t("flexarr"), style = marquee(11, Flexarr.screen.copy(alpha = 0.8f)))
+                Text("flexarr", style = marquee(11, Flexarr.screen.copy(alpha = 0.8f)))
                 Text(BuildConfig.VERSION_NAME, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher.copy(alpha = 0.7f), modifier = Modifier.padding(start = 6.dp))
             }
         }

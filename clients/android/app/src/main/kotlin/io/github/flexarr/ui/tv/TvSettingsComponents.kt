@@ -85,7 +85,7 @@ internal fun TvSettingsPage(title: String, summary: String?, rows: LazyListScope
         Row(Modifier.fillMaxSize().padding(start = TvLayout.Edge + 10.dp, end = TvLayout.Edge, top = 30.dp)) {
             Column(Modifier.width(280.dp), verticalArrangement = Arrangement.spacedBy(17.dp)) {
                 Text(title, fontSize = 29.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
-                Crossfade(focusedHelp ?: summary?.let { TvSettingHelp(null, it) }, animationSpec = tween(200), label = t("help")) { help ->
+                Crossfade(focusedHelp ?: summary?.let { TvSettingHelp(null, it) }, animationSpec = tween(200), label = "help") { help ->
                     SettingHelpPanel(help)
                 }
             }
