@@ -179,6 +179,28 @@ struct PageSearchField: View {
     }
 }
 
+/// A menu on the page itself (a library's sort and genre): its icon, what's chosen and a chevron, in the page
+/// controls' capsule, smaller than the toolbar's.
+struct PageMenuLabel: View {
+    let icon: String
+    let text: String
+    var chosen = false
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: icon).font(.system(size: 12, weight: .semibold))
+            Text(text).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+            Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).foregroundStyle(Color.usher)
+        }
+        .foregroundStyle(chosen ? Color.room : Color.screen.opacity(0.9))
+        .padding(.horizontal, 14)
+        .frame(height: 30)
+        .background(Capsule().fill(chosen ? AnyShapeStyle(Color.screen) : AnyShapeStyle(PageControl.track)))
+        .overlay(Capsule().strokeBorder(PageControl.edge))
+        .contentShape(Capsule())
+    }
+}
+
 /// The Mac's page tabs (Browse, All movies, Genres…): a capsule track with the chosen one filled to its edges, the same
 /// size on every page. The system's segmented control insets its highlight from the track, which reads as unfinished
 /// at this size.

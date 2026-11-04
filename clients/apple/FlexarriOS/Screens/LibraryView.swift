@@ -116,9 +116,11 @@ struct LibraryView: View {
             await reload()
         }
         #endif
+        #if !os(macOS)
         .pageActions {
             if showing == .all || showing == .albums { sortAndFilter }
         }
+        #endif
         .task {
             // For the toolbar's genre menu and the Genres view, once; a genre's own page needs neither.
             guard showsGenreFilter else { return }
@@ -249,12 +251,21 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var titles: some View {
-        Text(content.count(total))
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(Color.usher)
-            .monospacedDigit()
-            .padding(.horizontal, Layout.edge)
-            .opacity(items.isEmpty ? 0 : 1)
+        HStack(spacing: 10) {
+            Text(content.count(total))
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.usher)
+                .monospacedDigit()
+                .opacity(items.isEmpty ? 0 : 1)
+            #if os(macOS)
+            // On the Mac, sort and genre sit on the page above what they change; the toolbar keeps the page's
+            // switch and search.
+            Spacer(minLength: 0)
+            sortMenu
+            if showsGenreFilter, !filterGenres.isEmpty { genreMenu }
+            #endif
+        }
+        .padding(.horizontal, Layout.edge)
         if listsAlbums, let genre = initialGenre {
             // A genre plays as a station: up to 200 of its tracks, in order or shuffled.
             HStack(spacing: 10) {
@@ -293,6 +304,44 @@ struct LibraryView: View {
             }
         }
     }
+
+    #if os(macOS)
+    /// Sort by, showing the order now.
+    private var sortMenu: some View {
+        Menu {
+            Picker(t("Sort by"), selection: $sort) {
+                ForEach(content.sorts) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            PageMenuLabel(icon: "arrow.up.arrow.down", text: sort.label)
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .help(t("Sort by"))
+        .accessibilityLabel(t("Sort by"))
+        .accessibilityValue(sort.label)
+    }
+
+    /// The genre shown, or all of them.
+    private var genreMenu: some View {
+        Menu {
+            Picker(t("Genre"), selection: $genre) {
+                Text(t("All genres")).tag(String?.none)
+                ForEach(filterGenres, id: \.name) { g in
+                    Text("\(g.name) (\(g.count))").tag(Optional(g.name))
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            PageMenuLabel(icon: genre == nil ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill",
+                          text: genre ?? t("All genres"), chosen: genre != nil)
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .help(t("Genre"))
+        .accessibilityLabel(t("Genre"))
+        .accessibilityValue(genre ?? t("All genres"))
+    }
+    #endif
 
     private var sortAndFilter: some View {
         Menu {

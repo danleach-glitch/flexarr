@@ -47,10 +47,12 @@ lists. Posters 176 pt wide with 18 pt between them. Rows 28 pt apart.
 - Middle: the page's tabs (Browse, All, Genres…; Discover's Movies and shows or Music; Live TV's Channels, Guide and
   Recordings), from `pageSwitch`: `PageTabs`, a capsule track with the chosen tab filled to its edges, the same size
   and place on every page.
-- Right: the page's actions (Filter, Sort and filter, Recordings, Guide), from `pageActions`, each a named button with
+- Right: the page's actions (the Watchlist's Filter, Podcasts' Browse), from `pageActions`, each a named button with
   its icon; search, where a page has one, after them (`pageSearch`: `PageSearchField`, the tabs' height; a library's
   searches its titles). Search's own page has its field in the middle. Controls that
-  belong to part of a page (a podcast's episode order, beside Unplayed and All) stay on the page, by that part.
+  belong to part of a page stay on the page, by that part: a library's sort and genre (and audiobooks' filter and
+  sort) on the count's line above the grid, as `PageMenuLabel` capsules showing what's chosen; a podcast's episode
+  order beside Unplayed and All.
 
 **Lists** (Settings, Downloads; `macReadable`). One centred column, 760 pt at most, with the page margin either side,
 headed by the page's title in the marquee face ("Settings › Server" inside Settings), rows at least 46 pt tall, icons

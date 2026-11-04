@@ -179,9 +179,11 @@ struct BooksLibraryView: View {
             .animation(.easeInOut(duration: 0.8), value: featured?.id))
         .navigationTitle(genre ?? browse.library.name)
         .pageSwitch(Binding(get: { browse.browse }, set: { browse.browse = $0 }), genre == nil ? BookBrowse.allCases.map { ($0, $0.label) } : [])
+        #if !os(macOS)
         .pageActions {
             if browse.browse == .all { filterMenu }
         }
+        #endif
         .refreshable { await load() }
         .task(id: "\(browse.browse.rawValue)#\(browse.filter.hashValue)") { await load() }
         .task(id: model.refreshToken) { if browse.loadedAt != nil { await load() } }
@@ -312,11 +314,20 @@ struct BooksLibraryView: View {
 
     private var allBooks: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(summary)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Color.usher)
-                .monospacedDigit()
-                .padding(.horizontal, Layout.edge)
+            HStack(spacing: 10) {
+                Text(summary)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.usher)
+                    .monospacedDigit()
+                #if os(macOS)
+                // On the Mac, filter and sort sit on the page above what they change, as the other libraries' do.
+                if browse.browse == .all {
+                    Spacer(minLength: 0)
+                    filterMenu
+                }
+                #endif
+            }
+            .padding(.horizontal, Layout.edge)
             LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                 ForEach(Array(browse.books.enumerated()), id: \.element.id) { index, book in
                     BookCard(item: book)
@@ -394,8 +405,17 @@ struct BooksLibraryView: View {
                                                 set: { browse.filter.descending = $0 != browse.filter.sort.descendingByDefault }))
             }
         } label: {
+            #if os(macOS)
+            PageMenuLabel(icon: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease",
+                          text: t("Filter and sort"), chosen: isFiltered)
+            #else
             Label(t("Filter and sort"), systemImage: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+            #endif
         }
+        #if os(macOS)
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .accessibilityLabel(t("Filter and sort"))
+        #endif
     }
 
     /// Filters that leave nothing: say so, with a way back to every book (the sort stays).
