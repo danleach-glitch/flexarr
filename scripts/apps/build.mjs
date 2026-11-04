@@ -205,6 +205,22 @@ const html = `<!doctype html>
     .hero picture { display: block; margin-top: clamp(32px, 6vw, 64px); }
     .hero img { width: 100%; }
 
+    /* How it fits: the server at home, then the players. */
+    .fits { display: flex; align-items: center; justify-content: center; gap: clamp(10px, 3vw, 28px); margin-top: clamp(32px, 5vw, 56px); }
+    .fits .step { display: flex; align-items: center; gap: 14px; padding: 14px 22px 14px 14px; border: 1px solid var(--aisle); border-radius: 999px; background: var(--seat); color: var(--screen); text-decoration: none; }
+    .fits .step:hover { border-color: var(--usher); background: var(--seat-raised); }
+    .fits .num { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--screen); color: var(--room); font-weight: 700; }
+    .fits strong { display: block; font-size: 1.05rem; }
+    .fits small { display: block; color: var(--usher); font-size: 0.9rem; }
+    .fits .flow { color: var(--usher); display: grid; }
+    .fits .flow svg { width: 26px; height: 26px; }
+    @media (max-width: 640px) {
+      .fits .step { padding: 8px 14px 8px 8px; gap: 9px; }
+      .fits .num { width: 26px; height: 26px; font-size: 0.85rem; }
+      .fits small { display: none; }
+      .fits .flow svg { width: 20px; height: 20px; }
+    }
+
     /* At a glance */
     .section-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 16px 32px; }
     .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 0; list-style: none; color: var(--usher); font-size: 0.92rem; }
@@ -351,6 +367,12 @@ const html = `<!doctype html>
         <p class="lede">One server at home, and an app for every screen in it. Here's what you can get today and what's on the way.</p>
         <picture><source media="(max-width: 640px)" srcset="/shots/screens-m.webp" width="1100" height="902"><img src="/shots/screens.webp" width="2000" height="1206" srcset="/shots/screens-1000.webp 1000w, /shots/screens.webp 2000w" sizes="(min-width: 1260px) 1180px, 92vw" alt="Flexarr in a web browser showing Only Murders in the Building on Home, on an iPad showing Home, and on an iPhone showing Barbie's page." fetchpriority="high"></picture>
       </div>
+
+      <nav class="fits" aria-label="How it fits together">
+        <a class="step" href="#server-head"><span class="num" aria-hidden="true">1</span><span><strong>A server</strong><small>at home, with your files</small></span></a>
+        <span class="flow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span>
+        <a class="step" href="#player-head"><span class="num" aria-hidden="true">2</span><span><strong>Players</strong><small>on every screen you watch on</small></span></a>
+      </nav>
 
       <section class="glance" aria-labelledby="glance">
         <div class="section-head">
