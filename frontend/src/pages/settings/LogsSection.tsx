@@ -20,6 +20,7 @@ import { formatSize, relativeTime } from '../../lib/format'
 import { configureSentry } from '../../lib/sentry'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
+import { locale } from '../../i18n'
 
 /** The levels worth choosing between; Verbose and Fatal still show up in the list. */
 const levels: LogLevel[] = ['Debug', 'Information', 'Warning', 'Error']
@@ -47,9 +48,9 @@ const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString()
 /** "14:02:11.482", with the day in front when it wasn't today. */
 function stamp(iso: string) {
   const at = new Date(iso)
-  const time = at.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+  const time = at.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
   const ms = String(at.getMilliseconds()).padStart(3, '0')
-  return sameDay(at, new Date()) ? `${time}.${ms}` : `${at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${time}`
+  return sameDay(at, new Date()) ? `${time}.${ms}` : `${at.toLocaleDateString(locale(), { month: 'short', day: 'numeric' })} ${time}`
 }
 
 function useDebounced<T>(value: T, ms: number) {
@@ -80,7 +81,7 @@ const LogRow = memo(function LogRow({
   return (
     <li className={`log-entry level-${entry.level.toLowerCase()}`}>
       <button type="button" className="log-line" aria-expanded={open} onClick={() => onToggle(entry.id)}>
-        <time dateTime={entry.timestamp} title={new Date(entry.timestamp).toLocaleString()}>
+        <time dateTime={entry.timestamp} title={new Date(entry.timestamp).toLocaleString(locale())}>
           {stamp(entry.timestamp)}
         </time>
         <span className="log-level">{badge[entry.level]}</span>

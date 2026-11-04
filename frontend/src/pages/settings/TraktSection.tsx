@@ -23,6 +23,7 @@ import { usePolling } from '../../hooks/usePolling'
 import { relativeTime } from '../../lib/format'
 import { webLink } from '../../lib/links'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
+import { locale } from '../../i18n'
 
 /** Why a connect ended without connecting. */
 const ended: Record<Exclude<TraktPendingConnect['state'], 'Waiting' | 'Connected'>, string> = {
@@ -193,7 +194,7 @@ function History({ status, reload }: { status: TraktStatus; reload: () => void }
   )
 }
 
-const n = (count: number, one: string, many = `${one}s`) => `${count.toLocaleString()} ${count === 1 ? one : many}`
+const n = (count: number, one: string, many = `${one}s`) => `${count.toLocaleString(locale())} ${count === 1 ? one : many}`
 
 function summary(p: TraktImportPreview) {
   return `Trakt has ${n(p.traktFilms, 'movie')} and ${n(p.traktEpisodes, 'episode')}`
@@ -201,9 +202,9 @@ function summary(p: TraktImportPreview) {
 
 function details(p: TraktImportPreview) {
   const parts = [
-    p.inLibrary === 0 ? 'None are here yet' : `${p.inLibrary.toLocaleString()} are here${p.newToFlexarr > 0 ? `, ${p.newToFlexarr.toLocaleString()} not yet watched in Flexarr` : ''}`,
+    p.inLibrary === 0 ? 'None are here yet' : `${p.inLibrary.toLocaleString(locale())} are here${p.newToFlexarr > 0 ? `, ${p.newToFlexarr.toLocaleString(locale())} not yet watched in Flexarr` : ''}`,
   ]
-  if (p.notOnServer > 0) parts.push(`${p.notOnServer.toLocaleString()} will show as watched if they arrive`)
+  if (p.notOnServer > 0) parts.push(`${p.notOnServer.toLocaleString(locale())} will show as watched if they arrive`)
   if (p.toTrakt > 0) parts.push(`${n(p.toTrakt, 'play')} from Flexarr ${p.toTrakt === 1 ? 'goes' : 'go'} to Trakt`)
   return parts.join('. ') + '.'
 }

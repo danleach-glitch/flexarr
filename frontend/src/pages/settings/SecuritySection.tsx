@@ -9,6 +9,7 @@ import { useApi } from '../../hooks/useApi'
 import { usePinLockout } from '../../hooks/usePinLockout'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { errorText, useSettings } from './useSettings'
+import { locale } from '../../i18n'
 
 const digits = (value: string) => value.replace(/\D/g, '').slice(0, 8)
 
@@ -316,7 +317,7 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
           <p className="key-note" role="status">
             New key made. The old one stopped working.
             {rotated.signedOut > 0
-              ? ` ${rotated.signedOut.toLocaleString()} ${rotated.signedOut === 1 ? 'browser or TV was' : 'browsers and TVs were'} signed out.`
+              ? ` ${rotated.signedOut.toLocaleString(locale())} ${rotated.signedOut === 1 ? 'browser or TV was' : 'browsers and TVs were'} signed out.`
               : ' Browsers and TVs signed in below keep working.'}
           </p>
         )}

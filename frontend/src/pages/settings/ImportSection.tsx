@@ -13,6 +13,7 @@ import {
 import { AsyncButton } from '../../components/AsyncButton'
 import { useApi } from '../../hooks/useApi'
 import { SettingsHeader } from './shared'
+import { locale } from '../../i18n'
 
 const database = 'com.plexapp.plugins.library.db'
 
@@ -108,7 +109,7 @@ export function ImportSection() {
                 <select value={chosen} onChange={(e) => setAccount(Number(e.target.value))}>
                   {source.data.accounts.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.name}: {a.watched.toLocaleString()} watched, {a.inProgress.toLocaleString()} in progress
+                      {a.name}: {a.watched.toLocaleString(locale())} watched, {a.inProgress.toLocaleString(locale())} in progress
                     </option>
                   ))}
                 </select>
@@ -128,9 +129,9 @@ export function ImportSection() {
             )}
             {result && (
               <p role="status" className="import-result">
-                Brought over {result.matched.toLocaleString()} titles: {result.watched.toLocaleString()} watched and {result.inProgress.toLocaleString()} to resume.
+                Brought over {result.matched.toLocaleString(locale())} titles: {result.watched.toLocaleString(locale())} watched and {result.inProgress.toLocaleString(locale())} to resume.
                 {result.keptNewer > 0 && ` ${result.keptNewer} you'd watched more recently in Flexarr were left as they were.`}
-                {result.unmatched > 0 && ` ${result.unmatched.toLocaleString()} files Plex knows about aren't in your Flexarr libraries.`}
+                {result.unmatched > 0 && ` ${result.unmatched.toLocaleString(locale())} files Plex knows about aren't in your Flexarr libraries.`}
               </p>
             )}
             {error && (

@@ -37,6 +37,7 @@ import { freeColour, profileColours } from '../lib/profileColours'
 import { tooBroad } from '../lib/setupGuide'
 import { errorText } from './settings/useSettings'
 import '../styles/onboarding.css'
+import { locale } from '../i18n'
 
 /** The steps; the first, the main profile's name, isn't one the server keeps track of. */
 const steps: { id: SetupStep | 'name'; title: string; lede: string; icon: ReactNode; summary: string }[] = [
@@ -858,8 +859,8 @@ function Done({ onFinish }: { onFinish: () => void }) {
         {media.length === 0
           ? 'Add a library whenever you’re ready, in Settings › Libraries.'
           : scanning.length > 0
-            ? `Flexarr is reading ${total > 0 ? `${read.toLocaleString()} of ${total.toLocaleString()} files` : 'your files'}.`
-            : `${titles.toLocaleString()} ${titles === 1 ? 'title' : 'titles'} ready to watch.`}
+            ? `Flexarr is reading ${total > 0 ? `${read.toLocaleString(locale())} of ${total.toLocaleString(locale())} files` : 'your files'}.`
+            : `${titles.toLocaleString(locale())} ${titles === 1 ? 'title' : 'titles'} ready to watch.`}
       </p>
       {scanning.length > 0 && (
         <div className="onboard-scan" role="progressbar" aria-label="Reading your files" aria-valuemin={0} aria-valuemax={total || undefined} aria-valuenow={read}>

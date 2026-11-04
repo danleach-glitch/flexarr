@@ -26,6 +26,7 @@ import { ScanProgress } from '../components/ScanProgress'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
 import { AlphaPicker, AlphaRail, ShowMore, useLibraryGrid } from './libraryGrid'
+import { locale } from '../i18n'
 
 const PAGE_SIZE = 60
 
@@ -171,7 +172,7 @@ function Genres({ library }: { library: Library }) {
         <Link key={g.name} to={`/library/${library.id}?view=genre&genre=${encodeURIComponent(g.name)}`} className="genre-tile book-genre-tile">
           <GenreCovers covers={g.covers} />
           <span className="genre-name">{g.name}</span>
-          <span className="genre-count">{g.count === 1 ? '1 book' : `${g.count.toLocaleString()} books`}</span>
+          <span className="genre-count">{g.count === 1 ? '1 book' : `${g.count.toLocaleString(locale())} books`}</span>
         </Link>
       ))}
     </nav>
@@ -289,7 +290,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
       {error && <PageError error={error} onRetry={restart} />}
       {total !== undefined && (
         <p className="muted book-count">
-          {total.toLocaleString()} {filtered ? 'matching' : total === 1 ? 'book' : 'books'}
+          {total.toLocaleString(locale())} {filtered ? 'matching' : total === 1 ? 'book' : 'books'}
         </p>
       )}
       {total === 0 && <p className="page-message muted">{query ? `Nothing in ${library.name} matches “${query}”.` : filtered ? 'No books match.' : 'No books yet.'}</p>}

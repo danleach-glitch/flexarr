@@ -9,11 +9,12 @@ import { parse, ReleaseNotes } from './changelog'
 import { SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 import { webLink } from '../../lib/links'
+import { locale } from '../../i18n'
 
 const guide = 'https://flexarr.io/guide/updating'
 
 function day(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
+  return new Date(iso).toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 /** Which Flexarr this is, whether there's a newer one, and installing it (by hand, or overnight by itself). */

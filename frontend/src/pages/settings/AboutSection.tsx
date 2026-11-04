@@ -5,6 +5,7 @@ import { relativeTime } from '../../lib/format'
 import { parse, ReleaseNotes } from './changelog'
 import { SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText, useSettings } from './useSettings'
+import { locale } from '../../i18n'
 
 /** Which Flexarr this is, where it keeps things, and what's changed. */
 export function AboutSection() {
@@ -102,7 +103,7 @@ function WhatsNew() {
       </div>
       {!all && releases.length > shown.length && (
         <button className="button quiet small changelog-more" onClick={() => setAll(true)}>
-          Show older releases ({(releases.length - shown.length).toLocaleString()})
+          Show older releases ({(releases.length - shown.length).toLocaleString(locale())})
         </button>
       )}
     </div>

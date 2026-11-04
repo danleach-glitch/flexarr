@@ -6,6 +6,7 @@ import { Row } from '../components/Row'
 import { PosterCard } from '../components/Cards'
 import { useApi } from '../hooks/useApi'
 import { DiscoverSwitch, MusicDiscover, MusicGenrePage, MusicSearchResults } from './DiscoverMusic'
+import { locale } from '../i18n'
 
 export function DiscoverPage() {
   const [params, setParams] = useSearchParams()
@@ -46,7 +47,7 @@ export function DiscoverPage() {
               <Link to="/discover">Discover</Link>
             </p>
             <h1>{genre}</h1>
-            <p className="muted">{items.data ? `${items.data.total.toLocaleString()} titles, best rated first` : ' '}</p>
+            <p className="muted">{items.data ? `${items.data.total.toLocaleString(locale())} titles, best rated first` : ' '}</p>
           </div>
           <div className="genre-chips" role="group" aria-label="Show">
             {[

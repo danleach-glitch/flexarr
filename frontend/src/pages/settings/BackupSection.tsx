@@ -30,6 +30,7 @@ import { useChoosesOnMac } from '../../hooks/useChoosesOnMac'
 import { formatSize, libraryTypeLabel } from '../../lib/format'
 import { SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
+import { locale } from '../../i18n'
 
 const kindLabel: Record<BackupKind, string> = {
   Manual: 'Made by hand',
@@ -62,7 +63,7 @@ const sectionLabel = (id: string) => sections.find((s) => s.id === id)?.label ??
 function when(iso: string) {
   const date = new Date(iso)
   const thisYear = date.getFullYear() === new Date().getFullYear()
-  return date.toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: thisYear ? undefined : 'numeric', hour: '2-digit', minute: '2-digit' })
+  return date.toLocaleString(locale(), { weekday: 'short', day: 'numeric', month: 'short', year: thisYear ? undefined : 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 type Dialog =
@@ -497,7 +498,7 @@ function FromFile({ mainHasPin, onRestore }: { mainHasPin: boolean; onRestore: (
 }
 
 function UploadedBackup({ contents, fromAnotherServer, onRestore, onCancel }: { contents: BackupContents; fromAnotherServer: boolean; onRestore: () => void; onCancel: () => void }) {
-  const count = (n: number, one: string, many: string) => `${n.toLocaleString()} ${n === 1 ? one : many}`
+  const count = (n: number, one: string, many: string) => `${n.toLocaleString(locale())} ${n === 1 ? one : many}`
   return (
     <div className="backup-file">
       <p>

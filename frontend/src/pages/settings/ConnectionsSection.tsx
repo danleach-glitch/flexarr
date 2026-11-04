@@ -31,6 +31,7 @@ import { usePolling } from '../../hooks/usePolling'
 import { appLogos } from '../../lib/apps'
 import { OpenApp, SaveStatus, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText, useSettings } from './useSettings'
+import { locale } from '../../i18n'
 
 /** Settings › Trakt may have come or gone: the Settings page looks again. */
 export const TRAKT_CHANGED = 'flexarr:trakt'
@@ -247,7 +248,7 @@ export function ConnectionsSection() {
                   ? notConnected('livetv')
                   : liveStatus.data.refreshing
                     ? 'Bringing in the channels and guide…'
-                    : (liveStatus.data.error ?? `Live TV: ${liveStatus.data.channels.toLocaleString()} channels`)
+                    : (liveStatus.data.error ?? `Live TV: ${liveStatus.data.channels.toLocaleString(locale())} channels`)
             }
             ok={liveStatus.data?.configured ? !liveStatus.data.error : undefined}
             refreshing={liveStatus.data?.refreshing ?? false}
@@ -858,9 +859,9 @@ function DispatcharrRow({
 }
 
 function testSummary(t: LiveTvTest) {
-  const parts = [`Connected: ${(t.channels ?? 0).toLocaleString()} channels`]
+  const parts = [`Connected: ${(t.channels ?? 0).toLocaleString(locale())} channels`]
   if (t.maxConnections) parts.push(`${t.maxConnections} ${t.maxConnections === 1 ? 'connection' : 'connections'} at a time`)
-  if (t.expiresAt) parts.push(`subscription ends ${new Date(t.expiresAt).toLocaleDateString()}`)
+  if (t.expiresAt) parts.push(`subscription ends ${new Date(t.expiresAt).toLocaleDateString(locale())}`)
   return parts.join(', ')
 }
 
@@ -963,8 +964,8 @@ const titleWords: Record<ArrKind, [string, string]> = { Sonarr: ['show', 'shows'
 function titlesAgreeing(kind: ArrKind, agreeing: number, compared: number) {
   const [one, many] = titleWords[kind]
   if (compared === 1) return `the one ${one}`
-  if (agreeing < compared) return `${agreeing.toLocaleString()} of the ${compared.toLocaleString()} ${many}`
-  return compared < 5 ? `the ${compared} ${many}` : `all ${compared.toLocaleString()} ${many}`
+  if (agreeing < compared) return `${agreeing.toLocaleString(locale())} of the ${compared.toLocaleString(locale())} ${many}`
+  return compared < 5 ? `the ${compared} ${many}` : `all ${compared.toLocaleString(locale())} ${many}`
 }
 
 /**

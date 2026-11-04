@@ -41,6 +41,7 @@ import { useAgeLimits } from '../hooks/sessionContext'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useApi } from '../hooks/useApi'
 import { episodeAsTrack, episodeDate, episodeLength, episodeProgress, looksLikeFeedUrl } from '../lib/podcasts'
+import { locale } from '../i18n'
 
 const PAGE = 50
 
@@ -679,7 +680,7 @@ function PodcastShow() {
           <p className="facts">
             {podcast.author && <span>{podcast.author}</span>}
             {podcast.categories[0] && <span>{podcast.categories[0]}</span>}
-            <span>{podcast.episodeCount === 1 ? '1 episode' : `${podcast.episodeCount.toLocaleString()} episodes`}</span>
+            <span>{podcast.episodeCount === 1 ? '1 episode' : `${podcast.episodeCount.toLocaleString(locale())} episodes`}</span>
             {podcast.explicit && <span>Explicit</span>}
           </p>
           <div className="detail-actions">
@@ -727,7 +728,7 @@ function PodcastShow() {
           onClose={() => setMarking(null)}
         >
           <p>
-            All {podcast.unplayedCount.toLocaleString()} unplayed {podcast.unplayedCount === 1 ? 'episode' : 'episodes'} of {podcast.title} will be marked as played.
+            All {podcast.unplayedCount.toLocaleString(locale())} unplayed {podcast.unplayedCount === 1 ? 'episode' : 'episodes'} of {podcast.title} will be marked as played.
           </p>
         </ConfirmDialog>
       )}
@@ -736,7 +737,7 @@ function PodcastShow() {
         <div className="podcast-episodes-tools">
           <nav className="view-switch" aria-label="Which episodes">
             <button aria-current={filter === 'unplayed' ? 'page' : undefined} onClick={() => setFilter('unplayed')}>
-              Unplayed{podcast.unplayedCount > 0 ? ` (${podcast.unplayedCount.toLocaleString()})` : ''}
+              Unplayed{podcast.unplayedCount > 0 ? ` (${podcast.unplayedCount.toLocaleString(locale())})` : ''}
             </button>
             <button aria-current={filter === 'all' ? 'page' : undefined} onClick={() => setFilter('all')}>
               All
@@ -805,7 +806,7 @@ function EpisodeDetail() {
           </p>
           <h1 className="podcast-episode-heading">{e.title}</h1>
           <p className="facts">
-            {e.publishedAt && <span>{new Date(e.publishedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</span>}
+            {e.publishedAt && <span>{new Date(e.publishedAt).toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' })}</span>}
             {episodeLength(e) && <span>{episodeLength(e)}</span>}
             {e.season && <span>Season {e.season}</span>}
             {e.episode && <span>Episode {e.episode}</span>}

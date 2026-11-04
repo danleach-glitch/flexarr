@@ -98,9 +98,16 @@ export function currentLanguage(): { code: string; direction: 'ltr' | 'rtl' } {
   return { code: pack.code, direction: pack.direction }
 }
 
-/** The locale to hand Intl's formatters: the language shown (the pseudo-language formats as English). */
+/**
+ * The locale to hand Intl's formatters: the language shown, in the browser's own variant of it where it has one (so
+ * English in a British browser writes 3 Mar 2025, and German in an Austrian one Jänner). The pseudo-language formats
+ * as English.
+ */
 export function locale(): string {
-  return pack.code === 'en-XA' ? 'en' : pack.code
+  const code = pack.code === 'en-XA' ? 'en' : pack.code
+  const base = code.split('-')[0]
+  const preferred = [new Intl.DateTimeFormat().resolvedOptions().locale, ...(typeof navigator === 'undefined' ? [] : (navigator.languages ?? [navigator.language]))]
+  return preferred.find((l) => l.split('-')[0].toLowerCase() === base && (code === base || l.toLowerCase() === code.toLowerCase())) ?? code
 }
 
 export function onLanguageChange(listener: () => void): () => void {

@@ -9,8 +9,9 @@ import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { formatSize } from '../lib/format'
 import { programmeTime } from '../lib/livetv'
+import { locale } from '../i18n'
 
-const day = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+const day = { format: (d: Date) => d.toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short' }) }
 
 function episode(r: Pick<Recording, 'season' | 'episode' | 'subtitle'>) {
   const number = r.season != null && r.episode != null ? `S${r.season} E${r.episode}` : null

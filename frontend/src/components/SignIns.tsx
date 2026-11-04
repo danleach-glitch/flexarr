@@ -7,6 +7,7 @@ import { AsyncButton } from './AsyncButton'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DeviceTypeIcon } from './DeviceTypeIcon'
 import { Monitor } from './icons'
+import { locale } from '../i18n'
 
 const threeDays = 3 * 24 * 60 * 60 * 1000
 
@@ -15,7 +16,7 @@ const where = (s: SignIn) => (s.zone === 'Local' ? 'Home network' : s.zone === '
 /** "24 Oct", with the year when it isn't this one. */
 const day = (iso: string) => {
   const date = new Date(iso)
-  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' })
+  return date.toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' })
 }
 
 const signedIn = (s: SignIn) => (s.kind === 'Device' ? 'connected' : 'signed in')
@@ -98,12 +99,12 @@ export function SignIns() {
       const group = asking.group
       void act(async () => {
         for (const s of group) await revokeSignIn(s.id)
-        return `Signed out ${group.length.toLocaleString()} sign-ins of ${group[0].name}.`
+        return `Signed out ${group.length.toLocaleString(locale())} sign-ins of ${group[0].name}.`
       })
     } else {
       void act(async () => {
         const { signedOut } = await signOutOthers()
-        return `Signed out ${signedOut.toLocaleString()} ${signedOut === 1 ? 'browser or TV' : 'browsers and TVs'}.`
+        return `Signed out ${signedOut.toLocaleString(locale())} ${signedOut === 1 ? 'browser or TV' : 'browsers and TVs'}.`
       })
     }
   }
@@ -192,7 +193,7 @@ export function SignIns() {
                 <span className="sign-in-text">
                   <span className="sign-in-name">
                     <strong>{latest.name}</strong>
-                    <span className="pill">{group.length.toLocaleString()} sign-ins</span>
+                    <span className="pill">{group.length.toLocaleString(locale())} sign-ins</span>
                     {group.some(isNew) && <span className="pill new">New</span>}
                   </span>
                   <span className="muted sign-in-meta" title={detail(latest, oldest.createdAt)}>
@@ -209,7 +210,7 @@ export function SignIns() {
                     disabled={busy}
                     onClick={() => setAsking({ group })}
                   >
-                    Sign out all {group.length.toLocaleString()}
+                    Sign out all {group.length.toLocaleString(locale())}
                   </button>
                 </span>
                 {expanded && <ul className="plain-list sign-in-list sign-in-each">{group.map(row)}</ul>}
@@ -243,7 +244,7 @@ export function SignIns() {
                 ? 'Sign out of this browser?'
                 : `Sign out ${asking.one.name}?`
               : 'group' in asking
-                ? `Sign out all ${asking.group.length.toLocaleString()} sign-ins of ${asking.group[0].name}?`
+                ? `Sign out all ${asking.group.length.toLocaleString(locale())} sign-ins of ${asking.group[0].name}?`
                 : 'Sign out every other browser and TV?'
           }
           confirmLabel="Sign out"
@@ -266,7 +267,7 @@ export function SignIns() {
                   : `It will need the API key to sign in again. Signed in ${day(asking.one.createdAt)}, last used ${relativeTime(asking.one.lastUsedAt)}.`
               : 'group' in asking
                 ? 'Each will need to sign in or connect again.'
-                : `${asking.others.toLocaleString()} browsers and TVs will need to sign in or connect again. This browser stays signed in.`}
+                : `${asking.others.toLocaleString(locale())} browsers and TVs will need to sign in or connect again. This browser stays signed in.`}
           </p>
         </ConfirmDialog>
       )}

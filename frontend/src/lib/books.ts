@@ -1,6 +1,7 @@
 import type { BookChapter, BookFile, BookProgress, BookSeriesRef, ItemSummary } from '../api/types'
 import { formatClock } from './format'
 import { profileKey } from './profileScope'
+import { locale } from '../i18n'
 
 /** A book, rather than a film, track or episode. */
 export const isBook = (item: Pick<ItemSummary, 'kind'> | undefined) => item?.kind === 'Audiobook'
@@ -267,7 +268,7 @@ export function languageName(code: string | null | undefined): string | null {
   if (!code) return null
   if (!LANGUAGE_CODE.test(code)) return code
   try {
-    return new Intl.DisplayNames(undefined, { type: 'language' }).of(code.replaceAll('_', '-')) ?? code
+    return new Intl.DisplayNames([locale()], { type: 'language' }).of(code.replaceAll('_', '-')) ?? code
   } catch {
     return code
   }

@@ -19,6 +19,7 @@ import { BooksLibrary } from './BooksLibrary'
 import { LibraryRequested } from './LibraryRequested'
 import { PlaylistsPage } from './PlaylistsPage'
 import { AlphaPicker, AlphaRail, ShowMore, useLibraryGrid } from './libraryGrid'
+import { locale } from '../i18n'
 
 const PAGE_SIZE = 200
 
@@ -390,10 +391,10 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
             {total === undefined && (albums || genrePage)
               ? '\u00a0'
               : albums
-                ? `${(total ?? 0).toLocaleString()} ${genre && !query && !genrePage ? `${genre} ` : ''}${query ? 'matching' : total === 1 ? 'album' : 'albums'}`
+                ? `${(total ?? 0).toLocaleString(locale())} ${genre && !query && !genrePage ? `${genre} ` : ''}${query ? 'matching' : total === 1 ? 'album' : 'albums'}`
                 : genrePage
-                  ? `${(total ?? 0).toLocaleString()} ${query ? 'matching' : library.type === 'TvShows' ? (total === 1 ? 'show' : 'shows') : total === 1 ? 'movie' : 'movies'}`
-                  : `${(total ?? library.itemCount).toLocaleString()} ${query || genre ? 'matching' : { Movies: 'movies', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts', HomeVideos: 'folders', Audiobooks: 'books' }[library.type]}`}
+                  ? `${(total ?? 0).toLocaleString(locale())} ${query ? 'matching' : library.type === 'TvShows' ? (total === 1 ? 'show' : 'shows') : total === 1 ? 'movie' : 'movies'}`
+                  : `${(total ?? library.itemCount).toLocaleString(locale())} ${query || genre ? 'matching' : { Movies: 'movies', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts', HomeVideos: 'folders', Audiobooks: 'books' }[library.type]}`}
           </p>
           {albums && genre && (
             // A genre plays as a station: up to 200 of its tracks, in order or shuffled.

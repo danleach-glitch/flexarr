@@ -5,6 +5,7 @@ import { useApi } from '../hooks/useApi'
 import { friendlyTimeLeft, timeLabel } from '../lib/dates'
 import { episodeCode } from '../lib/format'
 import { webLink } from '../lib/links'
+import { locale } from '../i18n'
 
 /** Yesterday (for what just arrived) and four weeks ahead. */
 const DAYS = 30
@@ -64,8 +65,8 @@ export function UpcomingPage() {
                 data-week-start={d.getDay() === 1 || undefined}
               >
                 <h2 className="day-row-date">
-                  <span className="day-row-weekday">{key === todayKey ? 'Today' : d.toLocaleDateString(undefined, { weekday: 'short' })}</span>
-                  <span className="day-row-day">{d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</span>
+                  <span className="day-row-weekday">{key === todayKey ? 'Today' : d.toLocaleDateString(locale(), { weekday: 'short' })}</span>
+                  <span className="day-row-day">{d.toLocaleDateString(locale(), { day: 'numeric', month: 'short' })}</span>
                 </h2>
                 {items.length > 0 ? (
                   <div className="day-row-entries">

@@ -6,6 +6,7 @@ import { PosterCard } from '../components/Cards'
 import { RequestButton } from '../components/RequestButton'
 import { WatchlistButton } from '../components/WatchlistButton'
 import { useApi } from '../hooks/useApi'
+import { locale } from '../i18n'
 
 const STATUSES: [WatchlistStatus | '', string][] = [
   ['', 'Everything'],
@@ -119,7 +120,7 @@ const statusLabel = (entry: WatchlistEntry) => {
     case 'OnItsWay':
       return 'On its way'
     case 'Coming':
-      return entry.releaseDate ? `Out ${new Date(entry.releaseDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}` : 'Coming'
+      return entry.releaseDate ? `Out ${new Date(entry.releaseDate).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}` : 'Coming'
     default:
       return null
   }

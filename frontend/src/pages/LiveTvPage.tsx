@@ -12,6 +12,7 @@ import { useAgeLimits, useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { clock, programmeTime, programmeTitle, progress, tidyGroup } from '../lib/livetv'
+import { locale } from '../i18n'
 
 const LiveRecordings = lazy(() => import('./LiveRecordings'))
 
@@ -324,7 +325,7 @@ function Guide() {
         <aside className="panel livetv-details" aria-live="polite">
           <h2>{selected.programme.title}</h2>
           <p className="muted">
-            {selected.channel.name}{'\u2003'}{new Date(selected.programme.start).toLocaleDateString(undefined, { weekday: 'long' })} {programmeTime(selected.programme)}
+            {selected.channel.name}{'\u2003'}{new Date(selected.programme.start).toLocaleDateString(locale(), { weekday: 'long' })} {programmeTime(selected.programme)}
             {selected.programme.season != null && `\u2003Series ${selected.programme.season}${selected.programme.episode != null ? `, episode ${selected.programme.episode}` : ''}`}
             {selected.programme.isNew && '\u2003New'}
           </p>

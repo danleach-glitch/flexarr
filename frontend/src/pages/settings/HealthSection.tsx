@@ -10,6 +10,7 @@ import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
 import { episodeCode, formatSize, relativeTime, unreadableReason } from '../../lib/format'
 import { SettingsHeader } from './shared'
+import { locale } from '../../i18n'
 
 function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
   const check = useApi(getHealthCheck, [])
@@ -36,9 +37,9 @@ function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
           <strong>Health check</strong>
           <p className="muted">
             {running && report
-              ? `Checking files: ${report.checked.toLocaleString()} of ${report.total.toLocaleString()}`
+              ? `Checking files: ${report.checked.toLocaleString(locale())} of ${report.total.toLocaleString(locale())}`
               : report?.finishedAt
-                ? `Last checked ${relativeTime(report.finishedAt)}: ${report.total.toLocaleString()} files, ${report.problems.length ? `${report.problems.length.toLocaleString()} with problems` : 'no problems'}.`
+                ? `Last checked ${relativeTime(report.finishedAt)}: ${report.total.toLocaleString(locale())} files, ${report.problems.length ? `${report.problems.length.toLocaleString(locale())} with problems` : 'no problems'}.`
                 : 'Looks at every file: whether it’s still on disk, not empty, and readable.'}
           </p>
         </div>
@@ -65,7 +66,7 @@ function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
           return (
             <div key={kind} className="health-check-group">
               <h4>
-                {labels[kind]} ({found.length.toLocaleString()})
+                {labels[kind]} ({found.length.toLocaleString(locale())})
               </h4>
               <ul className="health-check-list">
                 {found.slice(0, 100).map(({ file, item }) => (
@@ -186,25 +187,25 @@ export function HealthSection() {
         <div>
           <p className="health-score-summary">
             {score.withProblems === 0
-              ? `All ${score.titles.toLocaleString()} ${titlesNoun} are in good shape.`
-              : `${(score.titles - score.withProblems).toLocaleString()} of ${score.titles.toLocaleString()} ${titlesNoun} have no problems.`}
+              ? `All ${score.titles.toLocaleString(locale())} ${titlesNoun} are in good shape.`
+              : `${(score.titles - score.withProblems).toLocaleString(locale())} of ${score.titles.toLocaleString(locale())} ${titlesNoun} have no problems.`}
           </p>
           <ul className="health-score-breakdown">
             {breakdown
               .filter(([n]) => n > 0)
               .map(([n, label]) => (
                 <li key={label}>
-                  <strong>{n.toLocaleString()}</strong> {label}
+                  <strong>{n.toLocaleString(locale())}</strong> {label}
                 </li>
               ))}
             {data.held.length > 0 && (
               <li>
-                <strong>{data.held.length.toLocaleString()}</strong> {data.held.length === 1 ? 'folder' : 'folders'} on hold
+                <strong>{data.held.length.toLocaleString(locale())}</strong> {data.held.length === 1 ? 'folder' : 'folders'} on hold
               </li>
             )}
             {withoutArtwork > 0 && (
               <li>
-                <strong>{withoutArtwork.toLocaleString()}</strong> without artwork
+                <strong>{withoutArtwork.toLocaleString(locale())}</strong> without artwork
                 {needsConnection === withoutArtwork ? (
                   <>
                     : <Link to="/settings/connections">connect Radarr or Sonarr</Link> to fill it in
@@ -213,7 +214,7 @@ export function HealthSection() {
                   needsConnection > 0 && (
                     <>
                       {' '}
-                      (<Link to="/settings/connections">connect Radarr or Sonarr</Link> to fill in {needsConnection.toLocaleString()})
+                      (<Link to="/settings/connections">connect Radarr or Sonarr</Link> to fill in {needsConnection.toLocaleString(locale())})
                     </>
                   )
                 )}
@@ -247,13 +248,13 @@ export function HealthSection() {
           <div className="health-progress" role="status">
             <span>
               {removing.done < removing.total
-                ? `Removing spare copies: ${removing.done.toLocaleString()} of ${removing.total.toLocaleString()} titles`
+                ? `Removing spare copies: ${removing.done.toLocaleString(locale())} of ${removing.total.toLocaleString(locale())} titles`
                 : removing.total - removing.kept - removing.failed > 0
-                  ? `Removed spare copies of ${(removing.total - removing.kept - removing.failed).toLocaleString()} titles, freeing ${formatSize(removing.freed)}.`
+                  ? `Removed spare copies of ${(removing.total - removing.kept - removing.failed).toLocaleString(locale())} titles, freeing ${formatSize(removing.freed)}.`
                   : 'Nothing was removed.'}
               {removing.done === removing.total &&
                 removing.kept > 0 &&
-                ` ${removing.kept.toLocaleString()} kept every copy: Sonarr or Radarr use a different copy from the best one. Open a title to delete the copy you don’t want.`}
+                ` ${removing.kept.toLocaleString(locale())} kept every copy: Sonarr or Radarr use a different copy from the best one. Open a title to delete the copy you don’t want.`}
               {removing.failed > 0 && ` ${removing.failed} couldn’t be removed (see the server log).`}
             </span>
             <span className="scan-track" aria-hidden="true">
@@ -302,7 +303,7 @@ export function HealthSection() {
         ))}
         {data.duplicates.length > shown && (
           <button className="button quiet small health-more" onClick={() => setShown((n) => n + 100)}>
-            Show more ({(data.duplicates.length - shown).toLocaleString()} left)
+            Show more ({(data.duplicates.length - shown).toLocaleString(locale())} left)
           </button>
         )}
       </HealthGroup>
@@ -381,7 +382,7 @@ export function HealthSection() {
             score.missingArtwork === 0 && needsConnection > 0
               ? 'Artwork comes from Radarr and Sonarr. Connect them in Settings › Connections to fill it in.'
               : needsConnection > 0
-                ? `${needsConnection.toLocaleString()} ${needsConnection === 1 ? 'needs' : 'need'} Radarr or Sonarr connected in Settings › Connections to fill it in. The rest aren’t found there: fix the match to choose the right title, or rename the folder to “Title (Year)”.`
+                ? `${needsConnection.toLocaleString(locale())} ${needsConnection === 1 ? 'needs' : 'need'} Radarr or Sonarr connected in Settings › Connections to fill it in. The rest aren’t found there: fix the match to choose the right title, or rename the folder to “Title (Year)”.`
                 : 'Not found in Sonarr or Radarr. Fix the match to choose the right title, or rename the folder to “Title (Year)”.'
           }
         >
@@ -404,7 +405,7 @@ export function HealthSection() {
 
       {confirmAll && (
         <ConfirmDialog
-          title={`Remove ${data.duplicates.length.toLocaleString()} spare copies?`}
+          title={`Remove ${data.duplicates.length.toLocaleString(locale())} spare copies?`}
           cancelLabel="Keep them"
           confirmLabel="Remove spare copies"
           danger
@@ -440,8 +441,8 @@ function HeldFolders({ folders, onConfirmed }: { folders: HeldFolder[]; onConfir
     f.reason === 'FolderMissing'
       ? 'The folder isn’t there. Is its drive or share connected?'
       : f.reason === 'FolderEmpty'
-        ? `The folder is empty but held ${f.known.toLocaleString()} files. Is its drive or share mounted?`
-        : `${f.missing.toLocaleString()} of its ${f.known.toLocaleString()} files went at once. If that’s a clear-out, it goes through by itself after a day of scans finding the same.`
+        ? `The folder is empty but held ${f.known.toLocaleString(locale())} files. Is its drive or share mounted?`
+        : `${f.missing.toLocaleString(locale())} of its ${f.known.toLocaleString(locale())} files went at once. If that’s a clear-out, it goes through by itself after a day of scans finding the same.`
 
   async function confirm(f: HeldFolder) {
     setAsking(null)
@@ -486,7 +487,7 @@ function HeldFolders({ folders, onConfirmed }: { folders: HeldFolder[]; onConfir
       ))}
       {asking && (
         <ConfirmDialog
-          title={`Remove ${asking.missing.toLocaleString()} ${heldNoun(asking)} from ${asking.library}?`}
+          title={`Remove ${asking.missing.toLocaleString(locale())} ${heldNoun(asking)} from ${asking.library}?`}
           cancelLabel="Not yet"
           confirmLabel="Remove from Flexarr"
           danger
@@ -651,7 +652,7 @@ function HealthGroup({ title, count, lede, action, shown, children }: { title: s
       <header>
         <div>
           <h3 className="settings-subhead">
-            {title} <span className="health-count">{count.toLocaleString()}</span>
+            {title} <span className="health-count">{count.toLocaleString(locale())}</span>
           </h3>
           <p className="muted">{lede}</p>
         </div>

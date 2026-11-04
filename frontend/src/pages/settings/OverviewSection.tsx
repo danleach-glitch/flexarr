@@ -4,6 +4,7 @@ import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
 import { episodeCode, formatClock } from '../../lib/format'
 import { SettingLink, SettingsGroup, SettingsHeader } from './shared'
+import { locale } from '../../i18n'
 
 /** "Sonarr, Radarr and Lidarr" */
 const list = (names: string[]) => (names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`)
@@ -62,14 +63,14 @@ export function OverviewSection() {
         <SettingLink
           to="/settings/libraries"
           label="Libraries"
-          help={libraries ? `${libraries.length.toLocaleString()} ${libraries.length === 1 ? 'library' : 'libraries'}\u2003${titles.toLocaleString()} titles` : '…'}
+          help={libraries ? `${libraries.length.toLocaleString(locale())} ${libraries.length === 1 ? 'library' : 'libraries'}\u2003${titles.toLocaleString(locale())} titles` : '…'}
         />
         <SettingLink
           to="/settings/health"
           label="Library health"
           help={
             health
-              ? `Score ${health.score}${health.withProblems > 0 ? `{'\u2003'}${health.withProblems.toLocaleString()} ${health.withProblems === 1 ? 'title needs' : 'titles need'} a look` : '\u2003all in good shape'}`
+              ? `Score ${health.score}${health.withProblems > 0 ? `{'\u2003'}${health.withProblems.toLocaleString(locale())} ${health.withProblems === 1 ? 'title needs' : 'titles need'} a look` : '\u2003all in good shape'}`
               : '…'
           }
         />
@@ -86,7 +87,7 @@ export function OverviewSection() {
           </div>
           <div className="setting-row static meter">
             <span>
-              Intros and credits found for {data.episodesAnalysed.toLocaleString()} of {data.episodesTotal.toLocaleString()} episodes
+              Intros and credits found for {data.episodesAnalysed.toLocaleString(locale())} of {data.episodesTotal.toLocaleString(locale())} episodes
             </span>
             <span className="scan-track">
               <span style={{ width: `${data.episodesTotal ? Math.round((data.episodesAnalysed / data.episodesTotal) * 100) : 100}%` }} />
@@ -94,7 +95,7 @@ export function OverviewSection() {
           </div>
           <div className="setting-row static meter">
             <span>
-              Artwork and details for {data.itemsWithMetadata.toLocaleString()} of {data.itemsTotal.toLocaleString()} titles
+              Artwork and details for {data.itemsWithMetadata.toLocaleString(locale())} of {data.itemsTotal.toLocaleString(locale())} titles
             </span>
           </div>
         </SettingsGroup>

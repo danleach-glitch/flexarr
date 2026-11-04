@@ -52,6 +52,7 @@ import {
   progressOf,
   pictureLabel,
 } from '../lib/format'
+import { locale } from '../i18n'
 
 export function ItemPage() {
   const { id = '' } = useParams()
@@ -213,7 +214,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             extra={[
               item.resolution,
               best ? pictureLabel(best) : null,
-              item.kind === 'Episode' && item.releaseDate ? new Date(item.releaseDate).toLocaleDateString(undefined, { dateStyle: 'medium' }) : null,
+              item.kind === 'Episode' && item.releaseDate ? new Date(item.releaseDate).toLocaleDateString(locale(), { dateStyle: 'medium' }) : null,
             ]}
           />
           {detail.overview && <Overview text={detail.overview} />}
@@ -432,7 +433,7 @@ function Episode({ episode, overview, onChange }: { episode: ItemSummary; overvi
           <Link to={`/item/${episode.id}`}>{episode.title}</Link>
         </h3>
         <p className="episode-facts muted">
-          {[formatDuration(episode.durationSeconds ?? (episode.runtimeMinutes ?? 0) * 60), episode.releaseDate && new Date(episode.releaseDate).toLocaleDateString(undefined, { dateStyle: 'medium' })]
+          {[formatDuration(episode.durationSeconds ?? (episode.runtimeMinutes ?? 0) * 60), episode.releaseDate && new Date(episode.releaseDate).toLocaleDateString(locale(), { dateStyle: 'medium' })]
             .filter(Boolean)
             .map((f) => (
               <span key={String(f)}>{f}</span>

@@ -26,6 +26,7 @@ import { libraryTypeLabel, relativeTime } from '../../lib/format'
 import { BookDetailsGroup } from './BookDetailsGroup'
 import { SaveStatus, SettingLink, SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { errorText } from './useSettings'
+import { locale } from '../../i18n'
 
 export function LibrariesSection() {
   // The nav's list (which polls during scans) leaves out libraries hidden from this profile; Settings shows them all.
@@ -101,7 +102,7 @@ function LibraryTools() {
           score
             ? score.withProblems === 0
               ? `Score ${score.score}. Every movie and episode is in good shape.`
-              : `Score ${score.score}. ${score.withProblems.toLocaleString()} ${score.withProblems === 1 ? 'title needs' : 'titles need'} a look.`
+              : `Score ${score.score}. ${score.withProblems.toLocaleString(locale())} ${score.withProblems === 1 ? 'title needs' : 'titles need'} a look.`
             : 'Spare copies, unreadable files, movies only in SD and wrong matches.'
         }
       />
@@ -217,7 +218,7 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
           </h3>
         )}
         <p className="muted">
-          {libraryTypeLabel[library.type]}{'\u2003'}{library.itemCount.toLocaleString()} {library.type === 'Audiobooks' ? (library.itemCount === 1 ? 'book' : 'books') : library.itemCount === 1 ? 'title' : 'titles'}{'\u2003'}
+          {libraryTypeLabel[library.type]}{'\u2003'}{library.itemCount.toLocaleString(locale())} {library.type === 'Audiobooks' ? (library.itemCount === 1 ? 'book' : 'books') : library.itemCount === 1 ? 'title' : 'titles'}{'\u2003'}
           {scanning ? <span className="now-scanning">Now scanning…</span> : `scanned ${relativeTime(library.lastScannedAt)}`}
         </p>
         {library.folders.map((f) => (
