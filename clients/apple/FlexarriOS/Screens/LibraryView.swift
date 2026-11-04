@@ -99,13 +99,9 @@ struct LibraryView: View {
             }
         }
         .navigationTitle(initialGenre ?? library.name)
-        .toolbar {
-            #if os(macOS)
-            ToolbarItem(placement: .principal) { switchControl.fixedSize() }
-            #endif
-            if showing == .all || showing == .albums {
-                ToolbarItem(placement: .topBarTrailing) { sortAndFilter }
-            }
+        .pageSwitch { switchControl }
+        .pageActions {
+            if showing == .all || showing == .albums { sortAndFilter }
         }
         .task {
             // For the toolbar's genre menu and the Genres view, once; a genre's own page needs neither.

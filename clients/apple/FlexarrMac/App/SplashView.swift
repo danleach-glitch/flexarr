@@ -12,6 +12,8 @@ struct SplashView: View {
                     .foregroundStyle(Color.screen)
             }
         }
+        // The whole window, whatever its toolbar does meanwhile, so the mark doesn't move as the splash goes.
+        .ignoresSafeArea()
         .accessibilityHidden(true)
     }
 }

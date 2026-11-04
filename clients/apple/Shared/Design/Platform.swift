@@ -60,15 +60,34 @@ extension NSImage {
 #endif
 
 extension View {
-    /// A list page on the Mac: room either side, and its rows' icons spaced from their words, as a Mac's Settings
-    /// window has them. The phones' lists already have both.
+    /// A list page on the Mac (Settings, Downloads, Coming soon's list): one centred column of readable width with
+    /// the page margin either side, rows tall enough to breathe, icons spaced from their words. The phones' lists
+    /// already have all of that.
+    /// `title` heads the column, and `parent` before it ("Settings › Server"): the Mac's window shows no title.
     @ViewBuilder
-    func macReadable() -> some View {
+    func macReadable(title: String? = nil, parent: String? = nil) -> some View {
         #if os(macOS)
-        self
-            .contentMargins(.horizontal, 28, for: .scrollContent)
-            .contentMargins(.vertical, 12, for: .scrollContent)
-            .labelStyle(SpacedLabelStyle())
+        VStack(alignment: .leading, spacing: 8) {
+            if let title {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    if let parent {
+                        Text(parent).foregroundStyle(Color.usher)
+                        Image(systemName: "chevron.right").font(.system(size: 18, weight: .bold)).foregroundStyle(Color.usher)
+                    }
+                    Text(title).foregroundStyle(Color.screen)
+                }
+                .font(.marquee(34, weight: .bold, scales: false))
+                .lineLimit(1)
+                .padding(.top, 8)
+                .accessibilityAddTraits(.isHeader)
+            }
+            self
+                .environment(\.defaultMinListRowHeight, 46)
+                .labelStyle(SpacedLabelStyle())
+        }
+        .frame(maxWidth: 760)
+        .padding(.horizontal, Layout.edge)
+        .frame(maxWidth: .infinity)
         #else
         self
         #endif
@@ -79,7 +98,7 @@ extension View {
 /// An icon then its words, with room between them.
 struct SpacedLabelStyle: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             configuration.icon
             configuration.title
         }

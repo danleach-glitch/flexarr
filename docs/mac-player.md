@@ -28,6 +28,42 @@ Decided:
 
 The server learns one thing: `X-Flexarr-Device: Mac`, a new `DeviceType.Mac`, so Sign-ins, pairing and family invites name and draw it. Older servers ignore a value they don't know.
 
+## The Mac's page layout
+
+The Mac app shares the iPad's screens, so its look comes from a few rules applied once, not screen by screen. Colours,
+radii, icons and words are the design system's (`design/tokens.json`, `docs/design.md`); these are the Mac's sizes and
+places. Every screen follows them; a screen that needs to break one says why.
+
+**Type** (`FlexarrMac/App/MacTypeScale.swift`). The shared screens name iOS text styles, which macOS sets two sizes
+smaller. The Mac app replaces them with a scale close to the iPad's: body 15, callout and subheadline 14, footnote 13,
+caption 12, caption 2 11, headline 16 semibold, title 3 19, title 2 22, title 28, large title 34. Titles of pages and
+rows stay in the marquee face (Big Shoulders Display). Text with no style of its own is body. Controls are large.
+
+**Margins and spacing** (`Layout`, Mac values). One page margin, 32 pt, for heroes, row headings, rows, grids and
+lists. Posters 176 pt wide with 18 pt between them. Rows 28 pt apart.
+
+**The window's toolbar** (`Shared/Design/PageChrome.swift`). See-through, over the page: heroes run up under it.
+- Left: back, and nothing else.
+- Middle: the page's view switch (Browse, All, Genres…; Discover's Movies and shows or Music), from `pageSwitch`,
+  segmented, large, the same size and place on every page.
+- Right: the page's actions (Filter, Sort and filter, Recordings, Guide), from `pageActions`, each a named button with
+  its icon; search, where a page has one, after them. Search's own page has its field in the middle.
+
+**Lists** (Settings, Downloads; `macReadable`). One centred column, 760 pt at most, with the page margin either side,
+headed by the page's title in the marquee face ("Settings › Server" inside Settings), rows at least 46 pt tall, icons
+14 pt from their words.
+
+**Wide pages.** Title pages put Play (or Request) at its own width with the other actions beside it; episodes are wide
+rows with the overview beside the picture; Coming soon's days are grids of cards; downloads have big artwork.
+
+**The player.** One margin, 36 pt, for the close button, the title, the timeline and the controls. The top row sits
+below the window's own buttons (in full screen, near the top). The bottom: the timeline, its times under its ends, then
+the facts on the left, play (a 68 pt glass circle) and the skips in the middle, and the menus (audio, subtitles, speed,
+sleep timer, AirPlay, full screen) on the right, every target at least 44 pt, lighting up under the pointer.
+
+**Who's watching?** The whole window, centred, with a Cancel button under the profiles; right-click a kids profile for
+child lock. **Splash:** about a second of the mark and name, fixed in place as it fades.
+
 ## Phases
 
 1. **Plan and server:** this page, `DeviceType.Mac`, the web's icon and name for it.

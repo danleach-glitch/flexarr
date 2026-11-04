@@ -95,59 +95,71 @@ struct MacPlayerControls: View {
 
     // MARK: Top
 
+    /// The player's grid: one margin for the close button, the title, the timeline and the controls; the top row
+    /// below the window's own buttons (or near the top in full screen, where there are none).
+    static let edge: CGFloat = 36
+    private var topInset: CGFloat { state.isFullScreen ? 28 : 44 }
+
     private var top: some View {
-        HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .center, spacing: 16) {
             Button { screen?.close() } label: {
-                Image(systemName: "xmark").font(.system(size: 15, weight: .semibold)).frame(width: 34, height: 34)
+                Image(systemName: "xmark").font(.system(size: 17, weight: .semibold)).frame(width: 44, height: 44)
             }
             .buttonStyle(GlassCircle())
             .help(t("Close"))
             .accessibilityLabel(t("Close"))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(state.title).font(.title3.weight(.bold)).lineLimit(1)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(state.title).font(.system(size: 22, weight: .bold)).lineLimit(1)
                 if let subtitle = state.subtitle, !subtitle.isEmpty {
-                    Text(subtitle).font(.callout).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+                    Text(subtitle).font(.system(size: 15, weight: .medium)).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
                 }
             }
-            Spacer()
+            Spacer(minLength: 24)
             if state.canPictureInPicture {
                 Button { screen?.startPictureInPicture() } label: {
-                    Image(systemName: "pip.enter").font(.system(size: 15, weight: .semibold)).frame(width: 34, height: 34)
+                    Image(systemName: "pip.enter").font(.system(size: 17, weight: .semibold)).frame(width: 44, height: 44)
                 }
                 .buttonStyle(GlassCircle())
                 .help(t("Picture in Picture"))
                 .accessibilityLabel(t("Picture in Picture"))
             }
         }
-        // Level with the window's close, minimise and zoom buttons, clear of them on the left.
-        .padding(.leading, state.isFullScreen ? 24 : 84).padding(.trailing, 20)
-        .padding(.top, state.isFullScreen ? 20 : 8).padding(.bottom, 40)
-        .background(LinearGradient(colors: [.black.opacity(0.6), .clear], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
+        .padding(.horizontal, Self.edge)
+        .padding(.top, topInset).padding(.bottom, 60)
+        .background(LinearGradient(colors: [.black.opacity(0.7), .clear], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
     }
 
     // MARK: Bottom
 
+    /// The timeline across the margin, its times under its two ends; then the facts on the left, play and the skips in
+    /// the middle, the menus on the right, on one line.
     private var bottom: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             if state.prompt != nil {
-                HStack { Spacer(); promptPill }
+                HStack { Spacer(); promptPill }.padding(.bottom, 6)
             }
             MacScrubber(state: state, screen: screen)
-            HStack(spacing: 18) {
-                Text(PlayerViewController.clock(state.position)).monospacedDigit().font(.callout).foregroundStyle(.white.opacity(0.8))
+            HStack {
+                Text(PlayerViewController.clock(state.position))
                 Spacer()
+                Text(remaining)
+            }
+            .font(.system(size: 14, weight: .semibold)).monospacedDigit()
+            .foregroundStyle(.white.opacity(0.8))
+            ZStack {
+                HStack {
+                    if let detail = state.detail {
+                        Text(detail).font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                    }
+                    Spacer()
+                    menus
+                }
                 transport
-                Spacer()
-                Text(remaining).monospacedDigit().font(.callout).foregroundStyle(.white.opacity(0.8))
             }
-            HStack(spacing: 10) {
-                if let detail = state.detail { Text(detail).font(.caption).foregroundStyle(.white.opacity(0.6)).lineLimit(1) }
-                Spacer()
-                menus
-            }
+            .padding(.top, 4)
         }
-        .padding(.horizontal, 28).padding(.top, 60).padding(.bottom, 22)
-        .background(LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
+        .padding(.horizontal, Self.edge).padding(.top, 80).padding(.bottom, state.isFullScreen ? 36 : 28)
+        .background(LinearGradient(colors: [.clear, .black.opacity(0.8)], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
     }
 
     private var remaining: String {
@@ -156,31 +168,43 @@ struct MacPlayerControls: View {
     }
 
     private var transport: some View {
-        HStack(spacing: 22) {
+        HStack(spacing: 28) {
             if state.hasPrevious {
-                Button { screen?.previous() } label: { Image(systemName: "backward.end.fill") }
-                    .help(state.isLive ? t("Previous channel") : t("Previous episode"))
-                    .accessibilityLabel(state.isLive ? t("Previous channel") : t("Previous episode"))
+                transportButton("backward.end.fill", size: 22, label: state.isLive ? t("Previous channel") : t("Previous episode")) { screen?.previous() }
+            } else {
+                Color.clear.frame(width: 44, height: 44)
             }
             if !state.isLive || state.maxRate > 0 {
-                Button { screen?.skip(-PlayerViewController.skipSeconds) } label: { Image(systemName: "gobackward.\(Int(PlayerViewController.skipSeconds))") }
-                    .help(t("Skip back")).accessibilityLabel(t("Skip back"))
+                transportButton("gobackward.\(Int(PlayerViewController.skipSeconds))", size: 26, label: t("Skip back")) {
+                    screen?.skip(-PlayerViewController.skipSeconds)
+                }
             }
             Button { screen?.togglePlayPause() } label: {
-                Image(systemName: state.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 30)).frame(width: 40)
+                Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
+                    .font(.system(size: 28, weight: .semibold))
+                    .frame(width: 68, height: 68)
             }
+            .buttonStyle(GlassCircle())
             .help(state.isPlaying ? t("Pause") : t(Words.play))
             .accessibilityLabel(state.isPlaying ? t("Pause") : t(Words.play))
-            Button { screen?.skip(PlayerViewController.skipSeconds) } label: { Image(systemName: "goforward.\(Int(PlayerViewController.skipSeconds))") }
-                .help(t("Skip forward")).accessibilityLabel(t("Skip forward"))
+            transportButton("goforward.\(Int(PlayerViewController.skipSeconds))", size: 26, label: t("Skip forward")) {
+                screen?.skip(PlayerViewController.skipSeconds)
+            }
             if state.hasNext {
-                Button { screen?.next() } label: { Image(systemName: "forward.end.fill") }
-                    .help(state.isLive ? t("Next channel") : t("Next episode"))
-                    .accessibilityLabel(state.isLive ? t("Next channel") : t("Next episode"))
+                transportButton("forward.end.fill", size: 22, label: state.isLive ? t("Next channel") : t("Next episode")) { screen?.next() }
+            } else {
+                Color.clear.frame(width: 44, height: 44)
             }
         }
-        .font(.system(size: 20, weight: .semibold))
-        .buttonStyle(.plain)
+    }
+
+    private func transportButton(_ symbol: String, size: CGFloat, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: size, weight: .semibold)).frame(width: 44, height: 44)
+        }
+        .buttonStyle(HoverCircle())
+        .help(label)
+        .accessibilityLabel(label)
     }
 
     @ViewBuilder
@@ -212,7 +236,7 @@ struct MacPlayerControls: View {
     // MARK: Menus
 
     private var menus: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             if state.isLive {
                 Button { screen?.showChannels() } label: { Label(t("Channels"), systemImage: "list.bullet").labelStyle(.iconOnly) }
                     .help(t("Channels"))
@@ -267,7 +291,7 @@ struct MacPlayerControls: View {
                 .help(t("Sleep timer"))
             }
             MacRoutePicker(player: state.avPlayer)
-                .frame(width: 26, height: 22)
+                .frame(width: 44, height: 44)
                 .help(t("AirPlay"))
             Button { screen?.toggleFullScreen() } label: {
                 Image(systemName: state.isFullScreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
@@ -276,10 +300,12 @@ struct MacPlayerControls: View {
             .help(state.isFullScreen ? t("Exit full screen") : t("Full screen"))
             .accessibilityLabel(state.isFullScreen ? t("Exit full screen") : t("Full screen"))
         }
-        .menuStyle(.borderlessButton)
+        .menuStyle(.button)
+        .buttonStyle(HoverCircle())
         .menuIndicator(.hidden)
         .fixedSize()
-        .font(.system(size: 15, weight: .semibold))
+        .font(.system(size: 19, weight: .semibold))
+        .labelStyle(.iconOnly)
     }
 
     @ViewBuilder
@@ -426,6 +452,20 @@ private struct AudioSyncPopover: View {
             }
         }
         .padding(18)
+    }
+}
+
+/// An icon over the picture in a 44 pt circle that lights up under the pointer.
+private struct HoverCircle: ButtonStyle {
+    @State private var hovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(minWidth: 44, minHeight: 44)
+            .background(Circle().fill(.white.opacity(configuration.isPressed ? 0.24 : hovering ? 0.14 : 0)))
+            .contentShape(Circle())
+            .onHover { hovering = $0 }
+            .animation(.easeOut(duration: 0.12), value: hovering)
     }
 }
 

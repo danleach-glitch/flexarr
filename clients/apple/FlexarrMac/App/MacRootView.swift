@@ -83,6 +83,9 @@ struct MacRootView: View {
         }
         // The iPad's layouts: a Mac window is wide.
         .environment(\.horizontalSizeClass, .regular)
+        // Text without a style of its own, and controls, at the Mac app's sizes (MacTypeScale.swift).
+        .font(.body)
+        .controlSize(.large)
         .frame(minWidth: 900, minHeight: 600)
         .toolbar(player.shown == nil && !navigation.choosingProfile && !splashing ? .automatic : .hidden, for: .windowToolbar)
         .animation(.easeInOut(duration: 0.25), value: navigation.choosingProfile)

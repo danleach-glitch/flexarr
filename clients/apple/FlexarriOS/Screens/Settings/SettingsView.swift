@@ -254,7 +254,7 @@ extension View {
     /// The room behind a Settings page, as every page of Settings has it.
     func settingsPage(_ title: String) -> some View {
         scrollContentBackground(.hidden)
-            .macReadable()
+            .macReadable(title: title, parent: title == t(Words.settings) ? nil : t(Words.settings))
             .background(RoomBackground(ambient: nil))
             .navigationTitle(title)
     }

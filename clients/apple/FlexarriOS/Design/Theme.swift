@@ -4,12 +4,20 @@ import SwiftUI
 // Phone and tablet sizes. The colour tokens, marquee type and room background are shared (Shared/Design/Colors.swift).
 
 enum Layout {
+    #if os(macOS)
+    // The Mac's (docs/mac-player.md, "The Mac's page layout"): a wider margin, bigger posters, more room between them.
+    static let edge: CGFloat = 32
+    static func posterWidth(_ sizeClass: UserInterfaceSizeClass?) -> CGFloat { 176 }
+    static func wideWidth(_ sizeClass: UserInterfaceSizeClass?) -> CGFloat { 360 }
+    static let rowSpacing: CGFloat = 18
+    #else
     /// The shared left edge for heroes, rows and grids.
     static let edge: CGFloat = 20
     /// Posters in a row: a little over three across on a phone, more on an iPad.
     static func posterWidth(_ sizeClass: UserInterfaceSizeClass?) -> CGFloat { sizeClass == .regular ? 160 : 116 }
     static func wideWidth(_ sizeClass: UserInterfaceSizeClass?) -> CGFloat { sizeClass == .regular ? 340 : 260 }
     static let rowSpacing: CGFloat = 12
+    #endif
 }
 
 /// "2016   1h 56m   TV-MA": facts separated by space, never middle dots, then any scores beside their marks. When

@@ -154,6 +154,14 @@ struct ProfilePickerView: View {
                                 Button(model.kidsLock ? t("Turn off child lock") : t("Child lock")) { toggleChildLock(on: profile) }
                             }
                         }
+                        #if os(macOS)
+                        // A Mac has no holding a finger on it: right-click for child lock.
+                        .contextMenu {
+                            if lockBadge(for: profile) {
+                                Button(model.kidsLock ? t("Turn off child lock") : t("Child lock")) { toggleChildLock(on: profile) }
+                            }
+                        }
+                        #endif
                     }
                 }
                 .padding(.horizontal, 32)

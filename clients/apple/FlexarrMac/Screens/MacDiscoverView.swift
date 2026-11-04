@@ -42,18 +42,13 @@ struct MacDiscoverView: View {
         }
         .background(RoomBackground(ambient: nil))
         .navigationTitle(t(Words.discover))
-        .searchable(text: $query, placement: .toolbarPrincipal,
+        .searchable(text: $query, placement: .toolbar,
                     prompt: showing == .titles ? t("Search for a movie or show") : t("Search for an artist or album"))
-        .toolbar {
+        .pageSwitch {
             if offersTitles && offersMusic {
-                ToolbarItem(placement: .navigation) {
-                    Picker(t(Words.discover), selection: $mode) {
-                        Text(t(Words.moviesAndShows)).tag(Mode.titles)
-                        Text(t(Words.music)).tag(Mode.music)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .fixedSize()
+                Picker(t(Words.discover), selection: $mode) {
+                    Text(t(Words.moviesAndShows)).tag(Mode.titles)
+                    Text(t(Words.music)).tag(Mode.music)
                 }
             }
         }

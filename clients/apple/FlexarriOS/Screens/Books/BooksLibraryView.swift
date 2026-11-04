@@ -173,13 +173,9 @@ struct BooksLibraryView: View {
         .background(RoomBackground(ambient: (featured ?? browse.shelves?.continueListening.first)?.glowColor, intensity: featured == nil ? 0.18 : 0.28)
             .animation(.easeInOut(duration: 0.8), value: featured?.id))
         .navigationTitle(genre ?? browse.library.name)
-        .toolbar {
-            #if os(macOS)
-            if genre == nil { ToolbarItem(placement: .principal) { tabControl.fixedSize() } }
-            #endif
-            if browse.browse == .all {
-                ToolbarItem(placement: .topBarTrailing) { filterMenu }
-            }
+        .pageSwitch { if genre == nil { tabControl } }
+        .pageActions {
+            if browse.browse == .all { filterMenu }
         }
         .refreshable { await load() }
         .task(id: "\(browse.browse.rawValue)#\(browse.filter.hashValue)") { await load() }
@@ -393,9 +389,8 @@ struct BooksLibraryView: View {
                                                 set: { browse.filter.descending = $0 != browse.filter.sort.descendingByDefault }))
             }
         } label: {
-            Image(systemName: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+            Label(t("Filter and sort"), systemImage: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
         }
-        .accessibilityLabel(t("Filter and sort"))
     }
 
     /// Filters that leave nothing: say so, with a way back to every book (the sort stays).

@@ -45,7 +45,7 @@ struct LiveTvView: View {
         .navigationTitle(t(Words.liveTv))
         // The guide wants the height: the title small at the top.
         .navigationBarTitleDisplayMode(showsGuide ? .inline : .automatic)
-        .toolbar {
+        .pageActions {
             if channels?.isEmpty == false {
                 // A recording is for everyone, so a profile with an age limit has none to see or set.
                 if !model.hasAgeLimit {

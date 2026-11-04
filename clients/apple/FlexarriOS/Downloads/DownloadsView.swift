@@ -56,7 +56,7 @@ struct DownloadsView: View {
                     }
                 }
                 .scrollContentBackground(.hidden)
-                .macReadable()
+                .macReadable(title: t(Words.downloads))
             }
         }
         .background(RoomBackground(ambient: nil))
