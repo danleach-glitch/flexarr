@@ -16,6 +16,8 @@ enum SidebarItem: Hashable {
 final class MacNavigation {
     static let shared = MacNavigation()
     var selection: SidebarItem? = .home
+    /// Who's watching? is over the window (from the sidebar's profile).
+    var choosingProfile = false
     /// Each place keeps its own stack, so going back to it lands where it was.
     private(set) var routers: [SidebarItem: Router] = [:]
 
@@ -47,7 +49,6 @@ struct MacMainView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var downloads
     @State private var navigation = MacNavigation.shared
-    @State private var choosingProfile = false
 
     var body: some View {
         NavigationSplitView {
@@ -100,23 +101,6 @@ struct MacMainView: View {
             await model.loadLibraries()
             if model.libraries.isEmpty, model.librariesError != nil, !downloads.downloads.isEmpty { navigation.selection = .downloads }
         }
-        // Who's watching? fills the window, as at launch; Esc or Cancel goes back.
-        .overlay {
-            if choosingProfile {
-                ZStack(alignment: .topTrailing) {
-                    // It closes itself once a profile's chosen (below): a dismiss here has no sheet to close.
-                    ProfilePickerView(marksCurrent: true)
-                    Button(t(Words.cancel)) { choosingProfile = false }
-                        .keyboardShortcut(.cancelAction)
-                        .padding(20)
-                }
-                .background(Color.room)
-                .ignoresSafeArea()
-                .transition(.opacity)
-            }
-        }
-        .animation(.easeInOut(duration: 0.25), value: choosingProfile)
-        .onChange(of: model.currentProfile?.id) { _, _ in choosingProfile = false }
         .sheet(item: Bindable(model).addingToPlaylist) { AddToPlaylistSheet(request: $0).frame(minWidth: 420, minHeight: 480) }
         .onChange(of: model.pendingRoute) { _, route in
             if route != nil { navigation.selection = .home }
@@ -135,7 +119,7 @@ struct MacMainView: View {
     @ViewBuilder
     private var profileRow: some View {
         if let current = model.currentProfile {
-            Button { choosingProfile = true } label: {
+            Button { navigation.choosingProfile = true } label: {
                 HStack(spacing: 10) {
                     ProfileAvatar(profile: current, size: 28)
                     Text(current.name).font(.body.weight(.semibold)).lineLimit(1)

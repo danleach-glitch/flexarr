@@ -13,6 +13,7 @@ struct MacRootView: View {
     @Environment(\.requestReview) private var requestReview
     @State private var reviews = ReviewPrompt()
     @State private var player = PlayerHost.shared
+    @State private var navigation = MacNavigation.shared
     /// The welcome cards have been seen or skipped. `-FlexarrWelcomed NO` shows them again.
     @AppStorage("FlexarrWelcomed") private var welcomed = false
     @State private var showsDownloads = false
@@ -49,6 +50,21 @@ struct MacRootView: View {
                         .transition(.opacity)
                 }
             }
+            // Who's watching? from the sidebar's profile: the whole window, as at launch.
+            if navigation.choosingProfile {
+                VStack(spacing: 0) {
+                    ProfilePickerView(marksCurrent: true)
+                    Button { navigation.choosingProfile = false } label: {
+                        Label(t(Words.cancel), systemImage: "xmark")
+                    }
+                    .buttonStyle(ActionButtonStyle())
+                    .keyboardShortcut(.cancelAction)
+                    .padding(.bottom, 64)
+                }
+                .background(RoomBackground(ambient: nil).ignoresSafeArea())
+                .transition(.opacity)
+                .zIndex(1)
+            }
             if splashing {
                 SplashView()
                     .transition(.opacity)
@@ -68,7 +84,10 @@ struct MacRootView: View {
         // The iPad's layouts: a Mac window is wide.
         .environment(\.horizontalSizeClass, .regular)
         .frame(minWidth: 900, minHeight: 600)
-        .toolbar(player.shown == nil ? .automatic : .hidden, for: .windowToolbar)
+        .toolbar(player.shown == nil && !navigation.choosingProfile && !splashing ? .automatic : .hidden, for: .windowToolbar)
+        .animation(.easeInOut(duration: 0.25), value: navigation.choosingProfile)
+        // A profile chosen there (or the signed-in profile changing anywhere) closes it.
+        .onChange(of: model.currentProfile?.id) { _, _ in navigation.choosingProfile = false }
         .animation(.easeInOut(duration: 0.2), value: player.shown == nil)
         .sheet(isPresented: $showsDownloads) {
             NavigationStack { DownloadsView() }.frame(minWidth: 640, minHeight: 480)
