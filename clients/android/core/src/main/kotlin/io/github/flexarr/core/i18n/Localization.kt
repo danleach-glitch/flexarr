@@ -180,7 +180,8 @@ object Localization {
         if (code == null || code == "en") return show(null)
         val onDevice = newestOnDevice(code)
         show(onDevice)
-        val published = offered.firstOrNull { it.code in fallbacks(code) }
+        // The most specific the server has (de-AT, then de); English is never a pack.
+        val published = fallbacks(code).filter { it != "en" }.firstNotNullOfOrNull { c -> offered.firstOrNull { it.code == c } }
         if (published != null && published.version > (onDevice?.version ?: -1)) {
             download(published.code)?.let { keep(it); show(it) }
         } else if (published == null && onDevice == null) {
