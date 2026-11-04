@@ -26,9 +26,9 @@ const statuses = {
 
 // The page's sections, in order: what runs at home, what you watch on, and what works alongside.
 const kinds = {
-  server: { title: 'The server', number: 1, intro: 'One per home. It holds your films, TV, music and podcasts and streams them to every screen.' },
-  player: { title: 'The players', number: 2, intro: 'Watch on as many screens as you like. Each one signs in to your server.' },
-  integration: { title: 'Works with', intro: 'Add-ons that bring Flexarr into the rest of your home.' },
+  server: { title: 'The server', glyph: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>', intro: 'One per home. It holds your films, TV, music and podcasts and streams them to every screen.' },
+  player: { title: 'The players', glyph: '<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/><path d="m10 8 5 2.5-5 2.5z"/>', intro: 'Watch on as many screens as you like. Each one signs in to your server.' },
+  integration: { title: 'Works with', glyph: '<path d="M9 2v6M15 2v6"/><path d="M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/>', intro: 'Add-ons that bring Flexarr into the rest of your home.' },
 };
 
 const stroke = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
@@ -140,7 +140,7 @@ const section = ([kind, k]) => {
   if (kind === 'player') cards.push(ask);
   return `      <section class="kind ${kind}" aria-labelledby="${kind}-head">
         <div class="kind-head">
-          <h2 id="${kind}-head">${k.number ? `<span class="num" aria-hidden="true">${k.number}</span>` : ''}${escape(k.title)}</h2>
+          <h2 id="${kind}-head"><span class="glyph">${stroke(k.glyph)}</span>${escape(k.title)}</h2>
           <p>${escape(k.intro)}</p>
         </div>
         <div class="cards">
@@ -243,13 +243,13 @@ const html = `<!doctype html>
 
     /* Sections: the server, the players, and what works with them. */
     .kind-head h2 { display: flex; align-items: center; gap: 18px; }
-    .kind-head .num { width: 0.95em; height: 0.95em; border-radius: 50%; display: inline-grid; place-items: center; flex: none; font-size: 0.8em; background: var(--screen); color: var(--room); }
+    .kind-head .glyph { width: 0.9em; height: 0.9em; border-radius: 0.24em; display: inline-grid; place-items: center; flex: none; background: var(--seat-raised); border: 1px solid var(--aisle); color: var(--silver); }
+    .kind-head .glyph svg { width: 0.5em; height: 0.5em; }
     .kind-head p { margin: 14px 0 0; max-width: 620px; color: var(--usher); font-size: clamp(1.05rem, 2.2vw, 1.2rem); }
     /* The server's cards each take the full row; players sit three across. */
     .server .card { grid-column: 1 / -1; }
     .server .card.soon .summary { max-width: 68ch; }
     .player .cards, .integration .cards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
-    .integration .kind-head h2 { font-size: clamp(2rem, 4.5vw, 3rem); }
 
     /* On the way: lighter, dashed. */
     .card.soon { background: transparent; border-style: dashed; }
