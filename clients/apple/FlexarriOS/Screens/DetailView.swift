@@ -84,7 +84,7 @@ struct DetailView: View {
         }) { file in
             if let client = model.client, let item {
                 SubtitleSearchView(client: client, itemId: item.id, fileId: file.id, onDownloaded: { saved in
-                    subtitlesJustSaved = "\(saved.label) subtitles saved"
+                    subtitlesJustSaved = t("{language} subtitles saved", ["language": saved.label])
                     subtitleSearchFile = nil
                 }, onClose: { subtitleSearchFile = nil })
                 .presentationDetents([.medium, .large])
@@ -158,7 +158,7 @@ struct DetailView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { overviewExpanded.toggle() } }
                     .accessibilityAddTraits(.isButton)
-                    .accessibilityHint(overviewExpanded ? "Shows less" : "Shows the whole overview")
+                    .accessibilityHint(overviewExpanded ? t("Shows less") : t("Shows the whole overview"))
             }
         }
     }
@@ -245,28 +245,28 @@ struct DetailView: View {
         case .startOver:
             if let playable {
                 Button { model.play(playable, fromBeginning: true, from: pageToken) } label: {
-                    Label("Start over", systemImage: Symbol.startOver)
+                    Label(t(Words.startOver), systemImage: Symbol.startOver)
                 }
             }
         case .shuffle:
             if item.childCount > 0 {
-                Button { model.shuffle(item) } label: { Label("Shuffle", systemImage: Symbol.shuffle) }
+                Button { model.shuffle(item) } label: { Label(t(Words.shuffle), systemImage: Symbol.shuffle) }
             }
         case .trailer:
-            Button { showingTrailer = true } label: { Label("Trailer", systemImage: Symbol.trailer) }
+            Button { showingTrailer = true } label: { Label(t(Words.trailer), systemImage: Symbol.trailer) }
         case .watched:
             // A toggle like Download: the tick fills once it's watched, and the name stays put.
             Button { Task { await model.setWatched(item, !watched) } } label: {
-                Label("Watched", systemImage: watched ? Symbol.isWatched : Symbol.watched)
+                Label(t("Watched"), systemImage: watched ? Symbol.isWatched : Symbol.watched)
             }
-            .accessibilityLabel(watched ? "Mark as unwatched" : "Mark as watched")
+            .accessibilityLabel(watched ? t(Words.markAsUnwatched) : t(Words.markAsWatched))
             .accessibilityAddTraits(watched ? .isSelected : [])
         case .watchlist:
             if let onList = watchlistState(item) {
                 Button { setOnWatchlist(item, !onList) } label: {
-                    Label("Watchlist", systemImage: onList ? Symbol.onWatchlist : Symbol.watchlist)
+                    Label(t(Words.watchlist), systemImage: onList ? Symbol.onWatchlist : Symbol.watchlist)
                 }
-                .accessibilityLabel(onList ? "Remove from watchlist" : "Add to watchlist")
+                .accessibilityLabel(onList ? t(Words.removeFromWatchlist) : t(Words.addToWatchlist))
             }
         case .download:
             DownloadButton(item: item)
@@ -276,19 +276,19 @@ struct DetailView: View {
                     switch entry {
                     case .button(.shuffle):
                         if item.childCount > 0 {
-                            Button { model.shuffle(item) } label: { Label("Shuffle", systemImage: Symbol.shuffle) }
+                            Button { model.shuffle(item) } label: { Label(t(Words.shuffle), systemImage: Symbol.shuffle) }
                         }
                     case .button(.trailer):
-                        Button { showingTrailer = true } label: { Label("Trailer", systemImage: Symbol.trailer) }
+                        Button { showingTrailer = true } label: { Label(t(Words.trailer), systemImage: Symbol.trailer) }
                     case .button(.watched):
                         Button { Task { await model.setWatched(item, !watched) } } label: {
-                            Label(watched ? "Mark as unwatched" : "Mark as watched",
+                            Label(watched ? t(Words.markAsUnwatched) : t(Words.markAsWatched),
                                   systemImage: watched ? Symbol.markUnwatched : Symbol.watched)
                         }
                     case .button(.watchlist):
                         if let onList = watchlistState(item) {
                             Button { setOnWatchlist(item, !onList) } label: {
-                                Label(onList ? "Remove from watchlist" : "Add to watchlist",
+                                Label(onList ? t(Words.removeFromWatchlist) : t(Words.addToWatchlist),
                                       systemImage: onList ? Symbol.offWatchlist : Symbol.watchlist)
                             }
                         }
@@ -297,19 +297,19 @@ struct DetailView: View {
                     case .subtitles:
                         if let file = detail?.files.first {
                             Button { subtitleSearchFile = SubtitleSearchFile(id: file.id) } label: {
-                                Label("Search for subtitles", systemImage: Symbol.subtitles)
+                                Label(t("Search for subtitles"), systemImage: Symbol.subtitles)
                             }
                         }
                     case .goToShow:
                         if let series {
-                            Button { router.push(.item(series)) } label: { Label("Go to show", systemImage: Symbol.goToShow) }
+                            Button { router.push(.item(series)) } label: { Label(t(Words.goToShow), systemImage: Symbol.goToShow) }
                         }
                     }
                 }
             } label: {
-                Label("More", systemImage: Symbol.more)
+                Label(t("More"), systemImage: Symbol.more)
             }
-            .accessibilityLabel("More actions")
+            .accessibilityLabel(t("More actions"))
         }
     }
 
@@ -326,9 +326,9 @@ struct DetailView: View {
     private func playLabel(_ target: ItemSummary, container: ItemSummary) -> String {
         let resume = target.isResumable
         if container.kind == .series, let code = target.episodeCode {
-            return resume ? "Resume \(code)" : "Play \(code)"
+            return resume ? t(Words.resumeEpisode, ["episode": code]) : t("Play {episode}", ["episode": code])
         }
-        return resume ? "Resume from \(Format.timestamp(target.userData.positionSeconds))" : "Play"
+        return resume ? t(Words.resumeFrom, ["time": Format.timestamp(target.userData.positionSeconds)]) : t(Words.play)
     }
 
     // MARK: Sections
@@ -352,7 +352,7 @@ struct DetailView: View {
             let cast = detail.credits.sorted { rank($0.role) < rank($1.role) }
             if !cast.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    SectionHeading(title: "Cast and crew")
+                    SectionHeading(title: t(Words.castAndCrew))
                     ScrollView(.horizontal) {
                         LazyHStack(alignment: .top, spacing: 8) {
                             ForEach(Array(cast.prefix(30).enumerated()), id: \.offset) { _, credit in
@@ -367,7 +367,7 @@ struct DetailView: View {
 
             if !similar.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    SectionHeading(title: "More like this")
+                    SectionHeading(title: t(Words.moreLikeThis))
                     ScrollView(.horizontal) {
                         LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                             ForEach(similar) { other in
@@ -449,10 +449,10 @@ struct DetailView: View {
             .compactMap { $0 }.joined(separator: " ")
         let audio = [file.audioCodec?.uppercased(), file.audioChannels.map(AudioChannels.label)].compactMap { $0 }.joined(separator: " ")
         return LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), alignment: .topLeading)], alignment: .leading, spacing: 14) {
-            if !video.isEmpty { labeled("Video", video) }
-            if !audio.isEmpty { labeled("Audio", audio) }
-            if let studio = detail?.studio { labeled("Studio", studio) }
-            labeled("Size", ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file))
+            if !video.isEmpty { labeled(t("Video"), video) }
+            if !audio.isEmpty { labeled(t("Audio"), audio) }
+            if let studio = detail?.studio { labeled(t("Studio"), studio) }
+            labeled(t("Size"), formatBytes(file.size))
         }
         .padding(.horizontal, Layout.edge)
     }
@@ -496,7 +496,7 @@ struct DetailView: View {
                 loaded = try await client.item(shownID ?? id)
             }
             if shownID != before, shownID == loaded.item.id {
-                AccessibilityNotification.Announcement("Now showing \([loaded.item.episodeCode, loaded.item.title].compactMap { $0 }.joined(separator: ", "))").post()
+                AccessibilityNotification.Announcement(t("Now showing {title}", ["title": [loaded.item.episodeCode, loaded.item.title].compactMap { $0 }.joined(separator: ", ")])).post()
             }
             // A season opens as its series, with that season selected.
             if loaded.item.kind == .season, let parent = loaded.item.parentId {
@@ -591,7 +591,7 @@ struct EpisodeRow: View {
                         }
                         .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(episode.episodeNumber.map { "Episode \($0)" } ?? "Special")
+                        Text(episode.episodeNumber.map { t("Episode {number}", ["number": $0]) } ?? t("Special"))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(isCurrent ? Color.screen : Color.usher)
                         Text(episode.title)

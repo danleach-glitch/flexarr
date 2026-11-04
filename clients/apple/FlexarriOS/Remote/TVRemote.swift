@@ -333,12 +333,12 @@ final class TVRemote {
         taps += 1
         do {
             let result = try await client.control(device: device.id, .stop, handOff: handOff)
-            guard result.delivered else { throw FlexarrClientError.http(status: 409, message: "Flexarr isn't open on \(device.name).") }
+            guard result.delivered else { throw FlexarrClientError.http(status: 409, message: t("Flexarr isn't open on {device}.", ["device": device.name])) }
             // Undo only for a title it can play again (a private one has no id to play).
             if offeringUndo, let before, !before.item.isPrivate {
                 stopped = (device.id, before.moved(paused: true))
-                say(Notice(text: "Stopped", undo: (device.id, before.item.id)), for: UIAccessibility.isVoiceOverRunning ? 15 : 6)
-                AccessibilityNotification.Announcement("Stopped. Undo available.").post()
+                say(Notice(text: t("Stopped"), undo: (device.id, before.item.id)), for: UIAccessibility.isVoiceOverRunning ? 15 : 6)
+                AccessibilityNotification.Announcement(t("Stopped. Undo available.")).post()
             }
             return true
         } catch {
@@ -363,7 +363,7 @@ final class TVRemote {
         Task {
             do {
                 let result = try await client.play(on: undo.deviceId, itemId: undo.itemId, startSeconds: snapshot?.positionSeconds)
-                guard result.delivered else { throw FlexarrClientError.http(status: 409, message: "Flexarr isn't open on \(result.deviceName).") }
+                guard result.delivered else { throw FlexarrClientError.http(status: 409, message: t("Flexarr isn't open on {device}.", ["device": result.deviceName])) }
                 taps += 1
             } catch {
                 restarting = false
@@ -445,7 +445,7 @@ final class TVRemote {
     private func fail(_ error: Error, device: Device?) {
         failures += 1
         if case FlexarrClientError.http(status: 409, let message) = error {
-            say(Notice(text: message ?? "Flexarr isn't open on \(device?.name ?? "the TV")."))
+            say(Notice(text: message ?? device.map { t("Flexarr isn't open on {device}.", ["device": $0.name]) } ?? t("Flexarr isn't open on the TV.")))
         } else {
             say(Notice(text: ConnectionError(error).message))
         }

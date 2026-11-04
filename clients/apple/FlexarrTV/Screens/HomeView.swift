@@ -206,14 +206,14 @@ struct HomeHero: View {
                     // An artist's slide: their radio too, beside Play (which shuffles them).
                     if item.kind == .artist {
                         Button { Task { await model.playArtist(item, radio: true, router: router) } } label: {
-                            Label("Radio", systemImage: Symbol.radio)
+                            Label(t(Words.radio), systemImage: Symbol.radio)
                         }
                         .buttonStyle(ActionButtonStyle(ambient: item.glowColor))
                         .focused($focusedButton, equals: .radio)
                     }
 
                     Button { router.push(.item(item)) } label: {
-                        Label("More info", systemImage: Symbol.details)
+                        Label(t("More info"), systemImage: Symbol.details)
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.glowColor))
                     .focused($focusedButton, equals: .info)
@@ -307,10 +307,10 @@ struct HomeHero: View {
     }
 
     private var playLabel: String {
-        guard item.kind == .audiobook else { return resuming(item) != nil || item.isResumable ? "Resume" : "Play" }
+        guard item.kind == .audiobook else { return resuming(item) != nil || item.isResumable ? t("Resume") : t(Words.play) }
         // A book picks up from its place, as its page says.
         let position = model.music.current?.id == item.id ? model.music.position : item.userData.positionSeconds
-        return position > 0 && !item.userData.watched ? "Resume from \(Format.timestamp(position))" : "Play"
+        return position > 0 && !item.userData.watched ? t(Words.resumeFrom, ["time": Format.timestamp(position)]) : t(Words.play)
     }
 
     /// A book's title, author and narrator: it has no clear logo, and the cover beside them is the picture.
@@ -329,7 +329,7 @@ struct HomeHero: View {
                     .lineLimit(1)
             }
             if let narrator = item.book?.narrator {
-                Text("Read by \(narrator)")
+                Text(t("Read by {narrator}", ["narrator": narrator]))
                     .font(.system(size: 25, weight: .medium))
                     .foregroundStyle(Color.usher)
                     .lineLimit(1)
@@ -564,7 +564,7 @@ struct SeeAllCard: View {
         Button(action: action) {
             VStack(spacing: 16) {
                 Image(systemName: "square.grid.2x2").font(.system(size: 48, weight: .semibold))
-                Text("See all").font(.system(size: 28, weight: .semibold))
+                Text(t("See all")).font(.system(size: 28, weight: .semibold))
             }
             .foregroundStyle(Color.screen.opacity(0.85))
             .frame(width: size.width, height: size.height)
@@ -584,16 +584,16 @@ struct ComingSoonRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            RowHeading(title: downloading > 0 ? "Coming soon (\(downloading) downloading)" : "Coming soon")
+            RowHeading(title: downloading > 0 ? t("Coming soon ({count} downloading)", ["count": downloading]) : t(Words.comingSoon))
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                     ForEach(items) { UpcomingCard(item: $0) }
-                    ArtworkButton(ambient: .silver, accessibilityText: "See all coming soon") {
+                    ArtworkButton(ambient: .silver, accessibilityText: t("See all coming soon")) {
                         router.push(.comingSoon)
                     } artwork: {
                         VStack(spacing: 14) {
                             Image(systemName: "calendar").font(.system(size: 54, weight: .semibold))
-                            Text("See all").font(.system(size: 29, weight: .semibold))
+                            Text(t("See all")).font(.system(size: 29, weight: .semibold))
                         }
                         .foregroundStyle(Color.screen)
                         .frame(width: Layout.wideWidth * 0.6, height: Layout.wideWidth * 9 / 16)

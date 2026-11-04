@@ -39,7 +39,7 @@ struct ArtistView: View {
                         header(item)
                         if !page.albums.isEmpty {
                             VStack(alignment: .leading, spacing: 12) {
-                                SectionHeading(title: "Albums")
+                                SectionHeading(title: t(Words.albums))
                                 LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                                     ForEach(page.albums) { album in
                                         AlbumCard(item: album, offersArtist: false)
@@ -48,12 +48,12 @@ struct ArtistView: View {
                                 .padding(.horizontal, Layout.edge)
                             }
                         } else if page.detail != nil, !hasOutside {
-                            StatusView(state: .empty("No albums yet.")).frame(height: 160)
+                            StatusView(state: .empty(t("No albums yet."))).frame(height: 160)
                         }
                         if let extras {
                             if !extras.missing.isEmpty {
                                 VStack(alignment: .leading, spacing: 12) {
-                                    SectionHeading(title: "Not in your library")
+                                    SectionHeading(title: t(Words.notInYourLibrary))
                                     LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                                         ForEach(extras.missing.listed) { entry in
                                             ExternalMusicCard(item: entry.item, showsYear: true)
@@ -63,7 +63,7 @@ struct ArtistView: View {
                                 }
                             }
                             if !extras.similar.isEmpty {
-                                ExternalMusicRow(title: "Fans also like", items: extras.similar)
+                                ExternalMusicRow(title: t(Words.fansAlsoLike), items: extras.similar)
                             }
                         }
                     }
@@ -154,24 +154,24 @@ struct ArtistView: View {
         switch button {
         case .play:
             Button { Task { await model.playAll(of: page, shuffled: false, router: router) } } label: {
-                Label("Play", systemImage: Symbol.play)
+                Label(t(Words.play), systemImage: Symbol.play)
             }
             .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true, singleLine: true))
             .disabled(nothingToPlay)
         case .shuffle:
             Button { Task { await model.playAll(of: page, shuffled: true, router: router) } } label: {
-                Label("Shuffle", systemImage: Symbol.shuffle)
+                Label(t(Words.shuffle), systemImage: Symbol.shuffle)
             }
             .buttonStyle(RoundActionStyle())
             .disabled(nothingToPlay)
-            .accessibilityLabel("Shuffle")
+            .accessibilityLabel(t(Words.shuffle))
         case .radio:
             Button { Task { await model.playArtist(item, radio: true, router: router) } } label: {
-                Label("Radio", systemImage: Symbol.radio)
+                Label(t(Words.radio), systemImage: Symbol.radio)
             }
             .buttonStyle(RoundActionStyle())
             .disabled(nothingToPlay)
-            .accessibilityLabel("Radio")
+            .accessibilityLabel(t(Words.radio))
         case .follow:
             if let extras {
                 FollowArtistButton(name: item.title, following: model.isFollowing(libraryArtist: page.id, followed: extras.followed),

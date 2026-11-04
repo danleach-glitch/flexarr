@@ -198,8 +198,8 @@ public struct RecordingInTheWay: Sendable, Hashable {
         else { return nil }
         self.recordingId = recordingId
         self.channelId = channelId
-        channelName = object["channelName"] as? String ?? "that channel"
-        message = object["detail"] as? String ?? "Every stream is recording."
+        channelName = object["channelName"] as? String ?? t("that channel")
+        message = object["detail"] as? String ?? t("Every stream is recording.")
     }
 }
 

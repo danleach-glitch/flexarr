@@ -38,7 +38,7 @@ struct ExternalArtistView: View {
                             }
                         }
                         if !detail.similar.isEmpty {
-                            ExternalMusicRow(title: "Fans also like", items: detail.similar)
+                            ExternalMusicRow(title: t(Words.fansAlsoLike), items: detail.similar)
                         }
                     } else if let error {
                         StatusView(state: .failed(error) { Task { await load() } }).frame(height: 240)
@@ -72,7 +72,7 @@ struct ExternalArtistView: View {
                 ActionRowLayout {
                     if let id = detail.libraryItemId {
                         Button { router.push(.musicItem(id: id, isArtist: true)) } label: {
-                            Label("In your library", systemImage: Symbol.play)
+                            Label(t(Words.inYourLibrary), systemImage: Symbol.play)
                         }
                         .buttonStyle(ActionButtonStyle(prominent: true))
                     }

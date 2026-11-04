@@ -83,9 +83,9 @@ struct DiscoverView: View {
 
     /// Browse always; Search with Seerr (or until it's known there's none); Music with music requests.
     private var choices: [(DiscoverMode, String)] {
-        var choices: [(DiscoverMode, String)] = [(.browse, "Browse")]
-        if status?.configured != false { choices.append((.search, "Search")) }
-        if musicStatus?.configured == true { choices.append((.music, "Music")) }
+        var choices: [(DiscoverMode, String)] = [(.browse, t(Words.browse))]
+        if status?.configured != false { choices.append((.search, t(Words.search))) }
+        if musicStatus?.configured == true { choices.append((.music, t(Words.music))) }
         return choices
     }
 
@@ -108,7 +108,7 @@ struct DiscoverView: View {
         }
         if !genres.isEmpty {
             VStack(alignment: .leading, spacing: 30) {
-                RowHeading(title: "Your library by genre")
+                RowHeading(title: t("Your library by genre"))
                 // Not lazy: the grid starts below the screen, and Down can only move to tiles that are there.
                 // A library has a few dozen genres at most.
                 Grid(alignment: .topLeading, horizontalSpacing: GenreTile.spacing, verticalSpacing: 44) {
@@ -128,18 +128,22 @@ struct DiscoverView: View {
 
     /// "12 films and 3 shows".
     private static func counts(_ genre: Genre) -> String {
-        [genre.movies > 0 ? (genre.movies == 1 ? "1 movie" : "\(genre.movies) movies") : nil,
-         genre.shows > 0 ? (genre.shows == 1 ? "1 show" : "\(genre.shows) shows") : nil]
-            .compactMap { $0 }.joined(separator: " and ")
+        let values: [String: Any] = ["movies": genre.movies, "shows": genre.shows]
+        if genre.movies > 0 && genre.shows > 0 {
+            return t("{movies, plural, one {# movie} other {# movies}} and {shows, plural, one {# show} other {# shows}}", values)
+        }
+        if genre.movies > 0 { return t("{movies, plural, one {# movie} other {# movies}}", values) }
+        if genre.shows > 0 { return t("{shows, plural, one {# show} other {# shows}}", values) }
+        return ""
     }
 
     /// Why there are no rows to request from: Seerr isn't connected, or isn't answering.
     private var seerrNote: String? {
         guard let status, rows.allSatisfy(\.items.isEmpty) else { return nil }
         if !status.configured {
-            return "Connect Seerr under Settings › Connections on the web to find new movies and shows here and request them."
+            return t("Connect Seerr under Settings › Connections on the web to find new movies and shows here and request them.")
         }
-        return status.reachable ? nil : "Seerr isn’t answering, so there’s nothing new to request just now."
+        return status.reachable ? nil : t("Seerr isn’t answering, so there’s nothing new to request just now.")
     }
 
     // MARK: Loading
@@ -194,18 +198,20 @@ struct DiscoverSearchView: View {
             VStack(alignment: .leading, spacing: 30) {
                 if let results {
                     if results.isEmpty {
-                        StatusView(state: .empty("Nothing found for \u{201C}\(searched)\u{201D}. Try a different spelling, or the original title."))
+                        StatusView(state: .empty(t("Nothing found for \u{201C}{query}\u{201D}. Try a different spelling, or the original title.", ["query": searched])))
                             .frame(height: 300)
                     } else {
                         let owned = results.filter { $0.libraryItemId != nil }.count
-                        Text(owned > 0 ? "\(owned) already in your library. Request anything else to add it." : "Request anything to add it to your library.")
+                        Text(owned > 0
+                             ? t("{count} already in your library. Request anything else to add it.", ["count": owned])
+                             : t("Request anything to add it to your library."))
                             .font(.system(size: 26, weight: .medium))
                             .foregroundStyle(Color.usher)
                             .padding(.horizontal, Layout.edge)
                         let shows = results.filter(\.isShow)
                         let films = results.filter { !$0.isShow }
-                        if !shows.isEmpty { DiscoverRow(title: "Shows", titles: shows) }
-                        if !films.isEmpty { DiscoverRow(title: "Movies", titles: films) }
+                        if !shows.isEmpty { DiscoverRow(title: t(Words.shows), titles: shows) }
+                        if !films.isEmpty { DiscoverRow(title: t(Words.movies), titles: films) }
                     }
                 } else if let error {
                     StatusView(state: .failed(error) { Task { await search() } })
@@ -217,7 +223,7 @@ struct DiscoverSearchView: View {
         .scrollClipDisabled()
         .ignoresSafeArea(edges: .horizontal)
         .background(RoomBackground(ambient: nil))
-        .searchable(text: $query, prompt: "Any movie or show")
+        .searchable(text: $query, prompt: t("Any movie or show"))
         .task(id: query) {
             // Once typing pauses, so each letter doesn't go to Seerr.
             try? await Task.sleep(for: .milliseconds(350))
@@ -323,13 +329,13 @@ struct ExternalCard: View {
         }
         .contextMenu {
             if let onRequest {
-                Button(action: onRequest) { Label("Request", systemImage: "plus.circle") }
+                Button(action: onRequest) { Label(t(Words.request), systemImage: "plus.circle") }
             }
             if let onList = watchlistChanged ?? title.onWatchlist {
                 Button {
                     Task { if await model.setOnWatchlist(WatchlistKey(title), !onList) != nil { watchlistChanged = !onList } }
                 } label: {
-                    Label(onList ? "Remove from watchlist" : "Add to watchlist", systemImage: onList ? Symbol.offWatchlist : Symbol.watchlist)
+                    Label(onList ? t(Words.removeFromWatchlist) : t(Words.addToWatchlist), systemImage: onList ? Symbol.offWatchlist : Symbol.watchlist)
                 }
             }
         }
@@ -356,7 +362,7 @@ private struct LibraryBadge: View {
             .offset(x: 1)
             .frame(width: 36, height: 36)
             .background(Circle().fill(Color.go))
-            .accessibilityLabel("In your library")
+            .accessibilityLabel(t(Words.inYourLibrary))
     }
 }
 
@@ -509,21 +515,21 @@ struct ExternalTitleView: View {
 
     /// "R   2026   1h 59m   Film".
     private var facts: [String] {
-        guard let detail else { return [title.year.map(String.init), title.isShow ? "Show" : "Movie"].compactMap { $0 } }
+        guard let detail else { return [title.year.map(String.init), title.isShow ? t("Show") : t("Movie")].compactMap { $0 } }
         let length: String? = detail.isShow
-            ? detail.seasons.map { $0 == 1 ? "1 season" : "\($0) seasons" }
+            ? detail.seasons.map { t("{count, plural, one {# season} other {# seasons}}", ["count": $0]) }
             : detail.runtimeMinutes.flatMap { Format.runtime(minutes: $0) }
         let status = detail.status.flatMap { ["Released", "Ended"].contains($0) ? nil : $0 }
         // TMDB's score when there's no IMDb score to show beside its mark.
-        let tmdb = detail.scores.imdb == nil ? detail.tmdbRating.map { String(format: "%.1f/10", $0) } : nil
-        return [detail.certification, detail.year.map(String.init), length, detail.isShow ? "Show" : "Movie", status, tmdb].compactMap { $0 }
+        let tmdb = detail.scores.imdb == nil ? detail.tmdbRating.map { $0.formatted(.number.precision(.fractionLength(1)).locale(Localization.locale)) + "/10" } : nil
+        return [detail.certification, detail.year.map(String.init), length, detail.isShow ? t("Show") : t("Movie"), status, tmdb].compactMap { $0 }
     }
 
     @ViewBuilder
     private func sections(_ detail: ExternalDetail) -> some View {
         if !detail.cast.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                RowHeading(title: "Cast")
+                RowHeading(title: t("Cast"))
                 // Not buttons: these people aren't in the library, so there's nowhere for them to go.
                 ScrollView(.horizontal) {
                     HStack(alignment: .top, spacing: 36) {
@@ -540,16 +546,16 @@ struct ExternalTitleView: View {
         if !detail.madeBy.isEmpty || detail.studio != nil {
             HStack(alignment: .top, spacing: 80) {
                 if !detail.madeBy.isEmpty {
-                    labeled(detail.isShow ? "Created by" : "Directed by", detail.madeBy.joined(separator: ", "))
+                    labeled(detail.isShow ? t("Created by") : t("Directed by"), detail.madeBy.joined(separator: ", "))
                 }
                 if let studio = detail.studio {
-                    labeled(detail.isShow ? "Network" : "Studio", studio)
+                    labeled(detail.isShow ? t("Network") : t("Studio"), studio)
                 }
             }
             .padding(.horizontal, Layout.edge)
         }
         if !detail.recommendations.isEmpty {
-            DiscoverRow(title: "If you like this", titles: detail.recommendations)
+            DiscoverRow(title: t("If you like this"), titles: detail.recommendations)
         }
     }
 
@@ -566,7 +572,7 @@ struct ExternalTitleView: View {
             detail = try await client.externalTitle(preview)
             error = nil
         } catch FlexarrClientError.http(status: 404, _) {
-            error = "Flexarr can’t find that title."
+            error = t("Flexarr can’t find that title.")
         } catch {
             self.error = ConnectionError(error).message
         }
@@ -663,10 +669,10 @@ private struct RequestButton: View {
         case .requested: return TitleWords.requested
         case .requestable:
             if refused { return TitleWords.cantRequest }
-            if sending == .sending { return "Requesting…" }
+            if sending == .sending { return t("Requesting…") }
             if case .failed = sending { return TitleWords.tryAgain }
             return TitleWords.request
-        case .partlyAvailable, .inLibrary, .none: return title.availability.label ?? "Not available"
+        case .partlyAvailable, .inLibrary, .none: return title.availability.label ?? t("Not available")
         }
     }
 
@@ -726,12 +732,12 @@ struct GenreView: View {
                 HStack(alignment: .lastTextBaseline, spacing: 40) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(name).font(.marquee(72, weight: .heavy)).foregroundStyle(Color.screen)
-                        Text(page.map { "\($0.total.formatted()) \($0.total == 1 ? "title" : "titles"), best rated first" } ?? " ")
+                        Text(page.map { t("{count, plural, one {# title} other {# titles}}, best rated first", ["count": $0.total]) } ?? " ")
                             .font(.system(size: 26)).foregroundStyle(Color.usher)
                     }
                     Spacer()
                     HStack(spacing: 16) {
-                        ForEach([(nil, "Everything"), (MediaKind.movie, "Movies"), (MediaKind.series, "Shows")], id: \.1) { choice, label in
+                        ForEach([(nil, t("Everything")), (MediaKind.movie, t(Words.movies)), (MediaKind.series, t(Words.shows))], id: \.1) { choice, label in
                             Button(label) { kind = choice }
                                 .buttonStyle(PillButtonStyle(selected: kind == choice))
                         }

@@ -159,10 +159,10 @@ public enum LibrarySort: String, CaseIterable, Sendable, Identifiable {
 
     public var label: String {
         switch self {
-        case .title: "A–Z"
-        case .added: "Recently added"
-        case .year: "Year"
-        case .rating: "Rating"
+        case .title: t(Words.sortAToZ)
+        case .added: t(Words.recentlyAdded)
+        case .year: t(Words.year)
+        case .rating: t(Words.rating)
         }
     }
 }
@@ -416,7 +416,7 @@ public struct PlaylistSummary: Codable, Sendable, Hashable, Identifiable {
     public let updatedAt: Date
 
     /// "12 tracks".
-    public var trackCountLabel: String { trackCount == 1 ? "1 track" : "\(trackCount) tracks" }
+    public var trackCountLabel: String { t("{count, plural, one {# track} other {# tracks}}", ["count": trackCount]) }
 }
 
 /// One of the profile's daily music mixes ("Made for you"): the same all day, new tomorrow, so an id from yesterday is
@@ -1054,6 +1054,8 @@ public struct SignInInfo: Decodable, Sendable, Equatable {
     /// A family guest's device: it stays on its profile and has none of the household's devices. Absent from
     /// servers before 0.57.
     public var isGuest: Bool? = nil
+    /// The profile's chosen language (a BCP 47 code); nil follows the device. Absent from servers before 0.61.
+    public var language: String? = nil
 }
 
 /// What `POST /admin/unlock` answers.
@@ -1204,11 +1206,11 @@ public enum DownloadQuality: String, ForwardCompatibleEnum, Identifiable {
     /// "Original", "High (1080p)".
     public var label: String {
         switch self {
-        case .original: "Original"
-        case .high: "High (1080p)"
-        case .medium: "Medium (720p)"
-        case .small: "Small (480p)"
-        case .unknown: "Other"
+        case .original: t("Original")
+        case .high: t("High (1080p)")
+        case .medium: t("Medium (720p)")
+        case .small: t("Small (480p)")
+        case .unknown: t("Other")
         }
     }
 }
@@ -1628,10 +1630,10 @@ public enum SubtitlePosition: String, ForwardCompatibleEnum, CaseIterable {
 
     public var label: String {
         switch self {
-        case .bottom, .unknown: "Bottom"
-        case .raised: "Raised"
-        case .higher: "Higher"
-        case .top: "Top"
+        case .bottom, .unknown: t("Bottom")
+        case .raised: t("Raised")
+        case .higher: t("Higher")
+        case .top: t("Top")
         }
     }
 
@@ -1666,10 +1668,10 @@ public enum SubtitleSize: String, ForwardCompatibleEnum, CaseIterable {
 
     public var label: String {
         switch self {
-        case .small: "Small"
-        case .standard, .unknown: "Standard"
-        case .large: "Large"
-        case .extraLarge: "Extra large"
+        case .small: t("Small")
+        case .standard, .unknown: t("Standard")
+        case .large: t("Large")
+        case .extraLarge: t("Extra large")
         }
     }
 

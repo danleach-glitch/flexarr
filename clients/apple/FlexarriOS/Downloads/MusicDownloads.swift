@@ -58,22 +58,22 @@ struct MusicDownloadButton: View {
         .buttonStyle(RoundActionStyle())
         .disabled(source.tracks.isEmpty)
         .accessibilityLabel(label(status))
-        .alert(status == .downloaded ? "Remove this download?" : "Stop this download?", isPresented: $removing) {
-            Button(status == .downloaded ? "Remove download" : "Stop download", role: .destructive) { store.remove(collectionId: source.id) }
-            Button("Cancel", role: .cancel) {}
+        .alert(status == .downloaded ? t("Remove this download?") : t("Stop this download?"), isPresented: $removing) {
+            Button(status == .downloaded ? t("Remove download") : t("Stop download"), role: .destructive) { store.remove(collectionId: source.id) }
+            Button(t(Words.cancel), role: .cancel) {}
         } message: {
             if let collection, status == .downloaded {
-                Text("\(ByteCountFormatter.string(fromByteCount: store.bytesUsed(by: collection), countStyle: .file)) on this \(ThisDevice.name).")
+                Text(t("{size} on this {device}.", ["size": formatBytes(store.bytesUsed(by: collection)), "device": ThisDevice.name]))
             }
         }
-        .alert("Couldn't download this", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
-            Button("Try again") { Task { await start() } }
-            Button("Cancel", role: .cancel) {}
+        .alert(t("Couldn't download this"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+            Button(t("Try again")) { Task { await start() } }
+            Button(t(Words.cancel), role: .cancel) {}
         } message: {
             Text(failure ?? "")
         }
-        .alert("Couldn't download this", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
-            Button("OK", role: .cancel) {}
+        .alert(t("Couldn't download this"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+            Button(t("OK"), role: .cancel) {}
         } message: {
             Text(error ?? "")
         }
@@ -92,11 +92,11 @@ struct MusicDownloadButton: View {
 
     private func label(_ status: LocalCollection.Status?) -> String {
         switch status {
-        case nil: "Download"
-        case .preparing: "Getting ready on the server"
-        case .downloading(let fraction): "Downloading, \(Int(fraction * 100))%"
-        case .downloaded: "Downloaded"
-        case .failed: "Couldn't download"
+        case nil: t(Words.download)
+        case .preparing: t("Getting ready on the server")
+        case .downloading(let fraction): t("Downloading, {percent}%", ["percent": Int(fraction * 100)])
+        case .downloaded: t("Downloaded")
+        case .failed: t("Couldn't download")
         }
     }
 }
@@ -108,7 +108,7 @@ struct DownloadedMark: View {
             .font(.caption.weight(.semibold))
             .symbolRenderingMode(.palette)
             .foregroundStyle(Color.room, Color.go)
-            .accessibilityLabel("Downloaded")
+            .accessibilityLabel(t("Downloaded"))
     }
 }
 
@@ -190,7 +190,7 @@ struct CollectionRow: View {
         }
         .listRowBackground(Color.seat)
         .swipeActions {
-            Button(role: .destructive) { store.remove(collectionId: collection.id) } label: { Label("Delete", systemImage: Symbol.delete) }
+            Button(role: .destructive) { store.remove(collectionId: collection.id) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
         }
     }
 
@@ -199,17 +199,17 @@ struct CollectionRow: View {
         let here = tracks.filter(\.isDownloaded).count
         switch store.status(of: collection) {
         case .preparing:
-            caption(["Getting ready", estimate].compactMap { $0 }.joined(separator: "  "))
+            caption([t("Getting ready"), estimate].compactMap { $0 }.joined(separator: "  "))
         case .downloading(let fraction):
             VStack(alignment: .leading, spacing: 4) {
-                caption(["\(here) of \(collection.trackIds.count) tracks", estimate].compactMap { $0 }.joined(separator: "  "))
+                caption([t("{here} of {count, plural, one {# track} other {# tracks}}", ["here": here, "count": collection.trackIds.count]), estimate].compactMap { $0 }.joined(separator: "  "))
                 ProgressView(value: fraction).tint(.silver)
             }
         case .downloaded:
             HStack(spacing: 6) {
                 DownloadedMark()
-                caption([collection.trackIds.count == 1 ? "1 track" : "\(collection.trackIds.count) tracks",
-                         ByteCountFormatter.string(fromByteCount: store.bytesUsed(by: collection), countStyle: .file)].joined(separator: "  "))
+                caption([t("{count, plural, one {# track} other {# tracks}}", ["count": collection.trackIds.count]),
+                         formatBytes(store.bytesUsed(by: collection))].joined(separator: "  "))
             }
         case .failed(let message):
             Text(message).font(.caption).foregroundStyle(Color.danger)
@@ -217,7 +217,7 @@ struct CollectionRow: View {
     }
 
     private var estimate: String? {
-        collection.estimatedBytes.map { "about " + ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
+        collection.estimatedBytes.map { t("about {size}", ["size": formatBytes($0)]) }
     }
 
     private func caption(_ text: String) -> some View {
@@ -248,7 +248,7 @@ struct OfflineCollectionView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         header(collection, tracks: tracks)
                         if downloads.isEmpty {
-                            StatusView(state: .empty("Nothing here yet.")).frame(height: 160)
+                            StatusView(state: .empty(t("Nothing here yet."))).frame(height: 160)
                         } else {
                             VStack(alignment: .leading, spacing: 0) {
                                 ForEach(Array(downloads.enumerated()), id: \.element.id) { offset, download in
@@ -273,22 +273,22 @@ struct OfflineCollectionView: View {
                     .padding(.bottom, 32)
                 }
             } else {
-                StatusView(state: .empty("This download was removed."))
+                StatusView(state: .empty(t("This download was removed.")))
             }
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             if collection != nil {
-                Button { removing = true } label: { Label("Remove download", systemImage: Symbol.delete) }
+                Button { removing = true } label: { Label(t("Remove download"), systemImage: Symbol.delete) }
             }
         }
-        .alert("Remove this download?", isPresented: $removing) {
-            Button("Remove download", role: .destructive) {
+        .alert(t("Remove this download?"), isPresented: $removing) {
+            Button(t("Remove download"), role: .destructive) {
                 store.remove(collectionId: collectionId)
                 dismiss()
             }
-            Button("Cancel", role: .cancel) {}
+            Button(t(Words.cancel), role: .cancel) {}
         }
     }
 
@@ -316,11 +316,11 @@ struct OfflineCollectionView: View {
             }
             HStack(spacing: 12) {
                 Button { model.playTracks(tracks, albums: [collection.album].compactMap { $0 }, showingNowPlaying: router) } label: {
-                    Label("Play", systemImage: Symbol.play)
+                    Label(t(Words.play), systemImage: Symbol.play)
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient(collection), prominent: true))
                 Button { model.playTracks(tracks, shuffled: true, albums: [collection.album].compactMap { $0 }, showingNowPlaying: router) } label: {
-                    Label("Shuffle", systemImage: Symbol.shuffle)
+                    Label(t(Words.shuffle), systemImage: Symbol.shuffle)
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient(collection)))
                 .disabled(tracks.count < 2)
@@ -338,9 +338,9 @@ struct OfflineCollectionView: View {
         var facts: [String] = []
         if let year = collection.album?.releaseYear { facts.append(String(year)) }
         let total = collection.trackIds.count
-        facts.append(total == 1 ? "1 track" : "\(total) tracks")
+        facts.append(t("{count, plural, one {# track} other {# tracks}}", ["count": total]))
         if let runtime = ItemSummary.totalRuntime(of: tracks) { facts.append(runtime) }
-        facts.append(tracks.count == total ? "Downloaded" : "\(tracks.count) here")
+        facts.append(tracks.count == total ? t("Downloaded") : t("{count} here", ["count": tracks.count]))
         return facts
     }
 }

@@ -92,14 +92,14 @@ struct DetailView: View {
         }) { file in
             if let client = model.client, let item {
                 SubtitleSearchView(client: client, itemId: item.id, fileId: file.id, onDownloaded: { saved in
-                    subtitlesJustSaved = "\(saved.label) subtitles saved"
+                    subtitlesJustSaved = t("{language} subtitles saved", ["language": saved.label])
                     subtitleSearchFile = nil
                 }, onClose: { subtitleSearchFile = nil })
                 .presentationBackground(Color.black.opacity(0.45))
             }
         }
         .alert(savedSubtitles ?? "", isPresented: Binding(get: { savedSubtitles != nil }, set: { if !$0 { savedSubtitles = nil } })) {
-            Button("OK", role: .cancel) {}
+            Button(t("OK"), role: .cancel) {}
         }
         .task(id: model.refreshToken) {
             // Coming back from a screen pushed on top or another tab runs this again; fetch only when something
@@ -241,19 +241,19 @@ struct DetailView: View {
         case .startOver:
             if let playable {
                 Button { model.play(playable, fromBeginning: true, from: pageToken) } label: {
-                    Label("Start over", systemImage: Symbol.startOver)
+                    Label(t(Words.startOver), systemImage: Symbol.startOver)
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient))
             }
         case .shuffle:
             if item.childCount > 0 {
-                roundButton("Shuffle", systemImage: Symbol.shuffle) { model.shuffle(item) }
+                roundButton(t(Words.shuffle), systemImage: Symbol.shuffle) { model.shuffle(item) }
             }
         case .trailer:
-            roundButton("Trailer", systemImage: Symbol.trailer) { openTrailer() }
+            roundButton(t(Words.trailer), systemImage: Symbol.trailer) { openTrailer() }
         case .watched:
             // Pressed when watched, like the iPhone's and the web's: a filled tick that says Watched, and pressing it again unmarks.
-            let name = watched ? "Watched" : "Mark as watched"
+            let name = watched ? t("Watched") : t(Words.markAsWatched)
             roundButton(name, systemImage: watched ? Symbol.isWatched : Symbol.watched) {
                 Task { await model.setWatched(item, !watched) }
             }
@@ -261,13 +261,13 @@ struct DetailView: View {
             // Only what the server can put on a watchlist: films and shows, from servers that have one.
             if model.hasWatchlist, item.kind == .movie || item.kind == .series, let onList = detail?.onWatchlist {
                 WatchlistActionButton(key: .library(item.id), on: onList, ambient: ambient, iconOnly: true)
-                    .focused($focusedAction, equals: "Watchlist")
+                    .focused($focusedAction, equals: t(Words.watchlist))
             }
         case .download:
             EmptyView()
         case .more:
             // Things done now and then, out of the way of the row above.
-            roundButton("More", systemImage: Symbol.more) { showingMore = true }
+            roundButton(t("More"), systemImage: Symbol.more) { showingMore = true }
                 .confirmationDialog(item.title, isPresented: $showingMore) {
                     ForEach(menu, id: \.self) { entry in
                         switch entry {
@@ -276,11 +276,11 @@ struct DetailView: View {
                             EmptyView()
                         case .subtitles:
                             if let file = detail?.files.first {
-                                Button("Search for subtitles…") { subtitleSearchFile = SubtitleSearchFile(id: file.id) }
+                                Button(t("Search for subtitles…")) { subtitleSearchFile = SubtitleSearchFile(id: file.id) }
                             }
                         case .goToShow:
                             if let series {
-                                Button("Go to show") { router.push(.item(series)) }
+                                Button(t(Words.goToShow)) { router.push(.item(series)) }
                             }
                         }
                     }
@@ -302,6 +302,21 @@ struct DetailView: View {
 
     /// What Play starts: the item itself, or for a series the next-up episode (falling
     /// back to the first episode of the selected season).
+    /// A credit with no character: what the person did.
+    private static func roleLabel(_ role: CreditRole) -> String {
+        switch role {
+        case .actor: t("Actor")
+        case .director: t("Director")
+        case .writer: t("Writer")
+        case .producer: t("Producer")
+        case .creator: t("Creator")
+        case .author: t(Words.author)
+        case .narrator: t("Narrator")
+        case .translator: t("Translator")
+        case .unknown: ""
+        }
+    }
+
     private func playTarget(_ item: ItemSummary) -> ItemSummary? {
         switch item.kind {
         case .movie, .episode: item
@@ -313,9 +328,9 @@ struct DetailView: View {
     private func playLabel(_ target: ItemSummary, container: ItemSummary) -> String {
         let resume = target.isResumable
         if container.kind == .series, let code = target.episodeCode {
-            return resume ? "Resume \(code)" : "Play \(code)"
+            return resume ? t(Words.resumeEpisode, ["episode": code]) : t("Play {episode}", ["episode": code])
         }
-        return resume ? "Resume from \(Format.timestamp(target.userData.positionSeconds))" : "Play"
+        return resume ? t(Words.resumeFrom, ["time": Format.timestamp(target.userData.positionSeconds)]) : t(Words.play)
     }
 
     // MARK: Sections
@@ -335,11 +350,11 @@ struct DetailView: View {
             let cast = detail.credits.sorted { rank($0.role) < rank($1.role) }
             if !cast.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
-                    RowHeading(title: "Cast and crew")
+                    RowHeading(title: t(Words.castAndCrew))
                     ScrollView(.horizontal) {
                         LazyHStack(alignment: .top, spacing: 36) {
                             ForEach(Array(cast.prefix(30).enumerated()), id: \.offset) { _, credit in
-                                PersonCard(name: credit.name, detail: credit.character ?? credit.role.rawValue, image: credit.image) {
+                                PersonCard(name: credit.name, detail: credit.character ?? Self.roleLabel(credit.role), image: credit.image) {
                                     router.push(.person(id: credit.personId, name: credit.name))
                                 }
                             }
@@ -354,7 +369,7 @@ struct DetailView: View {
 
             if !similar.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
-                    RowHeading(title: "More like this")
+                    RowHeading(title: t(Words.moreLikeThis))
                     ScrollView(.horizontal) {
                         LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                             ForEach(similar) { other in
@@ -474,10 +489,10 @@ struct DetailView: View {
             .compactMap { $0 }.joined(separator: " ")
         let audio = [file.audioCodec?.uppercased(), file.audioChannels.map(AudioChannels.label)].compactMap { $0 }.joined(separator: " ")
         return HStack(spacing: 50) {
-            if !video.isEmpty { labeled("Video", video) }
-            if !audio.isEmpty { labeled("Audio", audio) }
-            if let studio = detail?.studio { labeled("Studio", studio) }
-            labeled("Size", ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file))
+            if !video.isEmpty { labeled(t("Video"), video) }
+            if !audio.isEmpty { labeled(t("Audio"), audio) }
+            if let studio = detail?.studio { labeled(t("Studio"), studio) }
+            labeled(t("Size"), formatBytes(file.size))
         }
         .padding(.horizontal, Layout.edge)
     }
@@ -521,7 +536,8 @@ struct DetailView: View {
                 loaded = try await client.item(shownID ?? id)
             }
             if shownID != before, shownID == loaded.item.id {
-                AccessibilityNotification.Announcement("Now showing \([loaded.item.episodeCode, loaded.item.title].compactMap { $0 }.joined(separator: ", "))").post()
+                let shown = [loaded.item.episodeCode, loaded.item.title].compactMap { $0 }.joined(separator: ", ")
+                AccessibilityNotification.Announcement(t("Now showing {title}", ["title": shown])).post()
             }
             // A season opens as its series, with that season selected.
             if loaded.item.kind == .season, let parent = loaded.item.parentId {
@@ -624,7 +640,7 @@ struct EpisodeCard: View {
         } caption: { focused in
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 14) {
-                    Text(episode.episodeNumber.map { "Episode \($0)" } ?? "Special")
+                    Text(episode.episodeNumber.map { t("Episode {number}", ["number": $0]) } ?? t("Special"))
                     if let time = timeText { Text(time) }
                 }
                 .font(.system(size: 20, weight: .semibold))

@@ -276,7 +276,7 @@ struct ReadMoreText: View {
         }
         .buttonStyle(TextCardStyle(ambient: ambient))
         .padding(.horizontal, -30)
-        .accessibilityHint("Shows all of it")
+        .accessibilityHint(t("Shows all of it"))
         .fullScreenCover(isPresented: $reading) { FullTextView(title: title, text: text) }
     }
 }

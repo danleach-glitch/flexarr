@@ -23,11 +23,11 @@ struct SearchView: View {
             VStack(alignment: .leading, spacing: 30) {
                 if let results {
                     if results.isEmpty && outside.isEmpty && outsideMusic.isEmpty {
-                        StatusView(state: .empty("Nothing matches \u{201C}\(query)\u{201D}."))
+                        StatusView(state: .empty(t("Nothing matches \u{201C}{query}\u{201D}.", ["query": query])))
                             .frame(height: 300)
                     }
                     if !results.films.isEmpty {
-                        section("Movies and shows") {
+                        section(t(Words.moviesAndShows)) {
                             ForEach(results.films) { item in
                                 PosterCard(item: item) { open(item) }
                             }
@@ -35,35 +35,35 @@ struct SearchView: View {
                     }
                     // Music you have (artists come among the titles), then audiobooks, as on iPhone.
                     if !results.artists.isEmpty {
-                        section("Artists") {
+                        section(t(Words.artists)) {
                             ForEach(results.artists) { item in
                                 ArtistCard(item: item) { open(item) }
                             }
                         }
                     }
                     if let albums = results.albums, !albums.isEmpty {
-                        section("Albums") {
+                        section(t(Words.albums)) {
                             ForEach(albums) { item in
                                 AlbumCard(item: item, showsArtist: true) { open(item) }
                             }
                         }
                     }
                     if let books = results.books, !books.isEmpty {
-                        section("Audiobooks") {
+                        section(t(Words.audiobooks)) {
                             ForEach(books) { item in
                                 BookCard(item: item) { open(item) }
                             }
                         }
                     }
                     if !results.episodes.isEmpty {
-                        section("Episodes") {
+                        section(t("Episodes")) {
                             ForEach(results.episodes) { item in
                                 WideCard(item: item, width: 440) { open(item) }
                             }
                         }
                     }
                     if !outside.isEmpty || !outsideMusic.isEmpty {
-                        section("Not in your library") {
+                        section(t(Words.notInYourLibrary)) {
                             ForEach(outside) { title in
                                 ExternalCard(title: title)
                             }
@@ -74,9 +74,9 @@ struct SearchView: View {
                         .environment(\.musicRequestsPaused, musicPaused)
                     }
                     if !results.people.isEmpty {
-                        section("People") {
+                        section(t("People")) {
                             ForEach(results.people) { person in
-                                PersonCard(name: person.name, detail: person.credits == 1 ? "1 title" : "\(person.credits) titles", image: person.image) {
+                                PersonCard(name: person.name, detail: t("{count, plural, one {# title} other {# titles}}", ["count": person.credits]), image: person.image) {
                                     model.recordSearch(query: query)
                                     router.push(.person(id: person.id, name: person.name))
                                 }
@@ -95,7 +95,7 @@ struct SearchView: View {
         .scrollClipDisabled()
         .ignoresSafeArea(edges: .horizontal)
         .background(RoomBackground(ambient: nil))
-        .searchable(text: $query, prompt: "Movies, shows, episodes and people")
+        .searchable(text: $query, prompt: t("Movies, shows, episodes and people"))
         .onAppear(perform: takeSiriSearch)
         .onChange(of: model.pendingSearch) { takeSiriSearch() }
         .task(id: query) {
@@ -109,7 +109,7 @@ struct SearchView: View {
     /// With nothing typed: the profile's last few searches to run again, and the titles opened from search.
     @ViewBuilder private var recentSections: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if !recents.queries.isEmpty { RowHeading(title: "Recent searches") }
+            if !recents.queries.isEmpty { RowHeading(title: t("Recent searches")) }
             ScrollView(.horizontal) {
                 HStack(spacing: 18) {
                     ForEach(recents.queries, id: \.self) { words in
@@ -118,10 +118,10 @@ struct SearchView: View {
                         }
                         .buttonStyle(PillButtonStyle(selected: false))
                         .contextMenu {
-                            Button(role: .destructive) { forget(words) } label: { Label("Remove", systemImage: "xmark") }
+                            Button(role: .destructive) { forget(words) } label: { Label(t("Remove"), systemImage: "xmark") }
                         }
                     }
-                    Button("Clear", action: clearRecents)
+                    Button(t("Clear"), action: clearRecents)
                         .buttonStyle(PillButtonStyle(selected: false))
                 }
                 .padding(.horizontal, Layout.edge)
@@ -131,7 +131,7 @@ struct SearchView: View {
             .focusSection()
         }
         if !recents.items.isEmpty {
-            section("Recently opened") {
+            section(t("Recently opened")) {
                 ForEach(recents.items) { item in
                     PosterCard(item: item) {
                         model.recordSearch(query: nil, item: item)
@@ -243,7 +243,7 @@ struct PersonView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(name).font(.marquee(72, weight: .heavy)).foregroundStyle(Color.screen)
                         if let person {
-                            Text(person.credits.count == 1 ? "1 title in your library" : "\(person.credits.count) titles in your library")
+                            Text(t("{count, plural, one {# title in your library} other {# titles in your library}}", ["count": person.credits.count]))
                                 .font(.system(size: 26)).foregroundStyle(Color.usher)
                         }
                     }

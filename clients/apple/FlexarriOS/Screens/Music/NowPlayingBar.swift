@@ -23,7 +23,7 @@ struct NowPlayingBar: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Stop and close")
+                .accessibilityLabel(t("Stop and close"))
                 .padding(.trailing, -6)
                 Button { router.showsNowPlaying = true } label: {
                     HStack(spacing: 12) {
@@ -56,7 +56,7 @@ struct NowPlayingBar: View {
                     ProgressView().tint(Color.screen).frame(width: 48, height: 48)
                 } else {
                     Button { music.togglePlayPause() } label: {
-                        Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? Symbol.pause : Symbol.play)
+                        Label(music.isPlaying ? t("Pause") : t(Words.play), systemImage: music.isPlaying ? Symbol.pause : Symbol.play)
                     }
                     .buttonStyle(RoundActionStyle(scales: false))
                     .frame(width: 48, height: 48)
@@ -64,13 +64,13 @@ struct NowPlayingBar: View {
                 if music.isPodcast || music.isBook {
                     let step = Int(music.skipForward)
                     Button { music.skip(by: music.skipForward) } label: {
-                        Label("Forward \(step) seconds", systemImage: "goforward.\(step)")
+                        Label(t("Forward {seconds} seconds", ["seconds": step]), systemImage: "goforward.\(step)")
                     }
                     .buttonStyle(RoundActionStyle(scales: false))
                     .frame(width: 48, height: 48)
                 } else {
                     Button { music.next() } label: {
-                        Label("Next", systemImage: "forward.fill")
+                        Label(t("Next"), systemImage: "forward.fill")
                     }
                     .buttonStyle(RoundActionStyle(scales: false))
                     .frame(width: 48, height: 48)
@@ -109,7 +109,8 @@ struct NowPlayingBar: View {
             }
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("Now playing: \(track.title)\(track.artistName.map { " by \($0)" } ?? "")")
+            .accessibilityLabel(track.artistName.map { t("Now playing: {title} by {artist}", ["title": track.title, "artist": $0]) }
+                                ?? t("Now playing: {title}", ["title": track.title]))
         }
     }
 }

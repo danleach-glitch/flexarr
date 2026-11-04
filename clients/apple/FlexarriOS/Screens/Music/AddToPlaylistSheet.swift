@@ -29,11 +29,11 @@ struct AddToPlaylistSheet: View {
                 }
                 Section {
                     HStack {
-                        TextField(playlists?.isEmpty == true ? "Name your first playlist" : "New playlist", text: $name)
+                        TextField(playlists?.isEmpty == true ? t("Name your first playlist") : t("New playlist"), text: $name)
                             .focused($naming)
                             .submitLabel(.done)
                             .onSubmit { Task { await create() } }
-                        Button("Create") { Task { await create() } }
+                        Button(t("Create")) { Task { await create() } }
                             .disabled(busy != nil || name.trimmingCharacters(in: .whitespaces).isEmpty)
                             .overlay { if busy == "new" { ProgressView() } }
                     }
@@ -47,16 +47,16 @@ struct AddToPlaylistSheet: View {
             }
             .overlay { if playlists == nil && error == nil { ProgressView() } }
             .scrollContentBackground(.hidden)
-            .navigationTitle("Add to playlist")
+            .navigationTitle(t(Words.addToPlaylist))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     VStack(spacing: 0) {
-                        Text("Add to playlist").font(.headline)
+                        Text(t(Words.addToPlaylist)).font(.headline)
                         Text(request.title).font(.caption).foregroundStyle(Color.usher).lineLimit(1)
                     }
                 }
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button(t(Words.done)) { dismiss() } }
             }
         }
         .presentationDetents([.medium, .large])
@@ -94,7 +94,7 @@ struct AddToPlaylistSheet: View {
     private func add(to playlist: PlaylistSummary) async {
         await run(playlist.id) { client in
             let added = try await client.addToPlaylist(playlist.id, itemIds: [request.itemId])
-            return added == 0 ? "Already in \(playlist.name)." : "Added to \(playlist.name)."
+            return added == 0 ? t("Already in {playlist}.", ["playlist": playlist.name]) : t("Added to {playlist}.", ["playlist": playlist.name])
         }
     }
 
@@ -104,7 +104,7 @@ struct AddToPlaylistSheet: View {
         await run("new") { client in
             let made = try await client.createPlaylist(name: trimmed, itemIds: [request.itemId])
             name = ""
-            return "Made \(made.name) with it."
+            return t("Made {playlist} with it.", ["playlist": made.name])
         }
     }
 

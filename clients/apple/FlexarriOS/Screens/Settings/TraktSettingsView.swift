@@ -44,7 +44,7 @@ struct TraktSettingsView: View {
             } else if loadFailed {
                 Section {
                     Text(TraktWords.unreachable).foregroundStyle(Color.danger).listRowBackground(Color.seat)
-                    Button("Try again") { Task { await load() } }.listRowBackground(Color.seat)
+                    Button(t("Try again")) { Task { await load() } }.listRowBackground(Color.seat)
                 }
             } else {
                 Section { ProgressView().frame(maxWidth: .infinity).listRowBackground(Color.seat) }
@@ -61,7 +61,7 @@ struct TraktSettingsView: View {
             }
         }
         .confirmationDialog(TraktWords.disconnectTitle, isPresented: $confirmDisconnect, titleVisibility: .visible) {
-            Button("Disconnect", role: .destructive) { run(.account) { try await $0.disconnectTrakt() } }
+            Button(t("Disconnect"), role: .destructive) { run(.account) { try await $0.disconnectTrakt() } }
         } message: {
             Text(TraktWords.disconnectMessage)
         }
@@ -91,11 +91,11 @@ struct TraktSettingsView: View {
                         UIPasteboard.general.string = pending.userCode
                         UIApplication.shared.open(url)
                     } label: {
-                        Label("Copy code and open Trakt", systemImage: "arrow.up.forward.app")
+                        Label(t("Copy code and open Trakt"), systemImage: "arrow.up.forward.app")
                     }
                     .listRowBackground(Color.seat)
                 }
-                Button("Cancel", role: .cancel) { run(.account) { try await $0.cancelTraktConnect() } }
+                Button(t(Words.cancel), role: .cancel) { run(.account) { try await $0.cancelTraktConnect() } }
                     .listRowBackground(Color.seat)
                 problemRow(.account)
             } footer: {
@@ -106,37 +106,37 @@ struct TraktSettingsView: View {
                 Button {
                     run(.account) { _ = try await $0.connectTrakt() }
                 } label: {
-                    Label(status.state == .needsSignIn ? "Connect \(status.username ?? "Trakt") again" : "Connect Trakt", systemImage: "link")
+                    Label(status.state == .needsSignIn ? t("Connect {account} again", ["account": status.username ?? "Trakt"]) : t("Connect Trakt"), systemImage: "link")
                 }
                 .disabled(working != nil)
                 .listRowBackground(Color.seat)
                 problemRow(.account)
             } footer: {
                 Text(status.state == .needsSignIn ? TraktWords.signedOut
-                     : status.pending.flatMap { $0.error ?? $0.state.problem } ?? "Each profile connects its own account.")
+                     : status.pending.flatMap { $0.error ?? $0.state.problem } ?? t("Each profile connects its own account."))
             }
         }
     }
 
     @ViewBuilder private func connected(_ status: TraktStatus) -> some View {
         Section {
-            LabeledContent("Account", value: status.username ?? "Connected").settingsRow()
+            LabeledContent(t("Account"), value: status.username ?? t("Connected")).settingsRow()
             Text(TraktWords.synced(status.lastSyncAt)).settingsRow()
             if status.queued > 0 {
-                LabeledContent("Waiting to send", value: status.queued.formatted()).settingsRow()
+                LabeledContent(t("Waiting to send"), value: status.queued.formatted(.number.locale(Localization.locale))).settingsRow()
             }
             Button {
                 syncing = true
                 run(.account) { try await $0.syncTraktNow() }
             } label: {
                 HStack {
-                    Text(syncing ? "Syncing…" : "Sync now")
+                    Text(syncing ? t("Syncing…") : t("Sync now"))
                     if syncing { Spacer(); ProgressView().id(UUID()) }
                 }
             }
             .disabled(working != nil)
             .listRowBackground(Color.seat)
-            Button("Disconnect", role: .destructive) { confirmDisconnect = true }
+            Button(t("Disconnect"), role: .destructive) { confirmDisconnect = true }
                 .foregroundStyle(Color.danger)
                 .disabled(working != nil)
                 .listRowBackground(Color.seat)
@@ -159,7 +159,7 @@ struct TraktSettingsView: View {
                 }
                 .listRowBackground(Color.seat)
             } else if let importedAt = status.importedAt {
-                LabeledContent(TraktWords.imported, value: importedAt.formatted(.relative(presentation: .named))).settingsRow()
+                LabeledContent(TraktWords.imported, value: importedAt.formatted(.relative(presentation: .named).locale(Localization.locale))).settingsRow()
             } else if let preview {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(preview.summary).font(.body.weight(.semibold))
@@ -181,10 +181,10 @@ struct TraktSettingsView: View {
                 Text(failed).font(.footnote).foregroundStyle(Color.danger).listRowBackground(Color.seat)
             }
         } header: {
-            Text("Your history")
+            Text(t("Your history"))
         } footer: {
             if status.importedAt == nil, !status.importing {
-                Text(preview == nil ? "See what changes first." : "Nothing is marked unwatched, on either side.")
+                Text(preview == nil ? t("See what changes first.") : t("Nothing is marked unwatched, on either side."))
             }
         }
     }
@@ -204,7 +204,7 @@ struct TraktSettingsView: View {
                 }
                 problemRow(.lists)
             } header: {
-                Text("Lists")
+                Text(t("Lists"))
             } footer: {
                 Text(TraktWords.listsNote)
             }

@@ -50,7 +50,7 @@ struct NowPlayingView: View {
                     .padding(.bottom, 60)
                 }
             } else {
-                StatusView(state: .empty("Nothing is playing."))
+                StatusView(state: .empty(t("Nothing is playing.")))
             }
         }
         .defaultFocus($focusedControl, .playPause)
@@ -150,33 +150,33 @@ struct NowPlayingView: View {
 
     private var controls: some View {
         HStack(spacing: 36) {
-            Button { music.toggleShuffle() } label: { Label("Shuffle", systemImage: Symbol.shuffle) }
+            Button { music.toggleShuffle() } label: { Label(t(Words.shuffle), systemImage: Symbol.shuffle) }
                 .buttonStyle(RoundControlStyle(size: 84, active: music.isShuffled))
                 .focused($focusedControl, equals: .shuffle)
-            Button { music.previous() } label: { Label("Previous", systemImage: "backward.fill") }
+            Button { music.previous() } label: { Label(t("Previous"), systemImage: "backward.fill") }
                 .buttonStyle(RoundControlStyle(size: 96))
                 .focused($focusedControl, equals: .previous)
             Button { music.togglePlayPause() } label: {
-                Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? Symbol.pause : Symbol.play)
+                Label(music.isPlaying ? t("Pause") : t(Words.play), systemImage: music.isPlaying ? Symbol.pause : Symbol.play)
             }
             .buttonStyle(RoundControlStyle(size: 120, active: true))
             .focused($focusedControl, equals: .playPause)
-            Button { music.next() } label: { Label("Next", systemImage: "forward.fill") }
+            Button { music.next() } label: { Label(t("Next"), systemImage: "forward.fill") }
                 .buttonStyle(RoundControlStyle(size: 96))
                 .focused($focusedControl, equals: .next)
                 .disabled(!music.hasNext)
             Button { music.cycleRepeat() } label: {
-                Label("Repeat", systemImage: music.repeatMode == .one ? "repeat.1" : "repeat")
+                Label(t("Repeat"), systemImage: music.repeatMode == .one ? "repeat.1" : "repeat")
             }
             .buttonStyle(RoundControlStyle(size: 84, active: music.repeatMode != .off))
             .focused($focusedControl, equals: .repeat)
             if lyrics.lyrics != nil {
-                Button { showingLyrics = true } label: { Label("Lyrics", systemImage: "quote.bubble") }
+                Button { showingLyrics = true } label: { Label(t("Lyrics"), systemImage: "quote.bubble") }
                     .buttonStyle(RoundControlStyle(size: 84))
                     .focused($focusedControl, equals: .lyrics)
             }
             // Done with the music: the queue empties, and the bar along the bottom and the Now Playing tab go.
-            Button { music.stop() } label: { Label("Stop", systemImage: "stop.fill") }
+            Button { music.stop() } label: { Label(t("Stop"), systemImage: "stop.fill") }
                 .buttonStyle(RoundControlStyle(size: 84))
                 .focused($focusedControl, equals: .stop)
             if music.isLoading {
@@ -193,7 +193,7 @@ struct NowPlayingView: View {
         let next = music.upNext
         if !next.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Up next")
+                Text(t(Words.upNext))
                     .font(.marquee(32, weight: .bold))
                     .foregroundStyle(Color.screen)
                     .padding(.leading, 30)

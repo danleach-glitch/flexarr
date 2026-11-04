@@ -14,7 +14,7 @@ struct BookCover: View {
                 }
             }
             .overlay(alignment: .topTrailing) {
-                if item.isFinishedBook { WatchedBadge(label: "Finished").padding(6) }
+                if item.isFinishedBook { WatchedBadge(label: t("Finished")).padding(6) }
             }
     }
 }
@@ -57,7 +57,7 @@ struct BookCard: View {
     }
 
     private var subtitle: String? {
-        if let sequence { return "Book \(sequence)" }
+        if let sequence { return t("Book {number}", ["number": sequence]) }
         return item.bookAuthors
     }
 }
@@ -70,16 +70,16 @@ struct BookContextMenu: View {
 
     var body: some View {
         Button { model.playBook(item) } label: {
-            Label(item.isResumable ? "Resume" : "Play", systemImage: Symbol.play)
+            Label(item.isResumable ? t("Resume") : t(Words.play), systemImage: Symbol.play)
         }
-        Button { router.push(.item(item)) } label: { Label("Go to book", systemImage: Symbol.details) }
+        Button { router.push(.item(item)) } label: { Label(t("Go to book"), systemImage: Symbol.details) }
         if !model.isKids {
             if !item.isFinishedBook {
-                Button { Task { await model.setBookFinished(item, true) } } label: { Label("Mark as finished", systemImage: Symbol.watched) }
+                Button { Task { await model.setBookFinished(item, true) } } label: { Label(t(Words.markAsFinished), systemImage: Symbol.watched) }
             }
             // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
             if item.isFinishedBook || item.isResumable, model.music.current?.id != item.id {
-                Button { Task { await model.setBookFinished(item, false) } } label: { Label("Mark as unread", systemImage: "book.closed") }
+                Button { Task { await model.setBookFinished(item, false) } } label: { Label(t(Words.markAsUnread), systemImage: "book.closed") }
             }
         }
     }
@@ -114,8 +114,9 @@ struct SeriesCard: View {
     }
 
     private var count: String {
-        let books = series.bookCount == 1 ? "1 book" : "\(series.bookCount) books"
-        return series.finishedCount > 0 ? "\(series.finishedCount) of \(books)" : books
+        series.finishedCount > 0
+            ? t("{finished} of {count, plural, one {# book} other {# books}}", ["finished": series.finishedCount, "count": series.bookCount])
+            : t("{count, plural, one {# book} other {# books}}", ["count": series.bookCount])
     }
 
     /// Up to three covers, each a little behind and to the right of the one before.
@@ -160,7 +161,7 @@ struct BookRow: View {
                 .frame(width: 64, height: 64)
             VStack(alignment: .leading, spacing: 3) {
                 if let sequence {
-                    Text("Book \(sequence)")
+                    Text(t("Book {number}", ["number": sequence]))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(highlighted ? Color.silver : Color.usher)
                 }
@@ -177,7 +178,7 @@ struct BookRow: View {
             }
             Spacer(minLength: 0)
             if highlighted {
-                Text("Next")
+                Text(t("Next"))
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.room)
                     .padding(.horizontal, 8)
@@ -234,6 +235,6 @@ struct DeleteBookmarkButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Delete the bookmark at \(Format.timestamp(mark.positionSeconds))")
+        .accessibilityLabel(t("Delete the bookmark at {time}", ["time": Format.timestamp(mark.positionSeconds)]))
     }
 }

@@ -19,11 +19,13 @@ struct LiveGuideView: View {
     @State private var notice: String?
 
     private static let hours: Double = 6
-    private static let clock: DateFormatter = {
+    /// Made each time, so it follows a change of language.
+    private static var clock: DateFormatter {
         let formatter = DateFormatter()
+        formatter.locale = Localization.locale
         formatter.timeStyle = .short
         return formatter
-    }()
+    }
 
     private var perMinute: CGFloat { sizeClass == .regular ? 6 : 4 }
     private var channelWidth: CGFloat { sizeClass == .regular ? 120 : 84 }
@@ -69,13 +71,13 @@ struct LiveGuideView: View {
         }
         .alert(details?.programme.displayTitle ?? "", isPresented: Binding(get: { details != nil }, set: { if !$0 { details = nil } })) {
             if let channel = details?.channel, let programme = details?.programme {
-                Button("Watch \(channel.name) now") { model.watch(channel, among: order) }
+                Button(t("Watch {channel} now", ["channel": channel.name])) { model.watch(channel, among: order) }
                 if !model.hasAgeLimit, programme.end > now {
                     Button(DvrActions.recordLabel(programme)) { act { notice = try await DvrActions.toggleRecording(programme, on: channel.id, client: $0) } }
                     Button(DvrActions.seriesLabel(programme)) { act { try await DvrActions.toggleSeries(programme, on: channel.id, client: $0) } }
                 }
             }
-            Button("Close", role: .cancel) {}
+            Button(t("Close"), role: .cancel) {}
         } message: {
             if let programme = details?.programme { Text(describe(programme)) }
         }
@@ -124,7 +126,7 @@ struct LiveGuideView: View {
             .filter { $0.end > windowStart && $0.start < windowEnd }
         return ZStack(alignment: .leading) {
             if programmes.isEmpty {
-                Text("No listings").font(.footnote).foregroundStyle(Color.usher).padding(.leading, 12)
+                Text(t("No listings")).font(.footnote).foregroundStyle(Color.usher).padding(.leading, 12)
             }
             ForEach(programmes) { programme in
                 let start = max(programme.start, windowStart)
@@ -139,7 +141,7 @@ struct LiveGuideView: View {
                     }
                     .contextMenu {
                         if onNow {
-                            Button { model.watch(channel, among: order) } label: { Label("Watch", systemImage: "play.fill") }
+                            Button { model.watch(channel, among: order) } label: { Label(t("Watch"), systemImage: "play.fill") }
                         }
                         if !model.hasAgeLimit, programme.end > now {
                             Button { act { notice = try await DvrActions.toggleRecording(programme, on: channel.id, client: $0) } } label: {
@@ -150,12 +152,13 @@ struct LiveGuideView: View {
                             }
                         }
                         Button { onFavourite(channel) } label: {
-                            Label(channel.isFavourite ? "Remove from Favourites" : "Add to Favourites",
+                            Label(channel.isFavourite ? t("Remove from Favourites") : t("Add to Favourites"),
                                   systemImage: channel.isFavourite ? "star.slash" : "star")
                         }
                     }
-                    .accessibilityLabel("\(channel.name), \(programme.displayTitle), \(Self.clock.string(from: programme.start))"
-                                        + (programme.isSetToRecord ? ", set to record" : ""))
+                    .accessibilityLabel(programme.isSetToRecord
+                        ? t("{channel}, {programme}, {time}, set to record", ["channel": channel.name, "programme": programme.displayTitle, "time": Self.clock.string(from: programme.start)])
+                        : "\(channel.name), \(programme.displayTitle), \(Self.clock.string(from: programme.start))")
                     .accessibilityAddTraits(.isButton)
                     // Moved into its slot last, so where it's tapped moves with it (an offset before the tap area left
                     // every programme's tap at the start of the row, where the last one won).
@@ -241,8 +244,10 @@ struct LiveGuideView: View {
 
     private func describe(_ programme: LiveProgramme) -> String {
         var lines = ["\(Self.clock.string(from: programme.start)) – \(Self.clock.string(from: programme.end))"]
-        if let season = programme.season { lines.append(programme.episode.map { "Series \(season), episode \($0)" } ?? "Series \(season)") }
-        if programme.isNew { lines.append("New") }
+        if let season = programme.season {
+            lines.append(programme.episode.map { t("Series {season}, episode {episode}", ["season": season, "episode": $0]) } ?? t("Series {season}", ["season": season]))
+        }
+        if programme.isNew { lines.append(t("New")) }
         if let description = programme.description { lines.append(description) }
         return lines.joined(separator: "\n")
     }

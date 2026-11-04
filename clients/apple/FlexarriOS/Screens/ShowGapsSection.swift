@@ -25,7 +25,7 @@ struct ShowGapsSection: View {
         VStack(alignment: .leading, spacing: 28) {
             if gaps.hasMissing {
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionHeading(title: "Not in your library")
+                    SectionHeading(title: t(Words.notInYourLibrary))
                     if !gaps.seasons.isEmpty {
                         ScrollView(.horizontal) {
                             LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
@@ -44,7 +44,7 @@ struct ShowGapsSection: View {
             }
             if !gaps.upcoming.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    SectionHeading(title: "Coming up")
+                    SectionHeading(title: t("Coming up"))
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(gaps.upcoming) { episode in
                             episodeLine(episode, detail: episode.airs())
@@ -107,9 +107,9 @@ struct ShowGapsSection: View {
             .accessibilityElement(children: .combine)
             switch action {
             case .request:
-                actionButton(TitleWords.request, symbol: Symbol.request, label: "Request \(season.title)") { await request(season) }
+                actionButton(TitleWords.request, symbol: Symbol.request, label: t("Request {season}", ["season": season.title])) { await request(season) }
             case .search:
-                actionButton("Search", symbol: Symbol.search, label: "Search for \(season.title)") { await search(season.seasonNumber) }
+                actionButton(t(Words.search), symbol: Symbol.search, label: t("Search for {season}", ["season": season.title])) { await search(season.seasonNumber) }
             case .requested where undoable(season):
                 Button { undoing = season } label: { Label(TitleWords.requested, systemImage: Symbol.requested) }
                     .buttonStyle(.borderedProminent)
@@ -117,11 +117,11 @@ struct ShowGapsSection: View {
                     .foregroundStyle(Color.screen)
                     .controlSize(.small)
                     .disabled(busy)
-                    .accessibilityLabel("\(TitleWords.requested), \(season.title)")
+                    .accessibilityLabel(t("Requested, {season}", ["season": season.title]))
                     .accessibilityHint(TitleWords.unrequestHint)
                     .accessibilityAddTraits(.isSelected)
             case .requested:
-                Text(searched.contains(season.seasonNumber) ? "Searching" : TitleWords.requested)
+                Text(searched.contains(season.seasonNumber) ? t("Searching") : TitleWords.requested)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(Color.usher)
             default:
@@ -141,27 +141,27 @@ struct ShowGapsSection: View {
     }
 
     private func caption(_ season: MissingSeason) -> String {
-        [season.episodes > 0 ? (season.episodes == 1 ? "1 episode" : "\(season.episodes) episodes") : nil,
+        [season.episodes > 0 ? t("{count, plural, one {# episode} other {# episodes}}", ["count": season.episodes]) : nil,
          season.year.map(String.init)].compactMap(\.self).joined(separator: ", ")
     }
 
     private func missingEpisodes(season: Int, episodes: [ShowEpisode]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Season \(season): \(episodes.count == 1 ? "1 episode" : "\(episodes.count) episodes")")
+                Text(t("Season {season}: {count, plural, one {# episode} other {# episodes}}", ["season": season, "count": episodes.count]))
                     .font(.headline)
                     .foregroundStyle(Color.screen)
                 Spacer()
                 if gaps.canSearch && gaps.source == "sonarr" {
                     if searched.contains(season) {
-                        Text("Searching").font(.subheadline.weight(.semibold)).foregroundStyle(Color.usher)
+                        Text(t("Searching")).font(.subheadline.weight(.semibold)).foregroundStyle(Color.usher)
                     } else {
-                        Button { Task { await search(season) } } label: { Label("Search", systemImage: Symbol.search) }
+                        Button { Task { await search(season) } } label: { Label(t(Words.search), systemImage: Symbol.search) }
                             .buttonStyle(.bordered)
                             .tint(Color.screen)
                             .controlSize(.small)
                             .disabled(busy)
-                            .accessibilityLabel("Search for season \(season)'s missing episodes")
+                            .accessibilityLabel(t("Search for season {season}'s missing episodes", ["season": season]))
                     }
                 }
             }
@@ -178,7 +178,7 @@ struct ShowGapsSection: View {
             Text(episode.code)
                 .font(.subheadline.weight(.semibold).monospacedDigit())
                 .foregroundStyle(Color.usher)
-            Text(episode.title ?? "Episode \(episode.episodeNumber)")
+            Text(episode.title ?? t("Episode {number}", ["number": episode.episodeNumber]))
                 .font(.subheadline)
                 .foregroundStyle(Color.screen.opacity(0.85))
                 .lineLimit(1)
@@ -198,7 +198,7 @@ struct ShowGapsSection: View {
             try await client.requestSeasons(tmdbId: tmdbId, seasons: [season.seasonNumber])
             asked.insert(season.seasonNumber)
             undone.remove(season.seasonNumber)
-            said = "Requested \(season.title)"
+            said = t("Requested {season}", ["season": season.title])
         } catch {
             model.requestError = ConnectionError(error).message
         }
@@ -224,7 +224,7 @@ struct ShowGapsSection: View {
         do {
             try await client.searchMissing(showId: showId, season: season)
             searched.insert(season)
-            said = "Sonarr is searching"
+            said = t("Sonarr is searching")
         } catch {
             model.requestError = ConnectionError(error).message
         }

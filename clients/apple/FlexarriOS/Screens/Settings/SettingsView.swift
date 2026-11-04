@@ -34,7 +34,7 @@ struct SettingsView: View {
                         Spacer()
                         // Choosing someone else takes the server.
                         if model.offersProfilePicker, !model.isOffline {
-                            Button("Switch") { choosingProfile = true }
+                            Button(t("Switch")) { choosingProfile = true }
                                 .font(.subheadline.weight(.semibold))
                         }
                     }
@@ -44,13 +44,13 @@ struct SettingsView: View {
                         Button {
                             Task { await lockToKids(pin: nil) }
                         } label: {
-                            Label("Child lock", systemImage: "lock")
+                            Label(t("Child lock"), systemImage: "lock")
                         }
                         .disabled(locking)
                         .listRowBackground(Color.seat)
                     }
                 } header: {
-                    Text("Watching as")
+                    Text(t("Watching as"))
                 } footer: {
                     if let lockError { Text(lockError).foregroundStyle(Color.danger) }
                 }
@@ -61,12 +61,12 @@ struct SettingsView: View {
                     Button {
                         Task { await turnOnNotifications() }
                     } label: {
-                        Label("Turn on notifications", systemImage: "bell.badge.fill")
+                        Label(t("Turn on notifications"), systemImage: "bell.badge.fill")
                     }
                     .disabled(turningOnNotifications)
                     .listRowBackground(Color.seat)
                 } footer: {
-                    Text("This \(ThisDevice.name) isn't getting notifications from this server, so you won't hear when something new is ready.")
+                    Text(t("This {device} isn't getting notifications from this server, so you won't hear when something new is ready.", ["device": ThisDevice.name]))
                 }
             }
 
@@ -76,30 +76,34 @@ struct SettingsView: View {
             }
 
             Section {
-                SettingsLink("Playback", icon: "play.fill") { PlaybackSettingsView() }
-                SettingsLink("Downloads", icon: "arrow.down", value: downloads.bytesUsed == 0 ? nil : ByteCountFormatter.string(fromByteCount: downloads.bytesUsed, countStyle: .file)) {
+                SettingsLink(t("Playback"), icon: "play.fill") { PlaybackSettingsView() }
+                SettingsLink(t(Words.downloads), icon: "arrow.down", value: downloads.bytesUsed == 0 ? nil : formatBytes(downloads.bytesUsed)) {
                     DownloadSettingsView()
                 }
                 if model.podcastStatus?.available == true || model.bookListening != nil {
-                    SettingsLink("Podcasts & audiobooks", icon: "headphones") { ListeningSettingsView() }
+                    SettingsLink(t("Podcasts & audiobooks"), icon: "headphones") { ListeningSettingsView() }
                 }
                 // Servers before 0.54 keep no order.
                 if model.libraryOrder != nil, LibraryMenuEntry.ordered(model: model).count > 1 {
-                    SettingsLink("Library order", icon: "list.bullet", value: model.libraryOrder?.isEmpty == true ? "By name" : "Your own") {
+                    SettingsLink(t("Library order"), icon: "list.bullet", value: model.libraryOrder?.isEmpty == true ? t("By name") : t("Your own")) {
                         LibraryOrderSettingsView()
                     }
                 }
-                SettingsLink("Notifications", icon: "bell.fill", value: notifications.isOn ? "On" : "Off") { NotificationSettingsView() }
-                SettingsLink("Siri", icon: "waveform", value: siriDeviceName ?? "This \(ThisDevice.name)") { SiriSettingsView() }
+                // Once the server offers more than English (from 0.61).
+                if model.languages.count > 1 {
+                    SettingsLink(t("Language"), icon: "globe", value: LanguageSettingsView.current(model)) { LanguageSettingsView() }
+                }
+                SettingsLink(t("Notifications"), icon: "bell.fill", value: notifications.isOn ? t("On") : t("Off")) { NotificationSettingsView() }
+                SettingsLink("Siri", icon: "waveform", value: siriDeviceName ?? t("This {device}", ["device": ThisDevice.name])) { SiriSettingsView() }
                 if let trakt, trakt.available {
-                    SettingsLink("Trakt", icon: "arrow.triangle.2.circlepath", value: trakt.state == .connected ? trakt.username ?? "On" : trakt.state == .needsSignIn ? "Signed out" : "Off") {
+                    SettingsLink("Trakt", icon: "arrow.triangle.2.circlepath", value: trakt.state == .connected ? trakt.username ?? t("On") : trakt.state == .needsSignIn ? t("Signed out") : t("Off")) {
                         TraktSettingsView()
                     }
                 }
             }
 
             Section {
-                SettingsLink("Server", icon: "server.rack", value: connection) { ServerSettingsView() }
+                SettingsLink(t("Server"), icon: "server.rack", value: connection) { ServerSettingsView() }
             }
 
             Section {
@@ -107,7 +111,7 @@ struct SettingsView: View {
                     LabeledContent {
                         Image(systemName: "arrow.up.forward").font(.footnote.weight(.semibold))
                     } label: {
-                        Label { Text("Rate Flexarr") } icon: { SettingsIcon("star.fill") }
+                        Label { Text(t("Rate Flexarr")) } icon: { SettingsIcon("star.fill") }
                     }
                 }
                 .foregroundStyle(.primary)
@@ -116,19 +120,19 @@ struct SettingsView: View {
 
             Section {
                 Button(role: .destructive) { confirmSignOut = true } label: {
-                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                    Label(t("Sign out"), systemImage: "rectangle.portrait.and.arrow.right")
                         .foregroundStyle(Color.danger)
                 }
                 .listRowBackground(Color.seat)
             } footer: {
-                Text("Flexarr for \(ThisDevice.name) \(Bundle.main.shortVersion)")
+                Text(t("Flexarr for {device} {version}", ["device": ThisDevice.name, "version": Bundle.main.shortVersion]))
             }
         }
-        .settingsPage("Settings")
+        .settingsPage(t(Words.settings))
         .sheet(isPresented: $askingParentPin) {
             ZStack {
                 RoomBackground(ambient: nil)
-                PinEntry(profile: nil, title: "Enter the admin PIN", error: $lockError,
+                PinEntry(profile: nil, title: t("Enter the admin PIN"), error: $lockError,
                          onCancel: { askingParentPin = false; lockError = nil }) { pin in
                     await lockToKids(pin: pin)
                 }
@@ -139,16 +143,16 @@ struct SettingsView: View {
         .task { await catchUpOnPairing() }
         .task(id: model.currentProfile?.id) { trakt = try? await model.client?.traktStatus() }
         .task { notificationsAllowed = [.authorized, .provisional].contains(await notifications.authorization()) }
-        .alert("Couldn't turn on notifications", isPresented: Binding(get: { notificationProblem != nil }, set: { if !$0 { notificationProblem = nil } })) {
-            Button("OK", role: .cancel) {}
+        .alert(t("Couldn't turn on notifications"), isPresented: Binding(get: { notificationProblem != nil }, set: { if !$0 { notificationProblem = nil } })) {
+            Button(t("OK"), role: .cancel) {}
         } message: {
             Text(notificationProblem ?? "")
         }
-        .alert("Sign out of this server?", isPresented: $confirmSignOut) {
-            Button("Sign out", role: .destructive) { model.signOut() }
-            Button("Cancel", role: .cancel) {}
+        .alert(t("Sign out of this server?"), isPresented: $confirmSignOut) {
+            Button(t("Sign out"), role: .destructive) { model.signOut() }
+            Button(t(Words.cancel), role: .cancel) {}
         } message: {
-            Text("This \(ThisDevice.name) will need to connect again to use the server, and its downloads will be deleted.")
+            Text(t("This {device} will need to connect again to use the server, and its downloads will be deleted.", ["device": ThisDevice.name]))
         }
         .sheet(isPresented: $choosingProfile) {
             ProfilePickerView(marksCurrent: true)
@@ -167,7 +171,7 @@ struct SettingsView: View {
             try await model.lockToKids(pin: pin)
             askingParentPin = false
         } catch FlexarrClientError.parentPinNeeded(let message) {
-            if pin == nil { askingParentPin = true } else { lockError = message ?? "That PIN isn’t right." }
+            if pin == nil { askingParentPin = true } else { lockError = message ?? t("That PIN isn’t right.") }
         } catch {
             lockError = ConnectionError(error).message
         }
@@ -191,9 +195,9 @@ struct SettingsView: View {
     }
 
     private var connection: String? {
-        if model.isOffline { return "Offline" }
+        if model.isOffline { return t("Offline") }
         guard model.credentials?.remoteAddress != nil else { return model.credentials?.address.host() }
-        return model.client?.addresses.isAway == true ? "Away" : "At home"
+        return model.client?.addresses.isAway == true ? t("Away") : t("At home")
     }
 }
 

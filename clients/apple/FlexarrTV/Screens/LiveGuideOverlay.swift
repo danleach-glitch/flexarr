@@ -19,7 +19,7 @@ struct LiveGuideOverlay: View {
         ZStack {
             Color.black.opacity(0.8).ignoresSafeArea()
             VStack(alignment: .leading, spacing: 20) {
-                Text("Guide")
+                Text(t("Guide"))
                     .font(.marquee(56, weight: .black))
                     .foregroundStyle(Color.screen)
                 LiveGuideGrid(client: client, channels: channels, guide: guide, onWatch: onWatch,

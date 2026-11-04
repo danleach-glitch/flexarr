@@ -11,12 +11,12 @@ struct DiagnosticsSettingsView: View {
         @Bindable var upload = upload
         List {
             Section {
-                TextField("What happened, and roughly when? (optional)", text: $upload.note, axis: .vertical)
+                TextField(t("What happened, and roughly when? (optional)"), text: $upload.note, axis: .vertical)
                     .lineLimit(3...6)
                     .disabled(upload.isSending)
                     .listRowBackground(Color.seat)
             } footer: {
-                Text("Sends what this \(ThisDevice.name) has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)")
+                Text(t("Sends what this {device} has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)", ["device": ThisDevice.name]))
             }
 
             Section {
@@ -24,7 +24,7 @@ struct DiagnosticsSettingsView: View {
                     Task { await upload.send(model: model) }
                 } label: {
                     HStack {
-                        Text(upload.isSending ? "Sending…" : "Send diagnostics")
+                        Text(upload.isSending ? t("Sending…") : t("Send diagnostics"))
                         Spacer()
                         if upload.isSending { ProgressView() }
                     }
@@ -35,6 +35,6 @@ struct DiagnosticsSettingsView: View {
                 if let outcome = upload.outcome { Text(outcome) }
             }
         }
-        .settingsPage("Send diagnostics")
+        .settingsPage(t("Send diagnostics"))
     }
 }

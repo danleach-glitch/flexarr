@@ -75,23 +75,23 @@ struct MusicMenuContent: View {
         ForEach(menu.items, id: \.self) { item in
             switch item {
             case .play:
-                Button { run { await play(shuffled: false) } } label: { Label("Play", systemImage: Symbol.play) }
+                Button { run { await play(shuffled: false) } } label: { Label(t(Words.play), systemImage: Symbol.play) }
             case .shuffle:
-                Button { run { await play(shuffled: true) } } label: { Label("Shuffle", systemImage: Symbol.shuffle) }
+                Button { run { await play(shuffled: true) } } label: { Label(t(Words.shuffle), systemImage: Symbol.shuffle) }
             case .playNext:
-                Button { run { await queue(next: true) } } label: { Label("Play next", systemImage: Symbol.playNext) }
+                Button { run { await queue(next: true) } } label: { Label(t(Words.playNext), systemImage: Symbol.playNext) }
             case .addToQueue:
-                Button { run { await queue(next: false) } } label: { Label("Add to queue", systemImage: Symbol.addToQueue) }
+                Button { run { await queue(next: false) } } label: { Label(t(Words.addToQueue), systemImage: Symbol.addToQueue) }
             case .addToPlaylist:
                 Button { model.addingToPlaylist = target.addition } label: {
-                    Label("Add to playlist…", systemImage: Symbol.addToPlaylist)
+                    Label(t("Add to playlist…"), systemImage: Symbol.addToPlaylist)
                 }
             case .goToArtist:
                 Button { if let id = target.artistId { router.push(.itemID(id)) } } label: {
-                    Label("Go to artist", systemImage: Symbol.goToArtist)
+                    Label(t(Words.goToArtist), systemImage: Symbol.goToArtist)
                 }
             case .download:
-                Button { run { await download() } } label: { Label("Download", systemImage: Symbol.download) }
+                Button { run { await download() } } label: { Label(t(Words.download), systemImage: Symbol.download) }
             }
         }
     }
@@ -181,12 +181,12 @@ struct MusicPageMenu: View {
 
     var body: some View {
         #if os(tvOS)
-        Button { asking = true } label: { Label("More", systemImage: Symbol.more) }
-            .accessibilityLabel("More actions")
+        Button { asking = true } label: { Label(t("More"), systemImage: Symbol.more) }
+            .accessibilityLabel(t("More actions"))
             .confirmationDialog(item.title, isPresented: $asking) { entries }
         #else
-        Menu { entries } label: { Label("More", systemImage: Symbol.more) }
-            .accessibilityLabel("More actions")
+        Menu { entries } label: { Label(t("More"), systemImage: Symbol.more) }
+            .accessibilityLabel(t("More actions"))
         #endif
     }
 
@@ -194,12 +194,12 @@ struct MusicPageMenu: View {
         ForEach(items, id: \.self) { entry in
             switch entry {
             case .playNext:
-                Button { Task { await queue(next: true) } } label: { Label("Play next", systemImage: Symbol.playNext) }
+                Button { Task { await queue(next: true) } } label: { Label(t(Words.playNext), systemImage: Symbol.playNext) }
             case .addToQueue:
-                Button { Task { await queue(next: false) } } label: { Label("Add to queue", systemImage: Symbol.addToQueue) }
+                Button { Task { await queue(next: false) } } label: { Label(t(Words.addToQueue), systemImage: Symbol.addToQueue) }
             case .addToPlaylist:
                 Button { model.addingToPlaylist = PlaylistAdditionRequest(itemId: item.id, title: item.title) } label: {
-                    Label("Add to playlist…", systemImage: Symbol.addToPlaylist)
+                    Label(t("Add to playlist…"), systemImage: Symbol.addToPlaylist)
                 }
             case .delete:
                 EmptyView()

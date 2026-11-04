@@ -185,7 +185,7 @@ struct SettingsRow: View {
 extension SettingsRow {
     /// A switch: the row says On or Off and a press flips it.
     static func toggle(_ title: String, isOn: Bool, symbol: String? = nil, help: String? = nil, flip: @escaping () -> Void) -> SettingsRow {
-        SettingsRow(title: title, symbol: symbol, value: isOn ? "On" : "Off", help: help, action: flip)
+        SettingsRow(title: title, symbol: symbol, value: isOn ? t("On") : t("Off"), help: help, action: flip)
     }
 }
 

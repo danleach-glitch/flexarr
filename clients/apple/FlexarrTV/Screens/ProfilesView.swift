@@ -63,7 +63,7 @@ struct ProfilePickerView: View {
     var body: some View {
         VStack(spacing: 70) {
             if let step = kidsLockPin {
-                PinPad(profile: nil, title: "Enter the admin PIN", error: $error, onCancel: cancelKidsLockPin) { pin in
+                PinPad(profile: nil, title: t("Enter the admin PIN"), error: $error, onCancel: cancelKidsLockPin) { pin in
                     switch step {
                     case .unlock: await release(pin)
                     case .lock: await lock(pin: pin)
@@ -71,7 +71,7 @@ struct ProfilePickerView: View {
                 }
                 .transition(.opacity)
             } else if let forgetting {
-                PinPad(profile: nil, title: "Enter the admin PIN", note: "It takes \(forgetting.name)’s PIN off.", error: $error,
+                PinPad(profile: nil, title: t("Enter the admin PIN"), note: t("It takes {name}’s PIN off.", ["name": forgetting.name]), error: $error,
                        onCancel: { self.forgetting = nil; error = nil; focused = forgetting.id }) { pin in
                     await forget(forgetting, adminPin: pin)
                 }
@@ -80,7 +80,7 @@ struct ProfilePickerView: View {
                 // The admin PIN is the server's, not the main profile's own: a padlock rather than its picture. Where
                 // the server says choosing the main profile takes it (a guest), the same.
                 let adminPin = parent != nil || asking.asksAdminPinToChoose
-                PinPad(profile: adminPin ? nil : asking, title: adminPin ? "Enter the admin PIN" : nil, error: $error,
+                PinPad(profile: adminPin ? nil : asking, title: adminPin ? t("Enter the admin PIN") : nil, error: $error,
                        onForgot: adminPin || asking.isMain ? nil : { forgetting = asking; self.asking = nil; error = nil },
                        onCancel: { cancelPin(asking) }) { pin in
                     if let parent {
@@ -107,7 +107,7 @@ struct ProfilePickerView: View {
 
     private var choices: some View {
         VStack(spacing: 70) {
-            Text("Who’s watching?")
+            Text(t("Who’s watching?"))
                 .font(.marquee(76, weight: .heavy))
                 .foregroundStyle(Color.screen)
 
@@ -125,7 +125,7 @@ struct ProfilePickerView: View {
                     // Press and hold, as holding the padlock on the phones: child lock on with this kids profile, or off.
                     .contextMenu {
                         if lockBadge(for: profile) {
-                            Button(model.kidsLock ? "Turn off child lock" : "Child lock", systemImage: model.kidsLock ? "lock.open" : "lock") {
+                            Button(model.kidsLock ? t("Turn off child lock") : t("Child lock"), systemImage: model.kidsLock ? "lock.open" : "lock") {
                                 toggleChildLock(on: profile)
                             }
                         }
@@ -173,9 +173,9 @@ struct ProfilePickerView: View {
     }
 
     private func caption(for profile: Profile) -> String? {
-        if marksCurrent && profile.isCurrent { return "Watching now" }
-        if profile.needsPinToChoose { return "PIN" }
-        if marksCurrent && profile.id == model.otherProfile?.id { return "Switch" }
+        if marksCurrent && profile.isCurrent { return t("Watching now") }
+        if profile.needsPinToChoose { return t("PIN") }
+        if marksCurrent && profile.id == model.otherProfile?.id { return t("Switch") }
         return nil
     }
 
@@ -225,14 +225,14 @@ struct ProfilePickerView: View {
                 asking = profile
                 parent = ParentPin(ownPin: pin)
             } else {
-                self.error = message ?? "That PIN isn’t right."
+                self.error = message ?? t("That PIN isn’t right.")
             }
         } catch FlexarrClientError.ownPinWrong {
             // The admin PIN was right, so it's kept; back to the chosen profile's own.
             knownParentPin = sentParentPin
             asking = profile
             parent = nil
-            self.error = "That isn’t \(profile.name)’s PIN."
+            self.error = t("That isn’t {name}’s PIN.", ["name": profile.name])
         } catch {
             self.error = ConnectionError(error).message
         }
@@ -262,9 +262,9 @@ struct ProfilePickerView: View {
             forgetting = nil
             await choose(cleared, pin: nil)
         } catch FlexarrClientError.parentPinNeeded(let message) {
-            self.error = message ?? "That isn’t the admin PIN."
+            self.error = message ?? t("That isn’t the admin PIN.")
         } catch FlexarrClientError.http(status: 404, _) {
-            self.error = "Take the PIN off in Settings › Profiles on the web."
+            self.error = t("Take the PIN off in Settings › Profiles on the web.")
         } catch {
             self.error = ConnectionError(error).message
         }
@@ -295,7 +295,7 @@ struct ProfilePickerView: View {
             }
             lockTarget = nil
         } catch FlexarrClientError.parentPinNeeded(let message) {
-            if pin == nil { kidsLockPin = .lock } else { error = message ?? "That PIN isn’t right." }
+            if pin == nil { kidsLockPin = .lock } else { error = message ?? t("That PIN isn’t right.") }
         } catch {
             self.error = ConnectionError(error).message
         }
@@ -405,7 +405,7 @@ struct PinPad: View {
                         .frame(width: 180, height: 180)
                         .accessibilityHidden(true)
                 }
-                Text(title ?? profile.map { "Enter \($0.name)’s PIN" } ?? "Enter the PIN")
+                Text(title ?? profile.map { t("Enter {name}’s PIN", ["name": $0.name]) } ?? t("Enter the PIN"))
                     .font(.marquee(56, weight: .heavy))
                     .foregroundStyle(Color.screen)
                 if let note {
@@ -423,11 +423,11 @@ struct PinPad: View {
                     }
                 }
                 .frame(height: 40)
-                Text(error ?? (checking ? "Checking" : " "))
+                Text(error ?? (checking ? t("Checking") : " "))
                     .font(.system(size: 28, weight: .medium))
                     .foregroundStyle(error == nil ? Color.screen : Color.danger)
                 if let onForgot {
-                    Button("Forgot PIN?", action: onForgot)
+                    Button(t("Forgot PIN?"), action: onForgot)
                         .buttonStyle(ActionButtonStyle())
                 }
             }
@@ -456,8 +456,8 @@ struct PinPad: View {
     @ViewBuilder
     private func label(for key: String) -> some View {
         switch key {
-        case "delete": Image(systemName: "delete.left").accessibilityLabel("Delete")
-        case "ok": Text("OK")
+        case "delete": Image(systemName: "delete.left").accessibilityLabel(t(Words.delete))
+        case "ok": Text(t("OK"))
         default: Text(key).monospacedDigit()
         }
     }
@@ -470,7 +470,7 @@ struct PinPad: View {
         case "delete":
             if pin.isEmpty { onCancel() } else { pin.removeLast() }
         case "ok":
-            if pin.count < 4 { error = "A PIN is 4 to 8 digits." } else { submit() }
+            if pin.count < 4 { error = t("A PIN is 4 to 8 digits.") } else { submit() }
         default:
             guard pin.count < 8 else { return }
             pin.append(key)

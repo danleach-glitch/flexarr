@@ -24,6 +24,7 @@ INTENT_PATTERNS = [
     re.compile(r"shortTitle:\s*" + LIT),
     re.compile(r"TypeDisplayRepresentation\(\s*name:\s*" + LIT),
     re.compile(r"DisplayRepresentation\(\s*title:\s*" + LIT),
+    re.compile(r"requestValueDialog:\s*" + LIT),
 ]
 PHRASES = re.compile(r"phrases:\s*\[(.*?)\]", re.S)
 PLIST_KEY = re.compile(r"^\s+(NS\w+UsageDescription):\s*" + LIT + r"\s*$", re.M)

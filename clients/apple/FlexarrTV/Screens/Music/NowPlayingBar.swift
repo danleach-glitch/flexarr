@@ -78,7 +78,8 @@ struct NowPlayingBar: View {
             .padding(.bottom, 20)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Now playing: \(track.title)\(track.artistName.map { " by \($0)" } ?? "")")
+            .accessibilityLabel(track.artistName.map { t("Now playing: {title} by {artist}", ["title": track.title, "artist": $0]) }
+                                ?? t("Now playing: {title}", ["title": track.title]))
         }
     }
 }

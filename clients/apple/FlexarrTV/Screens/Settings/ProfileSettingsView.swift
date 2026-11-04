@@ -13,23 +13,23 @@ struct ProfileSettingsView: View {
     @State private var error: String?
 
     var body: some View {
-        SettingsPage(title: "Profiles") {
-            SettingsGroupLabel("When Flexarr opens")
-            SettingsRow(title: "Stay with the last profile", symbol: "person.crop.circle.badge.checkmark",
-                        help: "Flexarr opens as whoever watched last on this Apple TV.",
+        SettingsPage(title: t("Profiles")) {
+            SettingsGroupLabel(t("When Flexarr opens"))
+            SettingsRow(title: t("Stay with the last profile"), symbol: "person.crop.circle.badge.checkmark",
+                        help: t("Flexarr opens as whoever watched last on this Apple TV."),
                         accessory: asksWhoIsWatching ? .none : .checkmark) { choose(false) }
-            SettingsRow(title: "Ask who's watching", symbol: "person.2",
-                        help: "Flexarr opens on Who's watching? each time it starts, so everyone's history stays their own. Profiles with a PIN ask for it every time.",
+            SettingsRow(title: t("Ask who's watching"), symbol: "person.2",
+                        help: t("Flexarr opens on Who's watching? each time it starts, so everyone's history stays their own. Profiles with a PIN ask for it every time."),
                         accessory: asksWhoIsWatching ? .checkmark : .none) { choose(true) }
             if model.offersKidsLock {
-                SettingsGroupLabel("Kids")
-                SettingsRow(title: "Child lock", symbol: "lock", value: locking ? "Locking" : nil,
-                            help: error ?? "Only kids profiles can be chosen on this Apple TV until the admin PIN unlocks it.",
+                SettingsGroupLabel(t("Kids"))
+                SettingsRow(title: t("Child lock"), symbol: "lock", value: locking ? t("Locking") : nil,
+                            help: error ?? t("Only kids profiles can be chosen on this Apple TV until the admin PIN unlocks it."),
                             accessory: .none) { Task { await lock(pin: nil) } }
             }
         }
         .fullScreenCover(isPresented: $askingPin) {
-            PinPad(profile: nil, title: "Enter the admin PIN", error: $error,
+            PinPad(profile: nil, title: t("Enter the admin PIN"), error: $error,
                    onCancel: { askingPin = false; error = nil }) { pin in
                 await lock(pin: pin)
             }
@@ -49,7 +49,7 @@ struct ProfileSettingsView: View {
             try await model.lockToKids(pin: pin)
             askingPin = false
         } catch FlexarrClientError.parentPinNeeded(let message) {
-            if pin == nil { askingPin = true } else { error = message ?? "That PIN isn’t right." }
+            if pin == nil { askingPin = true } else { error = message ?? t("That PIN isn’t right.") }
         } catch {
             self.error = ConnectionError(error).message
         }

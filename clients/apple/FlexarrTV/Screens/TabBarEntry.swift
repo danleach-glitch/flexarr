@@ -28,7 +28,7 @@ enum TabBarEntry: Identifiable, Hashable {
     var title: String {
         switch self {
         case .library(let library): library.name
-        case .liveTv: "Live TV"
+        case .liveTv: t(Words.liveTv)
         }
     }
 

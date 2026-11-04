@@ -14,10 +14,10 @@ final class ServerProcess {
 
         var description: String {
             switch self {
-            case .stopped: "Flexarr is stopped"
-            case .starting: "Flexarr is starting…"
-            case .running: "Flexarr is running"
-            case .failed(let reason): "Flexarr stopped: \(reason)"
+            case .stopped: t("Flexarr is stopped")
+            case .starting: t("Flexarr is starting…")
+            case .running: t("Flexarr is running")
+            case .failed(let reason): t("Flexarr stopped: {reason}", ["reason": reason])
             }
         }
     }
@@ -161,7 +161,7 @@ final class ServerProcess {
         // Give up after a few exits in a row within seconds of starting: something's wrong that a restart won't fix.
         quickExits = seconds < 30 ? quickExits + 1 : 0
         if quickExits >= 3 {
-            status = .failed("it exited with code \(code). See the logs.")
+            status = .failed(t("it exited with code {code}. See the logs.", ["code": "\(code)"]))
             return
         }
         status = .starting

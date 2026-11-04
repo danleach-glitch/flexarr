@@ -163,7 +163,7 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var subtitleSync: (itemId: String, fileId: String, task: Task<Void, Never>)?
     private static let countdownSeconds = Int(NextEpisodeTiming.countdownSeconds)
     private static let reportInterval: TimeInterval = 10
-    private static let takenOverMessage = "Someone started watching on another screen, so this one had to stop."
+    private static var takenOverMessage: String { t("Someone started watching on another screen, so this one had to stop.") }
 
     // MARK: Start
 
@@ -201,7 +201,7 @@ final class PlaybackController: NSObject {
         do {
             try present(info)
         } catch {
-            show(.other, message: "This download couldn't be played. Delete it and download it again.", retry: nil)
+            show(.other, message: t("This download couldn't be played. Delete it and download it again."), retry: nil)
         }
     }
 
@@ -683,7 +683,7 @@ final class PlaybackController: NSObject {
                 self?.endSubtitleSync(failure: error.localizedDescription)
                 return
             }
-            self?.screen?.flash("Re-syncing subtitles…")
+            self?.screen?.flash(t("Re-syncing subtitles…"))
             var misses = 0
             // A film's re-sync takes a minute or more; given up on after half an hour.
             for _ in 0..<600 {
@@ -704,14 +704,14 @@ final class PlaybackController: NSObject {
                     self?.endSubtitleSync(doneWith: status.key ?? key)
                     return
                 case .failed:
-                    self?.endSubtitleSync(failure: status.error ?? "The subtitles couldn't be re-synced.")
+                    self?.endSubtitleSync(failure: status.error ?? t("The subtitles couldn't be re-synced."))
                     return
                 case .idle:
-                    self?.endSubtitleSync(failure: "The re-sync stopped before it finished.")
+                    self?.endSubtitleSync(failure: t("The re-sync stopped before it finished."))
                     return
                 }
             }
-            self?.endSubtitleSync(failure: "The re-sync is taking too long. Try again later.")
+            self?.endSubtitleSync(failure: t("The re-sync is taking too long. Try again later."))
         }
         subtitleSync = (itemId, fileId, task)
         updateSubtitleSearch()
@@ -724,7 +724,7 @@ final class PlaybackController: NSObject {
         updateSubtitleSearch()
         guard let current = info, current.item.id == sync.itemId, current.fileId == sync.fileId, !isRecovering else { return }
         log.info("Subtitles re-synced", ["playbackId": current.playbackId])
-        screen?.flash("Subtitles re-synced")
+        screen?.flash(t("Subtitles re-synced"))
         viewerSubtitleKey = .some(key)
         reopen(reopenRequest(current), replacing: current)
     }
@@ -735,8 +735,8 @@ final class PlaybackController: NSObject {
         updateSubtitleSearch()
         log.warning("Subtitles weren't re-synced: \(message)", ["playbackId": info?.playbackId])
         guard let current = info, current.item.id == sync.itemId, let screen, screen.presentedViewController == nil else { return }
-        let alert = UIAlertController(title: "Couldn't re-sync subtitles", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: t("Couldn't re-sync subtitles"), message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: t("OK"), style: .default))
         screen.present(alert, animated: true)
     }
 
@@ -1117,22 +1117,24 @@ final class PlaybackController: NSObject {
 
     /// "Next episode in 4" (on shuffle too: the next one just happens to be random).
     private var nextTitle: String {
-        countdown.map { "Next episode in \($0)" } ?? "Next episode"
+        countdown.map { t(Words.nextEpisodeIn, ["seconds": $0]) } ?? t("Next episode")
     }
 
     private func updatePrompt() {
+        var symbol = "forward.fill"
         let title: String? = if isFinishing {
             nextTitle
         } else {
             switch prompt {
             case .none: nil
-            case .skip(let type, _): type == .recap ? "Skip recap" : "Skip intro"
+            case .skip(let type, _): type == .recap ? t(Words.skipRecap) : t(Words.skipIntro)
             // Not over the sleep timer's question, or for an episode it's stopping at the end of.
             case .nextEpisode: screen?.sleepHoldsEpisode == true ? nil : nextTitle
             }
         }
+        if !isFinishing, case .skip = prompt { symbol = "forward.end.fill" }
         // After Cancel the button stays, but Select pauses as usual rather than pressing it.
-        screen?.setPrompt(title, countingDown: isFinishing && countdown != nil, takesFocus: !nextCancelled)
+        screen?.setPrompt(title, symbol: symbol, countingDown: isFinishing && countdown != nil, takesFocus: !nextCancelled)
     }
 
     private func promptTapped() {
@@ -1393,12 +1395,12 @@ final class PlaybackController: NSObject {
             let channels: String = switch track.channels {
             case 8: "7.1"
             case 6: "5.1"
-            case 2: "stereo"
+            case 2: t("stereo")
             default: ""
             }
             return [codec, channels].filter { !$0.isEmpty }.joined(separator: " ")
         }
-        let parts = [info.item.resolution, sound, info.isOffline ? "Downloaded" : info.method == .directPlay ? "Original" : nil].compactMap { $0 }.filter { !$0.isEmpty }
+        let parts = [info.item.resolution, sound, info.isOffline ? t("Downloaded") : info.method == .directPlay ? t("Original") : nil].compactMap { $0 }.filter { !$0.isEmpty }
         return parts.isEmpty ? nil : parts.joined(separator: "   ")
     }
 

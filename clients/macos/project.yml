@@ -17,7 +17,15 @@ targets:
   FlexarrServer:
     type: application
     platform: macOS
-    sources: [FlexarrServer]
+    # FlexarrKit's language files, compiled in (its package needs macOS 15): the menu follows the Mac's language, from
+    # the packs built in (docs/languages.md). Not Localization+Server.swift, which needs FlexarrKit's client.
+    sources:
+      - FlexarrServer
+      - path: ../apple/FlexarrKit/Sources/FlexarrKit/Localization
+        excludes: ["Localization+Server.swift"]
+      - path: ../apple/FlexarrKit/Sources/FlexarrKit/Resources/Languages
+        type: folder
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(FLEXARR_MAC_BUNDLE_ID)

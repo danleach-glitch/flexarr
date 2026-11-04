@@ -1,3 +1,4 @@
+import FlexarrKit
 import SwiftUI
 
 /// What a film or TV library's tab opens on, an audiobooks library's and a music library's, for every library on this
@@ -8,15 +9,15 @@ struct LibrarySettingsView: View {
     @AppStorage(BookOpening.storageKey) private var booksOpenOn: BookOpening?
 
     var body: some View {
-        SettingsPage(title: "Libraries") {
-            SettingsGroupLabel("Movies and shows")
+        SettingsPage(title: t(Words.libraries)) {
+            SettingsGroupLabel(t(Words.moviesAndShows))
             ForEach(LibraryOpening.allCases, id: \.self) { opening in
                 SettingsRow(title: opening.label, symbol: opening.symbol,
                             help: opening.help, accessory: opensOn == opening ? .checkmark : .none) {
                     opensOn = opening
                 }
             }
-            SettingsGroupLabel("Books")
+            SettingsGroupLabel(t("Books"))
             let books = BookOpening.opening(saved: booksOpenOn, library: opensOn)
             ForEach(BookOpening.allCases, id: \.self) { opening in
                 SettingsRow(title: opening.label, symbol: opening.symbol,
@@ -24,7 +25,7 @@ struct LibrarySettingsView: View {
                     booksOpenOn = opening
                 }
             }
-            SettingsGroupLabel("Music")
+            SettingsGroupLabel(t(Words.music))
             ForEach(MusicOpening.allCases, id: \.self) { opening in
                 SettingsRow(title: opening.label, symbol: opening.symbol,
                             help: opening.help, accessory: musicOpensOn == opening ? .checkmark : .none) {
@@ -38,9 +39,9 @@ struct LibrarySettingsView: View {
 private extension LibraryOpening {
     var help: String {
         switch self {
-        case .browse: "A library opens on its highlights: what you're watching in it, the latest, the best not yet watched and its biggest genres."
-        case .all: "A library opens on every title, A to Z, with sorting, genres and a letter rail to jump through it."
-        case .genres: "A library opens on its genres, each with a picture from its titles. Home videos open on Browse."
+        case .browse: t("A library opens on its highlights: what you're watching in it, the latest, the best not yet watched and its biggest genres.")
+        case .all: t("A library opens on every title, A to Z, with sorting, genres and a letter rail to jump through it.")
+        case .genres: t("A library opens on its genres, each with a picture from its titles. Home videos open on Browse.")
         }
     }
 
@@ -56,11 +57,11 @@ private extension LibraryOpening {
 private extension BookOpening {
     var help: String {
         switch self {
-        case .browse: "The books you're listening to, then your shelves."
-        case .all: "Every book, A to Z, with sorting, filters and a letter rail."
-        case .genres: "A tile for each genre."
-        case .series: "Every series, A to Z."
-        case .authors: "Every author, A to Z."
+        case .browse: t("The books you're listening to, then your shelves.")
+        case .all: t("Every book, A to Z, with sorting, filters and a letter rail.")
+        case .genres: t("A tile for each genre.")
+        case .series: t("Every series, A to Z.")
+        case .authors: t("Every author, A to Z.")
         }
     }
 
@@ -78,10 +79,10 @@ private extension BookOpening {
 private extension MusicOpening {
     var help: String {
         switch self {
-        case .browse: "The album you played last, then your rows."
-        case .artists: "Every artist, A to Z."
-        case .albums: "Every album, A to Z."
-        case .genres: "A tile for each genre."
+        case .browse: t("The album you played last, then your rows.")
+        case .artists: t("Every artist, A to Z.")
+        case .albums: t("Every album, A to Z.")
+        case .genres: t("A tile for each genre.")
         }
     }
 

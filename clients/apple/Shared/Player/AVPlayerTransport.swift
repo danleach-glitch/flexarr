@@ -245,7 +245,7 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
             }
             play()
         case .failed:
-            let reason = message ?? "The stream couldn't be opened."
+            let reason = message ?? t("The stream couldn't be opened.")
             log.error("Item failed: \(reason)", ["playbackId": info.playbackId])
             // AVFoundation's own account of what went wrong with the playlists (the error alone says little).
             for event in item.errorLog()?.events.prefix(5) ?? [] {

@@ -23,11 +23,11 @@ struct ConnectView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 12) {
                         BrandMark(size: 56)
-                        Text("flexarr")
+                        Text(verbatim: "flexarr")
                             .font(.marquee(64, weight: .black))
                             .foregroundStyle(Color.screen)
                     }
-                    Text("Your entertainment, on every screen.")
+                    Text(t("Your entertainment, on every screen."))
                         .font(.title3.weight(.medium))
                         .foregroundStyle(Color.usher)
                     if let notice = model.signedOutNotice {
@@ -91,13 +91,13 @@ private struct ChooseServer: View {
         // In the order people come: their own server at home, an invite to someone else's, typing an address, and
         // only then setting up a server of their own.
         VStack(alignment: .leading, spacing: 14) {
-            Text("Servers on your network")
+            Text(t("Servers on your network"))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.usher)
             if browser.servers.isEmpty {
                 HStack(spacing: 12) {
                     ProgressView()
-                    Text("Looking for Flexarr…").foregroundStyle(Color.usher)
+                    Text(t("Looking for Flexarr…")).foregroundStyle(Color.usher)
                 }
                 .padding(.vertical, 4)
             } else {
@@ -115,9 +115,9 @@ private struct ChooseServer: View {
             // under the list for one that isn't in it.
             if !browser.servers.isEmpty || lookingAWhile {
                 HStack(spacing: 4) {
-                    Text(browser.servers.isEmpty ? "Can’t see your server?" : "Not listed?")
+                    Text(browser.servers.isEmpty ? t("Can’t see your server?") : t("Not listed?"))
                         .foregroundStyle(Color.usher)
-                    Button("Enter its address", action: onManual)
+                    Button(t("Enter its address"), action: onManual)
                         .fontWeight(.semibold)
                 }
                 .font(.subheadline)
@@ -149,21 +149,21 @@ private struct NewToFlexarr: View {
                     .frame(width: 44, height: 44)
                     .background(RoundedRectangle(cornerRadius: Radius.control, style: .continuous).fill(Color.silver.opacity(0.16)))
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("New to Flexarr?")
+                    Text(t("New to Flexarr?"))
                         .font(.headline)
                         .foregroundStyle(Color.screen)
-                    Text("Set up your own server at home on Mac, Docker or a NAS.")
+                    Text(t("Set up your own server at home on Mac, Docker or a NAS."))
                         .font(.subheadline)
                         .foregroundStyle(Color.usher)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             HStack(spacing: 8) {
-                badge("Completely free", systemImage: "checkmark")
-                badge("Under a minute", systemImage: "clock")
+                badge(t("Completely free"), systemImage: "checkmark")
+                badge(t("Under a minute"), systemImage: "clock")
             }
             Button { openURL(WelcomeView.installURL) } label: {
-                Label("Set up a server", systemImage: "arrow.up.right")
+                Label(t("Set up a server"), systemImage: "arrow.up.right")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(ActionButtonStyle(prominent: true))
@@ -177,7 +177,7 @@ private struct NewToFlexarr: View {
         }
     }
 
-    private func badge(_ title: LocalizedStringKey, systemImage: String) -> some View {
+    private func badge(_ title: String, systemImage: String) -> some View {
         Label(title, systemImage: systemImage)
             .font(.footnote.weight(.semibold))
             .foregroundStyle(Color.screen)
@@ -202,18 +202,18 @@ private struct PairWithServer: View {
         VStack(alignment: .leading, spacing: 22) {
             if let pairing, pairing.declined {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Not allowed")
+                    Text(t("Not allowed"))
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.screen)
-                    Text("The main profile turned this \(ThisDevice.name) away. If that was a mistake, try again and allow it this time.")
+                    Text(t("The main profile turned this {device} away. If that was a mistake, try again and allow it this time.", ["device": ThisDevice.name]))
                         .font(.body)
                         .foregroundStyle(Color.usher)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Button("Try again") { attempt += 1 }
+                Button(t("Try again")) { attempt += 1 }
                     .buttonStyle(ActionButtonStyle(prominent: true))
             } else if let pairing, let start = pairing.current {
-                Text("Connect this \(ThisDevice.name)")
+                Text(t("Connect this {device}", ["device": ThisDevice.name]))
                     .font(.title2.weight(.bold))
                     .foregroundStyle(Color.screen)
 
@@ -223,25 +223,25 @@ private struct PairWithServer: View {
                 if pairing.needsSetup {
                     VStack(alignment: .leading, spacing: 14) {
                         NumberedStep(1) {
-                            Text("On your computer, open **\(server.address.absoluteString)** in a web browser.")
+                            markdown(t("On your computer, open **{address}** in a web browser.", ["address": server.address.absoluteString]))
                         }
                         NumberedStep(2) {
-                            Text(pairing.setupNeedsCode
-                                ? "Type in the setup code from the server's log, then click **Set up Flexarr**."
-                                : "Click **Set up Flexarr**.")
+                            markdown(pairing.setupNeedsCode
+                                ? t("Type in the setup code from the server's log, then click **Set up Flexarr**.")
+                                : t("Click **Set up Flexarr**."))
                         }
-                        NumberedStep(3) { Text("Go to **Settings**, then **Security**, then **Connect a device**.") }
-                        NumberedStep(4) { Text("Type in this code:") }
+                        NumberedStep(3) { markdown(t("Go to **Settings**, then **Security**, then **Connect a device**.")) }
+                        NumberedStep(4) { Text(t("Type in this code:")) }
                     }
                     code(start, renewed: pairing.renewedAt != nil)
                 } else {
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("On a phone signed in to Flexarr, tap **Allow** when it asks. Check it shows this code:")
+                        markdown(t("On a phone signed in to Flexarr, tap **Allow** when it asks. Check it shows this code:"))
                             .font(.body)
                             .foregroundStyle(Color.screen)
                             .fixedSize(horizontal: false, vertical: true)
                         code(start, renewed: pairing.renewedAt != nil)
-                        Text("Or on a computer, open **\(server.address.appending(path: "settings/tv").absoluteString)** and type in the code.")
+                        markdown(t("Or on a computer, open **{address}** and type in the code.", ["address": server.address.appending(path: "settings/tv").absoluteString]))
                             .font(.subheadline)
                             .foregroundStyle(Color.usher)
                             .fixedSize(horizontal: false, vertical: true)
@@ -251,7 +251,7 @@ private struct PairWithServer: View {
 
                 HStack(spacing: 10) {
                     ProgressView()
-                    Text("This screen moves on by itself once it's allowed.")
+                    Text(t("This screen moves on by itself once it's allowed."))
                         .font(.footnote)
                         .foregroundStyle(Color.usher)
                 }
@@ -264,10 +264,10 @@ private struct PairWithServer: View {
                     .foregroundStyle(Color.screen)
             }
             HStack(spacing: 20) {
-                Button("Back", action: onBack)
+                Button(t("Back"), action: onBack)
                 // Only works if Safari on this phone is signed in already, so it stays out of the way.
                 if let pairing, let start = pairing.current, !pairing.needsSetup {
-                    Button("Approve in Safari instead") { openURL(pairing.link(for: start)) }
+                    Button(t("Approve in Safari instead")) { openURL(pairing.link(for: start)) }
                 }
             }
             .font(.subheadline.weight(.semibold))
@@ -288,7 +288,7 @@ private struct PairWithServer: View {
                 .foregroundStyle(Color.screen)
                 .textSelection(.enabled)
             if renewed {
-                Text("A new code")
+                Text(t("A new code"))
                     .font(.subheadline)
                     .foregroundStyle(Color.usher)
             }
@@ -342,8 +342,8 @@ private struct ManualConnect: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            field("Server address") {
-                TextField("http://192.168.1.20:8383", text: $address)
+            field(t("Server address")) {
+                TextField(t("http://192.168.1.20:8383"), text: $address)
                     .textContentType(.URL)
                     .keyboardType(.URL)
                     .autocorrectionDisabled()
@@ -353,14 +353,14 @@ private struct ManualConnect: View {
                     .onSubmit { if usesKey { focus = .key } else { connect() } }
             }
             if usesKey {
-                field("API key") {
-                    SecureField("Paste your API key", text: $apiKey)
+                field(t("API key")) {
+                    SecureField(t("Paste your API key"), text: $apiKey)
                         .focused($focus, equals: .key)
                         .submitLabel(.go)
                         .onSubmit { connect() }
                 }
             } else {
-                Text("You’ll get a code to approve, like a server found on your Wi-Fi.")
+                Text(t("You’ll get a code to approve, like a server found on your Wi-Fi."))
                     .font(.footnote)
                     .foregroundStyle(Color.usher)
             }
@@ -370,15 +370,15 @@ private struct ManualConnect: View {
                     if isConnecting {
                         HStack(spacing: 8) {
                             ProgressView().tint(.room)
-                            Text("Connecting")
+                            Text(t("Connecting"))
                         }
                     } else {
-                        Label("Connect", systemImage: "arrow.right.circle.fill")
+                        Label(t("Connect"), systemImage: "arrow.right.circle.fill")
                     }
                 }
                 .buttonStyle(ActionButtonStyle(prominent: true))
                 .disabled(isConnecting || address.trimmingCharacters(in: .whitespaces).isEmpty)
-                Button("Back", action: onBack)
+                Button(t("Back"), action: onBack)
                     .buttonStyle(ActionButtonStyle())
             }
 
@@ -392,7 +392,7 @@ private struct ManualConnect: View {
             }
 
             if !usesKey {
-                Button("Connecting from outside your home? Use an API key") {
+                Button(t("Connecting from outside your home? Use an API key")) {
                     usesKey = true
                     focus = .key
                 }
@@ -420,7 +420,7 @@ private struct ManualConnect: View {
         guard !isConnecting else { return }
         if !usesKey {
             guard let server = FlexarrClient.normalizeAddress(address) else {
-                error = "That doesn’t look like a server address. Try one like http://192.168.1.20:8383."
+                error = t("That doesn’t look like a server address. Try one like http://192.168.1.20:8383.")
                 return
             }
             onPair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
@@ -466,4 +466,9 @@ struct ChoiceRow: View {
         }
         .buttonStyle(CardButtonStyle())
     }
+}
+
+/// Words with **bold** in them, translated first (a `Text` of a plain String shows the asterisks).
+private func markdown(_ text: String) -> Text {
+    Text((try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text))
 }

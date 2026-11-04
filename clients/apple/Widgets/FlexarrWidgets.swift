@@ -1,3 +1,4 @@
+import FlexarrKit
 import AppIntents
 import SwiftUI
 import WidgetKit
@@ -8,6 +9,12 @@ import WidgetKit
 
 @main
 struct FlexarrWidgets: WidgetBundle {
+    init() {
+        // In the language the app showed last: its pack is kept in the App Group's container.
+        Localization.appGroup = Bundle.main.object(forInfoDictionaryKey: "FlexarrAppGroup") as? String
+        Localization.shared.startWithLastShown()
+    }
+
     var body: some Widget {
         ContinueListeningWidget()
         UpNextWidget()
@@ -79,7 +86,7 @@ private struct EpisodeArtwork: View {
 private func remaining(_ seconds: Double?) -> String? {
     guard let seconds, seconds >= 60 else { return nil }
     let minutes = Int((seconds / 60).rounded())
-    return minutes >= 60 ? "\(minutes / 60)h \(minutes % 60)m left" : "\(minutes)m left"
+    return minutes >= 60 ? t("{hours}h {minutes}m left", ["hours": minutes / 60, "minutes": minutes % 60]) : t("{minutes}m left", ["minutes": minutes])
 }
 
 // MARK: - Continue listening
@@ -90,8 +97,8 @@ struct ContinueListeningWidget: Widget {
             ContinueListeningView(snapshot: entry.snapshot)
                 .containerBackground(for: .widget) { Color.room }
         }
-        .configurationDisplayName("Continue listening")
-        .description("The book or podcast episode you're on, to carry on with.")
+        .configurationDisplayName(t("Continue listening"))
+        .description(t("The book or podcast episode you're on, to carry on with."))
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular])
     }
 }
@@ -110,7 +117,7 @@ struct ContinueListeningView: View {
         } else {
             VStack(spacing: 6) {
                 Image(systemName: "mic.fill").font(.title3)
-                Text("Nothing to carry on with").font(.caption).multilineTextAlignment(.center)
+                Text(t("Nothing to carry on with")).font(.caption).multilineTextAlignment(.center)
             }
             .foregroundStyle(family == .accessoryRectangular ? Color.primary : Color.usher)
         }
@@ -199,8 +206,8 @@ struct UpNextWidget: Widget {
             UpNextView(snapshot: entry.snapshot)
                 .containerBackground(for: .widget) { Color.room }
         }
-        .configurationDisplayName("Up next")
-        .description("The podcast episodes waiting in Up next.")
+        .configurationDisplayName(t(Words.upNext))
+        .description(t("The podcast episodes waiting in Up next."))
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -212,12 +219,12 @@ struct UpNextView: View {
     var body: some View {
         let episodes = Array(snapshot.upNext.prefix(family == .systemSmall ? 1 : 3))
         VStack(alignment: .leading, spacing: 8) {
-            Text("Up next")
+            Text(t(Words.upNext))
                 .font(.caption.weight(.bold))
                 .foregroundStyle(Color.usher)
             if episodes.isEmpty {
                 Spacer(minLength: 0)
-                Text("Nothing in Up next").font(.caption).foregroundStyle(Color.usher)
+                Text(t("Nothing in Up next")).font(.caption).foregroundStyle(Color.usher)
                 Spacer(minLength: 0)
             } else if family == .systemSmall, let first = episodes.first {
                 EpisodeArtwork(episode: first).frame(width: 56, height: 56)
@@ -284,8 +291,8 @@ struct WatchlistWidget: Widget {
                 .containerBackground(for: .widget) { Color.room }
                 .widgetURL(WatchlistSnapshot.watchlistURL)
         }
-        .configurationDisplayName("Watchlist")
-        .description("What's on your watchlist and ready to watch.")
+        .configurationDisplayName(t(Words.watchlist))
+        .description(t("What's on your watchlist and ready to watch."))
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -298,12 +305,12 @@ struct WatchlistWidgetView: View {
         if snapshot.ready.isEmpty {
             VStack(spacing: 6) {
                 Image(systemName: "bookmark").font(.title3)
-                Text("Nothing here yet").font(.caption).multilineTextAlignment(.center)
+                Text(t("Nothing here yet")).font(.caption).multilineTextAlignment(.center)
             }
             .foregroundStyle(Color.usher)
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Ready to watch")
+                Text(t("Ready to watch"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.usher)
                     .lineLimit(1)

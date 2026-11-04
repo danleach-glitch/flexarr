@@ -35,7 +35,7 @@ struct PodcastView: View {
                         .episodeListRow()
                         .listRowSeparator(.hidden)
                     if page.episodes.isEmpty {
-                        StatusView(state: .empty(page.unplayedOnly ? "You’re up to date." : "No episodes yet."))
+                        StatusView(state: .empty(page.unplayedOnly ? t("You’re up to date.") : t("No episodes yet.")))
                             .frame(height: 160)
                             .bareListRow()
                     }
@@ -65,41 +65,41 @@ struct PodcastView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .alert("Mark all as played?", isPresented: $markingAllPlayed) {
-            Button("Mark all as played") {
+        .alert(t("Mark all as played?"), isPresented: $markingAllPlayed) {
+            Button(t("Mark all as played")) {
                 Task {
                     await page.markAllPlayed(model: model)
                     await downloads.reconcilePodcasts()
                 }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(t(Words.cancel), role: .cancel) {}
         } message: {
             if let podcast = page.podcast {
-                Text("All \(podcast.episodeCount.formatted()) episodes of \(podcast.title) will be marked as played.")
+                Text(t("All {count} episodes of {podcast} will be marked as played.", ["count": podcast.episodeCount, "podcast": podcast.title]))
             }
         }
-        .alert("Stop following this show?", isPresented: $unfollowing) {
-            Button("Stop following", role: .destructive) {
+        .alert(t("Stop following this show?"), isPresented: $unfollowing) {
+            Button(t(Words.stopFollowing), role: .destructive) {
                 Task {
                     await page.follow(false, model: model)
                     await downloads.reconcilePodcasts()
                 }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(t(Words.cancel), role: .cancel) {}
         } message: {
-            Text("Its new episodes stop coming to this \(ThisDevice.name). Episodes already downloaded stay until you delete them.")
+            Text(t("Its new episodes stop coming to this {device}. Episodes already downloaded stay until you delete them.", ["device": ThisDevice.name]))
         }
         .toolbar {
             if let podcast = page.podcast {
                 Menu {
-                    Section("Order") {
-                        order("Newest first", oldest: false)
-                        order("Oldest first", oldest: true)
+                    Section(t("Order")) {
+                        order(t("Newest first"), oldest: false)
+                        order(t("Oldest first"), oldest: true)
                     }
-                    Button { markingAllPlayed = true } label: { Label("Mark all as played", systemImage: Symbol.watched) }
+                    Button { markingAllPlayed = true } label: { Label(t("Mark all as played"), systemImage: Symbol.watched) }
                         .disabled(podcast.unplayedCount == 0)
                 } label: {
-                    Label("More", systemImage: Symbol.more)
+                    Label(t("More"), systemImage: Symbol.more)
                 }
             }
         }
@@ -135,7 +135,7 @@ struct PodcastView: View {
                         .foregroundStyle(Color.screen.opacity(0.9))
                         .multilineTextAlignment(.center)
                 }
-                FactsLine(facts: [podcast.categories.first, podcast.countLine, podcast.explicit ? "Explicit" : nil].compactMap { $0 })
+                FactsLine(facts: [podcast.categories.first, podcast.countLine, podcast.explicit ? t("Explicit") : nil].compactMap { $0 })
             }
             HStack(spacing: 12) {
                 Button {
@@ -151,20 +151,20 @@ struct PodcastView: View {
                     if page.isSaving {
                         ProgressView().tint(podcast.isSubscribed ? Color.screen : Color.room)
                     } else {
-                        Label(podcast.isSubscribed ? "Following" : "Follow", systemImage: podcast.isSubscribed ? "checkmark" : "plus")
+                        Label(podcast.isSubscribed ? t(Words.following) : t(Words.follow), systemImage: podcast.isSubscribed ? "checkmark" : "plus")
                     }
                 }
                 .buttonStyle(ActionButtonStyle(ambient: podcastGlow(podcast.accentColor), prominent: !podcast.isSubscribed))
                 if let next = page.nextToPlay {
                     Button { model.playEpisode(next.summary) } label: {
-                        Label(next.progress != nil ? "Resume" : page.oldestFirst ? "Play" : "Latest episode", systemImage: Symbol.play)
+                        Label(next.progress != nil ? t("Resume") : page.oldestFirst ? t(Words.play) : t("Latest episode"), systemImage: Symbol.play)
                     }
                     .buttonStyle(ActionButtonStyle(ambient: podcastGlow(podcast.accentColor), prominent: podcast.isSubscribed))
                 }
             }
             .fixedSize()
             if let error = podcast.error {
-                Text("The feed couldn’t be checked last time: \(error)")
+                Text(t("The feed couldn’t be checked last time: {error}", ["error": error]))
                     .font(.caption)
                     .foregroundStyle(Color.danger)
                     .multilineTextAlignment(.center)
@@ -189,16 +189,16 @@ struct PodcastView: View {
     /// How many episodes, and Unplayed or All.
     private func episodesHeading(_ podcast: Podcast) -> some View {
         HStack(spacing: 12) {
-            Text(page.unplayedOnly ? "\(page.total.formatted()) unplayed" : page.total == 1 ? "1 episode" : "\(page.total.formatted()) episodes")
+            Text(page.unplayedOnly ? t("{count} unplayed", ["count": page.total]) : t("{count, plural, one {# episode} other {# episodes}}", ["count": page.total]))
                 .font(.marquee(22, weight: .bold))
                 .foregroundStyle(Color.screen)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Spacer(minLength: 0)
             @Bindable var page = page
-            Picker("Show", selection: $page.unplayedOnly) {
-                Text("Unplayed").tag(true)
-                Text("All").tag(false)
+            Picker(t("Show"), selection: $page.unplayedOnly) {
+                Text(t("Unplayed")).tag(true)
+                Text(t("All")).tag(false)
             }
             .pickerStyle(.segmented)
             .fixedSize()

@@ -40,7 +40,7 @@ struct TitleEntity: AppEntity {
     var podcastId: String? { id.hasPrefix(Self.podcastPrefix) ? String(id.dropFirst(Self.podcastPrefix.count)) : nil }
 
     var displayRepresentation: DisplayRepresentation {
-        let what = kind == .series ? "Show" : kind == .movie ? "Movie" : kind == .podcast ? "Podcast" : nil
+        let what = kind == .series ? t("Show") : kind == .movie ? t("Movie") : kind == .podcast ? t("Podcast") : nil
         let subtitle = [year.map(String.init), what].compactMap { $0 }.joined(separator: ", ")
         return DisplayRepresentation(title: "\(title)", subtitle: subtitle.isEmpty ? nil : "\(subtitle)")
     }
@@ -131,7 +131,7 @@ struct WatchlistTitleEntity: AppEntity {
     }
 
     var displayRepresentation: DisplayRepresentation {
-        let what = kind == .series ? "Show" : "Movie"
+        let what = kind == .series ? t("Show") : t("Movie")
         return DisplayRepresentation(title: "\(title)", subtitle: "\([year.map(String.init), what].compactMap { $0 }.joined(separator: ", "))")
     }
 }
@@ -246,7 +246,7 @@ struct DeviceEntity: AppEntity {
 
     /// The device running the intent.
     static let hereId = "here"
-    static let here = DeviceEntity(id: hereId, name: "This \(ThisDevice.name)", online: true)
+    static var here: DeviceEntity { DeviceEntity(id: hereId, name: t("This {device}", ["device": ThisDevice.name]), online: true) }
 
     let id: String
     let name: String
@@ -343,11 +343,11 @@ enum FlexarrIntentError: Error, CustomLocalizedStringResourceConvertible {
 
     var localizedStringResource: LocalizedStringResource {
         switch self {
-        case .noWatchlist: "Your Flexarr server needs updating for the watchlist."
-        case .notConnected: "Open Flexarr and connect it to your server first."
-        case .nothingToPlay(let title): "\(title) has nothing to play."
-        case .noSuchTitle(let term): "Nothing in your library is called \(term)."
-        case .deviceGone(let name): "\(name) isn't signed in to the server any more."
+        case .noWatchlist: .shown(t("Your Flexarr server needs updating for the watchlist."))
+        case .notConnected: .shown(t("Open Flexarr and connect it to your server first."))
+        case .nothingToPlay(let title): .shown(t("{title} has nothing to play.", ["title": title]))
+        case .noSuchTitle(let term): .shown(t("Nothing in your library is called {term}.", ["term": term]))
+        case .deviceGone(let name): .shown(t("{device} isn't signed in to the server any more.", ["device": name]))
         }
     }
 }
@@ -364,7 +364,7 @@ enum Play {
     static func target(_ named: DeviceEntity?) -> DeviceEntity {
         if let named { return named }
         #if os(iOS)
-        if let id = AppModel.siriDevice, !id.isEmpty { return DeviceEntity(id: id, name: AppModel.siriDeviceName ?? "the TV", online: true) }
+        if let id = AppModel.siriDevice, !id.isEmpty { return DeviceEntity(id: id, name: AppModel.siriDeviceName ?? t("the TV"), online: true) }
         #endif
         return .here
     }
@@ -397,9 +397,16 @@ enum Play {
             if let switching { query.append(URLQueryItem(name: "profile", value: switching.id)) }
             components.queryItems = query.isEmpty ? nil : query
             guard let url = components.url else { throw FlexarrIntentError.nothingToPlay(item.title) }
-            let what = playing.id == item.id && (item.kind == .series || item.kind == .season) && !shuffling ? "the next \(item.title)" : describe(playing)
-            let said = shuffling ? "Shuffling \(item.title)" : "Playing \(what)"
-            let opened: Result = .result(opensIntent: OpenURLIntent(url), dialog: "\(said)\(switching.map { " as \($0.name)" } ?? "").")
+            let next = playing.id == item.id && (item.kind == .series || item.kind == .season) && !shuffling
+            let said = switch (shuffling, next, switching?.name) {
+            case (true, _, let profile?): t("Shuffling {title} as {profile}.", ["title": item.title, "profile": profile])
+            case (true, _, nil): t("Shuffling {title}.", ["title": item.title])
+            case (false, true, let profile?): t("Playing the next {title} as {profile}.", ["title": item.title, "profile": profile])
+            case (false, true, nil): t("Playing the next {title}.", ["title": item.title])
+            case (false, false, let profile?): t("Playing {title} as {profile}.", ["title": describe(playing), "profile": profile])
+            case (false, false, nil): t("Playing {title}.", ["title": describe(playing)])
+            }
+            let opened: Result = .result(opensIntent: OpenURLIntent(url), dialog: .shown(said))
             return opened
         }
         let result: DeviceCommandResult
@@ -411,19 +418,27 @@ enum Play {
             throw FlexarrIntentError.nothingToPlay(item.title)
         }
         let what = shuffling ? item.title : result.item.map(describe) ?? item.title
-        let who = profile.map { " as \($0.name)" } ?? ""
-        return Result.result(dialog: result.delivered
-            ? "\(shuffling ? "Shuffling" : "Playing") \(what) on \(result.deviceName)\(who)."
-            : "Flexarr isn't open on \(result.deviceName). \(what) will play\(who) when you open it in the next two minutes.")
+        let values: [String: Any] = ["title": what, "device": result.deviceName, "profile": profile?.name ?? ""]
+        let said = switch (result.delivered, shuffling, profile != nil) {
+        case (true, true, true): t("Shuffling {title} on {device} as {profile}.", values)
+        case (true, true, false): t("Shuffling {title} on {device}.", values)
+        case (true, false, true): t("Playing {title} on {device} as {profile}.", values)
+        case (true, false, false): t("Playing {title} on {device}.", values)
+        case (false, _, true): t("Flexarr isn't open on {device}. {title} will play as {profile} when you open it in the next two minutes.", values)
+        case (false, _, false): t("Flexarr isn't open on {device}. {title} will play when you open it in the next two minutes.", values)
+        }
+        return Result.result(dialog: .shown(said))
     }
 
     /// "The Traitors Uncloaked, season 3 episode 4", "717. The Suez Crisis, from The Rest Is History" or "Heat".
     static func describe(_ item: ItemSummary) -> String {
-        if item.kind == .podcastEpisode, let show = item.seriesTitle { return "\(item.title), from \(show)" }
+        if item.kind == .podcastEpisode, let show = item.seriesTitle { return t("{title}, from {show}", ["title": item.title, "show": show]) }
         guard item.kind == .episode else { return item.title }
         let show = item.seriesTitle ?? item.title
-        if let season = item.seasonNumber, let episode = item.episodeNumber { return "\(show), season \(season) episode \(episode)" }
-        return "\(show), \(item.title)"
+        if let season = item.seasonNumber, let episode = item.episodeNumber {
+            return t("{show}, season {season} episode {episode}", ["show": show, "season": String(season), "episode": String(episode)])
+        }
+        return t("{show}, {title}", ["show": show, "title": item.title])
     }
 }
 
@@ -503,9 +518,10 @@ struct NewPodcastEpisodesIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
         let fresh = try await client.newPodcastEpisodes(unplayed: true, take: 5)
-        guard !fresh.isEmpty else { return .result(dialog: "Nothing new. You're up to date.") }
-        let said = fresh.map { "\($0.title), from \($0.podcastTitle)" }.joined(separator: ". ")
-        return .result(dialog: "\(fresh.count == 1 ? "One new episode" : "\(fresh.count) new episodes"): \(said).")
+        guard !fresh.isEmpty else { return .result(dialog: .shown(t("Nothing new. You're up to date."))) }
+        let said = fresh.map { t("{title}, from {show}", ["title": $0.title, "show": $0.podcastTitle]) }.joined(separator: ". ")
+        return .result(dialog: .shown(t("{count, plural, one {One new episode: {episodes}.} other {# new episodes: {episodes}.}}",
+                                        ["count": fresh.count, "episodes": said])))
     }
 }
 
@@ -528,7 +544,7 @@ struct AddToUpNextIntent: AppIntent {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
         guard let episode = try await Podcasts.nextToHear(podcast.id, client: client) else { throw FlexarrIntentError.nothingToPlay(podcast.title) }
         await model.addToUpNext(episode.id, next: false)
-        return .result(dialog: "Added \(episode.title) to Up next.")
+        return .result(dialog: .shown(t("Added {title} to Up next.", ["title": episode.title])))
     }
 }
 
@@ -559,7 +575,7 @@ struct AddToWatchlistIntent: AppIntent {
         }
         model.invalidate()
         await model.refreshWatchlist()
-        return .result(dialog: "Added \(title.title) to your watchlist.")
+        return .result(dialog: .shown(t("Added {title} to your watchlist.", ["title": title.title])))
     }
 }
 
@@ -580,7 +596,7 @@ struct PlayUpNextIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog & OpensIntent {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
-        guard let first = try await client.upNext().first else { throw FlexarrIntentError.nothingToPlay("Up next") }
+        guard let first = try await client.upNext().first else { throw FlexarrIntentError.nothingToPlay(t(Words.upNext)) }
         return try await Play.start(first.summary, on: Play.target(device), model: model)
     }
 }
@@ -635,7 +651,7 @@ struct ContinueWatchingIntent: AppIntent {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
         let home = try await client.home()
         guard let item = home.rows.first(where: { $0.id == "continue" })?.items.first ?? home.featured.first else {
-            throw FlexarrIntentError.nothingToPlay("Continue watching")
+            throw FlexarrIntentError.nothingToPlay(t(Words.continueWatching))
         }
         return try await Play.start(item, on: Play.target(device), model: model)
     }
@@ -713,32 +729,32 @@ struct ControlPlaybackIntent: AppIntent {
             case .pause, .resume, .stop:
                 let control: DeviceControl = action == .pause ? .pause : action == .resume ? .resume : .stop
                 let result = try await client.control(device: target.id, control)
-                return .result(dialog: result.delivered ? "Done." : "Flexarr isn't open on \(result.deviceName).")
+                return .result(dialog: .shown(result.delivered ? t("Done.") : t("Flexarr isn't open on {device}.", ["device": result.deviceName])))
             case .subtitlesOn, .subtitlesOff:
-                return .result(dialog: "Done.") // handled above
+                return .result(dialog: .shown(t("Done."))) // handled above
             case .skipIntro, .next, .back, .forward:
                 // Open, playing, then able to: a TV whose app is closed after a server restart isn't told to update.
                 guard let tv = try await client.devices().first(where: { $0.id == target.id }) else { throw FlexarrIntentError.deviceGone(target.name) }
-                guard tv.online else { return .result(dialog: "Flexarr isn't open on \(target.name).") }
-                guard let playing = tv.nowPlaying else { return .result(dialog: "Nothing is playing on \(target.name).") }
-                guard tv.takes(action.kind) else { return .result(dialog: "\(target.name) needs a newer Flexarr.") }
-                guard !playing.item.isPrivate || action == .back || action == .forward else { return .result(dialog: "That's private on this profile.") }
+                guard tv.online else { return .result(dialog: .shown(t("Flexarr isn't open on {device}.", ["device": target.name]))) }
+                guard let playing = tv.nowPlaying else { return .result(dialog: .shown(t("Nothing is playing on {device}.", ["device": target.name]))) }
+                guard tv.takes(action.kind) else { return .result(dialog: .shown(t("{device} needs a newer Flexarr.", ["device": target.name]))) }
+                guard !playing.item.isPrivate || action == .back || action == .forward else { return .result(dialog: .shown(t("That's private on this profile."))) }
                 switch action {
                 case .skipIntro:
-                    guard playing.prompt == .skipIntro || playing.prompt == .skipRecap else { return .result(dialog: "There's no intro to skip.") }
+                    guard playing.prompt == .skipIntro || playing.prompt == .skipRecap else { return .result(dialog: .shown(t("There's no intro to skip."))) }
                     _ = try await client.control(device: target.id, .skipSegment)
                 case .next:
-                    guard playing.hasNext != false else { return .result(dialog: "There's no next episode.") }
+                    guard playing.hasNext != false else { return .result(dialog: .shown(t("There's no next episode."))) }
                     _ = try await client.control(device: target.id, .next)
                 default:
                     try await client.skip(device: target.id, by: jump)
                 }
-                return .result(dialog: "Done.")
+                return .result(dialog: .shown(t("Done.")))
             }
         } catch FlexarrClientError.http(status: 404, _) {
             throw FlexarrIntentError.deviceGone(target.name)
         } catch FlexarrClientError.http(status: 409, let message) {
-            return .result(dialog: "\(message ?? "Flexarr isn't open on \(target.name).")")
+            return .result(dialog: .shown(message ?? t("Flexarr isn't open on {device}.", ["device": target.name])))
         }
     }
 
@@ -751,17 +767,17 @@ struct ControlPlaybackIntent: AppIntent {
         case .resume: player.isShowingTitle ? player.resume() : model.music.resume()
         case .stop: player.closePlayer()
         case .skipIntro:
-            guard player.isShowingTitle else { return "Nothing is playing here." }
-            guard player.canSkipSegment else { return "There's no intro to skip." }
+            guard player.isShowingTitle else { return t("Nothing is playing here.") }
+            guard player.canSkipSegment else { return t("There's no intro to skip.") }
             player.remote(DeviceCommand(id: UUID().uuidString, kind: .skipSegment, itemId: nil, fromBeginning: false, sentBy: nil, sentAt: Date()))
         case .next:
             if player.isShowingTitle {
-                guard player.hasNextTitle else { return "There's no next episode." }
+                guard player.hasNextTitle else { return t("There's no next episode.") }
                 player.remote(DeviceCommand(id: UUID().uuidString, kind: .next, itemId: nil, fromBeginning: false, sentBy: nil, sentAt: Date()))
             } else if model.music.current != nil {
                 model.music.next()
             } else {
-                return "Nothing is playing here."
+                return t("Nothing is playing here.")
             }
         case .subtitlesOn, .subtitlesOff:
             break // handled before
@@ -771,10 +787,10 @@ struct ControlPlaybackIntent: AppIntent {
             } else if model.music.current != nil {
                 model.music.skip(by: jump)
             } else {
-                return "Nothing is playing here."
+                return t("Nothing is playing here.")
             }
         }
-        return "Done."
+        return t("Done.")
     }
 }
 
@@ -813,34 +829,34 @@ struct SubtitlesIntent: AppIntent {
     static func change(on: Bool, device: DeviceEntity?, model: AppModel) async throws -> String {
         let target = Play.target(device)
         if target.isHere {
-            guard model.player.isShowingTitle else { return "Nothing is playing here." }
+            guard model.player.isShowingTitle else { return t("Nothing is playing here.") }
             let tracks = PlayerTracks(audio: [], subtitles: model.player.subtitleTracks)
-            if on, tracks.hasFullSubtitlesOn { return "Subtitles are on." }
+            if on, tracks.hasFullSubtitlesOn { return t("Subtitles are on.") }
             let track = on ? tracks.subtitlesToTurnOn(language: language)?.id : nil
-            if on, track == nil { return "This has no subtitles." }
+            if on, track == nil { return t("This has no subtitles.") }
             model.player.remote(DeviceCommand(id: UUID().uuidString, kind: .subtitleTrack, itemId: nil, fromBeginning: false, sentBy: nil, sentAt: Date(), trackId: track))
-            return on ? "Subtitles on." : "Subtitles off."
+            return on ? t("Subtitles on.") : t("Subtitles off.")
         }
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
         do {
             guard let tv = try await client.devices().first(where: { $0.id == target.id }) else { throw FlexarrIntentError.deviceGone(target.name) }
-            guard tv.online else { return "Flexarr isn't open on \(target.name)." }
-            guard let playing = tv.nowPlaying else { return "Nothing is playing on \(target.name)." }
-            guard tv.takes(.subtitleTrack) else { return "\(target.name) needs a newer Flexarr." }
-            guard !playing.item.isPrivate else { return "That's private on this profile." }
+            guard tv.online else { return t("Flexarr isn't open on {device}.", ["device": target.name]) }
+            guard let playing = tv.nowPlaying else { return t("Nothing is playing on {device}.", ["device": target.name]) }
+            guard tv.takes(.subtitleTrack) else { return t("{device} needs a newer Flexarr.", ["device": target.name]) }
+            guard !playing.item.isPrivate else { return t("That's private on this profile.") }
             var track: String?
             if on {
                 let tracks = playing.tracks ?? PlayerTracks(audio: [], subtitles: [])
-                if tracks.hasFullSubtitlesOn { return "Subtitles are on." }
-                guard let chosen = tracks.subtitlesToTurnOn(language: language) else { return "This has no subtitles." }
+                if tracks.hasFullSubtitlesOn { return t("Subtitles are on.") }
+                guard let chosen = tracks.subtitlesToTurnOn(language: language) else { return t("This has no subtitles.") }
                 track = chosen.id
             }
             try await client.setSubtitleTrack(device: target.id, track)
-            return on ? "Subtitles on." : "Subtitles off."
+            return on ? t("Subtitles on.") : t("Subtitles off.")
         } catch FlexarrClientError.http(status: 404, _) {
             throw FlexarrIntentError.deviceGone(target.name)
         } catch FlexarrClientError.http(status: 409, let message) {
-            return message ?? "Flexarr isn't open on \(target.name)."
+            return message ?? t("Flexarr isn't open on {device}.", ["device": target.name])
         }
     }
 }
@@ -884,10 +900,10 @@ private func changeSound(on device: DeviceEntity?, model: AppModel, here: (inout
     guard let client = model.client else { throw FlexarrIntentError.notConnected }
     do {
         _ = try await client.setSound(device: target.id, there)
-        return "Sent to \(target.name)."
+        return t("Sent to {device}.", ["device": target.name])
     } catch FlexarrClientError.http(status: 409, let message) {
         // Not open there, or its app is too old: the server says which.
-        return message ?? "Flexarr isn't open on \(target.name)."
+        return message ?? t("Flexarr isn't open on {device}.", ["device": target.name])
     } catch FlexarrClientError.http(status: 404, _) {
         throw FlexarrIntentError.deviceGone(target.name)
     }
@@ -918,15 +934,16 @@ struct NightModeIntent: AppIntent {
             if settings.nightMode == .scheduled {
                 let now = settings.isNight(at: Date())
                 if now == on {
-                    return on ? "Night mode's already on, on its schedule." : "Night mode's off, and comes on at \(SoundSettings.clock(settings.nightStart)) as scheduled."
+                    return on ? t("Night mode's already on, on its schedule.")
+                        : t("Night mode's off, and comes on at {time} as scheduled.", ["time": SoundSettings.clock(settings.nightStart)])
                 }
                 settings.nightMode = on ? .on : .off
-                return on ? "Night mode's on. That replaces its schedule." : "Night mode's off. That replaces its schedule."
+                return on ? t("Night mode's on. That replaces its schedule.") : t("Night mode's off. That replaces its schedule.")
             }
             settings.nightMode = on ? .on : .off
-            return on ? "Night mode's on." : "Night mode's off."
+            return on ? t("Night mode's on.") : t("Night mode's off.")
         }, there: DeviceSound(nightMode: on ? "On" : "Off"))
-        return .result(dialog: "\(said)")
+        return .result(dialog: .shown(said))
     }
 }
 
@@ -952,9 +969,14 @@ struct DialogueBoostIntent: AppIntent {
         let boost = level.setting
         let said = try await changeSound(on: device, model: model, here: { settings in
             settings.dialogueBoost = boost
-            return boost == .off ? "Dialogue boost's off." : "Dialogue boost's \(boost.rawValue.lowercased())."
+            return switch boost {
+            case .off: t("Dialogue boost's off.")
+            case .low: t("Dialogue boost's low.")
+            case .medium: t("Dialogue boost's medium.")
+            case .high: t("Dialogue boost's high.")
+            }
         }, there: DeviceSound(dialogueBoost: boost.rawValue))
-        return .result(dialog: "\(said)")
+        return .result(dialog: .shown(said))
     }
 }
 
@@ -1131,4 +1153,14 @@ struct FlexarrShortcuts: AppShortcutsProvider {
             systemImageName: "moon"
         )
     }
+}
+
+extension IntentDialog {
+    /// Words already in the language shown (`t`), said as they are.
+    static func shown(_ words: String) -> IntentDialog { IntentDialog(stringLiteral: words) }
+}
+
+extension LocalizedStringResource {
+    /// Words already in the language shown (`t`), shown as they are.
+    static func shown(_ words: String) -> LocalizedStringResource { LocalizedStringResource(stringLiteral: words) }
 }

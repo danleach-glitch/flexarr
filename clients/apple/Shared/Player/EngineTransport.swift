@@ -69,7 +69,7 @@ final class EngineTransport: PlayerTransport {
     /// viewer's choice, `.some(nil)` for off, or the server's).
     func start(at seconds: Double, audioIndex: Int?, subtitleKey: String??, matchContent: Bool) {
         guard let url = client.url(for: info.url) else {
-            phase = .failed("The server's address couldn't be read.")
+            phase = .failed(t("The server's address couldn't be read."))
             return
         }
         var options = LoadOptions()
@@ -103,7 +103,7 @@ final class EngineTransport: PlayerTransport {
             guard (try? await Task.sleep(for: .seconds(Self.openDeadlineSeconds))) != nil, let self, self.loading else { return }
             log.error("Still opening after \(Int(Self.openDeadlineSeconds))s; giving up", ["playbackId": self.info.playbackId])
             self.engine.stop()
-            self.phase = .failed("The file took too long to open.")
+            self.phase = .failed(t("The file took too long to open."))
         }
         Task { [weak self] in
             defer { deadline.cancel() }
@@ -145,7 +145,7 @@ final class EngineTransport: PlayerTransport {
             if self.engine.videoRoute == .software, self.engine.sourceVideoFormat == .hlg {
                 log.warning("HLG on the software route; handing it to the server", ["playbackId": self.info.playbackId])
                 self.engine.stop()
-                self.phase = .failed("HLG video can't be shown on this route.")
+                self.phase = .failed(t("HLG video can't be shown on this route."))
                 return
             }
             // The engine chose the subtitles as it opened; one it couldn't name by id is chosen by key now.
@@ -373,28 +373,28 @@ final class EngineTransport: PlayerTransport {
 
     /// "English · E-AC-3 5.1", "Commentary · AAC stereo", "English (PGS)".
     static func label(_ track: TrackInfo) -> String {
-        let language = Locale.current.localizedString(forLanguageCode: track.language ?? "") ?? track.language ?? ""
+        let language = Localization.locale.localizedString(forLanguageCode: track.language ?? "") ?? track.language ?? ""
         let name = track.name.isEmpty || track.name == track.language ? language : track.name
         let channels = switch track.channels {
         case 8: "7.1"
         case 6: "5.1"
-        case 2: "stereo"
-        case 1: "mono"
+        case 2: t("stereo")
+        case 1: t("mono")
         case 0: ""
-        default: "\(track.channels)-channel"
+        default: t("{count}-channel", ["count": track.channels])
         }
         let codec = track.codec.uppercased()
             .replacingOccurrences(of: "EAC3", with: "E-AC-3").replacingOccurrences(of: "AC3", with: "AC-3")
             .replacingOccurrences(of: "HDMV_PGS_SUBTITLE", with: "PGS").replacingOccurrences(of: "DVB_SUBTITLE", with: "DVB")
             .replacingOccurrences(of: "SUBRIP", with: "SRT").replacingOccurrences(of: "WEBVTT", with: "VTT")
-        var parts = [name.isEmpty && isCaptions(track.codec) ? "Closed captions" : name]
+        var parts = [name.isEmpty && isCaptions(track.codec) ? t("Closed captions") : name]
         if isCaptions(track.codec), !name.isEmpty {
             parts.append("CC")
         }
         if track.channels > 0 {
             parts.append([track.isAtmos ? "\(codec) Atmos" : codec, channels].filter { !$0.isEmpty }.joined(separator: " "))
         } else if isPicture(track.codec) || track.isForced || track.isHearingImpaired {
-            parts.append([isPicture(track.codec) ? codec : nil, track.isForced ? "forced" : nil, track.isHearingImpaired ? "SDH" : nil].compactMap { $0 }.joined(separator: ", "))
+            parts.append([isPicture(track.codec) ? codec : nil, track.isForced ? t("forced") : nil, track.isHearingImpaired ? "SDH" : nil].compactMap { $0 }.joined(separator: ", "))
         }
         // "English (E-AC-3 5.1, CC)": the name, then the facts in brackets, never joined with middle dots.
         let shown = parts.filter { !$0.isEmpty }
@@ -675,7 +675,7 @@ final class EngineTransport: PlayerTransport {
                 log.warning("Rebuild \(attempt) failed", error: error, ["playbackId": info.playbackId])
             }
         }
-        phase = .failed("Playback couldn't pick up where it left off.")
+        phase = .failed(t("Playback couldn't pick up where it left off."))
     }
 
     private func withDeadline(seconds: Double, _ work: @escaping @MainActor @Sendable () async throws -> Void) async throws {

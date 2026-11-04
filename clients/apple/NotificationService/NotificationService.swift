@@ -12,6 +12,9 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
     private var download: URLSessionDownloadTask?
 
     override func didReceive(_ request: UNNotificationRequest, withContentHandler contentHandler: @escaping (UNNotificationContent) -> Void) {
+        // The server writes the notification itself in the profile's language; this is only for the extension's own words.
+        Localization.appGroup = Bundle.main.object(forInfoDictionaryKey: "FlexarrAppGroup") as? String
+        Localization.shared.startWithLastShown()
         lock.withLock {
             handler = contentHandler
             best = request.content

@@ -345,7 +345,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         let states = collection.trackIds.map { entry(for: $0)?.state }
         // A track never asked for (the requests were cut short) counts as failed, unless they're still being made.
         if !queueing.contains(collection.id), states.contains(where: { $0 == nil }) {
-            return .failed("Some tracks weren't downloaded. Try again.")
+            return .failed(t("Some tracks weren't downloaded. Try again."))
         }
         return LocalCollection.status(of: states)
     }
@@ -815,9 +815,9 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             all.removeAll { $0.id == remote.id }
             save()
         case .received where !local.isDownloaded, .expired:
-            update(remote.id) { $0.state = .failed("This download ran out on the server. Download it again.") }
+            update(remote.id) { $0.state = .failed(t("This download ran out on the server. Download it again.")) }
         case .failed:
-            update(remote.id) { $0.state = .failed(remote.error ?? "The server couldn't get this ready.") }
+            update(remote.id) { $0.state = .failed(remote.error ?? t("The server couldn't get this ready.")) }
         default:
             break
         }
@@ -1116,7 +1116,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             return
         }
         if (error as? URLError)?.code == .cancelled { return }
-        update(id) { $0.state = .failed("The download stopped. Try again.") }
+        update(id) { $0.state = .failed(t("The download stopped. Try again.")) }
     }
 
     fileprivate func progressed(_ id: String, _ fraction: Double) {
@@ -1150,7 +1150,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             return
         }
         if (error as? URLError)?.code == .cancelled { return }
-        update(id) { $0.state = .failed("The download stopped. Try again.") }
+        update(id) { $0.state = .failed(t("The download stopped. Try again.")) }
     }
 }
 

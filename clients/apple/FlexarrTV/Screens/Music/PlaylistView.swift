@@ -115,7 +115,7 @@ struct MixCard: View {
             }
             .frame(width: width, alignment: .leading)
         }
-        .accessibilityHint("Plays the mix")
+        .accessibilityHint(t("Plays the mix"))
     }
 
     private func play() {
@@ -128,7 +128,7 @@ struct MixCard: View {
                 model.playTracks(detail.tracks, showingNowPlaying: router)
             } catch FlexarrClientError.http(status: 404, _) {
                 // Yesterday's mix: the day's mixes have been made afresh since the page loaded.
-                model.player.showFailure("Today's mixes have changed. Try again.")
+                model.player.showFailure(t("Today's mixes have changed. Try again."))
                 if let onStale { onStale() } else { model.invalidate() }
             } catch {
                 model.player.showFailure(ConnectionError(error).message)
@@ -162,7 +162,7 @@ struct PlaylistView: View {
                     } else if detail == nil {
                         ProgressView().frame(maxWidth: .infinity).padding(40)
                     } else if tracks.isEmpty {
-                        StatusView(state: .empty("Nothing in this playlist yet.")).frame(height: 200)
+                        StatusView(state: .empty(t("Nothing in this playlist yet."))).frame(height: 200)
                     } else {
                         VStack(alignment: .leading, spacing: 6) {
                             ForEach(Array(tracks.enumerated()), id: \.offset) { index, track in
@@ -202,11 +202,11 @@ struct PlaylistView: View {
                 FactsLine(facts: [summary.trackCountLabel, Format.runtime(seconds: summary.durationSeconds)].compactMap { $0 })
                 HStack(spacing: 26) {
                     Button { model.playTracks(tracks, showingNowPlaying: router) } label: {
-                        Label("Play", systemImage: Symbol.play)
+                        Label(t(Words.play), systemImage: Symbol.play)
                     }
                     .buttonStyle(ActionButtonStyle(prominent: true))
                     Button { model.playTracks(tracks, shuffled: true, showingNowPlaying: router) } label: {
-                        Label("Shuffle", systemImage: Symbol.shuffle)
+                        Label(t(Words.shuffle), systemImage: Symbol.shuffle)
                     }
                     .buttonStyle(ActionButtonStyle())
                     .disabled(tracks.count < 2)

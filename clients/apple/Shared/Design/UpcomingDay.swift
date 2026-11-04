@@ -7,11 +7,11 @@ enum UpcomingDay {
     static func label(_ date: Date, now: Date = .now, calendar: Calendar = .current) -> String {
         let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: date)).day ?? 0
         switch days {
-        case 0: return calendar.component(.hour, from: date) >= 17 ? "Tonight" : "Today"
-        case 1: return "Tomorrow"
-        case -1: return "Yesterday"
-        case 2..<7: return date.formatted(.dateTime.weekday(.wide))
-        default: return date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+        case 0: return calendar.component(.hour, from: date) >= 17 ? t("Tonight") : t("Today")
+        case 1: return t("Tomorrow")
+        case -1: return t("Yesterday")
+        case 2..<7: return date.formatted(.dateTime.weekday(.wide).locale(Localization.locale))
+        default: return date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(Localization.locale))
         }
     }
 
@@ -19,17 +19,17 @@ enum UpcomingDay {
     static func heading(_ day: Date, now: Date = .now, calendar: Calendar = .current) -> String {
         let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: day)).day ?? 0
         switch days {
-        case 0: return "Today"
-        case 1: return "Tomorrow"
-        case -1: return "Yesterday"
-        default: return day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+        case 0: return t("Today")
+        case 1: return t("Tomorrow")
+        case -1: return t("Yesterday")
+        default: return day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(Localization.locale))
         }
     }
 
     /// The card's second line: the episode ("S1E3 Title") or how a movie comes out ("In cinemas").
     static func detail(_ item: UpcomingItem) -> String {
         switch item.kind {
-        case .episode: "\(code(item)) \(item.title)"
+        case .episode: t("{code} {title}", ["code": code(item), "title": item.title])
         default: item.when
         }
     }
@@ -41,13 +41,13 @@ enum UpcomingDay {
 
     /// "S1E3", with no zero padding.
     static func code(_ item: UpcomingItem) -> String {
-        "S\(item.seasonNumber ?? 0)E\(item.episodeNumber ?? 0)"
+        t(Words.seasonEpisodeShort, ["season": String(item.seasonNumber ?? 0), "episode": String(item.episodeNumber ?? 0)])
     }
 
     /// Ready to watch, or how far its download has got; nil otherwise.
     static func status(_ item: UpcomingItem) -> String? {
-        if item.available == true { return "Ready to watch" }
-        if let progress = item.download?.progress { return "Downloading \(Int((progress * 100).rounded()))%" }
+        if item.available == true { return t("Ready to watch") }
+        if let progress = item.download?.progress { return t("Downloading {percent}%", ["percent": Int((progress * 100).rounded())]) }
         return nil
     }
 
@@ -75,13 +75,17 @@ enum UpcomingDay {
         var detail: String {
             guard items.count > 1, let last = items.last else { return UpcomingDay.detail(first) }
             let sameSeason = items.allSatisfy { $0.seasonNumber == first.seasonNumber }
-            return sameSeason ? "\(UpcomingDay.code(first))–E\(last.episodeNumber ?? 0), \(items.count) episodes" : "\(items.count) episodes"
+            return sameSeason
+                ? t("S{season}E{episode}–E{end}, {count, plural, one {# episode} other {# episodes}}",
+                    ["season": String(first.seasonNumber ?? 0), "episode": String(first.episodeNumber ?? 0), "end": String(last.episodeNumber ?? 0),
+                     "count": items.count])
+                : t("{count, plural, one {# episode} other {# episodes}}", ["count": items.count])
         }
 
         var status: String? {
             guard items.count > 1 else { return UpcomingDay.status(first) }
-            if items.allSatisfy({ $0.available == true }) { return "Ready to watch" }
-            return items.contains { $0.download != nil } ? "Downloading" : nil
+            if items.allSatisfy({ $0.available == true }) { return t("Ready to watch") }
+            return items.contains { $0.download != nil } ? t("Downloading") : nil
         }
     }
 

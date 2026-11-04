@@ -105,7 +105,7 @@ final class Pairing {
                     abandon(token)
                     throw error
                 }
-                self.error = "Connecting… (\(ConnectionError(error).message))"
+                self.error = t("Connecting… ({problem})", ["problem": ConnectionError(error).message])
                 do {
                     try await Task.sleep(for: .seconds(2 * attempt))
                 } catch {

@@ -77,7 +77,7 @@ struct BookGridView: View {
             VStack(alignment: .leading, spacing: 40) {
                 header
                 if loaded, books.isEmpty {
-                    if isFiltered { noMatches } else { StatusView(state: .empty("No books yet.")).frame(height: 500) }
+                    if isFiltered { noMatches } else { StatusView(state: .empty(t("No books yet."))).frame(height: 500) }
                 } else if loaded {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {
                         ForEach(Array(books.enumerated()), id: \.element.id) { index, book in
@@ -130,7 +130,7 @@ struct BookGridView: View {
 
     /// "42 books", with what they're narrowed to.
     private var summary: String {
-        var parts = [total == 1 ? "1 book" : "\(total.formatted()) books"]
+        var parts = [t("{count, plural, one {# book} other {# books}}", ["count": total])]
         if filter.progress != .any { parts.append(filter.progress.label.lowercased()) }
         let length = BookLength(filter)
         if length != .any { parts.append(length.label.lowercased()) }
@@ -141,7 +141,7 @@ struct BookGridView: View {
     /// The seven sorts, in the iPhone's order, and Reverse.
     private var sortMenu: some View {
         Menu {
-            Section("Sort by") {
+            Section(t("Sort by")) {
                 ForEach(BookSort.allCases) { sort in
                     Button {
                         filter.sort = sort
@@ -154,14 +154,14 @@ struct BookGridView: View {
             Button {
                 filter.descending = !(filter.descending ?? filter.sort.descendingByDefault)
             } label: {
-                if isReversed { Label("Reverse", systemImage: "checkmark") } else { Text("Reverse") }
+                if isReversed { Label(t("Reverse"), systemImage: "checkmark") } else { Text(t("Reverse")) }
             }
         } label: {
             Label(filter.sort.label, systemImage: "arrow.up.arrow.down")
         }
         .focused($focusedControl, equals: "sort")
         .buttonStyle(PillButtonStyle(selected: false))
-        .accessibilityLabel("Sort by \(filter.sort.label)")
+        .accessibilityLabel(t("Sort by {order}", ["order": filter.sort.label]))
     }
 
     private var isReversed: Bool {
@@ -171,14 +171,14 @@ struct BookGridView: View {
     /// Progress, length and unabridged, as the iPhone's filter menu has them.
     private var filterMenu: some View {
         Menu {
-            Section("Show") {
+            Section(t("Show")) {
                 ForEach(BookProgressFilter.allCases) { progress in
                     Button { filter.progress = progress } label: {
                         if filter.progress == progress { Label(progress.label, systemImage: "checkmark") } else { Text(progress.label) }
                     }
                 }
             }
-            Section("Length") {
+            Section(t(Words.length)) {
                 ForEach(BookLength.allCases) { length in
                     Button { length.apply(to: &filter) } label: {
                         if BookLength(filter) == length { Label(length.label, systemImage: "checkmark") } else { Text(length.label) }
@@ -187,14 +187,14 @@ struct BookGridView: View {
             }
             Section {
                 Button { filter.abridged = filter.abridged == false ? nil : false } label: {
-                    if filter.abridged == false { Label("Unabridged only", systemImage: "checkmark") } else { Text("Unabridged only") }
+                    if filter.abridged == false { Label(t("Unabridged only"), systemImage: "checkmark") } else { Text(t("Unabridged only")) }
                 }
                 if isFiltered {
-                    Button("Clear filters", action: clearFilters)
+                    Button(t("Clear filters"), action: clearFilters)
                 }
             }
         } label: {
-            Label("Filter", systemImage: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+            Label(t("Filter"), systemImage: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
         }
         .focused($focusedControl, equals: "filter")
         .buttonStyle(PillButtonStyle(selected: isFiltered))
@@ -203,10 +203,10 @@ struct BookGridView: View {
     /// Filters that leave nothing: say so, with a way back to every book (the sort, and a genre's page its genre, stay).
     private var noMatches: some View {
         VStack(spacing: 30) {
-            Text("No books match.")
+            Text(t("No books match."))
                 .font(.system(size: 32, weight: .medium))
                 .foregroundStyle(Color.usher)
-            Button("Clear filters", action: clearFilters)
+            Button(t("Clear filters"), action: clearFilters)
                 .buttonStyle(ActionButtonStyle(prominent: true))
         }
         .frame(maxWidth: .infinity)

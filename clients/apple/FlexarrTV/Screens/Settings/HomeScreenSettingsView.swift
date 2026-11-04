@@ -7,8 +7,8 @@ struct HomeScreenSettingsView: View {
     @State private var topShelf = TopShelfStyle.current
 
     var body: some View {
-        SettingsPage(title: "Home screen") {
-            SettingsGroupLabel("Top Shelf")
+        SettingsPage(title: t("Home screen")) {
+            SettingsGroupLabel(t("Top Shelf"))
             ForEach(TopShelfStyle.allCases, id: \.self) { style in
                 SettingsRow(title: style.label, symbol: style == .wide ? "rectangle.inset.filled" : "rectangle.portrait.inset.filled",
                             help: style.help, accessory: topShelf == style ? .checkmark : .none) {
@@ -24,8 +24,8 @@ struct HomeScreenSettingsView: View {
 private extension TopShelfStyle {
     var help: String {
         switch self {
-        case .wide: "Continue watching on the Top Shelf as wide artwork, with each title's logo on it."
-        case .posters: "Continue watching on the Top Shelf as posters, which fit more titles in."
+        case .wide: t("Continue watching on the Top Shelf as wide artwork, with each title's logo on it.")
+        case .posters: t("Continue watching on the Top Shelf as posters, which fit more titles in.")
         }
     }
 }

@@ -45,6 +45,6 @@ struct BookSpeedSheet: View {
                 .background(Circle().fill(Color.screen.opacity(0.14)))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(by > 0 ? "Faster" : "Slower")
+        .accessibilityLabel(by > 0 ? t("Faster") : t("Slower"))
     }
 }

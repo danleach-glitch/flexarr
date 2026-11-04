@@ -1,3 +1,4 @@
+import FlexarrKit
 import SwiftUI
 
 /// Home, Libraries and Search while the server can't be reached: one calm screen pointing at the downloads, which
@@ -15,13 +16,13 @@ struct OfflineView: View {
                 .font(.system(size: 40))
                 .foregroundStyle(Color.silver)
                 .accessibilityHidden(true)
-            Text("You’re offline")
+            Text(t("You’re offline"))
                 .font(.title2.weight(.semibold))
                 .accessibilityAddTraits(.isHeader)
             if downloads.hasAnything {
-                Text("Your downloads still play.")
+                Text(t("Your downloads still play."))
                     .foregroundStyle(.secondary)
-                Button("Go to Downloads", action: onDownloads)
+                Button(t("Go to Downloads"), action: onDownloads)
                     .buttonStyle(ActionButtonStyle(prominent: true))
                     .padding(.top, 8)
             }
@@ -39,7 +40,7 @@ struct OfflineView: View {
 /// The slim bar over every tab while offline, on a strip of its own so nothing scrolls by beside it.
 struct OfflineBar: View {
     var body: some View {
-        Label("Offline", systemImage: "wifi.slash")
+        Label(t("Offline"), systemImage: "wifi.slash")
             .font(.footnote.weight(.semibold))
             .foregroundStyle(Color.screen)
             .padding(.horizontal, 14)

@@ -15,21 +15,29 @@ enum LibraryGridContent {
         }
     }
 
-    /// What the grid lists, as in "No Rock albums here."
+    /// What the grid lists, as in "No Rock albums here." Prefer `noneInGenre(_:)`, which says the whole sentence.
     var noun: String {
         switch self {
-        case .titles: "titles"
-        case .artists: "artists"
-        case .albums: "albums"
+        case .titles: t("titles")
+        case .artists: t("artists")
+        case .albums: t("albums")
+        }
+    }
+
+    /// "No Rock albums here.", for a genre with nothing in it.
+    func noneInGenre(_ genre: String) -> String {
+        switch self {
+        case .titles: t("No {genre} titles here.", ["genre": genre])
+        case .artists: t("No {genre} artists here.", ["genre": genre])
+        case .albums: t("No {genre} albums here.", ["genre": genre])
         }
     }
 
     func count(_ total: Int) -> String {
-        let noun = switch self {
-        case .titles: total == 1 ? "title" : "titles"
-        case .artists: total == 1 ? "artist" : "artists"
-        case .albums: total == 1 ? "album" : "albums"
+        switch self {
+        case .titles: t("{count, plural, one {# title} other {# titles}}", ["count": total])
+        case .artists: t("{count, plural, one {# artist} other {# artists}}", ["count": total])
+        case .albums: t("{count, plural, one {# album} other {# albums}}", ["count": total])
         }
-        return "\(total.formatted()) \(noun)"
     }
 }

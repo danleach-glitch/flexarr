@@ -41,21 +41,21 @@ struct MusicLibraryView<Header: View>: View {
                     StatusView(state: .loading)
                         .frame(height: 400)
                 } else if browse.isEmpty {
-                    StatusView(state: .empty("Nothing in this library yet."))
+                    StatusView(state: .empty(t("Nothing in this library yet.")))
                         .frame(height: 400)
                 } else {
                     if !browse.rows.isEmpty {
                         ForEach(browse.rows) { MusicRowView(row: $0, library: browse.library, width: cardWidth) { Task { await load() } } }
                     }
                     if browse.rows.isEmpty, !browse.playlists.isEmpty {
-                        row("Your playlists") {
+                        row(t("Your playlists")) {
                             ForEach(browse.playlists) { playlist in
                                 PlaylistCard(playlist: playlist, width: cardWidth)
                             }
                         }
                     }
                     if browse.rows.isEmpty, !browse.recentAlbums.isEmpty {
-                        row("New albums") {
+                        row(t("New albums")) {
                             ForEach(browse.recentAlbums) { album in
                                 AlbumCard(item: album, width: cardWidth, showsArtist: true)
                             }
@@ -63,8 +63,8 @@ struct MusicLibraryView<Header: View>: View {
                     }
                     if !browse.artists.isEmpty {
                         // See all only when there are more than the row shows; it opens Artists over Browse.
-                        row("Your artists", action: browse.total > MusicBrowseModel.artistsInRow ? { router.push(.artists(browse.library)) } : nil,
-                            actionLabel: "See all artists") {
+                        row(t(Words.yourArtists), action: browse.total > MusicBrowseModel.artistsInRow ? { router.push(.artists(browse.library)) } : nil,
+                            actionLabel: t("See all artists")) {
                             ForEach(browse.artists.prefix(MusicBrowseModel.artistsInRow)) { ArtistCard(item: $0, width: cardWidth * 0.85) }
                         }
                     }
@@ -123,7 +123,7 @@ private struct MusicRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeading(title: row.title, action: row.albumsSort.map { sort in { router.push(.albums(library, sort)) } },
-                           actionLabel: "See all albums")
+                           actionLabel: t("See all albums"))
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                     ForEach(row.playlists ?? []) { PlaylistCard(playlist: $0, width: width) }

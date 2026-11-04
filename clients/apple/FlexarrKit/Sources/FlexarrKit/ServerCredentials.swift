@@ -167,5 +167,5 @@ public struct CredentialStore: Sendable {
 
 public struct KeychainError: Error, LocalizedError {
     public let status: OSStatus
-    public var errorDescription: String? { "Couldn't save the API key to the Keychain (error \(status))." }
+    public var errorDescription: String? { t("Couldn't save the API key to the Keychain (error {status}).", ["status": String(status)]) }
 }

@@ -69,19 +69,21 @@ public struct TraktImportPreview: Codable, Sendable, Hashable {
 
     /// "Trakt has 12 films and 340 episodes".
     public var summary: String {
-        "Trakt has \(Self.count(traktFilms, "movie")) and \(Self.count(traktEpisodes, "episode"))"
+        t("Trakt has {movies, plural, one {# movie} other {# movies}} and {episodes, plural, one {# episode} other {# episodes}}",
+          ["movies": traktFilms, "episodes": traktEpisodes])
     }
 
     /// What changes, in a line or two.
     public var details: String {
-        var parts = [inLibrary == 0 ? "None are here yet"
-            : "\(inLibrary.formatted()) are here" + (newToFlexarr > 0 ? ", \(newToFlexarr.formatted()) not yet watched in Flexarr" : "")]
-        if notOnServer > 0 { parts.append("\(notOnServer.formatted()) will show as watched if they arrive") }
-        if toTrakt > 0 { parts.append("\(Self.count(toTrakt, "play")) from Flexarr \(toTrakt == 1 ? "goes" : "go") to Trakt") }
-        return parts.joined(separator: ". ") + "."
+        var parts = [inLibrary == 0 ? t("None are here yet.")
+            : newToFlexarr > 0 ? t("{here} are here, {new} not yet watched in Flexarr.", ["here": inLibrary, "new": newToFlexarr])
+            : t("{here} are here.", ["here": inLibrary])]
+        if notOnServer > 0 { parts.append(t("{count} will show as watched if they arrive.", ["count": notOnServer])) }
+        if toTrakt > 0 {
+            parts.append(t("{count, plural, one {# play from Flexarr goes to Trakt.} other {# plays from Flexarr go to Trakt.}}", ["count": toTrakt]))
+        }
+        return parts.joined(separator: " ")
     }
-
-    static func count(_ n: Int, _ one: String) -> String { "\(n.formatted()) \(n == 1 ? one : one + "s")" }
 }
 
 extension TraktConnectState {
@@ -89,10 +91,10 @@ extension TraktConnectState {
     public var problem: String? {
         switch self {
         case .waiting, .connected: nil
-        case .expired: "The code ran out. Try again."
-        case .denied: "Trakt said no."
-        case .inUse: "That Trakt account is connected to another profile."
-        case .failed, .unknown: "That didn’t work. Try again."
+        case .expired: t("The code ran out. Try again.")
+        case .denied: t("Trakt said no.")
+        case .inUse: t("That Trakt account is connected to another profile.")
+        case .failed, .unknown: t("That didn’t work. Try again.")
         }
     }
 }
@@ -110,36 +112,36 @@ public struct TraktList: Codable, Sendable, Hashable, Identifiable {
 
     /// "Sam, 12 titles", or "12 titles" for the profile's own.
     public var detail: String {
-        let titles = TraktImportPreview.count(itemCount, "title")
-        return owner.map { "\($0), \(titles)" } ?? titles
+        guard let owner else { return t("{count, plural, one {# title} other {# titles}}", ["count": itemCount]) }
+        return t("{owner}, {count, plural, one {# title} other {# titles}}", ["owner": owner, "count": itemCount])
     }
 }
 
 /// The words every app uses for Trakt, so they say the same thing.
 public enum TraktWords {
-    public static let waiting = "Flexarr waits, so you can leave this."
-    public static let importEntry = "Bring your Trakt history across"
-    public static let importAction = "Bring across"
-    public static let importing = "Bringing your history across…"
-    public static let imported = "History brought across"
-    public static let watchlistFull = "Trakt’s watchlist is full. New titles stay on Flexarr’s list."
-    public static let signedOut = "Trakt signed Flexarr out."
-    public static let listsNote = "Chosen lists show in Collections, just for you."
-    public static let disconnectTitle = "Disconnect Trakt?"
-    public static let disconnectMessage = "What you’ve watched stays as it is, here and on Trakt."
-    public static let unavailable = "Trakt isn’t available on this server."
-    public static let failed = "That didn’t work. Try again."
-    public static let unreachable = "Couldn’t reach the server."
+    public static var waiting: String { t("Flexarr waits, so you can leave this.") }
+    public static var importEntry: String { t("Bring your Trakt history across") }
+    public static var importAction: String { t("Bring across") }
+    public static var importing: String { t("Bringing your history across…") }
+    public static var imported: String { t("History brought across") }
+    public static var watchlistFull: String { t("Trakt’s watchlist is full. New titles stay on Flexarr’s list.") }
+    public static var signedOut: String { t("Trakt signed Flexarr out.") }
+    public static var listsNote: String { t("Chosen lists show in Collections, just for you.") }
+    public static var disconnectTitle: String { t("Disconnect Trakt?") }
+    public static var disconnectMessage: String { t("What you’ve watched stays as it is, here and on Trakt.") }
+    public static var unavailable: String { t("Trakt isn’t available on this server.") }
+    public static var failed: String { t("That didn’t work. Try again.") }
+    public static var unreachable: String { t("Couldn’t reach the server.") }
 
     /// "Enter this code at trakt.tv/activate."
     public static func enterCode(at url: String) -> String {
-        "Enter this code at \(url.replacingOccurrences(of: "https://", with: ""))."
+        t("Enter this code at {address}.", ["address": url.replacingOccurrences(of: "https://", with: "")])
     }
 
     /// "Synced 5 minutes ago", or "Not synced yet".
     public static func synced(_ date: Date?, now: Date = .now) -> String {
-        guard let date else { return "Not synced yet" }
-        return "Synced \(date.formatted(.relative(presentation: .named, unitsStyle: .wide)))"
+        guard let date else { return t("Not synced yet") }
+        return t("Synced {when}", ["when": date.formatted(.relative(presentation: .named, unitsStyle: .wide).locale(Localization.locale))])
     }
 
     /// The server's own words for what went wrong, when it gave some.

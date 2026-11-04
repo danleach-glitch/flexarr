@@ -73,7 +73,7 @@ struct LibraryGenresView: View {
         } else {
             Group {
                 if genres != nil {
-                    StatusView(state: .empty("No genres here yet. They come with each title's details once a scan has found them."))
+                    StatusView(state: .empty(t("No genres here yet. They come with each title's details once a scan has found them.")))
                 } else if let error {
                     StatusView(state: .failed(error) { Task { await load() } })
                 } else {
@@ -85,13 +85,13 @@ struct LibraryGenresView: View {
     }
 
     private func caption(_ genre: GenreCount) -> String {
-        if library.type == .music { return genre.count == 1 ? "1 album" : "\(genre.count) albums" }
-        let noun = switch library.type {
-        case .tvShows: genre.count == 1 ? "show" : "shows"
-        case .audiobooks: genre.count == 1 ? "book" : "books"
-        default: genre.count == 1 ? "movie" : "movies"
+        let values: [String: Any] = ["count": genre.count]
+        return switch library.type {
+        case .music: t("{count, plural, one {# album} other {# albums}}", values)
+        case .tvShows: t("{count, plural, one {# show} other {# shows}}", values)
+        case .audiobooks: t("{count, plural, one {# book} other {# books}}", values)
+        default: t("{count, plural, one {# movie} other {# movies}}", values)
         }
-        return "\(genre.count) \(noun)"
     }
 
     private func passFocusOnArrival() {

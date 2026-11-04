@@ -138,11 +138,17 @@ final class PlayerControlsView: UIView {
     private let downToMenus = UIFocusGuide()
     #endif
 
-    private static let timeOfDay: DateFormatter = {
+    /// Kept while the language shown stays the same (it's read on every tick).
+    private static var timeOfDayFormatter: DateFormatter?
+    private static var timeOfDay: DateFormatter {
+        let locale = Localization.locale
+        if let kept = timeOfDayFormatter, kept.locale == locale { return kept }
         let formatter = DateFormatter()
+        formatter.locale = locale
         formatter.timeStyle = .short
+        timeOfDayFormatter = formatter
         return formatter
-    }()
+    }
 
     func setTime(position: Double, duration: Double, buffered: Double) {
         scrubber.duration = duration
@@ -152,7 +158,7 @@ final class PlayerControlsView: UIView {
         if isLive {
             let behind = max(0, duration - shown)
             elapsedLabel.text = Self.timeOfDay.string(from: Date().addingTimeInterval(-behind))
-            remainingLabel.text = behind < LiveTransport.liveSlack ? "LIVE" : "−" + ScrubberView.clock(behind)
+            remainingLabel.text = behind < LiveTransport.liveSlack ? t("LIVE") : "−" + ScrubberView.clock(behind)
             return
         }
         elapsedLabel.text = ScrubberView.clock(shown)
@@ -176,20 +182,20 @@ final class PlayerControlsView: UIView {
     }
 
     /// The pill above the timeline: Skip Intro, Next Episode (counting down), with Cancel beside it while counting.
-    func setPrompt(_ title: String?, countingDown: Bool, takesFocus: Bool = true) {
+    /// `symbol` goes beside the title: forward.end.fill for a skip, the live symbol for Back to live.
+    func setPrompt(_ title: String?, symbol: String = "forward.fill", countingDown: Bool, takesFocus: Bool = true) {
         promptTakesFocus = takesFocus
         if let title {
             UIView.performWithoutAnimation {
                 // Counting down, the pill keeps its "in 10" width, so it doesn't twitch as the number changes or goes.
-                if countingDown, promptWidthHold == nil, title.hasPrefix("Next episode") {
-                    promptButton.configuration?.title = "Next episode in 10"
+                if countingDown, promptWidthHold == nil {
+                    promptButton.configuration?.title = t(Words.nextEpisodeIn, ["seconds": 10])
                     promptButton.configuration?.image = UIImage(systemName: "forward.fill")
                     let width = promptButton.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).width
                     promptWidthHold = promptButton.widthAnchor.constraint(greaterThanOrEqualToConstant: width)
                     promptWidthHold?.isActive = true
                 }
                 promptButton.configuration?.title = title
-                let symbol = title.hasPrefix("Skip") ? "forward.end.fill" : title == "Back to live" ? "dot.radiowaves.left.and.right" : "forward.fill"
                 promptButton.configuration?.image = UIImage(systemName: symbol)
                 promptButton.layoutIfNeeded()
             }
@@ -240,13 +246,13 @@ final class PlayerControlsView: UIView {
     /// The bed filled while a sleep timer runs.
     func setSleepActive(_ active: Bool) {
         sleepButton.configuration?.image = UIImage(systemName: active ? "bed.double.fill" : "bed.double")
-        sleepButton.accessibilityValue = active ? "On" : nil
+        sleepButton.accessibilityValue = active ? t("On") : nil
         sleepButton.setNeedsUpdateConfiguration()
     }
 
     /// A moment's "+15 s" in the middle of the picture after a skip.
     func flashSkip(_ seconds: Double) {
-        hud.text = (seconds > 0 ? "+" : "−") + "\(Int(abs(seconds))) s"
+        hud.text = seconds > 0 ? t("+{seconds} s", ["seconds": Int(abs(seconds))]) : t("−{seconds} s", ["seconds": Int(abs(seconds))])
         hudTask?.cancel()
         hud.alpha = 1
         hudTask = Task { [weak self] in
@@ -334,19 +340,19 @@ final class PlayerControlsView: UIView {
         promptButton.addAction(UIAction { [weak self] _ in self?.onPrompt?() }, for: .primaryActionTriggered)
         cancelButton.addAction(UIAction { [weak self] _ in self?.onCancel?() }, for: .primaryActionTriggered)
         channelsButton.addAction(UIAction { [weak self] _ in self?.onChannels?() }, for: .primaryActionTriggered)
-        channelsButton.accessibilityLabel = "Channels"
+        channelsButton.accessibilityLabel = t("Channels")
         channelsButton.isHidden = true
         guideButton.addAction(UIAction { [weak self] _ in self?.onGuide?() }, for: .primaryActionTriggered)
-        guideButton.accessibilityLabel = "Guide"
+        guideButton.accessibilityLabel = t("Guide")
         guideButton.isHidden = true
         for button in [audioButton, subtitlesButton, speedButton, sleepButton] {
             button.showsMenuAsPrimaryAction = true
             button.isHidden = true
         }
-        audioButton.accessibilityLabel = "Audio"
-        subtitlesButton.accessibilityLabel = "Subtitles"
-        speedButton.accessibilityLabel = "Speed"
-        sleepButton.accessibilityLabel = "Sleep timer"
+        audioButton.accessibilityLabel = t("Audio")
+        subtitlesButton.accessibilityLabel = t(Words.subtitles)
+        speedButton.accessibilityLabel = t("Speed")
+        sleepButton.accessibilityLabel = t("Sleep timer")
         // The speed's badge: small type beside the gauge.
         speedButton.configuration?.imagePadding = 6
         let badgeFont = UIFont.monospacedDigitSystemFont(ofSize: Self.symbolSize * 0.6, weight: .bold)
@@ -627,7 +633,7 @@ final class PlayerControlsView: UIView {
         configuration.contentInsets = NSDirectionalEdgeInsets(top: side, leading: side * 0.8, bottom: side, trailing: side * 1.2)
         let button = PillButton.focusable(configuration)
         button.layer.maskedCorners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
-        button.accessibilityLabel = "Cancel"
+        button.accessibilityLabel = t(Words.cancel)
         return button
     }
 
