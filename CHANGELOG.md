@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.61.0 · 4 November 2026
 
 ### Server name
 - Your server has a name. It starts as the computer's name (just "Flexarr" in Docker), and you can change it in **Settings › Overview** on the web, or on the first card of the setup guide.
