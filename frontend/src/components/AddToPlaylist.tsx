@@ -5,6 +5,7 @@ import { AsyncButton, IconButton } from './AsyncButton'
 import { Close } from './icons'
 import { describePlaylist, PlaylistCover } from './PlaylistCover'
 import { useModal } from '../hooks/useModal'
+import { t } from '../i18n'
 
 /** Asks for the Add to playlist dialog, from anywhere (a card's menu closes before it opens). */
 const OPEN = 'flexarr:add-to-playlist'
@@ -82,10 +83,10 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
       <div className="panel add-to-playlist" ref={dialog} role="dialog" aria-modal="true" aria-label={`Add ${item.title} to a playlist`} onClick={(e) => e.stopPropagation()}>
         <header className="add-to-playlist-head">
           <div>
-            <h2>Add to playlist</h2>
+            <h2>{t('Add to playlist')}</h2>
             <p className="muted">{item.title}</p>
           </div>
-          <IconButton label="Close" icon={<Close />} className="icon-button" onClick={onClose} />
+          <IconButton label={t('Close')} icon={<Close />} className="icon-button" onClick={onClose} />
         </header>
         {playlists.error && <p className="error">{playlists.error.message}</p>}
         {!none && (
@@ -107,7 +108,7 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
         )}
         <form className="add-to-playlist-new" onSubmit={create}>
           <label className="visually-hidden" htmlFor="new-playlist-name">
-            New playlist
+            {t('New playlist')}
           </label>
           <input
             id="new-playlist-name"
@@ -119,7 +120,7 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
             ref={nameInput}
           />
           <AsyncButton className="button small" type="submit" disabled={!!busy || !name.trim()} busy={busy === 'new'}>
-            Create
+            {t('Create')}
           </AsyncButton>
         </form>
         {message && (

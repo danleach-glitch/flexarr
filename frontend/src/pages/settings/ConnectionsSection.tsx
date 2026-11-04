@@ -31,7 +31,7 @@ import { usePolling } from '../../hooks/usePolling'
 import { appLogos } from '../../lib/apps'
 import { OpenApp, SaveStatus, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText, useSettings } from './useSettings'
-import { locale } from '../../i18n'
+import { locale, t } from '../../i18n'
 
 /** Settings › Trakt may have come or gone: the Settings page looks again. */
 export const TRAKT_CHANGED = 'flexarr:trakt'
@@ -124,11 +124,11 @@ export function ConnectionsSection() {
   return (
     <ServerName value={settings.hostName}>
       <section>
-        <SettingsHeader title="Connections">
-          The apps Flexarr gets your titles from, and the ones that add requests, subtitles and Live TV.
+        <SettingsHeader title={t('Connections')}>
+          {t('The apps Flexarr gets your titles from, and the ones that add requests, subtitles and Live TV.')}
         </SettingsHeader>
 
-        <SettingsGroup title="Apps & Integrations" note={saved || saveError ? <SaveStatus saved={saved} error={saveError} /> : undefined}>
+        <SettingsGroup title={t('Apps & Integrations')} note={saved || saveError ? <SaveStatus saved={saved} error={saveError} /> : undefined}>
           {arrKinds.map((kind) => {
             const connected = settings.arr.flatMap((a, i) => (a.kind === kind ? [i] : []))
             const adding = open === `new-${kind}`
@@ -167,8 +167,8 @@ export function ConnectionsSection() {
               kind === 'Lidarr' && connected.length > 0 && settings.allowMusicRequests != null && (
                 <ToggleRow
                   key="music-requests"
-                  label="Music requests"
-                  help="Discover and request artists and albums."
+                  label={t('Music requests')}
+                  help={t('Discover and request artists and albums.')}
                   checked={settings.allowMusicRequests}
                   onChange={(on) => void save({ allowMusicRequests: on })}
                 />
@@ -179,8 +179,8 @@ export function ConnectionsSection() {
             kind="Seerr"
             service={settings.seerr}
             notConnected={notConnected('seerr')}
-            description="Discover and one-click requests. Overseerr and Jellyseerr work too."
-            placeholder="http://localhost:5055"
+            description={t('Discover and one-click requests. Overseerr and Jellyseerr work too.')}
+            placeholder={t('http://localhost:5055')}
             keyHint="In Seerr, under Settings › General"
             removeWarning="Disconnect Seerr? Discover and requests go with it."
             status={serviceStatus(seerrStatus)}
@@ -196,14 +196,13 @@ export function ConnectionsSection() {
             kind="Bazarr"
             service={settings.bazarr}
             notConnected={notConnected('bazarr')}
-            description="Find and re-sync subtitles from the player."
+            description={t('Find and re-sync subtitles from the player.')}
             more={
               <p>
-                It uses the languages and subtitle sites set up in Bazarr, for titles Sonarr and Radarr manage. A title with no languages profile gets
-                Bazarr’s first one, so Bazarr may then fetch subtitles for it on its own schedule too.
+                {t('It uses the languages and subtitle sites set up in Bazarr, for titles Sonarr and Radarr manage. A title with no languages profile gets Bazarr’s first one, so Bazarr may then fetch subtitles for it on its own schedule too.')}
               </p>
             }
-            placeholder="http://localhost:6767"
+            placeholder={t('http://localhost:6767')}
             keyHint="In Bazarr, under Settings › General"
             removeWarning="Disconnect Bazarr? Searching for subtitles from the player goes with it."
             status={serviceStatus(bazarrStatus)}
@@ -330,10 +329,10 @@ function ConnectionLine({
         {onAddAnother && <IconButton label={`Add another ${kind}`} icon={<Plus />} onClick={onAddAnother} />}
         {!open &&
           (connected ? (
-            <IconButton label="Edit" aria-label={`Edit ${name}`} icon={<Pencil />} onClick={onOpen} />
+            <IconButton label={t('Edit')} aria-label={`Edit ${name}`} icon={<Pencil />} onClick={onOpen} />
           ) : (
             <button type="button" className="button quiet small go" aria-label={`Connect ${name}`} onClick={onOpen}>
-              Connect
+              {t('Connect')}
             </button>
           ))}
       </span>
@@ -401,7 +400,7 @@ function ArrRow({
             <>
               {unfound.length === 1 ? (
                 <>
-                  Its <code>{unfound[0]}</code> folder isn’t at that path on this server.
+                  Its <code>{unfound[0]}</code> {t('folder isn’t at that path on this server.')}
                 </>
               ) : (
                 `${unfound.length} of its folders aren’t at those paths on this server.`
@@ -429,7 +428,7 @@ function ArrRow({
             </label>
           </div>
           <label className="field">
-            <span className="field-label">API key</span>
+            <span className="field-label">{t('API key')}</span>
             <input
               type="password"
               value={draft.apiKey}
@@ -440,10 +439,10 @@ function ArrRow({
           <div className="form-actions">
             {onRemove &&
               (others ? (
-                <IconButton label="Remove" aria-label={`Remove ${connection.name}`} icon={<icon.delete />} className="button quiet small icon danger-icon form-actions-start" onClick={() => confirm(`Remove ${connection.name}?`) && onRemove()} />
+                <IconButton label={t('Remove')} aria-label={`Remove ${connection.name}`} icon={<icon.delete />} className="button quiet small icon danger-icon form-actions-start" onClick={() => confirm(`Remove ${connection.name}?`) && onRemove()} />
               ) : (
                 <AsyncButton className="button danger small form-actions-start" aria-label={`Disconnect ${connection.name}`} onClick={() => (confirm(`Disconnect ${connection.name}? Its titles stay in your libraries.`) ? onRemove() : undefined)}>
-                  Disconnect
+                  {t('Disconnect')}
                 </AsyncButton>
               ))}
             <AsyncButton className="button quiet small" onClick={() => runTest()}>
@@ -459,7 +458,7 @@ function ArrRow({
                 onClose()
               }}
             >
-              Cancel
+              {t('Cancel')}
             </button>
             <AsyncButton type="submit" className={isNew ? 'button small go' : 'button small'} busy={saving}>
               {isNew ? 'Connect' : 'Save'}
@@ -535,7 +534,7 @@ function ServiceRow({
           <p className="muted">{description}</p>
           {more && (
             <details className="advice-more muted">
-              <summary>How it works</summary>
+              <summary>{t('How it works')}</summary>
               {more}
             </details>
           )}
@@ -552,11 +551,11 @@ function ServiceRow({
           <div className="form-actions">
             {service && (
               <AsyncButton className="button danger small form-actions-start" aria-label={`Disconnect ${kind}`} onClick={() => (confirm(removeWarning) ? onSave({ baseUrl: '' }) : undefined)}>
-                Disconnect
+                {t('Disconnect')}
               </AsyncButton>
             )}
             <button type="button" className="button quiet small" onClick={onClose}>
-              Cancel
+              {t('Cancel')}
             </button>
             <AsyncButton type="submit" className={service ? 'button small' : 'button small go'} busy={saving}>
               {service ? 'Save' : 'Connect'}
@@ -602,7 +601,7 @@ function TmdbRow({
       {open && (
         <form
           className="connection-form"
-          aria-label="Edit TMDB"
+          aria-label={t('Edit TMDB')}
           onSubmit={(e) => {
             e.preventDefault()
             setSaving(true)
@@ -631,16 +630,16 @@ function TmdbRow({
           <p className="muted field-hint">
             Free from{' '}
             <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">
-              themoviedb.org
+              {t('themoviedb.org')}
             </a>{' '}
             by registering an app for personal use.{' '}
             <a href="https://flexarr.io/guide/without-arrs#movies-from-tmdb" target="_blank" rel="noreferrer">
-              How to get a key
+              {t('How to get a key')}
             </a>
           </p>
           {test?.ok && (
             <p className="connection-ok" role="status">
-              <Check /> TMDB accepted the key.
+              <Check /> {t('TMDB accepted the key.')}
             </p>
           )}
           <div className="form-actions">
@@ -648,10 +647,10 @@ function TmdbRow({
               <AsyncButton
                 type="button"
                 className="button danger small form-actions-start"
-                aria-label="Disconnect TMDB"
+                aria-label={t('Disconnect TMDB')}
                 onClick={() => (confirm('Disconnect TMDB? Its key is forgotten, and movies already filled in keep their details.') ? onSave('') : undefined)}
               >
-                Disconnect
+                {t('Disconnect')}
               </AsyncButton>
             )}
             <AsyncButton type="button" className="button quiet small" disabled={!apiKey.trim() && !hasKey} onClick={async () => setTest(await testTmdb(apiKey.trim()))}>
@@ -659,13 +658,13 @@ function TmdbRow({
               Test
             </AsyncButton>
             <button type="button" className="button quiet small" onClick={onClose}>
-              Cancel
+              {t('Cancel')}
             </button>
             <AsyncButton type="submit" className={hasKey ? 'button small' : 'button small go'} busy={saving} disabled={!apiKey.trim()}>
               {hasKey ? 'Save' : 'Connect'}
             </AsyncButton>
           </div>
-          <p className="muted field-hint">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+          <p className="muted field-hint">{t('This product uses the TMDB API but is not endorsed or certified by TMDB.')}</p>
         </form>
       )}
     </div>
@@ -698,14 +697,14 @@ function TraktAppRow({
       {open && (
         <form
           className="connection-form"
-          aria-label="Edit Trakt"
+          aria-label={t('Edit Trakt')}
           onSubmit={(e) => {
             e.preventDefault()
             setSaving(true)
             void onSave({ clientId: clientId.trim(), clientSecret: secret.trim() || undefined }).finally(() => setSaving(false))
           }}
         >
-          <p className="muted">Each profile connects its own Trakt account in its Settings. To use your own Trakt app instead of Flexarr’s, give its details.</p>
+          <p className="muted">{t('Each profile connects its own Trakt account in its Settings. To use your own Trakt app instead of Flexarr’s, give its details.')}</p>
           <div className="field-row">
             <label className="grow">
               Client ID
@@ -719,14 +718,14 @@ function TraktAppRow({
           <div className="form-actions">
             {app && (
               <AsyncButton type="button" className="button danger small form-actions-start" onClick={() => onSave({ clientId: '' })}>
-                Use Flexarr’s app
+                {t('Use Flexarr’s app')}
               </AsyncButton>
             )}
             <button type="button" className="button quiet small" onClick={onClose}>
-              Cancel
+              {t('Cancel')}
             </button>
             <AsyncButton type="submit" className="button small" busy={saving} disabled={!clientId.trim() || (!secret.trim() && !(app?.hasSecret && app.clientId === clientId.trim()))}>
-              Save
+              {t('Save')}
             </AsyncButton>
           </div>
         </form>
@@ -773,7 +772,7 @@ function DispatcharrRow({
       {open && (
         <form
           className="connection-form"
-          aria-label="Edit Dispatcharr"
+          aria-label={t('Edit Dispatcharr')}
           onSubmit={(e) => {
             e.preventDefault()
             setTest(undefined)
@@ -785,25 +784,24 @@ function DispatcharrRow({
             }).finally(() => setSaving(false))
           }}
         >
-          <p className="muted">TV channels and their guide.</p>
+          <p className="muted">{t('TV channels and their guide.')}</p>
           <details className="advice-more muted">
-            <summary>How to set it up</summary>
+            <summary>{t('How to set it up')}</summary>
             <p>
-              In Dispatcharr, add a user for Flexarr at Streamer level with a long random XC password, and use that password as the key here. It can only
-              list and play the channels Dispatcharr gives that user.
+              {t('In Dispatcharr, add a user for Flexarr at Streamer level with a long random XC password, and use that password as the key here. It can only list and play the channels Dispatcharr gives that user.')}
             </p>
             <p>
-              Rewinding and recording are in <Link to="/settings/livetv">Live TV</Link>.
+              Rewinding and recording are in <Link to="/settings/livetv">{t('Live TV')}</Link>.
             </p>
           </details>
           <div className="field-row">
             <label className="grow">
               Address
-              <input type="url" value={baseUrl} required placeholder="http://localhost:9191" onChange={(e) => setBaseUrl(e.target.value)} />
+              <input type="url" value={baseUrl} required placeholder={t('http://localhost:9191')} onChange={(e) => setBaseUrl(e.target.value)} />
             </label>
             <label>
               User name
-              <input type="text" autoComplete="off" value={username} required placeholder="flexarr" onChange={(e) => setUsername(e.target.value)} />
+              <input type="text" autoComplete="off" value={username} required placeholder={t('flexarr')} onChange={(e) => setUsername(e.target.value)} />
             </label>
             <label>
               Key (XC password)
@@ -821,14 +819,14 @@ function DispatcharrRow({
               <AsyncButton
                 type="button"
                 className="button danger small form-actions-start"
-                aria-label="Disconnect Dispatcharr"
+                aria-label={t('Disconnect Dispatcharr')}
                 onClick={() => (confirm('Disconnect Dispatcharr? Live TV, its channels and everyone’s favourites go with it.') ? onSave({ baseUrl: '' }, 'Live TV disconnected') : undefined)}
               >
-                Disconnect
+                {t('Disconnect')}
               </AsyncButton>
             )}
             {liveTv && (
-              <IconButton label="Refresh channels and guide" icon={<Refresh />} busy={refreshing} onClick={() => onRefresh()} />
+              <IconButton label={t('Refresh channels and guide')} icon={<Refresh />} busy={refreshing} onClick={() => onRefresh()} />
             )}
             <AsyncButton
               className="button quiet small"
@@ -846,7 +844,7 @@ function DispatcharrRow({
               Test
             </AsyncButton>
             <button type="button" className="button quiet small" onClick={onClose}>
-              Cancel
+              {t('Cancel')}
             </button>
             <AsyncButton type="submit" className={liveTv ? 'button small' : 'button small go'} busy={saving}>
               {liveTv ? 'Save' : 'Connect'}
@@ -880,7 +878,7 @@ function MediaFolders({ folders, hasApps, mappings, save }: { folders?: ArrFolde
   return (
     <div id="media-folders">
       <SettingsGroup
-        title="Media folders"
+        title={t('Media folders')}
         note={
           hasApps
             ? 'Where each app’s folders are on this server. Flexarr works it out when it can.'
@@ -903,7 +901,7 @@ function MediaFolders({ folders, hasApps, mappings, save }: { folders?: ArrFolde
               <span className="connection-actions">
                 {f.state === 'Suggested' && f.suggested && (
                   <AsyncButton className="button small" onClick={() => map(f.suggested!.from, f.suggested!.to)}>
-                    Use this
+                    {t('Use this')}
                   </AsyncButton>
                 )}
                 {f.state !== 'Found' && (
@@ -916,11 +914,11 @@ function MediaFolders({ folders, hasApps, mappings, save }: { folders?: ArrFolde
             {choosing === f.path && (
               <div className="connection-form">
                 <p className="muted">
-                  Where is {f.app}’s <code>{f.path}</code> on this server?
+                  Where is {f.app}’s <code>{f.path}</code> {t('on this server?')}
                 </p>
                 <FolderPicker onPick={(to) => void map(f.path, to).then((ok) => ok && setChoosing(undefined))} />
                 <button type="button" className="text-button" onClick={() => setChoosing(undefined)}>
-                  Cancel
+                  {t('Cancel')}
                 </button>
               </div>
             )}
@@ -936,7 +934,7 @@ function MediaFolders({ folders, hasApps, mappings, save }: { folders?: ArrFolde
 function FolderState({ folder: f }: { folder: ArrFolder }) {
   switch (f.state) {
     case 'Found':
-      return <>At the same path on this server</>
+      return <>{t('At the same path on this server')}</>
     case 'Mapped':
       return (
         <>
@@ -954,7 +952,7 @@ function FolderState({ folder: f }: { folder: ArrFolder }) {
         </>
       )
     default:
-      return <>Not at that path here, and no titles say where it is. Choose the folder it is on this server.</>
+      return <>{t('Not at that path here, and no titles say where it is. Choose the folder it is on this server.')}</>
   }
 }
 
@@ -987,7 +985,7 @@ function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMapp
       <div className="saved-mappings connection-line">
         <span className="setting-text">
           <strong>Path mappings{saved.length ? `: ${saved.length}` : ''}</strong>
-          <span className="muted">Choosing a folder above saves one. Edit them to type a path yourself or remove an old one.</span>
+          <span className="muted">{t('Choosing a folder above saves one. Edit them to type a path yourself or remove an old one.')}</span>
         </span>
         <button
           type="button"
@@ -1008,7 +1006,7 @@ function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMapp
         <div key={i} className="field-row mapping">
           <label className="grow">
             Path in the app
-            <input type="text" value={m.from} placeholder="/data" onChange={(e) => set(i, { from: e.target.value })} />
+            <input type="text" value={m.from} placeholder={t('/data')} onChange={(e) => set(i, { from: e.target.value })} />
           </label>
           {onMac ? (
             <div className="grow mapping-chosen">
@@ -1025,11 +1023,11 @@ function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMapp
           ) : (
             <label className="grow">
               Path on this server
-              <input type="text" value={m.to} placeholder="/Volumes/Media/data" onChange={(e) => set(i, { to: e.target.value })} />
+              <input type="text" value={m.to} placeholder={t('/Volumes/Media/data')} onChange={(e) => set(i, { to: e.target.value })} />
             </label>
           )}
           <IconButton
-            label="Remove"
+            label={t('Remove')}
             aria-label={`Remove the mapping for ${m.from || 'this path'}`}
             icon={<icon.delete />}
             className="button quiet small icon danger-icon"
@@ -1047,7 +1045,7 @@ function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMapp
                 }}
               />
               <button type="button" className="text-button" onClick={() => setChoosing(undefined)}>
-                Cancel
+                {t('Cancel')}
               </button>
             </div>
           )}
@@ -1055,13 +1053,13 @@ function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMapp
       ))}
       <div className="form-actions">
         <button type="button" className="button quiet small form-actions-start" onClick={() => setMappings([...mappings, { from: '', to: '' }])}>
-          Add a mapping
+          {t('Add a mapping')}
         </button>
         <button type="button" className="button quiet small" onClick={() => setEditing(false)}>
-          Cancel
+          {t('Cancel')}
         </button>
         <AsyncButton className="button small" disabled={!changed} onClick={() => save({ pathMappings: mappings })}>
-          Save
+          {t('Save')}
         </AsyncButton>
       </div>
     </div>
@@ -1104,22 +1102,22 @@ function Webhooks({
 
   return (
     <SettingsGroup
-      title="Webhooks"
+      title={t('Webhooks')}
       note={
         <>
-          So new downloads show up straight away. <strong>Add to</strong> puts it in the app, or add a Webhook there under Settings › Connect. In Docker on this computer, use{' '}
-          <code>host.docker.internal</code> for <code>{window.location.hostname}</code>.
+          So new downloads show up straight away. <strong>{t('Add to')}</strong> puts it in the app, or add a Webhook there under Settings › Connect. In Docker on this computer, use{' '}
+          <code>{t('host.docker.internal')}</code> for <code>{window.location.hostname}</code>.
         </>
       }
       action={
         <button className="button quiet small" onClick={() => setAsking(true)}>
-          Make a new secret
+          {t('Make a new secret')}
         </button>
       }
     >
       {state.done && (
         <p className="key-note" role="status">
-          New secret made. Add it to each app below (or give them these new addresses): until then they can’t start scans.
+          {t('New secret made. Add it to each app below (or give them these new addresses): until then they can’t start scans.')}
         </p>
       )}
       <ul className="plain-list webhook-list">
@@ -1157,7 +1155,7 @@ function Webhooks({
       </ul>
       {asking && (
         <ConfirmDialog
-          title="Make a new webhook secret?"
+          title={t('Make a new webhook secret?')}
           confirmLabel="Make a new secret"
           busy={state.busy}
           error={state.error}
@@ -1167,7 +1165,7 @@ function Webhooks({
             setState({})
           }}
         >
-          <p>Sonarr, Radarr and Lidarr stop starting scans until you give them the new addresses. The secret only lets them start scans.</p>
+          <p>{t('Sonarr, Radarr and Lidarr stop starting scans until you give them the new addresses. The secret only lets them start scans.')}</p>
         </ConfirmDialog>
       )}
     </SettingsGroup>

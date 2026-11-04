@@ -20,7 +20,7 @@ import { formatSize, relativeTime } from '../../lib/format'
 import { configureSentry } from '../../lib/sentry'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
-import { locale } from '../../i18n'
+import { locale, t } from '../../i18n'
 
 /** The levels worth choosing between; Verbose and Fatal still show up in the list. */
 const levels: LogLevel[] = ['Debug', 'Information', 'Warning', 'Error']
@@ -91,14 +91,14 @@ const LogRow = memo(function LogRow({
       {open && (
         <div className="log-detail">
           <dl>
-            <dt>Source</dt>
+            <dt>{t('Source')}</dt>
             <dd>{entry.source}</dd>
             {properties.map(([key, value]) => (
               <div key={key} className="log-property">
                 <dt>{key}</dt>
                 <dd>
                   {key === 'playbackId' ? (
-                    <button type="button" className="text-button" title="Show only this playback" onClick={() => onFilter(value)}>
+                    <button type="button" className="text-button" title={t('Show only this playback')} onClick={() => onFilter(value)}>
                       {value}
                     </button>
                   ) : (
@@ -214,25 +214,25 @@ function LogViewer({ areaNames }: { areaNames: Record<string, string> }) {
   return (
     <div className="settings-group">
       <div className="log-filters">
-        <select aria-label="Minimum level" value={level} onChange={(e) => setLevel(e.target.value as LogLevel)}>
+        <select aria-label={t('Minimum level')} value={level} onChange={(e) => setLevel(e.target.value as LogLevel)}>
           {levels.map((l) => (
             <option key={l} value={l}>
               {l}
             </option>
           ))}
         </select>
-        <select aria-label="Area" value={area} onChange={(e) => setArea(e.target.value)}>
-          <option value="">All areas</option>
+        <select aria-label={t('Area')} value={area} onChange={(e) => setArea(e.target.value)}>
+          <option value="">{t('All areas')}</option>
           {Object.entries(areaNames).map(([key, name]) => (
             <option key={key} value={key}>
               {name}
             </option>
           ))}
         </select>
-        <input type="search" className="log-search" placeholder="Search" aria-label="Search the log" value={text} onChange={(e) => setText(e.target.value)} />
+        <input type="search" className="log-search" placeholder={t('Search')} aria-label={t('Search the log')} value={text} onChange={(e) => setText(e.target.value)} />
         <label className="log-live">
           <input type="checkbox" role="switch" className="switch" checked={live} onChange={(e) => setLive(e.target.checked)} />
-          Live
+          {t('Live')}
         </label>
       </div>
       <div className="panel log-panel">
@@ -241,11 +241,11 @@ function LogViewer({ areaNames }: { areaNames: Record<string, string> }) {
             {error}
           </p>
         ) : loading && !entries.length ? (
-          <p className="muted">Loading…</p>
+          <p className="muted">{t('Loading…')}</p>
         ) : !entries.length ? (
           <p className="muted">Nothing logged{q ? ' matches that' : ''}.</p>
         ) : (
-          <ol className="log-list" aria-label="Log">
+          <ol className="log-list" aria-label={t('Log')}>
             {entries.map((entry) => (
               <LogRow
                 key={entry.id}
@@ -266,7 +266,7 @@ function LogViewer({ areaNames }: { areaNames: Record<string, string> }) {
         </p>
         {cursor && entries.length < MAX_ENTRIES && (
           <AsyncButton className="button quiet small" onClick={loadOlder}>
-            Load older
+            {t('Load older')}
           </AsyncButton>
         )}
       </div>
@@ -336,12 +336,12 @@ function ErrorReports({ settings, onSaved }: { settings: LogSettings; onSaved: (
   }
 
   return (
-    <SettingsGroup title="Error reports" action={saved || error ? <SaveStatus saved={saved} error={error} /> : undefined}>
+    <SettingsGroup title={t('Error reports')} action={saved || error ? <SaveStatus saved={saved} error={error} /> : undefined}>
       <ToggleRow
         label={
           <span className="error-reports-label">
             <span className={on ? 'status-dot ok' : 'status-dot bad'} aria-hidden="true" />
-            Send error reports to Flexarr’s developer
+            {t('Send error reports to Flexarr’s developer')}
           </span>
         }
         checked={on}
@@ -352,18 +352,17 @@ function ErrorReports({ settings, onSaved }: { settings: LogSettings; onSaved: (
         <ChevronDown aria-hidden="true" />
       </button>
       <div className="error-reports-privacy" id="error-reports-privacy" hidden={!detailsOpen}>
-        <p>Off by default. When on, errors from this server and its apps (not your logs) go to Sentry so bugs can be fixed sooner.</p>
+        <p>{t('Off by default. When on, errors from this server and its apps (not your logs) go to Sentry so bugs can be fixed sooner.')}</p>
         <p>
-          <strong>Sent:</strong> what went wrong and where in the code; Flexarr version; OS and device model; a random id for this server.
+          <strong>{t('Sent:')}</strong> {t('what went wrong and where in the code; Flexarr version; OS and device model; a random id for this server.')}
         </p>
         <p>
-          <strong>Never sent:</strong> titles, file names or paths, what you watch, profile or device names, addresses (IP, server, network), keys or
-          passwords. These are removed on your server or device before anything leaves it.
+          <strong>{t('Never sent:')}</strong> {t('titles, file names or paths, what you watch, profile or device names, addresses (IP, server, network), keys or passwords. These are removed on your server or device before anything leaves it.')}
         </p>
         <p>
           Switching off stops it at once, on every app.{' '}
           <a href={errorReportsDocs} target="_blank" rel="noreferrer">
-            What exactly is sent
+            {t('What exactly is sent')}
           </a>
         </p>
       </div>
@@ -406,8 +405,8 @@ function LogLevels({ settings, onSaved }: { settings: LogSettings; onSaved: (set
   const status = saved || error ? <SaveStatus saved={saved} error={error} /> : undefined
   return (
     <>
-      <SettingsGroup title="Levels" action={status}>
-        <SettingRow label="Default level">
+      <SettingsGroup title={t('Levels')} action={status}>
+        <SettingRow label={t('Default level')}>
           <select value={draft.level} onChange={(e) => void save({ level: e.target.value as LogLevel }, { ...draft, level: e.target.value as LogLevel })}>
             {levels.map((l) => (
               <option key={l} value={l}>
@@ -429,8 +428,8 @@ function LogLevels({ settings, onSaved }: { settings: LogSettings; onSaved: (set
           </SettingRow>
         ))}
       </SettingsGroup>
-      <SettingsGroup title="Retention">
-        <SettingRow label="Keep for (days)">
+      <SettingsGroup title={t('Retention')}>
+        <SettingRow label={t('Keep for (days)')}>
           <input
             type="number"
             className="log-number"
@@ -441,7 +440,7 @@ function LogLevels({ settings, onSaved }: { settings: LogSettings; onSaved: (set
             onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
           />
         </SettingRow>
-        <SettingRow label="Largest size (MB)">
+        <SettingRow label={t('Largest size (MB)')}>
           <input
             type="number"
             className="log-number"
@@ -461,13 +460,13 @@ function LogLevels({ settings, onSaved }: { settings: LogSettings; onSaved: (set
 function DeviceUploads() {
   const uploads = useApi(getLogUploads, [])
   return (
-    <SettingsGroup title="Diagnostics from apps">
+    <SettingsGroup title={t('Diagnostics from apps')}>
       {uploads.error ? (
         <p className="error">{errorText(uploads.error)}</p>
       ) : !uploads.data ? (
-        <p className="muted">Loading…</p>
+        <p className="muted">{t('Loading…')}</p>
       ) : !uploads.data.length ? (
-        <p className="muted">None yet.</p>
+        <p className="muted">{t('None yet.')}</p>
       ) : (
         uploads.data.map((u) => (
           <SettingRow
@@ -477,7 +476,7 @@ function DeviceUploads() {
             help={[u.platform, u.profile, u.appVersion && `v${u.appVersion}`, relativeTime(u.uploadedAt), formatSize(u.sizeBytes)].filter(Boolean).join('\u2003')}
           >
             <a className="button quiet small" href={logUploadUrl(u.id)} download>
-              Download
+              {t('Download')}
             </a>
           </SettingRow>
         ))
@@ -497,10 +496,10 @@ export function LogsSection() {
   return (
     <section className="logs">
       <SettingsHeader
-        title="Logs"
+        title={t('Logs')}
         action={
           <a className="button quiet small" href={diagnosticsUrl} download>
-            Download diagnostics
+            {t('Download diagnostics')}
           </a>
         }
       />

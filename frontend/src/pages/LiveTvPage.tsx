@@ -12,7 +12,7 @@ import { useAgeLimits, useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { clock, programmeTime, programmeTitle, progress, tidyGroup } from '../lib/livetv'
-import { locale } from '../i18n'
+import { locale, t } from '../i18n'
 
 const LiveRecordings = lazy(() => import('./LiveRecordings'))
 
@@ -38,16 +38,16 @@ export default function LiveTvPage() {
   if (status.data && !status.data.configured) {
     return (
       <div className="livetv-page">
-        <h1 className="livetv-title">Live TV</h1>
+        <h1 className="livetv-title">{t('Live TV')}</h1>
         <div className="panel livetv-empty">
           <Antenna />
-          <p>Live TV isn’t set up yet.</p>
+          <p>{t('Live TV isn’t set up yet.')}</p>
           {me?.isAdmin || me?.canUnlock ? (
             <Link className="button" to="/settings/connections">
-              Set up Live TV
+              {t('Set up Live TV')}
             </Link>
           ) : (
-            <p className="muted">Ask whoever runs this Flexarr to connect Dispatcharr in Settings › Connections.</p>
+            <p className="muted">{t('Ask whoever runs this Flexarr to connect Dispatcharr in Settings › Connections.')}</p>
           )}
         </div>
       </div>
@@ -57,10 +57,10 @@ export default function LiveTvPage() {
   return (
     <div className="livetv-page">
       <header className="livetv-header">
-        <h1 className="livetv-title">Live TV</h1>
-        <div className="season-tabs livetv-tabs" role="tablist" aria-label="View">
+        <h1 className="livetv-title">{t('Live TV')}</h1>
+        <div className="season-tabs livetv-tabs" role="tablist" aria-label={t('View')}>
           <button role="tab" aria-selected={view === 'now'} className={view === 'now' ? 'season-tab active' : 'season-tab'} onClick={() => setParams({}, { replace: true })}>
-            On now
+            {t('On now')}
           </button>
           <button
             role="tab"
@@ -68,7 +68,7 @@ export default function LiveTvPage() {
             className={view === 'guide' ? 'season-tab active' : 'season-tab'}
             onClick={() => setParams({ view: 'guide' }, { replace: true })}
           >
-            Guide
+            {t('Guide')}
           </button>
           {!limited && (
             <button
@@ -77,7 +77,7 @@ export default function LiveTvPage() {
               className={view === 'recordings' ? 'season-tab active' : 'season-tab'}
               onClick={() => setParams({ view: 'recordings' }, { replace: true })}
             >
-              Recordings
+              {t('Recordings')}
             </button>
           )}
         </div>
@@ -119,17 +119,17 @@ function OnNow() {
   )
 
   if (error) return <p className="error">Couldn’t load the channels: {error.message}</p>
-  if (!data) return <PageLoading label="Loading channels" />
-  if (data.length === 0) return <p className="page-message muted">No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.</p>
+  if (!data) return <PageLoading label={t('Loading channels')} />
+  if (data.length === 0) return <p className="page-message muted">{t('No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.')}</p>
 
   return (
     <>
-      <div className="chips livetv-groups" role="toolbar" aria-label="Channel groups">
+      <div className="chips livetv-groups" role="toolbar" aria-label={t('Channel groups')}>
         <button className={group === FAVOURITES ? 'chip active' : 'chip'} onClick={() => setGroup(FAVOURITES)}>
-          <Star filled className="chip-star" /> Favourites
+          <Star filled className="chip-star" /> {t('Favourites')}
         </button>
         <button className={!group ? 'chip active' : 'chip'} onClick={() => setGroup('')}>
-          All
+          {t('All')}
         </button>
         {groups.map((g) => (
           <button key={g} className={group === g ? 'chip active' : 'chip'} onClick={() => setGroup(g)}>
@@ -140,7 +140,7 @@ function OnNow() {
       <ul className="livetv-list">{shown.map(row)}</ul>
       {data.every((c) => !isFavourite(c)) && (
         <p className="muted livetv-hint">
-          <Star /> Star the channels you watch most to keep them first.
+          <Star /> {t('Star the channels you watch most to keep them first.')}
         </p>
       )}
     </>
@@ -155,11 +155,11 @@ function OnNow() {
 function RecordMark({ programme }: { programme: LiveProgramme }) {
   if (programme.recording === 'recording')
     return (
-      <span className="record-badge" aria-label="Recording now">
-        REC
+      <span className="record-badge" aria-label={t('Recording now')}>
+        {t('REC')}
       </span>
     )
-  return programme.recording ? <RecordDot className="record-dot" aria-label="Set to record" /> : null
+  return programme.recording ? <RecordDot className="record-dot" aria-label={t('Set to record')} /> : null
 }
 
 function ChannelRow({ channel: c, favourite, onToggle }: { channel: LiveChannel; favourite: boolean; onToggle: () => void }) {
@@ -244,24 +244,24 @@ function Guide() {
   const slots = Array.from({ length: hours * 2 }, (_, i) => new Date(from.getTime() + i * 30 * 60_000))
 
   if (failed) return <p className="error">Couldn’t load the guide: {failed}</p>
-  if (!guide) return <PageLoading label="Loading the guide" />
+  if (!guide) return <PageLoading label={t('Loading the guide')} />
   const anyFavourite = guide.channels.some((c) => c.isFavourite)
   const favouritesOnly = favouritesChosen ?? anyFavourite
   const rows = favouritesOnly ? guide.channels.filter((c) => c.isFavourite) : guide.channels
 
   return (
     <>
-      <div className="chips livetv-groups" role="toolbar" aria-label="Channels">
+      <div className="chips livetv-groups" role="toolbar" aria-label={t('Channels')}>
         <button className={favouritesOnly ? 'chip active' : 'chip'} onClick={() => setFavouritesOnly(true)}>
-          <Star filled className="chip-star" /> Favourites
+          <Star filled className="chip-star" /> {t('Favourites')}
         </button>
         <button className={!favouritesOnly ? 'chip active' : 'chip'} onClick={() => setFavouritesOnly(false)}>
-          All channels
+          {t('All channels')}
         </button>
       </div>
       {favouritesOnly && rows.length === 0 && (
         <p className="muted livetv-hint">
-          <Star /> No favourites yet: star channels in On now, and the guide can show just them.
+          <Star /> {t('No favourites yet: star channels in On now, and the guide can show just them.')}
         </p>
       )}
       <div className="livetv-guide" ref={scroller}>
@@ -283,7 +283,7 @@ function Guide() {
                 </span>
               </Link>
               <div className="livetv-guide-programmes" style={{ width }}>
-                {c.programmes.length === 0 && <span className="livetv-guide-none muted">No listings</span>}
+                {c.programmes.length === 0 && <span className="livetv-guide-none muted">{t('No listings')}</span>}
                 {c.programmes.map((p) => {
                   const left = Math.max(0, minutes(p.start)) * PX_PER_MINUTE
                   const right = Math.min(hours * 60, minutes(p.end)) * PX_PER_MINUTE
@@ -301,7 +301,7 @@ function Guide() {
                     >
                       <strong>
                         {p.recording && <RecordMark programme={p} />}
-                        {p.series && !p.recording && <SeriesDots className="record-dot" aria-label="Series" />}
+                        {p.series && !p.recording && <SeriesDots className="record-dot" aria-label={t('Series')} />}
                         {programmeTitle(p)}
                       </strong>
                       <span className="muted">{programmeTime(p)}</span>
@@ -317,7 +317,7 @@ function Guide() {
       <div className="livetv-guide-more">
         {hours < 24 && (
           <button className="button quiet small" onClick={() => setHours((h) => Math.min(24, h + GUIDE_HOURS))}>
-            Show later
+            {t('Show later')}
           </button>
         )}
       </div>
@@ -334,11 +334,11 @@ function Guide() {
           <div className="livetv-details-actions">
             {Date.parse(selected.programme.start) <= now && Date.parse(selected.programme.end) > now && (
               <button className="button small" onClick={() => navigate(`/live/${selected.channel.id}`)}>
-                <icon.play /> Watch now
+                <icon.play /> {t('Watch now')}
               </button>
             )}
             <button className="button quiet small" onClick={() => setSelected(undefined)}>
-              Close
+              {t('Close')}
             </button>
           </div>
           {!limited && <RecordControls programme={selected.programme} channelId={selected.channel.id} now={now} onChanged={() => setVersion((v) => v + 1)} />}

@@ -5,6 +5,7 @@ import { AsyncButton } from './AsyncButton'
 import { arrFor } from '../lib/apps'
 import { episodeCode } from '../lib/format'
 import { useModal } from '../hooks/useModal'
+import { t } from '../i18n'
 
 /**
  * Confirms deleting a film, show, episode, book, album or artist for good. Radarr, Sonarr or Lidarr delete the files from disk when they manage it;
@@ -52,7 +53,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
       <div className="panel confirm-dialog" ref={dialog} role="alertdialog" aria-modal="true" aria-labelledby="delete-title" aria-describedby="delete-detail" onClick={(e) => e.stopPropagation()}>
         <h2 id="delete-title">Delete {what.name}?</h2>
         <div id="delete-detail" className="confirm-dialog-detail">
-          {plan.loading && !plan.data && <p>Checking how to delete it…</p>}
+          {plan.loading && !plan.data && <p>{t('Checking how to delete it…')}</p>}
           {plan.error && <p className="error">Couldn’t check how to delete it: {plan.error instanceof ApiError && plan.error.messages[0] ? plan.error.messages[0] : plan.error.message}</p>}
           {plan.data?.managedBy && <p>{what.detail} You can’t undo this.</p>}
           {plan.data && !plan.data.managedBy && (
@@ -71,7 +72,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
                   {plan.data.files.length > 20 && <li>and {plan.data.files.length - 20} more</li>}
                 </ul>
               )}
-              <p>Folders it leaves empty go too. You can’t undo this.</p>
+              <p>{t('Folders it leaves empty go too. You can’t undo this.')}</p>
             </>
           )}
         </div>
@@ -82,7 +83,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
         )}
         <div className="form-actions">
           <button className="button quiet" onClick={onClose} disabled={busy} autoFocus>
-            Keep it
+            {t('Keep it')}
           </button>
           <AsyncButton className="button danger" onClick={confirm} busy={busy} disabled={!plan.data}>
             {`Delete ${what.noun}`}

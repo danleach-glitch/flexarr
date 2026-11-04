@@ -10,6 +10,7 @@ import { shuffled } from '../lib/shuffle'
 import { Info } from './icons'
 import { icon } from './icons.generated'
 import { ScoreChips } from './ScoreChips'
+import { t } from '../i18n'
 
 const ROTATE_MS = 10_000
 const BACKDROP_WIDTHS = [780, 1280, 1920]
@@ -50,7 +51,7 @@ function Scores({ item }: { item: ItemSummary }) {
 export function PlainScore({ value }: { value: number }) {
   return (
     <span className="score">
-      <span className="visually-hidden">Rated </span>
+      <span className="visually-hidden">{t('Rated')} </span>
       {value.toFixed(1)}
       <span className="muted">/10</span>
     </span>
@@ -95,7 +96,7 @@ export function Hero({ items, overviews, resume, resumes, top }: {
       className={book ? 'hero hero-book' : 'hero'}
       style={style}
       aria-roledescription="carousel"
-      aria-label="Featured"
+      aria-label={t('Featured')}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
@@ -175,12 +176,12 @@ export function Hero({ items, overviews, resume, resumes, top }: {
             </AsyncButton>
           )}
           <Link className="button quiet" to={`/item/${item.id}`}>
-            <Info /> More info
+            <Info /> {t('More info')}
           </Link>
         </div>
       </div>
       {items.length > 1 && (
-        <div className="hero-pager" role="tablist" aria-label="Featured titles">
+        <div className="hero-pager" role="tablist" aria-label={t('Featured titles')}>
           {items.map((it, i) => (
             <button key={it.id} role="tab" aria-selected={i === index} aria-label={it.title} onClick={() => setIndex(i)}>
               <span />
@@ -214,7 +215,7 @@ function MusicActions({ item, resuming }: { item: ItemSummary; resuming: ItemSum
       </AsyncButton>
       {item.kind === 'Artist' && (
         <AsyncButton className="button quiet" onClick={() => playMusic(true)}>
-          <icon.radio /> Radio
+          <icon.radio /> {t('Radio')}
         </AsyncButton>
       )}
     </>

@@ -41,7 +41,7 @@ import { useAgeLimits } from '../hooks/sessionContext'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useApi } from '../hooks/useApi'
 import { episodeAsTrack, episodeDate, episodeLength, episodeProgress, looksLikeFeedUrl } from '../lib/podcasts'
-import { locale } from '../i18n'
+import { locale, t } from '../i18n'
 
 const PAGE = 50
 
@@ -52,14 +52,14 @@ function PodcastsHeader({ view, children }: { view: 'yours' | 'browse'; children
   return (
     <header className="library-header">
       <div className="library-heading">
-        <h1>Podcasts</h1>
-        <nav className="view-switch" aria-label="Podcasts views">
+        <h1>{t('Podcasts')}</h1>
+        <nav className="view-switch" aria-label={t('Podcasts views')}>
           <Link to="/podcasts" aria-current={view === 'yours' ? 'page' : undefined}>
-            Your podcasts
+            {t('Your podcasts')}
           </Link>
           {!limited && (
             <Link to="/podcasts/browse" aria-current={view === 'browse' ? 'page' : undefined}>
-              Browse
+              {t('Browse')}
             </Link>
           )}
         </nav>
@@ -81,13 +81,13 @@ function PodcastsGate({ children }: { children: ReactNode }) {
       <section className="podcast-empty panel">
         {status.data.needsLibrary ? (
           <>
-            <h2>Podcasts aren't ready yet</h2>
-            <p className="muted">Restart Flexarr to set them up.</p>
+            <h2>{t("Podcasts aren't ready yet")}</h2>
+            <p className="muted">{t('Restart Flexarr to set them up.')}</p>
           </>
         ) : (
           <>
-            <h2>Podcasts aren't available on this profile</h2>
-            <p className="muted">The main profile can change which libraries this profile sees in Settings › Profiles.</p>
+            <h2>{t("Podcasts aren't available on this profile")}</h2>
+            <p className="muted">{t('The main profile can change which libraries this profile sees in Settings › Profiles.')}</p>
           </>
         )}
       </section>
@@ -155,12 +155,12 @@ function PodcastsHome() {
           />
           {!limited && (
             <AsyncButton className="button quiet small" busy={adding} onClick={() => file.current?.click()}>
-              Import
+              {t('Import')}
             </AsyncButton>
           )}
           {!empty && (
             <a className="button quiet small" href={opmlUrl} download="Flexarr podcasts.opml">
-              Export
+              {t('Export')}
             </a>
           )}
         </div>
@@ -174,25 +174,24 @@ function PodcastsHome() {
 
       {empty && limited && (
         <section className="podcast-empty panel">
-          <h2>No podcasts yet</h2>
+          <h2>{t('No podcasts yet')}</h2>
         </section>
       )}
 
       {empty && !limited && (
         <section className="podcast-empty panel">
-          <h2>Follow a podcast to see its new episodes here</h2>
+          <h2>{t('Follow a podcast to see its new episodes here')}</h2>
           <p className="muted">
-            Find shows in <Link to="/podcasts/browse">Browse</Link>, or bring the ones you follow in another app: export them from it as OPML (Pocket Casts, Overcast and
-            most others can), then use Import.
+            Find shows in <Link to="/podcasts/browse">{t('Browse')}</Link>{t(', or bring the ones you follow in another app: export them from it as OPML (Pocket Casts, Overcast and most others can), then use Import.')}
           </p>
           <Link className="button" to="/podcasts/browse">
-            Browse podcasts
+            {t('Browse podcasts')}
           </Link>
         </section>
       )}
 
       {(podcasts.data?.length ?? 0) > 0 && (
-        <Row title="Following" style="poster">
+        <Row title={t('Following')} style="poster">
           {podcasts.data!.map((podcast) => (
             <PodcastCard key={podcast.id} podcast={podcast} />
           ))}
@@ -201,13 +200,13 @@ function PodcastsHome() {
 
       {(upNext.data?.length ?? 0) > 0 && (
         <section className="podcast-section">
-          <h2>Up next</h2>
+          <h2>{t('Up next')}</h2>
           <UpNextList key={upNext.data!.map((e) => e.id).join()} episodes={upNext.data!} onChanged={changed} />
         </section>
       )}
 
       {(listening.data?.length ?? 0) > 0 && (
-        <Row title="Continue listening" style="poster">
+        <Row title={t('Continue listening')} style="poster">
           {listening.data!.map((episode) => (
             <EpisodeCard key={episode.id} episode={episode} />
           ))}
@@ -216,7 +215,7 @@ function PodcastsHome() {
 
       {(fresh.data?.length ?? 0) > 0 && (
         <section className="podcast-section">
-          <h2>New episodes</h2>
+          <h2>{t('New episodes')}</h2>
           <EpisodeList
             episodes={fresh.data!.slice(0, 20).filter((e) => !heard.has(e.id))}
             showPodcast
@@ -324,7 +323,7 @@ function EpisodeRow({
           {episodeDate(episode.publishedAt)}
           {episode.episodeType !== 'Full' && <span className="podcast-episode-kind">{episode.episodeType}</span>}
           {episode.explicit && (
-            <span className="podcast-episode-kind" title="Explicit">
+            <span className="podcast-episode-kind" title={t('Explicit')}>
               E
             </span>
           )}
@@ -455,8 +454,8 @@ function PodcastBrowse() {
           <input
             type="search"
             className="podcast-search"
-            placeholder="Search podcasts, or paste a feed's address"
-            aria-label="Search podcasts"
+            placeholder={t("Search podcasts, or paste a feed's address")}
+            aria-label={t('Search podcasts')}
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
           />
@@ -468,15 +467,15 @@ function PodcastBrowse() {
       ) : query ? (
         <>
           {results.error && <p className="error">{results.error.message}</p>}
-          {results.loading && !results.data && <p className="muted">Searching…</p>}
+          {results.loading && !results.data && <p className="muted">{t('Searching…')}</p>}
           {results.data?.length === 0 && <p className="muted">Nothing found for “{query}”. If you have the show's feed address, paste it here instead.</p>}
           <DirectoryGrid podcasts={results.data ?? []} />
         </>
       ) : (
         <>
-          <nav className="chips" aria-label="Categories">
+          <nav className="chips" aria-label={t('Categories')}>
             <button className={genre === null ? 'chip active' : 'chip'} aria-pressed={genre === null} onClick={() => chooseGenre(null)}>
-              All
+              {t('All')}
             </button>
             {genres.data?.map((g) => (
               <button key={g.id} className={genre === g.id ? 'chip active' : 'chip'} aria-pressed={genre === g.id} onClick={() => chooseGenre(g.id)}>
@@ -486,7 +485,7 @@ function PodcastBrowse() {
           </nav>
           <h2 className="podcast-chart-title">Top podcasts{genre ? ` in ${genres.data?.find((g) => g.id === genre)?.name ?? ''}` : ''}</h2>
           {top.error && <p className="error">{top.error.message}</p>}
-          {top.loading && !top.data && <p className="muted">Loading the charts…</p>}
+          {top.loading && !top.data && <p className="muted">{t('Loading the charts…')}</p>}
           <DirectoryGrid podcasts={top.data ?? []} ranked />
         </>
       )}
@@ -510,10 +509,10 @@ function AddFeed({ url }: { url: string }) {
   }
   return (
     <form className="podcast-empty panel" onSubmit={add}>
-      <h2>Add a podcast by its feed</h2>
+      <h2>{t('Add a podcast by its feed')}</h2>
       <p className="muted podcast-feed-url">{url}</p>
       <AsyncButton className="button" type="submit" busy={state.adding}>
-        Add this podcast
+        {t('Add this podcast')}
       </AsyncButton>
       {state.error && (
         <p className="error" role="alert">
@@ -557,8 +556,8 @@ function DirectoryCard({ podcast, rank }: { podcast: DirectoryPodcast; rank?: nu
         <div className="card-frame">
           {podcast.artwork ? <img src={imageUrl(podcast.artwork, 342)} alt="" loading="lazy" /> : <Artwork src={null} title={podcast.title} width={342} shape="square" />}
           {rank && <span className="podcast-rank">{rank}</span>}
-          {podcast.subscribed && <span className="podcast-badge following">Following</span>}
-          {state.opening && <span className="podcast-opening">Opening…</span>}
+          {podcast.subscribed && <span className="podcast-badge following">{t('Following')}</span>}
+          {state.opening && <span className="podcast-opening">{t('Opening…')}</span>}
         </div>
       </button>
       <span className="card-title">{podcast.title}</span>
@@ -681,7 +680,7 @@ function PodcastShow() {
             {podcast.author && <span>{podcast.author}</span>}
             {podcast.categories[0] && <span>{podcast.categories[0]}</span>}
             <span>{podcast.episodeCount === 1 ? '1 episode' : `${podcast.episodeCount.toLocaleString(locale())} episodes`}</span>
-            {podcast.explicit && <span>Explicit</span>}
+            {podcast.explicit && <span>{t('Explicit')}</span>}
           </p>
           <div className="detail-actions">
             {next && (
@@ -692,7 +691,7 @@ function PodcastShow() {
             <AsyncButton className={subscription ? 'button quiet' : 'button'} onClick={follow} busy={busy} aria-pressed={subscription !== null}>
               {subscription ? (
                 <>
-                  <Check /> Following
+                  <Check /> {t('Following')}
                 </>
               ) : (
                 'Follow'
@@ -720,7 +719,7 @@ function PodcastShow() {
 
       {marking && (
         <ConfirmDialog
-          title="Mark all as played?"
+          title={t('Mark all as played?')}
           confirmLabel="Mark as played"
           busy={marking === 'busy'}
           error={marking === 'failed' ? "That didn't work. Try again." : undefined}
@@ -735,21 +734,21 @@ function PodcastShow() {
 
       <section className="podcast-episodes">
         <div className="podcast-episodes-tools">
-          <nav className="view-switch" aria-label="Which episodes">
+          <nav className="view-switch" aria-label={t('Which episodes')}>
             <button aria-current={filter === 'unplayed' ? 'page' : undefined} onClick={() => setFilter('unplayed')}>
               Unplayed{podcast.unplayedCount > 0 ? ` (${podcast.unplayedCount.toLocaleString(locale())})` : ''}
             </button>
             <button aria-current={filter === 'all' ? 'page' : undefined} onClick={() => setFilter('all')}>
-              All
+              {t('All')}
             </button>
           </nav>
-          <input type="search" placeholder="Search episodes" aria-label="Search episodes" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <select aria-label="Order" value={sort} onChange={(e) => chooseSort(e.target.value as 'newest' | 'oldest')}>
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
+          <input type="search" placeholder={t('Search episodes')} aria-label={t('Search episodes')} value={search} onChange={(e) => setSearch(e.target.value)} />
+          <select aria-label={t('Order')} value={sort} onChange={(e) => chooseSort(e.target.value as 'newest' | 'oldest')}>
+            <option value="newest">{t('Newest first')}</option>
+            <option value="oldest">{t('Oldest first')}</option>
           </select>
           {podcast.unplayedCount > 0 && (
-            <button className="icon-button podcast-mark-all" aria-label="Mark all as played" title="Mark all as played" onClick={() => setMarking('asking')}>
+            <button className="icon-button podcast-mark-all" aria-label={t('Mark all as played')} title={t('Mark all as played')} onClick={() => setMarking('asking')}>
               <Check />
             </button>
           )}
@@ -760,7 +759,7 @@ function PodcastShow() {
         <EpisodeList episodes={items} onChanged={changed} onMarked={marked} />
         {episodes && episodes.items.length < episodes.total && (
           <AsyncButton className="button quiet podcast-more" busy={pagesShown < pages} onClick={() => setPages(pages + 1)}>
-            Show more episodes
+            {t('Show more episodes')}
           </AsyncButton>
         )}
       </section>
@@ -811,7 +810,7 @@ function EpisodeDetail() {
             {e.season && <span>Season {e.season}</span>}
             {e.episode && <span>Episode {e.episode}</span>}
             {e.episodeType !== 'Full' && <span>{e.episodeType}</span>}
-            {e.explicit && <span>Explicit</span>}
+            {e.explicit && <span>{t('Explicit')}</span>}
           </p>
           <div className="detail-actions">
             <button className="button" onClick={() => (playing ? player.toggle() : player.play([episodeAsTrack(e)]))}>
@@ -822,7 +821,7 @@ function EpisodeDetail() {
                 className="button quiet"
                 onClick={() => player.play([{ ...episodeAsTrack(e), playFrom: 0 }])}
               >
-                Start over
+                {t('Start over')}
               </button>
             )}
             {progress !== null && !e.userData.watched && (
@@ -833,7 +832,7 @@ function EpisodeDetail() {
                   setVersion((v) => v + 1)
                 }}
               >
-                Mark as unplayed
+                {t('Mark as unplayed')}
               </AsyncButton>
             )}
             <AsyncButton
@@ -846,7 +845,7 @@ function EpisodeDetail() {
             >
               {e.userData.watched ? (
                 <>
-                  <Check /> Played
+                  <Check /> {t('Played')}
                 </>
               ) : (
                 'Mark as played'

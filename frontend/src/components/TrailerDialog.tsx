@@ -1,4 +1,5 @@
 import { useModal } from '../hooks/useModal'
+import { t } from '../i18n'
 
 // A YouTube video id: anything else (from metadata we don't control) never reaches the embed's address.
 const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/
@@ -21,10 +22,10 @@ export function TrailerDialog({ videoId, title, onClose }: { videoId: string; ti
             allowFullScreen
           />
         ) : (
-          <p className="page-message muted">This trailer can’t be played.</p>
+          <p className="page-message muted">{t('This trailer can’t be played.')}</p>
         )}
         <button className="button quiet small trailer-close" onClick={onClose} autoFocus>
-          Close
+          {t('Close')}
         </button>
       </div>
     </div>

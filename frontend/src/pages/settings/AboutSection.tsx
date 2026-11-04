@@ -5,7 +5,7 @@ import { relativeTime } from '../../lib/format'
 import { parse, ReleaseNotes } from './changelog'
 import { SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText, useSettings } from './useSettings'
-import { locale } from '../../i18n'
+import { locale, t } from '../../i18n'
 
 /** Which Flexarr this is, where it keeps things, and what's changed. */
 export function AboutSection() {
@@ -13,14 +13,14 @@ export function AboutSection() {
   const { settings } = useSettings()
   return (
     <section>
-      <SettingsHeader title="About" />
-      <SettingsGroup title="This server">
+      <SettingsHeader title={t('About')} />
+      <SettingsGroup title={t('This server')}>
         {/* The server's version is "0.8.0+<commit>"; the commit is for bug reports, not people. */}
-        <SettingRow as="div" label="Version">
+        <SettingRow as="div" label={t('Version')}>
           <span className="setting-value">{status ? status.version.split('+')[0] : '…'}</span>
         </SettingRow>
         {status && (
-          <SettingRow as="div" label="Running on">
+          <SettingRow as="div" label={t('Running on')}>
             <span className="setting-value">
               {status.osDescription}, since {relativeTime(status.startTime)}
             </span>
@@ -28,10 +28,10 @@ export function AboutSection() {
         )}
         {settings && (
           <>
-            <SettingRow as="div" label="Data and cache">
+            <SettingRow as="div" label={t('Data and cache')}>
               <code className="setting-value">{settings.dataDirectory}</code>
             </SettingRow>
-            <SettingRow as="div" label="FFmpeg">
+            <SettingRow as="div" label={t('FFmpeg')}>
               <code className="setting-value">{settings.ffmpegPath}</code>
             </SettingRow>
           </>
@@ -63,7 +63,7 @@ function StartAtLogin() {
   return (
     <>
       <ToggleRow
-        label="Start when you log in"
+        label={t('Start when you log in')}
         help={
           current.startAtLogin === 'NeedsApproval'
             ? 'macOS needs your OK first: on the Mac, open System Settings › General › Login Items and turn on Flexarr Server.'
@@ -92,10 +92,10 @@ function WhatsNew() {
   return (
     <div className="settings-group">
       <div className="settings-group-head">
-        <h3 className="settings-subhead">What’s new</h3>
+        <h3 className="settings-subhead">{t('What’s new')}</h3>
       </div>
       {error && <p className="error">The changelog couldn’t be loaded: {error.message}</p>}
-      {!data && !error && <p className="muted">Loading…</p>}
+      {!data && !error && <p className="muted">{t('Loading…')}</p>}
       <div className="changelog">
         {shown.map((release) => (
           <ReleaseNotes key={release.title} release={release} />

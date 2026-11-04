@@ -15,6 +15,7 @@ import { Overview } from '../components/Overview'
 import { PlainScore } from '../components/Hero'
 import { ScoreChips } from '../components/ScoreChips'
 import { hasScores, scoresOf } from '../lib/scores'
+import { t } from '../i18n'
 
 /** A film or show from Discover that isn't in the library: what it is, how it's rated, its trailer, and a request. */
 export function ExternalTitlePage() {
@@ -68,7 +69,7 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
             )}
             {title.trailerYouTubeId && (
               <button className="button quiet" onClick={() => setTrailer(true)}>
-                <Film /> Trailer
+                <Film /> {t('Trailer')}
               </button>
             )}
           </div>
@@ -87,7 +88,7 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
       <div className="detail-body">
         {title.cast.length > 0 && (
           <section className="cast">
-            <Row title="Cast" style="people">
+            <Row title={t('Cast')} style="people">
               {title.cast.map((c) => (
                 <div key={`${c.name}-${c.character}`} className="card person-card">
                   <div className="card-frame">
@@ -117,7 +118,7 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
           </section>
         )}
         {title.recommendations.length > 0 && (
-          <Row title="If you like this">
+          <Row title={t('If you like this')}>
             {title.recommendations.map((r) => (
               <ExternalCard key={`${r.mediaType}-${r.tmdbId}`} title={r} />
             ))}

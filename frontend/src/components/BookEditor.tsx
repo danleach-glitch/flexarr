@@ -4,6 +4,7 @@ import { useModal } from '../hooks/useModal'
 import { AsyncButton } from './AsyncButton'
 import { NameList } from './NameList'
 import { withName } from '../lib/names'
+import { t } from '../i18n'
 
 /**
  * The main profile's fixes to a book: its title, people, series, genres, description and year, and whether they're
@@ -74,36 +75,36 @@ export function BookEditor({ detail, onSaved, onClose }: { detail: ItemDetail; o
         <div className="book-editor-body">
           <div className="book-editor-fields">
             <label className="field wide">
-              <span className="field-label">Title</span>
+              <span className="field-label">{t('Title')}</span>
               <input type="text" value={title} onChange={(e) => change(setTitle)(e.target.value)} disabled={saving} autoFocus required maxLength={500} />
             </label>
             <label className="field">
-              <span className="field-label">Subtitle</span>
+              <span className="field-label">{t('Subtitle')}</span>
               <input type="text" value={subtitle} onChange={(e) => change(setSubtitle)(e.target.value)} disabled={saving} maxLength={500} />
             </label>
             <label className="field narrow">
-              <span className="field-label">Year</span>
+              <span className="field-label">{t('Year')}</span>
               <input type="text" value={year} onChange={(e) => change(setYear)(e.target.value)} disabled={saving} inputMode="numeric" maxLength={4} />
             </label>
-            <NameList label="Authors" names={authors} typed={typed.authors} disabled={saving} onType={(t) => setTyped({ ...typed, authors: t })} onChange={change(setAuthors)} />
-            <NameList label="Narrators" names={narrators} typed={typed.narrators} disabled={saving} onType={(t) => setTyped({ ...typed, narrators: t })} onChange={change(setNarrators)} />
+            <NameList label={t('Authors')} names={authors} typed={typed.authors} disabled={saving} onType={(t) => setTyped({ ...typed, authors: t })} onChange={change(setAuthors)} />
+            <NameList label={t('Narrators')} names={narrators} typed={typed.narrators} disabled={saving} onType={(t) => setTyped({ ...typed, narrators: t })} onChange={change(setNarrators)} />
             <label className="field">
-              <span className="field-label">Series</span>
+              <span className="field-label">{t('Series')}</span>
               <input type="text" value={series} onChange={(e) => change(setSeries)(e.target.value)} disabled={saving} maxLength={200} />
             </label>
             <label className="field narrow">
-              <span className="field-label">Number</span>
+              <span className="field-label">{t('Number')}</span>
               <input type="text" value={sequence} onChange={(e) => change(setSequence)(e.target.value)} disabled={saving || !series.trim()} inputMode="decimal" maxLength={20} />
             </label>
-            <NameList label="Genres" names={genres} typed={typed.genres} disabled={saving} onType={(t) => setTyped({ ...typed, genres: t })} onChange={change(setGenres)} />
+            <NameList label={t('Genres')} names={genres} typed={typed.genres} disabled={saving} onType={(t) => setTyped({ ...typed, genres: t })} onChange={change(setGenres)} />
             <label className="field wide">
-              <span className="field-label">Description</span>
+              <span className="field-label">{t('Description')}</span>
               <textarea value={overview} rows={6} onChange={(e) => change(setOverview)(e.target.value)} disabled={saving} />
             </label>
           </div>
 
           <label className="person-editor-lock">
-            <span>Locked</span>
+            <span>{t('Locked')}</span>
             <input
               type="checkbox"
               role="switch"
@@ -125,10 +126,10 @@ export function BookEditor({ detail, onSaved, onClose }: { detail: ItemDetail; o
         )}
         <div className="form-actions">
           <button type="button" className="button quiet" onClick={onClose} disabled={saving}>
-            Cancel
+            {t('Cancel')}
           </button>
           <AsyncButton className="button" type="submit" busy={saving}>
-            Save
+            {t('Save')}
           </AsyncButton>
         </div>
       </form>

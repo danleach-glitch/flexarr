@@ -4,6 +4,7 @@ import { speedLabel } from '../lib/podcasts'
 import { minutesLeft, sleepChoices, sleepLabel } from '../lib/sleepTimer'
 import { Sleep } from './icons'
 import { Menu, type MenuPoint } from './ItemMenu'
+import { t } from '../i18n'
 
 /** A podcast's speed and sleep timer, each a button that opens a menu of choices. */
 export function PodcastTools({ player }: { player: AudioPlayer }) {
@@ -40,7 +41,7 @@ export function PodcastTools({ player }: { player: AudioPlayer }) {
       </button>
       {open?.menu === 'speed' && (
         <Menu
-          label="Speed"
+          label={t('Speed')}
           at={open.at}
           actions={podcastSpeeds.map((speed) => ({ label: `${speedLabel(speed)}${speed === player.speed ? ' ✓' : ''}`, run: () => player.setSpeed(speed) }))}
           onClose={() => setOpen(null)}
@@ -48,7 +49,7 @@ export function PodcastTools({ player }: { player: AudioPlayer }) {
       )}
       {open?.menu === 'sleep' && (
         <Menu
-          label="Sleep timer"
+          label={t('Sleep timer')}
           at={open.at}
           actions={[
             ...sleepChoices('episode').map((choice) => ({ label: choice.label, run: () => player.setSleep(choice.start()) })),

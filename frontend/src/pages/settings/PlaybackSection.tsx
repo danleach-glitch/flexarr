@@ -17,6 +17,7 @@ import {
 } from '../../lib/soundSettings'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
+import { t } from '../../i18n'
 
 /** The profile's own: auto-play and what to skip, saved as soon as they change (and followed by every device). */
 function WhileWatching({ name }: { name?: string }) {
@@ -50,31 +51,31 @@ function WhileWatching({ name }: { name?: string }) {
   return (
     <>
       <SettingsGroup
-        title="While watching"
+        title={t('While watching')}
         note={error ? <SaveStatus error={error} /> : `${name ? `${name}’s` : 'This profile’s'} own, on every device. The player’s menus change them too.`}
       >
         {options.map((o) => (
           <ToggleRow key={o.key} label={o.label} help={o.help} checked={preferences[o.key]} onChange={(on) => void change({ ...preferences, [o.key]: on })} />
         ))}
-        <SettingRow label="Subtitle size" help="Subtitles that run early or late can be moved from the player’s subtitles menu.">
+        <SettingRow label={t('Subtitle size')} help={t('Subtitles that run early or late can be moved from the player’s subtitles menu.')}>
           <select value={preferences.subtitleSize ?? 'Standard'} onChange={(e) => void change({ ...preferences, subtitleSize: e.target.value as SubtitleSize })}>
-            <option value="Small">Small</option>
-            <option value="Standard">Standard</option>
-            <option value="Large">Large</option>
-            <option value="ExtraLarge">Extra large</option>
+            <option value="Small">{t('Small')}</option>
+            <option value="Standard">{t('Standard')}</option>
+            <option value="Large">{t('Large')}</option>
+            <option value="ExtraLarge">{t('Extra large')}</option>
           </select>
         </SettingRow>
-        <SettingRow label="Subtitle position" help="Raise subtitles clear of a TV’s edge or text in the picture. Styled subtitles keep their own places.">
+        <SettingRow label={t('Subtitle position')} help={t('Raise subtitles clear of a TV’s edge or text in the picture. Styled subtitles keep their own places.')}>
           <select value={preferences.subtitlePosition ?? 'Bottom'} onChange={(e) => void change({ ...preferences, subtitlePosition: e.target.value as SubtitlePosition })}>
-            <option value="Bottom">Bottom</option>
-            <option value="Raised">Raised</option>
-            <option value="Higher">Higher</option>
-            <option value="Top">Top</option>
+            <option value="Bottom">{t('Bottom')}</option>
+            <option value="Raised">{t('Raised')}</option>
+            <option value="Higher">{t('Higher')}</option>
+            <option value="Top">{t('Top')}</option>
           </select>
         </SettingRow>
         <ToggleRow
-          label="Subtitles in the black bars"
-          help="In movies wider than the screen, subtitles go in the black bar below the picture rather than over it."
+          label={t('Subtitles in the black bars')}
+          help={t('In movies wider than the screen, subtitles go in the black bar below the picture rather than over it.')}
           checked={preferences.subtitlesInBlackBars ?? false}
           onChange={(on) => void change({ ...preferences, subtitlesInBlackBars: on })}
         />
@@ -87,14 +88,14 @@ function WhileWatching({ name }: { name?: string }) {
 function MusicInThisBrowser() {
   const settings = useMusicSettings()
   return (
-    <SettingsGroup title="Music in this browser" note="This browser’s own. Every device has its own.">
+    <SettingsGroup title={t('Music in this browser')} note="This browser’s own. Every device has its own.">
       <ToggleRow
-        label="Normalise volume"
-        help="Levels tracks by their ReplayGain tags, so a quiet album and a loud one play at about the same volume."
+        label={t('Normalise volume')}
+        help={t('Levels tracks by their ReplayGain tags, so a quiet album and a loud one play at about the same volume.')}
         checked={settings.normalise}
         onChange={(normalise) => writeMusicSettings({ normalise })}
       />
-      <SettingRow label="Crossfade" help="Fades the next track in as the current one ends.">
+      <SettingRow label={t('Crossfade')} help={t('Fades the next track in as the current one ends.')}>
         <select value={settings.crossfade} onChange={(e) => writeMusicSettings({ crossfade: Number(e.target.value) })}>
           {crossfadeChoices.map((seconds) => (
             <option key={seconds} value={seconds}>
@@ -104,8 +105,8 @@ function MusicInThisBrowser() {
         </select>
       </SettingRow>
       <ToggleRow
-        label="Visualiser"
-        help="Light in the cover’s colours moves with the music behind Now Playing."
+        label={t('Visualiser')}
+        help={t('Light in the cover’s colours moves with the music behind Now Playing.')}
         checked={settings.visualiser}
         onChange={(visualiser) => writeMusicSettings({ visualiser })}
       />
@@ -117,8 +118,8 @@ function MusicInThisBrowser() {
 function SoundInThisBrowser() {
   const settings = useSoundSettings()
   return (
-    <SettingsGroup title="Sound in this browser" note="This browser’s own. The player’s audio menu changes them too.">
-      <SettingRow label="Dialogue boost" help="Makes voices easier to follow under music and effects.">
+    <SettingsGroup title={t('Sound in this browser')} note="This browser’s own. The player’s audio menu changes them too.">
+      <SettingRow label={t('Dialogue boost')} help={t('Makes voices easier to follow under music and effects.')}>
         <select value={settings.dialogueBoost} onChange={(e) => writeSoundSettings({ dialogueBoost: e.target.value as DialogueBoost })}>
           {dialogueBoostChoices.map((b) => (
             <option key={b} value={b}>
@@ -127,7 +128,7 @@ function SoundInThisBrowser() {
           ))}
         </select>
       </SettingRow>
-      <SettingRow label="Night mode" help="Quietens loud scenes and lifts quiet ones.">
+      <SettingRow label={t('Night mode')} help={t('Quietens loud scenes and lifts quiet ones.')}>
         <select value={settings.nightMode} onChange={(e) => writeSoundSettings({ nightMode: e.target.value as NightMode })}>
           {nightModeChoices.map((n) => (
             <option key={n} value={n}>
@@ -137,11 +138,11 @@ function SoundInThisBrowser() {
         </select>
       </SettingRow>
       {settings.nightMode === 'Scheduled' && (
-        <SettingRow label="Night mode hours" as="div">
+        <SettingRow label={t('Night mode hours')} as="div">
           <span>
             <input
               type="time"
-              aria-label="Night mode starts"
+              aria-label={t('Night mode starts')}
               value={timeOfDay(settings.nightStart)}
               onChange={(e) => {
                 const at = minutesOf(e.target.value)
@@ -151,7 +152,7 @@ function SoundInThisBrowser() {
             {' to '}
             <input
               type="time"
-              aria-label="Night mode ends"
+              aria-label={t('Night mode ends')}
               value={timeOfDay(settings.nightEnd)}
               onChange={(e) => {
                 const at = minutesOf(e.target.value)
@@ -161,7 +162,7 @@ function SoundInThisBrowser() {
           </span>
         </SettingRow>
       )}
-      <SettingRow label="Speakers" help="Auto plays every channel the browser can.">
+      <SettingRow label={t('Speakers')} help={t('Auto plays every channel the browser can.')}>
         <select value={settings.speakers} onChange={(e) => writeSoundSettings({ speakers: e.target.value as Speakers })}>
           {speakerChoices.map((c) => (
             <option key={c.value} value={c.value}>
@@ -178,7 +179,7 @@ export function PlaybackSection() {
   const me = useSession().profiles?.find((p) => p.isCurrent)
   return (
     <section>
-      <SettingsHeader title="Playback" />
+      <SettingsHeader title={t('Playback')} />
       <WhileWatching name={me?.name} />
       <SoundInThisBrowser />
       <MusicInThisBrowser />

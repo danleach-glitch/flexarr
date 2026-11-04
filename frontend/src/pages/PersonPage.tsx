@@ -8,6 +8,7 @@ import { Overview } from '../components/Overview'
 import { PersonEditor } from '../components/PersonEditor'
 import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
+import { t } from '../i18n'
 
 const roleLabel: Record<CreditRole, string> = {
   Actor: 'Acting',
@@ -58,7 +59,7 @@ export function PersonPage() {
           <p className="muted">{count === 1 ? `${one} in your library` : `${many} in your library`}</p>
           {canEdit && (
             <button className="button quiet person-edit" onClick={() => void edit()}>
-              Edit
+              {t('Edit')}
             </button>
           )}
           {data.biography && (

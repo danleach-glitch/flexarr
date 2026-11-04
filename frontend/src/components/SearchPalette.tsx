@@ -26,6 +26,7 @@ import { itemLink, libraryGenreLink } from '../lib/links'
 import { musicLink } from '../lib/musicLinks'
 import { Close, History, Search } from './icons'
 import { icon } from './icons.generated'
+import { t } from '../i18n'
 
 interface Result {
   key: string
@@ -372,23 +373,23 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="palette-backdrop" onMouseDown={onClose}>
-      <div ref={dialog} className="palette" role="dialog" aria-modal="true" aria-label="Search" onMouseDown={(e) => e.stopPropagation()} onKeyDown={onKeyDown}>
+      <div ref={dialog} className="palette" role="dialog" aria-modal="true" aria-label={t('Search')} onMouseDown={(e) => e.stopPropagation()} onKeyDown={onKeyDown}>
         <label className="palette-input">
           <Search />
           <input
             ref={input}
             type="search"
-            placeholder="Movies, shows, music, books, people, genres"
+            placeholder={t('Movies, shows, music, books, people, genres')}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)
               if (!e.target.value.trim()) setActive(0)
             }}
-            aria-label="Search your library"
+            aria-label={t('Search your library')}
             aria-activedescendant={results[active] ? `result-${results[active].key}` : undefined}
             aria-controls="search-results"
           />
-          <kbd>esc</kbd>
+          <kbd>{t('esc')}</kbd>
         </label>
         <div className="palette-results" id="search-results" role="listbox">
           {query.trim() && !loading && results.length === 0 && <p className="palette-empty">Nothing in your library matches “{query.trim()}”.</p>}
@@ -398,7 +399,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
                 <div className="palette-group-head">
                   <h3 className="palette-group">{group}</h3>
                   <button className="palette-clear" onClick={clear}>
-                    Clear
+                    {t('Clear')}
                   </button>
                 </div>
               ) : (

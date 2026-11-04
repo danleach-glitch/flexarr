@@ -5,6 +5,7 @@ import { useModal } from '../hooks/useModal'
 import { AsyncButton } from './AsyncButton'
 import { safeImageSrc } from '../lib/safeImageSrc'
 import { FilePreview } from './FilePreview'
+import { t } from '../i18n'
 
 const sourceNames: Record<string, string> = {
   folder: 'Folder',
@@ -140,10 +141,10 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
         <h2 id="person-editor-title">Edit {person.name}</h2>
 
         <div className="person-editor-photos">
-          {candidates.loading && !candidates.data && <p className="muted">Loading…</p>}
+          {candidates.loading && !candidates.data && <p className="muted">{t('Loading…')}</p>}
           {loadError && <p className="error">{loadError}</p>}
-          {candidates.data && photos.length === 0 && !file && <p className="muted">No photos found.</p>}
-          <div className="person-editor-choices" role="radiogroup" aria-label="Photo" aria-busy={candidates.loading} onKeyDown={moveChoice}>
+          {candidates.data && photos.length === 0 && !file && <p className="muted">{t('No photos found.')}</p>}
+          <div className="person-editor-choices" role="radiogroup" aria-label={t('Photo')} aria-busy={candidates.loading} onKeyDown={moveChoice}>
             {photos.map((p, i) => (
               <PhotoChoice
                 key={p.source}
@@ -157,7 +158,7 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
               />
             ))}
             {file && (
-              <PhotoChoice picture={<FilePreview file={file} />} label="Yours" current={false} checked={chosen === FILE} tabbable={chosen === FILE || (!chosenShown && photos.length === 0)} disabled={saving} onChoose={() => choose(FILE)} />
+              <PhotoChoice picture={<FilePreview file={file} />} label={t('Yours')} current={false} checked={chosen === FILE} tabbable={chosen === FILE || (!chosenShown && photos.length === 0)} disabled={saving} onChoose={() => choose(FILE)} />
             )}
           </div>
           <label className="person-editor-upload file-button">
@@ -177,12 +178,12 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
         </div>
 
         <label className="field">
-          <span className="field-label">Biography</span>
+          <span className="field-label">{t('Biography')}</span>
           <textarea value={biography} rows={8} autoFocus onChange={(e) => write(e.target.value)} disabled={saving} />
         </label>
         {biographies.length > 0 && (
           <p className="person-editor-sources">
-            <span className="muted">Use</span>
+            <span className="muted">{t('Use')}</span>
             {biographies.map((b) => (
               <button key={b.source} type="button" className="text-button" disabled={saving} aria-label={`Use ${sourceName(b.source)}’s biography`} onClick={() => write(b.text)}>
                 {sourceName(b.source)}
@@ -192,7 +193,7 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
         )}
 
         <label className="person-editor-lock">
-          <span>Locked</span>
+          <span>{t('Locked')}</span>
           <input
             type="checkbox"
             role="switch"
@@ -213,10 +214,10 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
         )}
         <div className="form-actions">
           <button type="button" className="button quiet" onClick={onClose} disabled={saving}>
-            Cancel
+            {t('Cancel')}
           </button>
           <AsyncButton className="button" type="submit" busy={saving}>
-            Save
+            {t('Save')}
           </AsyncButton>
         </div>
       </form>
@@ -246,7 +247,7 @@ function PhotoChoice({
       {picture}
       <span>
         {label}
-        {current && <span className="tag keep">Current</span>}
+        {current && <span className="tag keep">{t('Current')}</span>}
       </span>
     </button>
   )

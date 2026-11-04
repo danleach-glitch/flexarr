@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { errorReporter } from '../lib/errorReporter'
+import { t } from '../i18n'
 
 /**
  * A page that fails to draw: reported to the server's log, and a way on instead of a blank screen. A new `resetKey`
@@ -24,10 +25,10 @@ export class ErrorBoundary extends Component<{ resetKey?: string; children: Reac
     if (!this.state.failed) return this.props.children
     return (
       <div className="page-message">
-        <p className="muted">Something went wrong showing this page.</p>
+        <p className="muted">{t('Something went wrong showing this page.')}</p>
         <p>
           <button className="button" onClick={() => window.location.reload()}>
-            Reload
+            {t('Reload')}
           </button>
         </p>
       </div>

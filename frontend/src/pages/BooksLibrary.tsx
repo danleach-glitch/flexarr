@@ -26,7 +26,7 @@ import { ScanProgress } from '../components/ScanProgress'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
 import { AlphaPicker, AlphaRail, ShowMore, useLibraryGrid } from './libraryGrid'
-import { locale } from '../i18n'
+import { locale, t } from '../i18n'
 
 const PAGE_SIZE = 60
 
@@ -128,14 +128,14 @@ function ShelfRows({ library, data }: { library: Library; data: BookShelves }) {
     next: books('Next in series', data.nextInSeries),
     recent: books('Recently added', data.recentlyAdded, `${all}&sort=added`),
     series: data.series.length > 0 && (
-      <Row title="Series" link={`/library/${library.id}?view=series`}>
+      <Row title={t('Series')} link={`/library/${library.id}?view=series`}>
         {data.series.map((s) => (
           <BookSeriesCard key={s.id} series={s} />
         ))}
       </Row>
     ),
     authors: data.authors.length > 0 && (
-      <Row title="Authors" link={`/library/${library.id}?view=authors`} style="people">
+      <Row title={t('Authors')} link={`/library/${library.id}?view=authors`} style="people">
         {data.authors.map((p) => (
           <BookPersonCard key={p.id} person={p} />
         ))}
@@ -164,10 +164,10 @@ function Genres({ library }: { library: Library }) {
   const { data, error, reload } = useApi((signal) => getBookGenres(library.id, signal), [library.id, library.itemCount])
   if (error) return <PageError error={error} onRetry={reload} />
   if (!data) return <div className="genre-grid" aria-busy="true" />
-  if (data.length === 0) return <p className="page-message muted">No genres here yet. They come with each book’s details once a scan has found them.</p>
+  if (data.length === 0) return <p className="page-message muted">{t('No genres here yet. They come with each book’s details once a scan has found them.')}</p>
   const genres = [...data].sort((a, b) => a.name.localeCompare(b.name))
   return (
-    <nav className="genre-grid" aria-label="Genres">
+    <nav className="genre-grid" aria-label={t('Genres')}>
       {genres.map((g) => (
         <Link key={g.name} to={`/library/${library.id}?view=genre&genre=${encodeURIComponent(g.name)}`} className="genre-tile book-genre-tile">
           <GenreCovers covers={g.covers} />
@@ -186,7 +186,7 @@ function GenrePage({ library, genre }: { library: Library; genre: string }) {
       <header className="library-header">
         <div className="library-heading">
           <Link className="genre-back" to={`/library/${library.id}?view=genres`}>
-            <ChevronLeft /> Genres
+            <ChevronLeft /> {t('Genres')}
           </Link>
           <h1 className="library-title">{genre}</h1>
         </div>
@@ -252,7 +252,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
     <>
       <div className="library-tools book-filters">
         <input type="search" placeholder={`Search ${library.name}`} aria-label={`Search ${library.name}`} value={search} onChange={(e) => setSearch(e.target.value)} />
-        <Choice label="Sort by" value={params.get('sort') ?? 'title'} onChange={(v) => set('sort', v === 'title' ? '' : v)}>
+        <Choice label={t('Sort by')} value={params.get('sort') ?? 'title'} onChange={(v) => set('sort', v === 'title' ? '' : v)}>
           {sorts.map((s) => (
             <option key={s.value} value={s.value}>
               {s.label}
@@ -283,7 +283,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
         <p className="library-new" role="status">
           {library.itemCount > (loadedCount ?? 0) ? 'New books have arrived.' : 'Some books have gone.'}{' '}
           <button className="button quiet small" onClick={restart}>
-            Refresh
+            {t('Refresh')}
           </button>
         </p>
       )}
@@ -366,7 +366,7 @@ function PagedGrid<T>({ paged, empty, className, children }: { paged: ReturnType
       {paged.items && paged.total !== undefined && paged.items.length < paged.total && (
         <div className="load-more">
           <AsyncButton className="button quiet" onClick={paged.more}>
-            Show more
+            {t('Show more')}
           </AsyncButton>
         </div>
       )}

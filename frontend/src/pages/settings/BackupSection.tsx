@@ -30,7 +30,7 @@ import { useChoosesOnMac } from '../../hooks/useChoosesOnMac'
 import { formatSize, libraryTypeLabel } from '../../lib/format'
 import { SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
-import { locale } from '../../i18n'
+import { locale, t } from '../../i18n'
 
 const kindLabel: Record<BackupKind, string> = {
   Manual: 'Made by hand',
@@ -97,15 +97,15 @@ export function BackupSection() {
 
   return (
     <section>
-      <SettingsHeader title="Backup & restore">
-        Everything Flexarr can’t rebuild from your media: profiles, watch history, playlists, collections, settings and sign-ins.
+      <SettingsHeader title={t('Backup & restore')}>
+        {t('Everything Flexarr can’t rebuild from your media: profiles, watch history, playlists, collections, settings and sign-ins.')}
       </SettingsHeader>
 
       <SettingsGroup
-        title="Backups"
+        title={t('Backups')}
         action={
           <AsyncButton className="button small" onClick={makeOne}>
-            Back up now
+            {t('Back up now')}
           </AsyncButton>
         }
         note={
@@ -126,13 +126,13 @@ export function BackupSection() {
             {backups.data.folderProblem}
           </p>
         )}
-        {backups.loading && !backups.data && <p className="muted">Loading…</p>}
+        {backups.loading && !backups.data && <p className="muted">{t('Loading…')}</p>}
         {backups.error && (
           <p className="error" role="alert">
             Couldn’t list the backups: {backups.error.message}
           </p>
         )}
-        {backups.data?.backups.length === 0 && <p className="muted">No backups yet.</p>}
+        {backups.data?.backups.length === 0 && <p className="muted">{t('No backups yet.')}</p>}
         {backups.data?.backups.map((b) => (
           <div className="library-row backup-row" key={b.name}>
             <div>
@@ -143,9 +143,9 @@ export function BackupSection() {
               </p>
             </div>
             <div className="library-row-actions">
-              <IconButton label="Download" icon={<Download />} onClick={() => setDialog({ kind: 'download', backup: b })} />
-              <IconButton label="Restore" icon={<Restore />} onClick={() => setDialog({ kind: 'restore', createdAt: b.createdAt, name: b.name })} />
-              <IconButton label="Delete" icon={<icon.delete />} className="button quiet small icon danger-icon" onClick={() => setDialog({ kind: 'delete', backup: b })} />
+              <IconButton label={t('Download')} icon={<Download />} onClick={() => setDialog({ kind: 'download', backup: b })} />
+              <IconButton label={t('Restore')} icon={<Restore />} onClick={() => setDialog({ kind: 'restore', createdAt: b.createdAt, name: b.name })} />
+              <IconButton label={t('Delete')} icon={<icon.delete />} className="button quiet small icon danger-icon" onClick={() => setDialog({ kind: 'delete', backup: b })} />
             </div>
           </div>
         ))}
@@ -153,10 +153,10 @@ export function BackupSection() {
 
       {backups.data && <Automatic nightly={backups.data.nightly} keep={backups.data.keepNightly} folder={backups.data.folderSetting} folderInUse={backups.data.folder} onSaved={backups.reload} />}
 
-      <SettingsGroup title="Settings file" note="Libraries and server settings, without profiles or history. Handy for setting up another server.">
-        <SettingRow as="div" label="Export settings" help="Saves a file to this computer.">
+      <SettingsGroup title={t('Settings file')} note="Libraries and server settings, without profiles or history. Handy for setting up another server.">
+        <SettingRow as="div" label={t('Export settings')} help={t('Saves a file to this computer.')}>
           <button className="button quiet small" onClick={() => setDialog({ kind: 'export' })}>
-            Export…
+            {t('Export…')}
           </button>
         </SettingRow>
       </SettingsGroup>
@@ -175,7 +175,7 @@ export function BackupSection() {
       )}
       {dialog?.kind === 'delete' && (
         <ConfirmDialog
-          title="Delete this backup?"
+          title={t('Delete this backup?')}
           confirmLabel="Delete"
           danger
           error={deleteError}
@@ -244,9 +244,9 @@ function Automatic({ nightly, keep, folder, folderInUse, onSaved }: { nightly: b
   }
 
   return (
-    <SettingsGroup title="Automatic backups" note={error ? undefined : saved}>
+    <SettingsGroup title={t('Automatic backups')} note={error ? undefined : saved}>
       <ToggleRow
-        label="Back up every night"
+        label={t('Back up every night')}
         help={`At half past three. The last ${keep} are kept, and a copy is always made before an upgrade changes the database.`}
         checked={nightly}
         onChange={(on) => void save({ nightly: on })}
@@ -254,7 +254,7 @@ function Automatic({ nightly, keep, folder, folderInUse, onSaved }: { nightly: b
       {onMac ? (
         <SettingRow
           as="div"
-          label="Folder"
+          label={t('Folder')}
           help={
             <>
               A folder on another drive, or a share, survives this one failing.
@@ -265,12 +265,12 @@ function Automatic({ nightly, keep, folder, folderInUse, onSaved }: { nightly: b
           <span className="folder-field">
             {folder && (
               <button type="button" className="button quiet small" onClick={() => void save({ folder: '' })}>
-                Use the data folder
+                {t('Use the data folder')}
               </button>
             )}
             {!choosing && (
               <button type="button" className="button quiet small" onClick={() => setChoosing(true)}>
-                Change
+                {t('Change')}
               </button>
             )}
           </span>
@@ -278,18 +278,18 @@ function Automatic({ nightly, keep, folder, folderInUse, onSaved }: { nightly: b
       ) : (
         <form className="setting-row static backup-folder" onSubmit={(e) => void saveFolder(e)}>
           <span className="setting-text">
-            <strong>Folder</strong>
-            <span className="muted">A folder on another drive, or a share, survives this one failing. Empty for the data folder.</span>
+            <strong>{t('Folder')}</strong>
+            <span className="muted">{t('A folder on another drive, or a share, survives this one failing. Empty for the data folder.')}</span>
           </span>
           <span className="backup-folder-field">
-            <input type="text" value={path} onChange={(e) => setPath(e.target.value)} placeholder={folder ? undefined : folderInUse} aria-label="Backups folder" />
+            <input type="text" value={path} onChange={(e) => setPath(e.target.value)} placeholder={folder ? undefined : folderInUse} aria-label={t('Backups folder')} />
             {!choosing && (
               <button type="button" className="button quiet small" onClick={() => setChoosing(true)}>
-                Browse…
+                {t('Browse…')}
               </button>
             )}
             <AsyncButton type="submit" className="button quiet small" disabled={path.trim() === (folder ?? '')}>
-              Save
+              {t('Save')}
             </AsyncButton>
           </span>
         </form>
@@ -303,7 +303,7 @@ function Automatic({ nightly, keep, folder, folderInUse, onSaved }: { nightly: b
             }}
           />
           <button type="button" className="text-button" onClick={() => setChoosing(false)}>
-            Cancel
+            {t('Cancel')}
           </button>
         </div>
       )}
@@ -349,23 +349,22 @@ function PassphraseDialog({
   return (
     <ConfirmDialog title={title} confirmLabel="Save file" error={error} onConfirm={save} onClose={onClose}>
       <p>
-        The file holds the server’s keys and the passwords for Sonarr, Radarr and the like. A passphrase keeps them safe if the file goes astray; without one,
-        keep the file somewhere private.
+        {t('The file holds the server’s keys and the passwords for Sonarr, Radarr and the like. A passphrase keeps them safe if the file goes astray; without one, keep the file somewhere private.')}
       </p>
       <label className="field">
-        <span className="field-label">Passphrase (optional)</span>
+        <span className="field-label">{t('Passphrase (optional)')}</span>
         <input type="password" autoComplete="new-password" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} />
       </label>
       {passphrase && (
         <label className="field">
-          <span className="field-label">Passphrase again</span>
+          <span className="field-label">{t('Passphrase again')}</span>
           <input type="password" autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} />
         </label>
       )}
-      {passphrase && <p className="muted">Without it the file can’t be opened, by anyone. Flexarr doesn’t keep it.</p>}
+      {passphrase && <p className="muted">{t('Without it the file can’t be opened, by anyone. Flexarr doesn’t keep it.')}</p>}
       {mainHasPin && (
         <label className="field">
-          <span className="field-label">Admin PIN</span>
+          <span className="field-label">{t('Admin PIN')}</span>
           <input type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value)} />
         </label>
       )}
@@ -402,14 +401,14 @@ function RestoreDialog({
   }
 
   return (
-    <ConfirmDialog title="Restore this backup?" confirmLabel="Restore and restart" danger error={error} onConfirm={restore} onClose={onClose}>
+    <ConfirmDialog title={t('Restore this backup?')} confirmLabel="Restore and restart" danger error={error} onConfirm={restore} onClose={onClose}>
       <p>
         Everything on this server goes back to how it was on {when(createdAt)}: profiles, what’s been watched, settings, keys and sign-ins. Anything since
         is lost, though a copy of the server as it is now is kept first. Flexarr restarts to finish, and anyone watching is stopped.
       </p>
       {mainHasPin && (
         <label className="field">
-          <span className="field-label">Admin PIN</span>
+          <span className="field-label">{t('Admin PIN')}</span>
           <input type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value)} />
         </label>
       )}
@@ -463,7 +462,7 @@ function FromFile({ mainHasPin, onRestore }: { mainHasPin: boolean; onRestore: (
   }
 
   return (
-    <SettingsGroup title="From a file" note="A backup or settings file from this server or another Flexarr.">
+    <SettingsGroup title={t('From a file')} note="A backup or settings file from this server or another Flexarr.">
       <SettingRow as="div" label={fileName ?? 'Restore or import'} help={fileName ? undefined : 'Choose a backup to restore, or a settings file to import.'}>
         <input ref={input} type="file" hidden accept=".zip,.json,.flexarr-backup,.flexarr-settings" onChange={(e) => void choose(e.target.files?.[0])} />
         <AsyncButton className="button quiet small" busy={busy} onClick={() => input.current?.click()}>
@@ -478,13 +477,13 @@ function FromFile({ mainHasPin, onRestore }: { mainHasPin: boolean; onRestore: (
       {upload && upload.kind === null && (
         <form className="setting-row static backup-folder" onSubmit={(e) => void open(e)}>
           <span className="setting-text">
-            <strong>Passphrase</strong>
-            <span className="muted">This file is protected. Enter the passphrase it was saved with.</span>
+            <strong>{t('Passphrase')}</strong>
+            <span className="muted">{t('This file is protected. Enter the passphrase it was saved with.')}</span>
           </span>
           <span className="backup-folder-field">
-            <input type="password" autoComplete="off" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} aria-label="Passphrase" autoFocus />
+            <input type="password" autoComplete="off" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} aria-label={t('Passphrase')} autoFocus />
             <AsyncButton type="submit" className="button small" disabled={!passphrase}>
-              Open
+              {t('Open')}
             </AsyncButton>
           </span>
         </form>
@@ -512,16 +511,15 @@ function UploadedBackup({ contents, fromAnotherServer, onRestore, onCancel }: { 
       )}
       {!contents.problem && fromAnotherServer && (
         <p className="error">
-          This backup is from another Flexarr server. Restoring it brings that server’s keys and the browsers and devices signed in to it, so only
-          restore one you made yourself. This machine’s paths (ffmpeg, the cache) are kept as they are.
+          {t('This backup is from another Flexarr server. Restoring it brings that server’s keys and the browsers and devices signed in to it, so only restore one you made yourself. This machine’s paths (ffmpeg, the cache) are kept as they are.')}
         </p>
       )}
       <div className="form-actions">
         <button className="button quiet small" onClick={onCancel}>
-          Cancel
+          {t('Cancel')}
         </button>
         <button className="button small danger" disabled={!!contents.problem} onClick={onRestore}>
-          Restore…
+          {t('Restore…')}
         </button>
       </div>
     </div>
@@ -578,7 +576,7 @@ function UploadedSettings({ id, file, mainHasPin, onCancel }: { id: string; file
         )}
         <div className="form-actions">
           <button className="button quiet small" onClick={onCancel}>
-            Done
+            {t('Done')}
           </button>
         </div>
       </div>
@@ -630,7 +628,7 @@ function UploadedSettings({ id, file, mainHasPin, onCancel }: { id: string; file
                               setLibraries((all) => all.map((x, j) => (j === i ? { ...x, paths: x.paths.map((p, n) => (n === k ? e.target.value : p)) } : x)))
                             }
                           />
-                          {missing && <span className="field-help">Not on this server: enter where it is here.</span>}
+                          {missing && <span className="field-help">{t('Not on this server: enter where it is here.')}</span>}
                         </label>
                       )
                     })}
@@ -642,7 +640,7 @@ function UploadedSettings({ id, file, mainHasPin, onCancel }: { id: string; file
       ))}
       {(chosen.has('keys') || chosen.has('machine') || chosen.has('access')) && mainHasPin && (
         <label className="field">
-          <span className="field-label">Admin PIN</span>
+          <span className="field-label">{t('Admin PIN')}</span>
           <input type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value)} />
         </label>
       )}
@@ -653,10 +651,10 @@ function UploadedSettings({ id, file, mainHasPin, onCancel }: { id: string; file
       )}
       <div className="form-actions">
         <button className="button quiet small" onClick={onCancel}>
-          Cancel
+          {t('Cancel')}
         </button>
         <AsyncButton className="button small" disabled={chosen.size === 0} onClick={apply}>
-          Import
+          {t('Import')}
         </AsyncButton>
       </div>
     </div>
@@ -696,10 +694,10 @@ function Restarting() {
 
   return (
     <section>
-      <SettingsHeader title="Restoring">Flexarr is restarting with the backup. This page reloads when it’s back.</SettingsHeader>
+      <SettingsHeader title={t('Restoring')}>{t('Flexarr is restarting with the backup. This page reloads when it’s back.')}</SettingsHeader>
       {late && (
         <p className="muted" role="status">
-          It’s taking a while. If nothing starts Flexarr again by itself on this machine, start it again, and the backup is put in place as it starts.
+          {t('It’s taking a while. If nothing starts Flexarr again by itself on this machine, start it again, and the backup is put in place as it starts.')}
         </p>
       )}
     </section>

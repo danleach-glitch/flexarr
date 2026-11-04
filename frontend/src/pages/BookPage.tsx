@@ -40,6 +40,7 @@ import { announceWatched } from '../hooks/watched'
 import { chapterIndexAt, chapterProgress, formatSpeed, languageName, seriesPlace, timeLeft } from '../lib/books'
 import { formatClock, formatDuration } from '../lib/format'
 import { MoreButton } from './MusicPages'
+import { t } from '../i18n'
 
 /**
  * A book's page: cover, title, its series and people, how long it is and how long is left at the speed it plays at,
@@ -83,7 +84,7 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
       leave(item.id)
     }
   }, [item.id, hasBook])
-  if (!book) return <p className="page-message muted">This book can’t be shown by this version of the app.</p>
+  if (!book) return <p className="page-message muted">{t('This book can’t be shown by this version of the app.')}</p>
 
   const playing = player.current?.id === item.id
   const duration = book.durationSeconds || item.durationSeconds || 0
@@ -160,16 +161,16 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
           )}
           <h1>{item.title}</h1>
           {book.subtitle && <p className="book-subtitle">{book.subtitle}</p>}
-          <People label="By" people={authors} />
-          <People label="Read by" people={narrators} />
-          <People label="Translated by" people={translators} />
+          <People label={t('By')} people={authors} />
+          <People label={t('Read by')} people={narrators} />
+          <People label={t('Translated by')} people={translators} />
           <Facts place={place} year={item.year} duration={duration} finished={finished} speed={speed} abridged={book.abridged} />
           {/* The order every client shares (docs/design.md › Platforms, `BookActions` in the apps): Play or Resume,
               Start over, Finished, then ⋯. */}
           <div className="detail-actions">
             {finished ? (
               <AsyncButton className="button" onClick={again}>
-                <icon.play /> Play
+                <icon.play /> {t('Play')}
               </AsyncButton>
             ) : (
               <PlayButton place={place} sounding={playing && player.playing} onClick={() => playAt()} />
@@ -178,7 +179,7 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
                 again, as in the apps' BookActions), one part-way through asks first, since its place is lost. */}
             {(finished || playing || place.saved > 0) && (
               <AsyncButton className="button quiet" onClick={() => (finished ? again() : setStartingOver(true))}>
-                <icon.startOver /> Start over
+                <icon.startOver /> {t('Start over')}
               </AsyncButton>
             )}
             <AsyncButton className="button quiet" aria-pressed={finished} onClick={() => mark(!finished)}>
@@ -287,7 +288,7 @@ function PlayButton({ place, sounding, onClick }: { place: Place; sounding: bool
 function StartOverDialog({ place, onConfirm, onClose }: { place: Place; onConfirm: () => void; onClose: () => void }) {
   const position = usePosition(place)
   return (
-    <ConfirmDialog title="Start over?" confirmLabel="Start over" onConfirm={onConfirm} onClose={onClose}>
+    <ConfirmDialog title={t('Start over?')} confirmLabel="Start over" onConfirm={onConfirm} onClose={onClose}>
       <p>You’re at {formatClock(position)}.</p>
     </ConfirmDialog>
   )
@@ -369,7 +370,7 @@ const ChapterList = memo(function ChapterList({
           <li key={chapter.index}>
             <div className="track-row">
               <button className={here ? 'track current' : done ? 'track done' : 'track'} onClick={() => onPlay(chapter.startSeconds)} aria-current={here || undefined}>
-                <span className="track-number">{here && sounding ? <Play /> : done ? <Check aria-label="Heard" /> : i + 1}</span>
+                <span className="track-number">{here && sounding ? <Play /> : done ? <Check aria-label={t('Heard')} /> : i + 1}</span>
                 <span className="track-title">
                   {chapter.title}
                   {here && <ChapterBar chapters={chapters} index={i} place={place} duration={duration} />}

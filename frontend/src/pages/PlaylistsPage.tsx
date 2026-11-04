@@ -26,6 +26,7 @@ import { useApi } from '../hooks/useApi'
 import { formatClock, formatDuration } from '../lib/format'
 import { MoreButton, queueActions } from './MusicPages'
 import { shuffled } from '../lib/shuffle'
+import { t } from '../i18n'
 
 /**
  * Every playlist of the profile's, most recently changed first, and a way to start another. Inside a music library it
@@ -54,21 +55,21 @@ export function PlaylistsPage({ heading }: { heading?: ReactNode }) {
 
   const empty = playlists.data?.length === 0
   const newPlaylist = creating ? (
-    <form className="field-row playlist-new" onSubmit={create} aria-label="New playlist">
+    <form className="field-row playlist-new" onSubmit={create} aria-label={t('New playlist')}>
       <label className="grow">
-        <span className="visually-hidden">Playlist name</span>
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder="Name your playlist" autoFocus />
+        <span className="visually-hidden">{t('Playlist name')}</span>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder={t('Name your playlist')} autoFocus />
       </label>
       <AsyncButton className="button" type="submit" disabled={!name.trim()} busy={saving}>
-        Create
+        {t('Create')}
       </AsyncButton>
       <button className="button quiet" type="button" onClick={() => setCreating(false)}>
-        Cancel
+        {t('Cancel')}
       </button>
     </form>
   ) : (
     <button className="button" onClick={() => setCreating(true)}>
-      New playlist
+      {t('New playlist')}
     </button>
   )
 
@@ -77,8 +78,8 @@ export function PlaylistsPage({ heading }: { heading?: ReactNode }) {
       <header className="library-header">
         {heading ?? (
           <div>
-            <h1>Playlists</h1>
-            <p className="muted">Your own mixes. Add tracks, albums or whole artists from their ⋯ menu.</p>
+            <h1>{t('Playlists')}</h1>
+            <p className="muted">{t('Your own mixes. Add tracks, albums or whole artists from their ⋯ menu.')}</p>
           </div>
         )}
         {/* With none yet, the button waits in the middle of the page instead. */}
@@ -92,7 +93,7 @@ export function PlaylistsPage({ heading }: { heading?: ReactNode }) {
       {playlists.error && <p className="error">{playlists.error.message}</p>}
       {empty ? (
         <div className="playlists-empty">
-          <p className="muted">No playlists yet. Make one, or add a track to a new one from its ⋯ menu.</p>
+          <p className="muted">{t('No playlists yet. Make one, or add a track to a new one from its ⋯ menu.')}</p>
           {newPlaylist}
         </div>
       ) : (
@@ -232,19 +233,19 @@ export function PlaylistPage() {
         </div>
         <div className="music-header-text">
           <p className="detail-kicker">
-            <Link to="/playlists">Playlists</Link>
+            <Link to="/playlists">{t('Playlists')}</Link>
           </p>
           {renaming ? (
-            <form className="field-row playlist-rename" onSubmit={rename} aria-label="Rename playlist">
+            <form className="field-row playlist-rename" onSubmit={rename} aria-label={t('Rename playlist')}>
               <label className="grow">
-                <span className="visually-hidden">Playlist name</span>
+                <span className="visually-hidden">{t('Playlist name')}</span>
                 <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoFocus />
               </label>
               <AsyncButton className="button" type="submit" disabled={!name.trim()} busy={saving}>
-                Save
+                {t('Save')}
               </AsyncButton>
               <button className="button quiet" type="button" onClick={() => setRenaming(false)}>
-                Cancel
+                {t('Cancel')}
               </button>
             </form>
           ) : (
@@ -256,13 +257,13 @@ export function PlaylistPage() {
           </p>
           <div className="detail-actions">
             <button className="button" onClick={() => player.play(tracks, 0, { openNowPlaying: true })} disabled={tracks.length === 0}>
-              <icon.play /> Play
+              <icon.play /> {t('Play')}
             </button>
             <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0, { openNowPlaying: true })} disabled={tracks.length < 2}>
-              Shuffle
+              {t('Shuffle')}
             </button>
             <IconButton
-              label="Rename"
+              label={t('Rename')}
               icon={<Pencil />}
               className="button quiet icon"
               onClick={() => {
@@ -270,7 +271,7 @@ export function PlaylistPage() {
                 setRenaming(true)
               }}
             />
-            <IconButton label="Delete" icon={<icon.delete />} className="button quiet icon danger-icon" onClick={() => setDeleting(true)} />
+            <IconButton label={t('Delete')} icon={<icon.delete />} className="button quiet icon danger-icon" onClick={() => setDeleting(true)} />
             <MoreButton
               label={`More for ${summary.name}`}
               actions={[...queueActions(player, () => tracks), ...(summary.cover ? [{ label: 'Back to the mosaic cover', run: () => act(() => setPlaylistCover(summary.id, null)) }] : [])]}
@@ -286,7 +287,7 @@ export function PlaylistPage() {
       </header>
 
       {entries.length === 0 ? (
-        <p className="muted collection-empty">Nothing in it yet. Add tracks, albums or artists from their ⋯ menu: Add to playlist.</p>
+        <p className="muted collection-empty">{t('Nothing in it yet. Add tracks, albums or artists from their ⋯ menu: Add to playlist.')}</p>
       ) : (
         <ol className="tracklist playlist-tracks" aria-label={`Tracks in ${summary.name}`}>
           {entries.map(({ entryId, track }, i) => {
@@ -366,7 +367,7 @@ export function PlaylistPage() {
             }
           }}
         >
-          <p>The tracks stay in your library.</p>
+          <p>{t('The tracks stay in your library.')}</p>
         </ConfirmDialog>
       )}
     </article>

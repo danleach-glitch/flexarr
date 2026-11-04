@@ -19,7 +19,7 @@ import {
   type Profile,
 } from './api/client'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { currentLanguage, onLanguageChange, settleLanguage } from './i18n'
+import { currentLanguage, onLanguageChange, settleLanguage, t } from './i18n'
 import { ProfilePicker } from './components/ProfilePicker'
 import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
@@ -160,7 +160,7 @@ export function Shell() {
                   <Route path="link" element={<LinkPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="settings/:section" element={<SettingsPage />} />
-                  <Route path="*" element={<p className="page-message muted">There's nothing at this address.</p>} />
+                  <Route path="*" element={<p className="page-message muted">{t("There's nothing at this address.")}</p>} />
                 </Route>
               </Routes>
             </Suspense>
@@ -364,48 +364,48 @@ export default function App() {
     <div className={codePage ? 'connect connect-code' : 'connect'}>
       <p className="wordmark">
         <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
-        flexarr
+        {t('flexarr')}
       </p>
-      {codePage && <p className="connect-tagline">Your entertainment, on every screen.</p>}
-      <section className="panel" aria-label="Server status">
-        {state.kind === 'loading' && <p className="muted">Connecting…</p>}
+      {codePage && <p className="connect-tagline">{t('Your entertainment, on every screen.')}</p>}
+      <section className="panel" aria-label={t('Server status')}>
+        {state.kind === 'loading' && <p className="muted">{t('Connecting…')}</p>}
         {state.kind === 'error' && <p className="error">Can't reach the server ({state.message}). Check that Flexarr is running, then reload.</p>}
         {state.kind === 'unauthorized' && state.setupOpen && (
           <form className="setup-welcome api-key-form" onSubmit={setUp}>
-            <h1>Welcome to your Flexarr server</h1>
+            <h1>{t('Welcome to your Flexarr server')}</h1>
             {/* Opened from the Mac app (or a link with the code): nothing to look for, only a PIN to choose. */}
             {linkedCode ? (
               <input name="setupCode" type="hidden" value={linkedCode} />
             ) : (
               <>
-                <label htmlFor="setupCode">Setup code</label>
-                <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required />
-                {state.wrongCode && <p className="error">That isn't this server's setup code.</p>}
+                <label htmlFor="setupCode">{t('Setup code')}</label>
+                <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder={t('ABCD-EFGH')} required />
+                {state.wrongCode && <p className="error">{t("That isn't this server's setup code.")}</p>}
                 <p className="muted small-print setup-code-help">
                   {whereTheCodeIs(setupInstall)}{' '}
                   <a href="https://flexarr.io/guide/first-setup#enter-the-setup-code" target="_blank" rel="noreferrer">
-                    Can’t find it?
+                    {t('Can’t find it?')}
                   </a>
                 </p>
               </>
             )}
             <p className={linkedCode ? 'muted' : 'muted setup-pin-intro'}>
-              Choose a PIN to protect the server’s settings. Watching doesn’t need it.
+              {t('Choose a PIN to protect the server’s settings. Watching doesn’t need it.')}
             </p>
             <div className="field-row">
               <label>
                 PIN (required)
-                <input name="setupPin" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title="4 to 8 digits" placeholder="4 to 8 digits" required />
+                <input name="setupPin" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title={t('4 to 8 digits')} placeholder={t('4 to 8 digits')} required />
               </label>
               <label>
                 Confirm PIN
-                <input name="setupPinAgain" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title="4 to 8 digits" required />
+                <input name="setupPinAgain" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title={t('4 to 8 digits')} required />
               </label>
             </div>
-            {state.pinMismatch && <p className="error">The two PINs don’t match. Type the same one in both.</p>}
+            {state.pinMismatch && <p className="error">{t('The two PINs don’t match. Type the same one in both.')}</p>}
             {state.badPin && <p className="error">{state.badPin}</p>}
             <button type="submit" className="button">
-              Set up Flexarr
+              {t('Set up Flexarr')}
             </button>
           </form>
         )}
@@ -417,16 +417,16 @@ export default function App() {
             <ol className="setup-steps">
               <li>
                 <span>
-                  On your computer, open <strong>{window.location.origin}</strong> in a web browser.
+                  On your computer, open <strong>{window.location.origin}</strong> {t('in a web browser.')}
                 </span>
               </li>
               <li>
                 <span>
-                  Go to <strong>Settings</strong>, then <strong>Security</strong>, then <strong>Connect a device</strong>.
+                  Go to <strong>{t('Settings')}</strong>, then <strong>{t('Security')}</strong>, then <strong>{t('Connect a device')}</strong>.
                 </span>
               </li>
               <li>
-                <span>Type in this code:</span>
+                <span>{t('Type in this code:')}</span>
               </li>
             </ol>
             <p className="setup-code">{tvCode}</p>
@@ -434,17 +434,17 @@ export default function App() {
         )}
         {state.kind === 'unauthorized' && !state.setupOpen && !tvCode && (
           <form className="api-key-form" onSubmit={submitApiKey}>
-            <label htmlFor="apiKey">API key</label>
-            <p className="muted">Ask whoever set up Flexarr for the key, or connect from home.</p>
+            <label htmlFor="apiKey">{t('API key')}</label>
+            <p className="muted">{t('Ask whoever set up Flexarr for the key, or connect from home.')}</p>
             <div className="api-key-row">
               <input id="apiKey" name="apiKey" type="password" autoComplete="off" required />
               <button type="submit" className="button">
-                Connect
+                {t('Connect')}
               </button>
             </div>
-            {state.wrongKey && <p className="error">That isn't the right key.</p>}
+            {state.wrongKey && <p className="error">{t("That isn't the right key.")}</p>}
             <p className="muted small-print">
-              For whoever set it up: the key is in config.json in the server’s data folder. Opening Flexarr through Tailscale signs you in without it.
+              {t('For whoever set it up: the key is in config.json in the server’s data folder. Opening Flexarr through Tailscale signs you in without it.')}
             </p>
           </form>
         )}

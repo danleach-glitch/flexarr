@@ -4,6 +4,7 @@ import { useModal } from '../hooks/useModal'
 import { clockText, parseClock } from '../lib/books'
 import { AsyncButton } from './AsyncButton'
 import { AudibleLogo, Close, Plus } from './icons'
+import { t } from '../i18n'
 
 interface Draft {
   key: number
@@ -112,7 +113,7 @@ export function ChapterEditor({
   return (
     <div className="dialog-backdrop" onClick={close}>
       <div className="panel chapter-editor" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="chapter-editor-title" onClick={(e) => e.stopPropagation()}>
-        <h2 id="chapter-editor-title">Chapters</h2>
+        <h2 id="chapter-editor-title">{t('Chapters')}</h2>
         <ol className="chapter-edit-list">
           {drafts.map((d, i) => (
             <li key={d.key}>
@@ -143,7 +144,7 @@ export function ChapterEditor({
             </li>
           ))}
         </ol>
-        {anyRepeated && <p className="error">Two chapters start at the same time.</p>}
+        {anyRepeated && <p className="error">{t('Two chapters start at the same time.')}</p>}
         <button
           type="button"
           className="text-button"
@@ -153,13 +154,13 @@ export function ChapterEditor({
             setDrafts((all) => [...all, { key: Math.max(-1, ...all.map((x) => x.key)) + 1, title: `Chapter ${all.length + 1}`, start: all.at(-1)?.start ?? '0:00' }])
           }}
         >
-          <Plus /> Add a chapter
+          <Plus /> {t('Add a chapter')}
         </button>
 
         <div className="chapter-edit-tools">
           <label>
             Shift all by
-            <input type="number" min={-600} max={600} step={0.5} value={shift} placeholder="seconds" disabled={busy} onChange={(e) => setShift(e.target.value)} />
+            <input type="number" min={-600} max={600} step={0.5} value={shift} placeholder={t('seconds')} disabled={busy} onChange={(e) => setShift(e.target.value)} />
           </label>
           <button
             type="button"
@@ -171,11 +172,11 @@ export function ChapterEditor({
               setShift('')
             }}
           >
-            Shift
+            {t('Shift')}
           </button>
           {hasAsin && (
             <AsyncButton className="button quiet small" disabled={busy} onClick={fillFromAudible}>
-              <AudibleLogo /> Use Audible’s
+              <AudibleLogo /> {t('Use Audible’s')}
             </AsyncButton>
           )}
         </div>
@@ -187,7 +188,7 @@ export function ChapterEditor({
         )}
         {leaving && (
           <p className="error" role="alert">
-            Your changes aren’t saved.
+            {t('Your changes aren’t saved.')}
           </p>
         )}
         <div className="form-actions">
@@ -199,7 +200,7 @@ export function ChapterEditor({
             disabled={invalid || busy || !changed}
             onClick={() => run(() => saveChapters(bookId, parsed.map((p) => ({ title: p.title, startSeconds: p.startSeconds! }))))}
           >
-            Save
+            {t('Save')}
           </AsyncButton>
         </div>
       </div>

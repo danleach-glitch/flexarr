@@ -4,6 +4,7 @@ import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { AsyncButton } from './AsyncButton'
 import { useModal } from '../hooks/useModal'
+import { t } from '../i18n'
 
 /** Asks for the Add to collection dialog, from anywhere (a card's menu closes before it opens). */
 const OPEN = 'flexarr:add-to-collection'
@@ -77,7 +78,7 @@ function AddToCollectionDialog({ item, onClose }: { item: { id: string; title: s
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="panel add-to-collection" ref={dialog} role="dialog" aria-modal="true" aria-label={`Add ${item.title} to a collection`} onClick={(e) => e.stopPropagation()}>
         <h2>Add {item.title} to a collection</h2>
-        {collections.data && editable.length === 0 && <p className="muted">No collections of yours yet. Start one below.</p>}
+        {collections.data && editable.length === 0 && <p className="muted">{t('No collections of yours yet. Start one below.')}</p>}
         <ul className="collection-choices">
           {editable.map((c) => (
             <li key={c.id}>
@@ -92,10 +93,10 @@ function AddToCollectionDialog({ item, onClose }: { item: { id: string; title: s
         <form className="field-row" onSubmit={create}>
           <label className="grow">
             New collection
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder="Name it, then press Create" />
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder={t('Name it, then press Create')} />
           </label>
           <AsyncButton className="button" type="submit" disabled={!name.trim()} busy={creating}>
-            Create
+            {t('Create')}
           </AsyncButton>
         </form>
         {error && (
@@ -105,7 +106,7 @@ function AddToCollectionDialog({ item, onClose }: { item: { id: string; title: s
         )}
         <div className="form-actions">
           <button className="button quiet" onClick={onClose}>
-            Done
+            {t('Done')}
           </button>
         </div>
       </div>

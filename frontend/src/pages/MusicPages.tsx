@@ -21,6 +21,7 @@ import { shuffled } from '../lib/shuffle'
 import { albumTypeLabel } from '../lib/albums'
 import { DetailsEditor } from '../components/DetailsEditor'
 import { MusicMatchDialog } from '../components/MusicMatchDialog'
+import { t } from '../i18n'
 
 /**
  * The queue actions for a set of tracks, as a menu offers them, and (given what they belong to: a track, album or
@@ -176,10 +177,10 @@ export function AlbumPage({ detail, onChange }: { detail: ItemDetail; onChange?:
           </p>
           <div className="detail-actions">
             <button className="button" onClick={() => player.play(tracks, 0, { openNowPlaying: true })} disabled={tracks.length === 0}>
-              <icon.play /> Play
+              <icon.play /> {t('Play')}
             </button>
             <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0, { openNowPlaying: true })} disabled={tracks.length < 2}>
-              <icon.shuffle /> Shuffle
+              <icon.shuffle /> {t('Shuffle')}
             </button>
             <MoreButton
               label={`More for ${item.title}`}
@@ -312,13 +313,13 @@ export function ArtistPage({ detail, onChange }: { detail: ItemDetail; onChange?
             {!waiting && (
               <>
                 <AsyncButton className="button" onClick={() => playAll(false)} disabled={loading}>
-                  <icon.play /> Play
+                  <icon.play /> {t('Play')}
                 </AsyncButton>
                 <AsyncButton className="button quiet" onClick={() => playAll(true)} disabled={loading}>
-                  <icon.shuffle /> Shuffle
+                  <icon.shuffle /> {t('Shuffle')}
                 </AsyncButton>
                 <AsyncButton className="button quiet" onClick={() => startRadio()} disabled={loading}>
-                  <icon.radio /> Radio
+                  <icon.radio /> {t('Radio')}
                 </AsyncButton>
               </>
             )}
@@ -363,7 +364,7 @@ export function ArtistPage({ detail, onChange }: { detail: ItemDetail; onChange?
       {extras.data && extras.data.missing.length > 0 && (
         <section className="music-section music-missing" aria-labelledby="music-section-missing">
           <h2 id="music-section-missing" className="music-section-title">
-            Not in your library
+            {t('Not in your library')}
           </h2>
           <div className="poster-grid music-albums">
             {extras.data.missing.map((a, i) => (
@@ -373,7 +374,7 @@ export function ArtistPage({ detail, onChange }: { detail: ItemDetail; onChange?
         </section>
       )}
       {extras.data && extras.data.similar.length > 0 && (
-        <Row title="Fans also like">
+        <Row title={t('Fans also like')}>
           {extras.data.similar.map((s, i) => (
             <MusicExternalCard key={`${i}-${s.deezerId}`} item={s} unanswered={extras.data?.lidarrAnswered === false} />
           ))}

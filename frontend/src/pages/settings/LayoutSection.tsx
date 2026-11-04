@@ -5,6 +5,7 @@ import { useApi } from '../../hooks/useApi'
 import { SaveStatus, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 import { ContinueWatchingRow } from './ContinueWatchingRow'
+import { t } from '../../i18n'
 
 /** The profile's own: which rows Home and each library's Browse show, in every app. */
 export function LayoutSection() {
@@ -53,14 +54,14 @@ export function LayoutSection() {
 
   return (
     <section>
-      <SettingsHeader title="Home & browse">Which rows Home and each library’s Browse show, in every app. Drag a row to move it.</SettingsHeader>
-      <RowList title="Home" rows={layout.home} onChange={(rows) => change('home', rows)}>
+      <SettingsHeader title={t('Home & browse')}>{t('Which rows Home and each library’s Browse show, in every app. Drag a row to move it.')}</SettingsHeader>
+      <RowList title={t('Home')} rows={layout.home} onChange={(rows) => change('home', rows)}>
         {(layout.combinable || playback.data?.listeningInContinue !== undefined) && (
           <div className="panel setting-rows">
             {layout.combinable && (
               <ToggleRow
-                label="Combine libraries of the same kind"
-                help="One Latest unwatched row for all your movie libraries and one for all your TV ones. A title in more than one library shows once."
+                label={t('Combine libraries of the same kind')}
+                help={t('One Latest unwatched row for all your movie libraries and one for all your TV ones. A title in more than one library shows once.')}
                 checked={layout.combineLibraries}
                 onChange={combine}
               />
@@ -69,10 +70,10 @@ export function LayoutSection() {
           </div>
         )}
       </RowList>
-      <RowList title="Movie libraries" rows={layout.movies} onChange={(rows) => change('movies', rows)} />
-      <RowList title="TV libraries" rows={layout.shows} onChange={(rows) => change('shows', rows)} />
-      {layout.music && <RowList title="Music" rows={layout.music} onChange={(rows) => change('music', rows)} />}
-      {layout.audiobooks && <RowList title="Audiobooks" rows={layout.audiobooks} onChange={(rows) => change('audiobooks', rows)} />}
+      <RowList title={t('Movie libraries')} rows={layout.movies} onChange={(rows) => change('movies', rows)} />
+      <RowList title={t('TV libraries')} rows={layout.shows} onChange={(rows) => change('shows', rows)} />
+      {layout.music && <RowList title={t('Music')} rows={layout.music} onChange={(rows) => change('music', rows)} />}
+      {layout.audiobooks && <RowList title={t('Audiobooks')} rows={layout.audiobooks} onChange={(rows) => change('audiobooks', rows)} />}
       {/* It saves by itself: only a failed save says anything, under the lists so they never move. */}
       <SaveStatus error={status.error} />
     </section>

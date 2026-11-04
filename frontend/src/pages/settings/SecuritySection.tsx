@@ -9,7 +9,7 @@ import { useApi } from '../../hooks/useApi'
 import { usePinLockout } from '../../hooks/usePinLockout'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { errorText, useSettings } from './useSettings'
-import { locale } from '../../i18n'
+import { locale, t } from '../../i18n'
 
 const digits = (value: string) => value.replace(/\D/g, '').slice(0, 8)
 
@@ -18,14 +18,14 @@ export function SecuritySection() {
   const [signInsVersion, setSignInsVersion] = useState(0)
   return (
     <section>
-      <SettingsHeader title="Security">The admin PIN, the API key, and the browsers and TVs signed in.</SettingsHeader>
+      <SettingsHeader title={t('Security')}>{t('The admin PIN, the API key, and the browsers and TVs signed in.')}</SettingsHeader>
       <AdminPinGroup />
       <ApiKeyGroup onSignedOut={() => setSignInsVersion((n) => n + 1)} />
       <div className="settings-group">
         <div className="settings-group-head">
-          <h3 className="settings-subhead">Signed-in browsers and TVs</h3>
+          <h3 className="settings-subhead">{t('Signed-in browsers and TVs')}</h3>
           <Link className="button quiet small" to="/settings/tv">
-            Connect a device
+            {t('Connect a device')}
           </Link>
         </div>
         <SignIns key={signInsVersion} />
@@ -90,16 +90,16 @@ function AdminPinGroup() {
 
   return (
     <SettingsGroup
-      title="Admin PIN"
+      title={t('Admin PIN')}
       note={
         <>
           {/* Mounted from the start, so screen readers hear it when it fills. */}
           <span role="status">{changed ? 'PIN changed. Anywhere the old one unlocked settings is locked again. ' : ''}</span>
-          Separate from the main profile’s own PIN, which is in <Link to="/settings/profiles">Profiles</Link>.
+          Separate from the main profile’s own PIN, which is in <Link to="/settings/profiles">{t('Profiles')}</Link>.
         </>
       }
     >
-      <SettingRow as="div" label="PIN" help="Asked for before the server’s settings change, and to let a child off a kids profile.">
+      <SettingRow as="div" label={t('PIN')} help={t('Asked for before the server’s settings change, and to let a child off a kids profile.')}>
         {!changing && (
           <button
             ref={opener}
@@ -110,12 +110,12 @@ function AdminPinGroup() {
               setChanging(true)
             }}
           >
-            Change
+            {t('Change')}
           </button>
         )}
       </SettingRow>
       {changing && (
-        <form className="setting-row static admin-pin-form" aria-label="Change the admin PIN" onSubmit={submit} onKeyDown={(e) => e.key === 'Escape' && close()}>
+        <form className="setting-row static admin-pin-form" aria-label={t('Change the admin PIN')} onSubmit={submit} onKeyDown={(e) => e.key === 'Escape' && close()}>
           <div className="field-row">
             {forgotten ? (
               <label>
@@ -139,7 +139,7 @@ function AdminPinGroup() {
             )}
             <label>
               New PIN
-              <input type="password" inputMode="numeric" autoComplete="new-password" required minLength={4} placeholder="4 to 8 digits" value={pin} onChange={(e) => setPin(digits(e.target.value))} />
+              <input type="password" inputMode="numeric" autoComplete="new-password" required minLength={4} placeholder={t('4 to 8 digits')} value={pin} onChange={(e) => setPin(digits(e.target.value))} />
             </label>
             <label>
               Confirm new PIN
@@ -147,12 +147,12 @@ function AdminPinGroup() {
             </label>
           </div>
           {forgotten ? (
-            <p className="field-help">It’s in config.json in the server’s data folder: ~/.flexarr/data on a Mac, /config with Docker.</p>
+            <p className="field-help">{t('It’s in config.json in the server’s data folder: ~/.flexarr/data on a Mac, /config with Docker.')}</p>
           ) : (
             <p className="field-help">
               Forgotten it?{' '}
               <button type="button" className="text-button" onClick={() => setForgotten(true)}>
-                Use the API key instead
+                {t('Use the API key instead')}
               </button>
             </p>
           )}
@@ -163,10 +163,10 @@ function AdminPinGroup() {
           )}
           <div className="form-actions">
             <button type="button" className="button quiet small" onClick={close}>
-              Cancel
+              {t('Cancel')}
             </button>
             <AsyncButton type="submit" className="button small" busy={busy} disabled={held}>
-              Change PIN
+              {t('Change PIN')}
             </AsyncButton>
           </div>
         </form>
@@ -267,10 +267,10 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
   const policy = auth ?? settings.authenticationRequired
   return (
     <SettingsGroup
-      title="API key"
+      title={t('API key')}
       note={saved || saveError ? <SaveStatus saved={saved} error={saveError} /> : 'Signs in a new browser, or sets up an app. Browsers and TVs get a sign-in of their own once connected, so they don’t keep it.'}
     >
-      <SettingRow label="Ask for it" help="“Only away from home” lets devices on your own network in without it.">
+      <SettingRow label={t('Ask for it')} help={t('“Only away from home” lets devices on your own network in without it.')}>
         <select
           value={policy}
           disabled={ask !== undefined}
@@ -282,32 +282,28 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
             void save({ authenticationRequired: value })
           }}
         >
-          <option value="Enabled">Always</option>
-          <option value="DisabledForLocalAddresses">Only away from home</option>
+          <option value="Enabled">{t('Always')}</option>
+          <option value="DisabledForLocalAddresses">{t('Only away from home')}</option>
         </select>
       </SettingRow>
       {policy === 'DisabledForLocalAddresses' && (
         <div className="advice inset">
           <p>
-            <strong>Anyone on your Wi-Fi can change settings.</strong> Devices at home get in as the main profile, and a PIN doesn’t keep them out. Choose
-            “Always” if that matters.
+            <strong>{t('Anyone on your Wi-Fi can change settings.')}</strong> {t('Devices at home get in as the main profile, and a PIN doesn’t keep them out. Choose “Always” if that matters.')}
           </p>
           {settings.inContainer && (
             <p>
-              <strong>In Docker, visitors from the internet can look like they’re at home too.</strong> Docker Desktop’s port forwarding hides where they come
-              from. Choose “Always” if this server is reachable from the internet.
+              <strong>{t('In Docker, visitors from the internet can look like they’re at home too.')}</strong> {t('Docker Desktop’s port forwarding hides where they come from. Choose “Always” if this server is reachable from the internet.')}
             </p>
           )}
           <details className="advice-more">
-            <summary>Using a reverse proxy?</summary>
+            <summary>{t('Using a reverse proxy?')}</summary>
             <p>
-              If Flexarr sits behind a reverse proxy in Docker or on another computer, add that proxy to <code>trustedProxies</code> in config.json, or visitors
-              through it are treated as the internet and asked for the key.
+              If Flexarr sits behind a reverse proxy in Docker or on another computer, add that proxy to <code>{t('trustedProxies')}</code> {t('in config.json, or visitors through it are treated as the internet and asked for the key.')}
             </p>
             <p>
-              A reverse proxy on this computer must send <code>X-Forwarded-For</code> (in nginx, <code>proxy_set_header X-Forwarded-For $remote_addr;</code>), or
-              everyone through it looks like this computer and gets in. To be safe, set <code>"loopbackNeedsForwarding": true</code> in config.json: requests
-              from this computer that don’t say who they’re for then count as the internet (a browser on this computer will need the key too).
+              A reverse proxy on this computer must send <code>{t('X-Forwarded-For')}</code> (in nginx, <code>{t('proxy_set_header X-Forwarded-For $remote_addr;')}</code>), or
+              everyone through it looks like this computer and gets in. To be safe, set <code>{t('"loopbackNeedsForwarding": true')}</code> {t('in config.json: requests from this computer that don’t say who they’re for then count as the internet (a browser on this computer will need the key too).')}
             </p>
           </details>
         </div>
@@ -336,7 +332,7 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
           </div>
           {key && <CopyButton text={key} what="the API key" />}
           <button className="button quiet small" onClick={(e) => open('rotate', e.currentTarget)} disabled={ask !== undefined}>
-            Make a new key
+            {t('Make a new key')}
           </button>
         </div>
         {ask && (
@@ -349,33 +345,31 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
           >
             {ask === 'reveal' ? (
               <p className="field-help" id="key-confirm-help">
-                Anyone who sees the key can manage this server. Enter the admin PIN to show it.
+                {t('Anyone who sees the key can manage this server. Enter the admin PIN to show it.')}
               </p>
             ) : ask === 'home' ? (
               <p className="field-help" id="key-confirm-help">
-                Every device on your network will get in as the main profile, without the key.
+                {t('Every device on your network will get in as the main profile, without the key.')}
               </p>
             ) : (
               <>
                 <p className="field-help" id="key-confirm-help">
-                  Browsers and TVs signed in below keep working, unless you sign them out too. Anything you gave the old key itself (Sonarr or Radarr’s Emby
-                  connection, scripts, an older TV app) will need the new one.
+                  {t('Browsers and TVs signed in below keep working, unless you sign them out too. Anything you gave the old key itself (Sonarr or Radarr’s Emby connection, scripts, an older TV app) will need the new one.')}
                 </p>
                 <label className="checkbox">
-                  <input type="checkbox" name="signOutOthers" /> Also sign out every other browser and TV (do this if the key may have got out: anyone who had it
-                  could have signed in)
+                  <input type="checkbox" name="signOutOthers" /> {t('Also sign out every other browser and TV (do this if the key may have got out: anyone who had it could have signed in)')}
                 </label>
               </>
             )}
             {mainHasPin && (
               <label className="field">
-                <span className="field-label">Admin PIN</span>
+                <span className="field-label">{t('Admin PIN')}</span>
                 <input name="pin" type="password" inputMode="numeric" autoComplete="off" required aria-describedby="key-confirm-help" />
               </label>
             )}
             <div className="form-actions">
               <button type="button" className="button quiet small" onClick={cancel}>
-                Cancel
+                {t('Cancel')}
               </button>
               <AsyncButton type="submit" className="button small" busy={confirming} aria-describedby={mainHasPin ? undefined : 'key-confirm-help'}>
                 {ask === 'reveal' ? 'Show the key' : ask === 'home' ? 'Let them in' : 'Replace the key'}

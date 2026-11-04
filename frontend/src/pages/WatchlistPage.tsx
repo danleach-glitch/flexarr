@@ -6,7 +6,7 @@ import { PosterCard } from '../components/Cards'
 import { RequestButton } from '../components/RequestButton'
 import { WatchlistButton } from '../components/WatchlistButton'
 import { useApi } from '../hooks/useApi'
-import { locale } from '../i18n'
+import { locale, t } from '../i18n'
 
 const STATUSES: [WatchlistStatus | '', string][] = [
   ['', 'Everything'],
@@ -70,10 +70,10 @@ export function WatchlistPage() {
   return (
     <div className="watchlist-page">
       <header className="library-header">
-        <h1>Watchlist</h1>
+        <h1>{t('Watchlist')}</h1>
         {data && data.length > 0 && (
           <>
-            <div className="genre-chips" role="group" aria-label="Show">
+            <div className="genre-chips" role="group" aria-label={t('Show')}>
               {STATUSES.map(([value, label]) => (
                 <button key={value} className="chip" aria-pressed={status === value} onClick={() => setParam('status', value)}>
                   {label}
@@ -81,7 +81,7 @@ export function WatchlistPage() {
               ))}
             </div>
             <div className="watchlist-tools">
-              <div className="genre-chips" role="group" aria-label="Kind">
+              <div className="genre-chips" role="group" aria-label={t('Kind')}>
                 {[
                   ['', 'Movies and shows'],
                   ['movie', 'Movies'],
@@ -92,11 +92,11 @@ export function WatchlistPage() {
                   </button>
                 ))}
               </div>
-              <select aria-label="Sort by" value={sort} onChange={(e) => setParam('sort', e.target.value === 'status' ? '' : e.target.value)}>
-                <option value="status">Ready first</option>
-                <option value="added">Recently added</option>
-                <option value="release">Release date</option>
-                <option value="title">Title</option>
+              <select aria-label={t('Sort by')} value={sort} onChange={(e) => setParam('sort', e.target.value === 'status' ? '' : e.target.value)}>
+                <option value="status">{t('Ready first')}</option>
+                <option value="added">{t('Recently added')}</option>
+                <option value="release">{t('Release date')}</option>
+                <option value="title">{t('Title')}</option>
               </select>
             </div>
           </>
@@ -104,8 +104,8 @@ export function WatchlistPage() {
       </header>
       {error && <p className="error">{error.message}</p>}
       {!data && !error && <PageLoading />}
-      {data && data.length === 0 && <p className="muted">Nothing here yet.</p>}
-      {data && data.length > 0 && shown.length === 0 && <p className="muted">Nothing on your watchlist matches.</p>}
+      {data && data.length === 0 && <p className="muted">{t('Nothing here yet.')}</p>}
+      {data && data.length > 0 && shown.length === 0 && <p className="muted">{t('Nothing on your watchlist matches.')}</p>}
       <div className="poster-grid">
         {shown.map((entry, index) => (
           <WatchlistCard key={entry.id} entry={entry} onRemoved={() => (focusAfter.current = index)} />

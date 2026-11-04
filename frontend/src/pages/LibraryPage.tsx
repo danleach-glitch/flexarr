@@ -19,7 +19,7 @@ import { BooksLibrary } from './BooksLibrary'
 import { LibraryRequested } from './LibraryRequested'
 import { PlaylistsPage } from './PlaylistsPage'
 import { AlphaPicker, AlphaRail, ShowMore, useLibraryGrid } from './libraryGrid'
-import { locale } from '../i18n'
+import { locale, t } from '../i18n'
 
 const PAGE_SIZE = 200
 
@@ -92,31 +92,31 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
   return (
     <nav className="view-switch" aria-label={`${library.name} views`}>
       <Link to={`/library/${library.id}`} aria-current={current('browse')}>
-        Browse
+        {t('Browse')}
       </Link>
       <Link to={`/library/${library.id}?view=all`} aria-current={current('all')}>
         {{ Movies: 'All movies', TvShows: 'All shows', Music: 'Artists', Podcasts: 'All podcasts', HomeVideos: 'All folders', Audiobooks: 'All books' }[library.type]}
       </Link>
       {library.type === 'Music' && (
         <Link to={`/library/${library.id}?view=albums`} aria-current={current('albums')}>
-          Albums
+          {t('Albums')}
         </Link>
       )}
       {hasGenres(library) && (
         <Link to={`/library/${library.id}?view=genres`} aria-current={current('genres')}>
-          Genres
+          {t('Genres')}
         </Link>
       )}
       {music && (
         <Link to={`/library/${library.id}?view=playlists`} aria-current={current('playlists')}>
-          Playlists
+          {t('Playlists')}
         </Link>
       )}
       {/* Last, so the others don't move as it arrives: only once the status says requests work (a child's is refused, so
           it never flickers in for them), or while it's the view open. */}
       {requestable && (requests.data?.configured || view === 'requested') && (
         <Link to={`/library/${library.id}?view=requested`} aria-current={current('requested')}>
-          Requested
+          {t('Requested')}
         </Link>
       )}
     </nav>
@@ -141,7 +141,7 @@ function LibraryGenres({ library }: { library: Library }) {
       ) : !data ? (
         <div className="genre-grid" aria-busy="true" />
       ) : data.length === 0 ? (
-        <p className="page-message muted">No genres here yet. They come with each title’s details once a scan has found them.</p>
+        <p className="page-message muted">{t('No genres here yet. They come with each title’s details once a scan has found them.')}</p>
       ) : (
         <div className="genre-grid">
           {data.map((g) => (
@@ -315,10 +315,10 @@ function GenrePlay({ library, genre, disabled }: { library: string; genre: strin
   return (
     <div className="detail-actions">
       <AsyncButton className="button" onClick={() => play(false)} disabled={disabled}>
-        <icon.play /> Play
+        <icon.play /> {t('Play')}
       </AsyncButton>
       <AsyncButton className="button quiet" onClick={() => play(true)} disabled={disabled}>
-        <icon.shuffle /> Shuffle
+        <icon.shuffle /> {t('Shuffle')}
       </AsyncButton>
     </div>
   )
@@ -377,7 +377,7 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
           {genrePage ? (
             <div className="library-heading">
               <Link className="genre-back" to={`/library/${library.id}?view=genres`}>
-                <ChevronLeft /> Genres
+                <ChevronLeft /> {t('Genres')}
               </Link>
               <h1 className="library-title">{genre}</h1>
             </div>
@@ -403,7 +403,7 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
         </div>
         <div className="library-tools">
           <input type="search" placeholder={`Search ${library.name}`} aria-label={`Search ${library.name}`} value={search} onChange={(e) => setSearch(e.target.value)} />
-          <select aria-label="Sort by" value={sort} onChange={(e) => setParam('sort', e.target.value)}>
+          <select aria-label={t('Sort by')} value={sort} onChange={(e) => setParam('sort', e.target.value)}>
             {(albums ? albumSorts : sorts).map((s) => (
               <option key={s.value} value={s.value}>
                 {s.label}
@@ -414,9 +414,9 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
       </header>
 
       {genres.data && genres.data.length > 0 && (
-        <div className="genre-chips" role="group" aria-label="Filter by genre">
+        <div className="genre-chips" role="group" aria-label={t('Filter by genre')}>
           <button className="chip" aria-pressed={!genre} onClick={() => setParam('genre', '')}>
-            All
+            {t('All')}
           </button>
           {genres.data.slice(0, 16).map((g) => (
             <button key={g.name} className="chip" aria-pressed={genre === g.name} onClick={() => setParam('genre', genre === g.name ? '' : g.name)}>
@@ -431,7 +431,7 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
         <p className="library-new" role="status">
           {library.itemCount > (loadedCount ?? 0) ? 'New titles have arrived.' : 'Some titles have gone.'}{' '}
           <button className="button quiet small" onClick={restart}>
-            Refresh
+            {t('Refresh')}
           </button>
         </p>
       )}

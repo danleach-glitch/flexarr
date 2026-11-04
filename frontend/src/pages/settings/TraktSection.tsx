@@ -23,7 +23,7 @@ import { usePolling } from '../../hooks/usePolling'
 import { relativeTime } from '../../lib/format'
 import { webLink } from '../../lib/links'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
-import { locale } from '../../i18n'
+import { locale, t } from '../../i18n'
 
 /** Why a connect ended without connecting. */
 const ended: Record<Exclude<TraktPendingConnect['state'], 'Waiting' | 'Connected'>, string> = {
@@ -54,17 +54,17 @@ export function TraktSection() {
 
   return (
     <section>
-      <SettingsHeader title="Trakt">Keep what you watch, your place and your watchlist in step with Trakt.</SettingsHeader>
-      {s === undefined && status.loading && <p className="muted">Loading…</p>}
+      <SettingsHeader title={t('Trakt')}>{t('Keep what you watch, your place and your watchlist in step with Trakt.')}</SettingsHeader>
+      {s === undefined && status.loading && <p className="muted">{t('Loading…')}</p>}
       {s === undefined && !status.loading && status.error && (
         <p className="error settings-status" role="alert">
           Couldn’t reach the server.{' '}
           <button type="button" className="text-button" onClick={reload}>
-            Try again
+            {t('Try again')}
           </button>
         </p>
       )}
-      {(s === null || s?.available === false) && <p className="muted">Trakt isn’t available on this server.</p>}
+      {(s === null || s?.available === false) && <p className="muted">{t('Trakt isn’t available on this server.')}</p>}
       {s?.available && (s.state === 'connected' ? <Connected status={s} reload={reload} /> : <Connect status={s} reload={reload} />)}
       {s?.available && s.state === 'connected' && <History status={s} reload={reload} />}
       {s?.available && s.state === 'connected' && <Lists />}
@@ -95,7 +95,7 @@ function Connect({ status, reload }: { status: TraktStatus; reload: () => void }
   if (pending?.state === 'Waiting') {
     const where = pending.verificationUrl.replace(/^https?:\/\//, '')
     return (
-      <SettingsGroup title="Connect" note={error ? <SaveStatus error={error} /> : 'Flexarr waits, so you can leave this.'}>
+      <SettingsGroup title={t('Connect')} note={error ? <SaveStatus error={error} /> : 'Flexarr waits, so you can leave this.'}>
         <SettingRow
           as="div"
           label={
@@ -114,9 +114,9 @@ function Connect({ status, reload }: { status: TraktStatus; reload: () => void }
           }
         >
           <span className="library-row-actions">
-            <CopyButton text={pending.userCode} label="Copy code" />
+            <CopyButton text={pending.userCode} label={t('Copy code')} />
             <AsyncButton className="button quiet small" onClick={() => act(cancelTraktConnect)}>
-              Cancel
+              {t('Cancel')}
             </AsyncButton>
           </span>
         </SettingRow>
@@ -126,10 +126,10 @@ function Connect({ status, reload }: { status: TraktStatus; reload: () => void }
 
   const problem = status.state === 'needsSignIn' ? 'Trakt signed Flexarr out.' : pending && pending.state !== 'Connected' ? (pending.error ?? ended[pending.state]) : null
   return (
-    <SettingsGroup title="Account" note={error ? <SaveStatus error={error} /> : undefined}>
+    <SettingsGroup title={t('Account')} note={error ? <SaveStatus error={error} /> : undefined}>
       <SettingRow as="div" label={status.state === 'needsSignIn' ? `Connect ${status.username ?? 'Trakt'} again` : 'Connect Trakt'} help={problem ?? 'Each profile connects its own account.'}>
         <AsyncButton className="button" onClick={() => act(connectTrakt)}>
-          Connect
+          {t('Connect')}
         </AsyncButton>
       </SettingRow>
     </SettingsGroup>
@@ -141,21 +141,21 @@ function Connected({ status, reload }: { status: TraktStatus; reload: () => void
   const synced = status.lastSyncAt ? `Synced ${relativeTime(status.lastSyncAt)}` : 'Not synced yet'
   const queued = status.queued > 0 ? `\u2003${status.queued} waiting to send` : ''
   return (
-    <SettingsGroup title="Account" note={error ? <SaveStatus error={error} /> : undefined}>
+    <SettingsGroup title={t('Account')} note={error ? <SaveStatus error={error} /> : undefined}>
       <SettingRow as="div" label={status.username ?? 'Connected'} help={status.lastError ?? synced + queued}>
         <span className="library-row-actions">
           <AsyncButton className="button quiet" onClick={() => act(syncTraktNow)}>
-            Sync now
+            {t('Sync now')}
           </AsyncButton>
           <AsyncButton
             className="button danger"
             onClick={() => (confirm('Disconnect Trakt? What you’ve watched stays as it is, here and on Trakt.') ? act(disconnectTrakt) : undefined)}
           >
-            Disconnect
+            {t('Disconnect')}
           </AsyncButton>
         </span>
       </SettingRow>
-      {status.watchlistFull && <SettingRow as="div" label="Trakt’s watchlist is full" help="New titles stay on Flexarr’s list." />}
+      {status.watchlistFull && <SettingRow as="div" label={t('Trakt’s watchlist is full')} help={t('New titles stay on Flexarr’s list.')} />}
     </SettingsGroup>
   )
 }
@@ -168,27 +168,27 @@ function History({ status, reload }: { status: TraktStatus; reload: () => void }
   const note = failed ? <SaveStatus error={failed} /> : preview && !status.importedAt && !status.importing ? 'Nothing is marked unwatched, on either side.' : undefined
 
   let row
-  if (status.importing) row = <SettingRow as="div" label="Bringing your history across…" />
-  else if (status.importedAt) row = <SettingRow as="div" label="History brought across" help={relativeTime(status.importedAt)} />
+  if (status.importing) row = <SettingRow as="div" label={t('Bringing your history across…')} />
+  else if (status.importedAt) row = <SettingRow as="div" label={t('History brought across')} help={relativeTime(status.importedAt)} />
   else if (preview)
     row = (
       <SettingRow as="div" label={summary(preview)} help={details(preview)}>
         <AsyncButton className="button" onClick={() => act(confirmTraktImport)}>
-          Bring across
+          {t('Bring across')}
         </AsyncButton>
       </SettingRow>
     )
   else
     row = (
-      <SettingRow as="div" label="Bring your Trakt history across" help="See what changes first.">
+      <SettingRow as="div" label={t('Bring your Trakt history across')} help={t('See what changes first.')}>
         <AsyncButton className="button" onClick={() => act(async () => setPreview(await previewTraktImport()))}>
-          See what changes
+          {t('See what changes')}
         </AsyncButton>
       </SettingRow>
     )
 
   return (
-    <SettingsGroup title="Your history" note={note}>
+    <SettingsGroup title={t('Your history')} note={note}>
       {row}
     </SettingsGroup>
   )
@@ -217,8 +217,8 @@ function Lists() {
   const [error, setError] = useState<string | null>(null)
   if (lists.error)
     return (
-      <SettingsGroup title="Lists">
-        <SettingRow as="div" label="Couldn’t load your Trakt lists" help={problemText(lists.error, 'Try again in a moment.')} />
+      <SettingsGroup title={t('Lists')}>
+        <SettingRow as="div" label={t('Couldn’t load your Trakt lists')} help={problemText(lists.error, 'Try again in a moment.')} />
       </SettingsGroup>
     )
   if (!lists.data || lists.data.length === 0) return null
@@ -240,7 +240,7 @@ function Lists() {
   }
 
   return (
-    <SettingsGroup title="Lists" note={error ? <SaveStatus error={error} /> : 'Chosen lists show in Collections, just for you.'}>
+    <SettingsGroup title={t('Lists')} note={error ? <SaveStatus error={error} /> : 'Chosen lists show in Collections, just for you.'}>
       {lists.data.map((l) => (
         <ToggleRow
           key={l.id}
@@ -261,7 +261,7 @@ function Profiles({ me }: { me: string }) {
   const others = profiles.data?.filter((p) => p.state !== 'disconnected' && p.profileId !== me) ?? []
   if (others.length === 0) return null
   return (
-    <SettingsGroup title="Other profiles">
+    <SettingsGroup title={t('Other profiles')}>
       {others.map((p) => (
         <SettingRow
           key={p.profileId}

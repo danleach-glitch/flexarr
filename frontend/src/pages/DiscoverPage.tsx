@@ -6,7 +6,7 @@ import { Row } from '../components/Row'
 import { PosterCard } from '../components/Cards'
 import { useApi } from '../hooks/useApi'
 import { DiscoverSwitch, MusicDiscover, MusicGenrePage, MusicSearchResults } from './DiscoverMusic'
-import { locale } from '../i18n'
+import { locale, t } from '../i18n'
 
 export function DiscoverPage() {
   const [params, setParams] = useSearchParams()
@@ -44,12 +44,12 @@ export function DiscoverPage() {
         <header className="library-header">
           <div>
             <p className="detail-kicker">
-              <Link to="/discover">Discover</Link>
+              <Link to="/discover">{t('Discover')}</Link>
             </p>
             <h1>{genre}</h1>
             <p className="muted">{items.data ? `${items.data.total.toLocaleString(locale())} titles, best rated first` : ' '}</p>
           </div>
-          <div className="genre-chips" role="group" aria-label="Show">
+          <div className="genre-chips" role="group" aria-label={t('Show')}>
             {[
               ['', 'Everything'],
               ['Movie', 'Movies'],
@@ -78,7 +78,7 @@ export function DiscoverPage() {
 
   const heading = (
     <div className="library-heading">
-      <h1>Discover</h1>
+      <h1>{t('Discover')}</h1>
       {switcher}
     </div>
   )
@@ -90,7 +90,7 @@ export function DiscoverPage() {
           {heading}
           {searchBox}
         </header>
-        {musicStatus.data?.reachable === false && <p className="muted discover-note">Lidarr isn’t answering.</p>}
+        {musicStatus.data?.reachable === false && <p className="muted discover-note">{t('Lidarr isn’t answering.')}</p>}
         {query ? <MusicSearchResults query={query} /> : <MusicDiscover />}
       </div>
     )
@@ -104,7 +104,7 @@ export function DiscoverPage() {
           {searchBox}
         </header>
         {results.error && <p className="error">{results.error.message}</p>}
-        {results.loading && !results.data && <p className="muted">Searching…</p>}
+        {results.loading && !results.data && <p className="muted">{t('Searching…')}</p>}
         {results.data && results.data.length === 0 && <p className="muted">Nothing found for “{query}”. Try a different spelling, or the original title.</p>}
         {results.data && results.data.length > 0 && (
           <>
@@ -156,7 +156,7 @@ export function DiscoverPage() {
               ))}
             </Row>
           ))}
-          <h2 className="section-title">Your library by genre</h2>
+          <h2 className="section-title">{t('Your library by genre')}</h2>
         </div>
       )}
       <div className="genre-grid">

@@ -32,6 +32,7 @@ import { ageLimitText, ratingSteps } from '../../lib/ratings'
 import { requestChoices, requestRows } from '../../lib/requestLibraries'
 import { RequestLibrarySelect } from './RequestLibrarySelect'
 import { SettingsHeader } from './shared'
+import { t } from '../../i18n'
 
 export function ProfilesSection() {
   const [version, setVersion] = useState(0)
@@ -55,16 +56,16 @@ export function ProfilesSection() {
   return (
     <section>
       <SettingsHeader
-        title="Profiles"
+        title={t('Profiles')}
         action={
           editing === undefined && (
             <button className="button small" onClick={() => setEditing('new')}>
-              Add a profile
+              {t('Add a profile')}
             </button>
           )
         }
       >
-        Everyone gets their own Continue watching, history and Up next. A PIN keeps a profile private.
+        {t('Everyone gets their own Continue watching, history and Up next. A PIN keeps a profile private.')}
       </SettingsHeader>
       <div className="profile-list">
         {editing === 'new' && (
@@ -100,21 +101,21 @@ export function ProfilesSection() {
                 <strong className="profile-name">
                   {p.name}
                   {p.isMain && (
-                    <span className="profile-crown" title="Main profile: manages the server">
+                    <span className="profile-crown" title={t('Main profile: manages the server')}>
                       <Crown />
                     </span>
                   )}
-                  {p.isCurrent && <span className="tag profile-you">You</span>}
+                  {p.isCurrent && <span className="tag profile-you">{t('You')}</span>}
                 </strong>
                 <span className="muted">
                   {[p.isMain ? 'Main profile, manages the server' : p.isKids ? null : 'Profile', p.hasPin ? 'PIN' : 'No PIN', ageLimitText(p)].filter(Boolean).join('\u2003')}
                 </span>
               </span>
               <span className="library-row-actions">
-                <IconButton label="Edit" aria-label={`Edit ${p.name}`} icon={<Pencil />} onClick={() => setEditing(p)} />
+                <IconButton label={t('Edit')} aria-label={`Edit ${p.name}`} icon={<Pencil />} onClick={() => setEditing(p)} />
                 {!p.isMain && (
                   <IconButton
-                    label="Remove"
+                    label={t('Remove')}
                     aria-label={`Remove ${p.name}`}
                     icon={<icon.delete />}
                     className="button quiet small icon danger-icon"
@@ -221,18 +222,18 @@ function ProfileForm({
           </label>
           {shownImage && (
             <button type="button" className="text-button" onClick={() => setPicture(null)}>
-              Remove
+              {t('Remove')}
             </button>
           )}
         </div>
         <div className="profile-identity-fields">
           <label className="field">
-            <span className="field-label">Name</span>
+            <span className="field-label">{t('Name')}</span>
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={60} />
           </label>
           <div className="field">
             <span className="field-label" id="profile-colour">
-              Colour
+              {t('Colour')}
             </span>
             <div className="swatches" role="radiogroup" aria-labelledby="profile-colour">
               {profileColours.map((c) => (
@@ -254,10 +255,10 @@ function ProfileForm({
       </div>
 
       <fieldset className="profile-section profile-pin">
-        <legend className="visually-hidden">PIN</legend>
+        <legend className="visually-hidden">{t('PIN')}</legend>
         <div className="profile-section-head">
           <span className="setting-text">
-            <strong>PIN</strong>
+            <strong>{t('PIN')}</strong>
             <span className="muted">{pinHelp}</span>
           </span>
           {!choosingPin && !removePin && (
@@ -267,7 +268,7 @@ function ProfileForm({
               </button>
               {profile?.hasPin && (
                 <button type="button" className="text-button danger-text" onClick={() => setRemovePin(true)}>
-                  Remove
+                  {t('Remove')}
                 </button>
               )}
             </span>
@@ -299,7 +300,7 @@ function ProfileForm({
                 required
                 autoFocus
                 onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                placeholder="4 to 8 digits"
+                placeholder={t('4 to 8 digits')}
               />
             </label>
             <label>
@@ -317,21 +318,21 @@ function ProfileForm({
         )}
         {profile?.isMain && (
           <span className="field-help">
-            The admin PIN, for the server’s settings, is separate: it’s in <Link to="/settings/security">Security</Link>.
+            The admin PIN, for the server’s settings, is separate: it’s in <Link to="/settings/security">{t('Security')}</Link>.
           </span>
         )}
       </fieldset>
 
       {!profile?.isMain && (
         <fieldset className="profile-section profile-libraries">
-          <legend className="visually-hidden">Age limit</legend>
+          <legend className="visually-hidden">{t('Age limit')}</legend>
           <span className="setting-text">
-            <strong>Age limit</strong>
-            <span className="muted">Titles rated above it, and unrated ones, are hidden.</span>
+            <strong>{t('Age limit')}</strong>
+            <span className="muted">{t('Titles rated above it, and unrated ones, are hidden.')}</span>
           </span>
           <div className="profile-library-list">
             <label className="profile-library">
-              <span>Up to</span>
+              <span>{t('Up to')}</span>
               <select
                 value={maxRatingAge ?? ''}
                 onChange={(e) => {
@@ -342,7 +343,7 @@ function ProfileForm({
                   else if (!profile && age <= 8 && mainHasPin) setIsKids(true)
                 }}
               >
-                <option value="">No limit</option>
+                <option value="">{t('No limit')}</option>
                 {[...ratingSteps].reverse().map((s) => (
                   <option key={s.age} value={s.age}>
                     {s.label}
@@ -352,7 +353,7 @@ function ProfileForm({
             </label>
             <label className="profile-library">
               <span className="setting-text">
-                <span>Kids profile</span>
+                <span>{t('Kids profile')}</span>
                 <span className="muted">{mainHasPin ? 'No Settings. Leaving takes the admin PIN.' : 'Needs an admin PIN first.'}</span>
               </span>
               <input
@@ -369,10 +370,10 @@ function ProfileForm({
       )}
       {libraries.length > 1 && (
         <fieldset className="profile-section profile-libraries">
-          <legend className="visually-hidden">Libraries</legend>
+          <legend className="visually-hidden">{t('Libraries')}</legend>
           <span className="setting-text">
             <strong>Libraries {profile ? `${profile.name} sees` : 'this profile sees'}</strong>
-            <span className="muted">The rest are hidden everywhere on this profile: Home, search, Discover, Coming soon and requests.</span>
+            <span className="muted">{t('The rest are hidden everywhere on this profile: Home, search, Discover, Coming soon and requests.')}</span>
           </span>
           <div className="profile-library-list">
             {libraries.map((l) => (
@@ -393,7 +394,7 @@ function ProfileForm({
       {/* A profile with an age limit doesn't request: Seerr's titles have no ages Flexarr can check. */}
       {(requestFields.length > 0 || musicChoices.length > 1) && maxRatingAge === null && (
         <fieldset className="profile-section profile-libraries">
-          <legend className="visually-hidden">Requests</legend>
+          <legend className="visually-hidden">{t('Requests')}</legend>
           <span className="setting-text">
             <strong>Where {profile ? `${profile.name}’s` : 'this profile’s'} requests go</strong>
           </span>
@@ -406,7 +407,7 @@ function ProfileForm({
             ))}
             {musicChoices.length > 1 && (
               <label className="profile-library">
-                <span>New music goes to</span>
+                <span>{t('New music goes to')}</span>
                 <RequestLibrarySelect choices={musicChoices} value={musicLibrary} onChange={setMusicLibrary} />
               </label>
             )}
@@ -415,7 +416,7 @@ function ProfileForm({
       )}
       {destinations.length > 0 && maxRatingAge === null && !isKids && (
         <fieldset className="profile-section">
-          <legend className="visually-hidden">Watchlist</legend>
+          <legend className="visually-hidden">{t('Watchlist')}</legend>
           <label className="profile-section-head">
             <span className="setting-text">
               <strong>Request what {profile ? profile.name : 'this profile'} adds to the watchlist</strong>
@@ -433,7 +434,7 @@ function ProfileForm({
       )}
       <div className="form-actions">
         <button type="button" className="button quiet" onClick={onCancel}>
-          Cancel
+          {t('Cancel')}
         </button>
         <AsyncButton type="submit" className="button" busy={saving}>
           {profile ? 'Save profile' : 'Add profile'}

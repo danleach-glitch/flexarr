@@ -19,6 +19,7 @@ import { UnlockPrompt } from './UnlockDialog'
 import { Avatar } from './ProfilePicker'
 import { KidsLockMenuItems } from './KidsLock'
 import { SearchPalette } from './SearchPalette'
+import { t } from '../i18n'
 
 const railKey = 'flexarr.sidebarRail'
 
@@ -171,27 +172,27 @@ export function Layout() {
   return (
     <div className={['shell', rail && 'rail', bare && 'bare', nowPlaying && 'has-now-playing', kids && 'kids'].filter(Boolean).join(' ')}>
       <a className="skip-link" href="#main">
-        Skip to content
+        {t('Skip to content')}
       </a>
       {/* Over the page, beside the sidebar: search, settings and the profile on the right. Phones add the menu that
           slides the sidebar in, and the wordmark. */}
       <header className={scrolled ? 'topbar solid' : 'topbar'}>
-        <button className="icon-button topbar-menu" aria-label="Menu" aria-expanded={drawer} aria-controls="sidebar" onClick={() => setDrawer(true)}>
+        <button className="icon-button topbar-menu" aria-label={t('Menu')} aria-expanded={drawer} aria-controls="sidebar" onClick={() => setDrawer(true)}>
           <MenuIcon />
         </button>
-        <Link to="/" className="wordmark topbar-wordmark" aria-label="Flexarr home">
+        <Link to="/" className="wordmark topbar-wordmark" aria-label={t('Flexarr home')}>
           <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
-          flexarr
+          {t('flexarr')}
         </Link>
         <div className="topbar-tools">
           <button className="search-trigger" onClick={() => setSearching(true)}>
             <icon.search />
-            <span>Search</span>
+            <span>{t('Search')}</span>
             <kbd>⌘K</kbd>
           </button>
           {/* Every profile has settings of its own; the server's are the main profile's. */}
           {!kids && (
-            <NavLink to="/settings" className="icon-button" aria-label="Settings">
+            <NavLink to="/settings" className="icon-button" aria-label={t('Settings')}>
               <icon.settings />
             </NavLink>
           )}
@@ -227,7 +228,7 @@ export function Layout() {
                   )}
                   {(isAdmin || access?.canUnlock) && (
                     <Link role="menuitem" to="/settings/profiles" onClick={() => setProfileMenu(false)}>
-                      Manage profiles
+                      {t('Manage profiles')}
                     </Link>
                   )}
                   <KidsLockMenuItems access={access} profiles={profiles} onClose={() => setProfileMenu(false)} />
@@ -242,7 +243,7 @@ export function Layout() {
                         window.location.assign('/')
                       }}
                     >
-                      Sign out of this browser
+                      {t('Sign out of this browser')}
                     </button>
                   )}
                 </div>
@@ -255,31 +256,31 @@ export function Layout() {
       {!bare && (
         <aside id="sidebar" className={drawer ? 'sidebar open' : 'sidebar'} ref={sidebar}>
           <div className="sidebar-head">
-            <Link to="/" className="wordmark" aria-label="Flexarr home">
+            <Link to="/" className="wordmark" aria-label={t('Flexarr home')}>
               <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
-              <span className="sidebar-label">flexarr</span>
+              <span className="sidebar-label">{t('flexarr')}</span>
             </Link>
-            <button className="icon-button sidebar-close" aria-label="Close menu" onClick={() => setDrawer(false)}>
+            <button className="icon-button sidebar-close" aria-label={t('Close menu')} onClick={() => setDrawer(false)}>
               <Close />
             </button>
           </div>
           {/* Libraries scroll on their own below the wordmark, however many there are. */}
-          <nav aria-label="Main" className="sidebar-nav">
+          <nav aria-label={t('Main')} className="sidebar-nav">
             <NavLink to="/" end className="sidebar-link" title={tip('Home')}>
               <icon.home />
-              <span className="sidebar-label">Home</span>
+              <span className="sidebar-label">{t('Home')}</span>
             </NavLink>
             {shownLibraries.length > 0 && (
               <>
                 <h2 className="sidebar-heading">
-                  <span className="sidebar-label">Libraries</span>
+                  <span className="sidebar-label">{t('Libraries')}</span>
                 </h2>
                 {shownLibraries.map((library) => {
                   if (library.type === 'Podcasts')
                     return (
                       <NavLink key={library.id} to="/podcasts" className="sidebar-link" title={tip('Podcasts')}>
                         <icon.podcasts />
-                        <span className="sidebar-label">Podcasts</span>
+                        <span className="sidebar-label">{t('Podcasts')}</span>
                       </NavLink>
                     )
                   const Icon = libraryIcons[library.type] ?? icon.movies
@@ -287,7 +288,7 @@ export function Layout() {
                     <NavLink key={library.id} to={`/library/${library.id}`} className="sidebar-link" title={tip(library.name)}>
                       <Icon />
                       <span className="sidebar-label">{library.name}</span>
-                      {library.scan && <span className="scan-dot" aria-label="Scanning" />}
+                      {library.scan && <span className="scan-dot" aria-label={t('Scanning')} />}
                     </NavLink>
                   )
                 })}
@@ -295,44 +296,44 @@ export function Layout() {
             )}
             {(Object.values(shows).some(Boolean) || liveTvLink) && (
               <h2 className="sidebar-heading">
-                <span className="sidebar-label">Browse</span>
+                <span className="sidebar-label">{t('Browse')}</span>
               </h2>
             )}
             {/* A child's profile has no watchlist or collections. */}
             {shows.watchlist && (
               <NavLink to="/watchlist" className="sidebar-link" title={tip('Watchlist')}>
                 <icon.watchlist />
-                <span className="sidebar-label">Watchlist</span>
+                <span className="sidebar-label">{t('Watchlist')}</span>
               </NavLink>
             )}
             {shows.collections && (
               <NavLink to="/collections" className="sidebar-link" title={tip('Collections')}>
                 <icon.collections />
-                <span className="sidebar-label">Collections</span>
+                <span className="sidebar-label">{t('Collections')}</span>
               </NavLink>
             )}
             {shows.playlists && (
               <NavLink to="/playlists" className="sidebar-link" title={tip('Playlists')}>
                 <Playlist />
-                <span className="sidebar-label">Playlists</span>
+                <span className="sidebar-label">{t('Playlists')}</span>
               </NavLink>
             )}
             {liveTvLink && (
               <NavLink to="/livetv" className="sidebar-link" title={tip('Live TV')}>
                 <icon.liveTv />
-                <span className="sidebar-label">Live TV</span>
+                <span className="sidebar-label">{t('Live TV')}</span>
               </NavLink>
             )}
             {shows.discover && (
               <NavLink to="/discover" className="sidebar-link" title={tip('Discover')}>
                 <icon.discover />
-                <span className="sidebar-label">Discover</span>
+                <span className="sidebar-label">{t('Discover')}</span>
               </NavLink>
             )}
             {shows.upcoming && (
               <NavLink to="/upcoming" className="sidebar-link" title={tip('Coming soon')}>
                 <icon.comingSoon />
-                <span className="sidebar-label">Coming soon</span>
+                <span className="sidebar-label">{t('Coming soon')}</span>
               </NavLink>
             )}
           </nav>

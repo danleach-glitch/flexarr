@@ -3,6 +3,7 @@ import { useNavigationType } from 'react-router'
 import { forgetPage, freshly, getItem, keepPage, keptPage, wasDeleted, type ItemSummary, type Paged } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { useWatchedChanges, watchedSince } from '../hooks/watched'
+import { t } from '../i18n'
 
 export const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
 const JUMP_PAGE = 500
@@ -307,7 +308,7 @@ export function ShowMore({ loaded, total, pageSize, busy, error, onMore }: {
     <div className="load-more">
       {error && (
         <p className="error" role="alert">
-          More couldn’t be loaded.
+          {t('More couldn’t be loaded.')}
         </p>
       )}
       <AsyncButton className="button quiet" onClick={onMore} disabled={busy}>
@@ -333,7 +334,7 @@ function JumpFailed({ letter, jump, short }: { letter: string; jump: (letter: st
         {short ? `Couldn’t load ${letter}.` : `${letter === '#' ? 'Numbers and symbols' : letter} couldn’t be loaded.`}
       </span>
       <button type="button" className="button quiet small" onClick={() => jump(letter)}>
-        Try again
+        {t('Try again')}
       </button>
     </p>
   )
@@ -345,7 +346,7 @@ export function AlphaPicker({ jump, jumping, failed, empty }: AlphaProps) {
     <div className="alpha-picker">
       {failed && !jumping && <JumpFailed letter={failed} jump={jump} short />}
       <label>
-        <span className="visually-hidden">Jump to letter</span>
+        <span className="visually-hidden">{t('Jump to letter')}</span>
         <select
           value=""
           onChange={(e) => {
@@ -368,13 +369,13 @@ export function AlphaPicker({ jump, jumping, failed, empty }: AlphaProps) {
 export function AlphaRail({ jump, jumping, failed, empty }: AlphaProps) {
   return (
     <>
-      <nav className="alpha-rail" aria-label="Jump to letter" aria-busy={jumping ? true : undefined}>
+      <nav className="alpha-rail" aria-label={t('Jump to letter')} aria-busy={jumping ? true : undefined}>
         {LETTERS.map((l) => (
           <button key={l} className={jumping === l ? 'jumping' : undefined} onClick={() => jump(l)} disabled={empty.has(l)} aria-label={l === '#' ? 'Numbers and symbols' : undefined}>
             {l}
             {jumping === l && (
               <span className="alpha-loading" aria-hidden="true">
-                Loading…
+                {t('Loading…')}
               </span>
             )}
           </button>

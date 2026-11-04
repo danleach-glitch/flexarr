@@ -5,6 +5,7 @@ import { useModal } from '../hooks/useModal'
 import { usePinLockout } from '../hooks/usePinLockout'
 import { errorText } from '../pages/settings/useSettings'
 import { AsyncButton } from './AsyncButton'
+import { t } from '../i18n'
 
 /**
  * The admin PIN, asked for when a change it makes (deleting a film, a household collection) is refused only
@@ -54,9 +55,9 @@ function UnlockDialog({ onDone }: { onDone: (unlocked: boolean) => void }) {
   return (
     <div className="dialog-backdrop" onClick={() => !busy && onDone(false)}>
       <form ref={dialog} className="panel confirm-dialog" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} onSubmit={submit} onClick={(e) => e.stopPropagation()}>
-        <h2 id={`${id}-title`}>Enter the PIN</h2>
+        <h2 id={`${id}-title`}>{t('Enter the PIN')}</h2>
         <label className="field">
-          <span className="field-label">Admin PIN</span>
+          <span className="field-label">{t('Admin PIN')}</span>
           <input type="password" inputMode="numeric" autoComplete="off" required minLength={4} autoFocus value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))} />
         </label>
         {(lockout.message ?? error) && (
@@ -66,13 +67,13 @@ function UnlockDialog({ onDone }: { onDone: (unlocked: boolean) => void }) {
         )}
         <div className="form-actions">
           <Link className="text-button" to="/settings/overview" onClick={() => onDone(false)}>
-            Forgotten it?
+            {t('Forgotten it?')}
           </Link>
           <button type="button" className="button quiet" onClick={() => onDone(false)} disabled={busy}>
-            Cancel
+            {t('Cancel')}
           </button>
           <AsyncButton type="submit" className="button" busy={busy} disabled={lockout.locked}>
-            Unlock
+            {t('Unlock')}
           </AsyncButton>
         </div>
       </form>

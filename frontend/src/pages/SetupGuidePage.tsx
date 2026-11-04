@@ -37,7 +37,7 @@ import { freeColour, profileColours } from '../lib/profileColours'
 import { tooBroad } from '../lib/setupGuide'
 import { errorText } from './settings/useSettings'
 import '../styles/onboarding.css'
-import { locale } from '../i18n'
+import { locale, t } from '../i18n'
 
 /** The steps; the first, the main profile's name, isn't one the server keeps track of. */
 const steps: { id: SetupStep | 'name'; title: string; lede: string; icon: ReactNode; summary: string }[] = [
@@ -98,11 +98,11 @@ export function SetupGuidePage() {
       <header className="onboard-top">
         <span className="onboard-brand">
           <img src="/logo-mark.svg" alt="" />
-          Flexarr
+          {t('Flexarr')}
         </span>
         {place !== 'done' && (
           <Link className="onboard-later" to="/">
-            Set up later
+            {t('Set up later')}
           </Link>
         )}
       </header>
@@ -112,7 +112,7 @@ export function SetupGuidePage() {
         <Done onFinish={() => navigate('/')} />
       ) : (
         <section className="onboard-card" key={place} aria-labelledby="onboard-title">
-          <div className="onboard-progress" role="progressbar" aria-label="Setup" aria-valuemin={1} aria-valuemax={steps.length} aria-valuenow={index + 1}>
+          <div className="onboard-progress" role="progressbar" aria-label={t('Setup')} aria-valuemin={1} aria-valuemax={steps.length} aria-valuenow={index + 1}>
             <span style={{ width: `${((index + 1) / steps.length) * 100}%` }} />
           </div>
           <div className="onboard-card-head">
@@ -148,11 +148,11 @@ function Welcome({ onStart }: { onStart: () => void }) {
   return (
     <section className="onboard-card onboard-welcome" aria-labelledby="onboard-title">
       <img className="onboard-hero-mark" src="/logo-mark.svg" alt="" />
-      <h1 id="onboard-title">Welcome to Flexarr</h1>
+      <h1 id="onboard-title">{t('Welcome to Flexarr')}</h1>
       <p className="onboard-lede">
         Let’s get your movies, shows and music ready to watch.
         <br />
-        It takes just 2 minutes.
+        {t('It takes just 2 minutes.')}
       </p>
       <ol className="onboard-plan">
         {steps.map((s) => (
@@ -164,10 +164,10 @@ function Welcome({ onStart }: { onStart: () => void }) {
       </ol>
       <div className="onboard-welcome-actions">
         <button type="button" className="button onboard-primary onboard-wide" onClick={onStart}>
-          Get started
+          {t('Get started')}
         </button>
         <Link className="onboard-later" to="/">
-          I’ll set it up myself
+          {t('I’ll set it up myself')}
         </Link>
       </div>
     </section>
@@ -179,7 +179,7 @@ function StepFooter({ nav, next, skipLabel = 'Skip' }: { nav: StepNav; next: Rea
   return (
     <footer className="onboard-foot">
       <button type="button" className="onboard-back" onClick={nav.back}>
-        Back
+        {t('Back')}
       </button>
       <span className="onboard-foot-end">
         {skipLabel && (
@@ -222,13 +222,13 @@ function NameStep({ nav }: { nav: StepNav }) {
   }
 
   return (
-    <form onSubmit={save} aria-label="Your name">
+    <form onSubmit={save} aria-label={t('Your name')}>
       <div className="onboard-me">
         <Avatar profile={{ name: shown.trim() || '?', color: chosen, image: main.image }} size={88} />
         <div className="onboard-me-fields">
           {/* oxlint-disable-next-line jsx-a11y/no-autofocus -- the one thing this step asks. */}
-          <input type="text" value={shown} required maxLength={40} placeholder="Your name" aria-label="Your name" autoFocus onChange={(e) => setName(e.target.value)} />
-          <div className="onboard-swatches" role="radiogroup" aria-label="Colour">
+          <input type="text" value={shown} required maxLength={40} placeholder={t('Your name')} aria-label={t('Your name')} autoFocus onChange={(e) => setName(e.target.value)} />
+          <div className="onboard-swatches" role="radiogroup" aria-label={t('Colour')}>
             {profileColours.map((c) => (
               <button
                 key={c.value}
@@ -255,7 +255,7 @@ function NameStep({ nav }: { nav: StepNav }) {
         skipLabel={null}
         next={
           <AsyncButton type="submit" className="button onboard-primary" busy={busy} disabled={!shown.trim()}>
-            Continue
+            {t('Continue')}
           </AsyncButton>
         }
       />
@@ -297,7 +297,7 @@ function AppsStep({ nav }: { nav: StepNav }) {
         skipLabel={connected ? null : 'Skip'}
         next={
           <button type="button" className="button onboard-primary" disabled={!connected} onClick={nav.next}>
-            Continue
+            {t('Continue')}
           </button>
         }
       />
@@ -375,16 +375,16 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
         {connected ? (
           <span className="onboard-tile-end">
             <AsyncButton className="button quiet small" onClick={disconnect}>
-              Disconnect
+              {t('Disconnect')}
             </AsyncButton>
-            <span className="onboard-tick" role="img" aria-label="Connected">
+            <span className="onboard-tick" role="img" aria-label={t('Connected')}>
               <Check />
             </span>
           </span>
         ) : (
           !open && (
             <button type="button" className="button small" onClick={() => props.onOpen(true)}>
-              Connect
+              {t('Connect')}
             </button>
           )
         )}
@@ -397,12 +397,12 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
       {open && !connected && (
         <form className="onboard-form" onSubmit={connect} aria-label={`Connect ${kind}`}>
           <label>
-            <span>Address</span>
+            <span>{t('Address')}</span>
             {/* oxlint-disable-next-line jsx-a11y/no-autofocus -- the form opens because this is what comes next. */}
             <input type="url" value={address} required autoFocus placeholder={usualUrl[kind]} onChange={(e) => setBaseUrl(e.target.value)} />
           </label>
           <label>
-            <span>API key</span>
+            <span>{t('API key')}</span>
             <input type="password" autoComplete="off" spellCheck={false} value={apiKey} required onChange={(e) => setApiKey(e.target.value)} />
             <small>In {kind}: Settings › General</small>
           </label>
@@ -413,10 +413,10 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
           )}
           <div className="onboard-form-actions">
             <button type="button" className="button quiet small" onClick={() => props.onOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </button>
             <AsyncButton type="submit" className="button small" busy={busy}>
-              Connect
+              {t('Connect')}
             </AsyncButton>
           </div>
         </form>
@@ -462,11 +462,11 @@ function LibrariesStep({ nav }: { nav: StepNav }) {
       <p className="onboard-wait">
         {libraries.error.message}{' '}
         <button type="button" className="onboard-back" onClick={libraries.reload}>
-          Try again
+          {t('Try again')}
         </button>
       </p>
     )
-  if (!libraries.data || (!folders.data && !folders.error)) return <p className="onboard-wait">Looking for your folders…</p>
+  if (!libraries.data || (!folders.data && !folders.error)) return <p className="onboard-wait">{t('Looking for your folders…')}</p>
   const existing = (type: LibraryType) => libraries.data!.find((l) => l.type === type)
   const suggested = (type: LibraryType) =>
     (folders.data ?? []).filter((f) => folderKind[f.kind] === type).map(localFolder).find((c): c is Choice => !!c)
@@ -510,25 +510,25 @@ function LibrariesStep({ nav }: { nav: StepNav }) {
                   ) : picked ? (
                     <code>{picked.folder}</code>
                   ) : (
-                    <span>No folder chosen</span>
+                    <span>{t('No folder chosen')}</span>
                   )}
                 </span>
                 {library ? (
-                  <span className="onboard-tick" role="img" aria-label="Added">
+                  <span className="onboard-tick" role="img" aria-label={t('Added')}>
                     <Check />
                   </span>
                 ) : picking === type ? null : picked ? (
                   <span className="onboard-tile-end">
                     <button type="button" className="onboard-back" onClick={() => setChosen({ ...chosen, [type]: null })} aria-label={`Don’t add ${libraryTypeLabel[type]}`}>
-                      Remove
+                      {t('Remove')}
                     </button>
                     <button type="button" className="button quiet small" onClick={() => setPicking(type)}>
-                      Change
+                      {t('Change')}
                     </button>
                   </span>
                 ) : (
                   <button type="button" className="button small" onClick={() => setPicking(type)}>
-                    Choose folder
+                    {t('Choose folder')}
                   </button>
                 )}
               </div>
@@ -547,7 +547,7 @@ function LibrariesStep({ nav }: { nav: StepNav }) {
                     }}
                   />
                   <button type="button" className="onboard-back" onClick={() => setPicking(undefined)}>
-                    Cancel
+                    {t('Cancel')}
                   </button>
                 </div>
               )}
@@ -556,7 +556,7 @@ function LibrariesStep({ nav }: { nav: StepNav }) {
         })}
         {missing.map((f) => (
           <p key={`${f.app}:${f.path}`} className="onboard-warn">
-            Flexarr can’t see {f.app}’s <code>{f.path}</code> on this server. Choose where it is above.
+            Flexarr can’t see {f.app}’s <code>{f.path}</code> {t('on this server. Choose where it is above.')}
           </p>
         ))}
       </div>
@@ -571,11 +571,11 @@ function LibrariesStep({ nav }: { nav: StepNav }) {
         next={
           toAdd.length === 0 ? (
             <button type="button" className="button onboard-primary" disabled={!added} onClick={nav.next}>
-              Continue
+              {t('Continue')}
             </button>
           ) : (
             <AsyncButton className="button onboard-primary" busy={busy} onClick={add}>
-              Next
+              {t('Next')}
             </AsyncButton>
           )
         }
@@ -624,7 +624,7 @@ function ProfilesStep({ nav }: { nav: StepNav }) {
             <span className="onboard-person">
               <Avatar profile={p} size={64} />
               {!p.isMain && (
-                <AsyncButton className="onboard-remove" aria-label={`Remove ${p.name}`} title="Remove" onClick={() => remove(p)}>
+                <AsyncButton className="onboard-remove" aria-label={`Remove ${p.name}`} title={t('Remove')} onClick={() => remove(p)}>
                   <Close />
                 </AsyncButton>
               )}
@@ -633,10 +633,10 @@ function ProfilesStep({ nav }: { nav: StepNav }) {
           </li>
         ))}
       </ul>
-      <form className="onboard-person-new" onSubmit={add} aria-label="Add a profile">
-        <input type="text" value={name} required maxLength={40} placeholder="Add someone: their name" aria-label="Name" onChange={(e) => setName(e.target.value)} />
+      <form className="onboard-person-new" onSubmit={add} aria-label={t('Add a profile')}>
+        <input type="text" value={name} required maxLength={40} placeholder={t('Add someone: their name')} aria-label={t('Name')} onChange={(e) => setName(e.target.value)} />
         <AsyncButton type="submit" className="button" busy={busy} disabled={!name.trim()}>
-          Add
+          {t('Add')}
         </AsyncButton>
       </form>
       {error && (
@@ -649,7 +649,7 @@ function ProfilesStep({ nav }: { nav: StepNav }) {
         skipLabel={more ? null : 'Skip'}
         next={
           <button type="button" className="button onboard-primary" disabled={!more} onClick={nav.next}>
-            Continue
+            {t('Continue')}
           </button>
         }
       />
@@ -681,10 +681,10 @@ function DevicesStep({ nav }: { nav: StepNav }) {
                   <AppleLogo className="onboard-store-logo" />
                   App Store
                   <External />
-                  <span className="visually-hidden"> (opens in a new tab)</span>
+                  <span className="visually-hidden"> {t('(opens in a new tab)')}</span>
                 </a>
               ) : (
-                <span className="onboard-soon">Coming soon</span>
+                <span className="onboard-soon">{t('Coming soon')}</span>
               )}
             </div>
           </div>
@@ -695,7 +695,7 @@ function DevicesStep({ nav }: { nav: StepNav }) {
               <Monitor />
             </span>
             <span className="onboard-tile-text">
-              <strong>Any web browser</strong>
+              <strong>{t('Any web browser')}</strong>
               <code>{window.location.origin}</code>
             </span>
           </div>
@@ -705,7 +705,7 @@ function DevicesStep({ nav }: { nav: StepNav }) {
         nav={nav}
         next={
           <button type="button" className="button onboard-primary" onClick={nav.next}>
-            Continue
+            {t('Continue')}
           </button>
         }
       />
@@ -753,38 +753,38 @@ function AwayStep({ nav }: { nav: StepNav }) {
               <Antenna />
             </span>
             <span className="onboard-tile-text">
-              <strong>Tailscale</strong>
+              <strong>{t('Tailscale')}</strong>
               <span>{status}</span>
             </span>
             {on ? (
               <span className="onboard-tile-end">
                 {ts?.privateAccess && !remote.data?.inMacApp && (
                   <AsyncButton className="button quiet small" onClick={() => turn(false)}>
-                    Disconnect
+                    {t('Disconnect')}
                   </AsyncButton>
                 )}
-                <span className="onboard-tick" role="img" aria-label="On">
+                <span className="onboard-tick" role="img" aria-label={t('On')}>
                   <Check />
                 </span>
               </span>
             ) : ts?.running && !remote.data?.inMacApp ? (
               <AsyncButton className="button small" onClick={() => turn(true)}>
-                Turn on
+                {t('Turn on')}
               </AsyncButton>
             ) : remote.data && docker ? (
               <a className="button quiet small" href="https://flexarr.io/guide/away-from-home" target="_blank" rel="noreferrer">
-                Guide
+                {t('Guide')}
               </a>
             ) : (
               remote.data && (
                 <span className="onboard-tile-end">
                   {/* Installed, or signed in, while the guide waits: look again. */}
                   <AsyncButton className="button quiet small" onClick={remote.reload}>
-                    Check again
+                    {t('Check again')}
                   </AsyncButton>
                   {(!ts?.installed || remote.data.inMacApp) && (
                     <a className="button small" href="https://tailscale.com/download" target="_blank" rel="noreferrer">
-                      Get Tailscale
+                      {t('Get Tailscale')}
                     </a>
                   )}
                 </span>
@@ -804,7 +804,7 @@ function AwayStep({ nav }: { nav: StepNav }) {
         next={
           // Finishing without it counts as passing it over, so Home's list doesn't keep asking.
           <button type="button" className="button onboard-primary" onClick={on ? nav.next : nav.skip}>
-            Finish
+            {t('Finish')}
           </button>
         }
       />
@@ -863,7 +863,7 @@ function Done({ onFinish }: { onFinish: () => void }) {
             : `${titles.toLocaleString(locale())} ${titles === 1 ? 'title' : 'titles'} ready to watch.`}
       </p>
       {scanning.length > 0 && (
-        <div className="onboard-scan" role="progressbar" aria-label="Reading your files" aria-valuemin={0} aria-valuemax={total || undefined} aria-valuenow={read}>
+        <div className="onboard-scan" role="progressbar" aria-label={t('Reading your files')} aria-valuemin={0} aria-valuemax={total || undefined} aria-valuenow={read}>
           <span style={{ width: total > 0 ? `${(read / total) * 100}%` : '8%' }} />
         </div>
       )}

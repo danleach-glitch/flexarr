@@ -4,6 +4,7 @@ import { useModal } from '../hooks/useModal'
 import { AsyncButton } from './AsyncButton'
 import { NameList } from './NameList'
 import { automaticSort, withName } from '../lib/names'
+import { t } from '../i18n'
 
 /** An album's kinds of release, as its page names them, with a plain album first. */
 const albumTypes: [string, string][] = [
@@ -88,33 +89,33 @@ export function DetailsEditor({ detail, onSaved, onClose }: { detail: ItemDetail
       <form className="panel book-editor" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="details-editor-title" onClick={(e) => e.stopPropagation()} onSubmit={save}>
         <h2 id="details-editor-title">
           Edit {item.title}
-          {detail.detailsLocked && <span className="tag keep details-edited">Edited</span>}
+          {detail.detailsLocked && <span className="tag keep details-edited">{t('Edited')}</span>}
         </h2>
         <div className="book-editor-body">
           <div className="book-editor-fields">
             <label className="field wide">
-              <span className="field-label">Title</span>
+              <span className="field-label">{t('Title')}</span>
               <input type="text" value={title} onChange={(e) => change(setTitle)(e.target.value)} disabled={saving} autoFocus required maxLength={500} />
             </label>
             {!album && (
               <>
                 <label className="field">
-                  <span className="field-label">Sort as</span>
-                  <input type="text" value={sortTitle} onChange={(e) => change(setSortTitle)(e.target.value)} disabled={saving} maxLength={500} placeholder="From the title" />
+                  <span className="field-label">{t('Sort as')}</span>
+                  <input type="text" value={sortTitle} onChange={(e) => change(setSortTitle)(e.target.value)} disabled={saving} maxLength={500} placeholder={t('From the title')} />
                 </label>
                 <label className="field">
-                  <span className="field-label">Original title</span>
+                  <span className="field-label">{t('Original title')}</span>
                   <input type="text" value={originalTitle} onChange={(e) => change(setOriginalTitle)(e.target.value)} disabled={saving} maxLength={500} />
                 </label>
               </>
             )}
             <label className="field narrow">
-              <span className="field-label">Year</span>
+              <span className="field-label">{t('Year')}</span>
               <input type="text" value={year} onChange={(e) => change(setYear)(e.target.value)} disabled={saving} inputMode="numeric" maxLength={4} />
             </label>
             {album ? (
               <label className="field">
-                <span className="field-label">Type</span>
+                <span className="field-label">{t('Type')}</span>
                 <select value={albumType} onChange={(e) => change(setAlbumType)(e.target.value)} disabled={saving}>
                   {albumTypes.map(([value, label]) => (
                     <option key={value} value={value}>
@@ -129,17 +130,17 @@ export function DetailsEditor({ detail, onSaved, onClose }: { detail: ItemDetail
                 <input type="text" value={studio} onChange={(e) => change(setStudio)(e.target.value)} disabled={saving} maxLength={200} />
               </label>
             )}
-            <NameList label="Genres" names={genres} typed={typedGenre} disabled={saving} onType={setTypedGenre} onChange={change(setGenres)} />
+            <NameList label={t('Genres')} names={genres} typed={typedGenre} disabled={saving} onType={setTypedGenre} onChange={change(setGenres)} />
             {!album && (
               <label className="field wide">
-                <span className="field-label">Description</span>
+                <span className="field-label">{t('Description')}</span>
                 <textarea value={overview} rows={6} onChange={(e) => change(setOverview)(e.target.value)} disabled={saving} />
               </label>
             )}
           </div>
 
           <label className="person-editor-lock">
-            <span>Locked</span>
+            <span>{t('Locked')}</span>
             <input
               type="checkbox"
               role="switch"
@@ -162,14 +163,14 @@ export function DetailsEditor({ detail, onSaved, onClose }: { detail: ItemDetail
         <div className="form-actions">
           {detail.detailsLocked && (
             <AsyncButton type="button" className="text-button fix-match-reset" disabled={saving} onClick={() => run(() => resetDetails(item.id))}>
-              Back to automatic
+              {t('Back to automatic')}
             </AsyncButton>
           )}
           <button type="button" className="button quiet" onClick={onClose} disabled={saving}>
-            Cancel
+            {t('Cancel')}
           </button>
           <AsyncButton className="button" type="submit" busy={saving}>
-            Save
+            {t('Save')}
           </AsyncButton>
         </div>
       </form>

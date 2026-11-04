@@ -70,6 +70,36 @@ def wrap_ts(src):
     return out, manual
 
 
+def add_ts_import(src, path):
+    """Adds t to the file's import from the i18n module (or a new import after the last one)."""
+    import os
+    existing = re.search(r"import \{([^}]*)\} from '((?:\.\.?/)+i18n|\.)'", src)
+    if existing:
+        names = [n.strip() for n in existing.group(1).split(",") if n.strip()]
+        if "t" in names:
+            return src
+        names = sorted(set(names + ["t"]), key=str.lower)
+        return src[:existing.start(1)] + " " + ", ".join(names) + " " + src[existing.end(1):]
+    rel = os.path.relpath(Path("frontend/src/i18n").resolve(), path.resolve().parent)
+    rel = rel if rel.startswith(".") else "./" + rel
+    lines = src.split("\n")
+    last = -1
+    i = 0
+    while i < len(lines):
+        if lines[i].startswith("import "):
+            j = i
+            while not re.search(r"from '[^']+'\s*$|^import '[^']+'\s*$", lines[j]):
+                j += 1
+            last = j
+            i = j + 1
+            continue
+        if lines[i].strip() and not lines[i].startswith("//") and last >= 0:
+            break
+        i += 1
+    lines.insert(last + 1, f"import {{ t }} from '{rel}'")
+    return "\n".join(lines)
+
+
 def wrap_swift(src):
     manual = []
 
@@ -284,6 +314,8 @@ def main(argv):
             continue
         src = f.read_text(encoding="utf-8")
         out, manual = fn(src)
+        if argv[0] == "ts" and out != src:
+            out = add_ts_import(out, f)
         for line, why in manual:
             print(f"{f}:{line}: by hand: {why}")
         if out != src:

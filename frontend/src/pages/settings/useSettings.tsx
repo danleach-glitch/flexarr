@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ApiError, getSettings, saveSettings } from '../../api/client'
 import { AsyncButton } from '../../components/AsyncButton'
 import { useApi } from '../../hooks/useApi'
+import { t } from '../../i18n'
 
 /** What went wrong, in the server's words when it gave some. */
 export const errorText = (e: unknown) => (e instanceof ApiError && e.messages.length ? e.messages.join(' ') : e instanceof Error ? e.message : String(e))
@@ -31,11 +32,11 @@ export function useSettings() {
         Couldn’t load the settings: {error.message}
       </p>
       <AsyncButton className="button quiet small" busy={loading} onClick={reload}>
-        Try again
+        {t('Try again')}
       </AsyncButton>
     </div>
   ) : (
-    <p className="muted">Loading…</p>
+    <p className="muted">{t('Loading…')}</p>
   )
   return { settings: data, error, save, saved, saveError, waiting }
 }

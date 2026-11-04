@@ -19,6 +19,7 @@ import { PODCAST_PREFERENCES_CHANGED } from '../../lib/podcasts'
 import { RowList } from './LayoutSection'
 import { SaveStatus, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
+import { t } from '../../i18n'
 
 /** The profile's own: the order of its libraries in the sidebar here and in every app's menu, and what else is in it. */
 export function NavigationSection() {
@@ -65,7 +66,7 @@ export function NavigationSection() {
 
   return (
     <section>
-      <SettingsHeader title="Navigation">The sidebar here and the apps’ menus. Drag a library to move it.</SettingsHeader>
+      <SettingsHeader title={t('Navigation')}>{t('The sidebar here and the apps’ menus. Drag a library to move it.')}</SettingsHeader>
       {shown.length > 1 ? (
         <RowList
           title={`${me.name}’s libraries`}
@@ -84,14 +85,14 @@ export function NavigationSection() {
           switches={(row) => byId.get(row.id)?.type === 'Podcasts' && podcastsShown.on !== undefined}
         />
       ) : (
-        <p className="muted">With two or more libraries, you can put them in order here.</p>
+        <p className="muted">{t('With two or more libraries, you can put them in order here.')}</p>
       )}
       {/* Only a failed save says anything, under the list so the list never moves. */}
       <SaveStatus error={error ?? podcastsShown.error} />
       {/* Podcasts alone have no list to sit in: their switch on its own. */}
       {shown.length === 1 && shown[0].type === 'Podcasts' && podcastsShown.on !== undefined && (
-        <SettingsGroup title="Podcasts">
-          <ToggleRow label="Show in the sidebar" help="On the web." checked={podcastsShown.on} onChange={(v) => void podcastsShown.change(v)} />
+        <SettingsGroup title={t('Podcasts')}>
+          <ToggleRow label={t('Show in the sidebar')} help={t('On the web.')} checked={podcastsShown.on} onChange={(v) => void podcastsShown.change(v)} />
         </SettingsGroup>
       )}
       <BrowseItems profile={me} liveTv={liveTv.data === true} />
@@ -141,7 +142,7 @@ function BrowseItems({ profile, liveTv }: { profile: Profile; liveTv: boolean })
   }
 
   return (
-    <SettingsGroup title="Browse" note={error ? <SaveStatus error={error} /> : undefined}>
+    <SettingsGroup title={t('Browse')} note={error ? <SaveStatus error={error} /> : undefined}>
       {items
         .filter((i) => has[i.id])
         .map((i) => (

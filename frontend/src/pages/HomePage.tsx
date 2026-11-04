@@ -13,6 +13,7 @@ import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
 import { showsChecklist } from '../lib/setupGuide'
+import { t } from '../i18n'
 
 export function HomePage() {
   const { libraries } = useLibraries()
@@ -49,16 +50,16 @@ export function HomePage() {
     if (checklist) return <div className="welcome">{checklist}</div>
     return (
       <section className="welcome">
-        <h1>Nothing to watch yet</h1>
-        <p>Point Flexarr at the folders where your movies and shows live, and they'll appear here with artwork.</p>
+        <h1>{t('Nothing to watch yet')}</h1>
+        <p>{t("Point Flexarr at the folders where your movies and shows live, and they'll appear here with artwork.")}</p>
         <div className="welcome-actions">
           {admin && (
             <Link className="button" to="/setup">
-              Set up Flexarr
+              {t('Set up Flexarr')}
             </Link>
           )}
           <Link className={admin ? 'button quiet' : 'button'} to="/settings/libraries">
-            Add a library
+            {t('Add a library')}
           </Link>
         </div>
       </section>
@@ -66,7 +67,7 @@ export function HomePage() {
   }
 
   const newEpisodes = (episodes.data?.length ?? 0) > 0 && (
-    <Row key="podcasts-new" title="New podcasts" link="/podcasts" style="poster">
+    <Row key="podcasts-new" title={t('New podcasts')} link="/podcasts" style="poster">
       {episodes.data!.slice(0, 20).map((episode) => (
         <EpisodeCard key={episode.id} episode={episode} />
       ))}
@@ -132,7 +133,7 @@ function EmptyLibraries({ libraries }: { libraries: Library[] }) {
     const done = scanning.reduce((sum, l) => sum + l.scan!.processed, 0)
     return (
       <section className="welcome">
-        <h1>Looking through your library</h1>
+        <h1>{t('Looking through your library')}</h1>
         <p>
           Flexarr is reading the files in {names}
           {total > 0 && ` (${done} of ${total})`}. Your {wanted} appear here as they’re recognised.
@@ -142,12 +143,12 @@ function EmptyLibraries({ libraries }: { libraries: Library[] }) {
   }
   return (
     <section className="welcome">
-      <h1>Your library is empty</h1>
+      <h1>{t('Your library is empty')}</h1>
       <p>
         Add files to {folders.length > 1 ? 'your library folders' : 'your library folder'}, or connect Sonarr or Radarr.
       </p>
       {folders.length > 0 && (
-        <ul className="welcome-folders" aria-label="Folders">
+        <ul className="welcome-folders" aria-label={t('Folders')}>
           {folders.map((folder) => (
             <li key={folder}>
               <code>{folder}</code>
@@ -157,10 +158,10 @@ function EmptyLibraries({ libraries }: { libraries: Library[] }) {
       )}
       <div className="welcome-actions">
         <Link className="button" to="/settings/libraries">
-          Check libraries
+          {t('Check libraries')}
         </Link>
         <Link className="button quiet" to="/settings/connections">
-          Connect Sonarr or Radarr
+          {t('Connect Sonarr or Radarr')}
         </Link>
       </div>
     </section>

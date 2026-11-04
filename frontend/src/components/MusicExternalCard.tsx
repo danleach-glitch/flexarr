@@ -7,6 +7,7 @@ import { AsyncButton } from './AsyncButton'
 import { ConfirmDialog } from './ConfirmDialog'
 import { icon } from './icons.generated'
 import { undoFailure } from '../lib/musicUndo'
+import { t } from '../i18n'
 
 type State = MusicExternal['availability'] | 'sending' | 'failed' | 'refused'
 
@@ -76,7 +77,7 @@ export function MusicRequestButton({
   // No Lidarr (or music requests off): nothing to offer.
   if (status.data?.configured === false) return null
   // A library artist can still be followed; a library album has nothing left to ask for.
-  if (kind === 'album' && (libraryItemId || state === 'Available')) return <span className="external-state">In your library</span>
+  if (kind === 'album' && (libraryItemId || state === 'Available')) return <span className="external-state">{t('In your library')}</span>
   const className = size === 'small' ? 'button small quiet' : 'button quiet'
   // A grid of cards is a row of the same words to a screen reader: each says whose it is (a page's own needn't).
   const named = (label: string) => (size === 'small' && title ? `${label} ${title}` : undefined)
@@ -94,7 +95,7 @@ export function MusicRequestButton({
         >
           <Icon aria-hidden /> {kind === 'artist' ? 'Following' : 'Requested'}
         </AsyncButton>
-        {offline && size === 'large' && <span className="external-state">Lidarr isn’t answering.</span>}
+        {offline && size === 'large' && <span className="external-state">{t('Lidarr isn’t answering.')}</span>}
         {asking && (
           <ConfirmDialog
             title={kind === 'artist' ? `Stop following ${title ?? 'this artist'}?` : `Unrequest ${title ?? 'this album'}?`}
@@ -115,7 +116,7 @@ export function MusicRequestButton({
   if (state === 'refused')
     return (
       <>
-        <span className="external-state">Can’t request</span>
+        <span className="external-state">{t('Can’t request')}</span>
         {message && (
           <span className="error" role="alert">
             {message}
@@ -136,7 +137,7 @@ export function MusicRequestButton({
       >
         <Icon aria-hidden /> {state === 'failed' ? 'Try again' : kind === 'artist' ? 'Follow' : 'Request album'}
       </AsyncButton>
-      {offline && size === 'large' && <span className="external-state">Lidarr isn’t answering.</span>}
+      {offline && size === 'large' && <span className="external-state">{t('Lidarr isn’t answering.')}</span>}
       {state === 'failed' && message && (
         <span className="error" role="alert">
           {message}

@@ -19,6 +19,7 @@ import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { requestedState } from '../lib/requestedState'
 import { undoFailure } from '../lib/musicUndo'
+import { t } from '../i18n'
 
 /** How many cards show at first; Show more adds as many again. */
 const PAGE_SIZE = 200
@@ -98,7 +99,7 @@ export function LibraryRequested({ library, viewSwitch }: { library: Library; vi
             </p>
           )}
           {rows.length === 0 ? (
-            answering && <p className="page-message muted">Nothing on its way.</p>
+            answering && <p className="page-message muted">{t('Nothing on its way.')}</p>
           ) : (
             <div className={music ? 'poster-grid music-albums' : 'poster-grid'} ref={grid} tabIndex={-1}>
               {rows.slice(0, shown).map((r, i) => (
@@ -109,7 +110,7 @@ export function LibraryRequested({ library, viewSwitch }: { library: Library; vi
           {rows.length > shown && (
             <div className="load-more">
               <button className="button quiet" onClick={() => setShown((n) => n + PAGE_SIZE)}>
-                Show more
+                {t('Show more')}
               </button>
             </div>
           )}
@@ -198,7 +199,7 @@ function RequestedCard({ row, square, offline, service, onGone }: { row: Row; sq
       )}
       <div className="external-card-actions">
         <AsyncButton className="button small quiet" aria-label={`Unrequest ${row.title}`} onClick={() => setAsking(true)} disabled={offline} title={offline ? `${service} isn’t answering.` : undefined}>
-          Unrequest
+          {t('Unrequest')}
         </AsyncButton>
       </div>
       {asking && (

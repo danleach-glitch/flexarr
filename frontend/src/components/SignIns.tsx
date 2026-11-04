@@ -7,7 +7,7 @@ import { AsyncButton } from './AsyncButton'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DeviceTypeIcon } from './DeviceTypeIcon'
 import { Monitor } from './icons'
-import { locale } from '../i18n'
+import { locale, t } from '../i18n'
 
 const threeDays = 3 * 24 * 60 * 60 * 1000
 
@@ -144,11 +144,11 @@ export function SignIns() {
           <span className="sign-in-text">
             <span className="sign-in-name">
               <strong>{s.name}</strong>
-              {s.isThisOne && <span className="pill">This browser</span>}
-              {s.kidsLock && <span className="pill">Child lock on</span>}
+              {s.isThisOne && <span className="pill">{t('This browser')}</span>}
+              {s.kidsLock && <span className="pill">{t('Child lock on')}</span>}
               {isNew(s) && (
-                <span className="pill new" title="Signed in recently. If you don’t recognise it, sign it out.">
-                  New
+                <span className="pill new" title={t('Signed in recently. If you don’t recognise it, sign it out.')}>
+                  {t('New')}
                 </span>
               )}
             </span>
@@ -162,14 +162,14 @@ export function SignIns() {
         <span className="sign-in-actions">
           {s.kidsLock && (
             <AsyncButton className="button quiet small" aria-label={`Turn off child lock on ${describe(s)}`} onClick={() => releaseSignInKidsLock(s.id).then(list.reload)}>
-              Turn off child lock
+              {t('Turn off child lock')}
             </AsyncButton>
           )}
           <button className="button quiet small" data-rename={s.id} aria-label={`Rename ${describe(s)}`} onClick={() => setEditing(s.id)}>
-            Rename
+            {t('Rename')}
           </button>
           <button className="button quiet small" aria-label={`Sign out ${describe(s)}`} disabled={busy} onClick={() => setAsking({ one: s })}>
-            Sign out
+            {t('Sign out')}
           </button>
         </span>
       )}
@@ -179,7 +179,7 @@ export function SignIns() {
   return (
     <div className="panel">
       {list.data.length === 0 ? (
-        <p className="muted">Nothing has signed in with its own token yet. Browsers on your home network or Tailscale may not need to.</p>
+        <p className="muted">{t('Nothing has signed in with its own token yet. Browsers on your home network or Tailscale may not need to.')}</p>
       ) : (
         <ul className="plain-list sign-in-list">
           {groups.map((group) => {
@@ -194,7 +194,7 @@ export function SignIns() {
                   <span className="sign-in-name">
                     <strong>{latest.name}</strong>
                     <span className="pill">{group.length.toLocaleString(locale())} sign-ins</span>
-                    {group.some(isNew) && <span className="pill new">New</span>}
+                    {group.some(isNew) && <span className="pill new">{t('New')}</span>}
                   </span>
                   <span className="muted sign-in-meta" title={detail(latest, oldest.createdAt)}>
                     {summary(latest)}
@@ -232,7 +232,7 @@ export function SignIns() {
       {others.length > 1 && (
         <div className="sign-in-footer">
           <button className="button danger small" disabled={busy} onClick={() => setAsking({ others: others.length })}>
-            Sign out every other browser and TV
+            {t('Sign out every other browser and TV')}
           </button>
         </div>
       )}
@@ -307,10 +307,10 @@ function RenameForm({ signIn, onDone }: { signIn: SignIn; onDone: (renamed: bool
       </label>
       <div className="form-actions">
         <button type="button" className="button quiet small" onClick={() => onDone(false)}>
-          Cancel
+          {t('Cancel')}
         </button>
         <AsyncButton type="submit" className="button small" busy={saving}>
-          Save
+          {t('Save')}
         </AsyncButton>
       </div>
       {error && (

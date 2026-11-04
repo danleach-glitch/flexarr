@@ -4,6 +4,7 @@ import { lockToKids, pickProfileWith, releaseKidsLock, type Me, type Profile } f
 import { useModal } from '../hooks/useModal'
 import { errorText } from '../pages/settings/useSettings'
 import { AsyncButton } from './AsyncButton'
+import { t } from '../i18n'
 
 /** Asks for the admin PIN and does `action` with it; the server's answer shows if it's refused. */
 function ParentPinDialog({ title, action, onDone, onCancel }: { title: string; action: string; onDone: (pin: string) => Promise<void>; onCancel: () => void }) {
@@ -32,7 +33,7 @@ function ParentPinDialog({ title, action, onDone, onCancel }: { title: string; a
       <form ref={dialog} className="panel confirm-dialog" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} onSubmit={submit} onClick={(e) => e.stopPropagation()}>
         <h2 id={`${id}-title`}>{title}</h2>
         <label className="field">
-          <span className="field-label">Admin PIN</span>
+          <span className="field-label">{t('Admin PIN')}</span>
           <input type="password" inputMode="numeric" autoComplete="off" required minLength={4} autoFocus value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))} />
         </label>
         {error && (
@@ -42,7 +43,7 @@ function ParentPinDialog({ title, action, onDone, onCancel }: { title: string; a
         )}
         <div className="form-actions">
           <button type="button" className="button quiet" onClick={onCancel} disabled={busy}>
-            Cancel
+            {t('Cancel')}
           </button>
           <AsyncButton type="submit" className="button" busy={busy}>
             {action}

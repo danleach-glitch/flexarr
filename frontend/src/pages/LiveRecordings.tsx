@@ -9,7 +9,7 @@ import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { formatSize } from '../lib/format'
 import { programmeTime } from '../lib/livetv'
-import { locale } from '../i18n'
+import { locale, t } from '../i18n'
 
 const day = { format: (d: Date) => d.toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short' }) }
 
@@ -52,21 +52,21 @@ export default function LiveRecordings() {
       )}
 
       <section>
-        <h2 className="recordings-heading">Coming up</h2>
+        <h2 className="recordings-heading">{t('Coming up')}</h2>
         {data.upcoming.length === 0 ? (
-          <p className="muted">Nothing set to record. Choose a programme in the Guide and Record it, or its series.</p>
+          <p className="muted">{t('Nothing set to record. Choose a programme in the Guide and Record it, or its series.')}</p>
         ) : (
           <ul className="recordings-list">
             {data.upcoming.map((r) => (
               <li key={r.id} className={r.state === 'recording' ? 'recording-row now' : 'recording-row'}>
                 <div>
                   <strong>
-                    {r.state === 'recording' && <RecordDot className="record-dot live" aria-label="Recording now" />} {r.title}
+                    {r.state === 'recording' && <RecordDot className="record-dot live" aria-label={t('Recording now')} />} {r.title}
                   </strong>
                   <span className="muted">
                     {[episode(r), r.channelName, `${day.format(new Date(r.start))} ${programmeTime(r)}`].filter(Boolean).join('\u2003')}
                   </span>
-                  {r.clashes && <span className="error">Won’t record: every stream is wanted by recordings scheduled before it.</span>}
+                  {r.clashes && <span className="error">{t('Won’t record: every stream is wanted by recordings scheduled before it.')}</span>}
                 </div>
                 <IconButton
                   label={r.state === 'recording' ? 'Stop recording' : 'Don’t record'}
@@ -81,7 +81,7 @@ export default function LiveRecordings() {
 
       {data.series.length > 0 && (
         <section>
-          <h2 className="recordings-heading">Series</h2>
+          <h2 className="recordings-heading">{t('Series')}</h2>
           <ul className="recordings-list">
             {data.series.map((s) => (
               <SeriesRow key={s.id} series={s} act={act} />
@@ -91,9 +91,9 @@ export default function LiveRecordings() {
       )}
 
       <section>
-        <h2 className="recordings-heading">Recorded</h2>
+        <h2 className="recordings-heading">{t('Recorded')}</h2>
         {data.recent.length === 0 ? (
-          <p className="muted">Nothing recorded yet.</p>
+          <p className="muted">{t('Nothing recorded yet.')}</p>
         ) : (
           <ul className="recordings-list">
             {data.recent.map((r) => (
@@ -108,7 +108,7 @@ export default function LiveRecordings() {
                 <div className="recording-actions">
                   {r.itemId && (
                     <Link className="button small" to={`/item/${r.itemId}`}>
-                      <icon.play /> Play
+                      <icon.play /> {t('Play')}
                     </Link>
                   )}
                   <IconButton
@@ -137,13 +137,12 @@ function SeriesRow({ series, act }: { series: RecordingSeries; act: (action: () 
         </span>
         <div className="record-options">
           <label>
-            <input type="checkbox" checked={series.newOnly} onChange={(e) => act(() => updateSeries(series.id, { newOnly: e.target.checked }))} /> New
-            episodes only
+            <input type="checkbox" checked={series.newOnly} onChange={(e) => act(() => updateSeries(series.id, { newOnly: e.target.checked }))} /> {t('New episodes only')}
           </label>
           <label>
             Keep{' '}
             <select value={series.keepLatest} onChange={(e) => act(() => updateSeries(series.id, { keepLatest: Number(e.target.value) }))}>
-              <option value={0}>all of them</option>
+              <option value={0}>{t('all of them')}</option>
               {[1, 3, 5, 10, 20].map((n) => (
                 <option key={n} value={n}>
                   the latest {n}
@@ -154,7 +153,7 @@ function SeriesRow({ series, act }: { series: RecordingSeries; act: (action: () 
         </div>
       </div>
       <AsyncButton className="button quiet small" onClick={() => act(() => removeSeries(series.id))}>
-        Stop the series
+        {t('Stop the series')}
       </AsyncButton>
     </li>
   )

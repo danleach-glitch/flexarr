@@ -3,7 +3,7 @@ import { Navigate, NavLink, useParams } from 'react-router'
 import { clearApiCache, getMe, getTraktStatus, getUpdates, lockAdmin } from '../../api/client'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
-import { availableLanguages } from '../../i18n'
+import { availableLanguages, t } from '../../i18n'
 import { Antenna, Download, Film, Gauge, Globe, Headphones, History, Info, LayoutGrid, Notes, Padlock, PanelLeft, Shield, PlayCircle, Plug, Restore, Stack, Users } from '../../components/icons'
 import { AboutSection } from './AboutSection'
 import { SecuritySection } from './SecuritySection'
@@ -150,19 +150,19 @@ export function SettingsPage() {
   return (
     <div className="settings">
       <aside className="settings-nav">
-        <h1>Settings</h1>
-        <nav aria-label="Settings">
+        <h1>{t('Settings')}</h1>
+        <nav aria-label={t('Settings')}>
           <div className="settings-nav-group">
             <h2>{profileHeading(name)}</h2>
             {ownPages.map(link)}
           </div>
           {(isAdmin || locked) && (
             <div className="settings-nav-group">
-              <h2>Server</h2>
+              <h2>{t('Server')}</h2>
               {isAdmin && !pinMissing ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: locked ? 'Unlock settings' : 'Choose an admin PIN', icon: Padlock, render: () => null })}
               {isAdmin && unlockedUntil && (
                 <button type="button" className="text-button settings-lock" onClick={() => void lockAdmin().then(() => window.location.reload())}>
-                  Lock settings
+                  {t('Lock settings')}
                 </button>
               )}
             </div>
@@ -176,7 +176,7 @@ export function SettingsPage() {
             ? <AdminUnlock pinMissing={pinMissing} onUnlocked={() => window.location.reload()} />
             : serverPage
               ? serverPage.render()
-              : <p className="muted">There’s no such page in Settings.</p>}
+              : <p className="muted">{t('There’s no such page in Settings.')}</p>}
       </div>
     </div>
   )

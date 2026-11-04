@@ -10,7 +10,7 @@ import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
 import { episodeCode, formatSize, relativeTime, unreadableReason } from '../../lib/format'
 import { SettingsHeader } from './shared'
-import { locale } from '../../i18n'
+import { locale, t } from '../../i18n'
 
 function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
   const check = useApi(getHealthCheck, [])
@@ -34,7 +34,7 @@ function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
     <div className="panel health-check">
       <div className="health-check-head">
         <div>
-          <strong>Health check</strong>
+          <strong>{t('Health check')}</strong>
           <p className="muted">
             {running && report
               ? `Checking files: ${report.checked.toLocaleString(locale())} of ${report.total.toLocaleString(locale())}`
@@ -51,7 +51,7 @@ function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
             check.reload()
           }}
         >
-          Run health check
+          {t('Run health check')}
         </AsyncButton>
       </div>
       {running && report && report.total > 0 && (
@@ -109,7 +109,7 @@ export function HealthSection() {
   const [copyErrors, setCopyErrors] = useState<Record<string, string>>({})
   const [confirmAll, setConfirmAll] = useState(false)
   const [matching, setMatching] = useState<ItemSummary>()
-  if (!data) return <p className="muted">Checking your library…</p>
+  if (!data) return <p className="muted">{t('Checking your library…')}</p>
 
   async function upgrade(id: string) {
     try {
@@ -177,12 +177,12 @@ export function HealthSection() {
 
   return (
     <section className="health">
-      <SettingsHeader title="Library health" back={{ to: '/settings/libraries', label: 'Libraries' }} />
+      <SettingsHeader title={t('Library health')} back={{ to: '/settings/libraries', label: 'Libraries' }} />
 
       <div className="panel health-score" data-grade={score.score >= 95 ? 'good' : score.score >= 80 ? 'fair' : 'poor'}>
         <div className="health-score-number">
           <span className="health-score-value">{score.score}</span>
-          <span className="health-score-label">Health score</span>
+          <span className="health-score-label">{t('Health score')}</span>
         </div>
         <div>
           <p className="health-score-summary">
@@ -208,13 +208,13 @@ export function HealthSection() {
                 <strong>{withoutArtwork.toLocaleString(locale())}</strong> without artwork
                 {needsConnection === withoutArtwork ? (
                   <>
-                    : <Link to="/settings/connections">connect Radarr or Sonarr</Link> to fill it in
+                    : <Link to="/settings/connections">{t('connect Radarr or Sonarr')}</Link> {t('to fill it in')}
                   </>
                 ) : (
                   needsConnection > 0 && (
                     <>
                       {' '}
-                      (<Link to="/settings/connections">connect Radarr or Sonarr</Link> to fill in {needsConnection.toLocaleString(locale())})
+                      (<Link to="/settings/connections">{t('connect Radarr or Sonarr')}</Link> to fill in {needsConnection.toLocaleString(locale())})
                     </>
                   )
                 )}
@@ -231,7 +231,7 @@ export function HealthSection() {
       {clear.length > 0 && <p className="muted health-clear">All clear: {clear.join(', ')}.</p>}
 
       <HealthGroup
-        title="Spare copies"
+        title={t('Spare copies')}
         count={data.duplicates.length}
         // Stays while spares are removed, so the last of them going doesn't take the progress with it.
         shown={removing !== null}
@@ -273,7 +273,7 @@ export function HealthSection() {
                   return removeSpares([d.item.id])
                 }}
               >
-                Remove spares
+                {t('Remove spares')}
               </AsyncButton>
             </summary>
             <ul className="health-copies">
@@ -288,7 +288,7 @@ export function HealthSection() {
                     <span title={f.path}>{fileName(f.path)}</span>
                     <span className="muted">{[f.resolution, f.videoCodec?.toUpperCase(), formatSize(f.size)].filter(Boolean).join(', ')}</span>
                     <AsyncButton className="text-button" onClick={() => removeCopy(f.id)}>
-                      Delete this copy
+                      {t('Delete this copy')}
                     </AsyncButton>
                     {copyErrors[f.id] && (
                       <span className="error" role="alert">
@@ -308,7 +308,7 @@ export function HealthSection() {
         )}
       </HealthGroup>
 
-      <HealthGroup title="Files that can’t be read" count={data.unreadable.length} lede="Usually a damaged or unfinished download. A new copy fixes playback.">
+      <HealthGroup title={t('Files that can’t be read')} count={data.unreadable.length} lede="Usually a damaged or unfinished download. A new copy fixes playback.">
         {data.unreadable.map((u) => (
           <div key={u.fileId} className="health-row">
             <HealthRowMain item={u.item} file={u.path} detail={`Can’t be read: ${unreadableReason(u.error)}`} />
@@ -325,7 +325,7 @@ export function HealthSection() {
         ))}
       </HealthGroup>
 
-      <HealthGroup title="Only in standard definition" count={data.standardDefinitionTotal} lede="Your best copy is below 720p. Radarr can look for a better one.">
+      <HealthGroup title={t('Only in standard definition')} count={data.standardDefinitionTotal} lede="Your best copy is below 720p. Radarr can look for a better one.">
         {data.standardDefinition.map((item) => (
           <div key={item.id} className="health-row">
             <HealthRowMain item={item} detail="Best copy is SD" />
@@ -342,7 +342,7 @@ export function HealthSection() {
 
       {data.matchedByTitle.length > 0 && (
         <HealthGroup
-          title="Check these matches"
+          title={t('Check these matches')}
           count={data.matchedByTitle.length}
           lede="Sonarr and Radarr don’t manage these, so their details came from searching for the folder’s name, which can find the wrong one: an older show with the same name, or a remake. Fixing a match adds the title to Sonarr or Radarr. Ignore one that’s right and it stays as it is."
         >
@@ -363,10 +363,10 @@ export function HealthSection() {
                     }
                   }}
                 >
-                  Ignore
+                  {t('Ignore')}
                 </AsyncButton>
                 <button className="button quiet small" onClick={() => setMatching(item)}>
-                  Fix match
+                  {t('Fix match')}
                 </button>
               </div>
             </div>
@@ -376,7 +376,7 @@ export function HealthSection() {
 
       {data.missingArtwork.length > 0 && (
         <HealthGroup
-          title="Missing artwork"
+          title={t('Missing artwork')}
           count={data.missingArtwork.length}
           lede={
             score.missingArtwork === 0 && needsConnection > 0
@@ -391,7 +391,7 @@ export function HealthSection() {
               <HealthRowMain item={item} detail="No poster or details" />
               {(item.kind === 'Movie' || item.kind === 'Series') && (
                 <button className="button quiet small" onClick={() => setMatching(item)}>
-                  Fix match
+                  {t('Fix match')}
                 </button>
               )}
             </div>
@@ -457,7 +457,7 @@ function HeldFolders({ folders, onConfirmed }: { folders: HeldFolder[]; onConfir
 
   return (
     <HealthGroup
-      title="Folders on hold"
+      title={t('Folders on hold')}
       count={folders.length}
       lede="Scans are keeping these folders’ titles, in case a drive or share is having trouble. Titles you deleted on purpose stay listed until you confirm it."
     >
@@ -477,10 +477,10 @@ function HeldFolders({ folders, onConfirmed }: { folders: HeldFolder[]; onConfir
           </span>
           {f.canConfirm &&
             (f.confirmed ? (
-              <span className="tag">Removal confirmed, scanning</span>
+              <span className="tag">{t('Removal confirmed, scanning')}</span>
             ) : (
               <button className="button danger small" onClick={() => setAsking(f)}>
-                Confirm removal
+                {t('Confirm removal')}
               </button>
             ))}
         </div>
@@ -494,13 +494,12 @@ function HeldFolders({ folders, onConfirmed }: { folders: HeldFolder[]; onConfir
           onClose={() => setAsking(null)}
           onConfirm={() => confirm(asking)}
         >
-          <p>Flexarr can’t find them in this folder:</p>
+          <p>{t('Flexarr can’t find them in this folder:')}</p>
           <p>
             <code className="confirm-dialog-path">{asking.path}</code>
           </p>
           <p>
-            Flexarr hides them now and removes them a day later. Watch history is kept for 30 days in case they come back. No files are touched. If the
-            drive is just disconnected, reconnect it instead.
+            {t('Flexarr hides them now and removes them a day later. Watch history is kept for 30 days in case they come back. No files are touched. If the drive is just disconnected, reconnect it instead.')}
           </p>
         </ConfirmDialog>
       )}
@@ -578,40 +577,40 @@ function MusicHealth({ data, onChanged }: { data: LibraryHealth; onChanged: () =
 
   return (
     <>
-      <HealthGroup title="Albums without a cover" count={coverless.length} lede="No cover beside the files, in them or from Lidarr. Fix the match to choose one.">
+      <HealthGroup title={t('Albums without a cover')} count={coverless.length} lede="No cover beside the files, in them or from Lidarr. Fix the match to choose one.">
         {coverless.map((item) => (
           <div key={item.id} className="health-row">
             <HealthRowMain item={item} detail={item.seriesTitle ?? 'No cover'} />
             <button className="button quiet small" onClick={() => setMatching(item.id)}>
-              Fix match
+              {t('Fix match')}
             </button>
           </div>
         ))}
       </HealthGroup>
 
-      <HealthGroup title="Albums twice" count={twice.length} lede="The same release more than once. Merge makes them one album; the files stay where they are.">
+      <HealthGroup title={t('Albums twice')} count={twice.length} lede="The same release more than once. Merge makes them one album; the files stay where they are.">
         {twice.map((d) => (
           <div key={d.albums.map((a) => a.id).join()} className="health-row">
             <HealthRowMain item={d.albums[0]} detail={[d.artist, `${d.albums.length} copies: ${names(d.albums)}`].filter(Boolean).join('\u2003')} />
             <button className="button quiet small" onClick={() => startMerge({ kind: 'albums', items: d.albums })}>
-              Merge
+              {t('Merge')}
             </button>
           </div>
         ))}
       </HealthGroup>
 
-      <HealthGroup title="Artists under two names" count={split.length} lede="One artist filed under different spellings, usually from their files’ tags. Merge makes them one; the files stay where they are.">
+      <HealthGroup title={t('Artists under two names')} count={split.length} lede="One artist filed under different spellings, usually from their files’ tags. Merge makes them one; the files stay where they are.">
         {split.map((s) => (
           <div key={s.artists.map((a) => a.id).join()} className="health-row">
             <HealthRowMain item={s.artists[0]} detail={names(s.artists)} />
             <button className="button quiet small" onClick={() => startMerge({ kind: 'artists', items: s.artists })}>
-              Merge
+              {t('Merge')}
             </button>
           </div>
         ))}
       </HealthGroup>
 
-      <HealthGroup title="Tracks twice" count={repeated.length} lede="Albums with the same track more than once, usually two copies in one folder. Remove the spare in Lidarr or the Finder.">
+      <HealthGroup title={t('Tracks twice')} count={repeated.length} lede="Albums with the same track more than once, usually two copies in one folder. Remove the spare in Lidarr or the Finder.">
         {repeated.map((r) => (
           <div key={r.album.id} className="health-row">
             <HealthRowMain item={r.album} detail={[r.artist, r.repeated === 1 ? '1 track twice' : `${r.repeated} tracks twice`].filter(Boolean).join('\u2003')} />
@@ -630,7 +629,7 @@ function MusicHealth({ data, onChanged }: { data: LibraryHealth; onChanged: () =
           onConfirm={() => void merge()}
         >
           <p>Which one to keep? The others’ {merging.kind === 'albums' ? 'tracks' : 'albums'} move to it, and new ones land there too. No files are moved or deleted.</p>
-          <div className="health-merge-choices" role="radiogroup" aria-label="Keep">
+          <div className="health-merge-choices" role="radiogroup" aria-label={t('Keep')}>
             {merging.items.map((i) => (
               <label key={i.id} className="health-merge-choice">
                 <input type="radio" name="keep" checked={keep === i.id} onChange={() => setKeep(i.id)} disabled={busy} />
@@ -676,7 +675,7 @@ function HealthRowMain({ item, file, detail }: { item: ItemSummary | null; file?
             {item.kind === 'Episode' ? `${item.seriesTitle ?? ''} ${episodeCode(item)} ${item.title}` : `${item.title}${item.year ? ` (${item.year})` : ''}`}
           </Link>
         ) : (
-          <strong>Unknown title</strong>
+          <strong>{t('Unknown title')}</strong>
         )}
         <span className="muted">
           {detail}

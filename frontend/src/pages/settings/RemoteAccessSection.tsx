@@ -7,13 +7,14 @@ import { useApi } from '../../hooks/useApi'
 import { FamilyInvites } from './FamilyInvites'
 import { SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { errorText } from './useSettings'
+import { t } from '../../i18n'
 
 /** Watching from somewhere else: away from home over Tailscale, people with their own Tailscale, and family invites.
  * The API key, the admin PIN and the devices signed in are in Security. */
 export function RemoteAccessSection() {
   return (
     <section>
-      <SettingsHeader title="Remote access">Watch away from home, and let family watch from theirs.</SettingsHeader>
+      <SettingsHeader title={t('Remote access')}>{t('Watch away from home, and let family watch from theirs.')}</SettingsHeader>
       <RemoteAccessGroups />
       <FamilyInvites />
     </section>
@@ -56,7 +57,7 @@ export function RemoteAccessGroups() {
   return (
     <>
       <SettingsGroup
-        title="Away from home"
+        title={t('Away from home')}
         note={
           ts.publicAccess ? undefined : (
             <>
@@ -70,7 +71,7 @@ export function RemoteAccessGroups() {
         <div className="connection-line">
           <span className={ts.privateAccess || remote.data.tailnetAddress ? 'status-dot ok' : ts.running ? 'status-dot' : 'status-dot bad'} aria-hidden="true" />
           <span className="setting-text">
-            <strong>Tailscale</strong>
+            <strong>{t('Tailscale')}</strong>
             <span className="muted">
               {inMacApp
                 ? remote.data.tailnetAddress
@@ -100,10 +101,10 @@ export function RemoteAccessGroups() {
           <>
             <p className="muted">
               Mac App Store apps can’t turn Tailscale on. Install{' '}
-              <a href="https://tailscale.com/download">Tailscale</a> on this Mac and your devices with the same account, and they’ll reach Flexarr at this Mac’s Tailscale address. See <a href="https://flexarr.io/guide/away-from-home">Watch away from home</a>.
+              <a href="https://tailscale.com/download">{t('Tailscale')}</a> on this Mac and your devices with the same account, and they’ll reach Flexarr at this Mac’s Tailscale address. See <a href="https://flexarr.io/guide/away-from-home">{t('Watch away from home')}</a>.
             </p>
             {remote.data.tailnetAddress && (
-              <SettingRow as="div" label="Private address" help={<code className="remote-address">{remote.data.tailnetAddress}</code>}>
+              <SettingRow as="div" label={t('Private address')} help={<code className="remote-address">{remote.data.tailnetAddress}</code>}>
                 <CopyButton text={remote.data.tailnetAddress} what="the address" />
               </SettingRow>
             )}
@@ -113,16 +114,16 @@ export function RemoteAccessGroups() {
           <p className="muted">
             Flexarr can’t reach Tailscale from inside Docker. Run it outside Docker on a computer with Tailscale, or behind an HTTPS reverse proxy.
             See{' '}
-            <a href="https://flexarr.io/guide/away-from-home">Watch away from home</a>.
+            <a href="https://flexarr.io/guide/away-from-home">{t('Watch away from home')}</a>.
           </p>
         )}
         {!ts.installed && !inDocker && !inMacApp && (
           <p className="muted">
-            Install Tailscale on the server from <a href="https://tailscale.com/download">tailscale.com/download</a>, sign in, then come back here.
+            Install Tailscale on the server from <a href="https://tailscale.com/download">{t('tailscale.com/download')}</a>{t(', sign in, then come back here.')}
           </p>
         )}
         {ts.privateAccess && ts.url && (
-          <SettingRow as="div" label="Private address" help={<code className="remote-address">{ts.url}</code>}>
+          <SettingRow as="div" label={t('Private address')} help={<code className="remote-address">{ts.url}</code>}>
             <CopyButton text={ts.url} what="the address" />
           </SettingRow>
         )}
@@ -134,19 +135,19 @@ export function RemoteAccessGroups() {
       </SettingsGroup>
 
       {ts.publicAccess && (
-        <p className="panel advice error">Tailscale Funnel is publishing Flexarr’s address to the whole internet. Turn remote access off and on again to make it private.</p>
+        <p className="panel advice error">{t('Tailscale Funnel is publishing Flexarr’s address to the whole internet. Turn remote access off and on again to make it private.')}</p>
       )}
 
       {ts.privateAccess && !remote.data.mainProfileHasPin && (
         <p className="panel advice">
           Anyone using a browser or TV you’ve signed in can change settings, because there’s no admin PIN. Choose one in{' '}
-          <Link to="/settings/security">Security</Link>.
+          <Link to="/settings/security">{t('Security')}</Link>.
         </p>
       )}
 
       {ts.running && remote.data.links.length > 0 && (
         <SettingsGroup
-          title="People with their own Tailscale"
+          title={t('People with their own Tailscale')}
           note="People on your tailnet with the Tailscale app and their own account. Choose the profile each one gets when they open Flexarr in a browser, or Not allowed to turn them away."
         >
           {remote.data.links.map((person) => (
@@ -157,7 +158,7 @@ export function RemoteAccessGroups() {
                 disabled={busy}
                 onChange={(e) => run(() => linkTailscale(person.login, e.target.value || null))}
               >
-                <option value="">Not allowed</option>
+                <option value="">{t('Not allowed')}</option>
                 {profiles.data?.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}

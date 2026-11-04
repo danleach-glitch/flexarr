@@ -5,7 +5,7 @@ import { useApi } from '../hooks/useApi'
 import { friendlyTimeLeft, timeLabel } from '../lib/dates'
 import { episodeCode } from '../lib/format'
 import { webLink } from '../lib/links'
-import { locale } from '../i18n'
+import { locale, t } from '../i18n'
 
 /** Yesterday (for what just arrived) and four weeks ahead. */
 const DAYS = 30
@@ -31,14 +31,14 @@ export function UpcomingPage() {
     <div className="upcoming-page">
       <header className="library-header">
         <div>
-          <h1>Coming soon</h1>
-          <p className="muted">What Sonarr and Radarr expect over the next few weeks. Anything you don’t have yet opens in Sonarr or Radarr.</p>
+          <h1>{t('Coming soon')}</h1>
+          <p className="muted">{t('What Sonarr and Radarr expect over the next few weeks. Anything you don’t have yet opens in Sonarr or Radarr.')}</p>
         </div>
       </header>
 
       {downloads.data && downloads.data.length > 0 && (
         <section className="downloads">
-          <h2>Downloading now</h2>
+          <h2>{t('Downloading now')}</h2>
           <ul>
             {downloads.data.map((d) => (
               <DownloadRow key={d.id} download={d} />
@@ -47,10 +47,10 @@ export function UpcomingPage() {
         </section>
       )}
 
-      {upcoming.data && upcoming.data.length === 0 && <p className="muted">Nothing is scheduled. Monitored shows and movies will appear here as their dates approach.</p>}
+      {upcoming.data && upcoming.data.length === 0 && <p className="muted">{t('Nothing is scheduled. Monitored shows and movies will appear here as their dates approach.')}</p>}
 
       {upcoming.data && upcoming.data.length > 0 && (
-        <ol className="day-rows" aria-label="Release calendar">
+        <ol className="day-rows" aria-label={t('Release calendar')}>
           {calendarDays.map((d) => {
             const key = dayKey(d)
             const items = byDay.get(key) ?? []
@@ -75,7 +75,7 @@ export function UpcomingPage() {
                     ))}
                   </div>
                 ) : (
-                  <span className="muted day-row-nothing">Nothing scheduled</span>
+                  <span className="muted day-row-nothing">{t('Nothing scheduled')}</span>
                 )}
               </li>
             )

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { browseFilesystem, chooseFolderOnMac } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { Folder, FolderUp } from './icons'
+import { t } from '../i18n'
 
 type Props =
   /** Pick with the picker's own button, which `pickLabel` names. */
@@ -37,7 +38,7 @@ export function FolderPicker({ onPick, onOpen, pickLabel = 'Use this folder' }: 
         {data?.parent && (
           <li>
             <button type="button" onClick={() => setPath(data.parent!)}>
-              <FolderUp /> Up a folder
+              <FolderUp /> {t('Up a folder')}
             </button>
           </li>
         )}
@@ -48,7 +49,7 @@ export function FolderPicker({ onPick, onOpen, pickLabel = 'Use this folder' }: 
             </button>
           </li>
         ))}
-        {!loading && data?.directories.length === 0 && <li className="muted">No subfolders</li>}
+        {!loading && data?.directories.length === 0 && <li className="muted">{t('No subfolders')}</li>}
       </ul>
     </div>
   )

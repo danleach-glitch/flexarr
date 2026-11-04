@@ -4,6 +4,7 @@ import { AsyncButton } from '../../components/AsyncButton'
 import { usePinLockout } from '../../hooks/usePinLockout'
 import { SettingsHeader } from './shared'
 import { errorText } from './useSettings'
+import { t } from '../../i18n'
 
 const digits = (value: string) => value.replace(/\D/g, '').slice(0, 8)
 
@@ -46,7 +47,7 @@ export function AdminUnlock({ pinMissing, onUnlocked }: { pinMissing: boolean; o
     <div className="field-row">
       <label>
         {mode === 'forgotten' ? 'New PIN' : 'PIN'}
-        <input type="password" inputMode="numeric" autoComplete="new-password" required minLength={4} value={newPin} placeholder="4 to 8 digits" onChange={(e) => setNewPin(digits(e.target.value))} />
+        <input type="password" inputMode="numeric" autoComplete="new-password" required minLength={4} value={newPin} placeholder={t('4 to 8 digits')} onChange={(e) => setNewPin(digits(e.target.value))} />
       </label>
       <label>
         {mode === 'forgotten' ? 'Confirm new PIN' : 'Confirm PIN'}
@@ -65,17 +66,17 @@ export function AdminUnlock({ pinMissing, onUnlocked }: { pinMissing: boolean; o
       <form className="panel admin-unlock" onSubmit={submit} aria-label={mode === 'pin' ? 'Unlock settings' : 'Set the admin PIN'}>
         {mode === 'pin' && (
           <label className="field">
-            <span className="field-label">Admin PIN</span>
+            <span className="field-label">{t('Admin PIN')}</span>
             <input type="password" inputMode="numeric" autoComplete="off" required autoFocus value={pin} onChange={(e) => setPin(digits(e.target.value))} />
           </label>
         )}
         {mode === 'forgotten' && (
           <>
             <label className="field">
-              <span className="field-label">API key</span>
+              <span className="field-label">{t('API key')}</span>
               <input type="password" autoComplete="off" required autoFocus value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
             </label>
-            <p className="field-help">It’s in config.json in the server’s data folder: ~/.flexarr/data on a Mac, /config with Docker.</p>
+            <p className="field-help">{t('It’s in config.json in the server’s data folder: ~/.flexarr/data on a Mac, /config with Docker.')}</p>
             {newPinFields}
           </>
         )}
@@ -91,7 +92,7 @@ export function AdminUnlock({ pinMissing, onUnlocked }: { pinMissing: boolean; o
                 setMode('forgotten')
                 setError(undefined)
               }}>
-              Forgotten it?
+              {t('Forgotten it?')}
             </button>
           )}
           {mode === 'forgotten' && (
@@ -99,7 +100,7 @@ export function AdminUnlock({ pinMissing, onUnlocked }: { pinMissing: boolean; o
                 setMode('pin')
                 setError(undefined)
               }}>
-              Use the PIN
+              {t('Use the PIN')}
             </button>
           )}
           <AsyncButton type="submit" className="button" busy={busy} disabled={lockout.locked}>

@@ -11,6 +11,7 @@ import { useApi } from '../hooks/useApi'
 import { formatClock, formatDuration } from '../lib/format'
 import { MoreButton, queueActions } from './MusicPages'
 import { shuffled } from '../lib/shuffle'
+import { t } from '../i18n'
 
 /**
  * One "Made for you" mix: its cover mosaic, name and what it's made of, Play and Shuffle, and today's tracks in order.
@@ -46,7 +47,7 @@ export function MixPage() {
           <PlaylistCover playlist={{ cover: null, covers: summary.covers, name: summary.name }} width={500} />
         </div>
         <div className="music-header-text">
-          <p className="detail-kicker">Made for you</p>
+          <p className="detail-kicker">{t('Made for you')}</p>
           <h1>{summary.name}</h1>
           <p className="facts">
             <span>{summary.description}</span>
@@ -55,14 +56,14 @@ export function MixPage() {
           </p>
           <div className="detail-actions">
             <button className="button" onClick={() => player.play(tracks, 0, { openNowPlaying: true })} disabled={tracks.length === 0}>
-              <icon.play /> Play
+              <icon.play /> {t('Play')}
             </button>
             <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0, { openNowPlaying: true })} disabled={tracks.length < 2}>
-              Shuffle
+              {t('Shuffle')}
             </button>
             <MoreButton label={`More for ${summary.name}`} actions={queueActions(player, () => tracks)} disabled={tracks.length === 0} />
           </div>
-          <p className="muted mix-note">New every day, from what you play.</p>
+          <p className="muted mix-note">{t('New every day, from what you play.')}</p>
         </div>
       </header>
 

@@ -5,6 +5,7 @@ import { undoFailure } from '../lib/musicUndo'
 import { AsyncButton } from './AsyncButton'
 import { ConfirmDialog } from './ConfirmDialog'
 import { icon } from './icons.generated'
+import { t } from '../i18n'
 
 /**
  * Request a film or show (or some of a show's seasons) through Seerr, or say where it stands, as music's request
@@ -66,10 +67,10 @@ export function RequestButton({
     }
   }
 
-  if (title.libraryItemId || state === 'Available') return <span className="external-state">In your library</span>
-  if (state === 'PartlyAvailable') return <span className="external-state">Partly in your library</span>
+  if (title.libraryItemId || state === 'Available') return <span className="external-state">{t('In your library')}</span>
+  if (state === 'PartlyAvailable') return <span className="external-state">{t('Partly in your library')}</span>
   const className = size === 'small' ? 'button small quiet' : 'button quiet'
-  const offlineNote = offline && size === 'large' && <span className="external-state">Seerr isn’t answering.</span>
+  const offlineNote = offline && size === 'large' && <span className="external-state">{t('Seerr isn’t answering.')}</span>
   if (state === 'Requested') {
     return (
       <>
@@ -81,7 +82,7 @@ export function RequestButton({
           title={offline ? 'Seerr isn’t answering.' : 'Unrequest'}
           aria-label={label ? label.replace(/^Request\b/, 'Unrequest') : undefined}
         >
-          <icon.requested aria-hidden /> Requested
+          <icon.requested aria-hidden /> {t('Requested')}
         </AsyncButton>
         {offlineNote}
         {asking && (
@@ -104,7 +105,7 @@ export function RequestButton({
   if (state === 'refused')
     return (
       <>
-        <span className="external-state">Can’t request</span>
+        <span className="external-state">{t('Can’t request')}</span>
         {message && (
           <span className="error" role="alert">
             {message}

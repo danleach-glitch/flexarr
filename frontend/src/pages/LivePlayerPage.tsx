@@ -16,6 +16,7 @@ import { prefersNativeHls } from '../lib/profile'
 import { unshaped, useSoundSettings, useSoundShaping } from '../lib/soundSettings'
 import { useSoundChain } from '../hooks/soundChain'
 import { programmeTime, progress } from '../lib/livetv'
+import { t } from '../i18n'
 
 const HIDE_CHROME_MS = 3000
 /** Within this many seconds of the newest segment counts as live (players sit a few segments back). */
@@ -287,10 +288,10 @@ export default function LivePlayerPage() {
         }}
       />
 
-      {waiting && !error && <div className="player-spinner" role="status" aria-label="Loading" />}
+      {waiting && !error && <div className="player-spinner" role="status" aria-label={t('Loading')} />}
 
       <header className="player-top">
-        <button className="icon-button" onClick={exit} aria-label="Back to Live TV">
+        <button className="icon-button" onClick={exit} aria-label={t('Back to Live TV')}>
           <Back />
         </button>
         {channel && (
@@ -327,26 +328,26 @@ export default function LivePlayerPage() {
                     void start(id)
                   }}
                 >
-                  Stop the recording
+                  {t('Stop the recording')}
                 </AsyncButton>
               </>
             ) : (
               <button className="button" autoFocus onClick={() => void start(id)}>
-                Try again
+                {t('Try again')}
               </button>
             )}
             <button className="button quiet" onClick={() => setList(true)}>
-              Other channels
+              {t('Other channels')}
             </button>
             <button className="button quiet" onClick={exit}>
-              Go back
+              {t('Go back')}
             </button>
           </div>
         </div>
       )}
 
       {list && (
-        <aside className="live-channel-list" aria-label="Channels">
+        <aside className="live-channel-list" aria-label={t('Channels')}>
           <ol>
             {/* Favourites first, then the rest in number order. */}
             {[...channels.filter(isFavourite), ...channels.filter((c) => !isFavourite(c))].map((c) => (
@@ -365,7 +366,7 @@ export default function LivePlayerPage() {
                   <span className="live-channel-text">
                     <strong>
                       {c.name}
-                      {isFavourite(c) && <Star filled className="chip-star live-list-star" aria-label="Favourite" />}
+                      {isFavourite(c) && <Star filled className="chip-star live-list-star" aria-label={t('Favourite')} />}
                     </strong>
                     <span className="muted">{c.now?.title ?? 'No listings'}</span>
                   </span>
@@ -386,7 +387,7 @@ export default function LivePlayerPage() {
           className="scrubber"
           role="slider"
           tabIndex={0}
-          aria-label="Rewind"
+          aria-label={t('Rewind')}
           aria-valuemin={0}
           aria-valuemax={Math.round(span)}
           aria-valuenow={Math.round(window_.time - window_.start)}
@@ -405,10 +406,10 @@ export default function LivePlayerPage() {
           <button className="icon-button" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
             {playing ? <icon.pause /> : <icon.play />}
           </button>
-          <button className="icon-button" onClick={() => seekTo(window_.time - 10)} aria-label="Back 10 seconds">
+          <button className="icon-button" onClick={() => seekTo(window_.time - 10)} aria-label={t('Back 10 seconds')}>
             <Replay10 />
           </button>
-          <button className="icon-button" onClick={() => seekTo(window_.time + 10)} aria-label="Forward 10 seconds" disabled={atLive}>
+          <button className="icon-button" onClick={() => seekTo(window_.time + 10)} aria-label={t('Forward 10 seconds')} disabled={atLive}>
             <Forward10 />
           </button>
           <div className="player-volume">
@@ -421,7 +422,7 @@ export default function LivePlayerPage() {
               max={1}
               step={0.05}
               value={muted ? 0 : volume}
-              aria-label="Volume"
+              aria-label={t('Volume')}
               onChange={(e) => {
                 if (!video.current) return
                 video.current.volume = Number(e.target.value)
@@ -434,14 +435,14 @@ export default function LivePlayerPage() {
             {atLive ? 'Live' : `−${formatClock(behind)}`}
           </button>
           <span className="player-spacer" />
-          <button className="icon-button" onClick={() => step(-1)} aria-label="Previous channel">
+          <button className="icon-button" onClick={() => step(-1)} aria-label={t('Previous channel')}>
             <ChevronUp />
           </button>
-          <button className="icon-button" onClick={() => step(1)} aria-label="Next channel">
+          <button className="icon-button" onClick={() => step(1)} aria-label={t('Next channel')}>
             <ChevronDown />
           </button>
           <button className="player-quality" onClick={() => setList((open) => !open)} aria-expanded={list}>
-            Channels
+            {t('Channels')}
           </button>
           <button className="icon-button" onClick={toggleFullscreen} aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}>
             {fullscreen ? <ExitFullscreen /> : <Fullscreen />}

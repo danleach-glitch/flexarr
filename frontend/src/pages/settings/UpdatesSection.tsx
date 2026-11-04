@@ -9,7 +9,7 @@ import { parse, ReleaseNotes } from './changelog'
 import { SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 import { webLink } from '../../lib/links'
-import { locale } from '../../i18n'
+import { locale, t } from '../../i18n'
 
 const guide = 'https://flexarr.io/guide/updating'
 
@@ -59,12 +59,12 @@ export function UpdatesSection() {
 
   return (
     <section>
-      <SettingsHeader title="Updates">
-        The version this server runs, and new releases. Updating keeps your settings, profiles and history.
+      <SettingsHeader title={t('Updates')}>
+        {t('The version this server runs, and new releases. Updating keeps your settings, profiles and history.')}
       </SettingsHeader>
 
       <SettingsGroup
-        title="This server"
+        title={t('This server')}
         note={
           current?.install === 'Docker'
             ? 'Docker updates Flexarr from outside, so it tells you about new versions but can’t install them.'
@@ -74,7 +74,7 @@ export function UpdatesSection() {
         }
         action={
           <AsyncButton className="button small" onClick={check}>
-            Check for updates
+            {t('Check for updates')}
           </AsyncButton>
         }
       >
@@ -83,13 +83,13 @@ export function UpdatesSection() {
             Couldn’t load updates: {loaded.error.message}
           </p>
         )}
-        {!current && !loaded.error && <p className="muted">Loading…</p>}
+        {!current && !loaded.error && <p className="muted">{t('Loading…')}</p>}
         {current && (
           <>
-            <SettingRow as="div" label="Version" help={current.isDevelopment ? 'A development build, between releases.' : undefined}>
+            <SettingRow as="div" label={t('Version')} help={current.isDevelopment ? 'A development build, between releases.' : undefined}>
               <span className="setting-value">{current.version}</span>
             </SettingRow>
-            <SettingRow as="div" label="Status" help={checkedLine(current)}>
+            <SettingRow as="div" label={t('Status')} help={checkedLine(current)}>
               <span className="setting-value">{statusLine(current)}</span>
             </SettingRow>
           </>
@@ -120,7 +120,7 @@ export function UpdatesSection() {
             <h3 className="settings-subhead">Flexarr {current.latest.version}</h3>
             {current.canInstall && (
               <button className="button small" onClick={() => setConfirming(true)}>
-                Update now
+                {t('Update now')}
               </button>
             )}
           </div>
@@ -148,10 +148,10 @@ export function UpdatesSection() {
             setInstallError(undefined)
           }}
         >
-          <p>Flexarr downloads the update, then restarts to install it, which takes a minute or two. If the new version doesn’t start, the one you have now is put back.</p>
+          <p>{t('Flexarr downloads the update, then restarts to install it, which takes a minute or two. If the new version doesn’t start, the one you have now is put back.')}</p>
           {current.inUse.length > 0 && (
             <>
-              <p>Restarting interrupts what’s going on now:</p>
+              <p>{t('Restarting interrupts what’s going on now:')}</p>
               <ul>
                 {current.inUse.map((reason) => (
                   <li key={reason}>{reason}</li>
@@ -198,7 +198,7 @@ function Downloading({ updates }: { updates: Updates }) {
   return (
     <SettingsGroup title={`Downloading ${downloading ?? `Flexarr ${version ?? ''}`}`}>
       <div className="update-progress" role="status">
-        <progress max={1} value={share} aria-label="Download progress" />
+        <progress max={1} value={share} aria-label={t('Download progress')} />
         <span className="muted">
           {formatSize(received)}
           {total ? ` of ${formatSize(total)}` : ''}. Flexarr restarts to install it once it’s downloaded.
@@ -213,12 +213,12 @@ function HowToUpdate({ updates }: { updates: Updates }) {
   if (updates.install === 'Docker')
     return (
       <div className="panel update-howto">
-        <p>Flexarr runs in Docker here, and a container can’t replace itself. To update, get the new image and recreate the container. With Docker Compose, in the folder with your <code>docker-compose.yml</code>:</p>
+        <p>Flexarr runs in Docker here, and a container can’t replace itself. To update, get the new image and recreate the container. With Docker Compose, in the folder with your <code>{t('docker-compose.yml')}</code>:</p>
         <pre className="update-command">docker compose pull flexarr{'\n'}docker compose up -d flexarr</pre>
         <p className="muted">
           If your image’s tag names a version (like <code>:0.50</code>), change it first. On Synology or Unraid, update the container the way the platform does. To update automatically, a tool like Watchtower can do it.{' '}
           <a href={`${guide}#docker`} target="_blank" rel="noreferrer">
-            More in the guide
+            {t('More in the guide')}
           </a>
         </p>
       </div>
@@ -227,14 +227,14 @@ function HowToUpdate({ updates }: { updates: Updates }) {
     return (
       <div className="panel update-howto">
         <p>
-          To update, open the App Store on the Mac running Flexarr Server and choose <strong>Updates</strong>. A new version can take a day or two to reach the App Store after it’s released.
+          To update, open the App Store on the Mac running Flexarr Server and choose <strong>{t('Updates')}</strong>{t('. A new version can take a day or two to reach the App Store after it’s released.')}
         </p>
       </div>
     )
   if (updates.install === 'MacLaunchAgent')
     return (
       <div className="panel update-howto">
-        <p>This release has no Mac build to install, so update with the install script, from the Mac you installed from:</p>
+        <p>{t('This release has no Mac build to install, so update with the install script, from the Mac you installed from:')}</p>
         <pre className="update-command">cd flexarr{'\n'}git pull{'\n'}make deploy DEPLOY_HOST=&lt;your-mac&gt;</pre>
       </div>
     )
@@ -243,7 +243,7 @@ function HowToUpdate({ updates }: { updates: Updates }) {
       <p>
         This server wasn’t installed in a way Flexarr can update by itself. Update it the way it was installed.{' '}
         <a href={guide} target="_blank" rel="noreferrer">
-          How to update
+          {t('How to update')}
         </a>
       </p>
     </div>
@@ -268,7 +268,7 @@ function Automatic({ updates, onSaved }: { updates: Updates; onSaved: (updates: 
 
   return (
     <SettingsGroup
-      title="Automatic updates"
+      title={t('Automatic updates')}
       note={
         error ? (
           <span className="error" role="alert">
@@ -280,8 +280,8 @@ function Automatic({ updates, onSaved }: { updates: Updates; onSaved: (updates: 
       }
     >
       <ToggleRow
-        label="Install updates automatically"
-        help="Between 4 and 5 in the morning, once nothing is playing or recording. A busy night waits for the next."
+        label={t('Install updates automatically')}
+        help={t('Between 4 and 5 in the morning, once nothing is playing or recording. A busy night waits for the next.')}
         checked={updates.automatic}
         onChange={(on) => void save({ automatic: on })}
       />
@@ -322,10 +322,10 @@ function Restarting({ to }: { to: string }) {
 
   return (
     <section>
-      <SettingsHeader title="Updating">Flexarr is restarting to install {to ? `version ${to}` : 'the update'}. This page reloads when it’s back.</SettingsHeader>
+      <SettingsHeader title={t('Updating')}>Flexarr is restarting to install {to ? `version ${to}` : 'the update'}. This page reloads when it’s back.</SettingsHeader>
       {late && (
         <p className="muted" role="status">
-          It’s taking a while, which a big library’s first start after an update can. If it doesn’t come back, the log of the update is in <code>~/.flexarr/logs/update.log</code> on the server.
+          It’s taking a while, which a big library’s first start after an update can. If it doesn’t come back, the log of the update is in <code>{t('~/.flexarr/logs/update.log')}</code> {t('on the server.')}
         </p>
       )}
     </section>

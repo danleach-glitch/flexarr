@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { getBookMetadataSettings, saveBookMetadataSettings, type BookMetadataSettings } from '../../api/client'
 import { useApi } from '../../hooks/useApi'
 import { SaveStatus, SettingRow, SettingsGroup, ToggleRow } from './shared'
+import { t } from '../../i18n'
 
 const providerNames: Record<string, string> = { audible: 'Audible', itunes: 'Apple Books', openlibrary: 'Open Library' }
 
@@ -42,8 +43,8 @@ export function BookDetailsGroup() {
   }
 
   return (
-    <SettingsGroup title="Audiobook details" note="Looked up online, for the whole server. Details in the files always win.">
-      <SettingRow label="Audible store">
+    <SettingsGroup title={t('Audiobook details')} note="Looked up online, for the whole server. Details in the files always win.">
+      <SettingRow label={t('Audible store')}>
         <select value={s.region} onChange={(e) => void save({ region: e.target.value })}>
           {s.regions.map((r) => (
             <option key={r} value={r}>

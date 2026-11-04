@@ -11,6 +11,7 @@ import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
 import { authorsLine } from '../lib/books'
 import { formatDuration, progressOf } from '../lib/format'
+import { t } from '../i18n'
 
 /** A series in reading order, with the next book this profile hasn't finished picked out. */
 export function BookSeriesPage() {
@@ -77,10 +78,10 @@ export function BookSeriesPage() {
               <span className="series-book-state">
                 {book.userData.watched ? (
                   <span className="muted series-book-done">
-                    <Check /> Finished
+                    <Check /> {t('Finished')}
                   </span>
                 ) : (
-                  isNext && <span className="series-book-next">Up next</span>
+                  isNext && <span className="series-book-next">{t('Up next')}</span>
                 )}
               </span>
               <button className="icon-button" aria-label={`${progress !== null && !book.userData.watched ? 'Resume' : 'Play'} ${book.title}`} onClick={() => player.play([book])}>
@@ -93,7 +94,7 @@ export function BookSeriesPage() {
       {missing.data && missing.data.books.length > 0 && (
         <section className="music-section book-series-missing" aria-labelledby="book-series-missing">
           <h2 id="book-series-missing" className="music-section-title">
-            Not in your library
+            {t('Not in your library')}
           </h2>
           <div className="poster-grid music-albums">
             {missing.data.books.map((b) => (

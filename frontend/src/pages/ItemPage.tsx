@@ -52,7 +52,7 @@ import {
   progressOf,
   pictureLabel,
 } from '../lib/format'
-import { locale } from '../i18n'
+import { locale, t } from '../i18n'
 
 export function ItemPage() {
   const { id = '' } = useParams()
@@ -232,17 +232,17 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             )}
             {progress !== null && (
               <button className="button quiet" onClick={() => play(`/play/${item.id}?t=0`)}>
-                <icon.startOver /> Start over
+                <icon.startOver /> {t('Start over')}
               </button>
             )}
             {item.kind === 'Series' && item.childCount > 0 && (
               <button className="button quiet" onClick={() => navigate(`/play/${item.id}?shuffle=1`)}>
-                <icon.shuffle /> Shuffle
+                <icon.shuffle /> {t('Shuffle')}
               </button>
             )}
             {detail.trailerYouTubeId && !kids && (
               <button className="button quiet" onClick={() => setTrailer(true)}>
-                <icon.trailer /> Trailer
+                <icon.trailer /> {t('Trailer')}
               </button>
             )}
             {!kids && (
@@ -254,7 +254,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             {more.length > 0 && (
               <button
                 className="button quiet icon"
-                aria-label="More actions"
+                aria-label={t('More actions')}
                 aria-haspopup="menu"
                 aria-expanded={moreAt !== null}
                 onClick={(e) => {
@@ -294,7 +294,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
         {item.kind === 'Series' && gaps.data && <ShowGaps showId={item.id} tmdbId={detail.tmdbId ? Number(detail.tmdbId) : null} gaps={gaps.data} />}
         {detail.credits.length > 0 && <Cast credits={detail.credits} studio={detail.studio} />}
         {similar.data && similar.data.length > 0 && (
-          <Row title="More like this">
+          <Row title={t('More like this')}>
             {similar.data.map((s) => (
               <PosterCard key={s.id} item={s} />
             ))}
@@ -350,7 +350,7 @@ function Seasons({ series, counts, onChange }: { series: ItemDetail; counts?: Sh
 
   return (
     <section className="seasons">
-      <div className="season-tabs" role="tablist" aria-label="Seasons">
+      <div className="season-tabs" role="tablist" aria-label={t('Seasons')}>
         {seasons.map((s) => (
           <button
             key={s.id}
@@ -369,7 +369,7 @@ function Seasons({ series, counts, onChange }: { series: ItemDetail; counts?: Sh
                 </span>
               ) : null
             })()}
-            {s.userData.watched && <icon.watched aria-label="watched" />}
+            {s.userData.watched && <icon.watched aria-label={t('watched')} />}
           </button>
         ))}
       </div>
@@ -453,7 +453,7 @@ function Cast({ credits, studio }: { credits: Credit[]; studio: string | null })
   return (
     <section className="cast">
       {cast.length > 0 && (
-        <Row title="Cast" style="people">
+        <Row title={t('Cast')} style="people">
           {cast.map((c) => (
             <Link key={`${c.personId}-${c.character}`} to={`/person/${c.personId}`} className="card person-card">
               <div className="card-frame">
@@ -485,7 +485,7 @@ function Cast({ credits, studio }: { credits: Credit[]; studio: string | null })
           })}
           {studio && (
             <div>
-              <dt>From</dt>
+              <dt>{t('From')}</dt>
               <dd>{studio}</dd>
             </div>
           )}
@@ -505,13 +505,13 @@ function FileInfo({ files, itemId, kind }: { files: MediaFile[]; itemId: string;
           <code>{file.path}</code>
           {file.probeError && <p className="error">This file couldn't be read: {file.probeError}</p>}
           <dl>
-            <dt>Video</dt>
+            <dt>{t('Video')}</dt>
             <dd>{[file.videoCodec?.toUpperCase(), file.width && `${file.width}×${file.height}`, pictureLabel(file)].filter(Boolean).join(', ') || 'None'}</dd>
-            <dt>Audio</dt>
+            <dt>{t('Audio')}</dt>
             <dd>{[file.audioCodec?.toUpperCase(), formatChannels(file.audioChannels)].filter(Boolean).join(', ') || 'None'}</dd>
-            <dt>File</dt>
+            <dt>{t('File')}</dt>
             <dd>{[file.container?.toUpperCase(), formatSize(file.size), formatBitrate(file.bitrate)].filter(Boolean).join(', ')}</dd>
-            <dt>Subtitles</dt>
+            <dt>{t('Subtitles')}</dt>
             <dd>
               {file.streams
                 .filter((s) => s.type === 'Subtitle')

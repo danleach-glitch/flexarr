@@ -3,6 +3,7 @@ import { chapterIndexAt } from '../lib/books'
 import { formatClock } from '../lib/format'
 import { AsyncButton } from './AsyncButton'
 import { Close } from './icons'
+import { t } from '../i18n'
 
 /** Bookmarks in a book, in order: each a place (and its chapter) to jump to, its note, and a way to remove it. */
 export function BookmarkList({
@@ -19,7 +20,7 @@ export function BookmarkList({
   onRemove: (id: string) => Promise<unknown>
 }) {
   return (
-    <ol className="book-bookmarks" id={id} aria-label="Bookmarks">
+    <ol className="book-bookmarks" id={id} aria-label={t('Bookmarks')}>
       {[...bookmarks]
         .sort((a, b) => a.positionSeconds - b.positionSeconds)
         .map((b) => {

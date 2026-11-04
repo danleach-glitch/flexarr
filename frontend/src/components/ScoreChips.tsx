@@ -1,6 +1,7 @@
 import type { RottenTomatoesState } from '../api/types'
 import type { Scores } from '../lib/scores'
 import { scoreMarks, type ScoreMarkDrawing } from './scoreMarks.generated'
+import { t } from '../i18n'
 
 const TOMATO_WORDS: Record<RottenTomatoesState, string> = { CertifiedFresh: 'Certified Fresh', Fresh: 'Fresh', Rotten: 'Rotten' }
 const TOMATO_MARKS: Record<RottenTomatoesState, ScoreMarkDrawing> = {
@@ -26,7 +27,7 @@ export function ScoreChips({ scores }: { scores: Scores }) {
     <>
       {imdb !== null && (
         // role="img" so screen readers read the label: on a plain span many skip it, and the mark and number are hidden.
-        <span className="score score-chip" role="img" aria-label={`IMDb ${imdb.toFixed(1)} out of 10`} title="IMDb">
+        <span className="score score-chip" role="img" aria-label={`IMDb ${imdb.toFixed(1)} out of 10`} title={t('IMDb')}>
           <Mark drawing={scoreMarks.imdb} />
           <span aria-hidden="true">{imdb.toFixed(1)}</span>
         </span>

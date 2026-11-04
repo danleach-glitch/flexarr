@@ -25,6 +25,7 @@ import { RequestButton } from '../components/RequestButton'
 import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { usePlay } from '../hooks/usePlay'
+import { t } from '../i18n'
 
 /** All collections: suggestions to add, then yours, the household's and the franchises Radarr knows. */
 export function CollectionsPage() {
@@ -55,28 +56,28 @@ export function CollectionsPage() {
     <div className="collections-page">
       <header className="library-header">
         <div>
-          <h1>Collections</h1>
-          <p className="muted">Your own, smart ones that keep themselves up to date, and the movie series you have.</p>
+          <h1>{t('Collections')}</h1>
+          <p className="muted">{t('Your own, smart ones that keep themselves up to date, and the movie series you have.')}</p>
         </div>
         <button className="button" onClick={() => setCreating(true)}>
-          New collection
+          {t('New collection')}
         </button>
       </header>
 
-      <nav className="view-switch" aria-label="Collections views">
+      <nav className="view-switch" aria-label={t('Collections views')}>
         <Link to="/collections" aria-current={suggested ? undefined : 'page'}>
-          Your collections
+          {t('Your collections')}
         </Link>
         <Link to="/collections?view=suggested" aria-current={suggested ? 'page' : undefined}>
-          Suggested
+          {t('Suggested')}
         </Link>
       </nav>
 
       {suggested && (
         <section className="collections-section">
-          <p className="muted">Ideas from what’s in your library. Adding one makes a smart collection that keeps itself up to date.</p>
-          {!suggestions.data && <p className="muted">Looking through your library…</p>}
-          {suggestions.data?.length === 0 && <p className="muted">No suggestions right now. They change as your library grows and through the year.</p>}
+          <p className="muted">{t('Ideas from what’s in your library. Adding one makes a smart collection that keeps itself up to date.')}</p>
+          {!suggestions.data && <p className="muted">{t('Looking through your library…')}</p>}
+          {suggestions.data?.length === 0 && <p className="muted">{t('No suggestions right now. They change as your library grows and through the year.')}</p>}
           <div className="collection-suggestions">
             {suggestions.data?.map((s) => (
               <div key={s.name} className="collection-suggestion">
@@ -86,7 +87,7 @@ export function CollectionsPage() {
                   <span className="muted">{s.description}</span>
                 </div>
                 <AsyncButton className="button small" onClick={() => adopt(s)}>
-                  Add
+                  {t('Add')}
                 </AsyncButton>
               </div>
             ))}
@@ -112,7 +113,7 @@ export function CollectionsPage() {
       )}
       {!suggested && collections.data && all.length === 0 && (
         <p className="muted collection-empty">
-          No collections yet. Make one, or pick one from <Link to="/collections?view=suggested">Suggested</Link>.
+          No collections yet. Make one, or pick one from <Link to="/collections?view=suggested">{t('Suggested')}</Link>.
         </p>
       )}
 
@@ -223,7 +224,7 @@ export function CollectionPage() {
         <div className="collection-art">{c.poster ? <img src={imageUrl(c.poster, 500)} alt="" /> : <Collage posters={c.posters} title={c.name} />}</div>
         <div className="collection-text">
           <p className="detail-kicker">
-            <Link to="/collections">Collections</Link> <span className="muted">{kindLabel}</span>
+            <Link to="/collections">{t('Collections')}</Link> <span className="muted">{kindLabel}</span>
           </p>
           <h1 className="detail-title">{c.name}</h1>
           <p className="facts">
@@ -232,7 +233,7 @@ export function CollectionPage() {
             </span>
             {c.watchedCount > 0 && <span>{c.watchedCount} watched</span>}
             {data.missing.length > 0 && <span>{data.missing.length} not in your library</span>}
-            {c.kind === 'TraktList' ? <span>From Trakt</span> : c.personal && <span>Just for you</span>}
+            {c.kind === 'TraktList' ? <span>{t('From Trakt')}</span> : c.personal && <span>{t('Just for you')}</span>}
           </p>
           {c.description && <p className="detail-overview">{c.description}</p>}
           <div className="detail-actions">
@@ -251,7 +252,7 @@ export function CollectionPage() {
                   return play(pick)
                 }}
               >
-                <icon.shuffle /> Shuffle
+                <icon.shuffle /> {t('Shuffle')}
               </AsyncButton>
             )}
             {c.canEdit && (
@@ -260,7 +261,7 @@ export function CollectionPage() {
               </AsyncButton>
             )}
             {c.canEdit && c.kind !== 'Franchise' && c.kind !== 'TraktList' && (
-              <IconButton label="Edit" icon={<Pencil />} className="button quiet icon" onClick={() => setEditing(true)} />
+              <IconButton label={t('Edit')} icon={<Pencil />} className="button quiet icon" onClick={() => setEditing(true)} />
             )}
             {c.canEdit && (
               <IconButton
@@ -287,7 +288,7 @@ export function CollectionPage() {
           {c.kind === 'Smart' ? 'Nothing matches its rules yet.' : c.kind === 'TraktList' ? 'Nothing on this list is here yet.' : 'Nothing in it yet. Add titles from their ⋯ menu or their page: Add to collection.'}
         </p>
       )}
-      {manual && items.length > 1 && <p className="muted collection-hint">Drag posters to reorder.</p>}
+      {manual && items.length > 1 && <p className="muted collection-hint">{t('Drag posters to reorder.')}</p>}
       <div className="poster-grid">
         {items.map((item) => (
           <div
@@ -301,7 +302,7 @@ export function CollectionPage() {
             <PosterCard item={item} />
             {manual && (
               <AsyncButton className="text-button collection-remove" onClick={() => act(() => removeFromCollection(c.id, item.id))}>
-                Remove
+                {t('Remove')}
               </AsyncButton>
             )}
           </div>
@@ -310,7 +311,7 @@ export function CollectionPage() {
 
       {data.missing.length > 0 && (
         <section className="collections-section">
-          <h2 className="settings-subhead">Not in your library</h2>
+          <h2 className="settings-subhead">{t('Not in your library')}</h2>
           <div className="poster-grid">
             {data.missing.map((m) => (
               <div key={m.tmdbId} className="card external-card missing-card">

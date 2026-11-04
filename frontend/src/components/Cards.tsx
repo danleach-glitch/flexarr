@@ -13,6 +13,7 @@ import { Check, More } from './icons'
 import { icon } from './icons.generated'
 import { hasMenu, ItemMenu, type MenuPoint } from './ItemMenu'
 import { WatchedToggle } from './WatchedToggle'
+import { t } from '../i18n'
 
 function Progress({ item }: { item: ItemSummary }) {
   const progress = progressOf(item)
@@ -35,7 +36,7 @@ function WatchState({ item }: { item: ItemSummary }) {
   if (toggles(item)) return null
   if (item.userData.watched) {
     return (
-      <span className="watched-mark" aria-label="Watched">
+      <span className="watched-mark" aria-label={t('Watched')}>
         <Check />
       </span>
     )

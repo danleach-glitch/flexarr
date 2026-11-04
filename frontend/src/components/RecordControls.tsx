@@ -12,6 +12,7 @@ import {
 } from '../api/client'
 import { AsyncButton } from './AsyncButton'
 import { RecordDot, SeriesDots } from './icons'
+import { t } from '../i18n'
 
 /**
  * Recording a programme from the guide: this showing, or every showing of its title (on this channel or any, new
@@ -67,26 +68,26 @@ export function RecordControls({ programme, channelId, now, onChanged }: { progr
           </AsyncButton>
         ) : (
           <AsyncButton className="button small" disabled={busy} onClick={() => act(() => recordProgramme(programme.id))}>
-            <RecordDot className="record-dot" /> Record
+            <RecordDot className="record-dot" /> {t('Record')}
           </AsyncButton>
         )}
         {series ? (
           <AsyncButton className="button quiet small" disabled={busy} onClick={() => act(() => removeSeries(series.id))}>
-            <SeriesDots className="record-dot" /> Stop recording the series
+            <SeriesDots className="record-dot" /> {t('Stop recording the series')}
           </AsyncButton>
         ) : (
           <AsyncButton className="button quiet small" disabled={busy} onClick={() => act(() => recordSeries(programme.id, { anyChannel, newOnly }))}>
-            <SeriesDots className="record-dot" /> Record series
+            <SeriesDots className="record-dot" /> {t('Record series')}
           </AsyncButton>
         )}
       </div>
       {!series && (
         <div className="record-options">
           <label>
-            <input type="checkbox" checked={anyChannel} onChange={(e) => setAnyChannel(e.target.checked)} /> On any channel
+            <input type="checkbox" checked={anyChannel} onChange={(e) => setAnyChannel(e.target.checked)} /> {t('On any channel')}
           </label>
           <label>
-            <input type="checkbox" checked={newOnly} onChange={(e) => setNewOnly(e.target.checked)} /> New episodes only
+            <input type="checkbox" checked={newOnly} onChange={(e) => setNewOnly(e.target.checked)} /> {t('New episodes only')}
           </label>
         </div>
       )}
@@ -96,7 +97,7 @@ export function RecordControls({ programme, channelId, now, onChanged }: { progr
           {series.newOnly ? ' (new episodes only)' : ''} is recorded.
         </p>
       )}
-      {recording?.clashes && !error && <p className="error record-note">This won’t record: recordings scheduled before it want every stream then.</p>}
+      {recording?.clashes && !error && <p className="error record-note">{t('This won’t record: recordings scheduled before it want every stream then.')}</p>}
       {error && (
         <p className="error record-note" role="alert">
           {error}

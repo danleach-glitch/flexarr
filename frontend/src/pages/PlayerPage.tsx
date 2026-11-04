@@ -53,6 +53,7 @@ import { detectProfile, prefersNativeHls } from '../lib/profile'
 import { EARLY_STALL_MS, reportEarlyStall, reportStart, type StartTiming } from '../lib/startTiming'
 import { drop as dropPrepared, getReady, holds as holdsPrepared, take as takePrepared } from '../lib/preparedPlayback'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
+import { t } from '../i18n'
 
 type Quality = 'auto' | 1080 | 720 | 480
 const qualities: { value: Quality; label: string; bitrate?: number }[] = [
@@ -1311,7 +1312,7 @@ export function PlayerPage() {
       {(stillWatching || asleep) && (
         <div className="player-sleep-dim" aria-hidden="true" style={{ opacity: asleep ? 1 : Math.min(1, 1 - (sleepLeft ?? 0) / STILL_WATCHING_SECONDS) }} />
       )}
-      {waiting && !error && <div className="player-spinner" role="status" aria-label="Loading" />}
+      {waiting && !error && <div className="player-spinner" role="status" aria-label={t('Loading')} />}
       {subtitleStatus !== 'idle' && (
         <p className="player-toast" role="status">
           {subtitleStatus === 'loading' ? 'Preparing subtitles. They’ll appear in a moment.' : 'These subtitles couldn’t be loaded. Try another track.'}
@@ -1324,7 +1325,7 @@ export function PlayerPage() {
       )}
 
       <header className="player-top">
-        <button className="icon-button" onClick={exit} aria-label="Back">
+        <button className="icon-button" onClick={exit} aria-label={t('Back')}>
           <Back />
         </button>
         {item && (
@@ -1354,7 +1355,7 @@ export function PlayerPage() {
           <p id="player-error-message">{error.message}</p>
           {error.kind === 'takenOver' && (
             <p id="player-error-note" className="player-error-note muted">
-              The other screen will stop if you watch here.
+              {t('The other screen will stop if you watch here.')}
             </p>
           )}
           <div className="player-error-actions">
@@ -1363,7 +1364,7 @@ export function PlayerPage() {
               {error.kind === 'takenOver' ? 'Watch here instead' : 'Try again'}
             </button>
             <button className="button quiet" onClick={exit}>
-              Go back
+              {t('Go back')}
             </button>
           </div>
         </div>
@@ -1377,16 +1378,16 @@ export function PlayerPage() {
 
       {stillWatching && (
         <div className="player-still-watching" role="alertdialog" aria-labelledby="still-watching-title" aria-describedby="still-watching-note">
-          <p id="still-watching-title">Still watching?</p>
+          <p id="still-watching-title">{t('Still watching?')}</p>
           <p id="still-watching-note" className="muted">
             Pausing in {Math.max(1, Math.ceil(sleepLeft ?? 0))} s
           </p>
           <div className="player-error-actions">
             <button className="button" autoFocus onClick={() => chooseSleep(extended(sleep, Date.now()))}>
-              +15 min
+              {t('+15 min')}
             </button>
             <button className="button quiet" onClick={() => chooseSleep(null)}>
-              Turn off timer
+              {t('Turn off timer')}
             </button>
           </div>
         </div>
@@ -1404,7 +1405,7 @@ export function PlayerPage() {
       </div>
 
       {showUpNext && info?.next && !error && (
-        <aside className="up-next" ref={setUpNextCard} aria-label="Next episode">
+        <aside className="up-next" ref={setUpNextCard} aria-label={t('Next episode')}>
           <div className="up-next-still">
             <img src={imageUrl(info.next.artwork.thumb ?? info.next.artwork.backdrop, 500)} alt="" />
             {counting && (
@@ -1424,10 +1425,10 @@ export function PlayerPage() {
             {/* One split pill: Play now and, while counting down, its X. Each half is its own button. */}
             <div className={counting ? 'up-next-pill counting' : 'up-next-pill'}>
               <button className="up-next-play" onClick={moveOn}>
-                <icon.play /> Play now
+                <icon.play /> {t('Play now')}
               </button>
               {counting && (
-                <button className="up-next-cancel" onClick={cancelUpNext} aria-label="Cancel">
+                <button className="up-next-cancel" onClick={cancelUpNext} aria-label={t('Cancel')}>
                   <icon.removeFromRow />
                 </button>
               )}
@@ -1443,17 +1444,17 @@ export function PlayerPage() {
           <button className="icon-button" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
             {playing ? <icon.pause /> : <icon.play />}
           </button>
-          <button className="icon-button" onClick={() => seekBy(-10)} aria-label="Back 10 seconds">
+          <button className="icon-button" onClick={() => seekBy(-10)} aria-label={t('Back 10 seconds')}>
             <Replay10 />
           </button>
-          <button className="icon-button" onClick={() => seekBy(10)} aria-label="Forward 10 seconds">
+          <button className="icon-button" onClick={() => seekBy(10)} aria-label={t('Forward 10 seconds')}>
             <Forward10 />
           </button>
-          <button className="icon-button" onClick={playPrevious} aria-label="Previous">
+          <button className="icon-button" onClick={playPrevious} aria-label={t('Previous')}>
             <Previous />
           </button>
           {info?.next && (
-            <button className="icon-button" onClick={playNext} aria-label="Next episode">
+            <button className="icon-button" onClick={playNext} aria-label={t('Next episode')}>
               <Next />
             </button>
           )}
@@ -1467,7 +1468,7 @@ export function PlayerPage() {
               max={1}
               step={0.05}
               value={muted ? 0 : volume}
-              aria-label="Volume"
+              aria-label={t('Volume')}
               onChange={(e) => {
                 if (!video.current) return
                 video.current.volume = Number(e.target.value)
@@ -1481,25 +1482,25 @@ export function PlayerPage() {
           <span className="player-spacer" />
 
           <div className="menu-anchor">
-            <button className="icon-button" aria-label="Subtitles" aria-expanded={menu === 'subtitles'} onClick={() => setMenu(menu === 'subtitles' ? null : 'subtitles')}>
+            <button className="icon-button" aria-label={t('Subtitles')} aria-expanded={menu === 'subtitles'} onClick={() => setMenu(menu === 'subtitles' ? null : 'subtitles')}>
               <Captions />
             </button>
             {menu === 'subtitles' && info && (
               <div className="player-menu" role="menu">
                 <div className="player-menu-column">
-                  <h3>Subtitles</h3>
+                  <h3>{t('Subtitles')}</h3>
                   <MenuItem selected={!subtitleKey} onClick={() => chooseSubtitle(null)}>
-                    Off
+                    {t('Off')}
                   </MenuItem>
                   {info.subtitles.map((s) => (
                     <MenuItem key={s.key} selected={s.key === subtitleKey} onClick={() => chooseSubtitle(s.key)}>
                       {s.label}
-                      {!s.isText && <span className="muted"> (burned in)</span>}
+                      {!s.isText && <span className="muted"> {t('(burned in)')}</span>}
                     </MenuItem>
                   ))}
                   {info.canSearchSubtitles && !kids && (
                     <button className="player-menu-item" onClick={searchForSubtitles}>
-                      Search for subtitles…
+                      {t('Search for subtitles…')}
                     </button>
                   )}
                   {info.canSearchSubtitles && !kids && selectedTrack?.isExternal && (
@@ -1509,19 +1510,19 @@ export function PlayerPage() {
                   )}
                   {selectedText && (
                     <>
-                      <h3>Timing</h3>
+                      <h3>{t('Timing')}</h3>
                       <div className="player-menu-stepper">
-                        <button aria-label="Show subtitles earlier" onClick={() => nudgeSubtitles(-0.25)}>
+                        <button aria-label={t('Show subtitles earlier')} onClick={() => nudgeSubtitles(-0.25)}>
                           −
                         </button>
                         <span aria-live="polite">{delayLabel(subtitleDelay)}</span>
-                        <button aria-label="Show subtitles later" onClick={() => nudgeSubtitles(0.25)}>
+                        <button aria-label={t('Show subtitles later')} onClick={() => nudgeSubtitles(0.25)}>
                           +
                         </button>
                       </div>
                       {subtitleDelay !== 0 && (
                         <button className="player-menu-item" onClick={() => nudgeSubtitles(0)}>
-                          Reset timing
+                          {t('Reset timing')}
                         </button>
                       )}
                     </>
@@ -1529,20 +1530,20 @@ export function PlayerPage() {
                 </div>
                 {info.subtitles.some((s) => s.isText) && (
                   <div className="player-menu-column">
-                    <h3>Subtitle size</h3>
+                    <h3>{t('Subtitle size')}</h3>
                     {subtitleSizes.map((s) => (
                       <MenuItem key={s.value} selected={(preferences.subtitleSize ?? 'Standard') === s.value} onClick={() => chooseSubtitleSize(s.value)}>
                         {s.label}
                       </MenuItem>
                     ))}
-                    <h3>Position</h3>
+                    <h3>{t('Position')}</h3>
                     {subtitlePositions.map((p) => (
                       <MenuItem key={p} selected={position === p} onClick={() => choosePlacement({ subtitlePosition: p })}>
                         {p}
                       </MenuItem>
                     ))}
                     <MenuItem selected={blackBars} onClick={() => choosePlacement({ subtitlesInBlackBars: !blackBars })}>
-                      In the black bars
+                      {t('In the black bars')}
                     </MenuItem>
                   </div>
                 )}
@@ -1552,7 +1553,7 @@ export function PlayerPage() {
 
           {info && info.audioTracks.length > 0 && (
           <div className="menu-anchor">
-            <button className="icon-button" aria-label="Audio" aria-expanded={menu === 'audio'} onClick={() => setMenu(menu === 'audio' ? null : 'audio')}>
+            <button className="icon-button" aria-label={t('Audio')} aria-expanded={menu === 'audio'} onClick={() => setMenu(menu === 'audio' ? null : 'audio')}>
               <Waveform />
             </button>
             {menu === 'audio' && (
@@ -1561,7 +1562,7 @@ export function PlayerPage() {
                   <div className="player-menu-column">
                     {info.audioTracks.length > 1 && (
                       <>
-                        <h3>Audio</h3>
+                        <h3>{t('Audio')}</h3>
                         {info.audioTracks.map((a) => (
                           <MenuItem key={a.index} selected={a.index === info.selectedAudioIndex} onClick={() => chooseAudio(a.index)}>
                             {a.label}
@@ -1572,16 +1573,16 @@ export function PlayerPage() {
                     )}
                     {/* Fixes the file for everyone, so it's worth saying so. */}
                     {/* A click moves it 10 ms; held, it jumps 50 ms at a time. */}
-                    <h3>Audio sync</h3>
+                    <h3>{t('Audio sync')}</h3>
                     <div className="player-menu-stepper">
-                      <HoldButton aria-label="Play the sound earlier" title="Hold to move faster" onStep={(held) => nudgeSound(held ? -0.05 : -0.01)}>
+                      <HoldButton aria-label={t('Play the sound earlier')} title={t('Hold to move faster')} onStep={(held) => nudgeSound(held ? -0.05 : -0.01)}>
                         −
                       </HoldButton>
                       <span aria-live="polite">{syncLabel(audioDelay)}</span>
-                      <HoldButton aria-label="Play the sound later" title="Hold to move faster" onStep={(held) => nudgeSound(held ? 0.05 : 0.01)}>
+                      <HoldButton aria-label={t('Play the sound later')} title={t('Hold to move faster')} onStep={(held) => nudgeSound(held ? 0.05 : 0.01)}>
                         +
                       </HoldButton>
-                      <button aria-label="Reset sync" title="Reset sync" disabled={audioDelay === 0} onClick={() => nudgeSound(0)}>
+                      <button aria-label={t('Reset sync')} title={t('Reset sync')} disabled={audioDelay === 0} onClick={() => nudgeSound(0)}>
                         <Reset />
                       </button>
                     </div>
@@ -1589,16 +1590,16 @@ export function PlayerPage() {
                 )}
                 {info.audioTracks.length > 0 && canShape && (
                   <div className="player-menu-column sound">
-                    <h3 id="sound-boost">Dialogue boost</h3>
+                    <h3 id="sound-boost">{t('Dialogue boost')}</h3>
                     <Segments labelledBy="sound-boost" choices={dialogueBoostChoices.map((b) => ({ value: b, label: b }))} value={sound.dialogueBoost} onChoose={(dialogueBoost) => writeSoundSettings({ dialogueBoost })} />
-                    <h3 id="sound-night">Night mode</h3>
+                    <h3 id="sound-night">{t('Night mode')}</h3>
                     <Segments
                       labelledBy="sound-night"
                       choices={nightModeChoices.map((n) => ({ value: n, label: n === 'Scheduled' ? `${timeOfDay(sound.nightStart)}–${timeOfDay(sound.nightEnd)}` : n, spoken: n === 'Scheduled' ? `${timeOfDay(sound.nightStart)} to ${timeOfDay(sound.nightEnd)}, on a schedule` : undefined }))}
                       value={sound.nightMode}
                       onChoose={(nightMode) => writeSoundSettings({ nightMode })}
                     />
-                    <h3 id="sound-speakers">Speakers</h3>
+                    <h3 id="sound-speakers">{t('Speakers')}</h3>
                     <Segments labelledBy="sound-speakers" choices={speakerChoices} value={sound.speakers} onChoose={(speakers) => writeSoundSettings({ speakers })} />
                   </div>
                 )}
@@ -1619,13 +1620,13 @@ export function PlayerPage() {
             {menu === 'speed' && (
               <div className="player-menu" role="menu">
                 <div className="player-menu-column">
-                  <h3>Speed</h3>
+                  <h3>{t('Speed')}</h3>
                   {speeds.map((s) => (
                     <MenuItem key={s} selected={s === speed} onClick={() => chooseSpeed(s)}>
                       {s === 1 ? 'Normal' : speedLabel(s)}
                     </MenuItem>
                   ))}
-                  {info?.item.kind === 'Episode' && <p className="player-menu-note muted">Kept for this show.</p>}
+                  {info?.item.kind === 'Episode' && <p className="player-menu-note muted">{t('Kept for this show.')}</p>}
                 </div>
               </div>
             )}
@@ -1643,7 +1644,7 @@ export function PlayerPage() {
             {menu === 'quality' && (
               <div className="player-menu" role="menu">
                 <div className="player-menu-column">
-                  <h3>Quality</h3>
+                  <h3>{t('Quality')}</h3>
                   {qualities.map((q) => (
                     <MenuItem key={q.value} selected={q.value === quality} onClick={() => chooseQuality(q.value)}>
                       {q.label}
@@ -1651,18 +1652,18 @@ export function PlayerPage() {
                   ))}
                 </div>
                 <div className="player-menu-column">
-                  <h3>While watching</h3>
+                  <h3>{t('While watching')}</h3>
                   <MenuItem toggle selected={preferences.autoPlayNext} onClick={() => togglePreference('autoPlayNext')}>
-                    Auto-play the next episode
+                    {t('Auto-play the next episode')}
                   </MenuItem>
                   <MenuItem toggle selected={preferences.skipIntros} onClick={() => togglePreference('skipIntros')}>
-                    Skip intros
+                    {t('Skip intros')}
                   </MenuItem>
                   <MenuItem toggle selected={preferences.skipRecaps} onClick={() => togglePreference('skipRecaps')}>
-                    Skip recaps
+                    {t('Skip recaps')}
                   </MenuItem>
                   <MenuItem toggle selected={preferences.skipCredits} onClick={() => togglePreference('skipCredits')}>
-                    Skip credits
+                    {t('Skip credits')}
                   </MenuItem>
                 </div>
               </div>
@@ -1687,7 +1688,7 @@ export function PlayerPage() {
             {menu === 'sleep' && (
               <div className="player-menu" role="menu">
                 <div className="player-menu-column">
-                  <h3>Sleep timer</h3>
+                  <h3>{t('Sleep timer')}</h3>
                   {sleepChoices(sleepWhat).map((choice) => (
                     <MenuItem
                       key={choice.label}
@@ -1699,7 +1700,7 @@ export function PlayerPage() {
                   ))}
                   {sleep && (
                     <button className="player-menu-item" onClick={() => chooseSleep(null)}>
-                      Turn off
+                      {t('Turn off')}
                     </button>
                   )}
                 </div>
@@ -1708,7 +1709,7 @@ export function PlayerPage() {
           </div>
 
           {'pictureInPictureEnabled' in document && document.pictureInPictureEnabled && (
-            <button className="icon-button" aria-label="Picture in picture" onClick={() => void video.current?.requestPictureInPicture?.()}>
+            <button className="icon-button" aria-label={t('Picture in picture')} onClick={() => void video.current?.requestPictureInPicture?.()}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <rect x="3" y="5" width="18" height="14" rx="2" />
                 <rect x="12" y="11" width="7" height="6" rx="1" fill="currentColor" />
@@ -1718,7 +1719,7 @@ export function PlayerPage() {
           {'webkitShowPlaybackTargetPicker' in HTMLVideoElement.prototype && (
             <button
               className="icon-button"
-              aria-label="AirPlay"
+              aria-label={t('AirPlay')}
               onClick={() => (video.current as unknown as { webkitShowPlaybackTargetPicker: () => void }).webkitShowPlaybackTargetPicker()}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -1837,7 +1838,7 @@ function Scrubber({
       className="scrubber"
       role="slider"
       tabIndex={0}
-      aria-label="Seek"
+      aria-label={t('Seek')}
       aria-valuemin={0}
       aria-valuemax={Math.round(duration)}
       aria-valuenow={Math.round(time)}

@@ -3,13 +3,14 @@ import { ApiError, imageUrl, searchMissing, type ShowEpisode, type ShowMissing }
 import { airDay } from '../lib/format'
 import { AsyncButton } from './AsyncButton'
 import { RequestButton } from './RequestButton'
+import { t } from '../i18n'
 
 const code = (e: ShowEpisode) => `S${e.seasonNumber}E${e.episodeNumber}`
 
 /** Asks Sonarr to look for a season's missing episodes, then says it did. */
 function SearchButton({ showId, season, label }: { showId: string; season: number; label: string }) {
   const [state, setState] = useState<'idle' | 'sent' | string>('idle')
-  if (state === 'sent') return <span className="external-state">Searching</span>
+  if (state === 'sent') return <span className="external-state">{t('Searching')}</span>
   return (
     <AsyncButton
       className="button small quiet"
@@ -42,7 +43,7 @@ export function ShowGaps({ showId, tmdbId, gaps }: { showId: string; tmdbId: num
     <>
       {gaps.upcoming.length > 0 && (
         <section className="show-gaps" aria-labelledby="show-coming-up">
-          <h2 id="show-coming-up">Coming up</h2>
+          <h2 id="show-coming-up">{t('Coming up')}</h2>
           <ul className="gap-episodes">
             {gaps.upcoming.map((e) => (
               <li key={code(e)}>
@@ -56,7 +57,7 @@ export function ShowGaps({ showId, tmdbId, gaps }: { showId: string; tmdbId: num
       )}
       {hasMissing && (
         <section className="show-gaps" aria-labelledby="show-missing">
-          <h2 id="show-missing">Not in your library</h2>
+          <h2 id="show-missing">{t('Not in your library')}</h2>
           {gaps.seasons.length > 0 && (
             <div className="poster-grid gap-seasons">
               {gaps.seasons.map((s) => {
@@ -74,7 +75,7 @@ export function ShowGaps({ showId, tmdbId, gaps }: { showId: string; tmdbId: num
                       {gaps.canRequest && tmdbId != null ? (
                         <RequestButton title={{ mediaType: 'tv', tmdbId, availability: s.availability, libraryItemId: null }} seasons={[s.seasonNumber]} label={`Request ${name}`} name={name} />
                       ) : s.availability === 'Requested' ? (
-                        <span className="external-state">Requested</span>
+                        <span className="external-state">{t('Requested')}</span>
                       ) : gaps.canSearch ? (
                         <SearchButton showId={showId} season={s.seasonNumber} label={`Search for ${name}`} />
                       ) : null}
