@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.settings
 
+import androidx.compose.material.icons.filled.Language
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -125,6 +127,7 @@ fun SettingsScreen(
     onListening: () -> Unit,
     onNotifications: () -> Unit,
     onTrakt: () -> Unit,
+    onLanguage: () -> Unit = {},
 ) {
     var confirmSignOut by remember { mutableStateOf(false) }
     var choosingProfile by remember { mutableStateOf(false) }
@@ -238,6 +241,10 @@ fun SettingsScreen(
                         SettingsLink("Library order", Icons.Filled.SwapVert, value = if (order.isEmpty()) "By name" else "Your own", onClick = onLibraryOrder)
                     }
                     Divider()
+                    // Once the server offers more than English (from 0.61).
+                    if (model.languages.size > 1) {
+                        SettingsLink(t("Language"), Icons.Filled.Language, value = languageValue(model), onClick = onLanguage)
+                    }
                     SettingsLink("Notifications", Icons.Filled.Notifications, value = if (model.notifications.isOn) "On" else "Off", onClick = onNotifications)
                     trakt?.takeIf { it.available }?.let { status ->
                         Divider()

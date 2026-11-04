@@ -34,6 +34,10 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
+        // The language shown last, before anything draws; its dates and numbers in this device's own variant.
+        io.github.flexarr.core.i18n.Localization.cacheDir = filesDir
+        io.github.flexarr.core.i18n.Localization.deviceLanguages = android.os.LocaleList.getDefault().toLanguageTags().split(',')
+        io.github.flexarr.core.i18n.Localization.startWithLastShown()
         // Upright on a phone; a tablet turns either way, as an iPad does (and a TV is a TV).
         requestedOrientation = if (isTelevision || resources.configuration.smallestScreenWidthDp >= 600) {
             ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -45,9 +49,17 @@ class MainActivity : ComponentActivity() {
             openLink(intent)
         }
         setContent {
-            FlexarrTheme {
-                if (usesTvInterface) TvRoot(appModel) else FlexarrRoot(appModel)
-                DownloadNotificationsQuestion(appModel)
+            // A new language redraws everything in it, mirrored for right-to-left ones.
+            androidx.compose.runtime.key(appModel.languageCode) {
+                androidx.compose.runtime.CompositionLocalProvider(
+                    androidx.compose.ui.platform.LocalLayoutDirection provides
+                        if (io.github.flexarr.core.i18n.Localization.isRightToLeft) androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr,
+                ) {
+                    FlexarrTheme {
+                        if (usesTvInterface) TvRoot(appModel) else FlexarrRoot(appModel)
+                        DownloadNotificationsQuestion(appModel)
+                    }
+                }
             }
         }
     }

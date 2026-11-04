@@ -122,6 +122,19 @@ object Localization {
         }
     }
 
+    /** The language this device showed last, to start in it before the server answers. */
+    var lastShown: String?
+        get() = cacheDir?.resolve("languages/last")?.takeIf { it.exists() }?.readText()?.trim()?.ifEmpty { null }
+        set(value) {
+            val f = cacheDir?.resolve("languages/last") ?: return
+            runCatching { f.parentFile?.mkdirs(); if (value == null) f.delete() else f.writeText(value) }
+        }
+
+    /** Starts in the language shown last, before anything draws, so it doesn't flash English first. */
+    fun startWithLastShown() {
+        lastShown?.let { show(newestOnDevice(it)) }
+    }
+
     /** The newest pack on the device for a language: built in or kept from the server. */
     fun newestOnDevice(code: String): LanguagePack? {
         val built = bundled(code)

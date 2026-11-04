@@ -365,9 +365,11 @@ fun MainScreen(model: AppModel) {
                         onListening = { nav.navigate("settings/listening") },
                         onNotifications = { nav.navigate("settings/notifications") },
                         onTrakt = { nav.navigate("settings/trakt") },
+                        onLanguage = { nav.navigate("settings/language") },
                     )
                 }
                 composable("settings/playback") { PlaybackSettingsScreen(model) }
+                composable("settings/language") { io.github.flexarr.ui.settings.LanguageSettingsScreen(model) }
                 composable("settings/downloads") { DownloadSettingsScreen(model) }
                 composable("settings/listening") { ListeningSettingsScreen(model, onNotifications = { nav.navigate("settings/notifications") }) }
                 composable("settings/server") { ServerSettingsScreen(model, onDiagnostics = { nav.navigate("settings/diagnostics") }) }

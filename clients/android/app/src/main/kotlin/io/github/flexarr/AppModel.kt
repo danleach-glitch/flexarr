@@ -92,6 +92,38 @@ private val flexarrLog = FlexarrLog("signin")
  * the [savedSignIn] (read once at launch, as decrypting it takes a moment).
  */
 class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
+    /** The languages the server offers (English first); empty from servers before 0.61. Settings › Language shows when there's more than English. */
+    var languages by mutableStateOf(emptyList<io.github.flexarr.core.i18n.LanguageInfo>())
+        private set
+
+    /** The profile's chosen language (null: the device's). */
+    var profileLanguage by mutableStateOf<String?>(null)
+        private set
+
+    /** The language shown: the whole app is keyed on it, so a new one redraws everything in it. */
+    var languageCode by mutableStateOf(io.github.flexarr.core.i18n.Localization.code)
+        private set
+
+    init {
+        io.github.flexarr.core.i18n.Localization.onChange {
+            android.os.Handler(android.os.Looper.getMainLooper()).post { languageCode = io.github.flexarr.core.i18n.Localization.code }
+        }
+    }
+
+    private suspend fun settleLanguage(client: FlexarrClient) {
+        languages = runCatching { client.languages() }.getOrDefault(emptyList())
+        io.github.flexarr.core.i18n.Localization.settle(profileLanguage, languages) { code -> runCatching { client.languagePack(code) }.getOrNull() }
+        io.github.flexarr.core.i18n.Localization.lastShown = io.github.flexarr.core.i18n.Localization.code.takeIf { it != "en" }
+    }
+
+    /** Picks the profile's language on every device (null: each device's own) and shows it here. */
+    suspend fun setLanguage(code: String?) {
+        val client = client ?: return
+        client.setLanguage(code)
+        profileLanguage = code
+        settleLanguage(client)
+    }
+
     sealed interface Phase {
         data object SignedOut : Phase
         data class SignedIn(val credentials: ServerCredentials) : Phase
@@ -1216,6 +1248,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             }
             val list = listed.await().getOrThrow()
             val me = signIn.await()
+            // In the profile's language (or the device's) before the first screen, so it doesn't change under you.
+            profileLanguage = me?.language
+            settleLanguage(client)
             // A token for a profile that's since been removed acts as nobody: forget it and ask again.
             val credentials = credentials
             if (list.none { it.isCurrent } && credentials?.profileToken != null) {
