@@ -2,6 +2,7 @@ package io.github.flexarr.player
 
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
 import androidx.compose.runtime.getValue
@@ -144,7 +145,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
                     return
                 }
                 flexarrLog.warning("Live channel failed", e)
-                close(PlaybackController.playerErrorMessage(e, subject = "This channel"))
+                close(PlaybackController.playerErrorMessage(e, channel = true))
             }
         })
     }
@@ -239,7 +240,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
                     client.liveHeartbeat(viewer)
                 } catch (e: FlexarrException.Http) {
                     // A recording needed the stream: say so, rather than the picture just stopping.
-                    if (e.status == 410) return@launch close(e.message ?: "A recording needed the stream.")
+                    if (e.status == 410) return@launch close(e.message ?: t("A recording needed the stream."))
                 } catch (_: FlexarrException) {
                     // A missed beat; the next one will do.
                 }

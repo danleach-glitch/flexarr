@@ -1,5 +1,7 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -22,7 +24,7 @@ data class MissingSeason(
     /** Requested when Sonarr is already looking for it, or Seerr says so. */
     val availability: Availability = Availability.Unknown,
 ) {
-    val title: String get() = name?.takeIf { it.isNotBlank() } ?: "Season $seasonNumber"
+    val title: String get() = name?.takeIf { it.isNotBlank() } ?: t("Season {season}", "season" to seasonNumber.toString())
     val requested: Boolean get() = availability == Availability.Requested || availability == Availability.PartlyAvailable
     val detail: String get() = listOfNotNull(if (episodes > 0) episodesLabel(episodes) else null, year?.toString()).joinToString(", ")
 }
@@ -38,7 +40,7 @@ data class ShowEpisode(
     /** Sonarr is looking for it. */
     val monitored: Boolean = false,
 ) {
-    val code: String get() = "S${seasonNumber}E$episodeNumber"
+    val code: String get() = t(Words.seasonEpisodeShort, "season" to seasonNumber.toString(), "episode" to episodeNumber.toString())
     val label: String get() = title?.let { "$code · $it" } ?: code
 }
 
@@ -46,7 +48,7 @@ data class ShowEpisode(
 @Serializable
 data class SeasonCount(val seasonNumber: Int, val have: Int, val aired: Int) {
     /** "8 of 10" when some are missing; null when it has them all. */
-    val label: String? get() = if (have < aired) "$have of $aired" else null
+    val label: String? get() = if (have < aired) t("{have} of {count}", "have" to have, "count" to aired) else null
 }
 
 /** What a show has that the library doesn't, and what's coming. */
@@ -75,7 +77,7 @@ data class ShowMissing(
         val None = ShowMissing()
 
         /** "Airs 12 Nov", or "Airs 12 Nov 2027" when it isn't this year. */
-        fun airsLabel(date: Instant, zone: ZoneId = ZoneId.systemDefault(), now: Instant = Instant.now()): String = "Airs ${airedLabel(date, zone, now)}"
+        fun airsLabel(date: Instant, zone: ZoneId = ZoneId.systemDefault(), now: Instant = Instant.now()): String = t("Airs {day}", "day" to airedLabel(date, zone, now))
 
         /** "12 Nov", or "12 Nov 2021" when it isn't this year: when a missing episode aired. */
         fun airedLabel(date: Instant, zone: ZoneId = ZoneId.systemDefault(), now: Instant = Instant.now()): String {
@@ -98,7 +100,7 @@ data class MissingBook(
     val cover: String? = null,
 ) {
     /** "Book 3, 2021". */
-    val detail: String get() = listOfNotNull(sequence?.let { "Book $it" }, year?.toString()).joinToString(", ")
+    val detail: String get() = listOfNotNull(sequence?.let { t("Book {number}", "number" to it) }, year?.toString()).joinToString(", ")
 }
 
 @Serializable
@@ -110,7 +112,7 @@ internal data class SeasonsRequest(val mediaType: String, val tmdbId: Int, val s
 @Serializable
 internal data class MissingSearchRequest(val seasonNumber: Int, val episodeNumbers: List<Int>? = null)
 
-private fun episodesLabel(count: Int) = if (count == 1) "1 episode" else "$count episodes"
+private fun episodesLabel(count: Int) = t("{count, plural, one {# episode} other {# episodes}}", "count" to count)
 
 /** What a library show lacks; [ShowMissing.None] from servers before 0.59 (a 404, or their web page). */
 suspend fun FlexarrClient.showMissing(showId: String): ShowMissing =

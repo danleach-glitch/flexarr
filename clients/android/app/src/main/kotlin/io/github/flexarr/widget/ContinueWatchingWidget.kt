@@ -138,9 +138,9 @@ class ContinueWatchingWidget : GlanceAppWidget() {
             Text(t(Words.continueWatching), style = TextStyle(color = SCREEN, fontSize = 14.sp, fontWeight = FontWeight.Bold), maxLines = 1)
             Spacer(GlanceModifier.height(8.dp))
             when (state) {
-                State.SignedOut -> Note("Open Flexarr to connect it to your server.")
+                State.SignedOut -> Note(t("Open Flexarr to connect it to your server."))
                 is State.Titles -> if (state.titles.isEmpty()) {
-                    Note("Nothing to carry on with. What you start watching shows up here.")
+                    Note(t("Nothing to carry on with. What you start watching shows up here."))
                 } else {
                     val across = when {
                         LocalSize.current.width >= WIDE.width -> 3

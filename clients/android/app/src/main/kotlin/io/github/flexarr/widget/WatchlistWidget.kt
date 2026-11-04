@@ -145,10 +145,10 @@ class WatchlistWidget : GlanceAppWidget() {
             Text(t("Ready to watch"), style = TextStyle(color = SCREEN, fontSize = 14.sp, fontWeight = FontWeight.Bold), maxLines = 1)
             Spacer(GlanceModifier.height(8.dp))
             when (state) {
-                State.SignedOut -> Note("Open Flexarr to connect it to your server.")
-                State.ChooseProfile -> Note("Open Flexarr to choose who’s watching")
+                State.SignedOut -> Note(t("Open Flexarr to connect it to your server."))
+                State.ChooseProfile -> Note(t("Open Flexarr to choose who’s watching"))
                 is State.Titles -> if (state.titles.isEmpty()) {
-                    Note("Nothing here yet.")
+                    Note(t("Nothing here yet."))
                 } else {
                     val width = LocalSize.current.width
                     val across = when {

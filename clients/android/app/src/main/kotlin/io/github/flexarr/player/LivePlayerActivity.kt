@@ -269,7 +269,7 @@ private fun LivePlayerScreen(controller: LiveTvController, onClose: () -> Unit, 
             interaction++
         }
         Box(
-            Modifier.fillMaxSize().semantics { onClick(label = if (controlsVisible) "Hide controls" else "Show controls") { toggleControls(); true } }.pointerInput(Unit) {
+            Modifier.fillMaxSize().semantics { onClick(label = if (controlsVisible) t("Hide controls") else t("Show controls")) { toggleControls(); true } }.pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { toggleControls() },
                     onDoubleTap = { offset ->
@@ -289,7 +289,7 @@ private fun LivePlayerScreen(controller: LiveTvController, onClose: () -> Unit, 
         controller.error?.let { message ->
             Column(Modifier.align(Alignment.Center).padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(message, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen)
-                ActionButton("Close", onClick = onClose, prominent = true)
+                ActionButton(t("Close"), onClick = onClose, prominent = true)
             }
         }
         val asleep = controller.sleep.phase != VideoSleep.Phase.Off
@@ -299,7 +299,7 @@ private fun LivePlayerScreen(controller: LiveTvController, onClose: () -> Unit, 
         // Behind live: the way back, with or without the controls.
         if (controller.isBehind && controller.error == null && !asleep) {
             Box(Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(end = 24.dp, bottom = if (controlsVisible) 132.dp else 32.dp)) {
-                ActionButton("Back to live", onClick = controller::goLive, prominent = true)
+                ActionButton(t("Back to live"), onClick = controller::goLive, prominent = true)
             }
         }
         SleepPrompt(controller.sleep)
@@ -336,28 +336,28 @@ private fun LiveControls(controller: LiveTvController, onClose: () -> Unit, onPi
         Box(Modifier.fillMaxWidth().height(160.dp).align(Alignment.BottomCenter).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)))))
 
         Row(Modifier.fillMaxWidth().safeDrawingPadding().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Top) {
-            GlassButton(Icons.Filled.Close, "Close", size = 44, onClick = onClose)
+            GlassButton(Icons.Filled.Close, t("Close"), size = 44, onClick = onClose)
             Column(Modifier.weight(1f).padding(top = 2.dp)) {
                 Text(controller.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(controller.subtitle, fontSize = 15.sp, color = Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 controller.detail?.let { Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
             }
-            GlassButton(Icons.AutoMirrored.Filled.List, "Channels", size = 44) { onChannels(); onInteract() }
+            GlassButton(Icons.AutoMirrored.Filled.List, t("Channels"), size = 44) { onChannels(); onInteract() }
             if (LocalContext.current.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
-                GlassButton(Icons.Filled.PictureInPictureAlt, "Picture in picture", size = 44, onClick = onPictureInPicture)
+                GlassButton(Icons.Filled.PictureInPictureAlt, t("Picture in picture"), size = 44, onClick = onPictureInPicture)
             }
         }
 
         Row(Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(28.dp), verticalAlignment = Alignment.CenterVertically) {
             val many = controller.channels.size > 1
-            GlassButton(Icons.Filled.KeyboardArrowUp, "Previous channel", enabled = many) { controller.step(-1); onInteract() }
+            GlassButton(Icons.Filled.KeyboardArrowUp, t("Previous channel"), enabled = many) { controller.step(-1); onInteract() }
             SkipButton(-controller.skipSeconds) { controller.skip(-controller.skipSeconds); onInteract() }
-            GlassButton(if (controller.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (controller.isPlaying) "Pause" else "Play", size = 76) {
+            GlassButton(if (controller.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (controller.isPlaying) t("Pause") else t(Words.play), size = 76) {
                 controller.togglePlayPause()
                 onInteract()
             }
             SkipButton(controller.skipSeconds, enabled = controller.isBehind) { controller.skip(controller.skipSeconds); onInteract() }
-            GlassButton(Icons.Filled.KeyboardArrowDown, "Next channel", enabled = many) { controller.step(1); onInteract() }
+            GlassButton(Icons.Filled.KeyboardArrowDown, t("Next channel"), enabled = many) { controller.step(1); onInteract() }
         }
 
         Column(Modifier.align(Alignment.BottomCenter), horizontalAlignment = Alignment.End) {
@@ -395,7 +395,7 @@ private fun LiveTimeline(controller: LiveTvController, onInteract: () -> Unit, m
             colors = SliderDefaults.colors(thumbColor = Flexarr.screen, activeTrackColor = Flexarr.screen, inactiveTrackColor = Flexarr.screen.copy(alpha = 0.3f)),
             modifier = Modifier.weight(1f).semantics {
                 contentDescription = t("Position")
-                stateDescription = if (!controller.isBehind && !scrubbing) "Live" else "${Format.timestamp((duration - shown).coerceAtLeast(0.0))} behind live"
+                stateDescription = if (!controller.isBehind && !scrubbing) t("Live") else t("{time} behind live", "time" to Format.timestamp((duration - shown).coerceAtLeast(0.0)))
             },
         )
         val behind = duration - shown
@@ -436,9 +436,9 @@ private fun ChannelPicker(controller: LiveTvController, onPick: (LiveChannel) ->
         }
         LazyColumn(state = list, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
             if (previous != null) {
-                item { PickerHeading("Last watched") }
+                item { PickerHeading(t("Last watched")) }
                 item(key = "last") { PickerRow(controller, listed.firstOrNull { it.id == previous.id } ?: previous, current = false, onPick) }
-                item { PickerHeading("All channels") }
+                item { PickerHeading(t("All channels")) }
             }
             items(listed, key = { it.id }) { channel -> PickerRow(controller, channel, current = channel.id == current, onPick) }
         }
@@ -464,7 +464,7 @@ private fun PickerRow(controller: LiveTvController, channel: LiveChannel, curren
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(channel.now?.displayTitle ?: "No listings", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Text(channel.now?.displayTitle ?: t("No listings"), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = t("Favourite"), tint = LiveStar, modifier = Modifier.size(12.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {

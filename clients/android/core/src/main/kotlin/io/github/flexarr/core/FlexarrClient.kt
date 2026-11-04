@@ -1,5 +1,6 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.t
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +46,7 @@ import kotlin.coroutines.resumeWithException
 sealed class FlexarrException(message: String) : Exception(message) {
     /** The server rejected the sign-in (or one is required and none was sent). */
     class Unauthorized : FlexarrException(
-        "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Security on the web.",
+        t("The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Security on the web."),
     )
 
     /**
@@ -53,29 +54,29 @@ sealed class FlexarrException(message: String) : Exception(message) {
      * [guestRemoved]: a 403 saying this is a family guest's device its host removed (servers from 0.57).
      */
     class Http(val status: Int, message: String?, val detail: String? = null, val guestRemoved: Boolean = false) :
-        FlexarrException(message ?: "The server answered with an error (HTTP $status).")
+        FlexarrException(message ?: t("The server answered with an error (HTTP {status}).", "status" to status.toString()))
 
     /**
      * This takes the admin PIN (leaving a kids profile, locking or releasing a device), which wasn't given or
      * wasn't right. The message is the server's.
      */
-    class ParentPinNeeded(message: String?) : FlexarrException(message ?: "Enter the admin PIN.")
+    class ParentPinNeeded(message: String?) : FlexarrException(message ?: t("Enter the admin PIN."))
 
     /** The admin PIN was right but the chosen profile's own PIN wasn't. The message is the server's. */
-    class OwnPinWrong(message: String?) : FlexarrException(message ?: "That PIN isn’t right.")
+    class OwnPinWrong(message: String?) : FlexarrException(message ?: t("That PIN isn’t right."))
 
     /** This device is locked to kids profiles, so only they can be chosen. */
-    class KidsLocked(message: String?) : FlexarrException(message ?: "Child lock is on for this device.")
+    class KidsLocked(message: String?) : FlexarrException(message ?: t("Child lock is on for this device."))
 
     /** A live channel can't be watched: every stream is recording, [recording] among them. */
     class RecordingInTheWayException(val recording: RecordingInTheWay) : FlexarrException(recording.message)
 
     /** The response was not what a Flexarr server sends (for example an HTML page). */
-    class UnexpectedResponse : FlexarrException("That address answered, but not like a Flexarr server. Check the host name and port.")
+    class UnexpectedResponse : FlexarrException(t("That address answered, but not like a Flexarr server. Check the host name and port."))
 
-    class InvalidAddress : FlexarrException("That doesn't look like a server address. Try something like http://192.168.1.20:8383.")
+    class InvalidAddress : FlexarrException(t("That doesn't look like a server address. Try something like {example}.", "example" to "http://192.168.1.20:8383"))
 
-    class Unreachable(cause: IOException) : FlexarrException("Couldn't reach the server. Make sure Flexarr is running and this device is on the same network.") {
+    class Unreachable(cause: IOException) : FlexarrException(t("Couldn't reach the server. Make sure Flexarr is running and this device is on the same network.")) {
         init {
             initCause(cause)
         }

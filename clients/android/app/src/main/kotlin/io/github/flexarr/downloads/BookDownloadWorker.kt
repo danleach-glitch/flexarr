@@ -15,6 +15,8 @@ import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.LocalBook
 import io.github.flexarr.core.bookFileRequest
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.logging.FlexarrLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -63,12 +65,12 @@ class BookDownloadWorker(context: Context, parameters: WorkerParameters) : Corou
         } catch (e: CancellationException) {
             throw e
         } catch (e: FlexarrException.Unauthorized) {
-            onMain { store.failed(itemId, profileId, e.message ?: "The server didn’t accept this device’s sign-in.") }
+            onMain { store.failed(itemId, profileId, e.message ?: t("The server didn’t accept this device’s sign-in.")) }
             Result.success()
         } catch (e: Exception) {
             flexarrLog.warning("The book download $itemId stopped; trying again later", e)
             if (runAttemptCount >= DownloadTransfer.MAX_ATTEMPTS) {
-                onMain { store.failed(itemId, profileId, "The download stopped. Try again.") }
+                onMain { store.failed(itemId, profileId, t("The download stopped. Try again.")) }
                 Result.success()
             } else {
                 Result.retry()
@@ -122,12 +124,12 @@ class BookDownloadWorker(context: Context, parameters: WorkerParameters) : Corou
     private fun foregroundInfo(book: LocalBook?, fraction: Double?): ForegroundInfo {
         val manager = applicationContext.getSystemService(NotificationManager::class.java)
         if (manager.getNotificationChannel(CHANNEL) == null) {
-            manager.createNotificationChannel(NotificationChannel(CHANNEL, "Downloads", NotificationManager.IMPORTANCE_LOW))
+            manager.createNotificationChannel(NotificationChannel(CHANNEL, t(Words.downloads), NotificationManager.IMPORTANCE_LOW))
         }
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle(book?.item?.title ?: "Downloading")
-            .setContentText("Downloading")
+            .setContentTitle(book?.item?.title ?: t("Downloading"))
+            .setContentText(t("Downloading"))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)

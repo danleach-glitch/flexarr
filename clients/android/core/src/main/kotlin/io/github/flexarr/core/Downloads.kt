@@ -1,5 +1,7 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.tk
 import kotlinx.serialization.Serializable
 import okhttp3.Request
 import java.time.Instant
@@ -9,13 +11,15 @@ import java.time.Instant
 // watched offline is sent back later. The rules for what a download does next live here, so they're tested off the device.
 
 @Serializable(with = DownloadQuality.Serializer::class)
-enum class DownloadQuality(override val raw: String, val label: String) : ForwardCompatibleEnum {
-    Original("Original", "Original"),
-    High("High", "High (1080p)"),
-    Medium("Medium", "Medium (720p)"),
-    Small("Small", "Small (480p)"),
+enum class DownloadQuality(override val raw: String, private val english: String) : ForwardCompatibleEnum {
+    Original("Original", tk("Original")),
+    High("High", tk("High (1080p)")),
+    Medium("Medium", tk("Medium (720p)")),
+    Small("Small", tk("Small (480p)")),
     /** A size from a newer server: listed, but never asked for. */
-    Unknown("", "Other");
+    Unknown("", tk("Other"));
+
+    val label: String get() = t(english)
 
     object Serializer : ForwardCompatibleEnumSerializer<DownloadQuality>("DownloadQuality", entries, Unknown)
 }
@@ -204,8 +208,8 @@ object DownloadRules {
         DownloadStatus.Ready -> if (local.isDownloaded) ServerAnswer.None else ServerAnswer.Fetch
         DownloadStatus.Removed -> if (local.isDownloaded) ServerAnswer.None else ServerAnswer.Forget
         DownloadStatus.Received, DownloadStatus.Expired ->
-            if (local.isDownloaded) ServerAnswer.None else ServerAnswer.Failed("This download ran out on the server. Download it again.")
-        DownloadStatus.Failed -> ServerAnswer.Failed(remote.error ?: "The server couldn’t get this ready.")
+            if (local.isDownloaded) ServerAnswer.None else ServerAnswer.Failed(t("This download ran out on the server. Download it again."))
+        DownloadStatus.Failed -> ServerAnswer.Failed(remote.error ?: t("The server couldn’t get this ready."))
         DownloadStatus.Unknown -> ServerAnswer.None
     }
 

@@ -114,13 +114,13 @@ internal fun TvSubtitleSearch(
         downloadError?.let { Text(it, fontSize = 13.sp, color = Flexarr.danger, modifier = Modifier.padding(horizontal = 20.dp)) }
         LazyColumn(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             item {
-                ResultRow("Best match", "Flexarr picks the closest one", provider = null, matchesFile = false, downloading = downloading == BEST_MATCH, modifier = Modifier.focusRequester(first)) { pick(null) }
+                ResultRow(t("Best match"), t("Flexarr picks the closest one"), provider = null, matchesFile = false, downloading = downloading == BEST_MATCH, modifier = Modifier.focusRequester(first)) { pick(null) }
             }
             val found = results
             when {
                 searchError != null -> item { Status(searchError!!, color = Flexarr.danger) }
-                found == null -> item { Status("Searching…", busy = true) }
-                found.isEmpty() -> item { Status("No subtitles found") }
+                found == null -> item { Status(t("Searching…"), busy = true) }
+                found.isEmpty() -> item { Status(t("No subtitles found")) }
                 else -> items(found, key = { it.id }) { result ->
                     ResultRow(result.languageLabel, result.release, result.provider, result.matchesFile, downloading == result.id) { pick(result.id) }
                 }
@@ -155,7 +155,7 @@ private fun ResultRow(title: String, detail: String, provider: String?, matchesF
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val quiet = LocalContentColor.current.copy(alpha = 0.7f)
-                Text(if (downloading) "Downloading…" else detail, fontSize = 12.sp, color = quiet, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(if (downloading) t("Downloading…") else detail, fontSize = 12.sp, color = quiet, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (provider != null || matchesFile) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                         provider?.let { Text(it, fontSize = 12.sp, color = quiet, maxLines = 1) }

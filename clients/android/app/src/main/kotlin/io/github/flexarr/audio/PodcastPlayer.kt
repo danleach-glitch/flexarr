@@ -1,6 +1,7 @@
 package io.github.flexarr.audio
 
 import androidx.annotation.OptIn
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.player.mediaSources
 import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
@@ -159,7 +160,7 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
 
         override fun onPlayerError(error: PlaybackException) {
             flexarrLog.warning("Podcast episode failed", error)
-            errorMessage = "This episode couldn’t be played."
+            errorMessage = t("This episode couldn’t be played.")
             endSession()
         }
     }

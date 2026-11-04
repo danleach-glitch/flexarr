@@ -1,5 +1,6 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.t
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
@@ -46,8 +47,8 @@ fun deviceKind(deviceType: String?): String? = when (deviceType) {
     "AppleTv" -> "Apple TV"
     "IPhone" -> "iPhone"
     "IPad" -> "iPad"
-    "AndroidPhone" -> "Android phone"
-    "AndroidTablet" -> "Android tablet"
+    "AndroidPhone" -> t("Android phone")
+    "AndroidTablet" -> t("Android tablet")
     "AndroidTv" -> "Android TV"
     else -> null
 }

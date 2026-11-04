@@ -1,5 +1,6 @@
 package io.github.flexarr
 
+import io.github.flexarr.core.i18n.t
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import io.github.flexarr.logging.FlexarrLog
 import android.Manifest
@@ -77,7 +78,7 @@ class MainActivity : ComponentActivity() {
             // Asked about first ("Join Dan's Flexarr as Gran?"): it could have come from any app or web page.
             // Not in builds without family invites yet (BuildConfig.GUEST_INVITES), which say so.
             is AppLink.Join ->
-                if (BuildConfig.GUEST_INVITES) appModel.offerInvite(GuestInvite.decode(link.payload)) else appModel.inviteProblem = "Update Flexarr to join."
+                if (BuildConfig.GUEST_INVITES) appModel.offerInvite(GuestInvite.decode(link.payload)) else appModel.inviteProblem = t("Update Flexarr to join.")
             else -> appModel.pendingLink = link
         }
     }

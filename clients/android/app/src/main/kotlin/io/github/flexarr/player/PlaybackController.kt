@@ -29,6 +29,8 @@ import io.github.flexarr.core.PreparedStreams
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.LoadEventInfo
 import androidx.media3.exoplayer.source.MediaLoadData
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.logging.FlexarrLog
 import io.github.flexarr.ReviewPrompt
 import io.github.flexarr.data.PlayerSettings
@@ -271,7 +273,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
             override fun onPlayerError(e: PlaybackException) {
                 if (isOffline) {
-                    error = "This download couldn’t be played. Delete it and download it again."
+                    error = t("This download couldn’t be played. Delete it and download it again.")
                     return
                 }
                 // The file played as it is, and this device's decoder couldn't cope after all (it claimed a codec it
@@ -357,7 +359,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         val download = model.downloads.byId(downloadId)
         val file = download?.let(model.downloads::file)
         if (download == null || file == null) {
-            error = "This download isn’t on the phone any more."
+            error = t("This download isn’t on the phone any more.")
             return
         }
         newTitle(subtitlesOff = false)
@@ -437,7 +439,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     Log.w("Flexarr", "Couldn't open the stream again", e)
                 } else {
                     val takenOver = e is FlexarrException.Http && e.status == 410
-                    fail(e.message ?: "This couldn’t be played.", retry = request, takenOver = takenOver)
+                    fail(e.message ?: t("This couldn’t be played."), retry = request, takenOver = takenOver)
                 }
             } finally {
                 if (mine == openGeneration) {
@@ -507,8 +509,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         retryRequest = if (takenOver && retry != null) { profile -> retry(profile).copy(replacesSessionId = null) } else retry
         retryLabel = when {
             retry == null -> null
-            takenOver -> "Watch here instead"
-            else -> "Try again"
+            takenOver -> t("Watch here instead")
+            else -> t("Try again")
         }
     }
 
@@ -919,10 +921,10 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             return
         }
         // "Next Episode in 4" (on shuffle too: the next one just happens to be random).
-        val nextTitle = countdown?.let { "Next episode in $it" } ?: "Next episode"
+        val nextTitle = countdown?.let { t(Words.nextEpisodeIn, "seconds" to it) } ?: t("Next episode")
         promptTitle = if (isFinishing) nextTitle else when (val current = prompt) {
             PlaybackPrompt.None -> null
-            is PlaybackPrompt.Skip -> if (current.type == MarkerType.Recap) "Skip recap" else "Skip intro"
+            is PlaybackPrompt.Skip -> if (current.type == MarkerType.Recap) t(Words.skipRecap) else t(Words.skipIntro)
             // The sleep timer stops this episode at its end: there's no next one to offer.
             PlaybackPrompt.NextEpisode -> if (sleepHoldsEpisode) null else nextTitle
         }
@@ -1116,7 +1118,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     // One is already running for this file: follow that.
                     if (e.status != 409) throw e
                 }
-                showFlash("Re-syncing subtitles…")
+                showFlash(t("Re-syncing subtitles…"))
                 var misses = 0
                 // A film's re-sync takes a minute or more; given up on after half an hour.
                 repeat(600) {
@@ -1130,13 +1132,13 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     when (status.state) {
                         SubtitleSyncState.Running, SubtitleSyncState.Unknown -> return@repeat
                         SubtitleSyncState.Done -> return@launch resyncDone(itemId, fileId, status.key ?: key)
-                        SubtitleSyncState.Failed -> return@launch resyncFailed(status.error ?: "The subtitles couldn’t be re-synced.")
-                        SubtitleSyncState.Idle -> return@launch resyncFailed("The re-sync stopped before it finished.")
+                        SubtitleSyncState.Failed -> return@launch resyncFailed(status.error ?: t("The subtitles couldn’t be re-synced."))
+                        SubtitleSyncState.Idle -> return@launch resyncFailed(t("The re-sync stopped before it finished."))
                     }
                 }
-                resyncFailed("The re-sync is taking too long. Try again later.")
+                resyncFailed(t("The re-sync is taking too long. Try again later."))
             } catch (e: FlexarrException) {
-                resyncFailed(e.message ?: "The subtitles couldn’t be re-synced.")
+                resyncFailed(e.message ?: t("The subtitles couldn’t be re-synced."))
             }
         }
     }
@@ -1146,7 +1148,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         isResyncing = false
         val current = info ?: return
         if (current.item.id != itemId || current.fileId != fileId) return
-        showFlash("Subtitles re-synced")
+        showFlash(t("Subtitles re-synced"))
         viewerChoseSubtitle = true
         viewerSubtitleKey = key
         reopen()
@@ -1305,17 +1307,17 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
         /**
          * Why the player stopped, in words: ExoPlayer's own ("io network connection failed") say little. [subject] is
-         * what was playing ("This", "This channel").
+         * what was playing ("This", "This channel"): [channel] for a live channel.
          */
-        fun playerErrorMessage(e: PlaybackException, subject: String = "This"): String = when (e.errorCode) {
+        fun playerErrorMessage(e: PlaybackException, channel: Boolean = false): String = when (e.errorCode) {
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT, PlaybackException.ERROR_CODE_TIMEOUT ->
-                "Lost the connection to the server. Make sure this phone is online and Flexarr is running, then try again."
+                t("Lost the connection to the server. Make sure this phone is online and Flexarr is running, then try again.")
             PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS, PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND, PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE ->
-                "The server stopped sending this. It may have restarted: try again in a moment."
-            in PARSING_ERRORS -> "$subject came in a form the phone couldn’t read."
-            in DECODER_ERRORS -> "This phone couldn’t decode the picture or the sound."
-            in AUDIO_ERRORS -> "The sound couldn’t be played on this phone."
-            else -> "$subject couldn’t be played."
+                t("The server stopped sending this. It may have restarted: try again in a moment.")
+            in PARSING_ERRORS -> if (channel) t("This channel came in a form the phone couldn’t read.") else t("This came in a form the phone couldn’t read.")
+            in DECODER_ERRORS -> t("This phone couldn’t decode the picture or the sound.")
+            in AUDIO_ERRORS -> t("The sound couldn’t be played on this phone.")
+            else -> if (channel) t("This channel couldn’t be played.") else t("This couldn’t be played.")
         }
 
         const val MAX_RATE = 2f
@@ -1328,13 +1330,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
         /** "In time", "0.5s later", "1s earlier". */
         fun delayLabel(seconds: Double): String {
-            if (seconds == 0.0) return "In time"
-            val amount = abs(seconds).let { if (it == Math.floor(it)) it.toInt().toString() else it.toString().trimEnd('0') }
-            return "${amount}s ${if (seconds > 0) "later" else "earlier"}"
+            if (seconds == 0.0) return t("In time")
+            return if (seconds > 0) t("{amount}s later", "amount" to abs(seconds)) else t("{amount}s earlier", "amount" to abs(seconds))
         }
 
         fun rateLabel(rate: Float): String {
-            if (rate == 1f) return "Normal"
+            if (rate == 1f) return t("Normal")
             val text = if (rate == Math.floor(rate.toDouble()).toFloat()) rate.toInt().toString() else rate.toString().trimEnd('0')
             return "$text×"
         }

@@ -19,6 +19,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.media3.common.VideoSize
 import io.github.flexarr.R
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 
 /**
  * Picture in picture for a player screen, a title's or a live channel's: a small window in the corner over everything
@@ -75,9 +77,9 @@ internal class PictureInPicture(private val activity: ComponentActivity, private
             setActions(
                 listOf(
                     // Material draws 10 on the arrows; any other jump is the plain arrow, named by its seconds.
-                    button(if (seconds == 10) R.drawable.ic_pip_replay_10 else R.drawable.ic_pip_replay, "Back $seconds seconds", BACK),
-                    if (playing) button(R.drawable.ic_pip_pause, "Pause", TOGGLE) else button(R.drawable.ic_pip_play, "Play", TOGGLE),
-                    button(if (seconds == 10) R.drawable.ic_pip_forward_10 else R.drawable.ic_pip_forward, "Forward $seconds seconds", FORWARD)
+                    button(if (seconds == 10) R.drawable.ic_pip_replay_10 else R.drawable.ic_pip_replay, t("{count, plural, one {Back # second} other {Back # seconds}}", "count" to seconds), BACK),
+                    if (playing) button(R.drawable.ic_pip_pause, t("Pause"), TOGGLE) else button(R.drawable.ic_pip_play, t(Words.play), TOGGLE),
+                    button(if (seconds == 10) R.drawable.ic_pip_forward_10 else R.drawable.ic_pip_forward, t("{count, plural, one {Forward # second} other {Forward # seconds}}", "count" to seconds), FORWARD)
                         .apply { isEnabled = source.canSkipForward },
                 ),
             )

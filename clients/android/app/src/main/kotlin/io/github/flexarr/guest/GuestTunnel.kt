@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.core.content.edit
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.LoopbackTunnel
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.data.GuestTunnelInfo
 import io.github.flexarr.logging.FlexarrLog
 import io.github.flexarr.tunnel.Tunnel
@@ -93,7 +94,7 @@ class GuestTunnel(context: Context) : LoopbackTunnel {
         } catch (e: Exception) {
             val status = status()
             flexarrLog.warning("The tunnel didn't start (${status.state}): ${status.error ?: e.message}")
-            val message = status.error ?: e.message ?: "The tunnel didn't start"
+            val message = status.error ?: e.message ?: t("The tunnel didn't start")
             // Tailscale refuses a used or run-out key as "invalid key", which is the same to the guest as needing one.
             val refused = status.state == "needs-login" || message.contains("invalid key", ignoreCase = true)
             if (refused && authKey.isEmpty()) onRefused?.invoke()

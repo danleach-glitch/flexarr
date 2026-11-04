@@ -242,7 +242,7 @@ object PodcastWidgets {
     internal fun remaining(seconds: Double?): String? {
         if (seconds == null || seconds < 60) return null
         val minutes = Math.round(seconds / 60).toInt()
-        return if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m left" else "${minutes}m left"
+        return if (minutes >= 60) t("{hours}h {minutes}m left", "hours" to minutes / 60, "minutes" to minutes % 60) else t("{minutes}m left", "minutes" to minutes)
     }
 }
 
@@ -298,8 +298,8 @@ class ContinueListeningWidget : GlanceAppWidget() {
                 .clickable(shown?.let { PodcastWidgets.play(context, it.entry.id) } ?: actionStartActivity(AppLink.Home.intent(context))),
         ) {
             when {
-                state == PodcastWidgets.State.SignedOut -> Note("Open Flexarr to connect it to your server.")
-                shown == null -> Note("Nothing to carry on with. What you’re listening to shows up here.")
+                state == PodcastWidgets.State.SignedOut -> Note(t("Open Flexarr to connect it to your server."))
+                shown == null -> Note(t("Nothing to carry on with. What you’re listening to shows up here."))
                 LocalSize.current.width >= WIDE.width -> Wide(context, shown, (state as PodcastWidgets.State.Episodes).isPlaying)
                 else -> Small(context, shown, (state as PodcastWidgets.State.Episodes).isPlaying)
             }
@@ -357,7 +357,7 @@ class ContinueListeningWidget : GlanceAppWidget() {
         ) {
             Image(
                 ImageProvider(if (isPlaying) R.drawable.ic_pip_pause else R.drawable.ic_pip_play),
-                contentDescription = if (isPlaying) "Pause" else "Play",
+                contentDescription = if (isPlaying) t("Pause") else t(Words.play),
                 colorFilter = ColorFilter.tint(PodcastWidgets.ROOM),
                 modifier = GlanceModifier.size(20.dp),
             )
@@ -389,8 +389,8 @@ class UpNextWidget : GlanceAppWidget() {
             Text(t(Words.upNext), style = TextStyle(color = PodcastWidgets.USHER, fontSize = 12.sp, fontWeight = FontWeight.Bold), maxLines = 1)
             Spacer(GlanceModifier.height(8.dp))
             when {
-                state == PodcastWidgets.State.SignedOut -> Note("Open Flexarr to connect it to your server.")
-                episodes.isEmpty() -> Note("Nothing in Up next")
+                state == PodcastWidgets.State.SignedOut -> Note(t("Open Flexarr to connect it to your server."))
+                episodes.isEmpty() -> Note(t("Nothing in Up next"))
                 small -> {
                     val first = episodes.first()
                     Artwork(first, 56.dp)

@@ -1,5 +1,6 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -84,10 +85,10 @@ internal fun MenuBar(controller: PlaybackController, onInteract: () -> Unit, onA
     val info = controller.info ?: return
     val hasSubtitles = info.subtitles.isNotEmpty() || controller.canSearchSubtitles
     Row(modifier.height(44.dp).glass(RoundedCornerShape(22.dp)).padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        MenuButton(Icons.Filled.GraphicEq, "Audio", onInteract) { close -> AudioMenu(controller, close, onAudioSync) }
-        if (hasSubtitles) MenuButton(Icons.Filled.ClosedCaption, "Subtitles", onInteract) { close -> SubtitlesMenu(controller, close) }
+        MenuButton(Icons.Filled.GraphicEq, t("Audio"), onInteract) { close -> AudioMenu(controller, close, onAudioSync) }
+        if (hasSubtitles) MenuButton(Icons.Filled.ClosedCaption, t(Words.subtitles), onInteract) { close -> SubtitlesMenu(controller, close) }
         val badge = if (controller.rate == 1f) null else PlaybackController.rateLabel(controller.rate)
-        MenuButton(Icons.Filled.Speed, "Speed", onInteract, badge = badge) { close -> SpeedMenu(controller, close) }
+        MenuButton(Icons.Filled.Speed, t("Speed"), onInteract, badge = badge) { close -> SpeedMenu(controller, close) }
         SleepMenuButton(controller.sleep, controller.offersEndOfEpisode, onInteract)
     }
 }
@@ -103,7 +104,7 @@ internal fun SleepMenuBar(sleep: VideoSleep, onInteract: () -> Unit, modifier: M
 @Composable
 private fun SleepMenuButton(sleep: VideoSleep, offersEndOfEpisode: Boolean, onInteract: () -> Unit) {
     val sleeping = sleep.setting != null
-    MenuButton(if (sleeping) Icons.Filled.Bedtime else Icons.Outlined.Bedtime, "Sleep timer", onInteract) { close -> SleepMenu(sleep, offersEndOfEpisode, close) }
+    MenuButton(if (sleeping) Icons.Filled.Bedtime else Icons.Outlined.Bedtime, t("Sleep timer"), onInteract) { close -> SleepMenu(sleep, offersEndOfEpisode, close) }
 }
 
 /** A menu's icon in its slot; tapping opens its menu (the controls stay up while it's open). */
@@ -206,30 +207,30 @@ private fun MenuScope.AudioMenu(controller: PlaybackController, close: () -> Uni
     val sound = controller.sound
     when (page) {
         "dialogue" -> {
-            Back("Dialogue boost") { openPage(null) }
+            Back(t("Dialogue boost")) { openPage(null) }
             SoundSettings.DialogueBoost.entries.forEach { boost ->
-                Choice(boost.name, boost == sound.dialogueBoost) { controller.changeSound { it.copy(dialogueBoost = boost) } }
+                Choice(boost.label, boost == sound.dialogueBoost) { controller.changeSound { it.copy(dialogueBoost = boost) } }
             }
             return
         }
         "night" -> {
-            Back("Night mode") { openPage(null) }
+            Back(t("Night mode")) { openPage(null) }
             SoundSettings.NightMode.entries.forEach { mode ->
-                Choice(if (mode == SoundSettings.NightMode.Scheduled) sound.nightHours else mode.name, mode == sound.nightMode) {
+                Choice(if (mode == SoundSettings.NightMode.Scheduled) sound.nightHours else mode.label, mode == sound.nightMode) {
                     controller.changeSound { it.copy(nightMode = mode) }
                 }
             }
             return
         }
         "speakers" -> {
-            Back("Speakers") { openPage(null) }
+            Back(t("Speakers")) { openPage(null) }
             SoundSettings.Speakers.entries.forEach { speakers ->
                 Choice(speakers.label, speakers == sound.speakers) { controller.changeSound { it.copy(speakers = speakers) } }
             }
             return
         }
     }
-    MenuTitle("Audio")
+    MenuTitle(t("Audio"))
     if (info.audioTracks.size > 1) {
         info.audioTracks.forEach { track ->
             Choice(track.label, track.index == info.selectedAudioIndex, enabled = !controller.isReopening) {
@@ -244,7 +245,7 @@ private fun MenuScope.AudioMenu(controller: PlaybackController, close: () -> Uni
             text = {
                 Column {
                     Text(t("Audio sync"), color = Flexarr.screen)
-                    Text(if (sync == 0.0) "As the file is" else PlaybackController.syncLabel(sync), fontSize = 13.sp, color = Flexarr.usher)
+                    Text(if (sync == 0.0) t("As the file is") else PlaybackController.syncLabel(sync), fontSize = 13.sp, color = Flexarr.usher)
                 }
             },
             onClick = { close(); onAudioSync() },
@@ -252,9 +253,9 @@ private fun MenuScope.AudioMenu(controller: PlaybackController, close: () -> Uni
         )
     }
     if (info.audioTracks.size > 1 || controller.audioSync != null) Divider()
-    Submenu("Dialogue boost", sound.dialogueBoost.name) { openPage("dialogue") }
-    Submenu("Night mode", if (sound.nightMode == SoundSettings.NightMode.Scheduled) sound.nightHours else sound.nightMode.name) { openPage("night") }
-    Submenu("Speakers", sound.speakers.label) { openPage("speakers") }
+    Submenu(t("Dialogue boost"), sound.dialogueBoost.label) { openPage("dialogue") }
+    Submenu(t("Night mode"), if (sound.nightMode == SoundSettings.NightMode.Scheduled) sound.nightHours else sound.nightMode.label) { openPage("night") }
+    Submenu(t("Speakers"), sound.speakers.label) { openPage("speakers") }
 }
 
 /** Off and each track; then Teletext page (for teletext), Timing, Size and Position, as the iPhone's subtitles menu. */
@@ -264,7 +265,7 @@ private fun MenuScope.SubtitlesMenu(controller: PlaybackController, close: () ->
     when (page) {
         "timing" -> {
             val current = info.subtitleDelaySeconds ?: 0.0
-            Back("Timing") { openPage(null) }
+            Back(t("Timing")) { openPage(null) }
             (PlaybackController.delayChoices + current).distinct().sorted().forEach { seconds ->
                 Choice(PlaybackController.delayLabel(seconds), seconds == current, enabled = !controller.isReopening) {
                     close()
@@ -273,35 +274,35 @@ private fun MenuScope.SubtitlesMenu(controller: PlaybackController, close: () ->
             }
         }
         "teletext" -> {
-            Back("Teletext page") { openPage(null) }
+            Back(t("Teletext page")) { openPage(null) }
             (listOf(null) + Teletext.pages).forEach { number ->
-                Choice(number?.toString() ?: "Automatic", number == controller.teletextPage, enabled = !controller.isReopening) {
+                Choice(number?.toString() ?: t("Automatic"), number == controller.teletextPage, enabled = !controller.isReopening) {
                     close()
                     controller.chooseTeletextPage(number)
                 }
             }
         }
         "size" -> {
-            Back("Size") { openPage(null) }
+            Back(t("Size")) { openPage(null) }
             SubtitleSize.choices.forEach { size ->
                 Choice(size.label, size == controller.subtitleSize) { controller.chooseSubtitleSize(size) }
             }
         }
         "position" -> {
-            Back("Position") { openPage(null) }
+            Back(t("Position")) { openPage(null) }
             SubtitlePosition.choices.forEach { position ->
                 Choice(position.label, position == controller.subtitlePosition) {
                     controller.setSubtitlePlacement(position, controller.subtitlesInBlackBars)
                 }
             }
             Divider()
-            Choice("In the black bars", controller.subtitlesInBlackBars) {
+            Choice(t("In the black bars"), controller.subtitlesInBlackBars) {
                 controller.setSubtitlePlacement(controller.subtitlePosition, !controller.subtitlesInBlackBars)
             }
         }
         else -> {
-            MenuTitle("Subtitles")
-            Choice("Off", controller.subtitleKey == null, enabled = !controller.isReopening) {
+            MenuTitle(t(Words.subtitles))
+            Choice(t("Off"), controller.subtitleKey == null, enabled = !controller.isReopening) {
                 close()
                 controller.selectSubtitle(null)
             }
@@ -314,22 +315,22 @@ private fun MenuScope.SubtitlesMenu(controller: PlaybackController, close: () ->
             Divider()
             // Teletext subtitles are on a page of their own, which a recording doesn't always mark.
             if (controller.canChooseTeletextPage) {
-                Submenu("Teletext page", controller.teletextPage?.toString() ?: "Automatic") { openPage("teletext") }
+                Submenu(t("Teletext page"), controller.teletextPage?.toString() ?: t("Automatic")) { openPage("teletext") }
             }
             // Burned into the picture, they can't be moved: the server draws them where they fall.
-            if (!info.subtitleBurnedIn) Submenu("Timing", PlaybackController.delayLabel(info.subtitleDelaySeconds ?: 0.0)) { openPage("timing") }
-            Submenu("Size", controller.subtitleSize.label) { openPage("size") }
-            Submenu("Position", controller.subtitlePosition.label) { openPage("position") }
+            if (!info.subtitleBurnedIn) Submenu(t("Timing"), PlaybackController.delayLabel(info.subtitleDelaySeconds ?: 0.0)) { openPage("timing") }
+            Submenu(t("Size"), controller.subtitleSize.label) { openPage("size") }
+            Submenu(t("Position"), controller.subtitlePosition.label) { openPage("position") }
             if (controller.canSearchSubtitles) {
                 Divider()
-                Action("Search for subtitles…", Icons.Filled.Search) {
+                Action(t("Search for subtitles…"), Icons.Filled.Search) {
                     close()
                     controller.searchSubtitles()
                 }
                 val resyncable = controller.resyncableSubtitle
                 when {
-                    controller.isResyncing -> Action("Re-syncing…", Icons.Filled.GraphicEq, enabled = false) {}
-                    resyncable != null -> Action("Re-sync to audio", Icons.Filled.GraphicEq) {
+                    controller.isResyncing -> Action(t("Re-syncing…"), Icons.Filled.GraphicEq, enabled = false) {}
+                    resyncable != null -> Action(t("Re-sync to audio"), Icons.Filled.GraphicEq) {
                         close()
                         controller.resyncSubtitles(resyncable)
                     }
@@ -342,7 +343,7 @@ private fun MenuScope.SubtitlesMenu(controller: PlaybackController, close: () ->
 /** 0.5× to 2×, with Normal; a show's remembered speed is listed too if it's another. */
 @Composable
 private fun SpeedMenu(controller: PlaybackController, close: () -> Unit) {
-    MenuTitle("Speed")
+    MenuTitle(t("Speed"))
     (PlaybackController.rateChoices + controller.rate).distinct().sorted().filter { it <= PlaybackController.MAX_RATE }.forEach { rate ->
         Choice(PlaybackController.rateLabel(rate), rate == controller.rate) {
             close()
@@ -356,7 +357,7 @@ private fun SpeedMenu(controller: PlaybackController, close: () -> Unit) {
 private fun SleepMenu(sleep: VideoSleep, offersEndOfEpisode: Boolean, close: () -> Unit) {
     val current = sleep.setting
     MenuTitle(sleep.timer.menuTitle)
-    Choice("Off", current == null) {
+    Choice(t("Off"), current == null) {
         close()
         sleep.set(null)
     }
@@ -387,19 +388,19 @@ internal fun AudioSyncPanel(controller: PlaybackController, onDone: () -> Unit, 
         Text(t("Audio sync"), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.7f))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             // The latest value, not this composition's: a hold jumps several times before it recomposes.
-            HoldGlassIcon(Icons.Filled.Remove, "Sound earlier") { step -> controller.audioSync?.let { controller.setAudioDelay(it - step) } }
+            HoldGlassIcon(Icons.Filled.Remove, t("Sound earlier")) { step -> controller.audioSync?.let { controller.setAudioDelay(it - step) } }
             Column(Modifier.width(110.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(PlaybackController.syncLabel(seconds), fontSize = 24.sp, fontWeight = FontWeight.Bold, style = io.github.flexarr.ui.podcasts.Tabular, color = Color.White)
                 Text(
-                    if (seconds > 0.0005) "Sound later" else if (seconds < -0.0005) "Sound earlier" else "As the file is",
+                    if (seconds > 0.0005) t("Sound later") else if (seconds < -0.0005) t("Sound earlier") else t("As the file is"),
                     fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White.copy(alpha = 0.6f),
                 )
             }
-            HoldGlassIcon(Icons.Filled.Add, "Sound later") { step -> controller.audioSync?.let { controller.setAudioDelay(it + step) } }
+            HoldGlassIcon(Icons.Filled.Add, t("Sound later")) { step -> controller.audioSync?.let { controller.setAudioDelay(it + step) } }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            Pill("Reset", filled = false) { controller.setAudioDelay(0.0) }
-            Pill("Done", filled = true, onClick = onDone)
+            Pill(t("Reset"), filled = false) { controller.setAudioDelay(0.0) }
+            Pill(t(Words.done), filled = true, onClick = onDone)
         }
     }
 }
@@ -439,8 +440,8 @@ internal fun SleepPrompt(sleep: VideoSleep) {
                     Text(t("Still watching?"), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     Text(sleep.detail, fontSize = 15.sp, fontWeight = FontWeight.Medium, style = io.github.flexarr.ui.podcasts.Tabular, color = Color.White.copy(alpha = 0.75f), modifier = Modifier.padding(top = 8.dp))
                     Row(Modifier.padding(top = 22.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Pill("Cancel timer", filled = false) { sleep.set(null) }
-                        Pill("+15 min", filled = true, icon = Icons.Filled.Bedtime, onClick = sleep::extend)
+                        Pill(t("Cancel timer"), filled = false) { sleep.set(null) }
+                        Pill(t("+{minutes} min", "minutes" to 15), filled = true, icon = Icons.Filled.Bedtime, onClick = sleep::extend)
                     }
                 }
             }

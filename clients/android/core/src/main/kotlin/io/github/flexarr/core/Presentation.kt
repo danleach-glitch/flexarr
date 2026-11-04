@@ -1,5 +1,8 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.tk
 import java.util.Locale
 import kotlin.math.ceil
 
@@ -13,9 +16,9 @@ object Format {
         val h = minutes / 60
         val m = minutes % 60
         return when {
-            h == 0 -> "${m}m"
-            m == 0 -> "${h}h"
-            else -> "${h}h ${m}m"
+            h == 0 -> t("{minutes}m", "minutes" to m)
+            m == 0 -> t("{hours}h", "hours" to h)
+            else -> t("{hours}h {minutes}m", "hours" to h, "minutes" to m)
         }
     }
 
@@ -34,7 +37,7 @@ object Format {
     /** "1,204", in the device's own way of grouping digits. */
     fun count(value: Int): String = java.text.NumberFormat.getIntegerInstance(io.github.flexarr.core.i18n.Localization.locale).format(value)
 
-    fun remaining(seconds: Double): String? = if (seconds < 60) null else runtime(seconds)?.let { "$it left" }
+    fun remaining(seconds: Double): String? = if (seconds < 60) null else runtime(seconds)?.let { t("{time} left", "time" to it) }
 }
 
 /** Duration in seconds from the probed file, falling back to the metadata's runtime. */
@@ -56,9 +59,13 @@ val ItemSummary.episodeCode: String?
     get() {
         if (kind != MediaKind.Episode || homeVideo == true) return null
         val episode = episodeNumber ?: return null
-        val season = seasonNumber?.let { "S$it" }.orEmpty()
-        val end = episodeNumberEnd
-        return if (end != null && end > episode) "${season}E$episode–E$end" else "${season}E$episode"
+        val end = episodeNumberEnd?.takeIf { it > episode }
+        val season = seasonNumber ?: return if (end != null) "E$episode–E$end" else "E$episode"
+        return if (end != null) {
+            t("S{season}E{episode}–E{last}", "season" to season.toString(), "episode" to episode.toString(), "last" to end.toString())
+        } else {
+            t(Words.seasonEpisodeShort, "season" to season.toString(), "episode" to episode.toString())
+        }
     }
 
 /** The headline for cards and the player: the series name for episodes, else the title. */
@@ -97,10 +104,10 @@ data class Scores(val imdb: Double?, val rottenTomatoes: RottenTomatoes?) {
     val imdbText: String? get() = imdb?.let { String.format(io.github.flexarr.core.i18n.Localization.locale, "%.1f", it) }
 
     /** For TalkBack: "IMDb 7.8 out of 10". */
-    val imdbLabel: String? get() = imdbText?.let { "IMDb $it out of 10" }
+    val imdbLabel: String? get() = imdbText?.let { t("IMDb {score} out of 10", "score" to it) }
 
     /** For TalkBack: "Rotten Tomatoes 92%, Certified Fresh". */
-    val rottenTomatoesLabel: String? get() = rottenTomatoes?.let { "Rotten Tomatoes ${it.score}%, ${it.state.words}" }
+    val rottenTomatoesLabel: String? get() = rottenTomatoes?.let { t("Rotten Tomatoes {score}%, {tomato}", "score" to it.score, "tomato" to it.state.words) }
 
     companion object {
         /** The tomato follows the score when the server didn't say (or said something this app doesn't know). */
@@ -122,12 +129,18 @@ data class Scores(val imdb: Double?, val rottenTomatoes: RottenTomatoes?) {
 fun ItemSummary.facts(scores: Boolean = true): List<String> =
     buildList {
         releaseYear?.let { add(it.toString()) }
-        fun count(n: Int, noun: String) = add(if (n == 1) "1 $noun" else "$n ${noun}s")
+        val n = childCount
         when (kind) {
-            MediaKind.Series -> if (childCount > 0) count(childCount, if (homeVideo == true) "folder" else "season")
-            MediaKind.Season -> if (childCount > 0) count(childCount, if (homeVideo == true) "video" else "episode")
-            MediaKind.Artist -> if (childCount > 0) count(childCount, "album")
-            MediaKind.Album -> if (childCount > 0) count(childCount, "track")
+            MediaKind.Series -> if (n > 0) add(
+                if (homeVideo == true) t("{count, plural, one {# folder} other {# folders}}", "count" to n)
+                else t("{count, plural, one {# season} other {# seasons}}", "count" to n),
+            )
+            MediaKind.Season -> if (n > 0) add(
+                if (homeVideo == true) t("{count, plural, one {# video} other {# videos}}", "count" to n)
+                else t("{count, plural, one {# episode} other {# episodes}}", "count" to n),
+            )
+            MediaKind.Artist -> if (n > 0) add(t("{count, plural, one {# album} other {# albums}}", "count" to n))
+            MediaKind.Album -> if (n > 0) add(t("{count, plural, one {# track} other {# tracks}}", "count" to n))
             else -> (runtimeMinutes?.let(Format::runtime) ?: durationSeconds?.let(Format::runtime))?.let(::add)
         }
         contentRating?.takeIf { it.isNotEmpty() }?.let(::add)
@@ -250,46 +263,49 @@ data class EmptyHomeMessage(val title: String, val body: String, val folders: Li
             if (media.any { it.itemCount > 0 }) return null
             if (media.isEmpty()) {
                 return EmptyHomeMessage(
-                    "Nothing to watch yet",
-                    "Open Flexarr in a browser and add a library in Settings › Libraries.",
+                    t("Nothing to watch yet"),
+                    t("Open Flexarr in a browser and add a library in Settings › Libraries."),
                     emptyList(),
                 )
             }
             val names = list(media.map { it.name })
-            val wanted = list(media.map { kind(it.type) }.distinct())
+            val wanted = list(media.map { t(kind(it.type)) }.distinct())
             val scanning = media.mapNotNull { it.scan }
             if (scanning.isNotEmpty()) {
                 val total = scanning.sumOf { it.total }
                 val done = scanning.sumOf { it.processed }
-                val progress = if (total > 0) " ($done of $total)" else ""
                 return EmptyHomeMessage(
-                    "Looking through your library",
-                    "Flexarr is reading the files in $names$progress. Your $wanted appear here as they’re recognised.",
+                    t("Looking through your library"),
+                    if (total > 0) {
+                        t("Flexarr is reading the files in {names} ({done} of {total}). Your {wanted} appear here as they’re recognised.", "names" to names, "done" to done, "total" to total, "wanted" to wanted)
+                    } else {
+                        t("Flexarr is reading the files in {names}. Your {wanted} appear here as they’re recognised.", "names" to names, "wanted" to wanted)
+                    },
                     emptyList(),
                 )
             }
             val folders = media.flatMap { it.folders }
-            val where = if (folders.size > 1) "your library folders" else "your library folder"
             return EmptyHomeMessage(
-                "Your library is empty",
-                "Add files to $where, or connect Sonarr or Radarr in Flexarr on the web.",
+                t("Your library is empty"),
+                if (folders.size > 1) t("Add files to your library folders, or connect Sonarr or Radarr in Flexarr on the web.")
+                else t("Add files to your library folder, or connect Sonarr or Radarr in Flexarr on the web."),
                 folders,
             )
         }
 
         private fun kind(type: LibraryType) = when (type) {
-            LibraryType.Movies -> "movies"
-            LibraryType.TvShows -> "shows"
-            LibraryType.Music -> "music"
-            LibraryType.Podcasts -> "podcasts"
-            LibraryType.HomeVideos -> "home videos"
-            LibraryType.Audiobooks -> "audiobooks"
-            LibraryType.Unknown -> "titles"
+            LibraryType.Movies -> tk("movies")
+            LibraryType.TvShows -> tk("shows")
+            LibraryType.Music -> tk("music")
+            LibraryType.Podcasts -> tk("podcasts")
+            LibraryType.HomeVideos -> tk("home videos")
+            LibraryType.Audiobooks -> tk("audiobooks")
+            LibraryType.Unknown -> tk("titles")
         }
 
         /** "Films", "Films and TV", "Films, TV and Music". */
         private fun list(names: List<String>): String =
-            if (names.size <= 1) names.firstOrNull().orEmpty() else names.dropLast(1).joinToString(", ") + " and " + names.last()
+            if (names.size <= 1) names.firstOrNull().orEmpty() else t("{list} and {last}", "list" to names.dropLast(1).joinToString(", "), "last" to names.last())
     }
 }
 

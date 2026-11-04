@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.MusicRequestStatus
 import io.github.flexarr.core.RequestStatus
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.requestRefusal
 import io.github.flexarr.core.requestStatus
 import io.github.flexarr.core.musicRequestStatus
@@ -916,8 +917,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     fun offerInvite(invite: GuestInvite?, fromCode: Boolean = false) {
         when {
-            invite == null -> inviteProblem = "That invite isn’t complete. Ask for the link again."
-            phase is Phase.SignedIn -> inviteProblem = "Sign out in Settings first, then open the invite again."
+            invite == null -> inviteProblem = t("That invite isn’t complete. Ask for the link again.")
+            phase is Phase.SignedIn -> inviteProblem = t("Sign out in Settings first, then open the invite again.")
             else -> {
                 offeredInvite = invite
                 inviteFromCode = fromCode
@@ -955,7 +956,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 joinProblem = e.message
                 joinCanRetry = e.canRetry
             } catch (e: Exception) {
-                joinProblem = "That didn’t work."
+                joinProblem = t("That didn’t work.")
                 joinCanRetry = true
             } finally {
                 joining = false
@@ -1197,7 +1198,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 if (credentials?.guest != guest) return@launch
                 if (network.isOffline) return@launch goOffline()
             }
-            if (tunnelProblem == null && !offlineAsGuest && !serverUnreachable && credentials?.guest == guest) tunnelProblem = "Still connecting"
+            if (tunnelProblem == null && !offlineAsGuest && !serverUnreachable && credentials?.guest == guest) tunnelProblem = t("Still connecting")
         }
         try {
             withContext(Dispatchers.IO) { tunnel.port() }
@@ -1209,7 +1210,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         } catch (e: TunnelException) {
             if (credentials?.guest != guest || e.needsLogin) return false
             flexarrLog.warning("The guest tunnel didn't start: ${e.message}")
-            if (offlineAsGuest || network.isOffline) goOffline() else tunnelProblem = e.message ?: "The tunnel didn't start"
+            if (offlineAsGuest || network.isOffline) goOffline() else tunnelProblem = e.message ?: t("The tunnel didn't start")
             return false
         } finally {
             early.cancel()
@@ -1499,9 +1500,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                     notifications.forget()
                     forget()
                     signedOutNotice = if (kept) {
-                        "This device was signed out. Its downloads are kept, and catch up when it connects to this server again."
+                        t("This device was signed out. Its downloads are kept, and catch up when it connects to this server again.")
                     } else {
-                        "This device was signed out."
+                        t("This device was signed out.")
                     }
                 }
             } catch (_: Exception) {
@@ -1521,7 +1522,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         downloads.signedOut(null)
         notifications.forget()
         forget()
-        signedOutNotice = if (owner != null) "You no longer have access to $owner’s Flexarr." else "You no longer have access to this Flexarr."
+        signedOutNotice = if (owner != null) t("You no longer have access to {name}’s Flexarr.", "name" to owner) else t("You no longer have access to this Flexarr.")
         signedOutAsGuest = true
     }
 
