@@ -104,7 +104,7 @@ struct ProfilePickerView: View {
     private var choices: some View {
         ScrollView {
             VStack(spacing: 32) {
-                Text("Who’s watching?")
+                Text(t("Who’s watching?"))
                     .font(.marquee(40, weight: .heavy))
                     .foregroundStyle(Color.screen)
                     .padding(.top, marksCurrent ? 28 : 80)
@@ -344,7 +344,7 @@ struct PinEntry: View {
                     .foregroundStyle(Color.usher)
                     .multilineTextAlignment(.center)
             }
-            SecureField("PIN", text: $pin)
+            SecureField(t("PIN"), text: $pin)
                 .keyboardType(.numberPad)
                 .textContentType(.oneTimeCode)
                 .multilineTextAlignment(.center)
@@ -364,14 +364,14 @@ struct PinEntry: View {
                 .foregroundStyle(error == nil ? Color.usher : Color.danger)
                 .multilineTextAlignment(.center)
             HStack(spacing: 12) {
-                Button("Cancel", action: onCancel)
+                Button(t(Words.cancel), action: onCancel)
                     .buttonStyle(ActionButtonStyle())
-                Button("Continue", action: submit)
+                Button(t("Continue"), action: submit)
                     .buttonStyle(ActionButtonStyle(prominent: true))
                     .disabled(pin.count < 4 || checking)
             }
             if let onForgot {
-                Button("Forgot PIN?", action: onForgot)
+                Button(t("Forgot PIN?"), action: onForgot)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Color.usher)
             }

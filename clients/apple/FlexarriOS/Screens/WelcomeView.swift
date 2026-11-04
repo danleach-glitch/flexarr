@@ -1,3 +1,4 @@
+import FlexarrKit
 import SwiftUI
 
 /// First launch on a fresh install: three short cards saying what Flexarr is, that it needs its server at home
@@ -14,7 +15,7 @@ struct WelcomeView: View {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                Button("Skip", action: onDone)
+                Button(t("Skip"), action: onDone)
                     .font(.body.weight(.semibold))
                     .foregroundStyle(Color.usher)
                     .opacity(page < 2 ? 1 : 0)
@@ -38,7 +39,7 @@ struct WelcomeView: View {
                     "The app plays from your own Flexarr server, on a computer in your home: a Mac, a NAS or anything with Docker. The server is completely free, and setting it up takes less than a minute."
                 } extra: {
                     Button { openURL(Self.installURL) } label: {
-                        Label("Set up at flexarr.io", systemImage: "safari")
+                        Label(t("Set up at flexarr.io"), systemImage: "safari")
                     }
                     .buttonStyle(ActionButtonStyle())
                 }

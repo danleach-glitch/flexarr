@@ -34,7 +34,7 @@ struct SettingsView: View {
                         Spacer()
                         // Choosing someone else takes the server.
                         if model.offersProfilePicker, !model.isOffline {
-                            Button("Switch") { choosingProfile = true }
+                            Button(t("Switch")) { choosingProfile = true }
                                 .font(.subheadline.weight(.semibold))
                         }
                     }
@@ -44,13 +44,13 @@ struct SettingsView: View {
                         Button {
                             Task { await lockToKids(pin: nil) }
                         } label: {
-                            Label("Child lock", systemImage: "lock")
+                            Label(t("Child lock"), systemImage: "lock")
                         }
                         .disabled(locking)
                         .listRowBackground(Color.seat)
                     }
                 } header: {
-                    Text("Watching as")
+                    Text(t("Watching as"))
                 } footer: {
                     if let lockError { Text(lockError).foregroundStyle(Color.danger) }
                 }
@@ -61,7 +61,7 @@ struct SettingsView: View {
                     Button {
                         Task { await turnOnNotifications() }
                     } label: {
-                        Label("Turn on notifications", systemImage: "bell.badge.fill")
+                        Label(t("Turn on notifications"), systemImage: "bell.badge.fill")
                     }
                     .disabled(turningOnNotifications)
                     .listRowBackground(Color.seat)
@@ -111,7 +111,7 @@ struct SettingsView: View {
                     LabeledContent {
                         Image(systemName: "arrow.up.forward").font(.footnote.weight(.semibold))
                     } label: {
-                        Label { Text("Rate Flexarr") } icon: { SettingsIcon("star.fill") }
+                        Label { Text(t("Rate Flexarr")) } icon: { SettingsIcon("star.fill") }
                     }
                 }
                 .foregroundStyle(.primary)
@@ -120,7 +120,7 @@ struct SettingsView: View {
 
             Section {
                 Button(role: .destructive) { confirmSignOut = true } label: {
-                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                    Label(t("Sign out"), systemImage: "rectangle.portrait.and.arrow.right")
                         .foregroundStyle(Color.danger)
                 }
                 .listRowBackground(Color.seat)
@@ -143,14 +143,14 @@ struct SettingsView: View {
         .task { await catchUpOnPairing() }
         .task(id: model.currentProfile?.id) { trakt = try? await model.client?.traktStatus() }
         .task { notificationsAllowed = [.authorized, .provisional].contains(await notifications.authorization()) }
-        .alert("Couldn't turn on notifications", isPresented: Binding(get: { notificationProblem != nil }, set: { if !$0 { notificationProblem = nil } })) {
-            Button("OK", role: .cancel) {}
+        .alert(t("Couldn't turn on notifications"), isPresented: Binding(get: { notificationProblem != nil }, set: { if !$0 { notificationProblem = nil } })) {
+            Button(t("OK"), role: .cancel) {}
         } message: {
             Text(notificationProblem ?? "")
         }
-        .alert("Sign out of this server?", isPresented: $confirmSignOut) {
-            Button("Sign out", role: .destructive) { model.signOut() }
-            Button("Cancel", role: .cancel) {}
+        .alert(t("Sign out of this server?"), isPresented: $confirmSignOut) {
+            Button(t("Sign out"), role: .destructive) { model.signOut() }
+            Button(t(Words.cancel), role: .cancel) {}
         } message: {
             Text("This \(ThisDevice.name) will need to connect again to use the server, and its downloads will be deleted.")
         }

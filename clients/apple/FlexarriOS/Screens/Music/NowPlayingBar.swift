@@ -23,7 +23,7 @@ struct NowPlayingBar: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Stop and close")
+                .accessibilityLabel(t("Stop and close"))
                 .padding(.trailing, -6)
                 Button { router.showsNowPlaying = true } label: {
                     HStack(spacing: 12) {
@@ -70,7 +70,7 @@ struct NowPlayingBar: View {
                     .frame(width: 48, height: 48)
                 } else {
                     Button { music.next() } label: {
-                        Label("Next", systemImage: "forward.fill")
+                        Label(t("Next"), systemImage: "forward.fill")
                     }
                     .buttonStyle(RoundActionStyle(scales: false))
                     .frame(width: 48, height: 48)

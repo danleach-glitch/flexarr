@@ -9,7 +9,7 @@ struct SiriSettingsView: View {
     var body: some View {
         List {
             Section {
-                Picker("Siri plays on", selection: $siriDevice) {
+                Picker(t("Siri plays on"), selection: $siriDevice) {
                     Text("This \(ThisDevice.name)").tag("")
                     ForEach(devices.filter { !$0.isThisOne }) { device in
                         Text(device.name).tag(device.id)
@@ -24,7 +24,7 @@ struct SiriSettingsView: View {
                     AppModel.siriDeviceName = devices.first { $0.id == id }?.name
                 }
             } footer: {
-                Text("Choose an Apple TV and Siri plays there (Flexarr needs to be open on it). You can also name one as you ask.")
+                Text(t("Choose an Apple TV and Siri plays there (Flexarr needs to be open on it). You can also name one as you ask."))
             }
 
             Section {
@@ -34,9 +34,9 @@ struct SiriSettingsView: View {
                         .listRowBackground(Color.seat)
                 }
             } header: {
-                Text("Try saying")
+                Text(t("Try saying"))
             } footer: {
-                Text("Shows play from the episode you're up to.")
+                Text(t("Shows play from the episode you're up to."))
             }
         }
         .settingsPage("Siri")

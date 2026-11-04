@@ -178,7 +178,7 @@ private struct SeeAllArtistsCard: View {
             Button(action: action) {
                 VStack(spacing: 12) {
                     Image(systemName: Symbol.libraries).font(.system(size: 44, weight: .semibold))
-                    Text("See all").font(.system(size: 26, weight: .semibold))
+                    Text(t("See all")).font(.system(size: 26, weight: .semibold))
                 }
                 .foregroundStyle(Color.screen.opacity(0.85))
                 .frame(width: 220, height: 220)
@@ -186,7 +186,7 @@ private struct SeeAllArtistsCard: View {
                 .clipShape(Circle())
             }
             .buttonStyle(CircleCardStyle())
-            .accessibilityLabel("See all artists")
+            .accessibilityLabel(t("See all artists"))
             .modifier(SharedFocus(binding: focus, id: "see-all-artists"))
         }
     }

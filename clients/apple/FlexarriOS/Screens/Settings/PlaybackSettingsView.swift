@@ -17,7 +17,7 @@ struct PlaybackSettingsView: View {
                     toggle("Skip intros", \.skipIntros, preferences)
                     toggle("Skip recaps", \.skipRecaps, preferences)
                     toggle("Skip credits", \.skipCredits, preferences)
-                    Picker("Subtitle size", selection: Binding(
+                    Picker(t("Subtitle size"), selection: Binding(
                         get: { preferences.subtitleSize == .unknown ? .standard : preferences.subtitleSize ?? .standard },
                         set: { size in
                             var changed = preferences
@@ -28,7 +28,7 @@ struct PlaybackSettingsView: View {
                         ForEach(SubtitleSize.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
                     .listRowBackground(Color.seat)
-                    Picker("Subtitle position", selection: Binding(
+                    Picker(t("Subtitle position"), selection: Binding(
                         get: { preferences.subtitlePosition == .unknown ? .bottom : preferences.subtitlePosition ?? .bottom },
                         set: { position in
                             var changed = preferences
@@ -39,7 +39,7 @@ struct PlaybackSettingsView: View {
                         ForEach(SubtitlePosition.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
                     .listRowBackground(Color.seat)
-                    Toggle("Subtitles in the black bars", isOn: Binding(
+                    Toggle(t("Subtitles in the black bars"), isOn: Binding(
                         get: { preferences.subtitlesInBlackBars ?? false },
                         set: { on in
                             var changed = preferences
@@ -49,25 +49,25 @@ struct PlaybackSettingsView: View {
                     ))
                     .settingsRow()
                 } header: {
-                    Text("Your profile, on every device")
+                    Text(t("Your profile, on every device"))
                 } footer: {
-                    Text("The next episode starts after a 10-second countdown. Subtitles that run early or late can be moved on Apple TV or the web. In the black bars puts subtitles below the picture of movies wider than the screen.")
+                    Text(t("The next episode starts after a 10-second countdown. Subtitles that run early or late can be moved on Apple TV or the web. In the black bars puts subtitles below the picture of movies wider than the screen."))
                 }
             }
 
             Section {
-                Picker("Skip back and forward", selection: $skipSeconds) {
+                Picker(t("Skip back and forward"), selection: $skipSeconds) {
                     ForEach([10.0, 15.0, 30.0], id: \.self) { seconds in
                         Text("\(Int(seconds)) seconds").tag(seconds)
                     }
                 }
                 .settingsRow()
                 .onChange(of: skipSeconds) { _, seconds in UserDefaults.standard.set(seconds, forKey: "FlexarrSkipSeconds") }
-                Toggle("Play files directly", isOn: $playsFilesDirectly)
+                Toggle(t("Play files directly"), isOn: $playsFilesDirectly)
                     .settingsRow()
                     .onChange(of: playsFilesDirectly) { _, on in PlaybackController.usesEngine = on }
                 if playsFilesDirectly {
-                    Toggle("Lossless surround", isOn: $losslessAudio)
+                    Toggle(t("Lossless surround"), isOn: $losslessAudio)
                         .settingsRow()
                         .onChange(of: losslessAudio) { _, on in PlaybackController.losslessAudio = on }
                 }
@@ -80,11 +80,11 @@ struct PlaybackSettingsView: View {
             }
             if playsFilesDirectly {
                 Section {
-                    Picker("Dialogue boost", selection: soundSetting(\.dialogueBoost)) {
+                    Picker(t("Dialogue boost"), selection: soundSetting(\.dialogueBoost)) {
                         ForEach(SoundSettings.DialogueBoost.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                     }
                     .settingsRow()
-                    Picker("Night mode", selection: soundSetting(\.nightMode)) {
+                    Picker(t("Night mode"), selection: soundSetting(\.nightMode)) {
                         ForEach(SoundSettings.NightMode.allCases, id: \.self) { Text($0 == .scheduled ? "On a schedule" : $0.rawValue).tag($0) }
                     }
                     .settingsRow()
@@ -94,14 +94,14 @@ struct PlaybackSettingsView: View {
                         DatePicker("Until", selection: minutes(\.nightEnd), displayedComponents: .hourAndMinute)
                             .settingsRow()
                     }
-                    Picker("Speakers", selection: soundSetting(\.speakers)) {
+                    Picker(t("Speakers"), selection: soundSetting(\.speakers)) {
                         ForEach(SoundSettings.Speakers.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
                     .settingsRow()
                 } header: {
-                    Text("Sound")
+                    Text(t("Sound"))
                 } footer: {
-                    Text("Dialogue boost makes voices easier to follow; night mode quietens loud scenes. While either is on, or the speakers are set, surround plays as PCM rather than passed through, and Atmos without its height.")
+                    Text(t("Dialogue boost makes voices easier to follow; night mode quietens loud scenes. While either is on, or the speakers are set, surround plays as PCM rather than passed through, and Atmos without its height."))
                 }
             }
         }

@@ -17,7 +17,7 @@ struct DownloadsView: View {
                 List {
                     let films = store.videoDownloads.filter { $0.item.kind != .episode }
                     if !films.isEmpty {
-                        Section("Movies") {
+                        Section(t(Words.movies)) {
                             ForEach(films) { DownloadRow(download: $0) }
                                 .onDelete { remove(films, at: $0) }
                         }
@@ -30,21 +30,21 @@ struct DownloadsView: View {
                     }
                     let music = store.musicCollections
                     if !music.isEmpty {
-                        Section("Music") {
+                        Section(t(Words.music)) {
                             ForEach(music) { CollectionRow(collection: $0) }
                                 .onDelete { offsets in for index in offsets { store.remove(collectionId: music[index].id) } }
                         }
                     }
                     let books = store.bookDownloads
                     if !books.isEmpty {
-                        Section("Audiobooks") {
+                        Section(t(Words.audiobooks)) {
                             ForEach(books) { PodcastDownloadRow(download: $0) }
                                 .onDelete { offsets in for index in offsets { store.remove(books[index].id) } }
                         }
                     }
                     let podcasts = store.podcastDownloads
                     if !podcasts.isEmpty {
-                        Section("Podcasts") {
+                        Section(t(Words.podcasts)) {
                             ForEach(podcasts) { PodcastDownloadRow(download: $0) }
                                 .onDelete { offsets in for index in offsets { store.remove(podcasts[index].id) } }
                         }
@@ -59,7 +59,7 @@ struct DownloadsView: View {
             }
         }
         .background(RoomBackground(ambient: nil))
-        .navigationTitle("Downloads")
+        .navigationTitle(t(Words.downloads))
         .refreshable { await store.catchUp() }
     }
 
@@ -115,7 +115,7 @@ private struct DownloadRow: View {
         .disabled(!download.isDownloaded)
         .listRowBackground(Color.seat)
         .swipeActions {
-            Button(role: .destructive) { store.delete(download.id) } label: { Label("Delete", systemImage: Symbol.delete) }
+            Button(role: .destructive) { store.delete(download.id) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
         }
         .accessibilityHint(download.isDownloaded ? "Plays" : "")
     }
@@ -197,7 +197,7 @@ private struct PodcastDownloadRow: View {
         .disabled(!download.isDownloaded)
         .listRowBackground(Color.seat)
         .swipeActions {
-            Button(role: .destructive) { store.remove(download.id) } label: { Label("Delete", systemImage: Symbol.delete) }
+            Button(role: .destructive) { store.remove(download.id) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
         }
     }
 
@@ -256,12 +256,12 @@ struct DownloadButton: View {
             }
         }
         .accessibilityLabel(waiting ? "Waiting for Wi-Fi" : DownloadStateIcon.accessibilityLabel(download?.state))
-        .alert("Couldn't download this", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
-            Button("Try again") {
+        .alert(t("Couldn't download this"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+            Button(t("Try again")) {
                 if let download { store.delete(download.id) }
                 Task { await start() }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(t(Words.cancel), role: .cancel) {}
         } message: {
             Text(failure ?? "")
         }
@@ -270,10 +270,10 @@ struct DownloadButton: View {
             Button(download?.isDownloaded == true ? "Remove download" : "Stop download", role: .destructive) {
                 if let download { store.delete(download.id) }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(t(Words.cancel), role: .cancel) {}
         }
-        .alert("Couldn't download this", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
-            Button("OK", role: .cancel) {}
+        .alert(t("Couldn't download this"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+            Button(t("OK"), role: .cancel) {}
         } message: {
             Text(error ?? "")
         }

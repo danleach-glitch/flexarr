@@ -81,16 +81,16 @@ struct AlbumView: View {
                     switch button {
                     case .play:
                         Button { model.playTracks(tracks, albums: [item], showingNowPlaying: router) } label: {
-                            Label("Play", systemImage: Symbol.play)
+                            Label(t(Words.play), systemImage: Symbol.play)
                         }
                         .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true, singleLine: true))
                     case .shuffle:
                         Button { model.playTracks(tracks, shuffled: true, albums: [item], showingNowPlaying: router) } label: {
-                            Label("Shuffle", systemImage: Symbol.shuffle)
+                            Label(t(Words.shuffle), systemImage: Symbol.shuffle)
                         }
                         .buttonStyle(RoundActionStyle())
                         .disabled(tracks.count < 2)
-                        .accessibilityLabel("Shuffle")
+                        .accessibilityLabel(t(Words.shuffle))
                     case .download:
                         MusicDownloadButton(source: .album(item, tracks: tracks))
                     case .more:

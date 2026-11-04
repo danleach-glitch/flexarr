@@ -33,7 +33,7 @@ struct AddToPlaylistSheet: View {
                             .focused($naming)
                             .submitLabel(.done)
                             .onSubmit { Task { await create() } }
-                        Button("Create") { Task { await create() } }
+                        Button(t("Create")) { Task { await create() } }
                             .disabled(busy != nil || name.trimmingCharacters(in: .whitespaces).isEmpty)
                             .overlay { if busy == "new" { ProgressView() } }
                     }
@@ -47,16 +47,16 @@ struct AddToPlaylistSheet: View {
             }
             .overlay { if playlists == nil && error == nil { ProgressView() } }
             .scrollContentBackground(.hidden)
-            .navigationTitle("Add to playlist")
+            .navigationTitle(t(Words.addToPlaylist))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     VStack(spacing: 0) {
-                        Text("Add to playlist").font(.headline)
+                        Text(t(Words.addToPlaylist)).font(.headline)
                         Text(request.title).font(.caption).foregroundStyle(Color.usher).lineLimit(1)
                     }
                 }
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button(t(Words.done)) { dismiss() } }
             }
         }
         .presentationDetents([.medium, .large])

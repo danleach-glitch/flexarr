@@ -36,7 +36,7 @@ struct WatchlistView: View {
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 30) {
-                Text("Watchlist")
+                Text(t(Words.watchlist))
                     .font(.marquee(64, weight: .heavy))
                     .foregroundStyle(Color.screen)
                 if let entries, entries.isEmpty {
@@ -98,12 +98,12 @@ struct WatchlistView: View {
                     .buttonStyle(PillButtonStyle(selected: showing == status))
             }
             Menu {
-                Picker("Kind", selection: $kind) {
-                    Text("Movies and shows").tag(String?.none)
-                    Text("Movies").tag(String?.some("movie"))
-                    Text("Shows").tag(String?.some("tv"))
+                Picker(t("Kind"), selection: $kind) {
+                    Text(t(Words.moviesAndShows)).tag(String?.none)
+                    Text(t(Words.movies)).tag(String?.some("movie"))
+                    Text(t(Words.shows)).tag(String?.some("tv"))
                 }
-                Picker("Sort", selection: $sort) {
+                Picker(t("Sort"), selection: $sort) {
                     ForEach(WatchlistSort.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
             } label: {
@@ -141,7 +141,7 @@ struct WatchlistView: View {
             .contextMenu {
                 if let id = entry.libraryItemId {
                     Button(role: .destructive) { Task { await model.setOnWatchlist(.library(id), false) } } label: {
-                        Label("Remove from watchlist", systemImage: Symbol.offWatchlist)
+                        Label(t(Words.removeFromWatchlist), systemImage: Symbol.offWatchlist)
                     }
                 }
             }
@@ -210,7 +210,7 @@ struct WatchlistActionButton: View {
                 if requested { onRequested() }
             }
         } label: {
-            Label("Watchlist", systemImage: onList ? "bookmark.fill" : "bookmark")
+            Label(t(Words.watchlist), systemImage: onList ? "bookmark.fill" : "bookmark")
         }
         .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: iconOnly))
         .accessibilityLabel(onList ? "Remove from watchlist" : "Add to watchlist")

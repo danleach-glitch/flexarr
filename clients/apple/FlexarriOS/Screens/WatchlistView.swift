@@ -60,27 +60,27 @@ struct WatchlistView: View {
             }
         }
         .background(RoomBackground(ambient: nil))
-        .navigationTitle("Watchlist")
+        .navigationTitle(t(Words.watchlist))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Picker("Show", selection: $showing) {
-                        Text("Everything").tag(WatchlistStatus?.none)
-                        Text("Ready to watch").tag(WatchlistStatus?.some(.ready))
-                        Text("On its way").tag(WatchlistStatus?.some(.onItsWay))
-                        Text("Coming").tag(WatchlistStatus?.some(.coming))
-                        Text("Not available").tag(WatchlistStatus?.some(.notAvailable))
+                    Picker(t("Show"), selection: $showing) {
+                        Text(t("Everything")).tag(WatchlistStatus?.none)
+                        Text(t("Ready to watch")).tag(WatchlistStatus?.some(.ready))
+                        Text(t("On its way")).tag(WatchlistStatus?.some(.onItsWay))
+                        Text(t("Coming")).tag(WatchlistStatus?.some(.coming))
+                        Text(t("Not available")).tag(WatchlistStatus?.some(.notAvailable))
                     }
-                    Picker("Kind", selection: $kind) {
-                        Text("Movies and shows").tag(String?.none)
-                        Text("Movies").tag(String?.some("movie"))
-                        Text("Shows").tag(String?.some("tv"))
+                    Picker(t("Kind"), selection: $kind) {
+                        Text(t(Words.moviesAndShows)).tag(String?.none)
+                        Text(t(Words.movies)).tag(String?.some("movie"))
+                        Text(t(Words.shows)).tag(String?.some("tv"))
                     }
-                    Picker("Sort", selection: $sort) {
+                    Picker(t("Sort"), selection: $sort) {
                         ForEach(WatchlistSort.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
                 } label: {
-                    Label("Filter", systemImage: filtered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                    Label(t("Filter"), systemImage: filtered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                 }
             }
         }
@@ -156,7 +156,7 @@ private struct WatchlistCard: View {
             .contextMenu {
                 if let key {
                     Button(role: .destructive) { Task { await model.setOnWatchlist(key, false) } } label: {
-                        Label("Remove from watchlist", systemImage: Symbol.offWatchlist)
+                        Label(t(Words.removeFromWatchlist), systemImage: Symbol.offWatchlist)
                     }
                 }
             }
@@ -167,7 +167,7 @@ private struct WatchlistCard: View {
     private var status: some View {
         switch entry.status {
         case .onItsWay:
-            Text("On its way").font(.caption.weight(.semibold)).foregroundStyle(Color.silver)
+            Text(t("On its way")).font(.caption.weight(.semibold)).foregroundStyle(Color.silver)
         case .coming:
             Text(comingLabel).font(.caption.weight(.semibold)).foregroundStyle(Color.silver)
         case .notAvailable:
@@ -184,7 +184,7 @@ private struct WatchlistCard: View {
                         onChange()
                     }
                 } label: {
-                    Text("Request").font(.caption.weight(.semibold))
+                    Text(t(Words.request)).font(.caption.weight(.semibold))
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)

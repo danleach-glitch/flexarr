@@ -42,7 +42,7 @@ struct LiveTvView: View {
             }
         }
         .background(RoomBackground(ambient: nil))
-        .navigationTitle("Live TV")
+        .navigationTitle(t(Words.liveTv))
         // The guide wants the height: the title small at the top.
         .navigationBarTitleDisplayMode(showsGuide ? .inline : .automatic)
         .toolbar {
@@ -50,7 +50,7 @@ struct LiveTvView: View {
                 // A recording is for everyone, so a profile with an age limit has none to see or set.
                 if !model.hasAgeLimit {
                     NavigationLink { LiveRecordingsView() } label: {
-                        Label("Recordings", systemImage: "record.circle")
+                        Label(t("Recordings"), systemImage: "record.circle")
                     }
                 }
                 Button { showsGuide.toggle() } label: {
@@ -118,7 +118,7 @@ struct LiveTvView: View {
                         .tint(channel.isFavourite ? Color.aisle : Self.gold)
                     }
                     .contextMenu {
-                        Button { model.watch(channel, among: order) } label: { Label("Watch", systemImage: "play.fill") }
+                        Button { model.watch(channel, among: order) } label: { Label(t("Watch"), systemImage: "play.fill") }
                         ForEach(model.hasAgeLimit ? [] : [channel.now, channel.next].compactMap { $0 }) { programme in
                             Button { record(programme) } label: {
                                 Label("Record \(programme.title)", systemImage: "record.circle")
@@ -131,7 +131,7 @@ struct LiveTvView: View {
                     .listRowBackground(Color.clear)
             }
             if favourites.isEmpty {
-                Label("Swipe right on the channels you watch most to keep them first.", systemImage: "star")
+                Label(t("Swipe right on the channels you watch most to keep them first."), systemImage: "star")
                     .font(.footnote)
                     .foregroundStyle(Color.usher)
                     .listRowBackground(Color.clear)
@@ -345,15 +345,15 @@ struct RecordMark: View {
 
     var body: some View {
         if recordingNow {
-            Text("REC")
+            Text(t("REC"))
                 .font(.system(size: 10, weight: .heavy))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 5)
                 .padding(.vertical, 2)
                 .background(Capsule().fill(Self.red))
-                .accessibilityLabel("Recording now")
+                .accessibilityLabel(t("Recording now"))
         } else {
-            Circle().fill(Self.red).frame(width: 9, height: 9).accessibilityLabel("Set to record")
+            Circle().fill(Self.red).frame(width: 9, height: 9).accessibilityLabel(t("Set to record"))
         }
     }
 }

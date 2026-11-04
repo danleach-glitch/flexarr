@@ -20,9 +20,9 @@ struct LiveRecordingsView: View {
         Group {
             if let recordings {
                 List {
-                    Section("Coming up") {
+                    Section(t("Coming up")) {
                         if recordings.upcoming.isEmpty {
-                            Text("Nothing set to record. In the Guide, tap a programme and choose Record, or Record series.")
+                            Text(t("Nothing set to record. In the Guide, tap a programme and choose Record, or Record series."))
                                 .font(.footnote).foregroundStyle(Color.usher)
                         }
                         ForEach(recordings.upcoming) { recording in
@@ -35,7 +35,7 @@ struct LiveRecordingsView: View {
                         }
                     }
                     if !recordings.series.isEmpty {
-                        Section("Series") {
+                        Section(t(Words.series)) {
                             ForEach(recordings.series) { series in
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(series.title).font(.body.weight(.semibold))
@@ -44,13 +44,13 @@ struct LiveRecordingsView: View {
                                         .font(.caption).foregroundStyle(Color.usher)
                                 }
                                 .swipeActions {
-                                    Button("Stop series", role: .destructive) { act { try await $0.removeSeries(series.id) } }
+                                    Button(t("Stop series"), role: .destructive) { act { try await $0.removeSeries(series.id) } }
                                 }
                             }
                         }
                     }
                     if !recordings.recent.isEmpty {
-                        Section("Recorded") {
+                        Section(t("Recorded")) {
                             ForEach(recordings.recent) { recording in
                                 Button {
                                     if let item = recording.itemId { Task { await model.playFromIntent(itemId: item) } }
@@ -73,7 +73,7 @@ struct LiveRecordingsView: View {
             }
         }
         .background(RoomBackground(ambient: nil))
-        .navigationTitle("Recordings")
+        .navigationTitle(t("Recordings"))
         .refreshable { await load() }
         // Only while the app is in front: with music keeping it alive in the background, it would go on asking.
         .task(id: scenePhase == .active) {
@@ -88,13 +88,13 @@ struct LiveRecordingsView: View {
     private func row(_ recording: Recording) -> some View {
         HStack(spacing: 10) {
             if recording.isRecordingNow {
-                Circle().fill(Color.record).frame(width: 9, height: 9).accessibilityLabel("Recording now")
+                Circle().fill(Color.record).frame(width: 9, height: 9).accessibilityLabel(t("Recording now"))
             }
             VStack(alignment: .leading, spacing: 3) {
                 Text(recording.title).font(.body.weight(.semibold)).foregroundStyle(Color.screen)
                 Text(detail(recording)).font(.caption).foregroundStyle(Color.usher).lineLimit(1)
                 if recording.clashes {
-                    Text("Won't record: every stream is wanted by recordings scheduled before it.").font(.caption).foregroundStyle(Color.danger)
+                    Text(t("Won't record: every stream is wanted by recordings scheduled before it.")).font(.caption).foregroundStyle(Color.danger)
                 } else if let reason = recording.reason, recording.state != "scheduled" {
                     Text(reason).font(.caption).foregroundStyle(Color.usher)
                 }

@@ -15,24 +15,24 @@ struct NotificationSettingsView: View {
         List {
             if authorization == .denied {
                 Section {
-                    Button("Open Settings") {
+                    Button(t("Open Settings")) {
                         if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                     }
                     .listRowBackground(Color.seat)
                 } footer: {
-                    Text("Notifications are off for Flexarr in the Settings app. Allow them there first.")
+                    Text(t("Notifications are off for Flexarr in the Settings app. Allow them there first."))
                 }
             }
 
             Section {
-                Toggle("Notifications", isOn: Binding(get: { notifications.isOn }, set: { on in
+                Toggle(t("Notifications"), isOn: Binding(get: { notifications.isOn }, set: { on in
                     Task { await turn(on) }
                 }))
                 .settingsRow()
                 .disabled(isWorking)
             } footer: {
                 if device?.relay == false {
-                    Text("Your server has notifications turned off, so none will arrive. They can be turned on in its configuration.")
+                    Text(t("Your server has notifications turned off, so none will arrive. They can be turned on in its configuration."))
                 } else if !notifications.isOn {
                     Text("Hear when something new is ready. This \(ThisDevice.name) gets them for one profile.")
                 }
@@ -40,7 +40,7 @@ struct NotificationSettingsView: View {
 
             if notifications.isOn {
                 Section {
-                    LabeledContent("For", value: notifications.profileName ?? "Your profile")
+                    LabeledContent(t("For"), value: notifications.profileName ?? "Your profile")
                         .listRowBackground(Color.seat)
                     if let current = model.currentProfile, let profileId = notifications.profileId, current.id != profileId {
                         Button("Get notifications for \(current.name) instead") { Task { await move() } }
@@ -49,7 +49,7 @@ struct NotificationSettingsView: View {
                     }
                 }
 
-                Section("Tell me about") {
+                Section(t("Tell me about")) {
                     toggle("Movies", \.films)
                     toggle("Shows", \.shows)
                     if model.podcastStatus?.available != false { toggle("Podcasts", \.podcasts) }
@@ -60,7 +60,7 @@ struct NotificationSettingsView: View {
                 Section {
                     toggle("Upcoming", \.upcoming, detail: "Each morning, what's airing today")
                     if notifications.settings.upcoming {
-                        Picker("At", selection: setting(\.upcomingHour)) {
+                        Picker(t("At"), selection: setting(\.upcomingHour)) {
                             ForEach(0..<24, id: \.self) { Text(Self.hourLabel($0)).tag($0) }
                         }
                         .listRowBackground(Color.seat)
@@ -68,7 +68,7 @@ struct NotificationSettingsView: View {
                 }
 
                 Section {
-                    Button("Send test notification") { Task { await sendTest() } }
+                    Button(t("Send test notification")) { Task { await sendTest() } }
                         .disabled(isWorking)
                         .listRowBackground(Color.seat)
                 }
@@ -77,7 +77,7 @@ struct NotificationSettingsView: View {
         .settingsPage("Notifications")
         .task { await load() }
         .alert(problem?.title ?? "", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
-            Button("OK", role: .cancel) {}
+            Button(t("OK"), role: .cancel) {}
         } message: {
             Text(problem?.message ?? "")
         }

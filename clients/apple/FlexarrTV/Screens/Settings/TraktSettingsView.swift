@@ -47,8 +47,8 @@ struct TraktSettingsView: View {
             }
         }
         .confirmationDialog(TraktWords.disconnectTitle, isPresented: $confirmDisconnect, titleVisibility: .visible) {
-            Button("Disconnect", role: .destructive) { run { try await $0.disconnectTrakt() } }
-            Button("Cancel", role: .cancel) {}
+            Button(t("Disconnect"), role: .destructive) { run { try await $0.disconnectTrakt() } }
+            Button(t(Words.cancel), role: .cancel) {}
         } message: {
             Text(TraktWords.disconnectMessage)
         }

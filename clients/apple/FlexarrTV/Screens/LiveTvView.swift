@@ -104,7 +104,7 @@ struct LiveTvView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 10) {
             if showsTitle {
-                Text("Live TV")
+                Text(t(Words.liveTv))
                     .font(.marquee(56, weight: .black))
                     .foregroundStyle(Color.screen)
                     .padding(.bottom, 24)
@@ -150,10 +150,10 @@ struct LiveTvView: View {
 
     private var noFavourites: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label("No favourites yet", systemImage: "star")
+            Label(t("No favourites yet"), systemImage: "star")
                 .font(.system(size: 34, weight: .semibold))
                 .foregroundStyle(Color.screen)
-            Text("In All channels, press and hold a programme and choose Add to Favourites. Favourites come first here, on Home, and when changing channel.")
+            Text(t("In All channels, press and hold a programme and choose Add to Favourites. Favourites come first here, on Home, and when changing channel."))
                 .font(.system(size: 26))
                 .foregroundStyle(Color.usher)
         }

@@ -98,13 +98,13 @@ struct AlbumView: View {
         switch button {
         case .play:
             Button { model.playTracks(tracks, albums: [item], showingNowPlaying: router) } label: {
-                Label("Play", systemImage: Symbol.play)
+                Label(t(Words.play), systemImage: Symbol.play)
             }
             .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true))
             .takesFocusFromLink()
         case .shuffle:
             Button { model.playTracks(tracks, shuffled: true, albums: [item], showingNowPlaying: router) } label: {
-                Label("Shuffle", systemImage: Symbol.shuffle)
+                Label(t(Words.shuffle), systemImage: Symbol.shuffle)
             }
             .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
             .focused($focusedAction, equals: .shuffle)

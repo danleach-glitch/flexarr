@@ -309,7 +309,7 @@ struct StatusView: View {
                 ProgressView().controlSize(.large)
             case .failed where model?.isOffline == true:
                 Image(systemName: "wifi.slash").font(.system(size: 40)).foregroundStyle(Color.usher).accessibilityHidden(true)
-                Text("You’re offline")
+                Text(t("You’re offline"))
                     .font(.body.weight(.medium))
                     .foregroundStyle(Color.screen)
             case .failed(let message, let retry):
@@ -318,7 +318,7 @@ struct StatusView: View {
                     .font(.body.weight(.medium))
                     .foregroundStyle(Color.screen)
                     .multilineTextAlignment(.center)
-                Button("Try again", action: retry)
+                Button(t("Try again"), action: retry)
                     .buttonStyle(ActionButtonStyle(prominent: true))
             case .empty(let message):
                 Text(message)

@@ -245,26 +245,26 @@ struct DetailView: View {
         case .startOver:
             if let playable {
                 Button { model.play(playable, fromBeginning: true, from: pageToken) } label: {
-                    Label("Start over", systemImage: Symbol.startOver)
+                    Label(t(Words.startOver), systemImage: Symbol.startOver)
                 }
             }
         case .shuffle:
             if item.childCount > 0 {
-                Button { model.shuffle(item) } label: { Label("Shuffle", systemImage: Symbol.shuffle) }
+                Button { model.shuffle(item) } label: { Label(t(Words.shuffle), systemImage: Symbol.shuffle) }
             }
         case .trailer:
-            Button { showingTrailer = true } label: { Label("Trailer", systemImage: Symbol.trailer) }
+            Button { showingTrailer = true } label: { Label(t(Words.trailer), systemImage: Symbol.trailer) }
         case .watched:
             // A toggle like Download: the tick fills once it's watched, and the name stays put.
             Button { Task { await model.setWatched(item, !watched) } } label: {
-                Label("Watched", systemImage: watched ? Symbol.isWatched : Symbol.watched)
+                Label(t("Watched"), systemImage: watched ? Symbol.isWatched : Symbol.watched)
             }
             .accessibilityLabel(watched ? "Mark as unwatched" : "Mark as watched")
             .accessibilityAddTraits(watched ? .isSelected : [])
         case .watchlist:
             if let onList = watchlistState(item) {
                 Button { setOnWatchlist(item, !onList) } label: {
-                    Label("Watchlist", systemImage: onList ? Symbol.onWatchlist : Symbol.watchlist)
+                    Label(t(Words.watchlist), systemImage: onList ? Symbol.onWatchlist : Symbol.watchlist)
                 }
                 .accessibilityLabel(onList ? "Remove from watchlist" : "Add to watchlist")
             }
@@ -276,10 +276,10 @@ struct DetailView: View {
                     switch entry {
                     case .button(.shuffle):
                         if item.childCount > 0 {
-                            Button { model.shuffle(item) } label: { Label("Shuffle", systemImage: Symbol.shuffle) }
+                            Button { model.shuffle(item) } label: { Label(t(Words.shuffle), systemImage: Symbol.shuffle) }
                         }
                     case .button(.trailer):
-                        Button { showingTrailer = true } label: { Label("Trailer", systemImage: Symbol.trailer) }
+                        Button { showingTrailer = true } label: { Label(t(Words.trailer), systemImage: Symbol.trailer) }
                     case .button(.watched):
                         Button { Task { await model.setWatched(item, !watched) } } label: {
                             Label(watched ? "Mark as unwatched" : "Mark as watched",
@@ -297,19 +297,19 @@ struct DetailView: View {
                     case .subtitles:
                         if let file = detail?.files.first {
                             Button { subtitleSearchFile = SubtitleSearchFile(id: file.id) } label: {
-                                Label("Search for subtitles", systemImage: Symbol.subtitles)
+                                Label(t("Search for subtitles"), systemImage: Symbol.subtitles)
                             }
                         }
                     case .goToShow:
                         if let series {
-                            Button { router.push(.item(series)) } label: { Label("Go to show", systemImage: Symbol.goToShow) }
+                            Button { router.push(.item(series)) } label: { Label(t(Words.goToShow), systemImage: Symbol.goToShow) }
                         }
                     }
                 }
             } label: {
-                Label("More", systemImage: Symbol.more)
+                Label(t("More"), systemImage: Symbol.more)
             }
-            .accessibilityLabel("More actions")
+            .accessibilityLabel(t("More actions"))
         }
     }
 

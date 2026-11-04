@@ -138,7 +138,7 @@ struct ExternalAlbumView: View {
                             if track.explicit {
                                 Image(systemName: Symbol.explicit)
                                     .font(.system(size: 22))
-                                    .accessibilityLabel("Explicit")
+                                    .accessibilityLabel(t("Explicit"))
                             }
                             Spacer(minLength: 20)
                             if track.durationSeconds > 0 {

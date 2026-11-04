@@ -84,11 +84,11 @@ struct SettingsView: View {
             topShelf = TopShelfStyle.current
             asksWhoIsWatching = AppModel.asksWhoIsWatching
         }
-        .confirmationDialog("Sign out of this server?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button("Sign out", role: .destructive) { model.signOut() }
-            Button("Cancel", role: .cancel) {}
+        .confirmationDialog(t("Sign out of this server?"), isPresented: $confirmSignOut, titleVisibility: .visible) {
+            Button(t("Sign out"), role: .destructive) { model.signOut() }
+            Button(t(Words.cancel), role: .cancel) {}
         } message: {
-            Text("This Apple TV will need to connect again to use the server.")
+            Text(t("This Apple TV will need to connect again to use the server."))
         }
         .fullScreenCover(isPresented: $choosingProfile) { ProfilePickerView(marksCurrent: true) }
         .task(id: model.currentProfile?.id) { trakt = try? await model.client?.traktStatus() }

@@ -323,7 +323,7 @@ struct ExternalCard: View {
         }
         .contextMenu {
             if let onRequest {
-                Button(action: onRequest) { Label("Request", systemImage: "plus.circle") }
+                Button(action: onRequest) { Label(t(Words.request), systemImage: "plus.circle") }
             }
             if let onList = watchlistChanged ?? title.onWatchlist {
                 Button {
@@ -356,7 +356,7 @@ private struct LibraryBadge: View {
             .offset(x: 1)
             .frame(width: 36, height: 36)
             .background(Circle().fill(Color.go))
-            .accessibilityLabel("In your library")
+            .accessibilityLabel(t(Words.inYourLibrary))
     }
 }
 

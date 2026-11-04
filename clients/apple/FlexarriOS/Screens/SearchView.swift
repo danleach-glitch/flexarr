@@ -140,7 +140,7 @@ struct SearchView: View {
         }
         .scrollDismissesKeyboard(.immediately)
         .background(RoomBackground(ambient: nil))
-        .navigationTitle("Search")
+        .navigationTitle(t(Words.search))
         // Always showing: left to itself, iOS tucks the field away until the page is pulled down.
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Movies, shows, episodes and people")
         // Opening Search is for typing: the field's ready with the keyboard up.
@@ -217,7 +217,7 @@ struct SearchView: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
-            Button(role: .destructive) { forget(words) } label: { Label("Remove", systemImage: "xmark") }
+            Button(role: .destructive) { forget(words) } label: { Label(t("Remove"), systemImage: "xmark") }
         }
     }
 

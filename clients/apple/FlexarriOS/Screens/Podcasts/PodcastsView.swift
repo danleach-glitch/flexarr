@@ -26,11 +26,11 @@ struct PodcastsView: View {
             }
         }
         .background(RoomBackground(ambient: home.podcasts.first.map { podcastGlow($0.accentColor) }, intensity: 0.18))
-        .navigationTitle("Podcasts")
+        .navigationTitle(t(Words.podcasts))
         .toolbar {
             // The directory's shows have no age a profile's limit could be checked against.
             if model.podcastStatus?.available != false, !model.hasAgeLimit {
-                Button { router.push(.podcastBrowse) } label: { Label("Browse", systemImage: "magnifyingglass") }
+                Button { router.push(.podcastBrowse) } label: { Label(t(Words.browse), systemImage: "magnifyingglass") }
             }
         }
         .task(id: model.refreshToken) { await load() }
@@ -53,7 +53,7 @@ struct PodcastsView: View {
                         .multilineTextAlignment(.center)
                     if !model.hasAgeLimit {
                         Button { router.push(.podcastBrowse) } label: {
-                            Label("Browse podcasts", systemImage: "magnifyingglass")
+                            Label(t("Browse podcasts"), systemImage: "magnifyingglass")
                         }
                         .buttonStyle(ActionButtonStyle(prominent: true))
                     }
@@ -101,7 +101,7 @@ struct PodcastsView: View {
     @ViewBuilder
     private var upNextSection: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("Up next")
+            Text(t(Words.upNext))
                 .font(.marquee(26, weight: .bold))
                 .foregroundStyle(Color.screen)
             Spacer()
@@ -172,7 +172,7 @@ struct PodcastBrowseView: View {
                         if browse.addingFeed {
                             ProgressView().tint(Color.room)
                         } else {
-                            Label("Add this feed", systemImage: "plus")
+                            Label(t("Add this feed"), systemImage: "plus")
                         }
                     }
                     .buttonStyle(ActionButtonStyle(prominent: true))
@@ -197,13 +197,13 @@ struct PodcastBrowseView: View {
             .padding(.bottom, 24)
         }
         .background(RoomBackground(ambient: nil))
-        .navigationTitle("Browse")
+        .navigationTitle(t(Words.browse))
         .searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: "Shows, or a feed’s address")
         .textInputAutocapitalization(.never)
         .task { if browse.top.isEmpty, let client = model.client { await browse.loadTop(client: client) } }
         .task(id: text) { if let client = model.client { await browse.search(text, client: client) } }
-        .alert("Couldn't add this", isPresented: Binding(get: { browse.error != nil }, set: { if !$0 { browse.clearError() } })) {
-            Button("OK", role: .cancel) {}
+        .alert(t("Couldn't add this"), isPresented: Binding(get: { browse.error != nil }, set: { if !$0 { browse.clearError() } })) {
+            Button(t("OK"), role: .cancel) {}
         } message: {
             Text(browse.error ?? "")
         }

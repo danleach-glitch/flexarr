@@ -76,7 +76,7 @@ struct ExternalMusicCard: View {
         .contextMenu { menu(fromChooser: false) }
         .confirmationDialog(item.title, isPresented: $choosing, titleVisibility: .visible) {
             menu(fromChooser: true)
-            Button("Cancel", role: .cancel) {}
+            Button(t(Words.cancel), role: .cancel) {}
         }
         .background {
             Color.clear.confirmationDialog(MusicWords.unrequest(item.title), isPresented: $confirmingUnrequest,
@@ -151,7 +151,7 @@ struct ExternalMusicCard: View {
                 .disabled(asking || paused)
         }
         if item.isAlbum, let artist = item.artistPage {
-            Button { router.push(.musicArtist(artist)) } label: { Label("Go to artist", systemImage: Symbol.goToArtist) }
+            Button { router.push(.musicArtist(artist)) } label: { Label(t(Words.goToArtist), systemImage: Symbol.goToArtist) }
         }
     }
 

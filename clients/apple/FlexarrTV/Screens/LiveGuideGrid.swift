@@ -82,14 +82,14 @@ struct LiveGuideGrid: View {
                     Button(DvrActions.seriesLabel(details)) { act { try await DvrActions.toggleSeries(details, on: channel.id, client: $0) } }
                 }
             }
-            Button("Close", role: .cancel) {}
+            Button(t("Close"), role: .cancel) {}
         } message: {
             if let details {
                 Text(describe(details))
             }
         }
-        .alert("Recording", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
-            Button("OK", role: .cancel) {}
+        .alert(t("Recording"), isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
+            Button(t("OK"), role: .cancel) {}
         } message: {
             Text(notice ?? "")
         }
@@ -143,7 +143,7 @@ struct LiveGuideGrid: View {
 
             ZStack(alignment: .leading) {
                 if programmes.isEmpty {
-                    Text("No listings")
+                    Text(t("No listings"))
                         .font(.system(size: 22))
                         .foregroundStyle(Color.usher)
                         .padding(.leading, 20)
@@ -207,7 +207,7 @@ struct LiveGuideGrid: View {
                         .accessibilityLabel(programme.isRecordingNow ? "Recording now" : "Set to record")
                 } else if programme.series == true {
                     Image(systemName: "square.stack.fill").font(.system(size: 16)).foregroundStyle(Self.recordRed)
-                        .accessibilityLabel("Series")
+                        .accessibilityLabel(t(Words.series))
                 }
                 Text(programme.displayTitle)
                     .font(.system(size: 23, weight: .semibold))

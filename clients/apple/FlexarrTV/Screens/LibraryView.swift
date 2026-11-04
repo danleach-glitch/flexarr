@@ -181,11 +181,11 @@ struct LibraryView: View {
                 if content == .albums, !onTab, let genre = initialGenre {
                     HStack(spacing: 28) {
                         Button { Task { await model.playGenre(genre, in: library, shuffled: false, router: router) } } label: {
-                            Label("Play", systemImage: Symbol.play)
+                            Label(t(Words.play), systemImage: Symbol.play)
                         }
                         .buttonStyle(ActionButtonStyle(ambient: items.first?.ambientColor ?? .silver, prominent: true))
                         Button { Task { await model.playGenre(genre, in: library, shuffled: true, router: router) } } label: {
-                            Label("Shuffle", systemImage: Symbol.shuffle)
+                            Label(t(Words.shuffle), systemImage: Symbol.shuffle)
                         }
                         .buttonStyle(ActionButtonStyle(ambient: items.first?.glowColor ?? .silver))
                     }
@@ -202,7 +202,7 @@ struct LibraryView: View {
                 }
                 if showsGenreFilter, !genres.isEmpty {
                     Menu {
-                        Button("All genres") { genre = nil }
+                        Button(t("All genres")) { genre = nil }
                         ForEach(genres, id: \.name) { g in
                             Button("\(g.name)  (\(g.count))") { genre = g.name }
                         }

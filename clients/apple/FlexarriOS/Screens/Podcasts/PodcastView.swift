@@ -65,41 +65,41 @@ struct PodcastView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .alert("Mark all as played?", isPresented: $markingAllPlayed) {
-            Button("Mark all as played") {
+        .alert(t("Mark all as played?"), isPresented: $markingAllPlayed) {
+            Button(t("Mark all as played")) {
                 Task {
                     await page.markAllPlayed(model: model)
                     await downloads.reconcilePodcasts()
                 }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(t(Words.cancel), role: .cancel) {}
         } message: {
             if let podcast = page.podcast {
                 Text("All \(podcast.episodeCount.formatted()) episodes of \(podcast.title) will be marked as played.")
             }
         }
-        .alert("Stop following this show?", isPresented: $unfollowing) {
-            Button("Stop following", role: .destructive) {
+        .alert(t("Stop following this show?"), isPresented: $unfollowing) {
+            Button(t(Words.stopFollowing), role: .destructive) {
                 Task {
                     await page.follow(false, model: model)
                     await downloads.reconcilePodcasts()
                 }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(t(Words.cancel), role: .cancel) {}
         } message: {
             Text("Its new episodes stop coming to this \(ThisDevice.name). Episodes already downloaded stay until you delete them.")
         }
         .toolbar {
             if let podcast = page.podcast {
                 Menu {
-                    Section("Order") {
+                    Section(t("Order")) {
                         order("Newest first", oldest: false)
                         order("Oldest first", oldest: true)
                     }
-                    Button { markingAllPlayed = true } label: { Label("Mark all as played", systemImage: Symbol.watched) }
+                    Button { markingAllPlayed = true } label: { Label(t("Mark all as played"), systemImage: Symbol.watched) }
                         .disabled(podcast.unplayedCount == 0)
                 } label: {
-                    Label("More", systemImage: Symbol.more)
+                    Label(t("More"), systemImage: Symbol.more)
                 }
             }
         }
@@ -196,9 +196,9 @@ struct PodcastView: View {
                 .minimumScaleFactor(0.8)
             Spacer(minLength: 0)
             @Bindable var page = page
-            Picker("Show", selection: $page.unplayedOnly) {
-                Text("Unplayed").tag(true)
-                Text("All").tag(false)
+            Picker(t("Show"), selection: $page.unplayedOnly) {
+                Text(t("Unplayed")).tag(true)
+                Text(t("All")).tag(false)
             }
             .pickerStyle(.segmented)
             .fixedSize()

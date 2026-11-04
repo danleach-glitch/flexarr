@@ -35,7 +35,7 @@ struct ComingSoonView: View {
             }
         }
         .background(RoomBackground(ambient: nil))
-        .navigationTitle("Coming soon")
+        .navigationTitle(t(Words.comingSoon))
         .task { if days == nil { await load() } }
     }
 

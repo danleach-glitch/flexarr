@@ -206,14 +206,14 @@ struct HomeHero: View {
                     // An artist's slide: their radio too, beside Play (which shuffles them).
                     if item.kind == .artist {
                         Button { Task { await model.playArtist(item, radio: true, router: router) } } label: {
-                            Label("Radio", systemImage: Symbol.radio)
+                            Label(t(Words.radio), systemImage: Symbol.radio)
                         }
                         .buttonStyle(ActionButtonStyle(ambient: item.glowColor))
                         .focused($focusedButton, equals: .radio)
                     }
 
                     Button { router.push(.item(item)) } label: {
-                        Label("More info", systemImage: Symbol.details)
+                        Label(t("More info"), systemImage: Symbol.details)
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.glowColor))
                     .focused($focusedButton, equals: .info)
@@ -564,7 +564,7 @@ struct SeeAllCard: View {
         Button(action: action) {
             VStack(spacing: 16) {
                 Image(systemName: "square.grid.2x2").font(.system(size: 48, weight: .semibold))
-                Text("See all").font(.system(size: 28, weight: .semibold))
+                Text(t("See all")).font(.system(size: 28, weight: .semibold))
             }
             .foregroundStyle(Color.screen.opacity(0.85))
             .frame(width: size.width, height: size.height)
@@ -593,7 +593,7 @@ struct ComingSoonRow: View {
                     } artwork: {
                         VStack(spacing: 14) {
                             Image(systemName: "calendar").font(.system(size: 54, weight: .semibold))
-                            Text("See all").font(.system(size: 29, weight: .semibold))
+                            Text(t("See all")).font(.system(size: 29, weight: .semibold))
                         }
                         .foregroundStyle(Color.screen)
                         .frame(width: Layout.wideWidth * 0.6, height: Layout.wideWidth * 9 / 16)

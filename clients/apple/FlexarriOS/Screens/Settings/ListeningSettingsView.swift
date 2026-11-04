@@ -26,7 +26,7 @@ struct ListeningSettingsView: View {
             } else {
                 Section {
                     if let speed {
-                        Picker("Speed", selection: Binding(get: { speed }, set: { value in
+                        Picker(t("Speed"), selection: Binding(get: { speed }, set: { value in
                             save(podcasts: .init(speed: value), books: .init(speed: value))
                         })) {
                             ForEach(BookSpeed.choices(with: speed), id: \.self) { Text(BookSpeed.label($0)).tag($0) }
@@ -34,26 +34,26 @@ struct ListeningSettingsView: View {
                         .listRowBackground(Color.seat)
                     }
                     if let shared {
-                        Picker("Skip back", selection: Binding(get: { shared.skipBackSeconds }, set: { value in
+                        Picker(t("Skip back"), selection: Binding(get: { shared.skipBackSeconds }, set: { value in
                             save(podcasts: .init(skipBackSeconds: value), books: .init(skipBackSeconds: value))
                         })) {
                             ForEach(steps(shared.skipBackSeconds), id: \.self) { Text("\($0) seconds").tag($0) }
                         }
                         .listRowBackground(Color.seat)
-                        Picker("Skip forward", selection: Binding(get: { shared.skipForwardSeconds }, set: { value in
+                        Picker(t("Skip forward"), selection: Binding(get: { shared.skipForwardSeconds }, set: { value in
                             save(podcasts: .init(skipForwardSeconds: value), books: .init(skipForwardSeconds: value))
                         })) {
                             ForEach(steps(shared.skipForwardSeconds), id: \.self) { Text("\($0) seconds").tag($0) }
                         }
                         .listRowBackground(Color.seat)
-                        Toggle("Smart rewind", isOn: Binding(get: { shared.smartRewind }, set: { value in
+                        Toggle(t("Smart rewind"), isOn: Binding(get: { shared.smartRewind }, set: { value in
                             save(podcasts: .init(smartRewind: value), books: .init(smartRewind: value))
                         }))
                         .settingsRow()
                     }
                     // Servers before 0.58 don't have it.
                     if let playback, let listening = playback.listeningInContinue {
-                        Toggle("Books and podcasts in Continue watching", isOn: Binding(get: { listening }, set: { on in
+                        Toggle(t("Books and podcasts in Continue watching"), isOn: Binding(get: { listening }, set: { on in
                             var changed = playback
                             changed.listeningInContinue = on
                             savePlayback(changed, over: playback)
@@ -61,18 +61,18 @@ struct ListeningSettingsView: View {
                         .settingsRow()
                     }
                 } header: {
-                    Text("Your profile, on every device")
+                    Text(t("Your profile, on every device"))
                 } footer: {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("A book with a speed of its own keeps it. Smart rewind starts a little earlier after a pause.")
-                        if failed { Text("That didn't save. Try again.").foregroundStyle(Color.danger) }
+                        Text(t("A book with a speed of its own keeps it. Smart rewind starts a little earlier after a pause."))
+                        if failed { Text(t("That didn't save. Try again.")).foregroundStyle(Color.danger) }
                     }
                 }
             }
 
             if let podcasts = model.podcastPreferences {
                 Section {
-                    Toggle("Download new episodes", isOn: Binding(get: { podcasts.autoDownload }, set: { value in
+                    Toggle(t("Download new episodes"), isOn: Binding(get: { podcasts.autoDownload }, set: { value in
                         Task {
                             await model.updatePodcastPreferences(.init(autoDownload: value))
                             await downloads.reconcilePodcasts()
@@ -88,15 +88,15 @@ struct ListeningSettingsView: View {
                     .disabled(!podcasts.autoDownload)
                     .listRowBackground(Color.seat)
                 } header: {
-                    Text("Automatic downloads")
+                    Text(t("Automatic downloads"))
                 } footer: {
-                    Text("On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted.")
+                    Text(t("On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted."))
                 }
 
                 Section {
                     SettingsLink("Notifications", icon: "bell.fill") { NotificationSettingsView() }
                 } footer: {
-                    Text("New episodes can come as notifications.")
+                    Text(t("New episodes can come as notifications."))
                 }
             }
         }

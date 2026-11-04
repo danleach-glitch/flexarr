@@ -145,11 +145,11 @@ struct LibraryView: View {
     @ViewBuilder
     private var viewSwitch: some View {
         if (Self.hasBrowse(library, genre: initialGenre) || hasGenres) && !(music && initialGenre != nil) {
-            Picker("Show", selection: $showing) {
-                if Self.hasBrowse(library, genre: initialGenre) { Text("Browse").tag(Showing.browse) }
+            Picker(t("Show"), selection: $showing) {
+                if Self.hasBrowse(library, genre: initialGenre) { Text(t(Words.browse)).tag(Showing.browse) }
                 Text(music ? "Artists" : library.type == .tvShows ? "All shows" : library.type == .homeVideos ? "All folders" : "All movies").tag(Showing.all)
-                if music, offersAlbums { Text("Albums").tag(Showing.albums) }
-                if hasGenres { Text("Genres").tag(Showing.genres) }
+                if music, offersAlbums { Text(t(Words.albums)).tag(Showing.albums) }
+                if hasGenres { Text(t(Words.genres)).tag(Showing.genres) }
             }
             .pickerStyle(.segmented)
             .padding(.horizontal, Layout.edge)
@@ -222,11 +222,11 @@ struct LibraryView: View {
             // A genre plays as a station: up to 200 of its tracks, in order or shuffled.
             HStack(spacing: 10) {
                 Button { Task { await model.playGenre(genre, in: library, shuffled: false, router: router) } } label: {
-                    Label("Play", systemImage: Symbol.play)
+                    Label(t(Words.play), systemImage: Symbol.play)
                 }
                 .buttonStyle(ActionButtonStyle(ambient: items.first?.ambientColor, prominent: true))
                 Button { Task { await model.playGenre(genre, in: library, shuffled: true, router: router) } } label: {
-                    Label("Shuffle", systemImage: Symbol.shuffle)
+                    Label(t(Words.shuffle), systemImage: Symbol.shuffle)
                 }
                 .buttonStyle(ActionButtonStyle(ambient: items.first?.glowColor))
             }
@@ -259,14 +259,14 @@ struct LibraryView: View {
 
     private var sortAndFilter: some View {
         Menu {
-            Picker("Sort by", selection: $sort) {
+            Picker(t("Sort by"), selection: $sort) {
                 ForEach(content.sorts) { option in
                     Text(option.label).tag(option)
                 }
             }
             if showsGenreFilter, !filterGenres.isEmpty {
-                Picker("Genre", selection: $genre) {
-                    Text("All genres").tag(String?.none)
+                Picker(t("Genre"), selection: $genre) {
+                    Text(t("All genres")).tag(String?.none)
                     ForEach(filterGenres, id: \.name) { g in
                         Text("\(g.name) (\(g.count))").tag(Optional(g.name))
                     }
@@ -274,7 +274,7 @@ struct LibraryView: View {
                 .pickerStyle(.menu)
             }
         } label: {
-            Label("Sort and filter", systemImage: genre == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+            Label(t("Sort and filter"), systemImage: genre == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
         }
     }
 

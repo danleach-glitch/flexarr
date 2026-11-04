@@ -44,7 +44,7 @@ struct TraktSettingsView: View {
             } else if loadFailed {
                 Section {
                     Text(TraktWords.unreachable).foregroundStyle(Color.danger).listRowBackground(Color.seat)
-                    Button("Try again") { Task { await load() } }.listRowBackground(Color.seat)
+                    Button(t("Try again")) { Task { await load() } }.listRowBackground(Color.seat)
                 }
             } else {
                 Section { ProgressView().frame(maxWidth: .infinity).listRowBackground(Color.seat) }
@@ -61,7 +61,7 @@ struct TraktSettingsView: View {
             }
         }
         .confirmationDialog(TraktWords.disconnectTitle, isPresented: $confirmDisconnect, titleVisibility: .visible) {
-            Button("Disconnect", role: .destructive) { run(.account) { try await $0.disconnectTrakt() } }
+            Button(t("Disconnect"), role: .destructive) { run(.account) { try await $0.disconnectTrakt() } }
         } message: {
             Text(TraktWords.disconnectMessage)
         }
@@ -91,11 +91,11 @@ struct TraktSettingsView: View {
                         UIPasteboard.general.string = pending.userCode
                         UIApplication.shared.open(url)
                     } label: {
-                        Label("Copy code and open Trakt", systemImage: "arrow.up.forward.app")
+                        Label(t("Copy code and open Trakt"), systemImage: "arrow.up.forward.app")
                     }
                     .listRowBackground(Color.seat)
                 }
-                Button("Cancel", role: .cancel) { run(.account) { try await $0.cancelTraktConnect() } }
+                Button(t(Words.cancel), role: .cancel) { run(.account) { try await $0.cancelTraktConnect() } }
                     .listRowBackground(Color.seat)
                 problemRow(.account)
             } footer: {
@@ -120,10 +120,10 @@ struct TraktSettingsView: View {
 
     @ViewBuilder private func connected(_ status: TraktStatus) -> some View {
         Section {
-            LabeledContent("Account", value: status.username ?? "Connected").settingsRow()
+            LabeledContent(t("Account"), value: status.username ?? "Connected").settingsRow()
             Text(TraktWords.synced(status.lastSyncAt)).settingsRow()
             if status.queued > 0 {
-                LabeledContent("Waiting to send", value: status.queued.formatted()).settingsRow()
+                LabeledContent(t("Waiting to send"), value: status.queued.formatted()).settingsRow()
             }
             Button {
                 syncing = true
@@ -136,7 +136,7 @@ struct TraktSettingsView: View {
             }
             .disabled(working != nil)
             .listRowBackground(Color.seat)
-            Button("Disconnect", role: .destructive) { confirmDisconnect = true }
+            Button(t("Disconnect"), role: .destructive) { confirmDisconnect = true }
                 .foregroundStyle(Color.danger)
                 .disabled(working != nil)
                 .listRowBackground(Color.seat)
@@ -181,7 +181,7 @@ struct TraktSettingsView: View {
                 Text(failed).font(.footnote).foregroundStyle(Color.danger).listRowBackground(Color.seat)
             }
         } header: {
-            Text("Your history")
+            Text(t("Your history"))
         } footer: {
             if status.importedAt == nil, !status.importing {
                 Text(preview == nil ? "See what changes first." : "Nothing is marked unwatched, on either side.")
@@ -204,7 +204,7 @@ struct TraktSettingsView: View {
                 }
                 problemRow(.lists)
             } header: {
-                Text("Lists")
+                Text(t("Lists"))
             } footer: {
                 Text(TraktWords.listsNote)
             }

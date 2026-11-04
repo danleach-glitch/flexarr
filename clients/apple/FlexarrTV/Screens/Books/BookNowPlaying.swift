@@ -73,7 +73,7 @@ struct BookNowPlaying<Cover: View>: View {
                 }
                 .buttonStyle(ActionButtonStyle(ambient: track.ambientColor, prominent: true))
                 .focused($focused, equals: .offer)
-                Button { music.dismissJump() } label: { Label("Not now", systemImage: "xmark") }
+                Button { music.dismissJump() } label: { Label(t("Not now"), systemImage: "xmark") }
                     .buttonStyle(ActionButtonStyle(iconOnly: true))
             }
             .focusSection()
@@ -122,7 +122,7 @@ struct BookNowPlaying<Cover: View>: View {
     private var controls: some View {
         let back = Int(music.skipBack), forward = Int(music.skipForward)
         return HStack(spacing: 30) {
-            Button { music.previousChapter() } label: { Label("Previous chapter", systemImage: "backward.end.fill") }
+            Button { music.previousChapter() } label: { Label(t("Previous chapter"), systemImage: "backward.end.fill") }
                 .buttonStyle(RoundControlStyle(size: 84))
                 .focused($focused, equals: .previousChapter)
             Button { music.skip(by: -music.skipBack) } label: { Label("Back \(back) seconds", systemImage: "gobackward.\(back)") }
@@ -136,7 +136,7 @@ struct BookNowPlaying<Cover: View>: View {
             Button { music.skip(by: music.skipForward) } label: { Label("Forward \(forward) seconds", systemImage: "goforward.\(forward)") }
                 .buttonStyle(RoundControlStyle(size: 96))
                 .focused($focused, equals: .forward)
-            Button { music.nextChapter() } label: { Label("Next chapter", systemImage: "forward.end.fill") }
+            Button { music.nextChapter() } label: { Label(t("Next chapter"), systemImage: "forward.end.fill") }
                 .buttonStyle(RoundControlStyle(size: 84))
                 .focused($focused, equals: .nextChapter)
                 .disabled((music.chapterIndex ?? 0) + 1 >= music.chapters.count)
@@ -152,7 +152,7 @@ struct BookNowPlaying<Cover: View>: View {
             .buttonStyle(RoundControlStyle(size: 84, active: music.speed != 1))
             .focused($focused, equals: .speed)
             .accessibilityLabel("Speed, \(BookSpeed.label(music.speed))")
-            Button { music.stop() } label: { Label("Stop", systemImage: "stop.fill") }
+            Button { music.stop() } label: { Label(t("Stop"), systemImage: "stop.fill") }
                 .buttonStyle(RoundControlStyle(size: 84))
                 .focused($focused, equals: .stop)
             if music.isLoading { ProgressView().scaleEffect(1.2) }

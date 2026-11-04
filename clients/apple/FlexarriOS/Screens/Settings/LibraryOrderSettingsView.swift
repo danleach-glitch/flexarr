@@ -78,7 +78,7 @@ struct LibraryOrderSettingsView: View {
         .environment(\.editMode, .constant(.active))
         .scrollContentBackground(.hidden)
         .background(RoomBackground(ambient: nil))
-        .navigationTitle("Library order")
+        .navigationTitle(t("Library order"))
         .navigationBarTitleDisplayMode(.inline)
     }
 }

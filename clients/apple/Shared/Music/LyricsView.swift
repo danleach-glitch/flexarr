@@ -61,7 +61,7 @@ struct LyricsView: View {
             .onAppear { follow(active, with: proxy, animated: false) }
             .onChange(of: active) { _, line in follow(line, with: proxy, animated: true) }
         }
-        .accessibilityLabel("Lyrics")
+        .accessibilityLabel(t("Lyrics"))
     }
 
     private func emphasis(of index: Int) -> LyricLineView.Emphasis {

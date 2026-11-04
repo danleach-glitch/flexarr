@@ -76,7 +76,7 @@ struct LiveGuideView: View {
                     Button(DvrActions.seriesLabel(programme)) { act { try await DvrActions.toggleSeries(programme, on: channel.id, client: $0) } }
                 }
             }
-            Button("Close", role: .cancel) {}
+            Button(t("Close"), role: .cancel) {}
         } message: {
             if let programme = details?.programme { Text(describe(programme)) }
         }
@@ -125,7 +125,7 @@ struct LiveGuideView: View {
             .filter { $0.end > windowStart && $0.start < windowEnd }
         return ZStack(alignment: .leading) {
             if programmes.isEmpty {
-                Text("No listings").font(.footnote).foregroundStyle(Color.usher).padding(.leading, 12)
+                Text(t("No listings")).font(.footnote).foregroundStyle(Color.usher).padding(.leading, 12)
             }
             ForEach(programmes) { programme in
                 let start = max(programme.start, windowStart)
@@ -140,7 +140,7 @@ struct LiveGuideView: View {
                     }
                     .contextMenu {
                         if onNow {
-                            Button { model.watch(channel, among: order) } label: { Label("Watch", systemImage: "play.fill") }
+                            Button { model.watch(channel, among: order) } label: { Label(t("Watch"), systemImage: "play.fill") }
                         }
                         if !model.hasAgeLimit, programme.end > now {
                             Button { act { notice = try await DvrActions.toggleRecording(programme, on: channel.id, client: $0) } } label: {

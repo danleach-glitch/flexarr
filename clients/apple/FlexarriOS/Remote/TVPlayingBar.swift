@@ -29,7 +29,7 @@ struct TVPlayingBar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Hide bar")
+            .accessibilityLabel(t("Hide bar"))
             .accessibilityHint("Keeps playing on \(device.name)")
             .padding(.leading, -8)
             .padding(.trailing, -10)
@@ -91,7 +91,7 @@ struct TVPlayingBar: View {
         .accessibilityLabel("Playing on \(device.name): \(playing.item.displayTitle)")
         // Undo for a stop on this TV, while it's offered.
         .accessibilityActions {
-            if remote.notice?.undo?.deviceId == device.id { Button("Undo stop") { remote.undoStop() } }
+            if remote.notice?.undo?.deviceId == device.id { Button(t("Undo stop")) { remote.undoStop() } }
         }
     }
 }
@@ -110,7 +110,7 @@ struct RemoteNoticeView: View {
                         .foregroundStyle(Color.screen)
                         .multilineTextAlignment(.leading)
                     if notice.undo != nil {
-                        Button("Undo") { remote.undoStop() }
+                        Button(t("Undo")) { remote.undoStop() }
                             .font(.footnote.weight(.bold))
                             .foregroundStyle(Color.silver)
                             .frame(minHeight: 44)

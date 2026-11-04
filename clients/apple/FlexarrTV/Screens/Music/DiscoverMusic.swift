@@ -23,7 +23,7 @@ struct DiscoverMusicContent: View {
                     .padding(.horizontal, Layout.edge)
             }
             Button { searching = true } label: {
-                Label("Search", systemImage: Symbol.search)
+                Label(t(Words.search), systemImage: Symbol.search)
             }
             .buttonStyle(PillButtonStyle(selected: false))
             .padding(.horizontal, Layout.edge)
@@ -50,7 +50,7 @@ struct DiscoverMusicContent: View {
                         .focusSection()
                     }
                 }
-                Text("Data from Deezer")
+                Text(t("Data from Deezer"))
                     .font(.system(size: 21, weight: .medium))
                     .foregroundStyle(Color.usher)
                     .padding(.horizontal, Layout.edge)

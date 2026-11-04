@@ -38,7 +38,7 @@ struct LiveRecordingsView: View {
                     LazyVStack(alignment: .leading, spacing: 10) {
                         heading("Coming up")
                         if recordings.upcoming.isEmpty {
-                            Text("Nothing set to record. In the guide, press and hold a programme and choose Record, or Record series.")
+                            Text(t("Nothing set to record. In the guide, press and hold a programme and choose Record, or Record series."))
                                 .font(.system(size: 26)).foregroundStyle(Color.usher)
                         }
                         ForEach(recordings.upcoming) { recording in
@@ -86,15 +86,15 @@ struct LiveRecordingsView: View {
                     act { try await $0.removeRecording(recording.id) }
                 }
             case .series(let series):
-                Button("Stop recording the series", role: .destructive) { act { try await $0.removeSeries(series.id) } }
+                Button(t("Stop recording the series"), role: .destructive) { act { try await $0.removeSeries(series.id) } }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(t(Words.cancel), role: .cancel) {}
         } message: { confirm in
             switch confirm {
             case .recording(let recording):
                 Text(recording.isRecordingNow ? "What's recorded so far is kept." : "\(recording.channelName), \(Self.day.string(from: recording.start))")
             case .series(let series):
-                Text("Its scheduled showings come off the list. What it's recorded stays.")
+                Text(t("Its scheduled showings come off the list. What it's recorded stays."))
             }
         }
     }
@@ -120,7 +120,7 @@ struct LiveRecordingsView: View {
                 Text(recording.title).font(.system(size: 27, weight: .semibold)).lineLimit(1)
                 Text(detail(recording)).font(.system(size: 21)).opacity(0.7).lineLimit(1)
                 if recording.clashes {
-                    Text("Won't record: every stream is wanted by recordings scheduled before it.")
+                    Text(t("Won't record: every stream is wanted by recordings scheduled before it."))
                         .font(.system(size: 21)).foregroundStyle(Color.danger)
                 } else if let reason = recording.reason, recording.state != "scheduled" {
                     Text(reason).font(.system(size: 21)).opacity(0.7).lineLimit(1)

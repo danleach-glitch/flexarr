@@ -24,11 +24,11 @@ struct ConnectView: View {
             VStack(alignment: .leading, spacing: 28) {
                 HStack(alignment: .center, spacing: 28) {
                     BrandMark(size: 132)
-                    Text("flexarr")
+                    Text(t("flexarr"))
                         .font(.marquee(150, weight: .black))
                         .foregroundStyle(Color.screen)
                 }
-                Text("Your entertainment, on every screen.")
+                Text(t("Your entertainment, on every screen."))
                     .font(.system(size: 36, weight: .medium))
                     .foregroundStyle(Color.usher)
                 if let notice = model.signedOutNotice {
@@ -91,25 +91,25 @@ private struct ChooseServer: View {
     @State private var lookingAWhile = false
 
     private var joinButton: some View {
-        Button("Join someone’s Flexarr", action: onGuest)
+        Button(t("Join someone’s Flexarr"), action: onGuest)
             .buttonStyle(ActionButtonStyle(prominent: false))
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 30) {
-            Text("Servers on your network")
+            Text(t("Servers on your network"))
                 .font(.system(size: 30, weight: .semibold))
                 .foregroundStyle(Color.usher)
             if browser.servers.isEmpty {
                 HStack(spacing: 20) {
                     ProgressView()
-                    Text("Looking for Flexarr…")
+                    Text(t("Looking for Flexarr…"))
                         .font(.system(size: 28))
                         .foregroundStyle(Color.usher)
                 }
                 .padding(.vertical, 20)
                 if lookingAWhile {
-                    Text("Can’t see your server? Check the Apple TV is on the same Wi-Fi as it, or enter an address.")
+                    Text(t("Can’t see your server? Check the Apple TV is on the same Wi-Fi as it, or enter an address."))
                         .font(.system(size: 28, weight: .medium))
                         .foregroundStyle(Color.screen)
                         .fixedSize(horizontal: false, vertical: true)
@@ -129,7 +129,7 @@ private struct ChooseServer: View {
             // With no server of its own here, it's likely a guest's TV: joining comes first, and takes the focus.
             let offersJoin = GuestInvite.guestInvitesOffered
             if offersJoin, browser.servers.isEmpty { joinButton.padding(.top, 10) }
-            Button("Enter an address instead", action: onManual)
+            Button(t("Enter an address instead"), action: onManual)
                 .buttonStyle(ActionButtonStyle(prominent: false))
                 .padding(.top, offersJoin && browser.servers.isEmpty ? 0 : 10)
             if offersJoin, !browser.servers.isEmpty { joinButton }
@@ -159,10 +159,10 @@ private struct PairWithServer: View {
         VStack(alignment: .leading, spacing: 30) {
             if let pairing, pairing.declined {
                 VStack(alignment: .leading, spacing: 18) {
-                    Text("Not allowed")
+                    Text(t("Not allowed"))
                         .font(.system(size: 40, weight: .bold))
                         .foregroundStyle(Color.screen)
-                    Text("The main profile turned this Apple TV away. If that was a mistake, try again and allow it this time.")
+                    Text(t("The main profile turned this Apple TV away. If that was a mistake, try again and allow it this time."))
                         .font(.system(size: 28))
                         .foregroundStyle(Color.usher)
                         .frame(maxWidth: 1100, alignment: .leading)
@@ -173,7 +173,7 @@ private struct PairWithServer: View {
                 // browser comes first; the QR code only helps a phone that's signed in already, so it's small,
                 // underneath.
                 VStack(alignment: .leading, spacing: 26) {
-                    Text("Connect this Apple TV")
+                    Text(t("Connect this Apple TV"))
                         .font(.system(size: 40, weight: .bold))
                         .foregroundStyle(Color.screen)
                     if pairing.needsSetup {
@@ -186,12 +186,12 @@ private struct PairWithServer: View {
                                     ? "Type in the setup code from the server's log, then click **Set up Flexarr**."
                                     : "Click **Set up Flexarr**.")
                             }
-                            NumberedStep(3) { Text("Go to **Settings**, then **Security**, then **Connect a device**.") }
-                            NumberedStep(4) { Text("Type in this code:") }
+                            NumberedStep(3) { Text(t("Go to **Settings**, then **Security**, then **Connect a device**.")) }
+                            NumberedStep(4) { Text(t("Type in this code:")) }
                         }
                         code(start, renewed: pairing.renewedAt != nil)
                     } else {
-                        Text("On a phone signed in to Flexarr, tap **Allow** when it asks. Check it shows this code:")
+                        Text(t("On a phone signed in to Flexarr, tap **Allow** when it asks. Check it shows this code:"))
                             .font(.system(size: 30))
                             .foregroundStyle(Color.screen)
                             .fixedSize(horizontal: false, vertical: true)
@@ -203,7 +203,7 @@ private struct PairWithServer: View {
                     }
                     HStack(spacing: 14) {
                         ProgressView()
-                        Text("This screen moves on by itself once it's allowed.")
+                        Text(t("This screen moves on by itself once it's allowed."))
                             .font(.system(size: 24))
                             .foregroundStyle(Color.usher)
                     }
@@ -212,7 +212,7 @@ private struct PairWithServer: View {
                     HStack(spacing: 20) {
                         QRCode(text: pairing.link(for: start).absoluteString)
                             .frame(width: 140, height: 140)
-                        Text("Or scan with a phone that’s signed in to Flexarr.")
+                        Text(t("Or scan with a phone that’s signed in to Flexarr."))
                             .font(.system(size: 24))
                             .foregroundStyle(Color.usher)
                     }
@@ -228,10 +228,10 @@ private struct PairWithServer: View {
             HStack(spacing: 30) {
                 // First, so it has the focus.
                 if let pairing, pairing.declined {
-                    Button("Try again") { attempt += 1 }
+                    Button(t("Try again")) { attempt += 1 }
                         .buttonStyle(ActionButtonStyle(prominent: true))
                 }
-                Button("Back", action: onBack)
+                Button(t("Back"), action: onBack)
                     .buttonStyle(ActionButtonStyle(prominent: false))
             }
             .focusSection()
@@ -252,7 +252,7 @@ private struct PairWithServer: View {
                 .kerning(6)
                 .fixedSize()
             if renewed {
-                Text("A new code")
+                Text(t("A new code"))
                     .font(.system(size: 30, weight: .semibold))
                     .foregroundStyle(Color.silver)
             }
@@ -329,7 +329,7 @@ private struct ManualConnect: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 34) {
             field("Server address") {
-                TextField("http://192.168.1.20:8383", text: $address)
+                TextField(t("http://192.168.1.20:8383"), text: $address)
                     .textContentType(.URL)
                     .keyboardType(.URL)
                     .autocorrectionDisabled()
@@ -340,13 +340,13 @@ private struct ManualConnect: View {
             }
             if usesKey {
                 field("API key") {
-                    SecureField("Paste or type your API key", text: $apiKey)
+                    SecureField(t("Paste or type your API key"), text: $apiKey)
                         .focused($focus, equals: .key)
                         .submitLabel(.go)
                         .onSubmit { connect() }
                 }
             } else {
-                Text("You’ll get a code to approve, like a server found on your network.")
+                Text(t("You’ll get a code to approve, like a server found on your network."))
                     .font(.system(size: 24))
                     .foregroundStyle(Color.usher)
             }
@@ -356,16 +356,16 @@ private struct ManualConnect: View {
                     if isConnecting {
                         HStack(spacing: 16) {
                             ProgressView()
-                            Text("Connecting")
+                            Text(t("Connecting"))
                         }
                     } else {
-                        Label("Connect", systemImage: "arrow.right.circle.fill")
+                        Label(t("Connect"), systemImage: "arrow.right.circle.fill")
                     }
                 }
                 .buttonStyle(ActionButtonStyle(prominent: true))
                 .focused($focus, equals: .connect)
                 .disabled(isConnecting || address.trimmingCharacters(in: .whitespaces).isEmpty)
-                Button("Back", action: onBack)
+                Button(t("Back"), action: onBack)
                     .buttonStyle(ActionButtonStyle(prominent: false))
             }
             .padding(.top, 8)
@@ -380,7 +380,7 @@ private struct ManualConnect: View {
             }
 
             if !usesKey {
-                Button("Connecting from outside your home? Use an API key") {
+                Button(t("Connecting from outside your home? Use an API key")) {
                     usesKey = true
                     focus = .key
                 }
@@ -458,12 +458,12 @@ private struct GuestCode: View {
                     .font(.system(size: 30))
                     .foregroundStyle(Color.usher)
                 HStack(spacing: 30) {
-                    Button("Join") { Task { await waiter.join(model: model) } }
+                    Button(t("Join")) { Task { await waiter.join(model: model) } }
                         .buttonStyle(ActionButtonStyle(prominent: true))
                         .focused($focus, equals: .main)
                         // VoiceOver lands here, not on the title: it says whose.
                         .accessibilityLabel("Join \(offer.ownerName)’s Flexarr")
-                    Button("Not now") { waiter.newCode() }
+                    Button(t("Not now")) { waiter.newCode() }
                         .buttonStyle(ActionButtonStyle(prominent: false))
                 }
             } else if let problem = waiter.problem {
@@ -473,7 +473,7 @@ private struct GuestCode: View {
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 30) {
                     if waiter.canTryAgain {
-                        Button("Try again") { Task { await waiter.join(model: model) } }
+                        Button(t("Try again")) { Task { await waiter.join(model: model) } }
                             .buttonStyle(ActionButtonStyle(prominent: true))
                             .focused($focus, equals: .main)
                     }
@@ -482,11 +482,11 @@ private struct GuestCode: View {
                         .focused($focus, equals: .newCode)
                 }
             } else if waiter.stopped {
-                Button("Show a new code") { waiter.newCode() }
+                Button(t("Show a new code")) { waiter.newCode() }
                     .buttonStyle(ActionButtonStyle(prominent: true))
                     .focused($focus, equals: .main)
             } else {
-                Text("Read this code to the person who invited you")
+                Text(t("Read this code to the person who invited you"))
                     .font(.system(size: 32, weight: .semibold))
                     .foregroundStyle(Color.usher)
                     .fixedSize(horizontal: false, vertical: true)
@@ -494,13 +494,13 @@ private struct GuestCode: View {
                     .font(.system(size: 110, weight: .bold, design: .monospaced))
                     .foregroundStyle(Color.screen)
                     .accessibilityLabel(waiter.code.map { $0.code.map(String.init).joined(separator: " ") } ?? "Getting a code")
-                Text("They type it into Settings › Remote access in Flexarr.")
+                Text(t("They type it into Settings › Remote access in Flexarr."))
                     .font(.system(size: 26))
                     .foregroundStyle(Color.usher)
             }
             if waiter.offer == nil {
                 // Still focusable while joining (the focus has nowhere else to be), but does nothing till it's done.
-                Button("Back") { if waiter.joining == nil { onBack() } }
+                Button(t("Back")) { if waiter.joining == nil { onBack() } }
                     .buttonStyle(ActionButtonStyle(prominent: false))
                     .focused($focus, equals: .back)
                     .opacity(waiter.joining == nil ? 1 : 0.5)

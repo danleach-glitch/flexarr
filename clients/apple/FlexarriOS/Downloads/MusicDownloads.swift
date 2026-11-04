@@ -60,20 +60,20 @@ struct MusicDownloadButton: View {
         .accessibilityLabel(label(status))
         .alert(status == .downloaded ? "Remove this download?" : "Stop this download?", isPresented: $removing) {
             Button(status == .downloaded ? "Remove download" : "Stop download", role: .destructive) { store.remove(collectionId: source.id) }
-            Button("Cancel", role: .cancel) {}
+            Button(t(Words.cancel), role: .cancel) {}
         } message: {
             if let collection, status == .downloaded {
                 Text("\(formatBytes(store.bytesUsed(by: collection))) on this \(ThisDevice.name).")
             }
         }
-        .alert("Couldn't download this", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
-            Button("Try again") { Task { await start() } }
-            Button("Cancel", role: .cancel) {}
+        .alert(t("Couldn't download this"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+            Button(t("Try again")) { Task { await start() } }
+            Button(t(Words.cancel), role: .cancel) {}
         } message: {
             Text(failure ?? "")
         }
-        .alert("Couldn't download this", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
-            Button("OK", role: .cancel) {}
+        .alert(t("Couldn't download this"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+            Button(t("OK"), role: .cancel) {}
         } message: {
             Text(error ?? "")
         }
@@ -108,7 +108,7 @@ struct DownloadedMark: View {
             .font(.caption.weight(.semibold))
             .symbolRenderingMode(.palette)
             .foregroundStyle(Color.room, Color.go)
-            .accessibilityLabel("Downloaded")
+            .accessibilityLabel(t("Downloaded"))
     }
 }
 
@@ -190,7 +190,7 @@ struct CollectionRow: View {
         }
         .listRowBackground(Color.seat)
         .swipeActions {
-            Button(role: .destructive) { store.remove(collectionId: collection.id) } label: { Label("Delete", systemImage: Symbol.delete) }
+            Button(role: .destructive) { store.remove(collectionId: collection.id) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
         }
     }
 
@@ -280,15 +280,15 @@ struct OfflineCollectionView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             if collection != nil {
-                Button { removing = true } label: { Label("Remove download", systemImage: Symbol.delete) }
+                Button { removing = true } label: { Label(t("Remove download"), systemImage: Symbol.delete) }
             }
         }
-        .alert("Remove this download?", isPresented: $removing) {
-            Button("Remove download", role: .destructive) {
+        .alert(t("Remove this download?"), isPresented: $removing) {
+            Button(t("Remove download"), role: .destructive) {
                 store.remove(collectionId: collectionId)
                 dismiss()
             }
-            Button("Cancel", role: .cancel) {}
+            Button(t(Words.cancel), role: .cancel) {}
         }
     }
 
@@ -316,11 +316,11 @@ struct OfflineCollectionView: View {
             }
             HStack(spacing: 12) {
                 Button { model.playTracks(tracks, albums: [collection.album].compactMap { $0 }, showingNowPlaying: router) } label: {
-                    Label("Play", systemImage: Symbol.play)
+                    Label(t(Words.play), systemImage: Symbol.play)
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient(collection), prominent: true))
                 Button { model.playTracks(tracks, shuffled: true, albums: [collection.album].compactMap { $0 }, showingNowPlaying: router) } label: {
-                    Label("Shuffle", systemImage: Symbol.shuffle)
+                    Label(t(Words.shuffle), systemImage: Symbol.shuffle)
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient(collection)))
                 .disabled(tracks.count < 2)

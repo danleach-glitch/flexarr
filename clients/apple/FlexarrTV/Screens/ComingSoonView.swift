@@ -10,7 +10,7 @@ struct ComingSoonView: View {
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 30) {
-                Text("Coming soon")
+                Text(t(Words.comingSoon))
                     .font(.marquee(64, weight: .heavy))
                     .foregroundStyle(Color.screen)
                     .padding(.horizontal, Layout.edge)
@@ -87,7 +87,7 @@ struct UpcomingCard: View {
                     }
                 }
                 if !(item.overview ?? "").isEmpty {
-                    Button { showingAbout = true } label: { Label("About", systemImage: "text.alignleft") }
+                    Button { showingAbout = true } label: { Label(t("About"), systemImage: "text.alignleft") }
                 }
             }
             .fullScreenCover(isPresented: $showingAbout) {
@@ -169,7 +169,7 @@ private struct UpcomingAboutView: View {
             if let overview = item.overview {
                 Text(overview).font(.system(size: 29)).foregroundStyle(Color.screen.opacity(0.88)).lineSpacing(6)
             }
-            Button("Close") { dismiss() }
+            Button(t("Close")) { dismiss() }
                 .buttonStyle(ActionButtonStyle())
                 .padding(.top, 20)
         }

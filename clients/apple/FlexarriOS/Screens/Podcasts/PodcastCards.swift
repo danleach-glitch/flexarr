@@ -98,7 +98,7 @@ struct DirectoryCard: View {
                                 .symbolRenderingMode(.palette)
                                 .foregroundStyle(Color.room, Color.screen)
                                 .padding(6)
-                                .accessibilityLabel("Following")
+                                .accessibilityLabel(t(Words.following))
                         }
                     }
                 Text(show.title)
@@ -157,17 +157,17 @@ struct PodcastEpisodeRow: View {
             .tint(episode.isPlayed ? Color.aisle : Color.played)
             if removeFromUpNext == nil {
                 Button { Task { await model.addToUpNext(episode.id, next: true) } } label: {
-                    Label("Play next", systemImage: "text.line.first.and.arrowtriangle.forward")
+                    Label(t(Words.playNext), systemImage: "text.line.first.and.arrowtriangle.forward")
                 }
                 .tint(Color.upNext)
             }
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: removeFromUpNext != nil) {
             if let removeFromUpNext {
-                Button(role: .destructive, action: removeFromUpNext) { Label("Remove from Up next", systemImage: Symbol.removeFromRow) }
+                Button(role: .destructive, action: removeFromUpNext) { Label(t("Remove from Up next"), systemImage: Symbol.removeFromRow) }
             } else {
                 Button { Task { await model.addToUpNext(episode.id, next: false) } } label: {
-                    Label("Add to Up next", systemImage: "text.line.last.and.arrowtriangle.forward")
+                    Label(t("Add to Up next"), systemImage: "text.line.last.and.arrowtriangle.forward")
                 }
                 .tint(Color.upNext)
                 downloadSwipe
@@ -176,20 +176,20 @@ struct PodcastEpisodeRow: View {
         .contextMenu {
             Button { model.playEpisode(episode.summary) } label: { Label(episode.progress != nil ? "Resume" : "Play", systemImage: Symbol.play) }
             Button { Task { await model.addToUpNext(episode.id, next: true) } } label: {
-                Label("Play next", systemImage: "text.line.first.and.arrowtriangle.forward")
+                Label(t(Words.playNext), systemImage: "text.line.first.and.arrowtriangle.forward")
             }
             Button { Task { await model.addToUpNext(episode.id, next: false) } } label: {
-                Label("Add to Up next", systemImage: "text.line.last.and.arrowtriangle.forward")
+                Label(t("Add to Up next"), systemImage: "text.line.last.and.arrowtriangle.forward")
             }
             if let removeFromUpNext {
-                Button(role: .destructive, action: removeFromUpNext) { Label("Remove from Up next", systemImage: Symbol.removeFromRow) }
+                Button(role: .destructive, action: removeFromUpNext) { Label(t("Remove from Up next"), systemImage: Symbol.removeFromRow) }
             }
             Button { togglePlayed() } label: {
                 Label(episode.isPlayed ? "Mark as unplayed" : "Mark as played", systemImage: episode.isPlayed ? Symbol.markUnwatched : Symbol.watched)
             }
             // Part way through: unplayed forgets the place, so it leaves the listening list.
             if episode.progress != nil {
-                Button { markUnplayed() } label: { Label("Mark as unplayed", systemImage: "circle") }
+                Button { markUnplayed() } label: { Label(t("Mark as unplayed"), systemImage: "circle") }
             }
         }
         .sheet(isPresented: $showingNotes) {
@@ -207,7 +207,7 @@ struct PodcastEpisodeRow: View {
                 }
             } else {
                 Button { Task { try? await downloads.download(itemId: episode.id, quality: .original) } } label: {
-                    Label("Download", systemImage: Symbol.download)
+                    Label(t(Words.download), systemImage: Symbol.download)
                 }
                 .tint(Color.aisle)
             }
@@ -389,19 +389,19 @@ struct EpisodeDownloadButton: View {
             Button(download?.isDownloaded == true ? "Remove download" : "Stop download", role: .destructive) {
                 if let download { store.remove(download.id) }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(t(Words.cancel), role: .cancel) {}
         }
-        .alert("Couldn't download this", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
-            Button("Try again") {
+        .alert(t("Couldn't download this"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+            Button(t("Try again")) {
                 if let download { store.delete(download.id) }
                 Task { await start() }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(t(Words.cancel), role: .cancel) {}
         } message: {
             Text(failure ?? "")
         }
-        .alert("Couldn't download this", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
-            Button("OK", role: .cancel) {}
+        .alert(t("Couldn't download this"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+            Button(t("OK"), role: .cancel) {}
         } message: {
             Text(error ?? "")
         }
@@ -506,7 +506,7 @@ struct EpisodeSheet: View {
                             }
                             played = false
                         } label: {
-                            Label("Mark as unplayed", systemImage: "circle")
+                            Label(t("Mark as unplayed"), systemImage: "circle")
                         }
                         .buttonStyle(RoundActionStyle())
                     }

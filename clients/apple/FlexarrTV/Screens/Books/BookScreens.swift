@@ -44,11 +44,11 @@ struct BookCard: View {
             Button { model.playBook(item) } label: { Label(item.isResumable ? "Resume" : "Play", systemImage: Symbol.play) }
             if !model.isKids {
                 if !item.userData.watched {
-                    Button { Task { await model.setBookFinished(item, true) } } label: { Label("Mark as finished", systemImage: Symbol.watched) }
+                    Button { Task { await model.setBookFinished(item, true) } } label: { Label(t(Words.markAsFinished), systemImage: Symbol.watched) }
                 }
                 // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
                 if item.userData.watched || item.isResumable, model.music.current?.id != item.id {
-                    Button { Task { await model.setBookFinished(item, false) } } label: { Label("Mark as unread", systemImage: "book.closed") }
+                    Button { Task { await model.setBookFinished(item, false) } } label: { Label(t(Words.markAsUnread), systemImage: "book.closed") }
                 }
             }
         }
@@ -454,20 +454,20 @@ struct BookView: View {
                             // Part way through, it asks first, and offers Mark as unread there (as the phones do).
                             Button {
                                 if position > 0, !item.userData.watched { confirmingStartOver = true } else { Task { await model.listenAgain(item) } }
-                            } label: { Label("Start over", systemImage: Symbol.startOver) }
+                            } label: { Label(t(Words.startOver), systemImage: Symbol.startOver) }
                                 .buttonStyle(ActionButtonStyle(iconOnly: true))
-                                .alert("Start over?", isPresented: $confirmingStartOver) {
-                                    Button("Start over", role: .destructive) { Task { await model.listenAgain(item) } }
+                                .alert(t("Start over?"), isPresented: $confirmingStartOver) {
+                                    Button(t(Words.startOver), role: .destructive) { Task { await model.listenAgain(item) } }
                                     // Not while it plays, which would set the place again.
                                     if !model.isKids, model.music.current?.id != item.id {
-                                        Button("Mark as unread") {
+                                        Button(t(Words.markAsUnread)) {
                                             Task {
                                                 await model.setBookFinished(item, false)
                                                 await load()
                                             }
                                         }
                                     }
-                                    Button("Cancel", role: .cancel) {}
+                                    Button(t(Words.cancel), role: .cancel) {}
                                 } message: {
                                     Text("You're at \(Format.timestamp(position)).")
                                 }
@@ -790,7 +790,7 @@ struct BookSeriesView: View {
                     .focusSection()
                     if !gaps.books.isEmpty {
                         VStack(alignment: .leading, spacing: 28) {
-                            Text("Not in your library")
+                            Text(t(Words.notInYourLibrary))
                                 .font(.marquee(40, weight: .bold))
                                 .foregroundStyle(Color.screen)
                             LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {

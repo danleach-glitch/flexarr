@@ -107,7 +107,7 @@ struct ProfilePickerView: View {
 
     private var choices: some View {
         VStack(spacing: 70) {
-            Text("Who’s watching?")
+            Text(t("Who’s watching?"))
                 .font(.marquee(76, weight: .heavy))
                 .foregroundStyle(Color.screen)
 
@@ -427,7 +427,7 @@ struct PinPad: View {
                     .font(.system(size: 28, weight: .medium))
                     .foregroundStyle(error == nil ? Color.screen : Color.danger)
                 if let onForgot {
-                    Button("Forgot PIN?", action: onForgot)
+                    Button(t("Forgot PIN?"), action: onForgot)
                         .buttonStyle(ActionButtonStyle())
                 }
             }
@@ -456,8 +456,8 @@ struct PinPad: View {
     @ViewBuilder
     private func label(for key: String) -> some View {
         switch key {
-        case "delete": Image(systemName: "delete.left").accessibilityLabel("Delete")
-        case "ok": Text("OK")
+        case "delete": Image(systemName: "delete.left").accessibilityLabel(t(Words.delete))
+        case "ok": Text(t("OK"))
         default: Text(key).monospacedDigit()
         }
     }

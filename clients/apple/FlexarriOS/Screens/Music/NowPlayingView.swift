@@ -313,7 +313,7 @@ struct NowPlayingView: View {
                 guard let current else { return music.seek(to: 0) }
                 let start = chapters[current].startSeconds
                 music.seek(to: music.position - start > 3 || current == 0 ? start : chapters[current - 1].startSeconds)
-            } label: { Label("Previous chapter", systemImage: "chevron.backward") }
+            } label: { Label(t("Previous chapter"), systemImage: "chevron.backward") }
             .buttonStyle(ChapterStepStyle())
             Button {
                 openAtChapters = !showingDetails
@@ -333,7 +333,7 @@ struct NowPlayingView: View {
             Button {
                 let next = (current ?? -1) + 1
                 if chapters.indices.contains(next) { music.seek(to: chapters[next].startSeconds) }
-            } label: { Label("Next chapter", systemImage: "chevron.forward") }
+            } label: { Label(t("Next chapter"), systemImage: "chevron.forward") }
             .buttonStyle(ChapterStepStyle())
             .disabled((current ?? -1) + 1 >= chapters.count)
         }
@@ -394,7 +394,7 @@ struct NowPlayingView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Not now")
+            .accessibilityLabel(t("Not now"))
         }
         .padding(.leading, 16)
         .padding(.trailing, 2)
@@ -416,20 +416,20 @@ struct NowPlayingView: View {
 
     private var musicControls: some View {
         HStack(spacing: 0) {
-            Button { music.toggleShuffle() } label: { Label("Shuffle", systemImage: Symbol.shuffle) }
+            Button { music.toggleShuffle() } label: { Label(t(Words.shuffle), systemImage: Symbol.shuffle) }
                 .buttonStyle(TransportStyle(size: 44, active: music.isShuffled))
             Spacer()
-            Button { music.previous() } label: { Label("Previous", systemImage: "backward.fill") }
+            Button { music.previous() } label: { Label(t("Previous"), systemImage: "backward.fill") }
                 .buttonStyle(TransportStyle(size: 56))
             Spacer()
             playButton
             Spacer()
-            Button { music.next() } label: { Label("Next", systemImage: "forward.fill") }
+            Button { music.next() } label: { Label(t("Next"), systemImage: "forward.fill") }
                 .buttonStyle(TransportStyle(size: 56))
                 .disabled(!music.hasNext)
             Spacer()
             Button { music.cycleRepeat() } label: {
-                Label("Repeat", systemImage: music.repeatMode == .one ? "repeat.1" : "repeat")
+                Label(t("Repeat"), systemImage: music.repeatMode == .one ? "repeat.1" : "repeat")
             }
             .buttonStyle(TransportStyle(size: 44, active: music.repeatMode != .off))
         }
@@ -446,7 +446,7 @@ struct NowPlayingView: View {
             Spacer()
             if !GuestMode.isActive { RoutePicker().frame(width: 44, height: 44) }
             if lyrics.lyrics != nil {
-                Button { showingLyrics.toggle() } label: { Label("Lyrics", systemImage: "quote.bubble") }
+                Button { showingLyrics.toggle() } label: { Label(t("Lyrics"), systemImage: "quote.bubble") }
                     .buttonStyle(TransportStyle(size: 44, active: showingLyrics))
             }
             Spacer()
@@ -493,15 +493,15 @@ struct NowPlayingView: View {
     private var bookMenu: some View {
         Menu {
             if let track = music.current {
-                Button { Task { await music.addBookmark() } } label: { Label("Add Bookmark", systemImage: "bookmark") }
-                Button { goToBook() } label: { Label("Go to Book", systemImage: "book") }
+                Button { Task { await music.addBookmark() } } label: { Label(t("Add Bookmark"), systemImage: "bookmark") }
+                Button { goToBook() } label: { Label(t("Go to Book"), systemImage: "book") }
                 if !model.isKids {
                     Button {
                         Task {
                             await model.setBookFinished(track, true)
                             music.stop()
                         }
-                    } label: { Label("Mark as Finished", systemImage: Symbol.watched) }
+                    } label: { Label(t("Mark as Finished"), systemImage: Symbol.watched) }
                 }
             }
         } label: {
@@ -509,7 +509,7 @@ struct NowPlayingView: View {
                 .font(.system(size: 18, weight: .semibold))
                 .modifier(ExtraLabel(active: false))
         }
-        .accessibilityLabel("More")
+        .accessibilityLabel(t("More"))
     }
 
     /// Closes Now Playing and opens the book's page.
@@ -527,7 +527,7 @@ struct NowPlayingView: View {
             HStack {
                 sectionTitle("Bookmarks")
                 Spacer()
-                Button { Task { await music.addBookmark() } } label: { Label("Add", systemImage: "plus") }
+                Button { Task { await music.addBookmark() } } label: { Label(t("Add"), systemImage: "plus") }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.usher)
                     .padding(.top, 8)
@@ -554,7 +554,7 @@ struct NowPlayingView: View {
                 }
                 .buttonStyle(.plain)
                 .contextMenu {
-                    Button(role: .destructive) { Task { await music.deleteBookmark(mark) } } label: { Label("Delete", systemImage: Symbol.delete) }
+                    Button(role: .destructive) { Task { await music.deleteBookmark(mark) } } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
                 }
             }
         }
@@ -562,7 +562,7 @@ struct NowPlayingView: View {
 
     private var podcastSpeedMenu: some View {
         Menu {
-            Picker("Speed", selection: Binding(get: { music.speed }, set: { music.setSpeed($0) })) {
+            Picker(t("Speed"), selection: Binding(get: { music.speed }, set: { music.setSpeed($0) })) {
                 // A speed chosen elsewhere that isn't one of the choices is offered too.
                 ForEach(BookSpeed.choices(with: music.speed), id: \.self) { Text(speedLabel($0)).tag($0) }
             }
@@ -577,8 +577,8 @@ struct NowPlayingView: View {
 
     private var sleepMenu: some View {
         Menu {
-            Picker("Sleep timer", selection: Binding(get: { music.sleep.setting }, set: { music.sleep.set($0) })) {
-                Text("Off").tag(SleepTimer.Setting?.none)
+            Picker(t("Sleep timer"), selection: Binding(get: { music.sleep.setting }, set: { music.sleep.set($0) })) {
+                Text(t("Off")).tag(SleepTimer.Setting?.none)
                 ForEach(SleepTimer.minuteChoices, id: \.self) { Text(SleepTimer.Setting.minutes($0).label).tag(SleepTimer.Setting?.some(.minutes($0))) }
                 let end: SleepTimer.Setting = music.isBook ? .endOfChapter : .endOfEpisode
                 Text(end.label).tag(SleepTimer.Setting?.some(end))
@@ -605,25 +605,25 @@ struct NowPlayingView: View {
     private var episodeMenu: some View {
         Menu {
             if let track = music.current {
-                Button { goToPodcast() } label: { Label("Go to Podcast", systemImage: "square.stack") }
+                Button { goToPodcast() } label: { Label(t("Go to Podcast"), systemImage: "square.stack") }
                 Button {
                     Task {
                         await model.setWatched(track, true)
                         // Played: on to what comes next, as if it had finished.
                         music.seek(to: max(0, music.duration - 0.5))
                     }
-                } label: { Label("Mark as played", systemImage: Symbol.watched) }
+                } label: { Label(t(Words.markAsPlayed), systemImage: Symbol.watched) }
                 if let download = downloads.entry(for: track.id) {
                     Button(role: .destructive) { downloads.remove(download.id) } label: {
                         Label(download.isDownloaded ? "Remove Download" : "Stop Download", systemImage: Symbol.delete)
                     }
                 } else if !music.isPlayingOffline {
                     Button { Task { try? await downloads.download(itemId: track.id, quality: .original) } } label: {
-                        Label("Download", systemImage: Symbol.download)
+                        Label(t(Words.download), systemImage: Symbol.download)
                     }
                 }
                 if let link = playing.podcast?.link.flatMap(URL.init(string:)) {
-                    ShareLink(item: link) { Label("Share Podcast", systemImage: "square.and.arrow.up") }
+                    ShareLink(item: link) { Label(t("Share Podcast"), systemImage: "square.and.arrow.up") }
                 }
             }
         } label: {
@@ -631,7 +631,7 @@ struct NowPlayingView: View {
                 .font(.system(size: 18, weight: .semibold))
                 .modifier(ExtraLabel(active: false))
         }
-        .accessibilityLabel("More")
+        .accessibilityLabel(t("More"))
     }
 
     /// Closes Now Playing and opens the show.
@@ -762,7 +762,7 @@ struct NowPlayingView: View {
         let next = Array(music.upNext.prefix(20))
         if !next.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Up next")
+                Text(t(Words.upNext))
                     .font(.marquee(22, weight: .bold))
                     .foregroundStyle(Color.screen)
                     .padding(.horizontal, 12)

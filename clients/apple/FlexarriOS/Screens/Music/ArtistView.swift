@@ -154,24 +154,24 @@ struct ArtistView: View {
         switch button {
         case .play:
             Button { Task { await model.playAll(of: page, shuffled: false, router: router) } } label: {
-                Label("Play", systemImage: Symbol.play)
+                Label(t(Words.play), systemImage: Symbol.play)
             }
             .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true, singleLine: true))
             .disabled(nothingToPlay)
         case .shuffle:
             Button { Task { await model.playAll(of: page, shuffled: true, router: router) } } label: {
-                Label("Shuffle", systemImage: Symbol.shuffle)
+                Label(t(Words.shuffle), systemImage: Symbol.shuffle)
             }
             .buttonStyle(RoundActionStyle())
             .disabled(nothingToPlay)
-            .accessibilityLabel("Shuffle")
+            .accessibilityLabel(t(Words.shuffle))
         case .radio:
             Button { Task { await model.playArtist(item, radio: true, router: router) } } label: {
-                Label("Radio", systemImage: Symbol.radio)
+                Label(t(Words.radio), systemImage: Symbol.radio)
             }
             .buttonStyle(RoundActionStyle())
             .disabled(nothingToPlay)
-            .accessibilityLabel("Radio")
+            .accessibilityLabel(t(Words.radio))
         case .follow:
             if let extras {
                 FollowArtistButton(name: item.title, following: model.isFollowing(libraryArtist: page.id, followed: extras.followed),

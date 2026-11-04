@@ -115,7 +115,7 @@ struct ExternalTitleView: View {
 
             HStack(alignment: .top, spacing: 8) {
                 if trailer != nil {
-                    Button { showingTrailer = true } label: { Label("Trailer", systemImage: Symbol.trailer) }
+                    Button { showingTrailer = true } label: { Label(t(Words.trailer), systemImage: Symbol.trailer) }
                 }
                 if model.hasWatchlist, let onList = onWatchlist ?? detail?.onWatchlist {
                     Button {
@@ -126,7 +126,7 @@ struct ExternalTitleView: View {
                             }
                         }
                     } label: {
-                        Label("Watchlist", systemImage: onList ? Symbol.onWatchlist : Symbol.watchlist)
+                        Label(t(Words.watchlist), systemImage: onList ? Symbol.onWatchlist : Symbol.watchlist)
                     }
                     .accessibilityLabel(onList ? "Remove from watchlist" : "Add to watchlist")
                 }

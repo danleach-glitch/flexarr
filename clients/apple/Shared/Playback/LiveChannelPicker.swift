@@ -23,7 +23,7 @@ struct LiveChannelPicker: View {
         HStack(spacing: 0) {
             Spacer(minLength: 0)
             VStack(alignment: .leading, spacing: 18) {
-                Text("Channels")
+                Text(t("Channels"))
                     .font(.marquee(48, weight: .black))
                     .foregroundStyle(Color.screen)
                     .padding(.horizontal, 40)
@@ -39,9 +39,9 @@ struct LiveChannelPicker: View {
         #else
         NavigationStack {
             list
-                .navigationTitle("Channels")
+                .navigationTitle(t("Channels"))
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar { Button("Done", action: onClose) }
+                .toolbar { Button(t(Words.done), action: onClose) }
         }
         .task { await refresh() }
         #endif

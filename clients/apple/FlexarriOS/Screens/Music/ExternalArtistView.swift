@@ -72,7 +72,7 @@ struct ExternalArtistView: View {
                 ActionRowLayout {
                     if let id = detail.libraryItemId {
                         Button { router.push(.musicItem(id: id, isArtist: true)) } label: {
-                            Label("In your library", systemImage: Symbol.play)
+                            Label(t(Words.inYourLibrary), systemImage: Symbol.play)
                         }
                         .buttonStyle(ActionButtonStyle(prominent: true))
                     }

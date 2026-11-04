@@ -60,10 +60,10 @@ struct BookView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .alert("Note", isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })) {
-            TextField("Note", text: $note)
-            Button("Save") { if let editing { save(note, for: editing) } }
-            Button("Cancel", role: .cancel) {}
+        .alert(t("Note"), isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })) {
+            TextField(t("Note"), text: $note)
+            Button(t("Save")) { if let editing { save(note, for: editing) } }
+            Button(t(Words.cancel), role: .cancel) {}
         }
         .task(id: model.refreshToken) {
             guard loadedToken != model.refreshToken || Freshness.isStale(loadedAt) else { return }
@@ -139,7 +139,7 @@ struct BookView: View {
                 }
                 if !narrators.isEmpty {
                     HStack(spacing: 4) {
-                        Text("Read by").foregroundStyle(Color.usher)
+                        Text(t("Read by")).foregroundStyle(Color.usher)
                         names(narrators)
                     }
                 } else if let narrator = item?.book?.narrator {
@@ -198,26 +198,26 @@ struct BookView: View {
                         Button {
                             if resumable { confirmingStartOver = true } else { Task { await model.listenAgain(item) } }
                         } label: {
-                            Label("Start over", systemImage: Symbol.startOver)
+                            Label(t(Words.startOver), systemImage: Symbol.startOver)
                         }
-                        .confirmationDialog("Start over?", isPresented: $confirmingStartOver, titleVisibility: .visible) {
-                            Button("Start over", role: .destructive) { Task { await model.listenAgain(item) } }
+                        .confirmationDialog(t("Start over?"), isPresented: $confirmingStartOver, titleVisibility: .visible) {
+                            Button(t(Words.startOver), role: .destructive) { Task { await model.listenAgain(item) } }
                             // Not while it plays, which would set the place again.
                             if !model.isKids, !playingThis {
-                                Button("Mark as unread") { Task { await setFinished(false) } }
+                                Button(t(Words.markAsUnread)) { Task { await setFinished(false) } }
                             }
-                            Button("Cancel", role: .cancel) {}
+                            Button(t(Words.cancel), role: .cancel) {}
                         } message: {
                             Text("You're at \(Format.timestamp(position)).")
                         }
                     case .finished:
                         // Unread (no place, not finished, as if never started) in Finished's place once it's finished.
                         if item.isFinishedBook {
-                            Button { Task { await setFinished(false) } } label: { Label("Unread", systemImage: "book.closed") }
-                                .accessibilityLabel("Mark as unread")
+                            Button { Task { await setFinished(false) } } label: { Label(t("Unread"), systemImage: "book.closed") }
+                                .accessibilityLabel(t(Words.markAsUnread))
                         } else {
-                            Button { Task { await setFinished(true) } } label: { Label("Finished", systemImage: Symbol.watched) }
-                                .accessibilityLabel("Mark as finished")
+                            Button { Task { await setFinished(true) } } label: { Label(t("Finished"), systemImage: Symbol.watched) }
+                                .accessibilityLabel(t(Words.markAsFinished))
                         }
                     case .download:
                         BookDownloadButton(item: item)
@@ -386,8 +386,8 @@ struct BookView: View {
                 }
                 .buttonStyle(.plain)
                 .contextMenu {
-                    Button { note = mark.note ?? ""; editing = mark } label: { Label("Edit note", systemImage: "pencil") }
-                    Button(role: .destructive) { delete(mark) } label: { Label("Delete", systemImage: Symbol.delete) }
+                    Button { note = mark.note ?? ""; editing = mark } label: { Label(t("Edit note"), systemImage: "pencil") }
+                    Button(role: .destructive) { delete(mark) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
                 }
             }
         }

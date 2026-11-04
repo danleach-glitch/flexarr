@@ -1,3 +1,4 @@
+import FlexarrKit
 import SwiftUI
 
 /// The server can't be reached (no network, or no answer within a few seconds). There's nothing to play without it on
@@ -29,7 +30,7 @@ struct OfflineView: View {
                 .foregroundStyle(Color.usher)
             HStack(spacing: 30) {
                 // Stays focusable while it tries: a press meanwhile simply waits for the same check.
-                Button("Try again") {
+                Button(t("Try again")) {
                     guard !checking else { return }
                     Task {
                         checking = true
@@ -49,8 +50,8 @@ struct OfflineView: View {
         .padding(80)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier("offline")
-        .confirmationDialog("Sign out of this server?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button("Sign out", role: .destructive) { model.signOut() }
+        .confirmationDialog(t("Sign out of this server?"), isPresented: $confirmSignOut, titleVisibility: .visible) {
+            Button(t("Sign out"), role: .destructive) { model.signOut() }
         }
         .leaveGuestConfirmation(isPresented: $confirmLeave, owner: owner ?? "this") { model.signOut() }
     }

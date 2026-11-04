@@ -21,7 +21,7 @@ struct TrailerSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    Button(t("Close")) { dismiss() }
                 }
             }
         }

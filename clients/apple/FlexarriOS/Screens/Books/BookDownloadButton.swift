@@ -23,7 +23,7 @@ struct BookDownloadButton: View {
                     .monospacedDigit()
             case .downloaded:
                 Label {
-                    Text("Downloaded")
+                    Text(t("Downloaded"))
                 } icon: {
                     // The green arrow every other download shows once it's here.
                     Image(systemName: "arrow.down.circle.fill")
@@ -31,16 +31,16 @@ struct BookDownloadButton: View {
                         .foregroundStyle(Color.room, Color.go)
                 }
             case .failed:
-                Label("Try again", systemImage: "exclamationmark.arrow.circlepath")
+                Label(t("Try again"), systemImage: "exclamationmark.arrow.circlepath")
             case nil:
-                Label("Download", systemImage: Symbol.download)
+                Label(t(Words.download), systemImage: Symbol.download)
             }
         }
-        .confirmationDialog("Remove the download?", isPresented: $confirmRemove, titleVisibility: .visible) {
-            Button("Remove", role: .destructive) { if let entry { downloads.remove(entry.id) } }
+        .confirmationDialog(t("Remove the download?"), isPresented: $confirmRemove, titleVisibility: .visible) {
+            Button(t("Remove"), role: .destructive) { if let entry { downloads.remove(entry.id) } }
         }
         .alert(failed ?? "", isPresented: Binding(get: { failed != nil }, set: { if !$0 { failed = nil } })) {
-            Button("OK", role: .cancel) {}
+            Button(t("OK"), role: .cancel) {}
         }
     }
 

@@ -25,7 +25,7 @@ struct MainTabView: View {
                 }
             } label: {
                 // The Flexarr mark stands in for a house.
-                Label { Text("Home") } icon: { Image(uiImage: BrandMark.tabImage) }
+                Label { Text(t(Words.home)) } icon: { Image(uiImage: BrandMark.tabImage) }
             }
             Tab("Libraries", systemImage: Symbol.libraries, value: TabID.libraries) {
                 TabStack {
@@ -237,7 +237,7 @@ struct LibrariesView: View {
             }
         }
         .background(RoomBackground(ambient: nil))
-        .navigationTitle("Libraries")
+        .navigationTitle(t(Words.libraries))
     }
 
     private func row(_ name: String, icon: String, action: @escaping () -> Void) -> some View {

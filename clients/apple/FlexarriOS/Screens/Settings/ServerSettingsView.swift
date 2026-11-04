@@ -16,10 +16,10 @@ struct ServerSettingsView: View {
                 Section {
                     row("Server", "\(guest.ownerName)’s Flexarr")
                     row("Connection", connection)
-                    Button("Leave", role: .destructive) { confirmLeave = true }
+                    Button(t("Leave"), role: .destructive) { confirmLeave = true }
                         .listRowBackground(Color.seat)
                 } header: {
-                    Text("Connected by invite")
+                    Text(t("Connected by invite"))
                 }
                 .leaveGuestConfirmation(isPresented: $confirmLeave, owner: guest.ownerName) { model.signOut() }
             } else {

@@ -300,12 +300,12 @@ struct HomeHero: View {
                     .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
                     if item.kind == .artist {
                         Button { Task { await model.playArtist(item, radio: true, router: router) } } label: {
-                            Label("Radio", systemImage: Symbol.radio)
+                            Label(t(Words.radio), systemImage: Symbol.radio)
                         }
                         .buttonStyle(ActionButtonStyle(ambient: item.glowColor))
                     }
                     Button { router.push(.item(item)) } label: {
-                        Label("More info", systemImage: Symbol.details)
+                        Label(t("More info"), systemImage: Symbol.details)
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.glowColor))
                 }
@@ -522,7 +522,7 @@ private struct EmptyHome: View {
                 .accessibilityLabel("Folders: \(message.folders.joined(separator: ", "))")
             }
             if !message.body.isEmpty {
-                Text("Pull down to refresh.")
+                Text(t("Pull down to refresh."))
                     .font(.footnote)
                     .foregroundStyle(Color.usher)
             }

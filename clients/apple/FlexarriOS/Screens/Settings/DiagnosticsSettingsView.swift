@@ -11,7 +11,7 @@ struct DiagnosticsSettingsView: View {
         @Bindable var upload = upload
         List {
             Section {
-                TextField("What happened, and roughly when? (optional)", text: $upload.note, axis: .vertical)
+                TextField(t("What happened, and roughly when? (optional)"), text: $upload.note, axis: .vertical)
                     .lineLimit(3...6)
                     .disabled(upload.isSending)
                     .listRowBackground(Color.seat)

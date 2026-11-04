@@ -247,13 +247,13 @@ struct ItemContextMenu: View {
             Label(item.isResumable ? "Resume" : "Play", systemImage: Symbol.play)
         }
         if item.kind == .audiobook {
-            Button { goToDetails() } label: { Label("Go to book", systemImage: Symbol.details) }
+            Button { goToDetails() } label: { Label(t("Go to book"), systemImage: Symbol.details) }
             if !model.isKids {
                 Button {
                     leavesRow?(item.id)
                     Task { await model.setBookFinished(item, true) }
                 } label: {
-                    Label("Mark as finished", systemImage: Symbol.watched)
+                    Label(t(Words.markAsFinished), systemImage: Symbol.watched)
                 }
             }
         }
@@ -262,7 +262,7 @@ struct ItemContextMenu: View {
             leavesRow?(item.id)
             Task { await model.removeFromContinueWatching(item) }
         } label: {
-            Label("Remove", systemImage: Symbol.removeFromRow)
+            Label(t("Remove"), systemImage: Symbol.removeFromRow)
         }
     }
 
@@ -274,7 +274,7 @@ struct ItemContextMenu: View {
             }
             if item.isResumable {
                 Button { model.play(item, fromBeginning: true) } label: {
-                    Label("Start over", systemImage: Symbol.startOver)
+                    Label(t(Words.startOver), systemImage: Symbol.startOver)
                 }
             }
         }
@@ -306,14 +306,14 @@ struct ItemContextMenu: View {
                 leavesRow?(item.id)
                 Task { await model.setWatched(item, false) }
             } label: {
-                Label("Mark as unwatched", systemImage: Symbol.markUnwatched)
+                Label(t(Words.markAsUnwatched), systemImage: Symbol.markUnwatched)
             }
         } else if inContinueWatching, item.kind == .episode, !watched {
             Button {
                 leavesRow?(item.id)
                 Task { await model.removeFromContinueWatching(item) }
             } label: {
-                Label("Remove", systemImage: Symbol.removeFromRow)
+                Label(t("Remove"), systemImage: Symbol.removeFromRow)
             }
         }
         if marks, item.kind == .episode, item.seriesId != nil, let show = item.seriesTitle {

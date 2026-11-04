@@ -61,7 +61,7 @@ struct MainTabView: View {
                         .environment(\.focusesContent, $startFocus)
                 }
             } label: {
-                Label("Home", systemImage: Symbol.home)
+                Label(t(Words.home), systemImage: Symbol.home)
             }
             // Music that's playing gets a tab of its own, as the Music app does: the surest way to reach it with
             // the remote from anywhere.
@@ -69,7 +69,7 @@ struct MainTabView: View {
                 Tab(value: TabID.nowPlaying) {
                     NowPlayingView()
                 } label: {
-                    Label("Now Playing", systemImage: Symbol.nowPlaying)
+                    Label(t("Now Playing"), systemImage: Symbol.nowPlaying)
                 }
             }
             // The libraries and Live TV, in the order chosen in Settings › Sidebar: however many there are, the
@@ -103,27 +103,27 @@ struct MainTabView: View {
                     Tab(value: TabID.discover) {
                         TabStack(router: routers[.discover]) { DiscoverView() }
                     } label: {
-                        Label("Discover", systemImage: Symbol.discover)
+                        Label(t(Words.discover), systemImage: Symbol.discover)
                     }
                 }
                 if showsWatchlist {
                     Tab(value: TabID.watchlist) {
                         TabStack(router: routers[.watchlist]) { WatchlistView() }
                     } label: {
-                        Label("Watchlist", systemImage: Symbol.watchlist)
+                        Label(t(Words.watchlist), systemImage: Symbol.watchlist)
                     }
                 }
                 Tab(value: TabID.search, role: .search) {
                     TabStack(router: routers[.search]) { SearchView() }
                 } label: {
-                    Label("Search", systemImage: Symbol.search)
+                    Label(t(Words.search), systemImage: Symbol.search)
                 }
                 // The kids app has no Settings: a child's choices are a parent's to make.
                 if !model.isKids {
                     Tab(value: TabID.settings) {
                         TabStack(router: routers[.settings]) { SettingsView() }
                     } label: {
-                        Label("Settings", systemImage: Symbol.settings)
+                        Label(t(Words.settings), systemImage: Symbol.settings)
                     }
                 }
             } header: {
@@ -332,7 +332,7 @@ private struct SidebarVersion: ViewModifier {
                     HStack(alignment: .center, spacing: 6) {
                         BrandMark(size: 26)
                         // Its full width, always: the footer otherwise squeezes it to "fle…" beside a longer version.
-                        Text("flexarr")
+                        Text(t("flexarr"))
                             .font(.marquee(22, weight: .black))
                             .foregroundStyle(Color.screen.opacity(0.8))
                             .lineLimit(1)
@@ -550,7 +550,7 @@ struct StatusView: View {
                     .foregroundStyle(Color.screen)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 1000)
-                Button("Try again", action: retry)
+                Button(t("Try again"), action: retry)
                     .buttonStyle(ActionButtonStyle(prominent: true))
             case .empty(let message):
                 Text(message)

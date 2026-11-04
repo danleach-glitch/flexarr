@@ -64,7 +64,7 @@ struct ExternalAlbumView: View {
             if detail != nil {
                 if case .inLibrary(let id) = model.albumState(album) {
                     Button { router.push(.musicItem(id: id, isArtist: false)) } label: {
-                        Label("In your library", systemImage: Symbol.play)
+                        Label(t(Words.inYourLibrary), systemImage: Symbol.play)
                     }
                     .buttonStyle(ActionButtonStyle(prominent: true))
                     .fixedSize()
@@ -156,7 +156,7 @@ private struct ExternalTrackRow: View {
                 Image(systemName: Symbol.explicit)
                     .font(.caption)
                     .foregroundStyle(Color.usher)
-                    .accessibilityLabel("Explicit")
+                    .accessibilityLabel(t("Explicit"))
             }
             Spacer(minLength: 12)
             if track.durationSeconds > 0 {

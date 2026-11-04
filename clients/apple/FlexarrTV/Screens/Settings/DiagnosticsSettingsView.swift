@@ -36,10 +36,10 @@ struct DiagnosticsSettingsView: View {
                     .padding(.top, 20)
             }
         }
-        .alert("Note", isPresented: $editingNote) {
-            TextField("What happened?", text: $draft)
-            Button("Done") { upload.note = draft }
-            Button("Cancel", role: .cancel) {}
+        .alert(t("Note"), isPresented: $editingNote) {
+            TextField(t("What happened?"), text: $draft)
+            Button(t(Words.done)) { upload.note = draft }
+            Button(t(Words.cancel), role: .cancel) {}
         }
     }
 }

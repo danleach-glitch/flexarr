@@ -197,7 +197,7 @@ struct BooksLibraryView: View {
 
     /// Browse, All books, Genres, Series and Authors, as one segmented control like the other libraries' view switch.
     private var tabs: some View {
-        Picker("Show", selection: Binding(get: { browse.browse }, set: { browse.browse = $0 })) {
+        Picker(t("Show"), selection: Binding(get: { browse.browse }, set: { browse.browse = $0 })) {
             ForEach(BookBrowse.allCases) { tab in
                 Text(tab.rawValue).tag(tab)
             }
@@ -352,38 +352,38 @@ struct BooksLibraryView: View {
 
     private var filterMenu: some View {
         Menu {
-            Picker("Show", selection: $browse.filter.progress) {
+            Picker(t("Show"), selection: $browse.filter.progress) {
                 ForEach(BookProgressFilter.allCases) { Text($0.label).tag($0) }
             }
-            Picker("Length", selection: Binding(get: { BookLength(browse.filter) }, set: { $0.apply(to: &browse.filter) })) {
+            Picker(t(Words.length), selection: Binding(get: { BookLength(browse.filter) }, set: { $0.apply(to: &browse.filter) })) {
                 ForEach(BookLength.allCases) { Text($0.label).tag($0) }
             }
             .pickerStyle(.menu)
-            Toggle("Unabridged only", isOn: Binding(get: { browse.filter.abridged == false }, set: { browse.filter.abridged = $0 ? false : nil }))
+            Toggle(t("Unabridged only"), isOn: Binding(get: { browse.filter.abridged == false }, set: { browse.filter.abridged = $0 ? false : nil }))
             if browse.filter.genre != nil, genre == nil {
-                Button("All genres") { browse.filter.genre = nil }
+                Button(t("All genres")) { browse.filter.genre = nil }
             }
-            Section("Sort by") {
-                Picker("Sort by", selection: Binding(get: { browse.filter.sort }, set: { browse.filter.sort = $0; browse.filter.descending = nil })) {
+            Section(t("Sort by")) {
+                Picker(t("Sort by"), selection: Binding(get: { browse.filter.sort }, set: { browse.filter.sort = $0; browse.filter.descending = nil })) {
                     ForEach(BookSort.allCases) { Text($0.label).tag($0) }
                 }
-                Toggle("Reverse", isOn: Binding(get: { (browse.filter.descending ?? browse.filter.sort.descendingByDefault) != browse.filter.sort.descendingByDefault },
+                Toggle(t("Reverse"), isOn: Binding(get: { (browse.filter.descending ?? browse.filter.sort.descendingByDefault) != browse.filter.sort.descendingByDefault },
                                                 set: { browse.filter.descending = $0 != browse.filter.sort.descendingByDefault }))
             }
         } label: {
             Image(systemName: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
         }
-        .accessibilityLabel("Filter and sort")
+        .accessibilityLabel(t("Filter and sort"))
     }
 
     /// Filters that leave nothing: say so, with a way back to every book (the sort stays).
     private var noMatches: some View {
         VStack(spacing: 16) {
-            Text("No books match.")
+            Text(t("No books match."))
                 .font(.body.weight(.medium))
                 .foregroundStyle(Color.usher)
             // A genre's own screen keeps its genre.
-            Button("Clear filters") { browse.filter = BookFilter(genre: genre, sort: browse.filter.sort, descending: browse.filter.descending) }
+            Button(t("Clear filters")) { browse.filter = BookFilter(genre: genre, sort: browse.filter.sort, descending: browse.filter.descending) }
                 .buttonStyle(ActionButtonStyle(prominent: true))
         }
         .padding(32)

@@ -99,7 +99,7 @@ struct DetailView: View {
             }
         }
         .alert(savedSubtitles ?? "", isPresented: Binding(get: { savedSubtitles != nil }, set: { if !$0 { savedSubtitles = nil } })) {
-            Button("OK", role: .cancel) {}
+            Button(t("OK"), role: .cancel) {}
         }
         .task(id: model.refreshToken) {
             // Coming back from a screen pushed on top or another tab runs this again; fetch only when something
@@ -241,7 +241,7 @@ struct DetailView: View {
         case .startOver:
             if let playable {
                 Button { model.play(playable, fromBeginning: true, from: pageToken) } label: {
-                    Label("Start over", systemImage: Symbol.startOver)
+                    Label(t(Words.startOver), systemImage: Symbol.startOver)
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient))
             }
@@ -276,11 +276,11 @@ struct DetailView: View {
                             EmptyView()
                         case .subtitles:
                             if let file = detail?.files.first {
-                                Button("Search for subtitles…") { subtitleSearchFile = SubtitleSearchFile(id: file.id) }
+                                Button(t("Search for subtitles…")) { subtitleSearchFile = SubtitleSearchFile(id: file.id) }
                             }
                         case .goToShow:
                             if let series {
-                                Button("Go to show") { router.push(.item(series)) }
+                                Button(t(Words.goToShow)) { router.push(.item(series)) }
                             }
                         }
                     }

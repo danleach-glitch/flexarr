@@ -154,9 +154,9 @@ struct ShowGapsSection: View {
                 Spacer()
                 if gaps.canSearch && gaps.source == "sonarr" {
                     if searched.contains(season) {
-                        Text("Searching").font(.subheadline.weight(.semibold)).foregroundStyle(Color.usher)
+                        Text(t("Searching")).font(.subheadline.weight(.semibold)).foregroundStyle(Color.usher)
                     } else {
-                        Button { Task { await search(season) } } label: { Label("Search", systemImage: Symbol.search) }
+                        Button { Task { await search(season) } } label: { Label(t(Words.search), systemImage: Symbol.search) }
                             .buttonStyle(.bordered)
                             .tint(Color.screen)
                             .controlSize(.small)

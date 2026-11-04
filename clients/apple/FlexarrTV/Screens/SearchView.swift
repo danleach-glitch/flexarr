@@ -118,10 +118,10 @@ struct SearchView: View {
                         }
                         .buttonStyle(PillButtonStyle(selected: false))
                         .contextMenu {
-                            Button(role: .destructive) { forget(words) } label: { Label("Remove", systemImage: "xmark") }
+                            Button(role: .destructive) { forget(words) } label: { Label(t("Remove"), systemImage: "xmark") }
                         }
                     }
-                    Button("Clear", action: clearRecents)
+                    Button(t("Clear"), action: clearRecents)
                         .buttonStyle(PillButtonStyle(selected: false))
                 }
                 .padding(.horizontal, Layout.edge)

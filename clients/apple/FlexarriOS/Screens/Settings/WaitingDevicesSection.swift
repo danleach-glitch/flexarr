@@ -11,7 +11,7 @@ struct WaitingDevicesSection: View {
     var body: some View {
         Section {
             if pairing.waiting.isEmpty {
-                Text("No devices are waiting. When one asks to connect, it shows here and your phone asks you.")
+                Text(t("No devices are waiting. When one asks to connect, it shows here and your phone asks you."))
                     .font(.subheadline)
                     .foregroundStyle(Color.usher)
                     .listRowBackground(Color.seat)
@@ -22,11 +22,11 @@ struct WaitingDevicesSection: View {
                 }
             }
         } header: {
-            Text("Devices waiting to connect")
+            Text(t("Devices waiting to connect"))
         } footer: {
             // Without them, a device asking is only heard about while Flexarr is open here.
             if !notifications.isOn {
-                Text("Turn on Notifications to be asked when Flexarr isn't open.")
+                Text(t("Turn on Notifications to be asked when Flexarr isn't open."))
             }
         }
         .animation(.easeInOut(duration: 0.2), value: pairing.waiting)
@@ -52,7 +52,7 @@ private struct WaitingDeviceRow: View {
                         Text(kind).font(.subheadline).foregroundStyle(Color.usher)
                     }
                     if !request.asks {
-                        Text("You turned this away. Allow it if it's yours.")
+                        Text(t("You turned this away. Allow it if it's yours."))
                             .font(.subheadline)
                             .foregroundStyle(Color.usher)
                     }
@@ -66,7 +66,7 @@ private struct WaitingDeviceRow: View {
 
             switch step {
             case .allowed:
-                Label("Connected", systemImage: "checkmark.circle.fill")
+                Label(t("Connected"), systemImage: "checkmark.circle.fill")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Color.go)
             default:
@@ -82,7 +82,7 @@ private struct WaitingDeviceRow: View {
                 HStack(spacing: 10) {
                     Button(action: allow) {
                         ZStack {
-                            Text("Allow").opacity(step == .working ? 0 : 1)
+                            Text(t("Allow")).opacity(step == .working ? 0 : 1)
                             if step == .working { ProgressView().tint(Color.room) }
                         }
                         .frame(maxWidth: .infinity)
@@ -92,7 +92,7 @@ private struct WaitingDeviceRow: View {
                     Button {
                         Task { await pairing.decline(request.code) }
                     } label: {
-                        Text("Don't allow").frame(maxWidth: .infinity)
+                        Text(t("Don't allow")).frame(maxWidth: .infinity)
                     }
                     .buttonStyle(ActionButtonStyle())
                 }

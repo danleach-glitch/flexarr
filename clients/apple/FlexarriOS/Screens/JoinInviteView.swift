@@ -62,7 +62,7 @@ struct JoinInviteView: View {
                     .buttonStyle(ActionButtonStyle(prominent: true))
                     .disabled(joining)
                 }
-                Button { dismiss() } label: { Text("Not now").frame(maxWidth: .infinity) }
+                Button { dismiss() } label: { Text(t("Not now")).frame(maxWidth: .infinity) }
                     .buttonStyle(ActionButtonStyle(prominent: spent))
                     .disabled(joining)
             }
@@ -93,7 +93,7 @@ struct InvitedBySomeone: View {
 
     var body: some View {
         Button(action: onCode) {
-            Label("Join someone’s Flexarr", systemImage: "key")
+            Label(t("Join someone’s Flexarr"), systemImage: "key")
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(ActionButtonStyle(prominent: false))
@@ -129,17 +129,17 @@ struct GuestCodeView: View {
                     Text("You’ll watch as \(offer.profileName).")
                         .foregroundStyle(Color.usher)
                 }
-                Button { Task { await waiter.join(model: model) } } label: { Text("Join").frame(maxWidth: .infinity) }
+                Button { Task { await waiter.join(model: model) } } label: { Text(t("Join")).frame(maxWidth: .infinity) }
                     .buttonStyle(ActionButtonStyle(prominent: true))
                     .keyboardShortcut(.defaultAction)
-                Button { waiter.newCode() } label: { Text("Not now").frame(maxWidth: .infinity) }
+                Button { waiter.newCode() } label: { Text(t("Not now")).frame(maxWidth: .infinity) }
                     .buttonStyle(ActionButtonStyle(prominent: false))
             } else if let problem = waiter.problem {
                 Text(problem)
                     .font(.callout.weight(.medium))
                     .foregroundStyle(Color.screen)
                 if waiter.canTryAgain {
-                    Button { Task { await waiter.join(model: model) } } label: { Text("Try again").frame(maxWidth: .infinity) }
+                    Button { Task { await waiter.join(model: model) } } label: { Text(t("Try again")).frame(maxWidth: .infinity) }
                         .buttonStyle(ActionButtonStyle(prominent: true))
                 }
                 Button { waiter.newCode() } label: {
@@ -147,10 +147,10 @@ struct GuestCodeView: View {
                 }
                 .buttonStyle(ActionButtonStyle(prominent: !waiter.canTryAgain))
             } else if waiter.stopped {
-                Button { waiter.newCode() } label: { Text("Show a new code").frame(maxWidth: .infinity) }
+                Button { waiter.newCode() } label: { Text(t("Show a new code")).frame(maxWidth: .infinity) }
                     .buttonStyle(ActionButtonStyle(prominent: true))
             } else {
-                Text("Give this code to the person who invited you")
+                Text(t("Give this code to the person who invited you"))
                     .font(.headline)
                     .foregroundStyle(Color.usher)
                 Text(waiter.code?.display ?? "····-····")
@@ -159,18 +159,18 @@ struct GuestCodeView: View {
                     .textSelection(.enabled)
                     .accessibilityLabel(waiter.code.map { $0.code.map(String.init).joined(separator: " ") } ?? "Getting a code")
                 if let code = waiter.code {
-                    ShareLink(item: code.display, message: Text("My Flexarr code")) {
-                        Label("Send it", systemImage: "square.and.arrow.up")
+                    ShareLink(item: code.display, message: Text(t("My Flexarr code"))) {
+                        Label(t("Send it"), systemImage: "square.and.arrow.up")
                     }
                     .font(.body.weight(.semibold))
                 }
-                Text("They type it into Settings › Remote access in Flexarr. Keep this screen open.")
+                Text(t("They type it into Settings › Remote access in Flexarr. Keep this screen open."))
                     .font(.footnote)
                     .foregroundStyle(Color.usher)
             }
             // Not beside Join and Not now: those already say what to do.
             if waiter.offer == nil {
-                Button("Back", action: onBack)
+                Button(t("Back"), action: onBack)
                     .font(.body.weight(.semibold))
                     .disabled(waiter.joining != nil)
             }
