@@ -300,6 +300,21 @@ class FlexarrClient(
     /** How this client signed in, which profile it acts for, and whether it may manage the server. */
     suspend fun me(): SignInInfo = get("me")
 
+    /** The languages this server offers, English first. Empty from servers before 0.61 (which answer 404). */
+    suspend fun languages(): List<io.github.flexarr.core.i18n.LanguageInfo> =
+        runCatching { get<io.github.flexarr.core.i18n.LanguageList>("languages").languages }.getOrElse {
+            if (it is FlexarrException.Http && it.status == 404) emptyList() else throw it
+        }
+
+    /** A language's strings for the Android apps. */
+    suspend fun languagePack(code: String): io.github.flexarr.core.i18n.LanguagePack =
+        get("languages/$code", mapOf("scope" to "android"))
+
+    /** The signed-in profile's language: a code from [languages], or null to follow each device. */
+    suspend fun setLanguage(code: String?) {
+        send("PUT", "me/language", body = json.encodeToString(LanguageChoice(code)))
+    }
+
     /**
      * Unlocks managing the server on this sign-in for a while, with the admin PIN. A wrong one is a 403 saying
      * so; too many, 429 saying how long to wait; and 409 when the main profile has no PIN yet.
@@ -378,6 +393,8 @@ class FlexarrClient(
 
     /** This device's sign-in, who's watching and what it is, on any request to the server. */
     internal fun Request.Builder.signIn(): Request.Builder = apply {
+        // The server answers in the language shown here (the profile's own choice wins over it, server side).
+        header("Accept-Language", io.github.flexarr.core.i18n.Localization.code)
         apiKey?.takeIf { it.isNotEmpty() }?.let { header("X-Api-Key", it) }
         profileToken?.takeIf { it.isNotEmpty() }?.let { header("X-Flexarr-Profile", it) }
         deviceType?.let { header("X-Flexarr-Device", it) }
@@ -830,3 +847,6 @@ private suspend fun Call.await(): Response = suspendCancellableCoroutine { conti
     })
     continuation.invokeOnCancellation { runCatching { cancel() } }
 }
+
+@kotlinx.serialization.Serializable
+internal data class LanguageChoice(val language: String?)
