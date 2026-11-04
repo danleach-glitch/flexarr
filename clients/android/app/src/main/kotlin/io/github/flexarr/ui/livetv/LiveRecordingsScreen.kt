@@ -217,5 +217,5 @@ private fun RowMenu(label: String, onClick: () -> Unit) {
 /** "Tue 4 Nov 21:00", in the phone's own order and its 12 or 24-hour clock. */
 private fun dayFormat(context: Context): DateTimeFormatter {
     val skeleton = if (DateFormat.is24HourFormat(context)) "EEEdMMMHHmm" else "EEEdMMMhmma"
-    return DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(Locale.getDefault(), skeleton), Locale.getDefault())
+    return DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(io.github.flexarr.core.i18n.Localization.locale, skeleton), io.github.flexarr.core.i18n.Localization.locale)
 }

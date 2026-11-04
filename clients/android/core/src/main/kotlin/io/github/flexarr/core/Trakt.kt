@@ -134,11 +134,11 @@ data class TraktImportPreview(
     val toTrakt: Int = 0,
 ) {
     /** "Trakt has 12 films and 340 episodes". */
-    fun summary(locale: Locale = Locale.getDefault()): String =
+    fun summary(locale: Locale = io.github.flexarr.core.i18n.Localization.locale): String =
         "Trakt has ${count(traktFilms, "movie", locale)} and ${count(traktEpisodes, "episode", locale)}"
 
     /** What changes, in a line or two. */
-    fun details(locale: Locale = Locale.getDefault()): String {
+    fun details(locale: Locale = io.github.flexarr.core.i18n.Localization.locale): String {
         val n = { value: Int -> NumberFormat.getIntegerInstance(locale).format(value) }
         val here = if (inLibrary == 0) "None are here yet" else "${n(inLibrary)} are here" + if (newToFlexarr > 0) ", ${n(newToFlexarr)} not yet watched in Flexarr" else ""
         val parts = mutableListOf(here)

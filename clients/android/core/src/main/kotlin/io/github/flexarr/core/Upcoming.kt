@@ -58,7 +58,7 @@ object UpcomingDays {
         0L -> "Today"
         1L -> "Tomorrow"
         -1L -> "Yesterday"
-        else -> day.format(DateTimeFormatter.ofPattern("EEE d MMM"))
+        else -> day.format(DateTimeFormatter.ofPattern("EEE d MMM", io.github.flexarr.core.i18n.Localization.locale))
     }
 }
 

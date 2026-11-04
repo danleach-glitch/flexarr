@@ -320,9 +320,9 @@ fun dateLine(published: String?): String? {
     return when {
         days == 0L -> "Today"
         days == 1L -> "Yesterday"
-        days in 2..6 -> date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
-        date.year == today.year -> date.format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault()))
-        else -> date.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault()))
+        days in 2..6 -> date.dayOfWeek.getDisplayName(TextStyle.FULL, io.github.flexarr.core.i18n.Localization.locale)
+        date.year == today.year -> date.format(DateTimeFormatter.ofPattern("d MMM", io.github.flexarr.core.i18n.Localization.locale))
+        else -> date.format(DateTimeFormatter.ofPattern("d MMM yyyy", io.github.flexarr.core.i18n.Localization.locale))
     }
 }
 

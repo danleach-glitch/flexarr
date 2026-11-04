@@ -748,5 +748,5 @@ internal fun upSince(text: String): String? {
     val time = runCatching { OffsetDateTime.parse(text).atZoneSameInstant(ZoneId.systemDefault()) }.getOrNull()
         ?: runCatching { LocalDateTime.parse(text).atZone(ZoneId.of("UTC")).withZoneSameInstant(ZoneId.systemDefault()) }.getOrNull()
         ?: return null
-    return time.format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT))
+    return time.format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(io.github.flexarr.core.i18n.Localization.locale))
 }

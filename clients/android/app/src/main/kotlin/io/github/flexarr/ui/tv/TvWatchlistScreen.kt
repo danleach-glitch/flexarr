@@ -157,7 +157,7 @@ private fun EntryCard(model: AppModel, entry: WatchlistEntry) {
 private fun note(entry: WatchlistEntry): String? {
     val status = when (entry.status) {
         WatchlistStatus.OnItsWay -> "On its way"
-        WatchlistStatus.Coming -> entry.releaseDay?.let { "Out ${it.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))}" } ?: "Coming"
+        WatchlistStatus.Coming -> entry.releaseDay?.let { "Out ${it.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(io.github.flexarr.core.i18n.Localization.locale))}" } ?: "Coming"
         WatchlistStatus.NotAvailable -> if (entry.tmdbId != null) "Request" else null
         else -> null
     }

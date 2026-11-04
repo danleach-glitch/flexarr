@@ -440,7 +440,7 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
                     ) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             Text(
-                                if (total == 1) "1 title" else "${NumberFormat.getIntegerInstance().format(total)} titles",
+                                if (total == 1) "1 title" else "${NumberFormat.getIntegerInstance(io.github.flexarr.core.i18n.Localization.locale).format(total)} titles",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = Flexarr.usher,

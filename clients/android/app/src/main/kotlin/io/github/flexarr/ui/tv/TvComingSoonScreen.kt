@@ -171,8 +171,8 @@ private fun TvUpcomingAbout(item: UpcomingItem, detail: String, onClose: () -> U
             Text(item.cardTitle, style = marquee(32))
             Text(detail, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f))
             val at = item.date.atZone(ZoneId.systemDefault())
-            val day = at.format(DateTimeFormatter.ofPattern("EEEE d MMMM"))
-            val time = if (item.kind == MediaKind.Episode) " " + at.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)) else ""
+            val day = at.format(DateTimeFormatter.ofPattern("EEEE d MMMM", io.github.flexarr.core.i18n.Localization.locale))
+            val time = if (item.kind == MediaKind.Episode) " " + at.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(io.github.flexarr.core.i18n.Localization.locale)) else ""
             Text("${item.`when`} $day$time".trim(), fontSize = 13.sp, color = Flexarr.usher)
             item.overview?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 14.5.sp, lineHeight = 21.sp, color = Flexarr.screen.copy(alpha = 0.88f)) }
             TvActionButton("Close", onClick = onClose, modifier = Modifier.padding(top = 10.dp).focusRequester(close))

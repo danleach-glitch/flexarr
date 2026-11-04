@@ -1341,7 +1341,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
         /** "+0.15 s", "−0.30 s", "0.00 s". */
         fun syncLabel(seconds: Double): String {
-            val amount = String.format(java.util.Locale.US, "%.2f s", abs(seconds))
+            val amount = String.format(io.github.flexarr.core.i18n.Localization.locale, "%.2f s", abs(seconds))
             return if (seconds > 0.0005) "+$amount" else if (seconds < -0.0005) "−$amount" else amount
         }
     }

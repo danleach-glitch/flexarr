@@ -155,11 +155,11 @@ private fun AboutSheet(item: UpcomingItem, detail: String, onClose: () -> Unit) 
 }
 
 private fun time(item: UpcomingItem): String =
-    item.date.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+    item.date.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(io.github.flexarr.core.i18n.Localization.locale))
 
 /** "Friday 7 November", with the time for an episode. */
 private fun date(item: UpcomingItem): String {
     val at = item.date.atZone(ZoneId.systemDefault())
-    val day = at.format(DateTimeFormatter.ofPattern("EEEE d MMMM"))
+    val day = at.format(DateTimeFormatter.ofPattern("EEEE d MMMM", io.github.flexarr.core.i18n.Localization.locale))
     return if (item.kind == MediaKind.Episode) "$day ${time(item)}" else day
 }

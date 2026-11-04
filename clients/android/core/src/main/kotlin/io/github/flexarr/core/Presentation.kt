@@ -32,7 +32,7 @@ object Format {
 
     /** "42m left", "1h 3m left". */
     /** "1,204", in the device's own way of grouping digits. */
-    fun count(value: Int): String = java.text.NumberFormat.getIntegerInstance().format(value)
+    fun count(value: Int): String = java.text.NumberFormat.getIntegerInstance(io.github.flexarr.core.i18n.Localization.locale).format(value)
 
     fun remaining(seconds: Double): String? = if (seconds < 60) null else runtime(seconds)?.let { "$it left" }
 }
@@ -94,7 +94,7 @@ data class Scores(val imdb: Double?, val rottenTomatoes: RottenTomatoes?) {
     val isEmpty: Boolean get() = imdb == null && rottenTomatoes == null
 
     /** "7.8", as beside IMDb's mark. */
-    val imdbText: String? get() = imdb?.let { String.format(Locale.ROOT, "%.1f", it) }
+    val imdbText: String? get() = imdb?.let { String.format(io.github.flexarr.core.i18n.Localization.locale, "%.1f", it) }
 
     /** For TalkBack: "IMDb 7.8 out of 10". */
     val imdbLabel: String? get() = imdbText?.let { "IMDb $it out of 10" }

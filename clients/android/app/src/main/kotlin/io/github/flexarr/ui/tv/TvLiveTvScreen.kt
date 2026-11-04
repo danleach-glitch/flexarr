@@ -638,7 +638,7 @@ private fun day(instant: Instant): String {
     return when (date) {
         today -> "Today"
         today.plusDays(1) -> "Tomorrow"
-        else -> date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
+        else -> date.dayOfWeek.getDisplayName(TextStyle.FULL, io.github.flexarr.core.i18n.Localization.locale)
     }
 }
 
@@ -657,7 +657,7 @@ private fun TvLiveRecordings(model: AppModel, onChanged: () -> Unit, onUpcoming:
     var confirmingRecording by remember { mutableStateOf<Recording?>(null) }
     var confirmingSeries by remember { mutableStateOf<RecordingSeries?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
-    val dayFormat = remember { DateTimeFormatter.ofPattern(android.text.format.DateFormat.getBestDateTimePattern(Locale.getDefault(), if (DateFormat.is24HourFormat(context)) "EEEdMMMHHmm" else "EEEdMMMhmma")) }
+    val dayFormat = remember { DateTimeFormatter.ofPattern(android.text.format.DateFormat.getBestDateTimePattern(io.github.flexarr.core.i18n.Localization.locale, if (DateFormat.is24HourFormat(context)) "EEEdMMMHHmm" else "EEEdMMMhmma")) }
     fun day(instant: Instant) = dayFormat.format(instant.atZone(ZoneId.systemDefault()))
 
     suspend fun load() {

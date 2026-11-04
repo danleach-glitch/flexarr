@@ -249,7 +249,7 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
 /** "On its way", "Out 5 Mar 2027" (in the phone's own date format), or the year. */
 private fun statusLine(entry: WatchlistEntry): String? = when (entry.status) {
     WatchlistStatus.OnItsWay -> "On its way"
-    WatchlistStatus.Coming -> entry.releaseDay?.let { "Out ${it.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))}" } ?: "Coming"
+    WatchlistStatus.Coming -> entry.releaseDay?.let { "Out ${it.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(io.github.flexarr.core.i18n.Localization.locale))}" } ?: "Coming"
     // The year's in the kind line, for a title the library hasn't got.
     else -> if (entry.libraryItemId == null) null else entry.year?.toString()
 }

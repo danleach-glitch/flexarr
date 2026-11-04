@@ -686,7 +686,7 @@ internal fun channelsLabel(count: Int) = when (count) {
 
 internal fun fileSizeLabel(bytes: Long): String {
     val gb = bytes / 1_000_000_000.0
-    return if (gb >= 1) String.format(Locale.getDefault(), "%.1f GB", gb) else String.format(Locale.getDefault(), "%.0f MB", bytes / 1_000_000.0)
+    return if (gb >= 1) String.format(io.github.flexarr.core.i18n.Localization.locale, "%.1f GB", gb) else String.format(io.github.flexarr.core.i18n.Localization.locale, "%.0f MB", bytes / 1_000_000.0)
 }
 
 /** Drawn into its own layer, then faded to nothing over the bottom of it, so there's no seam with the wash behind. */

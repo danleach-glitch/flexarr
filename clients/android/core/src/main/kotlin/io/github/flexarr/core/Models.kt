@@ -451,8 +451,8 @@ fun UpcomingItem.dayLabel(now: java.time.ZonedDateTime = java.time.ZonedDateTime
         days == 0L -> if (at.hour >= 17) "Tonight" else "Today"
         days == 1L -> "Tomorrow"
         days == -1L -> "Yesterday"
-        days in 2..6 -> at.format(java.time.format.DateTimeFormatter.ofPattern("EEEE"))
-        else -> at.format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM"))
+        days in 2..6 -> at.format(java.time.format.DateTimeFormatter.ofPattern("EEEE", io.github.flexarr.core.i18n.Localization.locale))
+        else -> at.format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM", io.github.flexarr.core.i18n.Localization.locale))
     }
 }
 

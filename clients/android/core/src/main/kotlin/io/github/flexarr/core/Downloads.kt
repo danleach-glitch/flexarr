@@ -236,9 +236,9 @@ object DownloadRules {
 
 /** "1.2 GB", "340 MB", "12 KB": a file's size as people read it. */
 fun Format.bytes(bytes: Long): String = when {
-    bytes >= 1_000_000_000 -> String.format(java.util.Locale.getDefault(), "%.1f GB", bytes / 1_000_000_000.0)
-    bytes >= 1_000_000 -> String.format(java.util.Locale.getDefault(), "%.0f MB", bytes / 1_000_000.0)
-    else -> String.format(java.util.Locale.getDefault(), "%.0f KB", bytes / 1_000.0)
+    bytes >= 1_000_000_000 -> String.format(io.github.flexarr.core.i18n.Localization.locale, "%.1f GB", bytes / 1_000_000_000.0)
+    bytes >= 1_000_000 -> String.format(io.github.flexarr.core.i18n.Localization.locale, "%.0f MB", bytes / 1_000_000.0)
+    else -> String.format(io.github.flexarr.core.i18n.Localization.locale, "%.0f KB", bytes / 1_000.0)
 }
 
 /** A downloaded podcast episode as the podcast player and its rows know one (a download keeps the episode as a title). */

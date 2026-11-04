@@ -400,7 +400,7 @@ internal fun TvGenreScreen(client: FlexarrClient, name: String) {
                         Text(name, style = marquee(36))
                         val total = page?.total
                         Text(
-                            if (total == null) " " else "${NumberFormat.getIntegerInstance().format(total)} ${if (total == 1) "title" else "titles"}, best rated first",
+                            if (total == null) " " else "${NumberFormat.getIntegerInstance(io.github.flexarr.core.i18n.Localization.locale).format(total)} ${if (total == 1) "title" else "titles"}, best rated first",
                             fontSize = 13.sp,
                             color = Flexarr.usher,
                         )

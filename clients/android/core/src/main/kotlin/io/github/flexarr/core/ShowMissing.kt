@@ -81,7 +81,7 @@ data class ShowMissing(
         fun airedLabel(date: Instant, zone: ZoneId = ZoneId.systemDefault(), now: Instant = Instant.now()): String {
             val day = date.atZone(zone).toLocalDate()
             val pattern = if (day.year == now.atZone(zone).year) "d MMM" else "d MMM yyyy"
-            return day.format(DateTimeFormatter.ofPattern(pattern, Locale.UK))
+            return day.format(DateTimeFormatter.ofPattern(pattern, io.github.flexarr.core.i18n.Localization.locale))
         }
     }
 }

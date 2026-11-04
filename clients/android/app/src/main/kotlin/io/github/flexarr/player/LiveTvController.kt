@@ -361,7 +361,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
         /** How far behind live counts as behind (the player sits a few segments back from the edge anyway). */
         private const val LIVE_SLACK_SECONDS = 30.0
 
-        private val clock = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
+        private val clock get() = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(io.github.flexarr.core.i18n.Localization.locale)
 
         fun startTime(programme: LiveProgramme): String = clock.format(programme.start.atZone(ZoneId.systemDefault()))
 

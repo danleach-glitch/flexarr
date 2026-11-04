@@ -215,7 +215,7 @@ fun NotificationSettingsScreen(model: AppModel) {
 @Composable
 private fun HourPicker(hour: Int, onChange: (Int) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    val format = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
+    val format = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(io.github.flexarr.core.i18n.Localization.locale)
     androidx.compose.foundation.layout.Box {
         androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().pressable({ open = true }).padding(horizontal = 16.dp, vertical = 12.dp)) {
             Text("At", fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
