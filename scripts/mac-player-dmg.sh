@@ -51,7 +51,8 @@ xcodebuild -exportArchive -archivePath "$archive" -exportOptionsPlist "$out/Expo
   || die "the Developer ID export failed: is Xcode signed in to the team's account (Xcode › Settings › Accounts)?"
 app="$export_dir/Flexarr.app"
 codesign --verify --deep --strict "$app" || die "the exported app's signature doesn't verify"
-codesign -dvv "$app" 2>&1 | grep -q "Authority=Developer ID Application" || die "the app isn't signed with Developer ID"
+signature=$(codesign -dvv "$app" 2>&1)
+[[ "$signature" == *"Authority=Developer ID Application"* ]] || die "the app isn't signed with Developer ID"
 
 echo "==> Making the disk image"
 staging="$(mktemp -d)"
@@ -63,7 +64,7 @@ hdiutil create -quiet -volname Flexarr -srcfolder "$staging" -fs HFS+ -format UL
 echo "==> Notarising (a few minutes)"
 xcrun notarytool submit "$dmg" --key "$ASC_KEY_PATH" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" --wait --timeout 30m \
   | tee "$out/notarize.log"
-grep -q "status: Accepted" "$out/notarize.log" || die "notarisation wasn't accepted (xcrun notarytool log <id> says why)"
+[[ "$(cat "$out/notarize.log")" == *"status: Accepted"* ]] || die "notarisation wasn't accepted (xcrun notarytool log <id> says why)"
 xcrun stapler staple -q "$dmg" || die "couldn't staple the ticket to the disk image"
 xcrun stapler validate -q "$dmg" || die "the stapled ticket doesn't validate"
 
