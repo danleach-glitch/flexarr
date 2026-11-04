@@ -48,7 +48,7 @@ struct MacRootView: View {
                 }
             }
             // The window becomes the player while something plays (docs/mac-player.md).
-            if let screen = player.screen {
+            if let screen = player.shown {
                 PlayerScreenView(screen: screen)
                     .ignoresSafeArea()
                     .transition(.opacity)
@@ -57,8 +57,8 @@ struct MacRootView: View {
         // The iPad's layouts: a Mac window is wide.
         .environment(\.horizontalSizeClass, .regular)
         .frame(minWidth: 900, minHeight: 600)
-        .toolbar(player.screen == nil ? .automatic : .hidden, for: .windowToolbar)
-        .animation(.easeInOut(duration: 0.2), value: player.screen == nil)
+        .toolbar(player.shown == nil ? .automatic : .hidden, for: .windowToolbar)
+        .animation(.easeInOut(duration: 0.2), value: player.shown == nil)
         .sheet(isPresented: $showsDownloads) {
             NavigationStack { DownloadsView() }.frame(minWidth: 640, minHeight: 480)
         }

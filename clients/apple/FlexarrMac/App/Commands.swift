@@ -2,7 +2,7 @@ import FlexarrKit
 import SwiftUI
 
 /// The Mac's menus: Settings (⌘,), the View menu's places (⌘1…) and Back (⌘[), Find (⌘F), and the Playback menu.
-/// The player's own keys (Space, the arrows, Esc) are its own (FlexarrMac/Player).
+/// The player's own keys (Space, the arrows, F, Esc) are its own (FlexarrMac/Player).
 struct FlexarrCommands: Commands {
     let model: AppModel
 
@@ -44,7 +44,7 @@ private struct PlaybackCommands: View {
     var body: some View {
         let screen = PlayerHost.shared.screen
         let music = model.music
-        Button(t("Play/Pause")) {
+        Button(screen?.state.isPlaying ?? music.isPlaying ? t("Pause") : t(Words.play)) {
             if let screen { screen.togglePlayPause() } else { music.isPlaying ? music.pause() : music.resume() }
         }
         .disabled(screen == nil && music.current == nil)
@@ -67,8 +67,9 @@ private struct PlaybackCommands: View {
             .disabled(screen == nil && !music.hasPrevious)
         if screen != nil {
             Divider()
-            Button(t("Close player")) { screen?.close() }
-                .keyboardShortcut(.escape, modifiers: [])
+            // Esc closes it too, from the player itself (after leaving full screen).
+            Button(t("Close")) { screen?.close() }
+                .keyboardShortcut("w")
         }
     }
 }

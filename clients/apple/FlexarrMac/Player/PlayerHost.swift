@@ -10,14 +10,27 @@ final class PlayerHost {
 
     /// The screen up now, if any.
     private(set) var screen: PlayerViewController?
+    /// Playing in Picture in Picture: the screen is kept (it owns the session) but the window shows the library.
+    private(set) var isFloating = false
+
+    /// The screen over the window: none while it floats in Picture in Picture.
+    var shown: PlayerViewController? { isFloating ? nil : screen }
 
     func show(_ screen: PlayerViewController) {
         self.screen = screen
+        isFloating = false
+    }
+
+    func setFloating(_ floating: Bool) {
+        isFloating = floating
     }
 
     /// The screen has finished closing.
     func remove(_ screen: PlayerViewController) {
-        if self.screen === screen { self.screen = nil }
+        if self.screen === screen {
+            self.screen = nil
+            isFloating = false
+        }
     }
 }
 
