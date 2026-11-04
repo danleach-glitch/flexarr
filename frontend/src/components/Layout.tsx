@@ -167,7 +167,11 @@ export function Layout() {
     setSearching(false)
     setDrawer(false)
   }
-  useEffect(() => window.scrollTo(0, 0), [location.pathname])
+  // A block, not `() => window.scrollTo(…)`: Chrome's scrollTo now returns a Promise, which React would take for the
+  // effect's clean-up and call (`destroy is not a function`) on the next page, or at once under StrictMode in dev.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname])
 
   return (
     <div className={['shell', rail && 'rail', bare && 'bare', nowPlaying && 'has-now-playing', kids && 'kids'].filter(Boolean).join(' ')}>
