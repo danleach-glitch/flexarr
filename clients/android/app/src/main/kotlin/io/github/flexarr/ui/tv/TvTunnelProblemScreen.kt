@@ -62,10 +62,9 @@ fun TvTunnelProblemScreen(model: AppModel) {
 
     if (confirmLeave) {
         val cancel = remember { FocusRequester() }
-        val owner = model.credentials?.guest?.ownerName?.ifEmpty { null }
         Dialog(onDismissRequest = { confirmLeave = false }) {
             Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text(owner?.let { t("Leave {owner}’s Flexarr?", "owner" to it) } ?: t("Leave this Flexarr?"), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(t("Leave {server}?", "server" to model.guestServerTitle(model.credentials?.guest)), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text(t("Joining again takes a new code."), fontSize = 14.sp, color = Flexarr.usher)
                 // As the Apple TV: Cancel first, and where focus starts; Leave after it.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {

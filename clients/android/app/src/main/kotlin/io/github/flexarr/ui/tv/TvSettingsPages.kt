@@ -543,8 +543,9 @@ internal fun TvServerSettings(model: AppModel, libraries: Loader<List<Library>>,
         item { TvSettingsGroupLabel(t("Connection")) }
         // A guest's server is only ever reached through the tunnel: no address to show.
         if (guest != null) {
-            item { TvSettingsFact(t("Connected by invite"), guest.ownerName.ifEmpty { null }?.let { t("{owner}’s Flexarr", "owner" to it) }.orEmpty()) }
+            item { TvSettingsFact(t("Connected by invite"), model.guestServerTitle(guest)) }
         } else {
+            model.serverName?.let { name -> item { TvSettingsFact(t("Name"), name) } }
             item { TvSettingsFact(t("Address"), shortAddress(model.credentials?.address)) }
         }
         if (remote != null && guest == null) {
