@@ -255,16 +255,7 @@ targets:
       # Tailscale built in, for family guests (clients/tunnel's macos slice).
       - framework: ../tunnel/build/FlexarrTunnel.xcframework
         embed: false
-    entitlements:
-      path: FlexarrMac/FlexarrMac.entitlements
-      properties:
-        com.apple.security.app-sandbox: true
-        com.apple.security.network.client: true
-        # AetherEngine hands the file to Apple's player through a small HLS server on the Mac's own loopback address
-        # (127.0.0.1 only); the sandbox refuses it the bind without this.
-        com.apple.security.network.server: true
-        # Downloads are saved in the app's own container; Save to… (later) would need user-selected files.
-        com.apple.security.files.user-selected.read-only: true
+      - target: FlexarrMacNotificationService
     info:
       path: FlexarrMac/Info.plist
       properties:
@@ -275,6 +266,8 @@ targets:
         # Big Shoulders Display, the marquee type (Shared/Fonts), copied to Resources.
         ATSApplicationFontsPath: .
         FlexarrGuestInvites: $(FLEXARR_GUEST_INVITES)
+        # Shared with the notification extension, which opens the server's sealed notifications with the key kept there.
+        FlexarrAppGroup: group.$(FLEXARR_MAC_PLAYER_BUNDLE_ID)
         # Export compliance: as the iPhone app's (see FlexarriOS).
         ITSAppUsesNonExemptEncryption: false
         NSAppTransportSecurity:
@@ -293,6 +286,36 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
+        # The sandbox, the network and files: enough to run it at home unsigned or ad hoc. The store's build passes
+        # FLEXARR_MAC_ENTITLEMENTS=FlexarrMac/FlexarrMac-Store.entitlements, which adds notifications (APNs) and the app
+        # group shared with the notification extension; those need the provisioning profile the upload signs with.
+        FLEXARR_MAC_ENTITLEMENTS: FlexarrMac/FlexarrMac.entitlements
+        CODE_SIGN_ENTITLEMENTS: $(FLEXARR_MAC_ENTITLEMENTS)
+  # Opens the server's sealed notifications on the Mac, as FlexarrNotificationService does on the iPhone (same source).
+  FlexarrMacNotificationService:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: NotificationService/NotificationService.swift
+    dependencies:
+      - package: FlexarrKit
+    info:
+      path: FlexarrMacNotificationService/Info.plist
+      properties:
+        CFBundleDisplayName: Flexarr
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        FlexarrAppGroup: group.$(FLEXARR_MAC_PLAYER_BUNDLE_ID)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(FLEXARR_MAC_PLAYER_BUNDLE_ID).NotificationService
+        ARCHS: arm64
+        ENABLE_HARDENED_RUNTIME: YES
+        FLEXARR_MAC_NOTIFICATION_ENTITLEMENTS: FlexarrMacNotificationService/FlexarrMacNotificationService.entitlements
+        CODE_SIGN_ENTITLEMENTS: $(FLEXARR_MAC_NOTIFICATION_ENTITLEMENTS)
   # Podcast widgets for the Home Screen and Lock Screen: Continue listening and Up Next, from what the app saves.
   FlexarrWidgets:
     type: app-extension

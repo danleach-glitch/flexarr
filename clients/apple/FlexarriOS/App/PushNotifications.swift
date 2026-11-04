@@ -83,6 +83,11 @@ final class PushNotifications {
     static var environment: String {
         #if DEBUG
         "sandbox"
+        #elseif os(macOS)
+        // A Mac app keeps its profile in Contents, the store's included; only a development one says "development".
+        let url = Bundle.main.bundleURL.appending(path: "Contents/embedded.provisionprofile")
+        guard let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .isoLatin1) else { return "production" }
+        return text.range(of: #"aps-environment</key>\s*<string>development"#, options: .regularExpression) == nil ? "production" : "sandbox"
         #else
         guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
               let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .isoLatin1) else { return "production" }
