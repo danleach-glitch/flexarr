@@ -20,6 +20,7 @@ Each profile has its own:
 - **Recent searches**, which follow it from device to device
 - **Libraries**: which ones it can see at all (see below), and the order they're listed in
 - **Requests**: which library what it asks for goes to, when you have two TV or movie libraries
+- **Language**, once Flexarr is available in more than English (see below)
 - A picture, a name and a colour
 
 Things that belong to the server, such as your libraries, connections to Sonarr, Radarr and Lidarr, and the layout of Home, are the same for everyone.
@@ -152,6 +153,12 @@ An Apple TV in a shared living room can ask every time Flexarr opens, rather tha
 2. Under **When Flexarr opens**, choose **Ask who's watching**.
 
 Profiles with a PIN then ask for it every time too.
+
+## Language
+
+Flexarr shows each profile in its device's language, where Flexarr has it, and in English otherwise. To choose one for a profile on every device, open **Settings › Language** on the web, iPhone, Apple TV or Android, and pick it, or **Device language** to follow each device again. Notifications and the server's messages follow the profile's language too.
+
+The Language setting only appears once your server offers a language besides English. New languages and corrections reach your server by themselves, without an update; the apps also bring the ones that exist when they're released.
 
 ## Notifications and profiles
 
