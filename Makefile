@@ -113,9 +113,10 @@ ios-upload: tunnel-apple ## Archive the iOS app and upload it to App Store Conne
 # Debug symbols to Sentry, so crash and hang reports from that build show function names. Needs an organization token
 # for dan-leach, in SENTRY_AUTH_TOKEN or ~/.sentryclirc; without one it's skipped, so forks can still upload.
 SENTRY_CLI = npx --yes @sentry/cli@3.8.2
+DSYM_ARCHIVE ?= build/apple/FlexarriOS.xcarchive
 ios-dsyms: ## Upload the last iOS archive's debug symbols to Sentry
 	@if [ -z "$$SENTRY_AUTH_TOKEN" ] && ! grep -qs '^token=' ~/.sentryclirc; then echo "No Sentry token (SENTRY_AUTH_TOKEN or ~/.sentryclirc): skipping the dSYM upload to Sentry"; exit 0; fi; \
-	$(SENTRY_CLI) debug-files upload --org dan-leach --project flexarr-apple --include-sources build/apple/FlexarriOS.xcarchive/dSYMs
+	$(SENTRY_CLI) debug-files upload --org dan-leach --project flexarr-apple --include-sources $(DSYM_ARCHIVE)/dSYMs
 
 guide: ## Build flexarr.io/guide (site/guide) from docs/guide
 	cd scripts/guide && npm ci --silent && node build.mjs
@@ -166,6 +167,40 @@ mac-upload: ## Archive the Mac app and upload it to App Store Connect
 		'</dict></plist>' > clients/macos/build/ExportOptions.plist
 	xcodebuild -exportArchive -archivePath clients/macos/build/FlexarrServer.xcarchive -exportOptionsPlist clients/macos/build/ExportOptions.plist \
 		-exportPath clients/macos/build/export -allowProvisioningUpdates $(ASC_AUTH)
+
+# The Mac app (the player, clients/apple's FlexarrMac; not Flexarr Server). Install builds it signed with your Apple
+# Development certificate (no account in Xcode needed) and puts it in MAC_PLAYER_DIR, without notifications.
+#   make mac-player-install
+MAC_PLAYER_DIR ?= /Applications
+mac-player-install: tunnel-apple ## Build the Mac app (the player) and install it in /Applications
+	cd clients/apple && xcodegen generate --quiet
+	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarrMac -configuration Release -destination 'generic/platform=macOS' \
+		-derivedDataPath build/apple-mac CODE_SIGNING_ALLOWED=NO $(APPLE_VERSION) build -quiet
+	app=build/apple-mac/Build/Products/Release/Flexarr.app; \
+	codesign --force --options runtime -s "Apple Development" --entitlements clients/apple/FlexarrMacNotificationService/FlexarrMacNotificationService.entitlements "$$app/Contents/PlugIns/FlexarrMacNotificationService.appex" && \
+	codesign --force --options runtime -s "Apple Development" --entitlements clients/apple/FlexarrMac/FlexarrMac.entitlements "$$app" && \
+	rm -rf "$(MAC_PLAYER_DIR)/Flexarr.app" && cp -R "$$app" "$(MAC_PLAYER_DIR)/" && open "$(MAC_PLAYER_DIR)/Flexarr.app"
+
+# Archive the Mac app and upload it to App Store Connect. Pass the iOS app's bundle ID to ship it on the iPhone and Apple
+# TV listing (universal purchase, docs/mac-player.md); the notification extension becomes <bundle id>.NotificationService.
+# It's signed with notifications and the app group (the -Store entitlements). MAC_EXPORT=export builds the package only.
+#   make mac-player-upload TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.ios
+mac-player-upload: tunnel-apple ## Archive the Mac app (the player) and upload it to App Store Connect
+	@test -n "$(TEAM)" -a -n "$(BUNDLE_ID)" || { echo "usage: make mac-player-upload TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.ios"; exit 1; }
+	cd clients/apple && xcodegen generate --quiet
+	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarrMac -configuration Release -destination 'generic/platform=macOS' \
+		-archivePath build/apple/FlexarrMac.xcarchive -allowProvisioningUpdates \
+		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_MAC_PLAYER_BUNDLE_ID=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Development" \
+		FLEXARR_MAC_ENTITLEMENTS=FlexarrMac/FlexarrMac-Store.entitlements \
+		FLEXARR_MAC_NOTIFICATION_ENTITLEMENTS=FlexarrMacNotificationService/FlexarrMacNotificationService-Store.entitlements \
+		$(APPLE_VERSION) CURRENT_PROJECT_VERSION=$(BUILD) archive -quiet
+	printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' '<plist version="1.0"><dict>' \
+		'<key>method</key><string>app-store-connect</string><key>destination</key><string>$(MAC_EXPORT)</string>' \
+		'<key>teamID</key><string>$(TEAM)</string><key>signingStyle</key><string>automatic</string>' \
+		'</dict></plist>' > build/apple/ExportOptions-mac.plist
+	xcodebuild -exportArchive -archivePath build/apple/FlexarrMac.xcarchive -exportOptionsPlist build/apple/ExportOptions-mac.plist \
+		-exportPath build/apple/export-mac -allowProvisioningUpdates $(ASC_AUTH)
+	@$(MAKE) --no-print-directory ios-dsyms DSYM_ARCHIVE=build/apple/FlexarrMac.xcarchive
 
 # The Android app for Google Play, signed with the upload key in ~/.flexarr-release (see docs/play-store.md).
 #   make android-bundle    the signed app bundle, in clients/android/app/build/outputs/bundle/release
