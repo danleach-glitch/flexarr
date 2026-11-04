@@ -8,6 +8,7 @@ import io.github.flexarr.core.ErrorReportFilter
 import io.github.flexarr.core.ErrorReportScrubber
 import io.github.flexarr.core.ErrorReportSetting
 import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.core.SystemStatus
 import io.github.flexarr.core.LogRedactor
 import io.github.flexarr.core.i18n.t
 import io.sentry.Sentry
@@ -69,10 +70,11 @@ object ErrorReports {
         }
     }
 
-    /** Asks the server for its setting and follows it; best effort. */
-    suspend fun refresh(client: FlexarrClient, server: String) {
-        val status = runCatching { client.systemStatus() }.getOrNull() ?: return
+    /** Asks the server for its setting and follows it; best effort. The status it answered with, for anything else in it. */
+    suspend fun refresh(client: FlexarrClient, server: String): SystemStatus? {
+        val status = runCatching { client.systemStatus() }.getOrNull() ?: return null
         apply(status.errorReports, server)
+        return status
     }
 
     /** Signed out, or on to another server: stops until that server says otherwise. */

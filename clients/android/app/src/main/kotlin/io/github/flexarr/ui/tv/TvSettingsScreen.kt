@@ -111,7 +111,7 @@ private fun MainPage(
     val profile = model.currentProfile
     // A guest stays on its invite's profile.
     val switches = profile != null && model.profiles.size > 1 && !model.isGuest
-    val server = model.guestServerTitle(model.credentials?.guest)
+    val server = model.guestServerNaming(model.credentials?.guest)
     // Only from servers that keep an order with the profile (0.54 on): it's kept there, not on this TV.
     val sidebarFirst = if (profile?.libraryOrder != null) sidebarEntries(model, libraries).firstOrNull() else null
     // Coming back, the row that opened the page; otherwise the first row.
@@ -196,7 +196,7 @@ private fun MainPage(
                 TvSettingsRow(
                     t("Leave"), onClick = { confirmSignOut = true }, modifier = Modifier.padding(top = 18.dp),
                     icon = Icons.AutoMirrored.Filled.Logout, destructive = true,
-                    help = t("Stop watching {server} here. Joining again takes a new code.", "server" to server),
+                    help = t("{kind, select, named {Stop watching {server} here. Joining again takes a new code.} owner {Stop watching {owner}’s Flexarr here. Joining again takes a new code.} other {Stop watching this Flexarr here. Joining again takes a new code.}}", *server.values),
                 )
             } else {
                 TvSettingsRow(
@@ -214,7 +214,7 @@ private fun MainPage(
             Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 val guest = model.isGuest
                 Text(
-                    if (guest) t("Leave {server}?", "server" to server) else t("Sign out of this server?"),
+                    if (guest) t("{kind, select, named {Leave {server}?} owner {Leave {owner}’s Flexarr?} other {Leave this Flexarr?}}", *server.values) else t("Sign out of this server?"),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                 )

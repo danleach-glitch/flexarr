@@ -477,7 +477,7 @@ internal fun shortAddress(address: String?): String = address.orEmpty().replace(
 internal fun LeaveDialog(model: AppModel, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(t("Leave {server}?", "server" to model.guestServerTitle(model.credentials?.guest))) },
+        title = { Text(t("{kind, select, named {Leave {server}?} owner {Leave {owner}’s Flexarr?} other {Leave this Flexarr?}}", *model.guestServerNaming(model.credentials?.guest).values)) },
         text = { Text(t("Joining again takes a new code. Downloads are deleted.")) },
         confirmButton = { TextButton(onClick = model::signOut) { Text(t("Leave"), color = Flexarr.danger) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(t(Words.cancel), color = Flexarr.screen) } },

@@ -85,7 +85,7 @@ fun TvOfflineScreen(model: AppModel) {
         val cancel = remember { FocusRequester() }
         Dialog(onDismissRequest = { confirmSignOut = false }) {
             Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(14.dp)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text(if (guest) t("Leave {server}?", "server" to model.guestServerTitle(model.credentials?.guest)) else t("Sign out of this server?"), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(if (guest) t("{kind, select, named {Leave {server}?} owner {Leave {owner}’s Flexarr?} other {Leave this Flexarr?}}", *model.guestServerNaming(model.credentials?.guest).values) else t("Sign out of this server?"), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 if (guest) Text(t("Joining again takes a new code."), fontSize = 14.sp, color = Flexarr.usher)
                 // As the Apple TV: Cancel first, and where focus starts.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {

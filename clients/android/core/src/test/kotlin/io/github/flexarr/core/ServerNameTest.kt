@@ -48,11 +48,27 @@ class ServerNameTest {
     fun `joining problems name the server`() {
         assertEquals(
             GuestJoinProblem("Smith House isn’t taking guests just now.", canRetry = false),
-            guestJoinProblem(FlexarrException.Http(503, null), "Dan", server = "Smith House"),
+            guestJoinProblem(FlexarrException.Http(503, null), "Dan", server = ServerNaming("Smith House", "Dan")),
         )
         assertEquals(
             GuestJoinProblem("Can’t reach Smith House. Check this device’s internet.", canRetry = true),
-            guestJoinProblem(FlexarrException.Unreachable(java.io.IOException()), "Dan", server = "Smith House"),
+            guestJoinProblem(FlexarrException.Unreachable(java.io.IOException()), "Dan", server = ServerNaming("Smith House", "Dan")),
         )
+    }
+
+    @Test
+    fun `sentences pick a whole wording for each kind of name`() {
+        val leave = "{kind, select, named {Leave {server}?} owner {Leave {owner}’s Flexarr?} other {Leave this Flexarr?}}"
+        assertEquals("Leave Smith House?", io.github.flexarr.core.i18n.t(leave, *ServerNaming("Smith House", "Dan").values))
+        assertEquals("Leave Dan’s Flexarr?", io.github.flexarr.core.i18n.t(leave, *ServerNaming(" ", "Dan").values))
+        assertEquals("Leave this Flexarr?", io.github.flexarr.core.i18n.t(leave, *ServerNaming(null, null).values))
+    }
+
+    @Test
+    fun `a guest only sees a name someone chose`() {
+        val unnamed = status(""","serverName":"Dans-Mac-Mini","serverNamed":false""")
+        assertNull(unnamed.serverName(forGuest = true))
+        assertEquals("Dans-Mac-Mini", unnamed.serverName(forGuest = false))
+        assertEquals("Smith House", status(""","serverName":"Smith House","serverNamed":true""").serverName(forGuest = true))
     }
 }

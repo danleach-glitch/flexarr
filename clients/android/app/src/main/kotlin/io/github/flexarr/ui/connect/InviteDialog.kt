@@ -42,7 +42,7 @@ fun InviteDialog(model: AppModel) {
             text = {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Flexarr.usher)
-                    Text(t("Joining {server}…", "server" to invite.serverTitle))
+                    Text(t("{kind, select, named {Joining {server}…} owner {Joining {owner}’s Flexarr…} other {Joining this Flexarr…}}", *invite.serverNaming.values))
                 }
             },
             confirmButton = {},
@@ -60,7 +60,7 @@ fun InviteDialog(model: AppModel) {
         )
         else -> AlertDialog(
             onDismissRequest = model::dismissInvite,
-            title = { Text(t("Join {server}?", "server" to invite.serverTitle)) },
+            title = { Text(t("{kind, select, named {Join {server}?} owner {Join {owner}’s Flexarr?} other {Join this Flexarr?}}", *invite.serverNaming.values)) },
             text = { Text(t("You’ll watch as {profile}.", "profile" to invite.profileName)) },
             confirmButton = { TextButton(onClick = model::confirmInvite) { Text(t("Join"), color = Flexarr.screen) } },
             dismissButton = notNow,
