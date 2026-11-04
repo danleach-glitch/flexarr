@@ -194,10 +194,17 @@ jobs:
             scheme: ""
           - name: tvOS
             scheme: FlexarrTV
+            tunnel: tvos
           # Release, as the App Store and device installs build it: code under #if DEBUG can't hide a Release-only error.
           - name: iOS
             scheme: FlexarriOS
             configuration: Release
+            tunnel: ios
+          # The Mac app (the player; docs/mac-player.md), Release for the same reason.
+          - name: macOS
+            scheme: FlexarrMac
+            configuration: Release
+            tunnel: macos
     defaults:
       run:
         working-directory: clients/apple
@@ -229,7 +236,7 @@ jobs:
           key: tunnel-apple-${{ matrix.scheme }}-${{ hashFiles('clients/tunnel/**/*.go', 'clients/tunnel/go.sum', 'clients/tunnel/*.sh') }}
       - name: Build the tunnel
         if: matrix.scheme != '' && steps.tunnel.outputs.cache-hit != 'true'
-        run: ../tunnel/build-apple.sh ${{ matrix.scheme == 'FlexarrTV' && 'tvos' || 'ios' }}
+        run: ../tunnel/build-apple.sh ${{ matrix.tunnel }}
       - name: Build ${{ matrix.name }} app
         if: matrix.scheme != ''
         run: |
