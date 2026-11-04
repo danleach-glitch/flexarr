@@ -102,17 +102,19 @@ const button = (l, i) => {
   return `<a class="${kind}" href="${escape(l.href)}"${external(l.href) ? ' target="_blank" rel="noopener"' : ''}>${l.store ? stores[l.store] : ''}${escape(l.label)}</a>`;
 };
 
-const ready = p => ['available', 'beta'].includes(p.status);
+// Out now, coming soon (built, waiting on a store), or on the way (still being made: a lighter, dashed card).
+const rank = p => ['available', 'beta'].includes(p.status) ? 0 : p.status === 'coming' ? 1 : 2;
+const onTheWay = p => rank(p) === 2;
 // Each kind's entries in the order the page shows them: what's out now first, then what's on the way.
-const ofKind = kind => { const all = data.platforms.filter(p => p.kind === kind); return [...all.filter(ready), ...all.filter(p => !ready(p))]; };
+const ofKind = kind => data.platforms.filter(p => p.kind === kind).map((p, i) => [p, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([p]) => p);
 
-const card = p => `<article class="card${p.runsOn ? ' wide' : ''}" id="${escape(p.id)}">
+const card = p => `<article class="card${p.runsOn ? ' wide' : ''}${onTheWay(p) ? ' soon' : ''}" id="${escape(p.id)}">
             <div class="card-body">
               <div class="card-top"><span class="app-icon">${icons[p.icon]}</span>${pill(p)}</div>
               <h3>${escape(p.name)}</h3>
 ${p.version ? `              <p class="version-line">Version <span class="version">${escape(p.version)}</span></p>\n` : ''}              <p class="summary">${escape(p.summary)}</p>
-${p.requires ? `              <p class="requires">${escape(p.requires)}</p>\n` : ''}${p.note || p.links?.length ? `              <div class="foot">
-${p.note ? `                <p class="note">${escape(p.note)}</p>\n` : ''}${p.links?.length ? `                <div class="links">${p.links.map(button).join('')}</div>\n` : ''}              </div>\n` : ''}            </div>
+${p.requires || p.note || p.links?.length ? `              <div class="foot">
+${p.requires ? `                <p class="requires">${escape(p.requires)}</p>\n` : ''}${p.note ? `                <p class="note">${escape(p.note)}</p>\n` : ''}${p.links?.length ? `                <div class="links">${p.links.map(button).join('')}</div>\n` : ''}              </div>\n` : ''}            </div>
 ${p.runsOn ? `            <div class="runs-on">
               <p>Runs on</p>
               <ul>${p.runsOn.map(r => `<li>${systems[r]}${escape(r)}</li>`).join('')}</ul>
@@ -120,17 +122,21 @@ ${p.runsOn ? `            <div class="runs-on">
 ` : ''}          </article>`;
 
 // Asking for somewhere new closes the players.
-const ask = `<article class="card ask soon">
+const ask = `<article class="card soon ask">
             <div class="card-body">
-              <div><h3>Somewhere else?</h3><p>Tell us where you'd like to watch Flexarr next.</p></div>
-              <div class="links"><a class="button quiet" href="${repo}/discussions/categories/ideas" target="_blank" rel="noopener">Ask on GitHub</a></div>
+              <div class="card-top"><span class="app-icon">${stroke('<path d="M12 5v14M5 12h14"/>')}</span></div>
+              <h3>Somewhere else?</h3>
+              <p class="summary">Tell us where you'd like to watch Flexarr next.</p>
+              <div class="foot">
+                <div class="links"><a class="button quiet" href="${repo}/discussions/categories/ideas" target="_blank" rel="noopener">Ask on GitHub</a></div>
+              </div>
             </div>
           </article>`;
 // One section per kind: what's out now, then the dashed cards for what's on the way.
 const section = ([kind, k]) => {
   const all = ofKind(kind);
   if (!all.length) return '';
-  const cards = all.map(p => ready(p) ? card(p) : card(p).replace('<article class="card', '<article class="card soon'));
+  const cards = all.map(card);
   if (kind === 'player') cards.push(ask);
   return `      <section class="kind ${kind}" aria-labelledby="${kind}-head">
         <div class="kind-head">
@@ -206,8 +212,8 @@ const html = `<!doctype html>
     .requires::before { content: "Needs "; color: var(--screen); font-weight: 700; }
     /* The note and buttons sit at the bottom, so cards in a row line up. */
     .foot { margin-top: auto; padding-top: 10px; display: flex; flex-direction: column; gap: 12px; }
-    .links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; }
-    .links .button { min-height: 46px; padding: 0 20px; font-size: 0.95rem; }
+    .links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+    .links .button { min-height: 46px; padding: 0 18px; font-size: 0.95rem; }
     .links .button.primary { box-shadow: none; }
     .links .button svg { width: 18px; height: 18px; }
     .more { font-weight: 700; text-decoration: none; }
@@ -239,7 +245,10 @@ const html = `<!doctype html>
     .kind-head h2 { display: flex; align-items: center; gap: 18px; }
     .kind-head .num { width: 0.95em; height: 0.95em; border-radius: 50%; display: inline-grid; place-items: center; flex: none; font-size: 0.8em; background: var(--screen); color: var(--room); }
     .kind-head p { margin: 14px 0 0; max-width: 620px; color: var(--usher); font-size: clamp(1.05rem, 2.2vw, 1.2rem); }
-    .integration .cards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+    /* The server's cards each take the full row; players sit three across. */
+    .server .card { grid-column: 1 / -1; }
+    .server .card.soon .summary { max-width: 68ch; }
+    .player .cards, .integration .cards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
     .integration .kind-head h2 { font-size: clamp(2rem, 4.5vw, 3rem); }
 
     /* On the way: lighter, dashed. */
@@ -249,11 +258,7 @@ const html = `<!doctype html>
     .card.soon .foot { border-top: 1px dashed var(--aisle); padding-top: 16px; margin-top: auto; }
     .card.soon .card-body > .summary { margin-bottom: 8px; }
     /* A slim strip across the row, after the cards. */
-    .card.ask { grid-column: 1 / -1; }
-    .card.ask .card-body { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; padding-block: 24px; }
-    .card.ask h3 { font-size: clamp(1.7rem, 3vw, 2.1rem); }
-    .card.ask p { color: var(--usher); margin-top: 4px; }
-    .card.ask .links { margin: 0; padding: 0; }
+    .card.ask .app-icon { color: var(--usher); }
 
     .source { margin: clamp(56px, 8vw, 96px) 0 clamp(48px, 6vw, 72px); color: var(--usher); font-size: 0.92rem; text-align: center; }
   </style>
