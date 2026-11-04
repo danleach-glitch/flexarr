@@ -11,7 +11,7 @@
       "release": "server",
       "requires": "A computer at home that stays on: 64-bit Intel, AMD or ARM",
       "runsOn": ["Docker", "Synology", "Unraid", "Linux", "Windows", "Mac"],
-      "summary": "Reads your films, TV, music and podcasts, works with Sonarr, Radarr and Lidarr, and streams to every app. The web player is built in: open your server's address in any browser. Free for personal use.",
+      "summary": "Reads your films, TV, music and podcasts, works with Sonarr, Radarr and Lidarr, and streams to every app. The web player is built in: open your server's address in any browser.",
       "links": [
         { "label": "Set up your server", "href": "/#setup", "primary": true },
         { "label": "What's new", "href": "https://github.com/danleach-glitch/flexarr/releases" }
