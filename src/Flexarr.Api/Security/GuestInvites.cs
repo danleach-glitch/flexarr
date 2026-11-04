@@ -53,7 +53,8 @@ public sealed class GuestInvite
 /// <param name="G">What the guest's device will be called.</param>
 /// <param name="P">The profile's name.</param>
 /// <param name="E">When the invite stops working.</param>
-public sealed record InvitePayload(int V, string N, string S, string A, string K, string T, string G, string P, DateTime E);
+/// <param name="M">The server's name, shown instead of "Dan's Flexarr" (absent from invites before 0.61).</param>
+public sealed record InvitePayload(int V, string N, string S, string A, string K, string T, string G, string P, DateTime E, string? M = null);
 
 public sealed class InviteException(string message, int status = StatusCodes.Status409Conflict) : Exception(message)
 {
@@ -380,7 +381,8 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
 
         LogCreated(PathComparison.Printable(trimmed.Length > 0 ? trimmed : profileName), via);
         var payload = new InvitePayload(1, ownerName, options.CurrentValue.ServerId ?? "",
-            $"{address}:{policy.FlexarrPort.ToString(CultureInfo.InvariantCulture)}", key.Key, token, trimmed.Length > 0 ? trimmed : profileName, profileName, invite.ExpiresAt);
+            $"{address}:{policy.FlexarrPort.ToString(CultureInfo.InvariantCulture)}", key.Key, token, trimmed.Length > 0 ? trimmed : profileName, profileName, invite.ExpiresAt,
+            ServerName.Of(options.CurrentValue));
         return (invite, payload);
     }
 
