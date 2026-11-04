@@ -1,4 +1,4 @@
-import { Fragment, lazy, Suspense, useEffect, useState, type ComponentType, type FormEvent, type ReactNode } from 'react'
+import { Fragment, lazy, Suspense, useEffect, useState, useSyncExternalStore, type ComponentType, type FormEvent, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router'
 import {
   ApiError,
@@ -19,6 +19,7 @@ import {
   type Profile,
 } from './api/client'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { currentLanguage, onLanguageChange, settleLanguage } from './i18n'
 import { ProfilePicker } from './components/ProfilePicker'
 import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
@@ -196,6 +197,9 @@ function whereTheCodeIs(install: InstallKind | undefined) {
 
 export default function App() {
   const [state, setState] = useState<ConnectionState>({ kind: 'loading' })
+  // A new language redraws everything in it, and nothing cached from the server is in the old one any more.
+  const language = useSyncExternalStore(onLanguageChange, () => currentLanguage().code)
+  useEffect(() => clearApiCache(), [language])
   const [attempt, setAttempt] = useState(0)
   // Unlocking or locking to kids profiles asks who's watching straight away (see pickProfileWith).
   useEffect(() => {
@@ -237,6 +241,11 @@ export default function App() {
           getMe(controller.signal).catch(() => null),
         ]),
       )
+      // The profile's language (or the browser's) before the first real screen, so it doesn't change under you.
+      .then(async ([profiles, me]) => {
+        await settleLanguage(me?.language ?? null, controller.signal)
+        return [profiles, me] as const
+      })
       .then(([profiles, me]) => {
         // A stored choice the server no longer honours (the key or the PIN changed, or the profile went) would
         // quietly watch as someone else, often the main profile: forget it and ask again.
@@ -263,6 +272,7 @@ export default function App() {
         if (controller.signal.aborted) return
         if (error instanceof UnauthorizedError) {
           errorReporter.disable()
+          void settleLanguage(null, controller.signal)
           // A new server nobody has signed in to yet: this browser can set it up, no key needed.
           void setupStatus().then(({ open, install }) => {
             if (controller.signal.aborted) return
@@ -341,7 +351,7 @@ export default function App() {
   if (state.kind === 'ready') {
     return (
       <BrowserRouter>
-        <Shell />
+        <Shell key={language} />
       </BrowserRouter>
     )
   }
