@@ -65,7 +65,7 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
   const add = (p: PlaylistSummary) =>
     run(p.id, async () => {
       const { added } = await addToPlaylist(p.id, [item.id], true)
-      return added === 0 ? `Already in ${p.name}.` : `Added to ${p.name}.`
+      return added === 0 ? t('Already in {name}.', { name: p.name }) : t('Added to {name}.', { name: p.name })
     })
 
   function create(e: FormEvent) {
@@ -74,13 +74,13 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
     void run('new', async () => {
       const created = await createPlaylist(name.trim(), [item.id])
       setName('')
-      return `Made ${created.name} with it.`
+      return t('Made {name} with it.', { name: created.name })
     })
   }
 
   return (
     <div className="dialog-backdrop" onClick={onClose}>
-      <div className="panel add-to-playlist" ref={dialog} role="dialog" aria-modal="true" aria-label={`Add ${item.title} to a playlist`} onClick={(e) => e.stopPropagation()}>
+      <div className="panel add-to-playlist" ref={dialog} role="dialog" aria-modal="true" aria-label={t('Add {title} to a playlist', { title: item.title })} onClick={(e) => e.stopPropagation()}>
         <header className="add-to-playlist-head">
           <div>
             <h2>{t('Add to playlist')}</h2>
@@ -116,7 +116,7 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={120}
-            placeholder={none ? 'Name your first playlist' : 'New playlist'}
+            placeholder={none ? t('Name your first playlist') : t('New playlist')}
             ref={nameInput}
           />
           <AsyncButton className="button small" type="submit" disabled={!!busy || !name.trim()} busy={busy === 'new'}>

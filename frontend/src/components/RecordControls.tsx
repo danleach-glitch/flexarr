@@ -47,7 +47,7 @@ export function RecordControls({ programme, channelId, now, onChanged }: { progr
     try {
       const result = await action()
       if (result && typeof result === 'object' && 'clashes' in result && (result as Recording).clashes) {
-        setError('This clashes with recordings already on the list: every stream is wanted then, so it won’t record unless one of them is taken off.')
+        setError(t('This clashes with recordings already on the list: every stream is wanted then, so it won’t record unless one of them is taken off.'))
       }
       setLoaded((n) => n + 1)
       onChanged()
@@ -64,7 +64,7 @@ export function RecordControls({ programme, channelId, now, onChanged }: { progr
       <div className="record-buttons">
         {recording ? (
           <AsyncButton className="button quiet small" disabled={busy} onClick={() => act(() => removeRecording(recording.id))}>
-            <RecordDot className="record-dot" /> {recordingNow ? 'Stop recording' : 'Don’t record'}
+            <RecordDot className="record-dot" /> {recordingNow ? t('Stop recording') : t('Don’t record')}
           </AsyncButton>
         ) : (
           <AsyncButton className="button small" disabled={busy} onClick={() => act(() => recordProgramme(programme.id))}>
@@ -93,8 +93,16 @@ export function RecordControls({ programme, channelId, now, onChanged }: { progr
       )}
       {series && (
         <p className="muted record-note">
-          Every showing of {series.title} {series.channelName ? `on ${series.channelName}` : 'on any channel'}
-          {series.newOnly ? ' (new episodes only)' : ''} is recorded.
+          {series.channelName
+            ? t('{newOnly, select, yes {Every showing of {title} on {channel} (new episodes only) is recorded.} other {Every showing of {title} on {channel} is recorded.}}', {
+                newOnly: series.newOnly ? 'yes' : 'no',
+                title: series.title,
+                channel: series.channelName,
+              })
+            : t('{newOnly, select, yes {Every showing of {title} on any channel (new episodes only) is recorded.} other {Every showing of {title} on any channel is recorded.}}', {
+                newOnly: series.newOnly ? 'yes' : 'no',
+                title: series.title,
+              })}
         </p>
       )}
       {recording?.clashes && !error && <p className="error record-note">{t('This won’t record: recordings scheduled before it want every stream then.')}</p>}

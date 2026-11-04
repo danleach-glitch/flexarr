@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 import { imageUrl, type PlaylistSummary } from '../api/client'
 import { formatDuration } from '../lib/format'
 import { Playlist } from './icons'
+import { t } from '../i18n'
 
 /**
  * A playlist's artwork: the cover chosen for it, else a mosaic of its first four tracks' album covers (one, when there
@@ -28,9 +29,10 @@ export function PlaylistCover({ playlist, width = 342 }: { playlist: Pick<Playli
 
 /** "12 tracks, 48m". */
 export function describePlaylist(p: PlaylistSummary) {
-  const count = `${p.trackCount} ${p.trackCount === 1 ? 'track' : 'tracks'}`
   const length = formatDuration(p.durationSeconds)
-  return length ? `${count}, ${length}` : count
+  return length
+    ? t('{count, plural, one {# track, {length}} other {# tracks, {length}}}', { count: p.trackCount, length })
+    : t('{count, plural, one {# track} other {# tracks}}', { count: p.trackCount })
 }
 
 /** A playlist in a row or grid, like an album card; it opens the playlist's page. */

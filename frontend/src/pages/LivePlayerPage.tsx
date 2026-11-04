@@ -68,7 +68,7 @@ export default function LivePlayerPage() {
     if (!prefersNativeHls() && Hls.isSupported()) {
       // Start a few segments back from the newest, and never jump forward on its own: the viewer may have rewound.
       const player = new Hls({ liveSyncDurationCount: 3, liveMaxLatencyDurationCount: Infinity, backBufferLength: 120, maxBufferLength: 30 })
-      const stopped = () => setError('The channel stopped sending. Try again, or pick another channel.')
+      const stopped = () => setError(t('The channel stopped sending. Try again, or pick another channel.'))
       const onMediaError = mediaErrorRecovery(player, stopped)
       player.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal || hls.current !== player) return
@@ -111,9 +111,9 @@ export default function LivePlayerPage() {
         setWaiting(false)
         const problem = e instanceof ApiError && e.status === 409 ? e.problem : undefined
         if (problem && typeof problem.recordingId === 'string' && typeof problem.channelId === 'string') {
-          setBlocked({ recordingId: problem.recordingId, channelId: problem.channelId, channelName: String(problem.channelName ?? 'that channel') })
+          setBlocked({ recordingId: problem.recordingId, channelId: problem.channelId, channelName: String(problem.channelName ?? t('that channel')) })
         }
-        setError(e instanceof ApiError && e.messages.length ? e.messages.join(' ') : 'The channel couldn’t be played.')
+        setError(e instanceof ApiError && e.messages.length ? e.messages.join(' ') : t('The channel couldn’t be played.'))
       }
     },
     [attach],
@@ -145,7 +145,7 @@ export default function LivePlayerPage() {
         hls.current?.destroy()
         hls.current = null
         viewer.current = undefined
-        setError(e.messages.join(' ') || 'A recording needed the stream.')
+        setError(e.messages.join(' ') || t('A recording needed the stream.'))
       }
     })
   }, HEARTBEAT_MS)
@@ -317,7 +317,7 @@ export default function LivePlayerPage() {
             {blocked ? (
               <>
                 <button className="button" autoFocus onClick={() => navigate(`/live/${blocked.channelId}`, { replace: true })}>
-                  Watch {blocked.channelName}
+                  {t('Watch {name}', { name: blocked.channelName })}
                 </button>
                 <AsyncButton
                   className="button quiet"
@@ -368,7 +368,7 @@ export default function LivePlayerPage() {
                       {c.name}
                       {isFavourite(c) && <Star filled className="chip-star live-list-star" aria-label={t('Favourite')} />}
                     </strong>
-                    <span className="muted">{c.now?.title ?? 'No listings'}</span>
+                    <span className="muted">{c.now?.title ?? t('No listings')}</span>
                   </span>
                 </button>
               </li>
@@ -391,7 +391,7 @@ export default function LivePlayerPage() {
           aria-valuemin={0}
           aria-valuemax={Math.round(span)}
           aria-valuenow={Math.round(window_.time - window_.start)}
-          aria-valuetext={atLive ? 'Live' : `${formatClock(behind)} behind live`}
+          aria-valuetext={atLive ? t('Live') : t('{time} behind live', { time: formatClock(behind) })}
           onPointerDown={(e) => {
             const rect = e.currentTarget.getBoundingClientRect()
             seekTo(window_.start + ((e.clientX - rect.left) / rect.width) * span)
@@ -403,7 +403,7 @@ export default function LivePlayerPage() {
           </div>
         </div>
         <div className="player-buttons">
-          <button className="icon-button" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
+          <button className="icon-button" onClick={toggle} aria-label={playing ? t('Pause') : t('Play')}>
             {playing ? <icon.pause /> : <icon.play />}
           </button>
           <button className="icon-button" onClick={() => seekTo(window_.time - 10)} aria-label={t('Back 10 seconds')}>
@@ -413,7 +413,7 @@ export default function LivePlayerPage() {
             <Forward10 />
           </button>
           <div className="player-volume">
-            <button className="icon-button" onClick={() => video.current && (video.current.muted = !video.current.muted)} aria-label={muted ? 'Unmute' : 'Mute'}>
+            <button className="icon-button" onClick={() => video.current && (video.current.muted = !video.current.muted)} aria-label={muted ? t('Unmute') : t('Mute')}>
               {muted || volume === 0 ? <Muted /> : <Volume />}
             </button>
             <input
@@ -430,9 +430,9 @@ export default function LivePlayerPage() {
               }}
             />
           </div>
-          <button className={atLive ? 'live-badge on' : 'live-badge'} onClick={goLive} disabled={atLive} aria-label={atLive ? 'Live' : 'Jump to live'}>
+          <button className={atLive ? 'live-badge on' : 'live-badge'} onClick={goLive} disabled={atLive} aria-label={atLive ? t('Live') : t('Jump to live')}>
             <span className="live-dot" aria-hidden="true" />
-            {atLive ? 'Live' : `−${formatClock(behind)}`}
+            {atLive ? t('Live') : `−${formatClock(behind)}`}
           </button>
           <span className="player-spacer" />
           <button className="icon-button" onClick={() => step(-1)} aria-label={t('Previous channel')}>
@@ -444,7 +444,7 @@ export default function LivePlayerPage() {
           <button className="player-quality" onClick={() => setList((open) => !open)} aria-expanded={list}>
             {t('Channels')}
           </button>
-          <button className="icon-button" onClick={toggleFullscreen} aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}>
+          <button className="icon-button" onClick={toggleFullscreen} aria-label={fullscreen ? t('Exit full screen') : t('Full screen')}>
             {fullscreen ? <ExitFullscreen /> : <Fullscreen />}
           </button>
         </div>

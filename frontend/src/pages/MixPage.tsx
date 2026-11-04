@@ -24,7 +24,7 @@ export function MixPage() {
   // One track's menu at a time: which, and where it opened.
   const [trackMenu, setTrackMenu] = useState<{ index: number; at: MenuPoint } | null>(null)
 
-  if (error) return <PageError error={error} message={error.message.includes('404') ? 'That mix was yesterday’s. Today’s are on Home.' : undefined} onRetry={reload} />
+  if (error) return <PageError error={error} message={error.message.includes('404') ? t('That mix was yesterday’s. Today’s are on Home.') : undefined} onRetry={reload} />
   if (!data) return <PageLoading />
 
   const { summary, tracks } = data
@@ -51,7 +51,7 @@ export function MixPage() {
           <h1>{summary.name}</h1>
           <p className="facts">
             <span>{summary.description}</span>
-            <span>{tracks.length === 1 ? '1 track' : `${tracks.length} tracks`}</span>
+            <span>{t('{count, plural, one {# track} other {# tracks}}', { count: tracks.length })}</span>
             {total > 0 && <span>{formatDuration(total)}</span>}
           </p>
           <div className="detail-actions">
@@ -61,13 +61,13 @@ export function MixPage() {
             <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0, { openNowPlaying: true })} disabled={tracks.length < 2}>
               {t('Shuffle')}
             </button>
-            <MoreButton label={`More for ${summary.name}`} actions={queueActions(player, () => tracks)} disabled={tracks.length === 0} />
+            <MoreButton label={t('More for {title}', { title: summary.name })} actions={queueActions(player, () => tracks)} disabled={tracks.length === 0} />
           </div>
           <p className="muted mix-note">{t('New every day, from what you play.')}</p>
         </div>
       </header>
 
-      <ol className="tracklist playlist-tracks" aria-label={`Tracks in ${summary.name}`}>
+      <ol className="tracklist playlist-tracks" aria-label={t('Tracks in {name}', { name: summary.name })}>
         {tracks.map((track, i) => {
           const isCurrent = player.current?.id === track.id
           return (
@@ -86,7 +86,7 @@ export function MixPage() {
               <span className="queue-actions">
                 <button
                   className="icon-button"
-                  aria-label={`More for ${track.title}`}
+                  aria-label={t('More for {title}', { title: track.title })}
                   aria-haspopup="menu"
                   aria-expanded={trackMenu?.index === i}
                   onClick={(e) => {
@@ -104,9 +104,9 @@ export function MixPage() {
 
       {trackMenu && tracks[trackMenu.index] && (
         <Menu
-          label={`More for ${tracks[trackMenu.index].title}`}
+          label={t('More for {title}', { title: tracks[trackMenu.index].title })}
           at={trackMenu.at}
-          actions={[{ label: 'Play', run: () => player.play(tracks, trackMenu.index) }, ...queueActions(player, () => [tracks[trackMenu.index]], tracks[trackMenu.index])]}
+          actions={[{ label: t('Play'), run: () => player.play(tracks, trackMenu.index) }, ...queueActions(player, () => [tracks[trackMenu.index]], tracks[trackMenu.index])]}
           onClose={() => setTrackMenu(null)}
         />
       )}

@@ -1,6 +1,6 @@
 import type { ItemSummary, PodcastChapter, PodcastEpisode } from '../api/types'
 import { formatDuration } from './format'
-import { locale } from '../i18n'
+import { locale, t } from '../i18n'
 
 /** An episode as the player's queue holds it: the same shape as a track, its show standing in for the album. */
 export function episodeAsTrack(episode: PodcastEpisode): ItemSummary {
@@ -40,18 +40,18 @@ export function episodeDate(iso: string | null, now = new Date()): string {
   const date = new Date(iso)
   const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
   const days = Math.round((startOf(now) - startOf(date)) / 86_400_000)
-  if (days === 0) return 'Today'
-  if (days === 1) return 'Yesterday'
+  if (days === 0) return t('Today')
+  if (days === 1) return t('Yesterday')
   if (days > 1 && days < 7) return date.toLocaleDateString(locale(), { weekday: 'long' })
   return date.toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric' })
 }
 
 /** "52m", "1h 4m", or how much is left once it's started ("23m left"); "Played" once it's done. */
 export function episodeLength(episode: Pick<PodcastEpisode, 'durationSeconds' | 'userData'>): string {
-  if (episode.userData.watched) return 'Played'
+  if (episode.userData.watched) return t('Played')
   const total = episode.durationSeconds ?? 0
   const at = episode.userData.positionSeconds
-  if (total > 0 && at > 0) return `${formatDuration(Math.max(60, total - at))} left`
+  if (total > 0 && at > 0) return t('{duration} left', { duration: formatDuration(Math.max(60, total - at)) })
   return formatDuration(total) ?? ''
 }
 

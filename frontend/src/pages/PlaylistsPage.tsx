@@ -134,7 +134,7 @@ export function PlaylistPage() {
     setVersion((v) => v + 1)
   }
 
-  if (error) return <PageError error={error} message={error.message.includes('404') ? 'That playlist isn’t here any more.' : undefined} onRetry={reload} />
+  if (error) return <PageError error={error} message={error.message.includes('404') ? t('That playlist isn’t here any more.') : undefined} onRetry={reload} />
   if (!data) return <PageLoading />
 
   const summary = data.summary
@@ -214,11 +214,11 @@ export function PlaylistPage() {
     const entry = entries[index]
     const track = entry.track
     return [
-      { label: 'Play', run: () => player.play(tracks, index) },
+      { label: t('Play'), run: () => player.play(tracks, index) },
       ...queueActions(player, () => [track], track),
       'divider' as const,
-      ...(track.parentId ? [{ label: 'Use its cover for the playlist', run: () => act(() => setPlaylistCover(summary.id, track.parentId)) }] : []),
-      { label: 'Remove from playlist', run: () => remove(entry), danger: true },
+      ...(track.parentId ? [{ label: t('Use its cover for the playlist'), run: () => act(() => setPlaylistCover(summary.id, track.parentId)) }] : []),
+      { label: t('Remove from playlist'), run: () => remove(entry), danger: true },
     ]
   }
 
@@ -252,7 +252,7 @@ export function PlaylistPage() {
             <h1>{summary.name}</h1>
           )}
           <p className="facts">
-            <span>{tracks.length === 1 ? '1 track' : `${tracks.length} tracks`}</span>
+            <span>{t('{count, plural, one {# track} other {# tracks}}', { count: tracks.length })}</span>
             {total > 0 && <span>{formatDuration(total)}</span>}
           </p>
           <div className="detail-actions">
@@ -273,8 +273,8 @@ export function PlaylistPage() {
             />
             <IconButton label={t('Delete')} icon={<icon.delete />} className="button quiet icon danger-icon" onClick={() => setDeleting(true)} />
             <MoreButton
-              label={`More for ${summary.name}`}
-              actions={[...queueActions(player, () => tracks), ...(summary.cover ? [{ label: 'Back to the mosaic cover', run: () => act(() => setPlaylistCover(summary.id, null)) }] : [])]}
+              label={t('More for {title}', { title: summary.name })}
+              actions={[...queueActions(player, () => tracks), ...(summary.cover ? [{ label: t('Back to the mosaic cover'), run: () => act(() => setPlaylistCover(summary.id, null)) }] : [])]}
               disabled={tracks.length === 0}
             />
           </div>
@@ -289,7 +289,7 @@ export function PlaylistPage() {
       {entries.length === 0 ? (
         <p className="muted collection-empty">{t('Nothing in it yet. Add tracks, albums or artists from their ⋯ menu: Add to playlist.')}</p>
       ) : (
-        <ol className="tracklist playlist-tracks" aria-label={`Tracks in ${summary.name}`}>
+        <ol className="tracklist playlist-tracks" aria-label={t('Tracks in {name}', { name: summary.name })}>
           {entries.map(({ entryId, track }, i) => {
             const isCurrent = player.current?.id === track.id
             return (
@@ -320,18 +320,18 @@ export function PlaylistPage() {
                   <span className="track-time">{track.durationSeconds ? formatClock(track.durationSeconds) : ''}</span>
                 </button>
                 <span className="queue-actions">
-                  <button className="icon-button" aria-label={`Move ${track.title} up`} disabled={i === 0} onClick={() => move(i, i - 1)}>
+                  <button className="icon-button" aria-label={t('Move {title} up', { title: track.title })} disabled={i === 0} onClick={() => move(i, i - 1)}>
                     <ChevronUp />
                   </button>
-                  <button className="icon-button" aria-label={`Move ${track.title} down`} disabled={i === entries.length - 1} onClick={() => move(i, i + 1)}>
+                  <button className="icon-button" aria-label={t('Move {title} down', { title: track.title })} disabled={i === entries.length - 1} onClick={() => move(i, i + 1)}>
                     <ChevronDown />
                   </button>
-                  <button className="icon-button" aria-label={`Remove ${track.title} from the playlist`} onClick={() => remove(entries[i])}>
+                  <button className="icon-button" aria-label={t('Remove {title} from the playlist', { title: track.title })} onClick={() => remove(entries[i])}>
                     <Close />
                   </button>
                   <button
                     className="icon-button"
-                    aria-label={`More for ${track.title}`}
+                    aria-label={t('More for {title}', { title: track.title })}
                     aria-haspopup="menu"
                     aria-expanded={trackMenu?.index === i}
                     onClick={(e) => {
@@ -349,12 +349,12 @@ export function PlaylistPage() {
       )}
 
       {trackMenu && entries[trackMenu.index] && (
-        <Menu label={`More for ${entries[trackMenu.index].track.title}`} at={trackMenu.at} actions={menuFor(trackMenu.index)} onClose={() => setTrackMenu(null)} />
+        <Menu label={t('More for {title}', { title: entries[trackMenu.index].track.title })} at={trackMenu.at} actions={menuFor(trackMenu.index)} onClose={() => setTrackMenu(null)} />
       )}
       {deleting && (
         <ConfirmDialog
-          title={`Delete ${summary.name}?`}
-          confirmLabel="Delete playlist"
+          title={t('Delete {name}?', { name: summary.name })}
+          confirmLabel={t('Delete playlist')}
           danger
           onClose={() => setDeleting(false)}
           onConfirm={async () => {

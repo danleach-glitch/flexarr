@@ -109,7 +109,7 @@ export function NowPlaying() {
               </button>
             )}
             {skips ? (
-              <button className="icon-button now-playing-skip" onClick={() => player.skipBy(-back)} aria-label={`Back ${back} seconds`}>
+              <button className="icon-button now-playing-skip" onClick={() => player.skipBy(-back)} aria-label={t('Back {seconds} seconds', { seconds: back })}>
                 <SkipBack seconds={back} />
               </button>
             ) : (
@@ -117,11 +117,11 @@ export function NowPlaying() {
                 <Next style={{ transform: 'scaleX(-1)' }} />
               </button>
             )}
-            <button className="icon-button now-playing-toggle" onClick={player.toggle} aria-label={player.playing ? 'Pause' : 'Play'}>
+            <button className="icon-button now-playing-toggle" onClick={player.toggle} aria-label={player.playing ? t('Pause') : t('Play')}>
               {player.playing ? <icon.pause /> : <icon.play />}
             </button>
             {skips ? (
-              <button className="icon-button now-playing-skip" onClick={() => player.skipBy(forward)} aria-label={`Forward ${forward} seconds`}>
+              <button className="icon-button now-playing-skip" onClick={() => player.skipBy(forward)} aria-label={t('Forward {seconds} seconds', { seconds: forward })}>
                 <SkipForward seconds={forward} />
               </button>
             ) : (
@@ -156,7 +156,7 @@ export function NowPlaying() {
             <button
               ref={queueButton}
               className="icon-button now-playing-queue"
-              aria-label={upcoming === 0 ? 'Queue' : `Queue, ${upcoming} ${upcoming === 1 ? 'track' : 'tracks'} to come`}
+              aria-label={upcoming === 0 ? t('Queue') : t('{count, plural, one {Queue, # track to come} other {Queue, # tracks to come}}', { count: upcoming })}
               aria-expanded={queueOpen}
               aria-controls="queue-panel"
               onClick={() => (queueOpen ? closeQueue() : setQueueOpen(true))}

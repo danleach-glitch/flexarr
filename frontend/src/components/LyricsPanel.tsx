@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { getLyrics, type Lyrics } from '../api/client'
 import { useApi } from '../hooks/useApi'
+import { t } from '../i18n'
 
 export interface LyricsPanelProps {
   trackId: string
@@ -48,8 +49,8 @@ export function LyricsPanel({ trackId, currentTime, title, onSeek }: LyricsPanel
   if (!data) return null
 
   return (
-    <section className="lyrics" aria-label={title ? `Lyrics for ${title}` : 'Lyrics'}>
-      {title && <h2 className="lyrics-heading">Lyrics for {title}</h2>}
+    <section className="lyrics" aria-label={title ? t('Lyrics for {title}', { title }) : t('Lyrics')}>
+      {title && <h2 className="lyrics-heading">{t('Lyrics for {title}', { title })}</h2>}
       <ol ref={list} className={data.synced ? 'lyrics-lines synced' : 'lyrics-lines'}>
         {data.lines.map((line, i) => {
           const isActive = i === active

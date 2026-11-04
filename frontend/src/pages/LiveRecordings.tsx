@@ -14,7 +14,7 @@ import { locale, t } from '../i18n'
 const day = { format: (d: Date) => d.toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short' }) }
 
 function episode(r: Pick<Recording, 'season' | 'episode' | 'subtitle'>) {
-  const number = r.season != null && r.episode != null ? `S${r.season} E${r.episode}` : null
+  const number = r.season != null && r.episode != null ? t('S{season} E{episode}', { season: r.season, episode: r.episode }) : null
   return [number, r.subtitle].filter(Boolean).join('\u2003')
 }
 
@@ -36,14 +36,15 @@ export default function LiveRecordings() {
   }
 
   const data = recordings.data
-  if (recordings.error && !data) return <p className="error">Couldn’t load the recordings: {recordings.error.message}</p>
+  if (recordings.error && !data) return <p className="error">{t('Couldn’t load the recordings: {error}', { error: recordings.error.message })}</p>
   if (!data) return <PageLoading />
 
   return (
     <div className="recordings">
       <p className="muted recordings-summary">
-        Recordings go to <code>{data.folder}</code>
-        {data.freeBytes != null && <>{'\u2003'}{formatSize(data.freeBytes)} free</>}{'\u2003'}{data.streams === 1 ? 'one channel at a time' : `${data.streams} channels at a time`}
+        {t.rich('Recordings go to {folder}', { folder: <code>{data.folder}</code> })}
+        {data.freeBytes != null && <>{'\u2003'}{t('{size} free', { size: formatSize(data.freeBytes) })}</>}{'\u2003'}
+        {t('{count, plural, one {one channel at a time} other {# channels at a time}}', { count: data.streams })}
       </p>
       {error && (
         <p className="error" role="alert">
@@ -69,7 +70,7 @@ export default function LiveRecordings() {
                   {r.clashes && <span className="error">{t('Won’t record: every stream is wanted by recordings scheduled before it.')}</span>}
                 </div>
                 <IconButton
-                  label={r.state === 'recording' ? 'Stop recording' : 'Don’t record'}
+                  label={r.state === 'recording' ? t('Stop recording') : t('Don’t record')}
                   icon={r.state === 'recording' ? <Stop /> : <Close />}
                   onClick={() => act(() => removeRecording(r.id))}
                 />
@@ -103,7 +104,7 @@ export default function LiveRecordings() {
                   <span className="muted">
                     {[episode(r), r.channelName, day.format(new Date(r.start)), r.size != null && formatSize(r.size)].filter(Boolean).join('\u2003')}
                   </span>
-                  {r.reason && <span className={r.state === 'completed' ? 'muted' : 'error'}>{r.state === 'skipped' ? 'Not recorded: ' : r.state === 'failed' ? 'Failed: ' : ''}{r.reason}</span>}
+                  {r.reason && <span className={r.state === 'completed' ? 'muted' : 'error'}>{r.state === 'skipped' ? t('Not recorded: {reason}', { reason: r.reason }) : r.state === 'failed' ? t('Failed: {reason}', { reason: r.reason }) : r.reason}</span>}
                 </div>
                 <div className="recording-actions">
                   {r.itemId && (
@@ -112,10 +113,10 @@ export default function LiveRecordings() {
                     </Link>
                   )}
                   <IconButton
-                    label={r.state === 'completed' ? 'Delete' : 'Clear'}
+                    label={r.state === 'completed' ? t('Delete') : t('Clear')}
                     icon={r.state === 'completed' ? <icon.delete /> : <Close />}
                     className={r.state === 'completed' ? 'button quiet small icon danger-icon' : undefined}
-                    onClick={() => (r.state !== 'completed' || window.confirm(`Delete the recording of ${r.title}?`)) && act(() => removeRecording(r.id))}
+                    onClick={() => (r.state !== 'completed' || window.confirm(t('Delete the recording of {title}?', { title: r.title }))) && act(() => removeRecording(r.id))}
                   />
                 </div>
               </li>
@@ -133,19 +134,23 @@ function SeriesRow({ series, act }: { series: RecordingSeries; act: (action: () 
       <div>
         <strong>{series.title}</strong>
         <span className="muted">
-          {series.channelName ? `On ${series.channelName}` : 'On any channel'}{'\u2003'}{series.upcoming} coming up{'\u2003'}{series.recorded} recorded
+          {series.channelName ? t('On {channel}', { channel: series.channelName }) : t('On any channel')}
+          {'\u2003'}
+          {t('{count} coming up', { count: series.upcoming })}
+          {'\u2003'}
+          {t('{count} recorded', { count: series.recorded })}
         </span>
         <div className="record-options">
           <label>
             <input type="checkbox" checked={series.newOnly} onChange={(e) => act(() => updateSeries(series.id, { newOnly: e.target.checked }))} /> {t('New episodes only')}
           </label>
           <label>
-            Keep{' '}
+            {t('Keep')}{' '}
             <select value={series.keepLatest} onChange={(e) => act(() => updateSeries(series.id, { keepLatest: Number(e.target.value) }))}>
               <option value={0}>{t('all of them')}</option>
               {[1, 3, 5, 10, 20].map((n) => (
                 <option key={n} value={n}>
-                  the latest {n}
+                  {t('the latest {count}', { count: n })}
                 </option>
               ))}
             </select>

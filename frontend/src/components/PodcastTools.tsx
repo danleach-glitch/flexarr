@@ -25,7 +25,7 @@ export function PodcastTools({ player }: { player: AudioPlayer }) {
 
   return (
     <>
-      <button className={player.speed === 1 ? 'icon-button now-playing-speed' : 'icon-button now-playing-speed active'} aria-label={`Speed, ${speedLabel(player.speed)}`} aria-haspopup="menu" aria-expanded={open?.menu === 'speed'} onClick={toggle('speed')}>
+      <button className={player.speed === 1 ? 'icon-button now-playing-speed' : 'icon-button now-playing-speed active'} aria-label={t('Speed, {speed}', { speed: speedLabel(player.speed) })} aria-haspopup="menu" aria-expanded={open?.menu === 'speed'} onClick={toggle('speed')}>
         {speedLabel(player.speed)}
       </button>
       <button
@@ -53,7 +53,7 @@ export function PodcastTools({ player }: { player: AudioPlayer }) {
           at={open.at}
           actions={[
             ...sleepChoices('episode').map((choice) => ({ label: choice.label, run: () => player.setSleep(choice.start()) })),
-            ...(player.sleep ? ['divider' as const, { label: 'Turn off', run: () => player.setSleep(null) }] : []),
+            ...(player.sleep ? ['divider' as const, { label: t('Turn off'), run: () => player.setSleep(null) }] : []),
           ]}
           onClose={() => setOpen(null)}
         />

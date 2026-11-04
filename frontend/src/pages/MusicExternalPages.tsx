@@ -6,13 +6,13 @@ import { PageError, PageLoading } from '../components/PageStatus'
 import { Row } from '../components/Row'
 import { useApi } from '../hooks/useApi'
 import { formatClock, formatDuration } from '../lib/format'
-import { t } from '../i18n'
+import { t, tk } from '../i18n'
 
 /** Deezer's kinds of release, shelved as the library's artist page shelves them. */
 const shelves: [string, (t: string | null | undefined) => boolean][] = [
-  ['Albums', (t) => !t || t === 'album'],
-  ['EPs and singles', (t) => t === 'ep' || t === 'single'],
-  ['Compilations', (t) => t === 'compile'],
+  [tk('Albums'), (type) => !type || type === 'album'],
+  [tk('EPs and singles'), (type) => type === 'ep' || type === 'single'],
+  [tk('Compilations'), (type) => type === 'compile'],
 ]
 
 /** Releases in a grid per kind, each with Request album. */
@@ -22,7 +22,7 @@ export function MusicShelves({ albums, showArtist = false, unanswered = false }:
     return (
       found.length > 0 && (
         <section key={title} className="music-section">
-          <h2 className="music-section-title">{title}</h2>
+          <h2 className="music-section-title">{t(title)}</h2>
           <div className="poster-grid music-albums">
             {found.map((a, i) => (
               <MusicExternalCard key={`${i}-${a.deezerId}-${a.musicBrainzId ?? a.title}`} item={a} showArtist={showArtist} unanswered={unanswered} />
@@ -87,7 +87,7 @@ export function MusicExternalAlbumPage() {
   if (!album.data) return <PageLoading label={t('Loading album')} />
   const a = album.data
   const discs = new Set(a.tracks.map((t) => t.disc)).size
-  const kind = a.recordType === 'ep' ? 'EP' : a.recordType === 'single' ? 'Single' : a.recordType === 'compile' ? 'Compilation' : null
+  const kind = a.recordType === 'ep' ? t('EP') : a.recordType === 'single' ? t('Single') : a.recordType === 'compile' ? t('Compilation') : null
 
   return (
     <article className="music-page">
@@ -113,7 +113,7 @@ export function MusicExternalAlbumPage() {
             )}
             {kind && <span>{kind}</span>}
             {a.year && <span>{a.year}</span>}
-            <span>{a.tracks.length === 1 ? '1 track' : `${a.tracks.length} tracks`}</span>
+            <span>{t('{count, plural, one {# track} other {# tracks}}', { count: a.tracks.length })}</span>
             {a.durationSeconds > 0 && <span>{formatDuration(a.durationSeconds)}</span>}
           </p>
           <div className="detail-actions">
@@ -128,14 +128,14 @@ export function MusicExternalAlbumPage() {
         </div>
       </header>
       <ol className="tracklist">
-        {a.tracks.map((t, i) => (
-          <li key={`${t.disc}-${t.number}-${i}`}>
-            {discs > 1 && (i === 0 || a.tracks[i - 1].disc !== t.disc) && <h2 className="tracklist-disc">Disc {t.disc}</h2>}
+        {a.tracks.map((track, i) => (
+          <li key={`${track.disc}-${track.number}-${i}`}>
+            {discs > 1 && (i === 0 || a.tracks[i - 1].disc !== track.disc) && <h2 className="tracklist-disc">{t('Disc {number}', { number: track.disc })}</h2>}
             <div className="track-row">
               <span className="track">
-                <span className="track-number">{t.number}</span>
-                <span className="track-title">{t.title}</span>
-                <span className="track-time">{t.durationSeconds ? formatClock(t.durationSeconds) : ''}</span>
+                <span className="track-number">{track.number}</span>
+                <span className="track-title">{track.title}</span>
+                <span className="track-time">{track.durationSeconds ? formatClock(track.durationSeconds) : ''}</span>
               </span>
             </div>
           </li>

@@ -18,7 +18,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, More, Next, Notes, SkipBack, Sk
 import { icon } from './icons.generated'
 import { Menu, type MenuPoint } from './ItemMenu'
 import { PodcastTools } from './PodcastTools'
-import { t } from '../i18n'
+import { locale, t } from '../i18n'
 
 /**
  * Now Playing over the whole window: the cover large, the track's name, where it's got to and the controls, with light
@@ -212,7 +212,7 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
 
           <div className="np-view-controls">
             {skips ? (
-              <button className="icon-button np-view-skip" onClick={() => player.skipBy(-back)} aria-label={`Back ${back} seconds`}>
+              <button className="icon-button np-view-skip" onClick={() => player.skipBy(-back)} aria-label={t('Back {seconds} seconds', { seconds: back })}>
                 <SkipBack seconds={back} />
               </button>
             ) : (
@@ -220,11 +220,11 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
                 <Next style={{ transform: 'scaleX(-1)' }} />
               </button>
             )}
-            <button className="icon-button np-view-toggle" onClick={player.toggle} aria-label={player.playing ? 'Pause' : 'Play'}>
+            <button className="icon-button np-view-toggle" onClick={player.toggle} aria-label={player.playing ? t('Pause') : t('Play')}>
               {player.playing ? <icon.pause /> : <icon.play />}
             </button>
             {skips ? (
-              <button className="icon-button np-view-skip" onClick={() => player.skipBy(forward)} aria-label={`Forward ${forward} seconds`}>
+              <button className="icon-button np-view-skip" onClick={() => player.skipBy(forward)} aria-label={t('Forward {seconds} seconds', { seconds: forward })}>
                 <SkipForward seconds={forward} />
               </button>
             ) : (
@@ -242,7 +242,7 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
                 onClick={() => setShowingNotes(!showingNotes)}
                 aria-pressed={showingNotes}
                 aria-label={t('Chapters and bookmarks')}
-                title={showingNotes ? 'Show the cover' : 'Chapters and bookmarks'}
+                title={showingNotes ? t('Show the cover') : t('Chapters and bookmarks')}
               >
                 <Notes />
               </button>
@@ -257,9 +257,9 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
                       onClick={() => setScope(s)}
                       aria-pressed={s === scope}
                       disabled={s === 'chapter' && chapter === null}
-                      title={s === 'chapter' && chapter === null ? 'No chapter here' : undefined}
+                      title={s === 'chapter' && chapter === null ? t('No chapter here') : undefined}
                     >
-                      {s === 'chapter' ? 'Chapter' : 'Book'}
+                      {s === 'chapter' ? t('Chapter') : t('Book')}
                     </button>
                   ))}
                 </span>
@@ -275,7 +275,7 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
                 onClick={() => setShowingNotes(!showingNotes)}
                 aria-pressed={showingNotes}
                 aria-label={t('Notes')}
-                title={showingNotes ? 'Show the cover' : 'Chapters and notes'}
+                title={showingNotes ? t('Show the cover') : t('Chapters and notes')}
               >
                 <Notes />
               </button>
@@ -287,16 +287,16 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
                   label={track.title}
                   at={menuAt}
                   actions={[
-                    ...(track.parentId ? [{ label: 'Go to podcast', run: () => navigate(`/podcasts/${track.parentId}`) }] : []),
+                    ...(track.parentId ? [{ label: t('Go to podcast'), run: () => navigate(`/podcasts/${track.parentId}`) }] : []),
                     {
-                      label: 'Mark as played',
+                      label: t('Mark as played'),
                       run: async () => {
                         await setWatched(track.id, true)
                         // Played: on to what comes next, as if it had finished.
                         player.seek(Math.max(0, duration - 0.5))
                       },
                     },
-                    ...(details?.podcast?.link ? [{ label: 'Share podcast', run: () => sharePodcast(details.podcast!) }] : []),
+                    ...(details?.podcast?.link ? [{ label: t('Share podcast'), run: () => sharePodcast(details.podcast!) }] : []),
                   ]}
                   onClose={() => setMenuAt(null)}
                 />
@@ -323,7 +323,7 @@ function EndsAt({ remaining }: { remaining: number }) {
     const timer = window.setInterval(() => setNow(Date.now()), 5000)
     return () => window.clearInterval(timer)
   }, [])
-  return <span>Ends {new Date(now + remaining * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+  return <span>{t('Ends {time}', { time: new Date(now + remaining * 1000).toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' }) })}</span>
 }
 
 /** The episode playing's whole notes, its chapters and its show, once they've come. */
@@ -402,7 +402,7 @@ function EpisodeDetails({
         {episode ? (
           <>
             <p className="np-view-facts">
-              {[episodeDate(episode.publishedAt), formatDuration(episode.durationSeconds ?? 0), episode.explicit ? 'Explicit' : null].filter(Boolean).join('\u2003')}
+              {[episodeDate(episode.publishedAt), formatDuration(episode.durationSeconds ?? 0), episode.explicit ? t('Explicit') : null].filter(Boolean).join('\u2003')}
             </p>
             {episode.overview ? (
               <EpisodeNotes text={episode.overview} duration={episode.durationSeconds} onSeek={onSeek} />
