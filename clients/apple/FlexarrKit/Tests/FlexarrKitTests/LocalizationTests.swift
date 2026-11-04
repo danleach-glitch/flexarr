@@ -42,10 +42,11 @@ import Testing
     }
 }
 
+/// These switch the language every test sees for a moment, so they use en-XB: English numbers and plurals, its own strings.
 @Suite(.serialized) struct LocalizationTests {
     @Test func fallsBackToEnglishStringByString() {
         let l = Localization.shared
-        l.show(LanguagePack(code: "de", name: "Deutsch", direction: "ltr", version: 1, messages: [
+        l.show(LanguagePack(code: "en-XB", name: "Test", direction: "ltr", version: 1, messages: [
             "Play": "Abspielen", "music::Play": "Wiedergeben", "Broken {x}": "Kaputt {",
             "{n, plural, one {# season} other {# seasons}}": "{n, plural, one {# Staffel} other {# Staffeln}}",
         ]))
@@ -78,7 +79,7 @@ import Testing
 
     @Test func settlesOnEnglishWhenTheServerHasNone() async {
         let (client, _) = stubbedClient(.init(status: 404, body: Data()))
-        Localization.shared.show(LanguagePack(code: "de", name: "Deutsch", direction: "ltr", version: 1, messages: [:]))
+        Localization.shared.show(LanguagePack(code: "en-XB", name: "Test", direction: "ltr", version: 1, messages: [:]))
         await Localization.shared.settle(profileChoice: nil, client: client)
         #expect(Localization.shared.code == "en")
     }
@@ -92,10 +93,10 @@ import Testing
 
     @Test func sendsTheLanguageShownAsAcceptLanguage() async throws {
         let (client, host) = stubbedClient(.init(status: 404, body: Data()))
-        Localization.shared.show(LanguagePack(code: "de", name: "Deutsch", direction: "ltr", version: 1, messages: [:]))
+        Localization.shared.show(LanguagePack(code: "en-XB", name: "Test", direction: "ltr", version: 1, messages: [:]))
         defer { Localization.shared.show(nil) }
         _ = try? await client.languages()
-        #expect(StubProtocol.recorded(host: host).last?.value(forHTTPHeaderField: "Accept-Language") == "de")
+        #expect(StubProtocol.recorded(host: host).last?.value(forHTTPHeaderField: "Accept-Language") == "en-XB")
     }
 }
 
