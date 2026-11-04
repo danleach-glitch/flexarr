@@ -31,6 +31,8 @@ final class MacNavigation {
         return router
     }
 
+    /// Settings › Server, asked for by the sidebar's Flexarr mark.
+    var opensServerSettings = false
     /// Pages opened by a link rather than on a place's path (Settings' own), newest last: Back closes the newest.
     var backActions: [(page: UUID, close: DismissAction)] = []
     /// ⌘F on a page with its own search field: that field, by its place's stack and its depth in it, takes the cursor.
@@ -59,6 +61,7 @@ final class MacNavigation {
     func reset() {
         routers = [:]
         backActions = []
+        opensServerSettings = false
         selection = .home
     }
 }
@@ -171,16 +174,28 @@ struct MacMainView: View {
         }
     }
 
-    /// The Flexarr mark, the name and this app's version, at the foot of the sidebar.
+    /// The Flexarr mark, the name and this app's version, at the foot of the sidebar: it opens Settings › Server, where
+    /// the server's version and connection are.
     private var brandRow: some View {
-        HStack(spacing: 8) {
-            BrandMark(size: 22)
-            Text(verbatim: "Flexarr").font(.marquee(18))
-            Spacer(minLength: 0)
-            Text(verbatim: Bundle.main.shortVersion).font(.caption).monospacedDigit().foregroundStyle(Color.usher)
+        Button {
+            navigation.selection = .settings
+            navigation.opensServerSettings = true
+        } label: {
+            HStack(spacing: 8) {
+                BrandMark(size: 22)
+                Text(verbatim: "Flexarr").font(.marquee(18))
+                Spacer(minLength: 0)
+                Text(verbatim: Bundle.main.shortVersion).font(.caption).monospacedDigit().foregroundStyle(Color.usher)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, 16).padding(.vertical, 12)
+        .buttonStyle(.plain)
+        // The kids app has no Settings.
+        .disabled(model.isKids)
+        .help(t("Server"))
         .accessibilityElement(children: .combine)
+        .accessibilityHint(t("Server"))
     }
 
     @ViewBuilder

@@ -133,6 +133,10 @@ struct SettingsView: View {
             }
         }
         .settingsPage(t(Words.settings))
+        #if os(macOS)
+        // The sidebar's Flexarr mark opens the Server page (MacNavigation.opensServerSettings).
+        .navigationDestination(isPresented: Bindable(MacNavigation.shared).opensServerSettings) { ServerSettingsView() }
+        #endif
         .sheet(isPresented: $askingParentPin) {
             ZStack {
                 RoomBackground(ambient: nil)
