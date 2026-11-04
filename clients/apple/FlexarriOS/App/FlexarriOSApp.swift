@@ -35,6 +35,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
         MainActor.assumeIsolated { PushNotifications.registerCategories() }
+        // The notification buttons' titles follow the language shown.
+        NotificationCenter.default.addObserver(forName: Localization.changed, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { PushNotifications.registerCategories() }
+        }
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.podcastRefresh, using: .main) { [weak self] task in
             MainActor.assumeIsolated { self?.refreshPodcasts(Refresh(task: task)) }
         }
@@ -153,7 +157,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 try await downloads.download(itemId: itemId)
             }
         } catch {
-            await tell("Couldn't download this", ConnectionError(error).message)
+            await tell(t("Couldn't download this"), ConnectionError(error).message)
         }
     }
 
@@ -164,11 +168,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         guard let itemId, let client else { return }
         let open = ((try? await client.devices()) ?? []).filter { $0.online && !$0.isThisOne }
         guard let device = open.first(where: { $0.id == AppModel.siriDevice }) ?? open.max(by: { $0.lastUsedAt < $1.lastUsedAt }) else {
-            await tell("No Apple TV to play on", "Open Flexarr on your Apple TV, then try again.")
+            await tell(t("No Apple TV to play on"), t("Open Flexarr on your Apple TV, then try again."))
             return
         }
         let delivered = (try? await client.play(on: device.id, itemId: itemId))?.delivered ?? false
-        if !delivered { await tell("Couldn't play on \(device.name)", "Make sure Flexarr is open on it, then try again.") }
+        if !delivered { await tell(t("Couldn't play on {device}", ["device": device.name]), t("Make sure Flexarr is open on it, then try again.")) }
     }
 
     /// Don't allow on a "wants to connect" notification, without opening the app (which may have been woken just for
@@ -180,9 +184,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // The server's title is "Living room wants to connect".
         let suffix = " wants to connect"
         let name = title.hasSuffix(suffix) ? "“\(title.dropLast(suffix.count))”" : nil
-        let failed = "Couldn't turn away \(name ?? "the device")"
+        let failed = name.map { t("Couldn't turn away {device}", ["device": $0]) } ?? t("Couldn't turn away the device")
         guard let client else {
-            await tell(failed, "This \(ThisDevice.name) isn't signed in to Flexarr.")
+            await tell(failed, t("This {device} isn't signed in to Flexarr.", ["device": ThisDevice.name]))
             return
         }
         do {
@@ -191,7 +195,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         } catch FlexarrClientError.http(status: 404, _) {
             pairing.stoppedWaiting(code) // Gone already, which is what was wanted.
         } catch FlexarrClientError.http(status: 403, _) {
-            await tell(failed, "Switch to the main profile to turn it away.")
+            await tell(failed, t("Switch to the main profile to turn it away."))
         } catch {
             await tell(failed, ConnectionError(error).message)
         }
@@ -456,7 +460,7 @@ struct RootView: View {
         } message: {
             Text(model.liveTv.errorMessage ?? "")
         }
-        .alert(model.player.problem == .takenOver ? "Stopped for another screen" : "Couldn't play this", isPresented: Binding(
+        .alert(model.player.problem == .takenOver ? t("Stopped for another screen") : t("Couldn't play this"), isPresented: Binding(
             get: { model.player.errorMessage != nil },
             set: { if !$0 { model.player.errorMessage = nil } }
         )) {
@@ -472,7 +476,7 @@ struct RootView: View {
             }
         } message: {
             if model.player.problem == .takenOver {
-                Text("\(model.player.errorMessage ?? "")\n\nThe other screen will stop if you watch here.")
+                Text((model.player.errorMessage ?? "") + "\n\n" + t("The other screen will stop if you watch here."))
             } else {
                 Text(model.player.errorMessage ?? "")
             }

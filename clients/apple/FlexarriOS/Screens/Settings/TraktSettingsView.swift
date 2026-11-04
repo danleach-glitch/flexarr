@@ -106,31 +106,31 @@ struct TraktSettingsView: View {
                 Button {
                     run(.account) { _ = try await $0.connectTrakt() }
                 } label: {
-                    Label(status.state == .needsSignIn ? "Connect \(status.username ?? "Trakt") again" : "Connect Trakt", systemImage: "link")
+                    Label(status.state == .needsSignIn ? t("Connect {account} again", ["account": status.username ?? "Trakt"]) : t("Connect Trakt"), systemImage: "link")
                 }
                 .disabled(working != nil)
                 .listRowBackground(Color.seat)
                 problemRow(.account)
             } footer: {
                 Text(status.state == .needsSignIn ? TraktWords.signedOut
-                     : status.pending.flatMap { $0.error ?? $0.state.problem } ?? "Each profile connects its own account.")
+                     : status.pending.flatMap { $0.error ?? $0.state.problem } ?? t("Each profile connects its own account."))
             }
         }
     }
 
     @ViewBuilder private func connected(_ status: TraktStatus) -> some View {
         Section {
-            LabeledContent(t("Account"), value: status.username ?? "Connected").settingsRow()
+            LabeledContent(t("Account"), value: status.username ?? t("Connected")).settingsRow()
             Text(TraktWords.synced(status.lastSyncAt)).settingsRow()
             if status.queued > 0 {
-                LabeledContent(t("Waiting to send"), value: status.queued.formatted()).settingsRow()
+                LabeledContent(t("Waiting to send"), value: status.queued.formatted(.number.locale(Localization.locale))).settingsRow()
             }
             Button {
                 syncing = true
                 run(.account) { try await $0.syncTraktNow() }
             } label: {
                 HStack {
-                    Text(syncing ? "Syncing…" : "Sync now")
+                    Text(syncing ? t("Syncing…") : t("Sync now"))
                     if syncing { Spacer(); ProgressView().id(UUID()) }
                 }
             }
@@ -184,7 +184,7 @@ struct TraktSettingsView: View {
             Text(t("Your history"))
         } footer: {
             if status.importedAt == nil, !status.importing {
-                Text(preview == nil ? "See what changes first." : "Nothing is marked unwatched, on either side.")
+                Text(preview == nil ? t("See what changes first.") : t("Nothing is marked unwatched, on either side."))
             }
         }
     }

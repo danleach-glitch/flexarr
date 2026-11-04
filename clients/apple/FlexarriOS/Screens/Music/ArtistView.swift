@@ -39,7 +39,7 @@ struct ArtistView: View {
                         header(item)
                         if !page.albums.isEmpty {
                             VStack(alignment: .leading, spacing: 12) {
-                                SectionHeading(title: "Albums")
+                                SectionHeading(title: t(Words.albums))
                                 LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                                     ForEach(page.albums) { album in
                                         AlbumCard(item: album, offersArtist: false)
@@ -48,12 +48,12 @@ struct ArtistView: View {
                                 .padding(.horizontal, Layout.edge)
                             }
                         } else if page.detail != nil, !hasOutside {
-                            StatusView(state: .empty("No albums yet.")).frame(height: 160)
+                            StatusView(state: .empty(t("No albums yet."))).frame(height: 160)
                         }
                         if let extras {
                             if !extras.missing.isEmpty {
                                 VStack(alignment: .leading, spacing: 12) {
-                                    SectionHeading(title: "Not in your library")
+                                    SectionHeading(title: t(Words.notInYourLibrary))
                                     LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                                         ForEach(extras.missing.listed) { entry in
                                             ExternalMusicCard(item: entry.item, showsYear: true)
@@ -63,7 +63,7 @@ struct ArtistView: View {
                                 }
                             }
                             if !extras.similar.isEmpty {
-                                ExternalMusicRow(title: "Fans also like", items: extras.similar)
+                                ExternalMusicRow(title: t(Words.fansAlsoLike), items: extras.similar)
                             }
                         }
                     }

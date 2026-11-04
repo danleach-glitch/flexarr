@@ -102,11 +102,11 @@ final class PairingPrompts {
         setAside.remove(code)
         await catchUp()
         if refused {
-            notice = "Switch to the main profile to allow it."
+            notice = t("Switch to the main profile to allow it.")
             return
         }
         guard let index = waiting.firstIndex(where: { $0.code == code }) else {
-            notice = "That device has stopped waiting."
+            notice = t("That device has stopped waiting.")
             return
         }
         // Not while another is being allowed: it waits its turn.
@@ -128,7 +128,7 @@ final class PairingPrompts {
                 return
             } catch FlexarrClientError.http(status: let status, let message) where status == 403 || status == 429 {
                 // Not the right PIN, or too many wrong ones: the server says which (and for how long).
-                steps[request.code] = .needsPin(message ?? "That PIN isn't right.")
+                steps[request.code] = .needsPin(message ?? t("That PIN isn't right."))
                 return
             } catch {
                 steps[request.code] = .needsPin(ConnectionError(error).message)
@@ -141,7 +141,7 @@ final class PairingPrompts {
             try? await Task.sleep(for: .seconds(2))
             if step(for: request.code) == .allowed { remove(request.code) }
         } catch FlexarrClientError.http(status: 404, _) {
-            steps[request.code] = .failed("It's no longer waiting. It may have expired; the device shows a new code.")
+            steps[request.code] = .failed(t("It's no longer waiting. It may have expired; the device shows a new code."))
         } catch FlexarrClientError.http(status: 403, let message) where pin == nil {
             // The main profile, locked here (or no longer the main profile: then it's the server's message).
             let me = try? await client.me()
@@ -155,7 +155,7 @@ final class PairingPrompts {
         }
     }
 
-    static let pinMissing = "Choose an admin PIN in Flexarr in a browser first."
+    static var pinMissing: String { t("Choose an admin PIN in Flexarr in a browser first.") }
 
     /// Turns the device away (the one on screen, or the one with `code`).
     func decline(_ code: String? = nil) async {
@@ -233,20 +233,29 @@ final class PairingPrompts {
 extension PairingRequest {
     /// "Apple TV · asking from your home network (192.168.1.70)". Nil when the server says neither.
     var whereFrom: String? {
-        let address = requestedFrom.map { " (\($0))" } ?? ""
-        let asking: String? = switch zone?.lowercased() {
-        case "local": "asking from your home network\(address)"
-        case "tailscale": "asking over Tailscale\(address)"
-        default: requestedFrom.map { "asking from \($0)" }
+        switch (zone?.lowercased(), requestedFrom) {
+        case ("local", let address?):
+            return kind.map { t("{device}, asking from your home network ({address})", ["device": $0, "address": address]) }
+                ?? t("Asking from your home network ({address})", ["address": address])
+        case ("local", nil):
+            return kind.map { t("{device}, asking from your home network", ["device": $0]) } ?? t("Asking from your home network")
+        case ("tailscale", let address?):
+            return kind.map { t("{device}, asking over Tailscale ({address})", ["device": $0, "address": address]) }
+                ?? t("Asking over Tailscale ({address})", ["address": address])
+        case ("tailscale", nil):
+            return kind.map { t("{device}, asking over Tailscale", ["device": $0]) } ?? t("Asking over Tailscale")
+        case (_, let address?):
+            return kind.map { t("{device}, asking from {address}", ["device": $0, "address": address]) }
+                ?? t("Asking from {address}", ["address": address])
+        case (_, nil):
+            return kind
         }
-        guard let kind else { return asking.map { $0.prefix(1).uppercased() + $0.dropFirst() } }
-        return asking.map { "\(kind), \($0)" } ?? kind
     }
 
     /// "Apple TV, home network", for a row in a list.
     var kindAndNetwork: String? {
         let network: String? = switch zone?.lowercased() {
-        case "local": "home network"
+        case "local": t("home network")
         case "tailscale": "Tailscale"
         default: nil
         }
@@ -260,8 +269,8 @@ extension PairingRequest {
         case .appleTv: "Apple TV"
         case .iPhone: "iPhone"
         case .iPad: "iPad"
-        case .androidPhone: "Android phone"
-        case .androidTablet: "Android tablet"
+        case .androidPhone: t("Android phone")
+        case .androidTablet: t("Android tablet")
         case .androidTv: "Android TV"
         case .unknown, nil: nil
         }

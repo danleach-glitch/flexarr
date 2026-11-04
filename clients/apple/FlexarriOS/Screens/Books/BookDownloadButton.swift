@@ -19,7 +19,7 @@ struct BookDownloadButton: View {
         } label: {
             switch entry?.state {
             case .downloading(let fraction), .preparing(let fraction):
-                Label("\(Int(fraction * 100))%", systemImage: "arrow.down.circle.dotted")
+                Label(t("{percent}%", ["percent": Int(fraction * 100)]), systemImage: "arrow.down.circle.dotted")
                     .monospacedDigit()
             case .downloaded:
                 Label {

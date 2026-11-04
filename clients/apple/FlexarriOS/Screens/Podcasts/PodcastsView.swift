@@ -16,7 +16,7 @@ struct PodcastsView: View {
     var body: some View {
         Group {
             if let status = model.podcastStatus, !status.available {
-                StatusView(state: .empty("Podcasts aren’t available on this profile."))
+                StatusView(state: .empty(t("Podcasts aren’t available on this profile.")))
             } else if let error = home.error {
                 StatusView(state: .failed(error) { Task { await load() } })
             } else if home.loadedAt == nil {
@@ -47,7 +47,7 @@ struct PodcastsView: View {
         List {
             if home.isEmpty {
                 VStack(spacing: 16) {
-                    Text(model.hasAgeLimit ? "No podcasts yet." : "Follow a show and its new episodes come here, and to this \(ThisDevice.name) on Wi-Fi.")
+                    Text(model.hasAgeLimit ? t("No podcasts yet.") : t("Follow a show and its new episodes come here, and to this {device} on Wi-Fi.", ["device": ThisDevice.name]))
                         .font(.body.weight(.medium))
                         .foregroundStyle(Color.usher)
                         .multilineTextAlignment(.center)
@@ -65,7 +65,7 @@ struct PodcastsView: View {
             }
             if !home.podcasts.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    SectionHeading(title: "Your podcasts")
+                    SectionHeading(title: t("Your podcasts"))
                     ScrollView(.horizontal) {
                         LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                             // Artwork alone, the most recently updated first (as the server lists them).
@@ -82,12 +82,12 @@ struct PodcastsView: View {
                 upNextSection
             }
             if !home.listening.isEmpty {
-                episodes("Continue listening", home.listening)
+                episodes(t("Continue listening"), home.listening)
             }
             let listening = Set(home.listening.map(\.id))
             let unplayed = home.newEpisodes.filter { !$0.isPlayed && !listening.contains($0.id) }
             if !unplayed.isEmpty {
-                episodes("New episodes", Array(unplayed.prefix(15)), compact: true)
+                episodes(t("New episodes"), Array(unplayed.prefix(15)), compact: true)
             }
             Color.clear.frame(height: 24).bareListRow()
         }
@@ -106,7 +106,7 @@ struct PodcastsView: View {
                 .foregroundStyle(Color.screen)
             Spacer()
             if model.upNext.count > 1 {
-                Button(editingUpNext ? "Done" : "Edit") { withAnimation { editingUpNext.toggle() } }
+                Button(editingUpNext ? t(Words.done) : t("Edit")) { withAnimation { editingUpNext.toggle() } }
                     .buttonStyle(.borderless)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.usher)
@@ -179,7 +179,7 @@ struct PodcastBrowseView: View {
                     .padding(.horizontal, Layout.edge)
                 } else if let results = browse.results {
                     if results.isEmpty {
-                        StatusView(state: .empty("No shows found for “\(text)”."))
+                        StatusView(state: .empty(t("No shows found for “{search}”.", ["search": text])))
                             .frame(height: 240)
                     } else {
                         grid(results)
@@ -198,7 +198,7 @@ struct PodcastBrowseView: View {
         }
         .background(RoomBackground(ambient: nil))
         .navigationTitle(t(Words.browse))
-        .searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: "Shows, or a feed’s address")
+        .searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: t("Shows, or a feed’s address"))
         .textInputAutocapitalization(.never)
         .task { if browse.top.isEmpty, let client = model.client { await browse.loadTop(client: client) } }
         .task(id: text) { if let client = model.client { await browse.search(text, client: client) } }
@@ -212,7 +212,7 @@ struct PodcastBrowseView: View {
     private var genreChips: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
-                chip("Top shows", nil)
+                chip(t("Top shows"), nil)
                 ForEach(browse.genres) { chip($0.name, $0.id) }
             }
             .padding(.horizontal, Layout.edge)

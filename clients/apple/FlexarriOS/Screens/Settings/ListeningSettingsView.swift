@@ -17,7 +17,7 @@ struct ListeningSettingsView: View {
             if speed == nil {
                 Group {
                     if loadFailed {
-                        StatusView(state: .failed("Your settings couldn't be loaded.", retry: { Task { await load() } }))
+                        StatusView(state: .failed(t("Your settings couldn't be loaded."), retry: { Task { await load() } }))
                     } else {
                         StatusView(state: .loading)
                     }
@@ -37,13 +37,13 @@ struct ListeningSettingsView: View {
                         Picker(t("Skip back"), selection: Binding(get: { shared.skipBackSeconds }, set: { value in
                             save(podcasts: .init(skipBackSeconds: value), books: .init(skipBackSeconds: value))
                         })) {
-                            ForEach(steps(shared.skipBackSeconds), id: \.self) { Text("\($0) seconds").tag($0) }
+                            ForEach(steps(shared.skipBackSeconds), id: \.self) { Text(t("{seconds} seconds", ["seconds": $0])).tag($0) }
                         }
                         .listRowBackground(Color.seat)
                         Picker(t("Skip forward"), selection: Binding(get: { shared.skipForwardSeconds }, set: { value in
                             save(podcasts: .init(skipForwardSeconds: value), books: .init(skipForwardSeconds: value))
                         })) {
-                            ForEach(steps(shared.skipForwardSeconds), id: \.self) { Text("\($0) seconds").tag($0) }
+                            ForEach(steps(shared.skipForwardSeconds), id: \.self) { Text(t("{seconds} seconds", ["seconds": $0])).tag($0) }
                         }
                         .listRowBackground(Color.seat)
                         Toggle(t("Smart rewind"), isOn: Binding(get: { shared.smartRewind }, set: { value in
@@ -79,7 +79,7 @@ struct ListeningSettingsView: View {
                         }
                     }))
                     .settingsRow()
-                    Stepper("Keep the newest \(podcasts.keepEpisodes)", value: Binding(get: { podcasts.keepEpisodes }, set: { value in
+                    Stepper(t("Keep the newest {count}", ["count": podcasts.keepEpisodes]), value: Binding(get: { podcasts.keepEpisodes }, set: { value in
                         Task {
                             await model.updatePodcastPreferences(.init(keepEpisodes: value))
                             await downloads.reconcilePodcasts()
@@ -94,13 +94,13 @@ struct ListeningSettingsView: View {
                 }
 
                 Section {
-                    SettingsLink("Notifications", icon: "bell.fill") { NotificationSettingsView() }
+                    SettingsLink(t("Notifications"), icon: "bell.fill") { NotificationSettingsView() }
                 } footer: {
                     Text(t("New episodes can come as notifications."))
                 }
             }
         }
-        .settingsPage("Podcasts & audiobooks")
+        .settingsPage(t("Podcasts & audiobooks"))
         .task { await load() }
     }
 

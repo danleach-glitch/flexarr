@@ -21,28 +21,28 @@ struct MainTabView: View {
         TabView(selection: $selection) {
             Tab(value: TabID.home) {
                 TabStack(handlesDeepLinks: true) {
-                    if model.isOffline { OfflineView(title: "Home") { selection = .downloads } } else { HomeView() }
+                    if model.isOffline { OfflineView(title: t(Words.home)) { selection = .downloads } } else { HomeView() }
                 }
             } label: {
                 // The Flexarr mark stands in for a house.
                 Label { Text(t(Words.home)) } icon: { Image(uiImage: BrandMark.tabImage) }
             }
-            Tab("Libraries", systemImage: Symbol.libraries, value: TabID.libraries) {
+            Tab(t(Words.libraries), systemImage: Symbol.libraries, value: TabID.libraries) {
                 TabStack {
-                    if model.isOffline { OfflineView(title: "Libraries") { selection = .downloads } } else { LibrariesView() }
+                    if model.isOffline { OfflineView(title: t(Words.libraries)) { selection = .downloads } } else { LibrariesView() }
                 }
             }
-            Tab("Downloads", systemImage: Symbol.downloads, value: TabID.downloads) {
+            Tab(t(Words.downloads), systemImage: Symbol.downloads, value: TabID.downloads) {
                 TabStack { DownloadsView() }
             }
-            Tab("Search", systemImage: Symbol.search, value: TabID.search, role: .search) {
+            Tab(t(Words.search), systemImage: Symbol.search, value: TabID.search, role: .search) {
                 TabStack {
-                    if model.isOffline { OfflineView(title: "Search") { selection = .downloads } } else { SearchView() }
+                    if model.isOffline { OfflineView(title: t(Words.search)) { selection = .downloads } } else { SearchView() }
                 }
             }
             // The kids app has no Settings: a child's choices are a parent's to make.
             if !model.isKids {
-                Tab("Settings", systemImage: Symbol.settings, value: TabID.settings) {
+                Tab(t(Words.settings), systemImage: Symbol.settings, value: TabID.settings) {
                     TabStack { SettingsView() }
                 }
             }
@@ -52,7 +52,7 @@ struct MainTabView: View {
         .onAppear { if model.isOffline, downloads.hasAnything { selection = .downloads } }
         // Said aloud too, as the bar comes and goes.
         .onChange(of: model.isOffline) { _, offline in
-            AccessibilityNotification.Announcement(offline ? "Offline" : "Back online").post()
+            AccessibilityNotification.Announcement(offline ? t("Offline") : t("Back online")).post()
         }
         // The libraries load now, and again once the server's back after offline mode.
         .task(id: model.isOffline) {
@@ -217,7 +217,7 @@ struct LibrariesView: View {
                     // Not for a profile that hid it from the menu: Home's row and links still open it.
                     if model.hasWatchlist && !model.hidesFromMenu(.watchlist) {
                         Section {
-                            row("Watchlist", icon: Symbol.watchlist) { router.push(.watchlist) }
+                            row(t(Words.watchlist), icon: Symbol.watchlist) { router.push(.watchlist) }
                         }
                     }
                     // In the profile's order (Settings › Library order). Podcasts are one place however many libraries hold

@@ -11,7 +11,7 @@ struct ComingSoonView: View {
     var body: some View {
         Group {
             if let days, days.isEmpty {
-                StatusView(state: .empty("Nothing is scheduled. Monitored shows and movies appear here as their dates get close."))
+                StatusView(state: .empty(t("Nothing is scheduled. Monitored shows and movies appear here as their dates get close.")))
             } else if let days {
                 List {
                     ForEach(days) { day in
@@ -125,7 +125,7 @@ struct UpcomingAboutSheet: View {
                             .font(.marquee(28, weight: .bold))
                             .foregroundStyle(Color.screen)
                         Text(detail).font(.subheadline).foregroundStyle(Color.screen.opacity(0.85))
-                        Text("\(item.when) \(item.date.formatted(Date.FormatStyle(date: .complete, time: item.kind == .episode ? .shortened : .omitted, locale: Localization.locale)))")
+                        Text(t("{when} {date}", ["when": item.when, "date": item.date.formatted(Date.FormatStyle(date: .complete, time: item.kind == .episode ? .shortened : .omitted, locale: Localization.locale))]))
                             .font(.footnote)
                             .foregroundStyle(Color.usher)
                         if let status = UpcomingDay.status(item) {
@@ -138,7 +138,7 @@ struct UpcomingAboutSheet: View {
                 }
                 if model.currentProfile?.isMain == true, let url = manageURL {
                     Button { openURL(url) } label: {
-                        Label("Open in \(item.source ?? (item.kind == .episode ? "Sonarr" : "Radarr"))", systemImage: "arrow.up.forward.app")
+                        Label(t("Open in {app}", ["app": item.source ?? (item.kind == .episode ? "Sonarr" : "Radarr")]), systemImage: "arrow.up.forward.app")
                     }
                     .buttonStyle(ActionButtonStyle())
                 }

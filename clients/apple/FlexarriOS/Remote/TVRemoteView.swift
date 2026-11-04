@@ -77,7 +77,7 @@ struct TVRemoteView: View {
                     .accessibilityLabel(t("Stopped"))
                     .accessibilityActions { Button(t("Undo stop")) { remote.undoStop() } }
             } else {
-                StatusView(state: .empty(remote.selectedName.map { "Nothing is playing on \($0)." } ?? "Nothing is playing."))
+                StatusView(state: .empty(remote.selectedName.map { t("Nothing is playing on {device}.", ["device": $0]) } ?? t("Nothing is playing.")))
             }
         }
         .overlay(alignment: .bottom) { RemoteNoticeView().padding(.bottom, 16) }
@@ -132,8 +132,8 @@ struct TVRemoteView: View {
                     }
                 }
             } label: { label }
-            .accessibilityLabel("TV, \(device.name)")
-            .accessibilityHint("Switches to another TV")
+            .accessibilityLabel(t("TV, {device}", ["device": device.name]))
+            .accessibilityHint(t("Switches to another TV"))
         } else {
             label
                 .accessibilityElement(children: .combine)
@@ -172,7 +172,7 @@ struct TVRemoteView: View {
         let duration = playing.durationSeconds
         let shown = scrubbing ?? position
         let ends = duration > 0
-            ? Text("Ends \(Date().addingTimeInterval(max(0, duration - shown) / max(0.5, playing.rate ?? 1)).formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: Localization.locale)))")
+            ? Text(t("Ends {time}", ["time": Date().addingTimeInterval(max(0, duration - shown) / max(0.5, playing.rate ?? 1)).formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: Localization.locale))]))
             : nil
         return VStack(spacing: 2) {
             PlayerScrubber(position: position, duration: duration, step: Self.skipSeconds, scrubbing: $scrubbing) { remote.seek(to: $0) }
@@ -206,7 +206,7 @@ struct TVRemoteView: View {
                 Spacer()
             }
             Button { remote.togglePlayPause() } label: {
-                Label(playing.paused ? "Play" : "Pause", systemImage: playing.paused ? "play.fill" : "pause.fill")
+                Label(playing.paused ? t(Words.play) : t("Pause"), systemImage: playing.paused ? "play.fill" : "pause.fill")
             }
             .buttonStyle(TransportStyle(size: 76, filled: true))
             if device.takes(.skip) {
@@ -231,7 +231,7 @@ struct TVRemoteView: View {
         let next = prompt == .nextEpisode
         if device.takes(next ? .next : .skipSegment) {
             Button { remote.control(next ? .next : .skipSegment) } label: {
-                Text(next ? "Next episode" : prompt == .skipRecap ? "Skip recap" : "Skip intro")
+                Text(next ? t("Next episode") : prompt == .skipRecap ? t(Words.skipRecap) : t(Words.skipIntro))
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(Color.room)
                     .padding(.horizontal, 22)
@@ -271,7 +271,7 @@ struct TVRemoteView: View {
                 Button { continueHere(playing) } label: {
                     HStack(spacing: 8) {
                         if continuing { ProgressView().tint(Color.screen) } else { Image(systemName: "iphone") }
-                        Text("Continue on \(ThisDevice.name)")
+                        Text(t("Continue on {device}", ["device": ThisDevice.name]))
                     }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.screen)
@@ -299,7 +299,7 @@ struct TVRemoteView: View {
             }
             .buttonStyle(CardButtonStyle())
             .disabled(continuing)
-            .accessibilityLabel("Stop on \(device.name)")
+            .accessibilityLabel(t("Stop on {device}", ["device": device.name]))
         }
     }
 
@@ -328,7 +328,7 @@ struct TVRemoteView: View {
                 .modifier(ExtraLabel(active: subtitles != nil))
         }
         .accessibilityLabel(t("Audio and subtitles"))
-        .accessibilityValue([subtitles.map { "Subtitles \($0.label)" } ?? "Subtitles off", audio?.label].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityValue([subtitles.map { t("Subtitles {track}", ["track": $0.label]) } ?? t("Subtitles off"), audio?.label].compactMap { $0 }.joined(separator: ", "))
     }
 
     private func speedMenu(_ rate: Double) -> some View {
@@ -355,15 +355,16 @@ struct TVRemoteView: View {
         let boost = sound.dialogueBoost.flatMap(SoundSettings.DialogueBoost.init(rawValue:)) ?? .off
         let night = sound.nightMode.flatMap(SoundSettings.NightMode.init(rawValue:)) ?? .off
         let speakers = sound.speakers.flatMap(SoundSettings.Speakers.init(rawValue:)) ?? .auto
-        let set = [boost != .off ? "Dialogue boost \(boost.rawValue)" : nil, night != .off ? "Night mode \(night == .scheduled ? "on a schedule" : "on")" : nil,
-                   speakers != .auto ? "Speakers \(speakers.label)" : nil].compactMap { $0 }
+        let set = [boost != .off ? t("Dialogue boost {level}", ["level": SoundNames.boost(boost)]) : nil,
+                   night != .off ? (night == .scheduled ? t("Night mode on a schedule") : t("Night mode on")) : nil,
+                   speakers != .auto ? t("Speakers {speakers}", ["speakers": speakers.label]) : nil].compactMap { $0 }
         return Menu {
             Picker(t("Dialogue boost"), selection: Binding(get: { boost }, set: { remote.setSound(DeviceSound(dialogueBoost: $0.rawValue)) })) {
-                ForEach(SoundSettings.DialogueBoost.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                ForEach(SoundSettings.DialogueBoost.allCases, id: \.self) { Text(SoundNames.boost($0)).tag($0) }
             }
             .pickerStyle(.menu)
             Picker(t("Night mode"), selection: Binding(get: { night }, set: { remote.setSound(DeviceSound(nightMode: $0.rawValue)) })) {
-                ForEach(SoundSettings.NightMode.allCases, id: \.self) { Text($0 == .scheduled ? "On a schedule" : $0.rawValue).tag($0) }
+                ForEach(SoundSettings.NightMode.allCases, id: \.self) { Text(SoundNames.night($0)).tag($0) }
             }
             .pickerStyle(.menu)
             Picker(t("Speakers"), selection: Binding(get: { speakers }, set: { remote.setSound(DeviceSound(speakers: $0.rawValue)) })) {
@@ -376,7 +377,7 @@ struct TVRemoteView: View {
                 .modifier(ExtraLabel(active: !set.isEmpty))
         }
         .accessibilityLabel(t("Sound"))
-        .accessibilityValue(set.isEmpty ? "As it is" : set.joined(separator: ", "))
+        .accessibilityValue(set.isEmpty ? t("As it is") : set.joined(separator: ", "))
     }
 
     /// The season's episodes: tapping one plays it on the TV.
@@ -406,7 +407,7 @@ struct TVRemoteView: View {
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(Color.silver)
                             } else if let minutes = episode.runtimeMinutes {
-                                Text("\(minutes) min")
+                                Text(t("{minutes} min", ["minutes": minutes]))
                                     .font(.caption)
                                     .foregroundStyle(Color.usher)
                             }
@@ -422,8 +423,8 @@ struct TVRemoteView: View {
                 }
                 .buttonStyle(CardButtonStyle())
                 .disabled(isPlaying || isStarting)
-                .accessibilityHint(isPlaying ? "" : "Plays it on \(device.name)")
-                .accessibilityValue(isStarting ? "Starting" : "")
+                .accessibilityHint(isPlaying ? "" : t("Plays it on {device}", ["device": device.name]))
+                .accessibilityValue(isStarting ? t("Starting") : "")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

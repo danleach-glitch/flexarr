@@ -11,8 +11,8 @@ struct DownloadsView: View {
         Group {
             if !store.hasAnything {
                 // Offline there's nothing to be done about it.
-                StatusView(state: .empty(model.isOffline ? "Nothing downloaded."
-                    : "Download movies, episodes, albums, playlists and podcasts to watch and listen with no connection. Look for the download button on a title’s page."))
+                StatusView(state: .empty(model.isOffline ? t("Nothing downloaded.")
+                    : t("Download movies, episodes, albums, playlists and podcasts to watch and listen with no connection. Look for the download button on a title’s page.")))
             } else {
                 List {
                     let films = store.videoDownloads.filter { $0.item.kind != .episode }
@@ -52,7 +52,7 @@ struct DownloadsView: View {
                     Section {
                         EmptyView()
                     } footer: {
-                        Text("\(formatBytes(store.bytesUsed)) used on this \(ThisDevice.name).")
+                        Text(t("{size} used on this {device}.", ["size": formatBytes(store.bytesUsed), "device": ThisDevice.name]))
                     }
                 }
                 .scrollContentBackground(.hidden)
@@ -66,7 +66,7 @@ struct DownloadsView: View {
     /// Episodes grouped by show, in episode order.
     private var shows: [(title: String, episodes: [LocalDownload])] {
         let episodes = store.videoDownloads.filter { $0.item.kind == .episode }
-        return Dictionary(grouping: episodes) { $0.item.seriesTitle ?? "Episodes" }
+        return Dictionary(grouping: episodes) { $0.item.seriesTitle ?? t("Episodes") }
             .map { ($0.key, $0.value.sorted { ($0.item.seasonNumber ?? 0, $0.item.episodeNumber ?? 0) < ($1.item.seasonNumber ?? 0, $1.item.episodeNumber ?? 0) }) }
             .sorted { $0.title < $1.title }
     }
@@ -117,25 +117,25 @@ private struct DownloadRow: View {
         .swipeActions {
             Button(role: .destructive) { store.delete(download.id) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
         }
-        .accessibilityHint(download.isDownloaded ? "Plays" : "")
+        .accessibilityHint(download.isDownloaded ? t("Plays") : "")
     }
 
     @ViewBuilder private var status: some View {
         switch download.state {
         case _ where store.isWaitingForWiFi(download):
-            caption("Waiting for Wi-Fi")
+            caption(t("Waiting for Wi-Fi"))
         case .preparing(let progress):
-            caption(progress > 0 && progress < 1 ? "Getting ready, \(Int(progress * 100))%" : "Getting ready")
+            caption(progress > 0 && progress < 1 ? t("Getting ready, {percent}%", ["percent": Int(progress * 100)]) : t("Getting ready"))
         case .downloading(let progress):
             VStack(alignment: .leading, spacing: 4) {
-                caption("Downloading, \(Int(progress * 100))%")
+                caption(t("Downloading, {percent}%", ["percent": Int(progress * 100)]))
                 ProgressView(value: progress).tint(.silver)
             }
         case .downloaded:
             HStack(spacing: 6) {
                 DownloadedMark()
                 caption([download.quality.label, download.sizeBytes.map { formatBytes($0) },
-                         download.finishedAt != nil ? "Watched" : nil].compactMap { $0 }.joined(separator: "  "))
+                         download.finishedAt != nil ? t("Watched") : nil].compactMap { $0 }.joined(separator: "  "))
             }
         case .failed(let message):
             Text(message).font(.caption).foregroundStyle(Color.danger)
@@ -204,19 +204,19 @@ private struct PodcastDownloadRow: View {
     @ViewBuilder private var status: some View {
         switch download.state {
         case _ where store.isWaitingForWiFi(download):
-            caption("Waiting for Wi-Fi")
+            caption(t("Waiting for Wi-Fi"))
         case .preparing(let progress):
-            caption(progress > 0 && progress < 1 ? "Getting ready, \(Int(progress * 100))%" : "Getting ready")
+            caption(progress > 0 && progress < 1 ? t("Getting ready, {percent}%", ["percent": Int(progress * 100)]) : t("Getting ready"))
         case .downloading(let progress):
             VStack(alignment: .leading, spacing: 4) {
-                caption("Downloading, \(Int(progress * 100))%")
+                caption(t("Downloading, {percent}%", ["percent": Int(progress * 100)]))
                 ProgressView(value: progress).tint(.silver)
             }
         case .downloaded:
             HStack(spacing: 6) {
                 DownloadedMark()
                 caption([download.sizeBytes.map { formatBytes($0) },
-                     download.finishedAt != nil ? (isBook ? "Finished" : "Played") : nil].compactMap { $0 }.joined(separator: "  "))
+                     download.finishedAt != nil ? (isBook ? t("Finished") : t("Played")) : nil].compactMap { $0 }.joined(separator: "  "))
             }
         case .failed(let message):
             Text(message).font(.caption).foregroundStyle(Color.danger)
@@ -250,12 +250,12 @@ struct DownloadButton: View {
             }
         } label: {
             Label {
-                Text(waiting ? "Waiting for Wi-Fi" : label(download))
+                Text(waiting ? t("Waiting for Wi-Fi") : label(download))
             } icon: {
                 DownloadStateIcon(state: download?.state, waitingForWiFi: waiting)
             }
         }
-        .accessibilityLabel(waiting ? "Waiting for Wi-Fi" : DownloadStateIcon.accessibilityLabel(download?.state))
+        .accessibilityLabel(waiting ? t("Waiting for Wi-Fi") : DownloadStateIcon.accessibilityLabel(download?.state))
         .alert(t("Couldn't download this"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
             Button(t("Try again")) {
                 if let download { store.delete(download.id) }
@@ -265,9 +265,9 @@ struct DownloadButton: View {
         } message: {
             Text(failure ?? "")
         }
-        .alert(download?.isDownloaded == true ? "Remove this download?" : "Stop this download?",
+        .alert(download?.isDownloaded == true ? t("Remove this download?") : t("Stop this download?"),
                isPresented: $removing) {
-            Button(download?.isDownloaded == true ? "Remove download" : "Stop download", role: .destructive) {
+            Button(download?.isDownloaded == true ? t("Remove download") : t("Stop download"), role: .destructive) {
                 if let download { store.delete(download.id) }
             }
             Button(t(Words.cancel), role: .cancel) {}
@@ -289,11 +289,11 @@ struct DownloadButton: View {
 
     private func label(_ download: LocalDownload?) -> String {
         switch download?.state {
-        case nil: "Download"
-        case .preparing(let progress): progress > 0 && progress < 1 ? "Getting ready, \(Int(progress * 100))%" : "Getting ready"
-        case .downloading(let progress): "\(Int(progress * 100))%"
-        case .downloaded: "Downloaded"
-        case .failed: "Couldn't download"
+        case nil: t(Words.download)
+        case .preparing(let progress): progress > 0 && progress < 1 ? t("Getting ready, {percent}%", ["percent": Int(progress * 100)]) : t("Getting ready")
+        case .downloading(let progress): t("{percent}%", ["percent": Int(progress * 100)])
+        case .downloaded: t("Downloaded")
+        case .failed: t("Couldn't download")
         }
     }
 }
@@ -335,11 +335,11 @@ struct DownloadStateIcon: View {
 
     static func accessibilityLabel(_ state: LocalDownload.State?) -> String {
         switch state {
-        case nil: "Download"
-        case .preparing: "Getting ready on the server"
-        case .downloading(let fraction): "Downloading, \(Int(fraction * 100))%"
-        case .downloaded: "Downloaded"
-        case .failed: "Couldn't download"
+        case nil: t(Words.download)
+        case .preparing: t("Getting ready on the server")
+        case .downloading(let fraction): t("Downloading, {percent}%", ["percent": Int(fraction * 100)])
+        case .downloaded: t("Downloaded")
+        case .failed: t("Couldn't download")
         }
     }
 }

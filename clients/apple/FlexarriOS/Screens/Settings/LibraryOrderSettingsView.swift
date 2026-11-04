@@ -19,8 +19,8 @@ enum LibraryMenuEntry: Identifiable, Hashable {
     var title: String {
         switch self {
         case .library(let library): library.name
-        case .podcasts: "Podcasts"
-        case .liveTv: "Live TV"
+        case .podcasts: t(Words.podcasts)
+        case .liveTv: t(Words.liveTv)
         }
     }
 
@@ -72,7 +72,8 @@ struct LibraryOrderSettingsView: View {
                     model.setLibraryOrder(order.map(\.id))
                 }
             } footer: {
-                Text("\(model.currentProfile?.name ?? "This profile")’s own. The web, the Apple TV and Android list your libraries in this order too.")
+                Text(model.currentProfile.map { t("{profile}’s own. The web, the Apple TV and Android list your libraries in this order too.", ["profile": $0.name]) }
+                     ?? t("This profile’s own. The web, the Apple TV and Android list your libraries in this order too."))
             }
         }
         .environment(\.editMode, .constant(.active))

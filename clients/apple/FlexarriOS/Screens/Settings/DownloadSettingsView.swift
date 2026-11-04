@@ -33,12 +33,12 @@ struct DownloadSettingsView: View {
                 Text(t("Automatic"))
             } footer: {
                 Text(downloads.autoDownloadsOnWiFiOnly
-                    ? "Downloads this \(ThisDevice.name) starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never use Low Data Mode. Ones you start yourself use mobile data too."
-                    : "Downloads this \(ThisDevice.name) starts by itself, like the next episode or new podcast episodes, use mobile data too, but never Low Data Mode.")
+                    ? t("Downloads this {device} starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never use Low Data Mode. Ones you start yourself use mobile data too.", ["device": ThisDevice.name])
+                    : t("Downloads this {device} starts by itself, like the next episode or new podcast episodes, use mobile data too, but never Low Data Mode.", ["device": ThisDevice.name]))
             }
 
             Section {
-                LabeledContent(t("Space used"), value: downloads.bytesUsed == 0 ? "None" : formatBytes(downloads.bytesUsed))
+                LabeledContent(t("Space used"), value: downloads.bytesUsed == 0 ? t("None") : formatBytes(downloads.bytesUsed))
                     .listRowBackground(Color.seat)
                 if !downloads.all.isEmpty {
                     Button(t("Delete all downloads"), role: .destructive) { confirmDeleteDownloads = true }
@@ -51,7 +51,7 @@ struct DownloadSettingsView: View {
                 Text(t("Episodes are deleted a day after you finish them, and podcast episodes once they’re played."))
             }
         }
-        .settingsPage("Downloads")
+        .settingsPage(t(Words.downloads))
         .alert(t("Delete all downloads?"), isPresented: $confirmDeleteDownloads) {
             Button(t("Delete all"), role: .destructive) { downloads.deleteAll() }
             Button(t(Words.cancel), role: .cancel) {}

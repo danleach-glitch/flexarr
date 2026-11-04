@@ -253,8 +253,8 @@ final class PodcastBrowseModel {
 extension Podcast {
     /// "3 unplayed", "Up to date", "1,204 episodes": what a show's card says under its name.
     var countLine: String {
-        if isSubscribed { return unplayedCount == 0 ? "Up to date" : "\(unplayedCount.formatted()) unplayed" }
-        return episodeCount == 1 ? "1 episode" : "\(episodeCount.formatted()) episodes"
+        if isSubscribed { return unplayedCount == 0 ? t("Up to date") : t("{count} unplayed", ["count": unplayedCount]) }
+        return t("{count, plural, one {# episode} other {# episodes}}", ["count": episodeCount])
     }
 }
 
@@ -263,8 +263,8 @@ extension PodcastEpisode {
     var dateLine: String? {
         guard let publishedAt else { return nil }
         let calendar = Calendar.current
-        if calendar.isDateInToday(publishedAt) { return "Today" }
-        if calendar.isDateInYesterday(publishedAt) { return "Yesterday" }
+        if calendar.isDateInToday(publishedAt) { return t("Today") }
+        if calendar.isDateInYesterday(publishedAt) { return t("Yesterday") }
         if let days = calendar.dateComponents([.day], from: publishedAt, to: Date()).day, days < 7 {
             return publishedAt.formatted(.dateTime.weekday(.wide).locale(Localization.locale))
         }
@@ -276,7 +276,7 @@ extension PodcastEpisode {
 
     /// "1h 6m", or "24m left" part way through, or "Played".
     var timeLine: String? {
-        if isPlayed { return "Played" }
+        if isPlayed { return t("Played") }
         if let duration = durationSeconds, userData.positionSeconds > 0 {
             return Format.remaining(duration - userData.positionSeconds)
         }

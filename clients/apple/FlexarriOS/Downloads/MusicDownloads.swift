@@ -58,12 +58,12 @@ struct MusicDownloadButton: View {
         .buttonStyle(RoundActionStyle())
         .disabled(source.tracks.isEmpty)
         .accessibilityLabel(label(status))
-        .alert(status == .downloaded ? "Remove this download?" : "Stop this download?", isPresented: $removing) {
-            Button(status == .downloaded ? "Remove download" : "Stop download", role: .destructive) { store.remove(collectionId: source.id) }
+        .alert(status == .downloaded ? t("Remove this download?") : t("Stop this download?"), isPresented: $removing) {
+            Button(status == .downloaded ? t("Remove download") : t("Stop download"), role: .destructive) { store.remove(collectionId: source.id) }
             Button(t(Words.cancel), role: .cancel) {}
         } message: {
             if let collection, status == .downloaded {
-                Text("\(formatBytes(store.bytesUsed(by: collection))) on this \(ThisDevice.name).")
+                Text(t("{size} on this {device}.", ["size": formatBytes(store.bytesUsed(by: collection)), "device": ThisDevice.name]))
             }
         }
         .alert(t("Couldn't download this"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
@@ -92,11 +92,11 @@ struct MusicDownloadButton: View {
 
     private func label(_ status: LocalCollection.Status?) -> String {
         switch status {
-        case nil: "Download"
-        case .preparing: "Getting ready on the server"
-        case .downloading(let fraction): "Downloading, \(Int(fraction * 100))%"
-        case .downloaded: "Downloaded"
-        case .failed: "Couldn't download"
+        case nil: t(Words.download)
+        case .preparing: t("Getting ready on the server")
+        case .downloading(let fraction): t("Downloading, {percent}%", ["percent": Int(fraction * 100)])
+        case .downloaded: t("Downloaded")
+        case .failed: t("Couldn't download")
         }
     }
 }
@@ -199,16 +199,16 @@ struct CollectionRow: View {
         let here = tracks.filter(\.isDownloaded).count
         switch store.status(of: collection) {
         case .preparing:
-            caption(["Getting ready", estimate].compactMap { $0 }.joined(separator: "  "))
+            caption([t("Getting ready"), estimate].compactMap { $0 }.joined(separator: "  "))
         case .downloading(let fraction):
             VStack(alignment: .leading, spacing: 4) {
-                caption(["\(here) of \(collection.trackIds.count) tracks", estimate].compactMap { $0 }.joined(separator: "  "))
+                caption([t("{here} of {count, plural, one {# track} other {# tracks}}", ["here": here, "count": collection.trackIds.count]), estimate].compactMap { $0 }.joined(separator: "  "))
                 ProgressView(value: fraction).tint(.silver)
             }
         case .downloaded:
             HStack(spacing: 6) {
                 DownloadedMark()
-                caption([collection.trackIds.count == 1 ? "1 track" : "\(collection.trackIds.count) tracks",
+                caption([t("{count, plural, one {# track} other {# tracks}}", ["count": collection.trackIds.count]),
                          formatBytes(store.bytesUsed(by: collection))].joined(separator: "  "))
             }
         case .failed(let message):
@@ -217,7 +217,7 @@ struct CollectionRow: View {
     }
 
     private var estimate: String? {
-        collection.estimatedBytes.map { "about " + formatBytes($0) }
+        collection.estimatedBytes.map { t("about {size}", ["size": formatBytes($0)]) }
     }
 
     private func caption(_ text: String) -> some View {
@@ -248,7 +248,7 @@ struct OfflineCollectionView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         header(collection, tracks: tracks)
                         if downloads.isEmpty {
-                            StatusView(state: .empty("Nothing here yet.")).frame(height: 160)
+                            StatusView(state: .empty(t("Nothing here yet."))).frame(height: 160)
                         } else {
                             VStack(alignment: .leading, spacing: 0) {
                                 ForEach(Array(downloads.enumerated()), id: \.element.id) { offset, download in
@@ -273,7 +273,7 @@ struct OfflineCollectionView: View {
                     .padding(.bottom, 32)
                 }
             } else {
-                StatusView(state: .empty("This download was removed."))
+                StatusView(state: .empty(t("This download was removed.")))
             }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -338,9 +338,9 @@ struct OfflineCollectionView: View {
         var facts: [String] = []
         if let year = collection.album?.releaseYear { facts.append(String(year)) }
         let total = collection.trackIds.count
-        facts.append(total == 1 ? "1 track" : "\(total) tracks")
+        facts.append(t("{count, plural, one {# track} other {# tracks}}", ["count": total]))
         if let runtime = ItemSummary.totalRuntime(of: tracks) { facts.append(runtime) }
-        facts.append(tracks.count == total ? "Downloaded" : "\(tracks.count) here")
+        facts.append(tracks.count == total ? t("Downloaded") : t("{count} here", ["count": tracks.count]))
         return facts
     }
 }

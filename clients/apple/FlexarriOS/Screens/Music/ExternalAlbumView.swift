@@ -89,7 +89,7 @@ struct ExternalAlbumView: View {
         var facts: [String] = []
         if let year = album.year { facts.append(String(year)) }
         if let detail {
-            if !detail.tracks.isEmpty { facts.append(detail.tracks.count == 1 ? "1 track" : "\(detail.tracks.count) tracks") }
+            if !detail.tracks.isEmpty { facts.append(t("{count, plural, one {# track} other {# tracks}}", ["count": detail.tracks.count])) }
             if let total = Format.runtime(seconds: Double(detail.durationSeconds)) { facts.append(total) }
         }
         return facts
@@ -100,7 +100,7 @@ struct ExternalAlbumView: View {
         return VStack(alignment: .leading, spacing: 0) {
             ForEach(discs, id: \.key) { disc, tracks in
                 if discs.count > 1 {
-                    Text("Disc \(disc)")
+                    Text(t("Disc {number}", ["number": disc]))
                         .font(.marquee(20, weight: .bold))
                         .foregroundStyle(Color.usher)
                         .padding(.horizontal, 12)

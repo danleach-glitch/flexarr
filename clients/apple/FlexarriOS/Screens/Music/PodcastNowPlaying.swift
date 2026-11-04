@@ -75,7 +75,7 @@ struct PlayerScrubber: View {
         .frame(height: 28)
         .accessibilityElement()
         .accessibilityLabel(t("Position"))
-        .accessibilityValue("\(Format.timestamp(position)) of \(Format.timestamp(duration))")
+        .accessibilityValue(t("{position} of {duration}", ["position": Format.timestamp(position), "duration": Format.timestamp(duration)]))
         .accessibilityAdjustableAction { direction in
             guard isEnabled else { return }
             switch direction {

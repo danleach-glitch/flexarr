@@ -100,7 +100,7 @@ struct ExternalMusicCard: View {
 
     private var subtitle: String? {
         var parts: [String] = []
-        if showsKind { parts.append(item.isArtist ? "Artist" : "Album") }
+        if showsKind { parts.append(item.isArtist ? t("Artist") : t("Album")) }
         if item.isAlbum {
             if showsYear { if let year = item.year { parts.append(String(year)) } } else if let artist = item.artist { parts.append(artist) }
         }
@@ -113,12 +113,12 @@ struct ExternalMusicCard: View {
         if item.isAlbum {
             switch model.albumState(item) {
             case .requested: return MusicWords.requested
-            case .inLibrary: return "In your library"
+            case .inLibrary: return t(Words.inYourLibrary)
             default: return nil
             }
         }
         if model.isFollowing(item) { return MusicWords.following }
-        return item.libraryItemId != nil ? "In your library" : nil
+        return item.libraryItemId != nil ? t(Words.inYourLibrary) : nil
     }
 
     /// A library artist can be followed too, on servers that say whether it is (0.59 on).

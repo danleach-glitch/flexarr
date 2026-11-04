@@ -35,7 +35,7 @@ struct PairingPromptView: View {
                 .foregroundStyle(Color.screen)
                 .accessibilityHidden(true)
                 .padding(.bottom, 4)
-            Text("Connect “\(request.deviceName)”?")
+            Text(t("Connect “{device}”?", ["device": request.deviceName]))
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.screen)
                 .fixedSize(horizontal: false, vertical: true)

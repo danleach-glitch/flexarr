@@ -10,12 +10,12 @@ struct SiriSettingsView: View {
         List {
             Section {
                 Picker(t("Siri plays on"), selection: $siriDevice) {
-                    Text("This \(ThisDevice.name)").tag("")
+                    Text(t("This {device}", ["device": ThisDevice.name])).tag("")
                     ForEach(devices.filter { !$0.isThisOne }) { device in
                         Text(device.name).tag(device.id)
                     }
                     if !siriDevice.isEmpty, !devices.contains(where: { $0.id == siriDevice }) {
-                        Text(AppModel.siriDeviceName ?? "A device no longer signed in").tag(siriDevice)
+                        Text(AppModel.siriDeviceName ?? t("A device no longer signed in")).tag(siriDevice)
                     }
                 }
                 .settingsRow()
@@ -28,8 +28,8 @@ struct SiriSettingsView: View {
             }
 
             Section {
-                ForEach(["Play the next episode of Curb Your Enthusiasm in Flexarr", "Continue watching in Flexarr", "Pause Flexarr"], id: \.self) { phrase in
-                    Text("\u{201C}\(phrase)\u{201D}")
+                ForEach([t("Play the next episode of Curb Your Enthusiasm in Flexarr"), t("Continue watching in Flexarr"), t("Pause Flexarr")], id: \.self) { phrase in
+                    Text(t("“{phrase}”", ["phrase": phrase]))
                         .foregroundStyle(Color.usher)
                         .listRowBackground(Color.seat)
                 }

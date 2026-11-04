@@ -26,7 +26,7 @@ struct LiveTvView: View {
         Group {
             if let channels {
                 if channels.isEmpty {
-                    StatusView(state: .empty("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr's user."))
+                    StatusView(state: .empty(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr's user.")))
                 } else if showsGuide {
                     VStack(spacing: 0) {
                         chips.padding(.vertical, 6)
@@ -54,7 +54,7 @@ struct LiveTvView: View {
                     }
                 }
                 Button { showsGuide.toggle() } label: {
-                    Label(showsGuide ? "List" : "Guide", systemImage: showsGuide ? "list.bullet" : "calendar")
+                    Label(showsGuide ? t("List") : t("Guide"), systemImage: showsGuide ? "list.bullet" : "calendar")
                 }
             }
         }
@@ -108,12 +108,12 @@ struct LiveTvView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { model.watch(channel, among: order) }
                     .accessibilityAddTraits(.isButton)
-                    .accessibilityAction(named: channel.isFavourite ? "Remove from Favourites" : "Add to Favourites") {
+                    .accessibilityAction(named: channel.isFavourite ? t("Remove from Favourites") : t("Add to Favourites")) {
                         setFavourite(channel, !channel.isFavourite)
                     }
                     .swipeActions(edge: .leading, allowsFullSwipe: true) {
                         Button { setFavourite(channel, !channel.isFavourite) } label: {
-                            Label(channel.isFavourite ? "Unfavourite" : "Favourite", systemImage: channel.isFavourite ? "star.slash" : "star.fill")
+                            Label(channel.isFavourite ? t("Unfavourite") : t("Favourite"), systemImage: channel.isFavourite ? "star.slash" : "star.fill")
                         }
                         .tint(channel.isFavourite ? Color.aisle : Self.gold)
                     }
@@ -121,11 +121,11 @@ struct LiveTvView: View {
                         Button { model.watch(channel, among: order) } label: { Label(t("Watch"), systemImage: "play.fill") }
                         ForEach(model.hasAgeLimit ? [] : [channel.now, channel.next].compactMap { $0 }) { programme in
                             Button { record(programme) } label: {
-                                Label("Record \(programme.title)", systemImage: "record.circle")
+                                Label(t("Record {title}", ["title": programme.title]), systemImage: "record.circle")
                             }
                         }
                         Button { setFavourite(channel, !channel.isFavourite) } label: {
-                            Label(channel.isFavourite ? "Remove from Favourites" : "Add to Favourites", systemImage: channel.isFavourite ? "star.slash" : "star")
+                            Label(channel.isFavourite ? t("Remove from Favourites") : t("Add to Favourites"), systemImage: channel.isFavourite ? "star.slash" : "star")
                         }
                     }
                     .listRowBackground(Color.clear)
@@ -147,8 +147,8 @@ struct LiveTvView: View {
     private var chips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                chip("Favourites", systemImage: "star.fill", .favourites)
-                chip("All", systemImage: nil, .all)
+                chip(t("Favourites"), systemImage: "star.fill", .favourites)
+                chip(t("All"), systemImage: nil, .all)
                 if groups.count > 1 {
                     ForEach(groups, id: \.self) { chip($0, systemImage: nil, .group($0)) }
                 }
@@ -190,8 +190,8 @@ struct LiveTvView: View {
             do {
                 let recording = try await client.record(programme: programme.id)
                 notice = recording.clashes
-                    ? "\(programme.title) clashes with recordings already on the list: every stream is wanted then, so it won't record unless one of them comes off."
-                    : "\(programme.title) will be recorded. Recordings, at the top, lists what's set."
+                    ? t("{title} clashes with recordings already on the list: every stream is wanted then, so it won't record unless one of them comes off.", ["title": programme.title])
+                    : t("{title} will be recorded. Recordings, at the top, lists what's set.", ["title": programme.title])
             } catch {
                 notice = error.localizedDescription
             }
@@ -250,7 +250,7 @@ private struct ChannelRow: View {
                 .font(.caption.weight(.semibold))
                 HStack(spacing: 6) {
                     if let now = channel.now, now.isSetToRecord { RecordMark(recordingNow: now.isRecordingNow) }
-                    Text(channel.now?.displayTitle ?? "No listings")
+                    Text(channel.now?.displayTitle ?? t("No listings"))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(Color.screen)
                         .lineLimit(1)
@@ -262,7 +262,7 @@ private struct ChannelRow: View {
                 }
                 if let next = channel.next {
                     HStack(spacing: 5) {
-                        Text("Next: \(Self.clock.string(from: next.start)) \(next.title)")
+                        Text(t("Next: {time} {title}", ["time": Self.clock.string(from: next.start), "title": next.title]))
                             .font(.caption)
                             .foregroundStyle(Color.usher)
                             .lineLimit(1)

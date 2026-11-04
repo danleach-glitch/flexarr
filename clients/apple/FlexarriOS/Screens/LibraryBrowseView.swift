@@ -53,7 +53,7 @@ struct LibraryBrowseView<Header: View>: View {
         if let browse {
             let rows = browse.rows.filter { HomeRowSlot.shows($0, in: browse) }
             if browse.featured.isEmpty && rows.isEmpty {
-                StatusView(state: .empty("Nothing in this library yet."))
+                StatusView(state: .empty(t("Nothing in this library yet.")))
                     .frame(height: 400)
             } else {
                 LazyVStack(alignment: .leading, spacing: 28) {

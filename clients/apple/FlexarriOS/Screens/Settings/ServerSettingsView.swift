@@ -14,8 +14,8 @@ struct ServerSettingsView: View {
         List {
             if let guest = model.credentials?.guest {
                 Section {
-                    row("Server", "\(guest.ownerName)’s Flexarr")
-                    row("Connection", connection)
+                    row(t("Server"), t("{owner}’s Flexarr", ["owner": guest.ownerName]))
+                    row(t("Connection"), connection)
                     Button(t("Leave"), role: .destructive) { confirmLeave = true }
                         .listRowBackground(Color.seat)
                 } header: {
@@ -24,44 +24,44 @@ struct ServerSettingsView: View {
                 .leaveGuestConfirmation(isPresented: $confirmLeave, owner: guest.ownerName) { model.signOut() }
             } else {
             Section {
-                address("Address", model.credentials?.address)
+                address(t("Address"), model.credentials?.address)
                 if let remote = model.credentials?.remoteAddress {
-                    address("Away from home", remote)
-                    row("Connected", model.client?.addresses.isAway == true ? "Away, over Tailscale" : "At home")
+                    address(t("Away from home"), remote)
+                    row(t("Connected"), model.client?.addresses.isAway == true ? t("Away, over Tailscale") : t("At home"))
                 }
             } footer: {
                 Text(model.credentials?.remoteAddress == nil
-                     ? "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this \(ThisDevice.name) picks the address up by itself."
-                     : "Away from home, this \(ThisDevice.name) reaches the server over Tailscale, which needs to be connected on it.")
+                     ? t("To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this {device} picks the address up by itself.", ["device": ThisDevice.name])
+                     : t("Away from home, this {device} reaches the server over Tailscale, which needs to be connected on it.", ["device": ThisDevice.name]))
             }
             }
 
             Section {
                 if let status {
-                    row("Version", ServerVersion.short(status.version))
-                    row("Running on", status.osDescription)
-                    row("Up since", status.startTime.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: Localization.locale)))
+                    row(t("Version"), ServerVersion.short(status.version))
+                    row(t("Running on"), status.osDescription)
+                    row(t("Up since"), status.startTime.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: Localization.locale)))
                 } else if let error {
-                    row("Status", error)
+                    row(t("Status"), error)
                 } else {
-                    row("Status", "Checking")
+                    row(t("Status"), t("Checking"))
                 }
-                row("Libraries", model.libraries.map(\.name).joined(separator: ", "))
+                row(t(Words.libraries), model.libraries.map(\.name).joined(separator: ", "))
             }
 
             Section {
-                row("Error reports", errorReportsOn ? "On" : "Off")
+                row(t("Error reports"), errorReportsOn ? t("On") : t("Off"))
             } footer: {
                 Text(ErrorReports.privacyNote)
             }
 
             Section {
-                SettingsLink("Send diagnostics", icon: "stethoscope") { DiagnosticsSettingsView() }
+                SettingsLink(t("Send diagnostics"), icon: "stethoscope") { DiagnosticsSettingsView() }
             } footer: {
-                Text("Send this \(ThisDevice.name)'s recent log to your server, to look into a problem.")
+                Text(t("Send this {device}'s recent log to your server, to look into a problem.", ["device": ThisDevice.name]))
             }
         }
-        .settingsPage("Server")
+        .settingsPage(t("Server"))
         .task { await load() }
         .refreshable { await load() }
     }
@@ -69,10 +69,10 @@ struct ServerSettingsView: View {
     /// A guest's tunnel right now: straight to the host's server, or through a relay.
     private var connection: String {
         switch path {
-        case "direct": "Direct"
-        case "peer-relay": "Through the server’s relay"
-        case "derp": "Through a relay (slower)"
-        default: "Connecting"
+        case "direct": t("Direct")
+        case "peer-relay": t("Through the server’s relay")
+        case "derp": t("Through a relay (slower)")
+        default: t("Connecting")
         }
     }
 

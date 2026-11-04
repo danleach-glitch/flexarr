@@ -61,7 +61,7 @@ struct NowPlayingView: View {
                     }
                 }
             } else {
-                StatusView(state: .empty("Nothing is playing."))
+                StatusView(state: .empty(t("Nothing is playing.")))
             }
         }
         .task(id: music.current?.id) { await lyrics.load(music.isPodcast || music.isBook ? nil : music.current, client: model.client) }
@@ -170,7 +170,7 @@ struct NowPlayingView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityHint("Shows the cover")
+        .accessibilityHint(t("Shows the cover"))
     }
 
     /// The words, with the track's name and cover kept small above them and the controls kept below.
@@ -240,11 +240,11 @@ struct NowPlayingView: View {
                 if music.isPodcast, let show = track.seriesTitle {
                     Button { goToPodcast() } label: { Text(show).lineLimit(1) }
                         .buttonStyle(.plain)
-                        .accessibilityHint("Opens the podcast")
+                        .accessibilityHint(t("Opens the podcast"))
                 } else if music.isBook {
                     Button { goToBook() } label: { Text(track.bookAuthors ?? "").lineLimit(1) }
                         .buttonStyle(.plain)
-                        .accessibilityHint("Opens the book")
+                        .accessibilityHint(t("Opens the book"))
                 } else {
                     Text([track.artistName, music.albumTitle(of: track)].compactMap { $0 }.joined(separator: "  –  "))
                         .lineLimit(1)
@@ -283,17 +283,17 @@ struct NowPlayingView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if music.isPodcast, music.duration > 0 {
                     // When it'll finish, at the speed it's playing.
-                    Text("Ends \(Date().addingTimeInterval(max(0, music.duration - music.position) / max(0.5, music.speed)).formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: Localization.locale)))")
+                    Text(t("Ends {time}", ["time": Date().addingTimeInterval(max(0, music.duration - music.position) / max(0.5, music.speed)).formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: Localization.locale))]))
                 } else if music.isBook, music.chapters.count > 1 {
                     // Which the scrubber spans: a tap switches.
-                    Button(scope.isChapter ? "Chapter" : "Book") { wholeBook.toggle() }
+                    Button(scope.isChapter ? t("Chapter") : t("Book")) { wholeBook.toggle() }
                         .buttonStyle(.plain)
                         // A full-size target, overlapping the space around it so the row keeps its height.
                         .frame(minWidth: 64, minHeight: 44)
                         .contentShape(Rectangle())
                         .padding(.vertical, -6)
-                        .accessibilityLabel(scope.isChapter ? "Showing the chapter" : "Showing the whole book")
-                        .accessibilityHint("Switches between the chapter and the whole book")
+                        .accessibilityLabel(scope.isChapter ? t("Showing the chapter") : t("Showing the whole book"))
+                        .accessibilityHint(t("Switches between the chapter and the whole book"))
                 }
                 Text(scope.length > 0 ? "-" + Format.timestamp(left) : "")
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -329,7 +329,7 @@ struct NowPlayingView: View {
                     .animation(.easeOut(duration: 0.2), value: current)
             }
             .buttonStyle(.plain)
-            .accessibilityHint("Shows the chapters")
+            .accessibilityHint(t("Shows the chapters"))
             Button {
                 let next = (current ?? -1) + 1
                 if chapters.indices.contains(next) { music.seek(to: chapters[next].startSeconds) }
@@ -351,12 +351,12 @@ struct NowPlayingView: View {
         let back = Int(music.skipBack), forward = Int(music.skipForward)
         return HStack(spacing: 0) {
             Spacer()
-            Button { music.skip(by: -music.skipBack) } label: { Label("Back \(back) seconds", systemImage: "gobackward.\(back)") }
+            Button { music.skip(by: -music.skipBack) } label: { Label(t("Back {seconds} seconds", ["seconds": back]), systemImage: "gobackward.\(back)") }
                 .buttonStyle(TransportStyle(size: 56))
             Spacer()
             playButton
             Spacer()
-            Button { music.skip(by: music.skipForward) } label: { Label("Forward \(forward) seconds", systemImage: "goforward.\(forward)") }
+            Button { music.skip(by: music.skipForward) } label: { Label(t("Forward {seconds} seconds", ["seconds": forward]), systemImage: "goforward.\(forward)") }
                 .buttonStyle(TransportStyle(size: 56))
             Spacer()
         }
@@ -366,11 +366,11 @@ struct NowPlayingView: View {
     @ViewBuilder
     private var bookOffers: some View {
         if let offer = music.jumpOffer {
-            offerBar(text: "\(offer.device ?? "Elsewhere"): \(Format.timestamp(offer.positionSeconds))", action: "Jump", icon: "arrow.uturn.forward") {
+            offerBar(text: t("{device}: {time}", ["device": offer.device ?? t("Elsewhere"), "time": Format.timestamp(offer.positionSeconds)]), action: t("Jump"), icon: "arrow.uturn.forward") {
                 music.acceptJump()
             } dismiss: { music.dismissJump() }
         } else if let next = music.nextBookOffer {
-            offerBar(text: next.title, action: "Play", icon: Symbol.play) { music.playNextBook() } dismiss: { music.dismissNextBook() }
+            offerBar(text: next.title, action: t(Words.play), icon: Symbol.play) { music.playNextBook() } dismiss: { music.dismissNextBook() }
         }
     }
 
@@ -408,7 +408,7 @@ struct NowPlayingView: View {
             if music.isLoading {
                 ProgressView().tint(Color.screen)
             } else {
-                Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? Symbol.pause : Symbol.play)
+                Label(music.isPlaying ? t("Pause") : t(Words.play), systemImage: music.isPlaying ? Symbol.pause : Symbol.play)
             }
         }
         .buttonStyle(TransportStyle(size: 76, filled: true))
@@ -466,7 +466,7 @@ struct NowPlayingView: View {
                     .modifier(ExtraLabel(active: showingDetails))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(showingDetails ? "Hide notes" : music.isBook ? "Chapters and bookmarks" : "Notes")
+            .accessibilityLabel(showingDetails ? t("Hide notes") : music.isBook ? t("Chapters and bookmarks") : t("Notes"))
             .frame(maxWidth: .infinity)
             if !GuestMode.isActive { RoutePicker().frame(width: 44, height: 44).frame(maxWidth: .infinity) }
             if music.isBook { bookMenu.frame(maxWidth: .infinity) } else { episodeMenu.frame(maxWidth: .infinity) }
@@ -483,7 +483,7 @@ struct NowPlayingView: View {
                     .modifier(ExtraLabel(active: music.speed != 1))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Speed, \(BookSpeed.label(music.speed))")
+            .accessibilityLabel(t("Speed, {speed}", ["speed": BookSpeed.label(music.speed)]))
         } else {
             podcastSpeedMenu
         }
@@ -525,7 +525,7 @@ struct NowPlayingView: View {
         let marks = music.bookmarks.sorted { $0.positionSeconds < $1.positionSeconds }
         VStack(alignment: .leading, spacing: 2) {
             HStack {
-                sectionTitle("Bookmarks")
+                sectionTitle(t("Bookmarks"))
                 Spacer()
                 Button { Task { await music.addBookmark() } } label: { Label(t("Add"), systemImage: "plus") }
                     .font(.subheadline.weight(.semibold))
@@ -541,7 +541,7 @@ struct NowPlayingView: View {
                             .monospacedDigit()
                             .foregroundStyle(Color.usher)
                             .frame(minWidth: 52, alignment: .leading)
-                        Text(mark.note ?? music.book?.timeline.chapter(at: mark.positionSeconds)?.title ?? "Bookmark")
+                        Text(mark.note ?? music.book?.timeline.chapter(at: mark.positionSeconds)?.title ?? t("Bookmark"))
                             .font(.subheadline)
                             .foregroundStyle(Color.screen.opacity(0.85))
                             .multilineTextAlignment(.leading)
@@ -572,7 +572,7 @@ struct NowPlayingView: View {
                 .monospacedDigit()
                 .modifier(ExtraLabel(active: music.speed != 1))
         }
-        .accessibilityLabel("Speed, \(speedLabel(music.speed))")
+        .accessibilityLabel(t("Speed, {speed}", ["speed": speedLabel(music.speed)]))
     }
 
     private var sleepMenu: some View {
@@ -598,7 +598,7 @@ struct NowPlayingView: View {
             .font(.system(size: 18, weight: .medium))
             .modifier(ExtraLabel(active: music.sleep.setting != nil))
         }
-        .accessibilityLabel(music.sleep.setting == nil ? "Sleep timer" : "Sleep timer on")
+        .accessibilityLabel(music.sleep.setting == nil ? t("Sleep timer") : t("Sleep timer on"))
     }
 
     /// What can be done with the episode: open its show, mark it played, download it, share the show.
@@ -615,7 +615,7 @@ struct NowPlayingView: View {
                 } label: { Label(t(Words.markAsPlayed), systemImage: Symbol.watched) }
                 if let download = downloads.entry(for: track.id) {
                     Button(role: .destructive) { downloads.remove(download.id) } label: {
-                        Label(download.isDownloaded ? "Remove Download" : "Stop Download", systemImage: Symbol.delete)
+                        Label(download.isDownloaded ? t("Remove Download") : t("Stop Download"), systemImage: Symbol.delete)
                     }
                 } else if !music.isPlayingOffline {
                     Button { Task { try? await downloads.download(itemId: track.id, quality: .original) } } label: {
@@ -651,7 +651,7 @@ struct NowPlayingView: View {
         if !chapters.isEmpty {
             let current = chapters.index(at: music.position)
             VStack(alignment: .leading, spacing: 2) {
-                sectionTitle("Chapters")
+                sectionTitle(t("Chapters"))
                 ForEach(Array(chapters.enumerated()), id: \.offset) { offset, chapter in
                     Button { music.seek(to: chapter.startSeconds) } label: {
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -677,7 +677,7 @@ struct NowPlayingView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("\(chapter.title), at \(Format.timestamp(chapter.startSeconds))")
+                    .accessibilityLabel(t("{chapter}, at {time}", ["chapter": chapter.title, "time": Format.timestamp(chapter.startSeconds)]))
                     .accessibilityAddTraits(offset == current ? .isSelected : [])
                 }
             }
@@ -690,8 +690,8 @@ struct NowPlayingView: View {
     private var notes: some View {
         if let episode = playing.episode, episode.id == music.current?.id {
             VStack(alignment: .leading, spacing: 8) {
-                sectionTitle("Episode Notes")
-                FactsLine(facts: [episode.dateLine, episode.durationSeconds.flatMap(Format.runtime(seconds:)), episode.explicit ? "Explicit" : nil].compactMap { $0 })
+                sectionTitle(t("Episode Notes"))
+                FactsLine(facts: [episode.dateLine, episode.durationSeconds.flatMap(Format.runtime(seconds:)), episode.explicit ? t("Explicit") : nil].compactMap { $0 })
                     .font(.caption)
                     .padding(.horizontal, 12)
                 if let text = episode.overview {
@@ -729,7 +729,7 @@ struct NowPlayingView: View {
         let next = model.upNext.filter { $0.id != music.current?.id }
         if !next.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                sectionTitle("Up next")
+                sectionTitle(t(Words.upNext))
                 ForEach(next.prefix(20)) { episode in
                     Button { model.playEpisode(episode.summary) } label: {
                         HStack(spacing: 12) {

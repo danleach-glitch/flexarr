@@ -13,10 +13,10 @@ struct PlaybackSettingsView: View {
         List {
             if let preferences {
                 Section {
-                    toggle("Auto-play the next episode", \.autoPlayNext, preferences)
-                    toggle("Skip intros", \.skipIntros, preferences)
-                    toggle("Skip recaps", \.skipRecaps, preferences)
-                    toggle("Skip credits", \.skipCredits, preferences)
+                    toggle(t(Words.autoPlayNext), \.autoPlayNext, preferences)
+                    toggle(t("Skip intros"), \.skipIntros, preferences)
+                    toggle(t("Skip recaps"), \.skipRecaps, preferences)
+                    toggle(t(Words.skipCredits), \.skipCredits, preferences)
                     Picker(t("Subtitle size"), selection: Binding(
                         get: { preferences.subtitleSize == .unknown ? .standard : preferences.subtitleSize ?? .standard },
                         set: { size in
@@ -58,7 +58,7 @@ struct PlaybackSettingsView: View {
             Section {
                 Picker(t("Skip back and forward"), selection: $skipSeconds) {
                     ForEach([10.0, 15.0, 30.0], id: \.self) { seconds in
-                        Text("\(Int(seconds)) seconds").tag(seconds)
+                        Text(t("{seconds} seconds", ["seconds": Int(seconds)])).tag(seconds)
                     }
                 }
                 .settingsRow()
@@ -72,26 +72,26 @@ struct PlaybackSettingsView: View {
                         .onChange(of: losslessAudio) { _, on in PlaybackController.losslessAudio = on }
                 }
             } header: {
-                Text("This \(ThisDevice.name)")
+                Text(t("This {device}", ["device": ThisDevice.name]))
             } footer: {
                 Text(playsFilesDirectly
-                    ? "Files play as they are, every format with HDR and Dolby Vision. Lossless surround sends TrueHD, DTS-HD and FLAC as multichannel PCM, for a receiver or eARC soundbar; off, they go as Dolby Digital Plus. Until you choose, it's on when what's connected takes it."
-                    : "Off, the server sends a stream instead of the file itself. Downloads and remote viewing are unaffected.")
+                    ? t("Files play as they are, every format with HDR and Dolby Vision. Lossless surround sends TrueHD, DTS-HD and FLAC as multichannel PCM, for a receiver or eARC soundbar; off, they go as Dolby Digital Plus. Until you choose, it's on when what's connected takes it.")
+                    : t("Off, the server sends a stream instead of the file itself. Downloads and remote viewing are unaffected."))
             }
             if playsFilesDirectly {
                 Section {
                     Picker(t("Dialogue boost"), selection: soundSetting(\.dialogueBoost)) {
-                        ForEach(SoundSettings.DialogueBoost.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        ForEach(SoundSettings.DialogueBoost.allCases, id: \.self) { Text(SoundNames.boost($0)).tag($0) }
                     }
                     .settingsRow()
                     Picker(t("Night mode"), selection: soundSetting(\.nightMode)) {
-                        ForEach(SoundSettings.NightMode.allCases, id: \.self) { Text($0 == .scheduled ? "On a schedule" : $0.rawValue).tag($0) }
+                        ForEach(SoundSettings.NightMode.allCases, id: \.self) { Text(SoundNames.night($0)).tag($0) }
                     }
                     .settingsRow()
                     if sound.nightMode == .scheduled {
-                        DatePicker("From", selection: minutes(\.nightStart), displayedComponents: .hourAndMinute)
+                        DatePicker(t("From"), selection: minutes(\.nightStart), displayedComponents: .hourAndMinute)
                             .settingsRow()
-                        DatePicker("Until", selection: minutes(\.nightEnd), displayedComponents: .hourAndMinute)
+                        DatePicker(t("Until"), selection: minutes(\.nightEnd), displayedComponents: .hourAndMinute)
                             .settingsRow()
                     }
                     Picker(t("Speakers"), selection: soundSetting(\.speakers)) {
@@ -105,7 +105,7 @@ struct PlaybackSettingsView: View {
                 }
             }
         }
-        .settingsPage("Playback")
+        .settingsPage(t("Playback"))
         // The player's audio menu changes these too: this page follows, so it never saves an old value back.
         .onReceive(NotificationCenter.default.publisher(for: SoundSettings.changed)) { _ in sound = SoundSettings.current }
         .animation(.default, value: preferences == nil)
@@ -156,6 +156,26 @@ struct PlaybackSettingsView: View {
             } catch {
                 preferences = current
             }
+        }
+    }
+}
+
+/// The names the sound settings show (their raw values are what's saved).
+enum SoundNames {
+    static func boost(_ boost: SoundSettings.DialogueBoost) -> String {
+        switch boost {
+        case .off: t("Off")
+        case .low: t("Low")
+        case .medium: t("Medium")
+        case .high: t("High")
+        }
+    }
+
+    static func night(_ night: SoundSettings.NightMode) -> String {
+        switch night {
+        case .off: t("Off")
+        case .on: t("On")
+        case .scheduled: t("On a schedule")
         }
     }
 }

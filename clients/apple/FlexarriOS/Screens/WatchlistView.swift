@@ -30,7 +30,7 @@ struct WatchlistView: View {
     var body: some View {
         Group {
             if let entries, entries.isEmpty {
-                StatusView(state: .empty("Nothing here yet."))
+                StatusView(state: .empty(t("Nothing here yet.")))
             } else if let entries {
                 ScrollView {
                     if let error {
@@ -42,7 +42,7 @@ struct WatchlistView: View {
                             .padding(.horizontal, Layout.edge)
                     }
                     if shown.isEmpty, !entries.isEmpty {
-                        StatusView(state: .empty("Nothing on your watchlist matches.")).frame(height: 300)
+                        StatusView(state: .empty(t("Nothing on your watchlist matches."))).frame(height: 300)
                     }
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                         ForEach(shown) { entry in
@@ -140,7 +140,7 @@ private struct WatchlistCard: View {
                     Text(entry.title)
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(Color.screen.opacity(0.9))
-                    Text([entry.isShow ? "Show" : "Movie", entry.year.map(String.init)].compactMap { $0 }.joined(separator: ", "))
+                    Text([entry.isShow ? t("Show") : t("Movie"), entry.year.map(String.init)].compactMap { $0 }.joined(separator: ", "))
                         .font(.caption)
                         .foregroundStyle(Color.usher)
                     if let streaming = entry.streamingLabel {
@@ -197,9 +197,9 @@ private struct WatchlistCard: View {
 
     /// "Out 5 Mar 2027", in the phone's own format (the date is a calendar day, so it's read and shown in UTC).
     private var comingLabel: String {
-        guard let raw = entry.releaseDate, let date = try? Date(raw, strategy: .iso8601.year().month().day()) else { return "Coming" }
+        guard let raw = entry.releaseDate, let date = try? Date(raw, strategy: .iso8601.year().month().day()) else { return t("Coming") }
         var style = Date.FormatStyle(date: .abbreviated, time: .omitted, locale: Localization.locale)
         style.timeZone = TimeZone(identifier: "UTC") ?? .gmt
-        return "Out \(date.formatted(style))"
+        return t("Out {date}", ["date": date.formatted(style)])
     }
 }

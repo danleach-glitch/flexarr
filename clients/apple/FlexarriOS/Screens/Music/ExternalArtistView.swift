@@ -38,7 +38,7 @@ struct ExternalArtistView: View {
                             }
                         }
                         if !detail.similar.isEmpty {
-                            ExternalMusicRow(title: "Fans also like", items: detail.similar)
+                            ExternalMusicRow(title: t(Words.fansAlsoLike), items: detail.similar)
                         }
                     } else if let error {
                         StatusView(state: .failed(error) { Task { await load() } }).frame(height: 240)

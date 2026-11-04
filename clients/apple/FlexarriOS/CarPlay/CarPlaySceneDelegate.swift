@@ -15,10 +15,10 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     static weak var model: AppModel?
 
     private var interfaceController: CPInterfaceController?
-    private let upNext = CPListTemplate(title: "Up next", sections: [])
-    private let fresh = CPListTemplate(title: "New episodes", sections: [])
-    private let podcasts = CPListTemplate(title: "Podcasts", sections: [])
-    private let books = CPListTemplate(title: "Books", sections: [])
+    private let upNext = CPListTemplate(title: t(Words.upNext), sections: [])
+    private let fresh = CPListTemplate(title: t("New episodes"), sections: [])
+    private let podcasts = CPListTemplate(title: t(Words.podcasts), sections: [])
+    private let books = CPListTemplate(title: t("Books"), sections: [])
     /// Where downloaded books are listed from (handed over at launch, like the model).
     static weak var downloads: DownloadStore?
     /// Kept here: the Now Playing template only holds its observers weakly.
@@ -30,8 +30,8 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         fresh.tabImage = UIImage(systemName: "sparkles")
         podcasts.tabImage = UIImage(systemName: "mic.fill")
         books.tabImage = UIImage(systemName: "book.fill")
-        for list in [upNext, fresh, podcasts] { list.emptyViewSubtitleVariants = ["Nothing here yet."] }
-        books.emptyViewSubtitleVariants = ["No books yet."]
+        for list in [upNext, fresh, podcasts] { list.emptyViewSubtitleVariants = [t("Nothing here yet.")] }
+        books.emptyViewSubtitleVariants = [t("No books yet.")]
         interfaceController.setRootTemplate(CPTabBarTemplate(templates: [upNext, fresh, podcasts, books]), animated: false, completion: nil)
         setUpNowPlaying()
         Task { await reload() }
@@ -45,14 +45,14 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
 
     private func reload() async {
         guard let model = Self.model, let client = model.client else {
-            for list in [upNext, fresh, podcasts, books] { list.emptyViewSubtitleVariants = ["Open Flexarr on your iPhone to sign in."] }
+            for list in [upNext, fresh, podcasts, books] { list.emptyViewSubtitleVariants = [t("Open Flexarr on your iPhone to sign in.")] }
             await reloadBooks(client: nil)
             return
         }
         // A kids profile has no podcasts, nor books.
         guard !model.isKids else {
             for list in [upNext, fresh, podcasts, books] {
-                list.emptyViewSubtitleVariants = ["Not on kids profiles."]
+                list.emptyViewSubtitleVariants = [t("Not on kids profiles.")]
                 list.updateSections([])
             }
             return
@@ -85,7 +85,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         var sections: [CPListSection] = []
         let libraries = Self.model?.libraries.filter { $0.type == .audiobooks } ?? []
         if let client, let library = libraries.first, let shelves = try? await client.bookShelves(library.id), !shelves.continueListening.isEmpty {
-            sections.append(CPListSection(items: await bookItems(shelves.continueListening, client: client), header: "Continue listening", sectionIndexTitle: nil))
+            sections.append(CPListSection(items: await bookItems(shelves.continueListening, client: client), header: t("Continue listening"), sectionIndexTitle: nil))
         }
         let downloaded = (Self.downloads?.bookDownloads ?? []).filter(\.isDownloaded)
         if !downloaded.isEmpty {
@@ -104,7 +104,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                 }
                 rows.append(row)
             }
-            sections.append(CPListSection(items: rows, header: "Downloaded", sectionIndexTitle: nil))
+            sections.append(CPListSection(items: rows, header: t("Downloaded"), sectionIndexTitle: nil))
         }
         if let client, !libraries.isEmpty {
             let rows = libraries.map { library in
@@ -118,7 +118,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                 }
                 return row
             }
-            sections.append(CPListSection(items: rows, header: "Library", sectionIndexTitle: nil))
+            sections.append(CPListSection(items: rows, header: t("Library"), sectionIndexTitle: nil))
         }
         books.updateSections(sections)
     }
@@ -127,7 +127,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     private func open(_ library: Library, client: FlexarrClient) async {
         let page = (try? await client.books(library.id, filter: BookFilter(sort: .listened), take: 100))?.items ?? []
         let list = CPListTemplate(title: library.name, sections: [CPListSection(items: await bookItems(page, client: client))])
-        list.emptyViewSubtitleVariants = ["No books yet."]
+        list.emptyViewSubtitleVariants = [t("No books yet.")]
         interfaceController?.pushTemplate(list, animated: true, completion: nil)
     }
 
@@ -158,7 +158,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         let oldest = show.subscription?.oldestFirst == true
         let page = (try? await client.podcastEpisodes(show.id, sort: oldest ? .oldest : .newest, unplayed: true, take: 40))?.items ?? []
         let list = CPListTemplate(title: show.title, sections: [CPListSection(items: await items(page, client: client, showsPodcast: false))])
-        list.emptyViewSubtitleVariants = ["You're up to date."]
+        list.emptyViewSubtitleVariants = [t("You're up to date.")]
         interfaceController?.pushTemplate(list, animated: true, completion: nil)
     }
 
@@ -202,7 +202,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         let nowPlaying = CPNowPlayingTemplate.shared
         nowPlaying.updateNowPlayingButtons([speed])
         nowPlaying.isUpNextButtonEnabled = true
-        nowPlaying.upNextTitle = "Up next"
+        nowPlaying.upNextTitle = t(Words.upNext)
         let observer = UpNextObserver(open: { [weak self] in
             guard let self else { return }
             interfaceController?.pushTemplate(upNext, animated: true, completion: nil)

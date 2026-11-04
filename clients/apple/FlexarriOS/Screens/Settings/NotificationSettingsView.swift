@@ -34,31 +34,31 @@ struct NotificationSettingsView: View {
                 if device?.relay == false {
                     Text(t("Your server has notifications turned off, so none will arrive. They can be turned on in its configuration."))
                 } else if !notifications.isOn {
-                    Text("Hear when something new is ready. This \(ThisDevice.name) gets them for one profile.")
+                    Text(t("Hear when something new is ready. This {device} gets them for one profile.", ["device": ThisDevice.name]))
                 }
             }
 
             if notifications.isOn {
                 Section {
-                    LabeledContent(t("For"), value: notifications.profileName ?? "Your profile")
+                    LabeledContent(t("For"), value: notifications.profileName ?? t("Your profile"))
                         .listRowBackground(Color.seat)
                     if let current = model.currentProfile, let profileId = notifications.profileId, current.id != profileId {
-                        Button("Get notifications for \(current.name) instead") { Task { await move() } }
+                        Button(t("Get notifications for {profile} instead", ["profile": current.name])) { Task { await move() } }
                             .disabled(isWorking)
                             .listRowBackground(Color.seat)
                     }
                 }
 
                 Section(t("Tell me about")) {
-                    toggle("Movies", \.films)
-                    toggle("Shows", \.shows)
-                    if model.podcastStatus?.available != false { toggle("Podcasts", \.podcasts) }
-                    if model.hasLiveTv { toggle("Recordings", \.recordings) }
-                    toggle("Requests", \.requests, detail: "When something you requested is ready")
+                    toggle(t(Words.movies), \.films)
+                    toggle(t(Words.shows), \.shows)
+                    if model.podcastStatus?.available != false { toggle(t(Words.podcasts), \.podcasts) }
+                    if model.hasLiveTv { toggle(t("Recordings"), \.recordings) }
+                    toggle(t("Requests"), \.requests, detail: t("When something you requested is ready"))
                 }
 
                 Section {
-                    toggle("Upcoming", \.upcoming, detail: "Each morning, what's airing today")
+                    toggle(t("Upcoming"), \.upcoming, detail: t("Each morning, what's airing today"))
                     if notifications.settings.upcoming {
                         Picker(t("At"), selection: setting(\.upcomingHour)) {
                             ForEach(0..<24, id: \.self) { Text(Self.hourLabel($0)).tag($0) }
@@ -74,7 +74,7 @@ struct NotificationSettingsView: View {
                 }
             }
         }
-        .settingsPage("Notifications")
+        .settingsPage(t("Notifications"))
         .task { await load() }
         .alert(problem?.title ?? "", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
             Button(t("OK"), role: .cancel) {}
@@ -158,18 +158,18 @@ struct NotificationSettingsView: View {
         defer { isWorking = false }
         do {
             try await notifications.sendTest(credentials)
-            testSent = "Test notification sent. It should arrive in a moment."
+            testSent = t("Test notification sent. It should arrive in a moment.")
         } catch {
-            problem = Problem(error, title: "Couldn't send a test notification")
+            problem = Problem(error, title: t("Couldn't send a test notification"))
         }
     }
 
     private struct Problem {
-        var title = "Couldn't change notifications"
+        var title: String
         var message: String
 
         init(_ error: Error, title: String? = nil) {
-            if let title { self.title = title }
+            self.title = title ?? t("Couldn't change notifications")
             message = ConnectionError(error).message
         }
     }

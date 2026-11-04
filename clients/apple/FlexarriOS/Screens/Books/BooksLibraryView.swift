@@ -6,6 +6,16 @@ import SwiftUI
 enum BookBrowse: String, CaseIterable, Identifiable {
     case shelves = "Browse", all = "All books", genres = "Genres", series = "Series", authors = "Authors"
     var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .shelves: t(Words.browse)
+        case .all: t("All books")
+        case .genres: t(Words.genres)
+        case .series: t(Words.series)
+        case .authors: t("Authors")
+        }
+    }
 }
 
 /// An audiobooks library's state: the shelves, and a page of each list, loaded as they're scrolled.
@@ -148,7 +158,7 @@ struct BooksLibraryView: View {
                     if browse.browse == .all, isFiltered {
                         noMatches.frame(height: 400)
                     } else {
-                        StatusView(state: .empty(browse.browse == .genres ? "No genres here yet. They come with each book's details once a scan has found them." : "No books yet.")).frame(height: 400)
+                        StatusView(state: .empty(browse.browse == .genres ? t("No genres here yet. They come with each book's details once a scan has found them.") : t("No books yet."))).frame(height: 400)
                     }
                 } else {
                     content
@@ -199,7 +209,7 @@ struct BooksLibraryView: View {
     private var tabs: some View {
         Picker(t("Show"), selection: Binding(get: { browse.browse }, set: { browse.browse = $0 })) {
             ForEach(BookBrowse.allCases) { tab in
-                Text(tab.rawValue).tag(tab)
+                Text(tab.label).tag(tab)
             }
         }
         .pickerStyle(.segmented)
@@ -231,17 +241,17 @@ struct BooksLibraryView: View {
     @ViewBuilder
     private func shelf(shelf: BookShelf, _ shelves: BookShelves) -> some View {
         switch shelf {
-        case .continueListening: bookRow("Continue listening", shelves.continueListening)
-        case .nextInSeries: bookRow("Next in series", shelves.nextInSeries)
-        case .recentlyAdded: bookRow("Recently added", shelves.recentlyAdded) { show(.all, sort: .added) }
+        case .continueListening: bookRow(t("Continue listening"), shelves.continueListening)
+        case .nextInSeries: bookRow(t("Next in series"), shelves.nextInSeries)
+        case .recentlyAdded: bookRow(t(Words.recentlyAdded), shelves.recentlyAdded) { show(.all, sort: .added) }
         case .series:
             if !shelves.series.isEmpty {
-                row("Series", seeAll: { browse.browse = .series }) {
+                row(t(Words.series), seeAll: { browse.browse = .series }) {
                     ForEach(shelves.series) { SeriesCard(series: $0, width: cardWidth) }
                 }
             }
-        case .authors: peopleRow("Authors", shelves.authors) { browse.browse = .authors }
-        case .finished: bookRow("Finished", shelves.finished) { show(.all, progress: .finished) }
+        case .authors: peopleRow(t("Authors"), shelves.authors) { browse.browse = .authors }
+        case .finished: bookRow(t("Finished"), shelves.finished) { show(.all, progress: .finished) }
         }
     }
 
@@ -283,7 +293,7 @@ struct BooksLibraryView: View {
         browse.browse = tab
     }
 
-    private func bookCount(_ count: Int) -> String { count == 1 ? "1 book" : "\(count) books" }
+    private func bookCount(_ count: Int) -> String { t("{count, plural, one {# book} other {# books}}", ["count": count]) }
 
     // MARK: Lists
 

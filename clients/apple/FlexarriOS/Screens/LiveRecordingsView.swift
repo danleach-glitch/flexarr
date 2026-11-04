@@ -28,7 +28,7 @@ struct LiveRecordingsView: View {
                         ForEach(recordings.upcoming) { recording in
                             row(recording)
                                 .swipeActions {
-                                    Button(recording.isRecordingNow ? "Stop" : "Don't record", role: .destructive) {
+                                    Button(recording.isRecordingNow ? t("Stop") : t("Don't record"), role: .destructive) {
                                         act { try await $0.removeRecording(recording.id) }
                                     }
                                 }
@@ -39,8 +39,7 @@ struct LiveRecordingsView: View {
                             ForEach(recordings.series) { series in
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(series.title).font(.body.weight(.semibold))
-                                    Text("\(series.channelName.map { "On \($0)" } ?? "On any channel"), \(series.upcoming) coming up, \(series.recorded) recorded"
-                                         + (series.newOnly ? ", new only" : ""))
+                                    Text(seriesLine(series))
                                         .font(.caption).foregroundStyle(Color.usher)
                                 }
                                 .swipeActions {
@@ -57,7 +56,7 @@ struct LiveRecordingsView: View {
                                 } label: { row(recording) }
                                     .disabled(recording.itemId == nil)
                                     .swipeActions {
-                                        Button(recording.state == "completed" ? "Delete" : "Clear", role: .destructive) {
+                                        Button(recording.state == "completed" ? t(Words.delete) : t("Clear"), role: .destructive) {
                                             act { try await $0.removeRecording(recording.id) }
                                         }
                                     }
@@ -102,9 +101,18 @@ struct LiveRecordingsView: View {
         }
     }
 
+    /// "On BBC One, 2 coming up, 5 recorded".
+    private func seriesLine(_ series: RecordingSeries) -> String {
+        let channel = series.channelName.map { t("On {channel}", ["channel": $0]) } ?? t("On any channel")
+        let values: [String: Any] = ["channel": channel, "upcoming": series.upcoming, "recorded": series.recorded]
+        return series.newOnly
+            ? t("{channel}, {upcoming} coming up, {recorded} recorded, new only", values)
+            : t("{channel}, {upcoming} coming up, {recorded} recorded", values)
+    }
+
     private func detail(_ recording: Recording) -> String {
         var parts: [String] = []
-        if let season = recording.season, let episode = recording.episode { parts.append("S\(season)E\(episode)") }
+        if let season = recording.season, let episode = recording.episode { parts.append(t(Words.seasonEpisodeShort, ["season": season, "episode": episode])) }
         if let subtitle = recording.subtitle { parts.append(subtitle) }
         parts.append(recording.channelName)
         parts.append(Self.day.string(from: recording.start))

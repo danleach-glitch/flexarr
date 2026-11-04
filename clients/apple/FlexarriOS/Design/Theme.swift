@@ -70,7 +70,7 @@ struct ProgressBar: View {
 /// Section heading for rows: marquee type on the shared edge, with an optional See all (or another word).
 struct SectionHeading: View {
     let title: String
-    var actionTitle = "See all"
+    var actionTitle = t("See all")
     var action: (() -> Void)?
     /// What VoiceOver says for the action, when "See all" alone wouldn't say what of.
     var actionLabel: String?
