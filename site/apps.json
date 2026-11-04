@@ -25,7 +25,7 @@
       "status": "available",
       "version": "0.57.0",
       "requires": "iOS or iPadOS 18.2 or later",
-      "summary": "Downloads for offline, podcasts with widgets and alerts, Siri, Picture in Picture and AirPlay. Free.",
+      "summary": "Downloads for offline, podcasts with widgets and alerts, Siri, Picture in Picture and AirPlay.",
       "links": [
         { "label": "App Store", "href": "https://apps.apple.com/app/flexarr/id6826618084", "store": "apple" }
       ]
@@ -38,7 +38,7 @@
       "status": "coming",
       "version": "0.57.0",
       "requires": "tvOS 18.2 or later",
-      "summary": "Your libraries, music and live TV from the sofa, with a player built for HDR and Atmos. Free.",
+      "summary": "Your libraries, music and live TV from the sofa, with a player built for HDR and Atmos.",
       "note": "With Apple for review. Can't wait?",
       "links": [
         { "label": "Install it from Xcode", "href": "/guide/apple-tv-xcode" }
@@ -52,7 +52,7 @@
       "status": "available",
       "version": "0.61.0",
       "requires": "A Mac with Apple silicon, macOS 15.2 or later",
-      "summary": "Your libraries in a Mac window, a full-screen player with Picture in Picture and AirPlay, and downloads for away from home. Free.",
+      "summary": "Your libraries in a Mac window, a full-screen player with Picture in Picture and AirPlay, and downloads for away from home.",
       "note": "Coming to the Mac App Store too.",
       "links": [
         { "label": "Download for Mac", "href": "https://github.com/danleach-glitch/flexarr/releases/latest/download/Flexarr.dmg", "primary": true },
@@ -79,7 +79,7 @@
       "name": "Android phone and tablet",
       "icon": "android",
       "status": "development",
-      "summary": "A native app for Android phones and tablets, with downloads for offline and podcasts. Free.",
+      "summary": "A native app for Android phones and tablets, with downloads for offline and podcasts.",
       "note": "Until then, the web player works in your phone's browser.",
       "links": []
     },
@@ -89,7 +89,7 @@
       "name": "Android TV and Google TV",
       "icon": "android",
       "status": "development",
-      "summary": "Flexarr on the big screen, for TVs and streaming sticks with Google TV or Android TV. Free.",
+      "summary": "Flexarr on the big screen, for TVs and streaming sticks with Google TV or Android TV.",
       "note": "Built on the Android app, and laid out like the Apple TV app.",
       "links": []
     }
