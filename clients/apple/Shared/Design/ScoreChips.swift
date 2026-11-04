@@ -30,7 +30,7 @@ struct ScoreChips: View {
                 chip(ScoreMarks.imdb, text, label: scores.imdbLabel)
             }
             if let rt = scores.rottenTomatoes {
-                chip(Self.tomato(rt.state), "\(rt.score)%", label: scores.rottenTomatoesLabel)
+                chip(Self.tomato(rt.state), t("{score}%", ["score": rt.score]), label: scores.rottenTomatoesLabel)
             }
         }
     }

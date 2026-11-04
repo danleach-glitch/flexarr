@@ -16,11 +16,15 @@ import { AsyncButton } from '../components/AsyncButton'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { PageError, PageLoading } from '../components/PageStatus'
 import { useApi } from '../hooks/useApi'
+import { usePolling } from '../hooks/usePolling'
 import { requestedState } from '../lib/requestedState'
 import { undoFailure } from '../lib/musicUndo'
+import { t, Words } from '../i18n'
 
 /** How many cards show at first; Show more adds as many again. */
 const PAGE_SIZE = 200
+/** How often the view asks again while something is downloading or importing. */
+const REFRESH_MS = 30_000
 
 /** One card of the view, whichever library it's in. */
 interface Row {
@@ -61,6 +65,8 @@ export function LibraryRequested({ library, viewSwitch }: { library: Library; vi
   const grid = useRef<HTMLDivElement>(null)
   const rows = data?.rows.filter((r) => !gone.has(r.key))
   const answering = data?.answering !== false
+  // Downloading 40% moves on: asked again now and then while anything is on its way in, so it doesn't look stuck.
+  usePolling(reload, data?.rows.some((r) => r.state === 'downloading' || r.state === 'importing') ? REFRESH_MS : null)
 
   // The card that opened the dialog is gone: the keyboard moves on to the next one's Unrequest (or the grid).
   function remove(key: string, index: number) {
@@ -81,19 +87,19 @@ export function LibraryRequested({ library, viewSwitch }: { library: Library; vi
           {viewSwitch}
         </div>
       </header>
-      {error ? (
+      {error && !data ? (
         <PageError error={error} onRetry={reload} />
       ) : !rows ? (
-        <PageLoading label={music ? 'Loading requested albums' : `Loading requested ${library.type === 'Movies' ? 'movies' : 'shows'}`} />
+        <PageLoading label={music ? t('Loading requested albums') : library.type === 'Movies' ? t('Loading requested movies') : t('Loading requested shows')} />
       ) : (
         <>
           {!answering && (
             <p className="page-message muted" role="status">
-              {service} isn’t answering.
+              {t('{service} isn’t answering.', { service })}
             </p>
           )}
           {rows.length === 0 ? (
-            answering && <p className="page-message muted">Nothing on its way.</p>
+            answering && <p className="page-message muted">{t('Nothing on its way.')}</p>
           ) : (
             <div className={music ? 'poster-grid music-albums' : 'poster-grid'} ref={grid} tabIndex={-1}>
               {rows.slice(0, shown).map((r, i) => (
@@ -104,7 +110,7 @@ export function LibraryRequested({ library, viewSwitch }: { library: Library; vi
           {rows.length > shown && (
             <div className="load-more">
               <button className="button quiet" onClick={() => setShown((n) => n + PAGE_SIZE)}>
-                Show more
+                {t('Show more')}
               </button>
             </div>
           )}
@@ -123,7 +129,7 @@ function albumRow(item: MusicRequested): Row {
     subtitle: link ? <Link to={link}>{item.artist}</Link> : item.artist,
     image: item.image,
     link,
-    linkLabel: `${item.title}, by ${item.artist}`,
+    linkLabel: t('{title}, by {artist}', { title: item.title, artist: item.artist }),
     state: item.state,
     progress: item.progress,
     releaseDate: item.releaseDate,
@@ -135,8 +141,8 @@ function albumRow(item: MusicRequested): Row {
 function titleRow(item: TitleRequested): Row {
   const seasons = item.seasons?.length
     ? item.seasons.length === 1
-      ? `Season ${item.seasons[0]}`
-      : `Seasons ${item.seasons.slice(0, -1).join(', ')} and ${item.seasons[item.seasons.length - 1]}`
+      ? t('Season {number}', { number: item.seasons[0] })
+      : t('Seasons {list} and {last}', { list: item.seasons.slice(0, -1).join(', '), last: item.seasons[item.seasons.length - 1] })
     : null
   return {
     key: `${item.mediaType}:${item.tmdbId}`,
@@ -189,18 +195,18 @@ function RequestedCard({ row, square, offline, service, onGone }: { row: Row; sq
       <span className="card-subtitle">{row.subtitle}</span>
       <span className={`requested-state requested-${row.state}`}>{requestedState(row)}</span>
       {row.state === 'downloading' && row.progress != null && (
-        <progress className="requested-progress" value={row.progress} max={1} aria-label={`${row.title} downloading`} />
+        <progress className="requested-progress" value={row.progress} max={1} aria-label={t('{title} downloading', { title: row.title })} />
       )}
       <div className="external-card-actions">
-        <AsyncButton className="button small quiet" onClick={() => setAsking(true)} disabled={offline} title={offline ? `${service} isn’t answering.` : undefined}>
-          Unrequest
+        <AsyncButton className="button small quiet" aria-label={t('Unrequest {title}', { title: row.title })} onClick={() => setAsking(true)} disabled={offline} title={offline ? t('{service} isn’t answering.', { service }) : undefined}>
+          {t(Words.unrequest)}
         </AsyncButton>
       </div>
       {asking && (
         <ConfirmDialog
-          title={`Unrequest ${row.title}?`}
-          confirmLabel="Unrequest"
-          cancelLabel="Keep it"
+          title={t('Unrequest {name}?', { name: row.title })}
+          confirmLabel={t(Words.unrequest)}
+          cancelLabel={t('Keep it')}
           danger
           error={error}
           onConfirm={unrequest}

@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.subtitles
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -100,15 +103,15 @@ fun SubtitleSearchSheet(
 
     ModalBottomSheet(onDismissRequest = ::close, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room) {
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Search for subtitles", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f))
-            TextButton(onClick = ::close) { Text("Done", color = Flexarr.screen, fontWeight = FontWeight.SemiBold) }
+            Text(t("Search for subtitles"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f))
+            TextButton(onClick = ::close) { Text(t(Words.done), color = Flexarr.screen, fontWeight = FontWeight.SemiBold) }
         }
         LazyColumn(Modifier.navigationBarsPadding(), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) {
             downloadError?.let { message ->
                 item { Text(message, fontSize = 13.sp, color = Flexarr.danger, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) }
             }
             item {
-                ResultRow("Best match", "Flexarr picks the closest one", provider = null, matchesFile = false, downloading = downloading == BEST_MATCH) { pick(null) }
+                ResultRow(t("Best match"), t("Flexarr picks the closest one"), provider = null, matchesFile = false, downloading = downloading == BEST_MATCH) { pick(null) }
             }
             val found = results
             when {
@@ -116,10 +119,10 @@ fun SubtitleSearchSheet(
                 found == null -> item {
                     Status {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Flexarr.usher)
-                        Text("Searching…")
+                        Text(t("Searching…"))
                     }
                 }
-                found.isEmpty() -> item { Status { Text("No subtitles found") } }
+                found.isEmpty() -> item { Status { Text(t("No subtitles found")) } }
                 else -> items(found, key = { it.id }) { result ->
                     ResultRow(result.languageLabel, result.release, result.provider, result.matchesFile, downloading == result.id) { pick(result.id) }
                 }
@@ -148,14 +151,14 @@ private fun ResultRow(title: String, detail: String, provider: String?, matchesF
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(if (downloading) "Downloading…" else detail, fontSize = 13.sp, color = Flexarr.usher, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(if (downloading) t("Downloading…") else detail, fontSize = 13.sp, color = Flexarr.usher, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (provider != null || matchesFile) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     provider?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher, maxLines = 1) }
                     if (matchesFile) {
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Verified, contentDescription = null, tint = Flexarr.go, modifier = Modifier.size(14.dp))
-                            Text("Matches your file", fontSize = 13.sp, color = Flexarr.go, maxLines = 1)
+                            Text(t("Matches your file"), fontSize = 13.sp, color = Flexarr.go, maxLines = 1)
                         }
                     }
                 }

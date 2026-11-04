@@ -6,9 +6,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.core.ServerTooOldException
 import io.github.flexarr.data.DiscoveredServer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Connecting by code: the server hands out a short code, someone approves it (a phone signed in as the main profile is
@@ -40,11 +42,16 @@ class PairingSession {
     var error: String? by mutableStateOf(null)
         private set
 
-    /** Gets a code, then asks until it's approved (and signs in) or turned away; runs until then or until cancelled. */
-    suspend fun run(model: AppModel, server: DiscoveredServer) {
+    /**
+     * Gets a code, then asks until it's approved (and signs in) or turned away; runs until then or until cancelled. It
+     * asks only while [inFront] lets it (it waits there while the app is in the background), so a device left on the
+     * connect screen doesn't keep a request open for the main profile, or renew the code, with nobody there to read it.
+     */
+    suspend fun run(model: AppModel, server: DiscoveredServer, inFront: suspend () -> Unit = {}) {
         val client = FlexarrClient(FlexarrClient.normalizeAddress(server.address)!!)
         while (true) {
             try {
+                inFront()
                 val started = client.startPairing(model.deviceName)
                 val setup = client.setupStatus()
                 needsSetup = setup?.open ?: false
@@ -55,6 +62,7 @@ class PairingSession {
                 var since = 0
                 // Asked straight away: a new server lets its first device in without anyone approving it.
                 while (true) {
+                    inFront()
                     // A failed check (the device asleep, or the Wi-Fi blinking) asks again about the same code rather
                     // than starting another: the one on screen may already be approved, and the server keeps only three waiting.
                     val status = try {
@@ -68,7 +76,13 @@ class PairingSession {
                     }
                     val key = status.apiKey
                     if (status.status == "approved" && key != null) {
-                        model.connect(server.address, key)
+                        try {
+                            model.connect(server.address, key)
+                        } catch (e: ServerTooOldException) {
+                            // Not kept, so its sign-in goes rather than stay in the server's list (best effort).
+                            model.scope.launch { runCatching { FlexarrClient(client.baseUrl, apiKey = key).signOut() } }
+                            throw e
+                        }
                         return
                     }
                     if (status.status == "expired") {
@@ -88,6 +102,12 @@ class PairingSession {
                 }
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: ServerTooOldException) {
+                // A new code wouldn't help: it says to update the server, and stops.
+                error = e.message
+                code = null
+                renewed = false
+                return
             } catch (e: Exception) {
                 error = e.message
                 delay(5_000)

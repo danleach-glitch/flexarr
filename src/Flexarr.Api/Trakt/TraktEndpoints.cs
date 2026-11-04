@@ -2,6 +2,7 @@ using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Trakt;
 
@@ -43,7 +44,7 @@ public static class TraktEndpoints
         {
             if (await trakt.ClientIdAsync(ct) is null)
             {
-                return Results.Problem("Trakt isn’t available on this server.", statusCode: 409);
+                return Problems.Of("Trakt isn’t available on this server.", status: 409);
             }
 
             try
@@ -52,7 +53,7 @@ public static class TraktEndpoints
             }
             catch (TraktException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 502);
+                return Results.Problem(ex.Localized, statusCode: 502);
             }
         });
 
@@ -75,16 +76,16 @@ public static class TraktEndpoints
         {
             if (confirm == true)
             {
-                return imports.Start(profile.Id) ? Results.Accepted() : Results.Problem("The import is already running.", statusCode: 409);
+                return imports.Start(profile.Id) ? Results.Accepted() : Problems.Of("The import is already running.", status: 409);
             }
 
             try
             {
-                return await sync.ImportAsync(profile.Id, apply: false, ct) is { } preview ? Results.Ok(preview) : Results.Problem("Connect to Trakt first.", statusCode: 409);
+                return await sync.ImportAsync(profile.Id, apply: false, ct) is { } preview ? Results.Ok(preview) : Problems.Of("Connect to Trakt first.", status: 409);
             }
             catch (TraktException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 502);
+                return Results.Problem(ex.Localized, statusCode: 502);
             }
         });
 
@@ -93,11 +94,11 @@ public static class TraktEndpoints
         {
             try
             {
-                return await lists.AvailableAsync(profile.Id, ct) is { } found ? Results.Ok(found) : Results.Problem("Connect to Trakt first.", statusCode: 409);
+                return await lists.AvailableAsync(profile.Id, ct) is { } found ? Results.Ok(found) : Problems.Of("Connect to Trakt first.", status: 409);
             }
             catch (TraktException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 502);
+                return Results.Problem(ex.Localized, statusCode: 502);
             }
         });
 
@@ -105,11 +106,11 @@ public static class TraktEndpoints
         {
             try
             {
-                return await lists.ChooseAsync(profile.Id, update.Ids, ct) ? Results.NoContent() : Results.Problem("Trakt can’t be reached just now. Try again.", statusCode: 409);
+                return await lists.ChooseAsync(profile.Id, update.Ids, ct) ? Results.NoContent() : Problems.Of("Trakt can’t be reached just now. Try again.", status: 409);
             }
             catch (TraktException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 502);
+                return Results.Problem(ex.Localized, statusCode: 502);
             }
         });
 
@@ -130,7 +131,7 @@ public static class TraktEndpoints
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                return Results.Problem("The sync didn’t finish. Flexarr tries again shortly.", statusCode: 502);
+                return Problems.Of("The sync didn’t finish. Flexarr tries again shortly.", status: 502);
             }
         });
 

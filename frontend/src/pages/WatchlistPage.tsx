@@ -6,13 +6,14 @@ import { PosterCard } from '../components/Cards'
 import { RequestButton } from '../components/RequestButton'
 import { WatchlistButton } from '../components/WatchlistButton'
 import { useApi } from '../hooks/useApi'
+import { locale, t, tk, Words } from '../i18n'
 
 const STATUSES: [WatchlistStatus | '', string][] = [
-  ['', 'Everything'],
-  ['Ready', 'Ready to watch'],
-  ['OnItsWay', 'On its way'],
-  ['Coming', 'Coming'],
-  ['NotAvailable', 'Not available'],
+  ['', tk('Everything')],
+  ['Ready', tk('Ready to watch')],
+  ['OnItsWay', tk('On its way')],
+  ['Coming', tk('Coming')],
+  ['NotAvailable', tk('Not available')],
 ]
 
 type Sort = 'status' | 'added' | 'release' | 'title'
@@ -27,7 +28,7 @@ const sorters: Record<Sort, (a: WatchlistEntry, b: WatchlistEntry) => number> = 
   added: (a, b) => b.addedAt.localeCompare(a.addedAt),
   // Newest first, so what's just out or coming is at the top; titles with no date last.
   release: (a, b) => releaseOf(b).localeCompare(releaseOf(a)),
-  title: (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base', ignorePunctuation: true }),
+  title: (a, b) => a.title.localeCompare(b.title, locale(), { sensitivity: 'base', ignorePunctuation: true }),
 }
 
 /** The profile's watchlist: what's ready to play, and where everything else has got to. */
@@ -69,33 +70,33 @@ export function WatchlistPage() {
   return (
     <div className="watchlist-page">
       <header className="library-header">
-        <h1>Watchlist</h1>
+        <h1>{t(Words.watchlist)}</h1>
         {data && data.length > 0 && (
           <>
-            <div className="genre-chips" role="group" aria-label="Show">
+            <div className="genre-chips" role="group" aria-label={t('Show')}>
               {STATUSES.map(([value, label]) => (
                 <button key={value} className="chip" aria-pressed={status === value} onClick={() => setParam('status', value)}>
-                  {label}
+                  {t(label)}
                 </button>
               ))}
             </div>
             <div className="watchlist-tools">
-              <div className="genre-chips" role="group" aria-label="Kind">
+              <div className="genre-chips" role="group" aria-label={t('Kind')}>
                 {[
-                  ['', 'Movies and shows'],
-                  ['movie', 'Movies'],
-                  ['tv', 'Shows'],
+                  ['', t(Words.moviesAndShows)],
+                  ['movie', t(Words.movies)],
+                  ['tv', t(Words.shows)],
                 ].map(([value, label]) => (
                   <button key={value} className="chip" aria-pressed={kind === value} onClick={() => setParam('kind', value)}>
                     {label}
                   </button>
                 ))}
               </div>
-              <select aria-label="Sort by" value={sort} onChange={(e) => setParam('sort', e.target.value === 'status' ? '' : e.target.value)}>
-                <option value="status">Ready first</option>
-                <option value="added">Recently added</option>
-                <option value="release">Release date</option>
-                <option value="title">Title</option>
+              <select aria-label={t('Sort by')} value={sort} onChange={(e) => setParam('sort', e.target.value === 'status' ? '' : e.target.value)}>
+                <option value="status">{t('Ready first')}</option>
+                <option value="added">{t(Words.recentlyAdded)}</option>
+                <option value="release">{t('Release date')}</option>
+                <option value="title">{t('Title')}</option>
               </select>
             </div>
           </>
@@ -103,8 +104,8 @@ export function WatchlistPage() {
       </header>
       {error && <p className="error">{error.message}</p>}
       {!data && !error && <PageLoading />}
-      {data && data.length === 0 && <p className="muted">Nothing here yet.</p>}
-      {data && data.length > 0 && shown.length === 0 && <p className="muted">Nothing on your watchlist matches.</p>}
+      {data && data.length === 0 && <p className="muted">{t('Nothing here yet.')}</p>}
+      {data && data.length > 0 && shown.length === 0 && <p className="muted">{t('Nothing on your watchlist matches.')}</p>}
       <div className="poster-grid">
         {shown.map((entry, index) => (
           <WatchlistCard key={entry.id} entry={entry} onRemoved={() => (focusAfter.current = index)} />
@@ -117,9 +118,11 @@ export function WatchlistPage() {
 const statusLabel = (entry: WatchlistEntry) => {
   switch (entry.status) {
     case 'OnItsWay':
-      return 'On its way'
+      return t('On its way')
     case 'Coming':
-      return entry.releaseDate ? `Out ${new Date(entry.releaseDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}` : 'Coming'
+      return entry.releaseDate
+        ? t('Out {date}', { date: new Date(entry.releaseDate).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) })
+        : t('Coming')
     default:
       return null
   }
@@ -141,7 +144,7 @@ function WatchlistCard({ entry, onRemoved }: { entry: WatchlistEntry; onRemoved:
   const label = statusLabel(entry)
   return (
     <div className="card external-card watchlist-card">
-      <Link to={entry.tmdbId ? `/discover/${entry.mediaType}/${entry.tmdbId}` : '#'} aria-label={`${entry.title}, more about it`}>
+      <Link to={entry.tmdbId ? `/discover/${entry.mediaType}/${entry.tmdbId}` : '#'} aria-label={t('{title}, more about it', { title: entry.title })}>
         <div className="card-frame">
           <div className="artwork artwork-poster">
             {entry.poster ? <img src={imageUrl(entry.poster, 342)} alt="" loading="lazy" /> : <span className="artwork-fallback">{entry.title}</span>}
@@ -149,10 +152,10 @@ function WatchlistCard({ entry, onRemoved }: { entry: WatchlistEntry; onRemoved:
         </div>
       </Link>
       <span className="card-title">{entry.title}</span>
-      <span className="card-subtitle">{[entry.mediaType === 'tv' ? 'Show' : 'Movie', entry.year].filter(Boolean).join(', ')}</span>
+      <span className="card-subtitle">{[entry.mediaType === 'tv' ? t('Show', { ctx: 'tv-show' }) : t('Movie'), entry.year].filter(Boolean).join(', ')}</span>
       {entry.streaming && entry.streaming.length > 0 && (
         <span className="card-subtitle watchlist-streaming" title={entry.streaming.join(', ')}>
-          {entry.streaming.length === 1 ? `On ${entry.streaming[0]}` : entry.streaming.join(', ')}
+          {entry.streaming.length === 1 ? t('On {service}', { service: entry.streaming[0] }) : entry.streaming.join(', ')}
         </span>
       )}
       <div className="external-card-actions">

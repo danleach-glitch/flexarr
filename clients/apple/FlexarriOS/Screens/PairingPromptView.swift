@@ -35,7 +35,7 @@ struct PairingPromptView: View {
                 .foregroundStyle(Color.screen)
                 .accessibilityHidden(true)
                 .padding(.bottom, 4)
-            Text("Connect “\(request.deviceName)”?")
+            Text(t("Connect “{device}”?", ["device": request.deviceName]))
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.screen)
                 .fixedSize(horizontal: false, vertical: true)
@@ -48,7 +48,7 @@ struct PairingPromptView: View {
         }
 
         VStack(alignment: .leading, spacing: 4) {
-            Text("Check its screen shows")
+            Text(t("Check its screen shows"))
                 .font(.body)
                 .foregroundStyle(Color.screen)
             // As the connect screens and the web pages show codes: regular width, SF Pro Black.
@@ -74,7 +74,7 @@ struct PairingPromptView: View {
         VStack(spacing: 10) {
             Button(action: allow) {
                 ZStack {
-                    Text("Allow").opacity(prompts.step == .working ? 0 : 1)
+                    Text(t("Allow")).opacity(prompts.step == .working ? 0 : 1)
                     if prompts.step == .working { ProgressView().tint(Color.room) }
                 }
                 .frame(maxWidth: .infinity)
@@ -84,7 +84,7 @@ struct PairingPromptView: View {
             Button {
                 Task { await prompts.decline() }
             } label: {
-                Text("Don't allow").frame(maxWidth: .infinity)
+                Text(t("Don't allow")).frame(maxWidth: .infinity)
             }
             .buttonStyle(ActionButtonStyle())
         }
@@ -104,10 +104,10 @@ struct PairingPromptView: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 52))
                 .foregroundStyle(Color.go)
-            Text("Connected")
+            Text(t("Connected"))
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.screen)
-            Text("It'll be ready in a moment.")
+            Text(t("It'll be ready in a moment."))
                 .font(.body)
                 .foregroundStyle(Color.usher)
         }
@@ -161,10 +161,10 @@ struct MainProfilePinField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Allowing it takes the admin PIN.")
+            Text(t("Allowing it takes the admin PIN."))
                 .font(.subheadline)
                 .foregroundStyle(Color.screen)
-            SecureField("PIN", text: $pin)
+            SecureField(t("PIN"), text: $pin)
                 .keyboardType(.numberPad)
                 .textContentType(.oneTimeCode)
                 .font(.title3.monospacedDigit())
@@ -184,7 +184,7 @@ struct MainProfilePinField: View {
                     .foregroundStyle(Color.danger)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Text("Forgotten it? Reset it from Flexarr in a browser.")
+            Text(t("Forgotten it? Reset it from Flexarr in a browser."))
                 .font(.footnote)
                 .foregroundStyle(Color.usher)
         }

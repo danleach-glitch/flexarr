@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.detail
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -11,7 +13,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,8 +33,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -74,7 +73,7 @@ internal fun LazyListScope.showMissingSections(
     if (!missing.isEmpty) {
         item(key = "missing") {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                SectionHeading("Not in your library")
+                SectionHeading(t(Words.notInYourLibrary))
                 if (missing.seasons.isNotEmpty()) {
                     LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
                         items(missing.seasons, key = { "missing-season-${it.seasonNumber}" }) { season ->
@@ -85,10 +84,10 @@ internal fun LazyListScope.showMissingSections(
                 missing.episodesBySeason.forEach { (season, episodes) ->
                     Column(Modifier.padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Season $season", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f))
+                            Text(t("Season {season}", "season" to season), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f))
                             if (missing.canSearch) {
                                 val searching = season in asked
-                                MissingChip(if (searching) "Searching" else "Search", FlexarrIcons.search, on = searching, enabled = !searching, description = "Search for season $season’s missing episodes") {
+                                MissingChip(if (searching) t("Searching") else t(Words.search), FlexarrIcons.search, on = searching, enabled = !searching, description = t("Search for season {season}’s missing episodes", "season" to season)) {
                                     onSearch(season, null)
                                 }
                             }
@@ -102,7 +101,7 @@ internal fun LazyListScope.showMissingSections(
     if (missing.upcoming.isNotEmpty()) {
         item(key = "coming-up") {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                SectionHeading("Coming up")
+                SectionHeading(t("Coming up"))
                 Column(Modifier.padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     missing.upcoming.forEach { episode -> EpisodeLine(episode, detail = episode.airDate?.let { ShowMissing.airsLabel(it) }) }
                 }
@@ -140,14 +139,14 @@ private fun MissingSeasonCard(
             // Requested through Seerr here: pressed, it asks, then takes back just this season.
             missing.canRequest -> when (state) {
                 TitleRequestState.Requested, TitleRequestState.Undoing, TitleRequestState.Sending ->
-                    MissingChip(state.label(), FlexarrIcons.requested, on = true, enabled = canAsk && state == TitleRequestState.Requested, description = "Unrequest ${season.title}") {
+                    MissingChip(state.label(), FlexarrIcons.requested, on = true, enabled = canAsk && state == TitleRequestState.Requested, description = t("Unrequest {season}", "season" to season.title)) {
                         confirming = true
                     }
                 TitleRequestState.Refused -> MissingChip(state.label(), null, on = false, enabled = false) {}
-                else -> MissingChip("Request", FlexarrIcons.request, on = false, enabled = canAsk, description = "Request ${season.title}") { onRequest(season) }
+                else -> MissingChip(t(Words.request), FlexarrIcons.request, on = false, enabled = canAsk, description = t("Request {season}", "season" to season.title)) { onRequest(season) }
             }
-            season.requested || asked -> MissingChip("Requested", FlexarrIcons.requested, on = true, enabled = false) {}
-            missing.canSearch -> MissingChip("Search", FlexarrIcons.search, on = false, enabled = true, description = "Search for ${season.title}") { onSearch(season.seasonNumber, null) }
+            season.requested || asked -> MissingChip(t(Words.requested), FlexarrIcons.requested, on = true, enabled = false) {}
+            missing.canSearch -> MissingChip(t(Words.search), FlexarrIcons.search, on = false, enabled = true, description = t("Search for {season}", "season" to season.title)) { onSearch(season.seasonNumber, null) }
         }
     }
     if (confirming) TitleUndoDialog(season.title, onConfirm = { onUnrequest(season) }, onDismiss = { confirming = false })
@@ -167,16 +166,19 @@ private fun EpisodeLine(episode: ShowEpisode, detail: String?) {
     }
 }
 
-/** A small action under a card or beside a heading, styled as music's request chip; [on] lights it. */
+/**
+ * A small action under a card or beside a heading, styled as music's request chip; [on] lights it. TalkBack reads its
+ * label (Requested, Search…) and hears [description] as what a double-tap does ("Unrequest Season 2").
+ */
 @Composable
 internal fun MissingChip(label: String, icon: ImageVector?, on: Boolean, enabled: Boolean, description: String? = null, onClick: () -> Unit) {
     val shape = RoundedCornerShape(Tokens.radiusControl)
     Box(
-        Modifier.heightIn(min = 48.dp).pressable(onClick, enabled = enabled).semantics { if (description != null) contentDescription = description },
+        Modifier.heightIn(min = 48.dp).pressable(onClick, enabled = enabled, onClickLabel = description),
         contentAlignment = Alignment.CenterStart,
     ) {
         Row(
-            Modifier.height(32.dp).clip(shape)
+            Modifier.heightIn(min = 32.dp).clip(shape)
                 .musicOnStyle(on, Flexarr.silver, shape, offFill = Flexarr.screen.copy(alpha = 0.09f))
                 .then(if (on) Modifier else Modifier.border(1.dp, Flexarr.screen.copy(alpha = 0.22f), shape))
                 .alpha(if (enabled || on) 1f else 0.5f)

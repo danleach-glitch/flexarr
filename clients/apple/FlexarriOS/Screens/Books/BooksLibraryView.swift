@@ -6,6 +6,16 @@ import SwiftUI
 enum BookBrowse: String, CaseIterable, Identifiable {
     case shelves = "Browse", all = "All books", genres = "Genres", series = "Series", authors = "Authors"
     var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .shelves: t(Words.browse)
+        case .all: t("All books")
+        case .genres: t(Words.genres)
+        case .series: t(Words.series)
+        case .authors: t("Authors")
+        }
+    }
 }
 
 /// An audiobooks library's state: the shelves, and a page of each list, loaded as they're scrolled.
@@ -148,7 +158,7 @@ struct BooksLibraryView: View {
                     if browse.browse == .all, isFiltered {
                         noMatches.frame(height: 400)
                     } else {
-                        StatusView(state: .empty(browse.browse == .genres ? "No genres here yet. They come with each book's details once a scan has found them." : "No books yet.")).frame(height: 400)
+                        StatusView(state: .empty(browse.browse == .genres ? t("No genres here yet. They come with each book's details once a scan has found them.") : t("No books yet."))).frame(height: 400)
                     }
                 } else {
                     content
@@ -197,9 +207,9 @@ struct BooksLibraryView: View {
 
     /// Browse, All books, Genres, Series and Authors, as one segmented control like the other libraries' view switch.
     private var tabs: some View {
-        Picker("Show", selection: Binding(get: { browse.browse }, set: { browse.browse = $0 })) {
+        Picker(t("Show"), selection: Binding(get: { browse.browse }, set: { browse.browse = $0 })) {
             ForEach(BookBrowse.allCases) { tab in
-                Text(tab.rawValue).tag(tab)
+                Text(tab.label).tag(tab)
             }
         }
         .pickerStyle(.segmented)
@@ -231,17 +241,17 @@ struct BooksLibraryView: View {
     @ViewBuilder
     private func shelf(shelf: BookShelf, _ shelves: BookShelves) -> some View {
         switch shelf {
-        case .continueListening: bookRow("Continue listening", shelves.continueListening)
-        case .nextInSeries: bookRow("Next in series", shelves.nextInSeries)
-        case .recentlyAdded: bookRow("Recently added", shelves.recentlyAdded) { show(.all, sort: .added) }
+        case .continueListening: bookRow(t("Continue listening"), shelves.continueListening)
+        case .nextInSeries: bookRow(t("Next in series"), shelves.nextInSeries)
+        case .recentlyAdded: bookRow(t(Words.recentlyAdded), shelves.recentlyAdded) { show(.all, sort: .added) }
         case .series:
             if !shelves.series.isEmpty {
-                row("Series", seeAll: { browse.browse = .series }) {
+                row(t(Words.series), seeAll: { browse.browse = .series }) {
                     ForEach(shelves.series) { SeriesCard(series: $0, width: cardWidth) }
                 }
             }
-        case .authors: peopleRow("Authors", shelves.authors) { browse.browse = .authors }
-        case .finished: bookRow("Finished", shelves.finished) { show(.all, progress: .finished) }
+        case .authors: peopleRow(t("Authors"), shelves.authors) { browse.browse = .authors }
+        case .finished: bookRow(t("Finished"), shelves.finished) { show(.all, progress: .finished) }
         }
     }
 
@@ -283,7 +293,7 @@ struct BooksLibraryView: View {
         browse.browse = tab
     }
 
-    private func bookCount(_ count: Int) -> String { count == 1 ? "1 book" : "\(count) books" }
+    private func bookCount(_ count: Int) -> String { t("{count, plural, one {# book} other {# books}}", ["count": count]) }
 
     // MARK: Lists
 
@@ -352,38 +362,38 @@ struct BooksLibraryView: View {
 
     private var filterMenu: some View {
         Menu {
-            Picker("Show", selection: $browse.filter.progress) {
+            Picker(t("Show"), selection: $browse.filter.progress) {
                 ForEach(BookProgressFilter.allCases) { Text($0.label).tag($0) }
             }
-            Picker("Length", selection: Binding(get: { BookLength(browse.filter) }, set: { $0.apply(to: &browse.filter) })) {
+            Picker(t(Words.length), selection: Binding(get: { BookLength(browse.filter) }, set: { $0.apply(to: &browse.filter) })) {
                 ForEach(BookLength.allCases) { Text($0.label).tag($0) }
             }
             .pickerStyle(.menu)
-            Toggle("Unabridged only", isOn: Binding(get: { browse.filter.abridged == false }, set: { browse.filter.abridged = $0 ? false : nil }))
+            Toggle(t("Unabridged only"), isOn: Binding(get: { browse.filter.abridged == false }, set: { browse.filter.abridged = $0 ? false : nil }))
             if browse.filter.genre != nil, genre == nil {
-                Button("All genres") { browse.filter.genre = nil }
+                Button(t("All genres")) { browse.filter.genre = nil }
             }
-            Section("Sort by") {
-                Picker("Sort by", selection: Binding(get: { browse.filter.sort }, set: { browse.filter.sort = $0; browse.filter.descending = nil })) {
+            Section(t("Sort by")) {
+                Picker(t("Sort by"), selection: Binding(get: { browse.filter.sort }, set: { browse.filter.sort = $0; browse.filter.descending = nil })) {
                     ForEach(BookSort.allCases) { Text($0.label).tag($0) }
                 }
-                Toggle("Reverse", isOn: Binding(get: { (browse.filter.descending ?? browse.filter.sort.descendingByDefault) != browse.filter.sort.descendingByDefault },
+                Toggle(t("Reverse"), isOn: Binding(get: { (browse.filter.descending ?? browse.filter.sort.descendingByDefault) != browse.filter.sort.descendingByDefault },
                                                 set: { browse.filter.descending = $0 != browse.filter.sort.descendingByDefault }))
             }
         } label: {
             Image(systemName: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
         }
-        .accessibilityLabel("Filter and sort")
+        .accessibilityLabel(t("Filter and sort"))
     }
 
     /// Filters that leave nothing: say so, with a way back to every book (the sort stays).
     private var noMatches: some View {
         VStack(spacing: 16) {
-            Text("No books match.")
+            Text(t("No books match."))
                 .font(.body.weight(.medium))
                 .foregroundStyle(Color.usher)
             // A genre's own screen keeps its genre.
-            Button("Clear filters") { browse.filter = BookFilter(genre: genre, sort: browse.filter.sort, descending: browse.filter.descending) }
+            Button(t("Clear filters")) { browse.filter = BookFilter(genre: genre, sort: browse.filter.sort, descending: browse.filter.descending) }
                 .buttonStyle(ActionButtonStyle(prominent: true))
         }
         .padding(32)

@@ -11,6 +11,7 @@ import { useWatchlistKeys } from '../hooks/useWatchlistKeys'
 import { showNotice } from '../lib/notice'
 import { announceWatched } from '../hooks/watched'
 import { episodeCode, progressOf } from '../lib/format'
+import { t, Words } from '../i18n'
 
 export interface MenuPoint {
   x: number
@@ -21,7 +22,8 @@ export interface MenuPoint {
 export const hasMenu = (item: ItemSummary, continueWatching = false) =>
   ['Movie', 'Episode', 'Season', 'Series', 'Album', 'Audiobook'].includes(item.kind) || (continueWatching && item.kind === 'PodcastEpisode')
 
-export type MenuAction = { label: string; run: () => void | Promise<void>; danger?: boolean } | 'divider'
+/** `marks` for an action that changes watch state, which a child's menus leave out. */
+export type MenuAction = { label: string; run: () => void | Promise<void>; danger?: boolean; marks?: boolean } | 'divider'
 
 /**
  * Quick actions for a title from its card: play it, or mark it watched. (The card's text links to its pages.) Something
@@ -47,82 +49,89 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
     announceWatched(item)
   }
   const showId = item.kind === 'Series' ? item.id : (item.seriesId ?? (item.kind === 'Season' ? item.parentId : null))
-  const show = item.seriesTitle ?? 'the show'
   // Add or Remove, once it's known which (and not at all on a server without a watchlist).
   const watchlist = useWatchlistKeys(!kids)
   const watchlistAction = (): MenuAction[] => {
     if (!watchlist || kids) return []
     const key = { libraryItemId: item.id }
-    const failed = (e: unknown) => showNotice(e instanceof ApiError && e.messages[0] ? e.messages[0] : 'That didn’t work. Try again.')
+    const failed = (e: unknown) => showNotice(e instanceof ApiError && e.messages[0] ? e.messages[0] : t('That didn’t work. Try again.'))
     return watchlist.libraryItemIds.includes(item.id)
       ? [
           {
-            label: 'Remove from watchlist',
+            label: t(Words.removeFromWatchlist),
             // Gone already (it left when it was watched) is what was asked.
             run: () => removeFromWatchlist(key).catch((e: unknown) => (e instanceof ApiError && e.status === 404 ? watchlistChanged() : failed(e))),
           },
         ]
-      : [{ label: 'Add to watchlist', run: () => addToWatchlist(key).then(() => showNotice(`Added ${item.title} to your watchlist`), failed) }]
+      : [{ label: t(Words.addToWatchlist), run: () => addToWatchlist(key).then(() => showNotice(t('Added {title} to your watchlist', { title: item.title })), failed) }]
   }
 
   const actions: MenuAction[] = []
   switch (item.kind) {
     case 'Movie':
-      actions.push({ label: resumable ? 'Resume' : 'Play', run: go(`/play/${item.id}`) })
-      if (resumable) actions.push({ label: 'Start over', run: go(`/play/${item.id}?t=0`) })
+      actions.push({ label: resumable ? t('Resume') : t(Words.play), run: go(`/play/${item.id}`) })
+      if (resumable) actions.push({ label: t(Words.startOver), run: go(`/play/${item.id}?t=0`) })
       actions.push('divider')
-      actions.push({ label: item.userData.watched ? 'Mark as unwatched' : 'Mark as watched', run: mark(item, !item.userData.watched) })
-      if (started) actions.push({ label: 'Mark as unwatched', run: mark(item, false) })
+      actions.push({ label: item.userData.watched ? t(Words.markAsUnwatched) : t(Words.markAsWatched), run: mark(item, !item.userData.watched), marks: true })
+      if (started) actions.push({ label: t(Words.markAsUnwatched), run: mark(item, false), marks: true })
       actions.push(...watchlistAction())
-      if (!kids) actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
+      if (!kids) actions.push({ label: t('Add to collection…'), run: () => openAddToCollection(item) })
       break
-    case 'Episode':
-      actions.push({ label: [resumable ? 'Resume' : 'Play', episodeCode(item)].filter(Boolean).join(' '), run: go(`/play/${item.id}`) })
-      if (resumable) actions.push({ label: 'Start over', run: go(`/play/${item.id}?t=0`) })
-      actions.push('divider', { label: item.userData.watched ? 'Mark episode as unwatched' : 'Mark episode as watched', run: mark(item, !item.userData.watched) })
-      if (started) actions.push({ label: 'Mark episode as unwatched', run: mark(item, false) })
-      else if (continueWatching && !item.userData.watched) actions.push({ label: 'Remove', run: remove })
-      if (showId) actions.push({ label: `Mark all of ${show} as watched`, run: mark({ id: showId, parentId: null, seriesId: null }, true) })
+    case 'Episode': {
+      const code = episodeCode(item)
+      const label = code ? (resumable ? t('Resume {code}', { code }) : t('Play {code}', { code })) : resumable ? t('Resume') : t(Words.play)
+      actions.push({ label, run: go(`/play/${item.id}`) })
+      if (resumable) actions.push({ label: t(Words.startOver), run: go(`/play/${item.id}?t=0`) })
+      actions.push('divider', { label: item.userData.watched ? t('Mark episode as unwatched') : t('Mark episode as watched'), run: mark(item, !item.userData.watched), marks: true })
+      if (started) actions.push({ label: t('Mark episode as unwatched'), run: mark(item, false), marks: true })
+      else if (continueWatching && !item.userData.watched) actions.push({ label: t('Remove'), run: remove })
+      if (showId)
+        actions.push({
+          label: item.seriesTitle ? t('Mark all of {show} as watched', { show: item.seriesTitle }) : t('Mark all of the show as watched'),
+          run: mark({ id: showId, parentId: null, seriesId: null }, true),
+          marks: true,
+        })
       break
+    }
     case 'Season':
-      actions.push({ label: 'Play', run: () => (showId ? play({ ...item, id: showId, kind: 'Series' }) : navigate(`/item/${item.id}`)) })
-      actions.push('divider', { label: item.userData.watched ? 'Mark season as unwatched' : 'Mark season as watched', run: mark(item, !item.userData.watched) })
+      actions.push({ label: t(Words.play), run: () => (showId ? play({ ...item, id: showId, kind: 'Series' }) : navigate(`/item/${item.id}`)) })
+      actions.push('divider', { label: item.userData.watched ? t('Mark season as unwatched') : t(Words.markSeasonAsWatched), run: mark(item, !item.userData.watched), marks: true })
       break
     case 'Series':
-      actions.push({ label: 'Play next episode', run: () => play(item) }, 'divider')
-      actions.push({ label: item.userData.watched ? 'Mark show as unwatched' : 'Mark show as watched', run: mark(item, !item.userData.watched) })
+      actions.push({ label: t('Play next episode'), run: () => play(item) }, 'divider')
+      actions.push({ label: item.userData.watched ? t('Mark show as unwatched') : t('Mark show as watched'), run: mark(item, !item.userData.watched), marks: true })
       actions.push(...watchlistAction())
-      if (!kids) actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
+      if (!kids) actions.push({ label: t('Add to collection…'), run: () => openAddToCollection(item) })
       break
     case 'Album':
       // The album's tracks are fetched when asked for (the card only has the album).
       actions.push(
-        { label: 'Play', run: async () => music.play(await getTracks(item.id), 0, { openNowPlaying: true }) },
-        { label: 'Play next', run: async () => music.playNext(await getTracks(item.id)) },
-        { label: 'Add to queue', run: async () => music.enqueue(await getTracks(item.id)) },
-        { label: 'Add to playlist…', run: () => openAddToPlaylist(item) },
+        { label: t(Words.play), run: async () => music.play(await getTracks(item.id), 0, { openNowPlaying: true }) },
+        { label: t(Words.playNext), run: async () => music.playNext(await getTracks(item.id)) },
+        { label: t(Words.addToQueue), run: async () => music.enqueue(await getTracks(item.id)) },
+        { label: t('Add to playlist…'), run: () => openAddToPlaylist(item) },
       )
       break
     case 'Audiobook': {
       const finished = item.userData.watched
-      actions.push({ label: resumable && !finished ? 'Resume' : 'Play', run: () => music.play([item]) }, 'divider')
+      actions.push({ label: resumable && !finished ? t('Resume') : t(Words.play), run: () => music.play([item]) }, 'divider')
       const markBook = (to: boolean) => async () => {
         await setBookFinished(item.id, to)
         announceWatched(item)
       }
-      if (!finished) actions.push({ label: 'Mark finished', run: markBook(true) })
+      if (!finished) actions.push({ label: t(Words.markAsFinished), run: markBook(true), marks: true })
       // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again: then
       // Remove (which stops it first) takes it off Continue listening instead, so the two are never offered together.
       const playing = music.current?.id === item.id
-      if ((finished || started) && !playing) actions.push({ label: 'Mark as unread', run: markBook(false) })
-      else if (continueWatching && started) actions.push({ label: 'Remove', run: remove })
-      if (!kids) actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
+      if ((finished || started) && !playing) actions.push({ label: t(Words.markAsUnread), run: markBook(false), marks: true })
+      else if (continueWatching && started) actions.push({ label: t('Remove'), run: remove })
+      if (!kids) actions.push({ label: t('Add to collection…'), run: () => openAddToCollection(item) })
       break
     }
     case 'PodcastEpisode':
-      actions.push({ label: started ? 'Resume' : 'Play', run: () => music.play([item]) })
+      actions.push({ label: started ? t('Resume') : t(Words.play), run: () => music.play([item]) })
       // Played takes it out of the row as well; Remove forgets the place without marking it.
-      if (continueWatching) actions.push('divider', { label: 'Mark as played', run: mark(item, true) }, { label: 'Remove', run: remove })
+      if (continueWatching) actions.push('divider', { label: t(Words.markAsPlayed), run: mark(item, true), marks: true }, { label: t('Remove'), run: remove })
       break
   }
 
@@ -131,7 +140,7 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
 
 /** A child's menus leave watch state alone: what's watched is what they watched. */
 function withoutWatched(actions: MenuAction[]) {
-  const kept = actions.filter((a) => a === 'divider' || !a.label.startsWith('Mark '))
+  const kept = actions.filter((a) => a === 'divider' || !a.marks)
   // No divider left at the end, or two together.
   return kept.filter((a, i) => a !== 'divider' || (i < kept.length - 1 && kept[i + 1] !== 'divider'))
 }

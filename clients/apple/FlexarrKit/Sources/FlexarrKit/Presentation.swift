@@ -8,8 +8,8 @@ public enum Format {
     public static func runtime(minutes: Int) -> String? {
         guard minutes > 0 else { return nil }
         let h = minutes / 60, m = minutes % 60
-        if h == 0 { return "\(m)m" }
-        return m == 0 ? "\(h)h" : "\(h)h \(m)m"
+        if h == 0 { return t("{minutes}m", ["minutes": m]) }
+        return m == 0 ? t("{hours}h", ["hours": h]) : t("{hours}h {minutes}m", ["hours": h, "minutes": m])
     }
 
     public static func runtime(seconds: Double) -> String? {
@@ -26,7 +26,7 @@ public enum Format {
     /// "42m left", "1h 3m left".
     public static func remaining(_ seconds: Double) -> String? {
         guard seconds >= 60 else { return nil }
-        return runtime(seconds: seconds).map { "\($0) left" }
+        return runtime(seconds: seconds).map { t("{time} left", ["time": $0]) }
     }
 }
 
@@ -49,9 +49,16 @@ extension ItemSummary {
     /// "S2E3", "S1E1–E2", or nil for non-episodes and home videos (which go by their names).
     public var episodeCode: String? {
         guard kind == .episode, homeVideo != true, let episodeNumber else { return nil }
-        let season = seasonNumber.map { "S\($0)" } ?? ""
-        if let end = episodeNumberEnd, end > episodeNumber { return "\(season)E\(episodeNumber)–E\(end)" }
-        return "\(season)E\(episodeNumber)"
+        // Passed as text, so a long-running show's numbers never pick up a thousands separator.
+        let episode = String(episodeNumber)
+        if let end = episodeNumberEnd, end > episodeNumber {
+            if let seasonNumber {
+                return t("S{season}E{episode}–E{end}", ["season": String(seasonNumber), "episode": episode, "end": String(end)])
+            }
+            return t("E{episode}–E{end}", ["episode": episode, "end": String(end)])
+        }
+        if let seasonNumber { return t(Words.seasonEpisodeShort, ["season": String(seasonNumber), "episode": episode]) }
+        return t("E{episode}", ["episode": episode])
     }
 
     /// The headline for cards and the player: the series name for episodes, else the title.
@@ -90,25 +97,27 @@ extension ItemSummary {
         switch kind {
         case .series:
             if childCount > 0 {
-                let noun = homeVideo == true ? "folder" : "season"
-                facts.append(childCount == 1 ? "1 \(noun)" : "\(childCount) \(noun)s")
+                facts.append(homeVideo == true
+                    ? t("{count, plural, one {# folder} other {# folders}}", ["count": childCount])
+                    : t("{count, plural, one {# season} other {# seasons}}", ["count": childCount]))
             }
         case .season:
             if childCount > 0 {
-                let noun = homeVideo == true ? "video" : "episode"
-                facts.append(childCount == 1 ? "1 \(noun)" : "\(childCount) \(noun)s")
+                facts.append(homeVideo == true
+                    ? t("{count, plural, one {# video} other {# videos}}", ["count": childCount])
+                    : t("{count, plural, one {# episode} other {# episodes}}", ["count": childCount]))
             }
         case .artist:
-            if childCount > 0 { facts.append(childCount == 1 ? "1 album" : "\(childCount) albums") }
+            if childCount > 0 { facts.append(t("{count, plural, one {# album} other {# albums}}", ["count": childCount])) }
         case .album:
-            if childCount > 0 { facts.append(childCount == 1 ? "1 track" : "\(childCount) tracks") }
+            if childCount > 0 { facts.append(t("{count, plural, one {# track} other {# tracks}}", ["count": childCount])) }
         default:
             if let runtime = runtimeMinutes.flatMap(Format.runtime(minutes:)) ?? durationSeconds.flatMap(Format.runtime(seconds:)) {
                 facts.append(runtime)
             }
         }
         if let contentRating, !contentRating.isEmpty { facts.append(contentRating) }
-        if scores, self.scores.imdb == nil, let communityRating, communityRating > 0 { facts.append(String(format: "%.1f", communityRating)) }
+        if scores, self.scores.imdb == nil, let communityRating, communityRating > 0 { facts.append(communityRating.formatted(.number.precision(.fractionLength(1)).locale(Localization.locale))) }
         if let resolution, !resolution.isEmpty { facts.append(resolution) }
         return facts
     }
@@ -214,36 +223,96 @@ public enum PlaybackPrompt: Equatable, Sendable {
     case none
     /// Inside an intro or recap: offer to jump to `to`.
     case skip(MarkerType, to: Double)
-    /// The credits have started and there is a next episode.
+    /// Time to offer the next episode (see `NextEpisodeTiming`).
     case nextEpisode
 }
 
-extension PlaybackInfo {
-    public func prompt(at time: Double) -> PlaybackPrompt {
-        Self.prompt(at: time, markers: markers, duration: durationSeconds, hasNext: next != nil)
+/// When the player offers the next episode, counts down to it, plays it or closes (docs/next-episode-timing.md). The
+/// countdown follows the playing position, so it holds when paused and goes when scrubbed back before it.
+public struct NextEpisodeTiming: Equatable, Sendable {
+    /// Next Episode shows from here.
+    public var showAt: Double
+    /// With auto-play on: the countdown runs from here to `nextAt`, where the next episode plays.
+    public var countdownFrom: Double?
+    public var nextAt: Double?
+    /// Skip credits with auto-play off: the player closes here, as the credits start.
+    public var closeAt: Double?
+
+    /// The countdown's length, in seconds.
+    public static let countdownSeconds: Double = 10
+    /// With Skip credits and auto-play on, the countdown starts this long before the credits (so the next episode
+    /// plays two seconds into them).
+    public static let skipCreditsLead: Double = 8
+    /// With no credits found, Next Episode shows this long before the end.
+    public static let unmarkedLead: Double = 60
+
+    public init(showAt: Double, countdownFrom: Double? = nil, nextAt: Double? = nil, closeAt: Double? = nil) {
+        self.showAt = showAt
+        self.countdownFrom = countdownFrom
+        self.nextAt = nextAt
+        self.closeAt = closeAt
     }
 
-    /// Pure version of `prompt(at:)` so it can be tested without a full PlaybackInfo.
-    public static func prompt(at time: Double, markers: [Marker], duration: Double, hasNext: Bool) -> PlaybackPrompt {
+    /// The timing once a seek or start landed past `nextAt` without counting down: the episode plays on with the button
+    /// up, and the countdown runs over its last 10 seconds, as with Skip credits off.
+    public func playingOn(duration: Double) -> NextEpisodeTiming {
+        guard nextAt != nil else { return self }
+        return NextEpisodeTiming(showAt: showAt, countdownFrom: max(0, duration - Self.countdownSeconds), nextAt: duration, closeAt: closeAt)
+    }
+
+    /// Whole seconds left on the countdown at `time` (0...10), or nil when it isn't running.
+    public func countdown(at time: Double) -> Int? {
+        guard let countdownFrom, let nextAt, time >= countdownFrom else { return nil }
+        return Int(min(Self.countdownSeconds, max(0, (nextAt - time).rounded(.up))))
+    }
+
+    /// The timing for an episode with a next one; nil offers no button before the end (an unknown length, or no credits
+    /// found in an episode of two minutes or less).
+    public static func of(markers: [Marker], duration: Double, skipCredits: Bool, autoPlayNext: Bool) -> NextEpisodeTiming? {
+        guard duration > 0 else { return nil }
+        if let credits = markers.first(where: { $0.type == .credits })?.start {
+            switch (skipCredits, autoPlayNext) {
+            case (true, true):
+                let from = max(0, credits - skipCreditsLead)
+                let next = credits + countdownSeconds - skipCreditsLead
+                return NextEpisodeTiming(showAt: from, countdownFrom: from, nextAt: min(next, duration))
+            case (false, true):
+                // Credits inside the last 10 seconds: the countdown (and so the button) starts first.
+                let from = max(0, duration - countdownSeconds)
+                return NextEpisodeTiming(showAt: min(credits, from), countdownFrom: from, nextAt: duration)
+            case (true, false):
+                return NextEpisodeTiming(showAt: credits, closeAt: credits)
+            case (false, false):
+                return NextEpisodeTiming(showAt: credits)
+            }
+        }
+        guard duration > 120 else { return nil }
+        let show = duration - unmarkedLead
+        return autoPlayNext ? NextEpisodeTiming(showAt: show, countdownFrom: duration - countdownSeconds, nextAt: duration) : NextEpisodeTiming(showAt: show)
+    }
+}
+
+extension PlaybackInfo {
+    public func nextEpisodeTiming(_ preferences: PlaybackPreferences) -> NextEpisodeTiming? {
+        guard next != nil else { return nil }
+        return NextEpisodeTiming.of(markers: markers, duration: durationSeconds, skipCredits: preferences.skipCredits, autoPlayNext: preferences.autoPlayNext)
+    }
+
+    public func prompt(at time: Double, preferences: PlaybackPreferences) -> PlaybackPrompt {
+        Self.prompt(at: time, markers: markers, nextAt: nextEpisodeTiming(preferences)?.showAt)
+    }
+
+    /// Pure version of `prompt(at:preferences:)` so it can be tested without a full PlaybackInfo. `nextAt` is when Next
+    /// Episode shows (`NextEpisodeTiming.showAt`), nil for never.
+    public static func prompt(at time: Double, markers: [Marker], nextAt: Double?) -> PlaybackPrompt {
         for marker in markers where marker.type == .intro || marker.type == .recap {
             // Stop offering the skip in the last second so it doesn't flash as the marker ends.
             if time >= marker.start && time < marker.end - 1 {
                 return .skip(marker.type, to: marker.end)
             }
         }
-        guard hasNext else { return .none }
-        if let credits = markers.first(where: { $0.type == .credits }) {
-            return time >= credits.start ? .nextEpisode : .none
-        }
-        // No credits marker detected: offer the next episode for the end of it, where credits usually are.
-        if duration > 120 && time >= duration - unmarkedCreditsSeconds(duration: duration) { return .nextEpisode }
+        if let nextAt, time >= nextAt { return .nextEpisode }
         return .none
-    }
-
-    /// How long before the end the next episode is offered when no credits were found: 3% of the episode, between
-    /// 30 seconds and 2 minutes (about 40 seconds of a half-hour show, 100 of an hour-long one).
-    public static func unmarkedCreditsSeconds(duration: Double) -> Double {
-        min(max(duration * 0.03, 30), 120)
     }
 }
 
@@ -311,14 +380,14 @@ public struct EmptyHomeMessage: Sendable, Hashable {
         let media = libraries.filter { $0.type != .podcasts }
         guard media.allSatisfy({ $0.itemCount == 0 }) else { return nil }
         if let limitedProfile {
-            title = "Nothing here for \(limitedProfile) yet"
+            title = t("Nothing here for {profile} yet", ["profile": limitedProfile])
             body = ""
             folders = []
             return
         }
         guard !media.isEmpty else {
-            title = "Nothing to watch yet"
-            body = "Open Flexarr in a browser and add a library in Settings › Libraries."
+            title = t("Nothing to watch yet")
+            body = t("Open Flexarr in a browser and add a library in Settings › Libraries.")
             folders = []
             return
         }
@@ -329,32 +398,37 @@ public struct EmptyHomeMessage: Sendable, Hashable {
         let scanning = media.compactMap(\.scan)
         if !scanning.isEmpty {
             let total = scanning.reduce(0) { $0 + $1.total }, done = scanning.reduce(0) { $0 + $1.processed }
-            title = "Looking through your library"
-            body = "Flexarr is reading the files in \(names)\(total > 0 ? " (\(done) of \(total))" : ""). Your \(wanted) appear here as they’re recognised."
+            title = t("Looking through your library")
+            body = total > 0
+                ? t("Flexarr is reading the files in {libraries} ({done} of {total}). Your {kinds} appear here as they’re recognised.",
+                    ["libraries": names, "done": done, "total": total, "kinds": wanted])
+                : t("Flexarr is reading the files in {libraries}. Your {kinds} appear here as they’re recognised.", ["libraries": names, "kinds": wanted])
             folders = []
             return
         }
         folders = media.flatMap(\.folders)
-        title = "Your library is empty"
-        body = "Add files to \(folders.count > 1 ? "your library folders" : "your library folder"), or connect Sonarr or Radarr in Flexarr on the web."
+        title = t("Your library is empty")
+        body = folders.count > 1
+            ? t("Add files to your library folders, or connect Sonarr or Radarr in Flexarr on the web.")
+            : t("Add files to your library folder, or connect Sonarr or Radarr in Flexarr on the web.")
     }
 
     private static func kind(_ type: LibraryType) -> String {
         switch type {
-        case .movies: "movies"
-        case .tvShows: "shows"
-        case .music: "music"
-        case .podcasts: "podcasts"
-        case .homeVideos: "home videos"
-        case .audiobooks: "audiobooks"
-        case .unknown: "titles"
+        case .movies: t("movies")
+        case .tvShows: t("shows")
+        case .music: t("music")
+        case .podcasts: t("podcasts")
+        case .homeVideos: t("home videos")
+        case .audiobooks: t("audiobooks")
+        case .unknown: t("titles")
         }
     }
 
     /// "Films", "Films and TV", "Films, TV and Music".
     private static func list(_ names: [String]) -> String {
         guard let last = names.last else { return "" }
-        return names.count == 1 ? last : "\(names.dropLast().joined(separator: ", ")) and \(last)"
+        return names.count == 1 ? last : t("{first} and {last}", ["first": names.dropLast().joined(separator: t(", ")), "last": last])
     }
 }
 
@@ -376,14 +450,14 @@ public struct Scores: Sendable, Hashable {
     public var isEmpty: Bool { imdb == nil && rottenTomatoes == nil }
 
     /// "7.8", as beside IMDb's mark.
-    public var imdbText: String? { imdb.map { String(format: "%.1f", $0) } }
+    public var imdbText: String? { imdb.map { $0.formatted(.number.precision(.fractionLength(1)).locale(Localization.locale)) } }
 
     /// For VoiceOver: "IMDb 7.8 out of 10".
-    public var imdbLabel: String? { imdbText.map { "IMDb \($0) out of 10" } }
+    public var imdbLabel: String? { imdbText.map { t("IMDb {score} out of 10", ["score": $0]) } }
 
     /// For VoiceOver: "Rotten Tomatoes 92%, Certified Fresh".
     public var rottenTomatoesLabel: String? {
-        rottenTomatoes.map { "Rotten Tomatoes \($0.score)%, \($0.state.words)" }
+        rottenTomatoes.map { t("Rotten Tomatoes {score}%, {state}", ["score": $0.score, "state": $0.state.words]) }
     }
 }
 
@@ -391,9 +465,9 @@ extension RottenTomatoesState {
     /// What Rotten Tomatoes calls it.
     public var words: String {
         switch self {
-        case .certifiedFresh: "Certified Fresh"
-        case .fresh: "Fresh"
-        case .rotten: "Rotten"
+        case .certifiedFresh: t("Certified Fresh")
+        case .fresh: t("Fresh")
+        case .rotten: t("Rotten")
         case .unknown: "Rotten Tomatoes"
         }
     }

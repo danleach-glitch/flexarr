@@ -1,15 +1,16 @@
 import { useSyncExternalStore } from 'react'
 import { ApiError, type PairingDetails } from '../api/client'
+import { t } from '../i18n'
 
 /** Where the device asked from, as "from your home network (192.168.1.70)". */
 export function askedFrom(details: PairingDetails) {
-  const place = details.zone === 'Local' ? 'from your home network' : details.zone === 'Tailnet' ? 'over Tailscale' : 'from the internet'
-  return details.requestedFrom ? `${place} (${details.requestedFrom})` : place
+  const place = details.zone === 'Local' ? t('from your home network') : details.zone === 'Tailnet' ? t('over Tailscale') : t('from the internet')
+  return details.requestedFrom ? t('{place} ({address})', { place, address: details.requestedFrom }) : place
 }
 
 export const pairingError = (e: unknown) =>
   e instanceof ApiError && e.status === 403
-    ? 'Only the main profile can connect a device.'
+    ? t('Only the main profile can connect a device.')
     : e instanceof ApiError && e.messages[0]
       ? e.messages[0]
       : String(e)

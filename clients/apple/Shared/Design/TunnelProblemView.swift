@@ -1,3 +1,4 @@
+import FlexarrKit
 import SwiftUI
 
 /// A family guest's app couldn't reach its host's server through the tunnel: Try again, Leave (which forgets the
@@ -8,17 +9,17 @@ struct TunnelProblemView: View {
     var onDownloads: (() -> Void)?
     @State private var confirmLeave = false
 
-    private var owner: String { model.credentials?.guest?.ownerName ?? "the host" }
+    private var owner: String { model.credentials?.guest?.ownerName ?? t("the host") }
 
     var body: some View {
         VStack(spacing: 20) {
             Image(systemName: "wifi.exclamationmark")
                 .font(.system(size: 44))
                 .foregroundStyle(Color.silver)
-            Text("Can’t reach \(owner)’s Flexarr")
+            Text(t("Can’t reach {owner}’s Flexarr", ["owner": owner]))
                 .font(.title2.weight(.semibold))
                 .multilineTextAlignment(.center)
-            Text("Check this device’s internet, or that \(owner)’s server is on.")
+            Text(t("Check this device’s internet, or that {owner}’s server is on.", ["owner": owner]))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             // Side by side while they fit, one above another at larger text sizes.
@@ -33,13 +34,13 @@ struct TunnelProblemView: View {
     }
 
     @ViewBuilder private var buttons: some View {
-        Button("Try again") { Task { await model.retryGuestTunnel() } }
+        Button(t("Try again")) { Task { await model.retryGuestTunnel() } }
             .buttonStyle(ActionButtonStyle(prominent: true))
         if let onDownloads {
-            Button("Downloads", action: onDownloads)
+            Button(t(Words.downloads), action: onDownloads)
                 .buttonStyle(ActionButtonStyle())
         }
-        Button("Leave", role: .destructive) { confirmLeave = true }
+        Button(t("Leave"), role: .destructive) { confirmLeave = true }
             .buttonStyle(ActionButtonStyle())
     }
 }
@@ -63,11 +64,11 @@ private struct LeaveGuestConfirmation: ViewModifier {
             LeaveGuestPrompt(owner: owner, isPresented: $isPresented, onLeave: onLeave)
         }
         #else
-        content.confirmationDialog("Leave \(owner)’s Flexarr?", isPresented: $isPresented, titleVisibility: .visible) {
-            Button("Leave", role: .destructive, action: onLeave)
+        content.confirmationDialog(t("Leave {owner}’s Flexarr?", ["owner": owner]), isPresented: $isPresented, titleVisibility: .visible) {
+            Button(t("Leave"), role: .destructive, action: onLeave)
         } message: {
             // Signing out deletes the iPhone's downloads.
-            Text("Joining again takes a new code. Downloads are deleted.")
+            Text(t("Joining again takes a new code. Downloads are deleted."))
         }
         #endif
     }
@@ -84,18 +85,18 @@ private struct LeaveGuestPrompt: View {
 
     var body: some View {
         VStack(spacing: 36) {
-            Text("Leave \(owner)’s Flexarr?")
+            Text(t("Leave {owner}’s Flexarr?", ["owner": owner]))
                 .font(.system(size: 52, weight: .bold))
                 .foregroundStyle(Color.screen)
                 .multilineTextAlignment(.center)
-            Text("Joining again takes a new code.")
+            Text(t("Joining again takes a new code."))
                 .font(.system(size: 30))
                 .foregroundStyle(Color.usher)
             HStack(spacing: 30) {
-                Button("Cancel") { isPresented = false }
+                Button(t(Words.cancel)) { isPresented = false }
                     .buttonStyle(ActionButtonStyle(prominent: true))
                     .focused($focus, equals: .cancel)
-                Button("Leave") {
+                Button(t("Leave")) {
                     isPresented = false
                     onLeave()
                 }

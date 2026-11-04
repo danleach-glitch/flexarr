@@ -71,11 +71,11 @@ struct ResumeListeningIntent: AudioPlaybackIntent {
         // Paused already: carry on.
         if let current = model.music.current, current.kind == .audiobook || current.kind == .podcastEpisode {
             if !model.music.isPlaying { model.music.resume() }
-            return .result(dialog: "Resuming \(current.title).")
+            return .result(dialog: .shown(t("Resuming {title}.", ["title": current.title])))
         }
-        guard let last = await model.lastListened() else { throw FlexarrIntentError.nothingToPlay("Continue listening") }
+        guard let last = await model.lastListened() else { throw FlexarrIntentError.nothingToPlay(t("Continue listening")) }
         if last.kind == .audiobook { model.playBook(last) } else { model.playEpisode(last) }
-        return .result(dialog: "Resuming \(last.title).")
+        return .result(dialog: .shown(t("Resuming {title}.", ["title": last.title])))
     }
 }
 
@@ -98,7 +98,7 @@ struct PlayBookIntent: AudioPlaybackIntent {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
         let item = try await client.item(book.id).item
         model.playBook(item)
-        return .result(dialog: "Playing \(item.title).")
+        return .result(dialog: .shown(t("Playing {title}.", ["title": item.title])))
     }
 }
 
@@ -111,8 +111,8 @@ struct SleepAtChapterEndIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        guard model.music.isBook else { return .result(dialog: "No book is playing.") }
+        guard model.music.isBook else { return .result(dialog: .shown(t("No book is playing."))) }
         model.music.sleep.set(.endOfChapter)
-        return .result(dialog: "Pausing at the end of the chapter.")
+        return .result(dialog: .shown(t("Pausing at the end of the chapter.")))
     }
 }

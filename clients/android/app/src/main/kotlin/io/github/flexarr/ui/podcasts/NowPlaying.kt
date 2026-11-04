@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.podcasts
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import android.content.Intent
 import android.graphics.Bitmap
 import androidx.compose.animation.Crossfade
@@ -38,13 +40,9 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.outlined.Bedtime
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Podcasts
@@ -130,6 +128,7 @@ import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.RepeatWhileShowing
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glow
 import io.github.flexarr.ui.theme.glowColor
@@ -157,7 +156,7 @@ fun NowPlayingBar(model: AppModel) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.minimumInteractiveComponentSize().size(width = 36.dp, height = 56.dp).pressable(player::stop), contentAlignment = Alignment.Center) {
-            Icon(Icons.Filled.Close, contentDescription = "Stop and close", tint = Flexarr.usher, modifier = Modifier.size(16.dp))
+            Icon(Icons.Filled.Close, contentDescription = t("Stop and close"), tint = Flexarr.usher, modifier = Modifier.size(16.dp))
         }
         Row(Modifier.weight(1f).pressable({ model.showsNowPlaying = true }).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             PodcastArtwork(episode.artwork.thumb ?: episode.artwork.poster, episode.podcastTitle, episode.accentColor, Modifier.size(44.dp), imageWidth = 185)
@@ -169,13 +168,13 @@ fun NowPlayingBar(model: AppModel) {
         // On a Chromecast: its controls.
         val cast = Casting.shared?.takeIf { it.casts(Casting.Kind.Podcast) }
         if (cast != null) {
-            RoundButton(if (cast.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (cast.isPlaying) "Pause" else "Play", cast::togglePlayPause)
+            RoundButton(if (cast.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (cast.isPlaying) t("Pause") else t(Words.play), cast::togglePlayPause)
             ForwardButton(player.skipForward) { cast.skip(player.skipForward) }
         } else {
             if (player.isLoading) {
                 Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen, modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
             } else {
-                RoundButton(if (player.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (player.isPlaying) "Pause" else "Play", player::togglePlayPause)
+                RoundButton(if (player.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (player.isPlaying) t("Pause") else t(Words.play), player::togglePlayPause)
             }
             ForwardButton(player.skipForward) { player.skip(player.skipForward) }
         }
@@ -193,10 +192,10 @@ private fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit) {
 /** The bar's skip forward, by the profile's step: Material's 30 when it's 30, otherwise the step in a turned arrow. */
 @Composable
 private fun ForwardButton(seconds: Int, onClick: () -> Unit) {
-    if (seconds == 30) return RoundButton(Icons.Filled.Forward30, "Forward 30 seconds", onClick)
-    if (seconds == 10) return RoundButton(Icons.Filled.Forward10, "Forward 10 seconds", onClick)
+    if (seconds == 30) return RoundButton(Icons.Filled.Forward30, t("Forward 30 seconds"), onClick)
+    if (seconds == 10) return RoundButton(Icons.Filled.Forward10, t("Forward 10 seconds"), onClick)
     Box(Modifier.minimumInteractiveComponentSize().size(40.dp).clip(CircleShape).pressable(onClick), contentAlignment = Alignment.Center) {
-        Icon(Icons.Filled.Replay, contentDescription = "Forward $seconds seconds", tint = Flexarr.screen, modifier = Modifier.size(28.dp).scale(scaleX = -1f, scaleY = 1f))
+        Icon(Icons.Filled.Replay, contentDescription = t("Forward {seconds} seconds", "seconds" to seconds), tint = Flexarr.screen, modifier = Modifier.size(28.dp).scale(scaleX = -1f, scaleY = 1f))
         // The number is in the label already: TalkBack reads it once.
         Text("$seconds", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.padding(top = 3.dp).clearAndSetSemantics {})
     }
@@ -262,7 +261,7 @@ fun NowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                 // The sheet's handle, which TalkBack offers as Close (the drag that closes it isn't there for TalkBack).
                 Box(
                     Modifier.padding(top = 10.dp).size(width = 40.dp, height = 5.dp).clip(CircleShape).background(Flexarr.aisle).clearAndSetSemantics {
-                        contentDescription = "Close"
+                        contentDescription = t("Close")
                         role = Role.Button
                         onClick { onDismiss(); true }
                     },
@@ -302,13 +301,13 @@ fun NowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                     Scrubber(player, chapters, scrubbing) { scrubbing = it }
                     player.errorMessage?.let { Text(it, fontSize = 13.sp, color = Flexarr.danger, textAlign = TextAlign.Center) }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                        Transport(Icons.Filled.Replay, "Back ${player.skipBack} seconds", badge = "${player.skipBack}") { player.skip(-player.skipBack) }
+                        Transport(Icons.Filled.Replay, t("Back {seconds} seconds", "seconds" to player.skipBack), badge = "${player.skipBack}") { player.skip(-player.skipBack) }
                         Box(Modifier.size(76.dp).clip(CircleShape).background(Flexarr.screen).pressable(player::togglePlayPause), contentAlignment = Alignment.Center) {
                             if (player.isLoading) CircularProgressIndicator(color = Flexarr.room, modifier = Modifier.size(28.dp))
-                            else Icon(if (player.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (player.isPlaying) "Pause" else "Play", tint = Flexarr.room, modifier = Modifier.size(32.dp))
+                            else Icon(if (player.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, contentDescription = if (player.isPlaying) t("Pause") else t(Words.play), tint = Flexarr.room, modifier = Modifier.size(32.dp))
                         }
-                        if (player.skipForward == 30) Transport(Icons.Filled.Forward30, "Forward 30 seconds") { player.skip(30) }
-                        else Transport(Icons.Filled.Replay, "Forward ${player.skipForward} seconds", badge = "${player.skipForward}", mirrored = true) { player.skip(player.skipForward) }
+                        if (player.skipForward == 30) Transport(Icons.Filled.Forward30, t("Forward 30 seconds")) { player.skip(30) }
+                        else Transport(Icons.Filled.Replay, t("Forward {seconds} seconds", "seconds" to player.skipForward), badge = "${player.skipForward}", mirrored = true) { player.skip(player.skipForward) }
                     }
                 }
                 // Speed, the sleep timer, Notes, Cast and the episode's menu: of a kind, evenly spaced, each lit while it's set.
@@ -316,7 +315,7 @@ fun NowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                     SpeedMenu(player, Modifier.weight(1f))
                     SleepMenu(player, Modifier.weight(1f))
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        ExtraLabel(showingDetails, if (showingDetails) "Hide notes" else "Notes", { showingDetails = !showingDetails }) { tint ->
+                        ExtraLabel(showingDetails, if (showingDetails) t("Hide notes") else t("Notes"), { showingDetails = !showingDetails }) { tint ->
                             Icon(Icons.Outlined.Description, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
                         }
                     }
@@ -377,11 +376,11 @@ private fun SectionTitle(title: String) {
 private fun ChapterList(player: PodcastPlayer, chapters: List<PodcastChapter>) {
     val current = chapters.indexAt(player.position)
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        SectionTitle("Chapters")
+        SectionTitle(t("Chapters"))
         chapters.forEachIndexed { offset, chapter ->
             Row(
                 Modifier.fillMaxWidth().pressable({ player.seek(chapter.startSeconds) }).padding(horizontal = 12.dp, vertical = 8.dp)
-                    .semantics(mergeDescendants = true) { contentDescription = "${chapter.title}, at ${Format.timestamp(chapter.startSeconds)}" },
+                    .semantics(mergeDescendants = true) { contentDescription = t("{chapter}, at {time}", "chapter" to chapter.title, "time" to Format.timestamp(chapter.startSeconds)) },
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -392,7 +391,7 @@ private fun ChapterList(player: PodcastPlayer, chapters: List<PodcastChapter>) {
                     color = if (offset == current) Flexarr.screen else Flexarr.screen.copy(alpha = if ((current ?: -1) > offset) 0.55f else 0.85f),
                 )
                 if (offset == current) {
-                    Icon(if (player.isPlaying) Icons.Filled.GraphicEq else Icons.Filled.Pause, contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(14.dp))
+                    Icon(if (player.isPlaying) Icons.Filled.GraphicEq else FlexarrIcons.pause, contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(14.dp))
                 }
             }
         }
@@ -406,9 +405,9 @@ private fun ChapterList(player: PodcastPlayer, chapters: List<PodcastChapter>) {
 @Composable
 private fun Notes(player: PodcastPlayer, episode: PodcastEpisode) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionTitle("Episode Notes")
+        SectionTitle(t("Episode Notes"))
         FactsLine(
-            listOfNotNull(dateLine(episode.publishedAt), episode.durationSeconds?.let(Format::runtime), if (episode.explicit) "Explicit" else null),
+            listOfNotNull(dateLine(episode.publishedAt), episode.durationSeconds?.let(Format::runtime), if (episode.explicit) t("Explicit") else null),
             Modifier.padding(horizontal = 12.dp),
         )
         episode.overview?.let { text ->
@@ -442,7 +441,7 @@ private fun episodeNotes(notes: String, duration: Double?, seek: (Double) -> Uni
 private fun ChapterStrip(player: PodcastPlayer, chapters: List<PodcastChapter>, scrubbing: Double?, openChapters: () -> Unit) {
     val current = chapters.indexAt(scrubbing ?: player.position)
     Row(Modifier.fillMaxWidth().clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.08f)).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        ChapterStep(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous chapter") {
+        ChapterStep(Icons.AutoMirrored.Filled.KeyboardArrowLeft, t("Previous chapter")) {
             // Back to the start of this chapter, or (near its start already) to the one before.
             if (current == null) return@ChapterStep player.seek(0.0)
             val start = chapters[current].startSeconds
@@ -454,7 +453,7 @@ private fun ChapterStrip(player: PodcastPlayer, chapters: List<PodcastChapter>, 
             }
         }
         val next = (current ?: -1) + 1
-        ChapterStep(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next chapter", enabled = next < chapters.size) {
+        ChapterStep(Icons.AutoMirrored.Filled.KeyboardArrowRight, t("Next chapter"), enabled = next < chapters.size) {
             if (next < chapters.size) player.seek(chapters[next].startSeconds)
         }
     }
@@ -482,7 +481,7 @@ private fun Scrubber(player: PodcastPlayer, chapters: List<PodcastChapter>, scru
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Box(
             Modifier.fillMaxWidth().height(28.dp)
-                .semantics { contentDescription = "Position"; stateDescription = "${Format.timestamp(player.position)} of ${Format.timestamp(duration)}" }
+                .semantics { contentDescription = t("Position"); stateDescription = t("{position} of {length}", "position" to Format.timestamp(player.position), "length" to Format.timestamp(duration)) }
                 .pointerInput(duration) {
                     if (duration <= 0) return@pointerInput
                     fun at(x: Float) = (x / size.width).coerceIn(0f, 1f) * duration
@@ -518,7 +517,7 @@ private fun Scrubber(player: PodcastPlayer, chapters: List<PodcastChapter>, scru
                 // When it'll finish, at the speed it's playing.
                 val left = (duration - player.position).coerceAtLeast(0.0) / player.speed.coerceAtLeast(0.5)
                 val ends = android.text.format.DateFormat.getTimeFormat(context).format(Date(System.currentTimeMillis() + (left * 1000).toLong()))
-                Text("Ends $ends", style = caption)
+                Text(t("Ends {time}", "time" to ends), style = caption)
             }
             Text(if (duration > 0) "-" + Format.timestamp((duration - shown).coerceAtLeast(0.0)) else "", style = caption, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
         }
@@ -555,7 +554,7 @@ private fun SpeedMenu(player: PodcastPlayer, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
     val label = PodcastPlayer.speedLabel(player.speed)
     Box(modifier, contentAlignment = Alignment.Center) {
-        ExtraLabel(player.speed != 1.0, "Speed, $label", { open = true }) { tint ->
+        ExtraLabel(player.speed != 1.0, t("Speed, {speed}", "speed" to label), { open = true }) { tint ->
             Text(label, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, style = Tabular, color = tint)
         }
         DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
@@ -575,7 +574,7 @@ private fun SleepMenu(player: PodcastPlayer, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
     val setting = player.sleep.setting
     Box(modifier, contentAlignment = Alignment.Center) {
-        ExtraLabel(setting != null, if (setting == null) "Sleep timer" else "Sleep timer on", { open = true }) { tint ->
+        ExtraLabel(setting != null, if (setting == null) t("Sleep timer") else t("Sleep timer on"), { open = true }) { tint ->
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Bedtime, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
                 player.sleep.endsAt?.let { end ->
@@ -587,7 +586,7 @@ private fun SleepMenu(player: PodcastPlayer, modifier: Modifier = Modifier) {
             }
         }
         DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
-            Choice("Off", setting == null) { open = false; player.sleep.set(null) }
+            Choice(t("Off"), setting == null) { open = false; player.sleep.set(null) }
             HorizontalDivider(color = Flexarr.aisle)
             (SleepTimer.minuteChoices.map { SleepTimer.Setting.Minutes(it) } + SleepTimer.Setting.EndOfEpisode).forEach { choice ->
                 Choice(choice.label, choice == setting) { open = false; player.sleep.set(choice) }
@@ -603,12 +602,12 @@ private fun EpisodeMenu(model: AppModel, episode: PodcastEpisode, podcast: Podca
     val player = model.podcasts
     var open by remember { mutableStateOf(false) }
     Box(modifier, contentAlignment = Alignment.Center) {
-        ExtraLabel(false, "More", { open = true }) { tint ->
-            Icon(Icons.Filled.MoreHoriz, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
+        ExtraLabel(false, t("More"), { open = true }) { tint ->
+            Icon(FlexarrIcons.more, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
         }
         DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
-            MenuEntry("Go to podcast", Icons.Outlined.Podcasts) { open = false; goToPodcast() }
-            MenuEntry("Mark as played", Icons.Outlined.CheckCircle) {
+            MenuEntry(t("Go to podcast"), Icons.Outlined.Podcasts) { open = false; goToPodcast() }
+            MenuEntry(t(Words.markAsPlayed), FlexarrIcons.watched) {
                 open = false
                 val client = model.client ?: return@MenuEntry
                 model.scope.launch {
@@ -620,18 +619,18 @@ private fun EpisodeMenu(model: AppModel, episode: PodcastEpisode, podcast: Podca
             }
             val download = model.downloads.entry(episode.id)
             if (download == null) {
-                MenuEntry("Download", Icons.Outlined.Download) {
+                MenuEntry(t(Words.download), FlexarrIcons.download) {
                     open = false
                     model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } }
                 }
             } else {
-                MenuEntry(if (download.isDownloaded) "Remove download" else "Stop download", Icons.Outlined.Delete) {
+                MenuEntry(if (download.isDownloaded) t("Remove download") else t("Stop download"), FlexarrIcons.delete) {
                     open = false
                     model.downloads.delete(download.id)
                 }
             }
             podcast?.link?.takeIf { it.startsWith("http") }?.let { link ->
-                MenuEntry("Share podcast", Icons.Outlined.Share) {
+                MenuEntry(t("Share podcast"), Icons.Outlined.Share) {
                     open = false
                     val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, link).putExtra(Intent.EXTRA_TITLE, podcast.title)
                     context.startActivity(Intent.createChooser(send, null))
@@ -655,7 +654,7 @@ private fun Choice(label: String, checked: Boolean, onClick: () -> Unit) {
     DropdownMenuItem(
         text = { Text(label, color = Flexarr.screen) },
         onClick = onClick,
-        leadingIcon = { Box(Modifier.size(20.dp)) { if (checked) Icon(Icons.Filled.Check, contentDescription = "Chosen", tint = Flexarr.screen) } },
+        leadingIcon = { Box(Modifier.size(20.dp)) { if (checked) Icon(Icons.Filled.Check, contentDescription = t("Chosen"), tint = Flexarr.screen) } },
     )
 }
 
@@ -683,7 +682,7 @@ private fun UpNext(model: AppModel) {
     val next = model.upNext.filter { it.id != model.podcasts.current?.id }
     if (next.isEmpty()) return
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        SectionTitle("Up next")
+        SectionTitle(t(Words.upNext))
         next.take(20).forEach { episode ->
             Row(
                 Modifier.fillMaxWidth().pressable({ model.podcasts.play(episode) }).padding(horizontal = 12.dp, vertical = 6.dp),

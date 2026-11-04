@@ -9,7 +9,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "0.58.0"
+    MARKETING_VERSION: "0.60.0"
     CURRENT_PROJECT_VERSION: "1"
     # Tools/build.sh sets it from FLEXARR_MAC_BUNDLE_ID.
     FLEXARR_MAC_BUNDLE_ID: io.github.flexarr.server
@@ -17,7 +17,15 @@ targets:
   FlexarrServer:
     type: application
     platform: macOS
-    sources: [FlexarrServer]
+    # FlexarrKit's language files, compiled in (its package needs macOS 15): the menu follows the Mac's language, from
+    # the packs built in (docs/languages.md). Not Localization+Server.swift, which needs FlexarrKit's client.
+    sources:
+      - FlexarrServer
+      - path: ../apple/FlexarrKit/Sources/FlexarrKit/Localization
+        excludes: ["Localization+Server.swift"]
+      - path: ../apple/FlexarrKit/Sources/FlexarrKit/Resources/Languages
+        type: folder
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(FLEXARR_MAC_BUNDLE_ID)
@@ -52,6 +60,8 @@ targets:
         # A menu bar app: no Dock icon or main window.
         LSUIElement: true
         NSLocalNetworkUsageDescription: Flexarr Server shares your media with the Flexarr apps and browsers on your network.
+        # The app announces the server on the network (ServerProcess.swift), so apps list it.
+        NSBonjourServices: [_flexarr._tcp]
         ITSAppUsesNonExemptEncryption: false
     postBuildScripts:
       # The .NET server (Tools/publish-server.sh) goes in Contents/Helpers and Resources/Server, each binary signed to inherit the app's

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
+import { t } from '../i18n'
 
 /**
  * Copies `text`, and says so for a moment. Over plain http on the home network browsers have no clipboard API, so it
  * falls back to the older copy command.
  */
-export function CopyButton({ text, label = 'Copy', what }: { text: string; label?: string; what?: string }) {
+export function CopyButton({ text, label, what }: { text: string; label?: string; what?: string }) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
   useEffect(() => {
     if (state === 'idle') return
@@ -23,8 +24,8 @@ export function CopyButton({ text, label = 'Copy', what }: { text: string; label
   }
 
   return (
-    <button type="button" className="button quiet small" aria-label={what ? `${label} ${what}` : undefined} onClick={() => void copy()}>
-      <span aria-live="polite">{state === 'copied' ? 'Copied' : state === 'failed' ? 'Couldn’t copy' : label}</span>
+    <button type="button" className="button quiet small" aria-label={what ? t('Copy {what}', { what }) : undefined} onClick={() => void copy()}>
+      <span aria-live="polite">{state === 'copied' ? t('Copied') : state === 'failed' ? t('Couldn’t copy') : (label ?? t('Copy'))}</span>
     </button>
   )
 }

@@ -17,8 +17,9 @@ TV interface of its own. Fire TV isn't planned for now (only older Fire TVs run 
 
 ## Stages
 
-Each stage is a pull request. Main stays releasable: until stage 5, the TV interface turns on only in debug builds, and
-the manifest doesn't offer the app to TVs yet.
+Each stage is a pull request. Stages 1–3 shipped in debug builds only; since the Google Play closed test (stage 5,
+brought forward) every build has the TV interface and the manifest offers the app to TVs. Stage 4 lands before
+production.
 
 1. **Something you can watch.** The manifest changes (touchscreen and Android TV support both optional, a TV launcher
    entry, a 320×180 banner, landscape on TV), the sidebar, code sign-in with a QR code (`ConnectView`), "Who's
@@ -35,10 +36,10 @@ the manifest doesn't offer the app to TVs yet.
    - Audio passthrough (AC-3, E-AC-3 with Atmos, DTS, TrueHD) when the TV or amplifier takes it.
    - `DeviceCapabilities` reports the TV's real HDR10, HDR10+, Dolby Vision and 4K support, so more titles play
      without converting.
-5. **Release.** Offer the app to TVs in the manifest, opt in to TV in Play Console, add TV screenshots and the banner
-   to the listing (`app/src/main/play`), get through Google's TV review, and move Android TV on flexarr.io/apps to
-   available. Release builds must still refuse sign-in from launch arguments (`LAUNCH_ARGUMENTS` off) once the TV
-   entries move into the main manifest, since any app on a shared TV could send them.
+5. **Release.** Done ahead of stage 4, for Google Play's closed test: the manifest offers the app to TVs, the TV
+   screenshots and banner are in the listing (`app/src/main/play`), and release builds still refuse sign-in from
+   launch arguments (`LAUNCH_ARGUMENTS` off), since any app on a shared TV could send them. Still to come: opt in to
+   TV in Play Console, Google's TV review, and Android TV on flexarr.io/apps once it reaches production.
 
 ## Left out on TV
 

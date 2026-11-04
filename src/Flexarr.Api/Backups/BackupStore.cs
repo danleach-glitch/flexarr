@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Flexarr.Api.Configuration;
+using Flexarr.Core.Localization;
 using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Backups;
@@ -44,7 +45,7 @@ public sealed partial class BackupStore(IOptionsMonitor<FlexarrOptions> options,
             var folder = Folder;
             if (options.CurrentValue.Backups.Folder is not null && !Directory.Exists(folder))
             {
-                return $"The backups folder {folder} isn’t there. Is its drive connected?";
+                return Loc.T("The backups folder {folder} isn’t there. Is its drive connected?", new { folder });
             }
 
             if (Directory.Exists(folder))
@@ -56,7 +57,7 @@ public sealed partial class BackupStore(IOptionsMonitor<FlexarrOptions> options,
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            return $"Flexarr can’t read the backups folder: {ex.Message}";
+            return Loc.T("Flexarr can’t read the backups folder: {message}", new { message = ex.Message });
         }
     }
 
@@ -94,7 +95,7 @@ public sealed partial class BackupStore(IOptionsMonitor<FlexarrOptions> options,
             {
                 // A chosen folder that isn't there is usually a drive or share that isn't mounted. Making it would put
                 // the backups on this drive under the share's name (in /Volumes, say), out of sight, until it's full.
-                throw new IOException($"The backups folder {folder} isn’t there. Is its drive connected?");
+                throw new IOException(Loc.T("The backups folder {folder} isn’t there. Is its drive connected?", new { folder }));
             }
 
             PrivateFiles.CreateFolder(folder);
@@ -103,7 +104,7 @@ public sealed partial class BackupStore(IOptionsMonitor<FlexarrOptions> options,
             var needed = (database.Exists ? database.Length : 0) * 2 + (64L << 20);
             if (new DriveInfo(folder).AvailableFreeSpace < needed)
             {
-                throw new IOException($"There isn’t room for a backup in {folder}: it needs about {needed / (1024 * 1024):N0} MB free.");
+                throw new IOException(Loc.T("There isn’t room for a backup in {folder}: it needs about {megabytes} MB free.", new { folder, megabytes = needed / (1024 * 1024) }));
             }
 
             var now = time.GetUtcNow().UtcDateTime;

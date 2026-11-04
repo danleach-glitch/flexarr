@@ -8,3 +8,5 @@ dev
 .git
 .github
 docs
+# The Next Episode test cases the web build type-checks (frontend/src/lib/upNext.test.ts).
+!docs/next-episode-timing.json

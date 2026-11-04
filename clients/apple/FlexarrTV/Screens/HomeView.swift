@@ -206,14 +206,14 @@ struct HomeHero: View {
                     // An artist's slide: their radio too, beside Play (which shuffles them).
                     if item.kind == .artist {
                         Button { Task { await model.playArtist(item, radio: true, router: router) } } label: {
-                            Label("Radio", systemImage: Symbol.radio)
+                            Label(t(Words.radio), systemImage: Symbol.radio)
                         }
                         .buttonStyle(ActionButtonStyle(ambient: item.glowColor))
                         .focused($focusedButton, equals: .radio)
                     }
 
                     Button { router.push(.item(item)) } label: {
-                        Label("More info", systemImage: "info.circle")
+                        Label(t("More info"), systemImage: Symbol.details)
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.glowColor))
                     .focused($focusedButton, equals: .info)
@@ -307,10 +307,10 @@ struct HomeHero: View {
     }
 
     private var playLabel: String {
-        guard item.kind == .audiobook else { return resuming(item) != nil || item.isResumable ? "Resume" : "Play" }
+        guard item.kind == .audiobook else { return resuming(item) != nil || item.isResumable ? t("Resume") : t(Words.play) }
         // A book picks up from its place, as its page says.
         let position = model.music.current?.id == item.id ? model.music.position : item.userData.positionSeconds
-        return position > 0 && !item.userData.watched ? "Resume from \(Format.timestamp(position))" : "Play"
+        return position > 0 && !item.userData.watched ? t(Words.resumeFrom, ["time": Format.timestamp(position)]) : t(Words.play)
     }
 
     /// A book's title, author and narrator: it has no clear logo, and the cover beside them is the picture.
@@ -329,7 +329,7 @@ struct HomeHero: View {
                     .lineLimit(1)
             }
             if let narrator = item.book?.narrator {
-                Text("Read by \(narrator)")
+                Text(t("Read by {narrator}", ["narrator": narrator]))
                     .font(.system(size: 25, weight: .medium))
                     .foregroundStyle(Color.usher)
                     .lineLimit(1)
@@ -498,12 +498,21 @@ struct HomeRowView: View {
             .focusSection()
             .environment(\.leavesRow) { leaving = $0 }
         }
-        .onChange(of: focusedCard) { _, id in
+        .onChange(of: focusedCard) { old, id in
+            // Continue watching: the card focus left lets go what it got ready.
+            if row.id == "continue", let old, old != id, let item = row.items.first(where: { $0.id == old }) { model.dropReady(item) }
             if let id {
                 lastFocused = id
             } else if let last = lastFocused, row.items.contains(where: { $0.id == last }) {
                 lastFocused = nil // moved out of the row, rather than the card going
             }
+        }
+        .task(id: row.id == "continue" ? focusedCard : nil) {
+            // A Continue watching card focused for a moment: what it plays is got ready (docs/fast-start.md).
+            guard row.id == "continue", let id = focusedCard, let item = row.items.first(where: { $0.id == id }),
+                  (try? await Task.sleep(for: .seconds(1))) != nil else { return }
+            // The session only: not the opening bytes of every card the remote passes over.
+            model.getReady(item, prewarmBytes: false)
         }
         .onChange(of: row.items.map(\.id)) { old, new in
             let gone = [leaving, lastFocused].compactMap(\.self).first { old.contains($0) && !new.contains($0) }
@@ -555,7 +564,7 @@ struct SeeAllCard: View {
         Button(action: action) {
             VStack(spacing: 16) {
                 Image(systemName: "square.grid.2x2").font(.system(size: 48, weight: .semibold))
-                Text("See all").font(.system(size: 28, weight: .semibold))
+                Text(t("See all")).font(.system(size: 28, weight: .semibold))
             }
             .foregroundStyle(Color.screen.opacity(0.85))
             .frame(width: size.width, height: size.height)
@@ -575,16 +584,16 @@ struct ComingSoonRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            RowHeading(title: downloading > 0 ? "Coming soon (\(downloading) downloading)" : "Coming soon")
+            RowHeading(title: downloading > 0 ? t("Coming soon ({count} downloading)", ["count": downloading]) : t(Words.comingSoon))
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                     ForEach(items) { UpcomingCard(item: $0) }
-                    ArtworkButton(ambient: .silver, accessibilityText: "See all coming soon") {
+                    ArtworkButton(ambient: .silver, accessibilityText: t("See all coming soon")) {
                         router.push(.comingSoon)
                     } artwork: {
                         VStack(spacing: 14) {
                             Image(systemName: "calendar").font(.system(size: 54, weight: .semibold))
-                            Text("See all").font(.system(size: 29, weight: .semibold))
+                            Text(t("See all")).font(.system(size: 29, weight: .semibold))
                         }
                         .foregroundStyle(Color.screen)
                         .frame(width: Layout.wideWidth * 0.6, height: Layout.wideWidth * 9 / 16)

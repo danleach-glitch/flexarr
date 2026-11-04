@@ -4,6 +4,7 @@ import { useModal } from '../hooks/useModal'
 import { clockText, parseClock } from '../lib/books'
 import { AsyncButton } from './AsyncButton'
 import { AudibleLogo, Close, Plus } from './icons'
+import { t, Words } from '../i18n'
 
 interface Draft {
   key: number
@@ -74,7 +75,7 @@ export function ChapterEditor({
     } catch (e) {
       setError(
         e instanceof ApiError && e.status === 404 && !e.messages[0]
-          ? 'This server can’t edit chapters yet.'
+          ? t('This server can’t edit chapters yet.')
           : e instanceof ApiError && e.messages[0]
             ? e.messages[0]
             : String(e),
@@ -112,17 +113,17 @@ export function ChapterEditor({
   return (
     <div className="dialog-backdrop" onClick={close}>
       <div className="panel chapter-editor" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="chapter-editor-title" onClick={(e) => e.stopPropagation()}>
-        <h2 id="chapter-editor-title">Chapters</h2>
+        <h2 id="chapter-editor-title">{t('Chapters')}</h2>
         <ol className="chapter-edit-list">
           {drafts.map((d, i) => (
             <li key={d.key}>
               <span className="muted chapter-edit-number">{i + 1}</span>
-              <input type="text" aria-label={`Chapter ${i + 1} title`} value={d.title} disabled={busy} onChange={(e) => update(d.key, { title: e.target.value })} />
+              <input type="text" aria-label={t('Chapter {number} title', { number: i + 1 })} value={d.title} disabled={busy} onChange={(e) => update(d.key, { title: e.target.value })} />
               <input
                 type="text"
                 inputMode="numeric"
                 className="chapter-edit-start"
-                aria-label={`Chapter ${i + 1} start`}
+                aria-label={t('Chapter {number} start', { number: i + 1 })}
                 aria-invalid={parseClock(d.start) === null || repeated(parseClock(d.start)) || undefined}
                 value={d.start}
                 disabled={busy}
@@ -131,7 +132,7 @@ export function ChapterEditor({
               <button
                 type="button"
                 className="icon-button"
-                aria-label={`Remove chapter ${i + 1}`}
+                aria-label={t('Remove chapter {number}', { number: i + 1 })}
                 disabled={busy || drafts.length === 1}
                 onClick={() => {
                   setLeaving(false)
@@ -143,23 +144,23 @@ export function ChapterEditor({
             </li>
           ))}
         </ol>
-        {anyRepeated && <p className="error">Two chapters start at the same time.</p>}
+        {anyRepeated && <p className="error">{t('Two chapters start at the same time.')}</p>}
         <button
           type="button"
           className="text-button"
           disabled={busy}
           onClick={() => {
             setLeaving(false)
-            setDrafts((all) => [...all, { key: Math.max(-1, ...all.map((x) => x.key)) + 1, title: `Chapter ${all.length + 1}`, start: all.at(-1)?.start ?? '0:00' }])
+            setDrafts((all) => [...all, { key: Math.max(-1, ...all.map((x) => x.key)) + 1, title: t('Chapter {number}', { number: all.length + 1 }), start: all.at(-1)?.start ?? '0:00' }])
           }}
         >
-          <Plus /> Add a chapter
+          <Plus /> {t('Add a chapter')}
         </button>
 
         <div className="chapter-edit-tools">
           <label>
-            Shift all by
-            <input type="number" min={-600} max={600} step={0.5} value={shift} placeholder="seconds" disabled={busy} onChange={(e) => setShift(e.target.value)} />
+            {t('Shift all by')}
+            <input type="number" min={-600} max={600} step={0.5} value={shift} placeholder={t('seconds')} disabled={busy} onChange={(e) => setShift(e.target.value)} />
           </label>
           <button
             type="button"
@@ -171,11 +172,11 @@ export function ChapterEditor({
               setShift('')
             }}
           >
-            Shift
+            {t('Shift')}
           </button>
           {hasAsin && (
             <AsyncButton className="button quiet small" disabled={busy} onClick={fillFromAudible}>
-              <AudibleLogo /> Use Audible’s
+              <AudibleLogo /> {t('Use Audible’s')}
             </AsyncButton>
           )}
         </div>
@@ -187,19 +188,19 @@ export function ChapterEditor({
         )}
         {leaving && (
           <p className="error" role="alert">
-            Your changes aren’t saved.
+            {t('Your changes aren’t saved.')}
           </p>
         )}
         <div className="form-actions">
           <button className="button quiet" onClick={close} disabled={busy}>
-            {leaving ? 'Discard changes' : 'Done'}
+            {leaving ? t('Discard changes') : t(Words.done)}
           </button>
           <AsyncButton
             className="button"
             disabled={invalid || busy || !changed}
             onClick={() => run(() => saveChapters(bookId, parsed.map((p) => ({ title: p.title, startSeconds: p.startSeconds! }))))}
           >
-            Save
+            {t('Save')}
           </AsyncButton>
         </div>
       </div>

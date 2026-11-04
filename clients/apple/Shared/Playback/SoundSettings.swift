@@ -37,7 +37,13 @@ struct SoundSettings: Codable, Equatable {
     enum Speakers: String, Codable, CaseIterable {
         case auto = "Auto", stereo = "Stereo", surround = "Surround"
 
-        var label: String { self == .surround ? "5.1" : rawValue }
+        var label: String {
+            switch self {
+            case .auto: t("Auto")
+            case .stereo: t("Stereo")
+            case .surround: "5.1"
+            }
+        }
         var channels: Int? {
             switch self {
             case .auto: nil
@@ -49,6 +55,16 @@ struct SoundSettings: Codable, Equatable {
 
     enum DialogueBoost: String, Codable, CaseIterable {
         case off = "Off", low = "Low", medium = "Medium", high = "High"
+
+        /// What it's called on screen (the raw value is what's kept on the device).
+        var label: String {
+            switch self {
+            case .off: t("Off")
+            case .low: t("Low")
+            case .medium: t("Medium")
+            case .high: t("High")
+            }
+        }
 
         /// The lift each strength gives the dialogue, the same in every app.
         var decibels: Double {
@@ -63,6 +79,15 @@ struct SoundSettings: Codable, Equatable {
 
     enum NightMode: String, Codable, CaseIterable {
         case off = "Off", on = "On", scheduled = "Scheduled"
+
+        /// What it's called on screen (the raw value is what's kept on the device).
+        var label: String {
+            switch self {
+            case .off: t("Off")
+            case .on: t("On")
+            case .scheduled: t("Scheduled")
+            }
+        }
     }
 
     /// Whether night mode is on at `date`, with the schedule worked out.

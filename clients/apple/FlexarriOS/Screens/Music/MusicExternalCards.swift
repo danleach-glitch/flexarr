@@ -76,7 +76,7 @@ struct ExternalMusicCard: View {
         .contextMenu { menu(fromChooser: false) }
         .confirmationDialog(item.title, isPresented: $choosing, titleVisibility: .visible) {
             menu(fromChooser: true)
-            Button("Cancel", role: .cancel) {}
+            Button(t(Words.cancel), role: .cancel) {}
         }
         .background {
             Color.clear.confirmationDialog(MusicWords.unrequest(item.title), isPresented: $confirmingUnrequest,
@@ -100,7 +100,7 @@ struct ExternalMusicCard: View {
 
     private var subtitle: String? {
         var parts: [String] = []
-        if showsKind { parts.append(item.isArtist ? "Artist" : "Album") }
+        if showsKind { parts.append(item.isArtist ? t("Artist") : t("Album")) }
         if item.isAlbum {
             if showsYear { if let year = item.year { parts.append(String(year)) } } else if let artist = item.artist { parts.append(artist) }
         }
@@ -113,15 +113,18 @@ struct ExternalMusicCard: View {
         if item.isAlbum {
             switch model.albumState(item) {
             case .requested: return MusicWords.requested
-            case .inLibrary: return "In your library"
+            case .inLibrary: return t(Words.inYourLibrary)
             default: return nil
             }
         }
-        if item.libraryItemId != nil { return "In your library" }
-        return model.isFollowing(item) ? MusicWords.following : nil
+        if model.isFollowing(item) { return MusicWords.following }
+        return item.libraryItemId != nil ? t(Words.inYourLibrary) : nil
     }
 
-    private var canFollow: Bool { item.isArtist && item.libraryItemId == nil && item.hasPage && !model.isFollowing(item) }
+    /// A library artist can be followed too, on servers that say whether it is (0.59 on).
+    private var canFollow: Bool {
+        item.isArtist && (item.libraryItemId == nil || item.followed != nil) && item.hasPage && !model.isFollowing(item)
+    }
 
     @ViewBuilder private func menu(fromChooser: Bool) -> some View {
         if item.isAlbum, case .requestable = model.albumState(item), let target = MusicRequestTarget.album(item) {
@@ -148,7 +151,7 @@ struct ExternalMusicCard: View {
                 .disabled(asking || paused)
         }
         if item.isAlbum, let artist = item.artistPage {
-            Button { router.push(.musicArtist(artist)) } label: { Label("Go to artist", systemImage: Symbol.goToArtist) }
+            Button { router.push(.musicArtist(artist)) } label: { Label(t(Words.goToArtist), systemImage: Symbol.goToArtist) }
         }
     }
 

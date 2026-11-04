@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from 
 import { imageUrl, type ItemSummary } from '../api/client'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { ChevronDown, ChevronUp, Close, Grip } from './icons'
+import { t, Words } from '../i18n'
 
 /**
  * The queue, above the now-playing bar: what's playing and what's to come. Upcoming tracks can be dragged into a new
@@ -92,20 +93,20 @@ export function QueuePanel({ onClose, style }: { onClose: () => void; style?: CS
   )
 
   return (
-    <section id="queue-panel" ref={panel} className="queue-panel" role="dialog" aria-label="Queue" style={style}>
+    <section id="queue-panel" ref={panel} className="queue-panel" role="dialog" aria-label={t('Queue')} style={style}>
       <header className="queue-head">
-        <h2>Queue</h2>
+        <h2>{t('Queue')}</h2>
         <button className="button quiet small" onClick={player.clearQueue} disabled={upcoming.length === 0}>
-          Clear
+          {t('Clear')}
         </button>
-        <button className="icon-button" aria-label="Close queue" onClick={onClose}>
+        <button className="icon-button" aria-label={t('Close queue')} onClick={onClose}>
           <Close />
         </button>
       </header>
       <div className="queue-body">
         {current && (
           <>
-            <h3 className="queue-heading">Now playing</h3>
+            <h3 className="queue-heading">{t(Words.nowPlaying)}</h3>
             <div className="queue-item now">
               <div className="queue-track">
                 {art(current)}
@@ -114,9 +115,9 @@ export function QueuePanel({ onClose, style }: { onClose: () => void; style?: CS
             </div>
           </>
         )}
-        <h3 className="queue-heading">Next up</h3>
+        <h3 className="queue-heading">{t('Next up')}</h3>
         {upcoming.length === 0 ? (
-          <p className="queue-empty muted">Nothing next. “Play next” or “Add to queue” on a track puts it here.</p>
+          <p className="queue-empty muted">{t('Nothing next. “Play next” or “Add to queue” on a track puts it here.')}</p>
         ) : (
           <ol className="queue-list">
             {upcoming.map(({ track, index: at }, k) => (
@@ -134,23 +135,23 @@ export function QueuePanel({ onClose, style }: { onClose: () => void; style?: CS
                 <span className="queue-grip" aria-hidden="true">
                   <Grip />
                 </span>
-                <button className="queue-track" onClick={() => player.skipTo(at)} aria-label={`Play ${track.title} now`}>
+                <button className="queue-track" onClick={() => player.skipTo(at)} aria-label={t('Play {title} now', { title: track.title })}>
                   {art(track)}
                   {text(track)}
                 </button>
                 <span className="queue-actions">
-                  <button className="icon-button queue-move-up" aria-label={`Move ${track.title} up`} disabled={k === 0} onClick={() => move(at, at - 1, 'up')}>
+                  <button className="icon-button queue-move-up" aria-label={t('Move {title} up', { title: track.title })} disabled={k === 0} onClick={() => move(at, at - 1, 'up')}>
                     <ChevronUp />
                   </button>
                   <button
                     className="icon-button queue-move-down"
-                    aria-label={`Move ${track.title} down`}
+                    aria-label={t('Move {title} down', { title: track.title })}
                     disabled={k === upcoming.length - 1}
                     onClick={() => move(at, at + 1, 'down')}
                   >
                     <ChevronDown />
                   </button>
-                  <button className="icon-button" aria-label={`Remove ${track.title} from the queue`} onClick={() => player.removeFromQueue(at)}>
+                  <button className="icon-button" aria-label={t('Remove {title} from the queue', { title: track.title })} onClick={() => player.removeFromQueue(at)}>
                     <Close />
                   </button>
                 </span>

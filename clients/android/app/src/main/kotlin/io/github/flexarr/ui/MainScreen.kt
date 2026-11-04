@@ -1,5 +1,8 @@
 package io.github.flexarr.ui
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.tk
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -115,14 +118,18 @@ import io.github.flexarr.ui.settings.ListeningSettingsScreen
 import io.github.flexarr.ui.settings.ServerSettingsScreen
 import io.github.flexarr.ui.settings.SettingsScreen
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.mainButtonFill
 import io.github.flexarr.ui.theme.FlexarrIcons
 
-private enum class Tab(val route: String, val label: String) {
-    Home("home", "Home"),
-    Libraries("libraries", "Libraries"),
-    Downloads("downloads", "Downloads"),
-    Search("search", "Search"),
-    Settings("settings", "Settings"),
+private enum class Tab(val route: String, private val english: String) {
+    Home("home", tk(Words.home)),
+    Libraries("libraries", tk(Words.libraries)),
+    Downloads("downloads", tk(Words.downloads)),
+    Search("search", tk(Words.search)),
+    Settings("settings", tk(Words.settings)),
+    ;
+
+    val label: String get() = t(english)
 }
 
 /** Home, Libraries, Downloads, Search and Settings along the bottom, each keeping its own place; titles open on top of them. */
@@ -160,6 +167,8 @@ fun MainScreen(model: AppModel) {
         delay(1_500)
         ReviewPrompt.ask(activity)
     }
+    // Google Play's updates: a downloaded one offers a restart (AppUpdates says when).
+    AppUpdatePrompt(navigator.notices)
 
     CompositionLocalProvider(LocalClient provides client, LocalNavigator provides navigator, LocalOffline provides model.serverUnreachable) {
         // Back can leave a tab's page for another's: the lit tab follows whichever tab's page is showing.
@@ -256,12 +265,19 @@ fun MainScreen(model: AppModel) {
                 // The prompt to allow it comes up by itself; a device that's gone is said so.
                 is AppLink.Pairing -> when (model.pairing.open(client, link.code)) {
                     PairingPrompts.Opened.Asking -> Unit
-                    PairingPrompts.Opened.Gone -> navigator.notices.showSnackbar("That device isn’t waiting any more. If it shows a new code, it asks again.")
-                    PairingPrompts.Opened.NotMainProfile -> navigator.notices.showSnackbar("Switch to the main profile to allow it.")
+                    PairingPrompts.Opened.Gone -> navigator.notices.showSnackbar(t("That device isn’t waiting any more. If it shows a new code, it asks again."))
+                    PairingPrompts.Opened.NotMainProfile -> navigator.notices.showSnackbar(t("Switch to the main profile to allow it."))
                 }
                 // Asked about over every screen (InviteDialog), never sent here.
                 is AppLink.Join -> Unit
             } } }
+        }
+        // "Update your Flexarr server": signed in to a server older than the app supports. Said once, then cleared.
+        LaunchedEffect(model.serverUpdateNotice) {
+            val notice = model.serverUpdateNotice ?: return@LaunchedEffect
+            // Cleared once it's gone: clearing it first would restart this effect and cancel the snackbar.
+            navigator.notices.showSnackbar(notice, withDismissAction = true)
+            model.serverUpdateNotice = null
         }
         // Opened offline: straight to what can be watched, if there's anything. Going offline later leaves you where you are.
         LaunchedEffect(Unit) {
@@ -272,7 +288,7 @@ fun MainScreen(model: AppModel) {
         Scaffold(
             containerColor = Flexarr.room,
             snackbarHost = {
-                SnackbarHost(navigator.notices) { Snackbar(it, containerColor = Flexarr.seat, contentColor = Flexarr.screen) }
+                SnackbarHost(navigator.notices) { Snackbar(it, containerColor = Flexarr.seat, contentColor = Flexarr.screen, actionColor = mainButtonFill(Flexarr.silver)) }
             },
             bottomBar = {
               Column {
@@ -336,14 +352,14 @@ fun MainScreen(model: AppModel) {
                     .then(if (offline) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier),
             ) {
                 composable(Tab.Home.route) {
-                    Crossfade(model.serverUnreachable, label = "offline") { if (it) OfflineScreen(model, "Home") { select(Tab.Downloads) } else HomeScreen(model) }
+                    Crossfade(model.serverUnreachable, label = "offline") { if (it) OfflineScreen(model, t(Words.home)) { select(Tab.Downloads) } else HomeScreen(model) }
                 }
                 composable(Tab.Libraries.route) {
-                    Crossfade(model.serverUnreachable, label = "offline") { if (it) OfflineScreen(model, "Libraries") { select(Tab.Downloads) } else LibrariesScreen(model) }
+                    Crossfade(model.serverUnreachable, label = "offline") { if (it) OfflineScreen(model, t(Words.libraries)) { select(Tab.Downloads) } else LibrariesScreen(model) }
                 }
                 composable(Tab.Downloads.route) { DownloadsScreen(model) }
                 composable(Tab.Search.route) {
-                    Crossfade(model.serverUnreachable, label = "offline") { if (it) OfflineScreen(model, "Search") { select(Tab.Downloads) } else SearchScreen(model) }
+                    Crossfade(model.serverUnreachable, label = "offline") { if (it) OfflineScreen(model, t(Words.search)) { select(Tab.Downloads) } else SearchScreen(model) }
                 }
                 composable(Tab.Settings.route) {
                     SettingsScreen(
@@ -355,9 +371,11 @@ fun MainScreen(model: AppModel) {
                         onListening = { nav.navigate("settings/listening") },
                         onNotifications = { nav.navigate("settings/notifications") },
                         onTrakt = { nav.navigate("settings/trakt") },
+                        onLanguage = { nav.navigate("settings/language") },
                     )
                 }
                 composable("settings/playback") { PlaybackSettingsScreen(model) }
+                composable("settings/language") { io.github.flexarr.ui.settings.LanguageSettingsScreen(model) }
                 composable("settings/downloads") { DownloadSettingsScreen(model) }
                 composable("settings/listening") { ListeningSettingsScreen(model, onNotifications = { nav.navigate("settings/notifications") }) }
                 composable("settings/server") { ServerSettingsScreen(model, onDiagnostics = { nav.navigate("settings/diagnostics") }) }

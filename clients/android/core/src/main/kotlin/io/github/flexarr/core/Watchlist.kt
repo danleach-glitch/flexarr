@@ -1,5 +1,8 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.tk
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.serializer
@@ -60,7 +63,7 @@ data class WatchlistEntry(
             val services = streaming?.map(String::trim)?.filter(String::isNotEmpty).orEmpty()
             return when (services.size) {
                 0 -> null
-                1 -> "On ${services[0]}"
+                1 -> t("On {service}", "service" to services[0])
                 else -> services.joinToString(", ")
             }
         }
@@ -77,12 +80,14 @@ data class WatchlistEntry(
 data class WatchlistAdded(val entry: WatchlistEntry, val requested: Boolean = false)
 
 /** The filters along the top of the Watchlist screen. */
-enum class WatchlistFilter(val label: String) {
-    Everything("Everything"),
-    Ready("Ready to watch"),
-    OnItsWay("On its way"),
-    Coming("Coming"),
-    NotAvailable("Not available");
+enum class WatchlistFilter(private val english: String) {
+    Everything(tk("Everything")),
+    Ready(tk("Ready to watch")),
+    OnItsWay(tk("On its way")),
+    Coming(tk("Coming")),
+    NotAvailable(tk("Not available"));
+
+    val label: String get() = t(english)
 
     fun matches(entry: WatchlistEntry): Boolean = when (this) {
         Everything -> true
@@ -94,10 +99,12 @@ enum class WatchlistFilter(val label: String) {
 }
 
 /** Films, shows, or both: the Watchlist screen's kind filter, as the web's. */
-enum class WatchlistKind(val label: String) {
-    All("Movies and shows"),
-    Films("Movies"),
-    Shows("Shows");
+enum class WatchlistKind(private val english: String) {
+    All(tk(Words.moviesAndShows)),
+    Films(tk(Words.movies)),
+    Shows(tk(Words.shows));
+
+    val label: String get() = t(english)
 
     fun matches(entry: WatchlistEntry): Boolean = when (this) {
         All -> true
@@ -107,13 +114,15 @@ enum class WatchlistKind(val label: String) {
 }
 
 /** How the Watchlist screen orders its titles, as the web's. */
-enum class WatchlistSort(val label: String) {
+enum class WatchlistSort(private val english: String) {
     /** Ready, then on its way, coming, not available; newest added first within each. */
-    ReadyFirst("Ready first"),
-    RecentlyAdded("Recently added"),
+    ReadyFirst(tk("Ready first")),
+    RecentlyAdded(tk(Words.recentlyAdded)),
     /** Newest first, so what's just out or coming is at the top; titles with no date last. */
-    ReleaseDate("Release date"),
-    Title("Title");
+    ReleaseDate(tk("Release date")),
+    Title(tk("Title"));
+
+    val label: String get() = t(english)
 
     fun sorted(entries: List<WatchlistEntry>): List<WatchlistEntry> = when (this) {
         ReadyFirst -> entries.sortedWith(compareBy<WatchlistEntry> { rank(it.status) }.then(newestAdded))
@@ -156,7 +165,7 @@ internal data class TitleRequestBody(val mediaType: String, val tmdbId: Int)
 
 /** "Film, 2014" or "Show, 2011" (just "Film" or "Show" without a year), for "movie" or "tv". */
 fun kindLine(mediaType: String, year: Int?): String =
-    listOfNotNull(if (mediaType == "tv") "Show" else "Movie", year?.toString()).joinToString(", ")
+    listOfNotNull(if (mediaType == "tv") t("Show") else t("Movie"), year?.toString()).joinToString(", ")
 
 // Client
 

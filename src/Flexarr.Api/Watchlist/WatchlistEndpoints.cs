@@ -1,5 +1,6 @@
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Media;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Watchlist;
 
@@ -26,7 +27,7 @@ public static class WatchlistEndpoints
         group.MapPost("/", async (WatchlistAdd add, WatchlistService watchlist, CurrentProfile profile, CancellationToken ct) =>
         {
             var (added, refusal) = await watchlist.AddAsync(profile.Id, add, WatchlistSource.Flexarr, ct);
-            return added is not null ? Results.Ok(added) : Results.Problem(refusal!.Message, statusCode: refusal.StatusCode);
+            return added is not null ? Results.Ok(added) : Problems.Of(refusal!.English, refusal.Args, status: refusal.StatusCode);
         });
 
         group.MapDelete("/{id:guid}", async (Guid id, WatchlistService watchlist, CurrentProfile profile, CancellationToken ct) =>

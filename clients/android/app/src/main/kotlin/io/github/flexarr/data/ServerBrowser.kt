@@ -84,14 +84,28 @@ class ServerBrowser(context: Context) {
 
     @Suppress("DEPRECATION")
     private fun found(info: NsdServiceInfo): DiscoveredServer? {
-        val url = info.attributes["url"]?.let { String(it) }
-            ?: info.host?.hostAddress?.let { "http://$it:${info.port}" }
-            ?: return null
-        val address = FlexarrClient.normalizeAddress(url) ?: return null
-        return DiscoveredServer(info.serviceName, address.toString())
+        val address = address(info.attributes["url"]?.let { String(it) }, info.host?.hostAddress, info.port) ?: return null
+        return DiscoveredServer(info.serviceName, address)
     }
 
-    private companion object {
-        const val SERVICE_TYPE = "_flexarr._tcp"
+    companion object {
+        private const val SERVICE_TYPE = "_flexarr._tcp"
+
+        /**
+         * Where an announced server is: the `url` it advertises when that's on the home network (a private address, a
+         * `.local` name, a name with no dots), otherwise the address and port the announcement came from. Anything on the
+         * network can announce itself, so a `url` pointing anywhere else (the internet, someone's Tailscale name) is never
+         * trusted with a pairing request or a typed key.
+         */
+        fun address(advertised: String?, resolvedHost: String?, port: Int): String? {
+            val url = advertised?.let(FlexarrClient::normalizeAddress)
+            if (url != null && isLocal(url.host)) return url.toString()
+            val host = resolvedHost?.takeIf { it.isNotBlank() && port > 0 } ?: return null
+            val literal = if (':' in host) "[${host.substringBefore('%')}]" else host
+            return FlexarrClient.normalizeAddress("http://$literal:$port")?.toString()
+        }
+
+        private fun isLocal(host: String): Boolean =
+            FlexarrClient.isHomeNetworkHost(host) && !host.lowercase().trimEnd('.').endsWith(".ts.net") && !FlexarrClient.isTailscaleHost(host)
     }
 }

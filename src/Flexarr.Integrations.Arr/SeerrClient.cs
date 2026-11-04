@@ -103,14 +103,37 @@ public sealed class SeerrClient(HttpClient http)
         response.EnsureSuccessStatusCode();
     }
 
-    /// <summary>Every request Seerr holds (any status), newest first, up to <paramref name="limit"/>.</summary>
+    /// <summary>
+    /// The requests Seerr still has open: waiting for approval, approved for a title not all in yet, or failed. Newest
+    /// first within each, up to <paramref name="limit"/> of each, so a long history of finished requests can't push
+    /// an old open one out. Seerr's own filters do the choosing; a Seerr too old to know "failed" leaves those out.
+    /// </summary>
     public async Task<IReadOnlyList<SeerrRequest>> RequestsAsync(SeerrInstance seerr, CancellationToken ct, int limit = 500)
+    {
+        var all = new List<SeerrRequest>();
+        var seen = new HashSet<int>();
+        foreach (var filter in new[] { "pending", "processing", "failed" })
+        {
+            try
+            {
+                all.AddRange((await RequestsAsync(seerr, filter, limit, ct).ConfigureAwait(false)).Where(r => seen.Add(r.Id)));
+            }
+            catch (HttpRequestException ex) when (filter == "failed" && ex.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                // Before Overseerr 1.30 there was no "failed" filter.
+            }
+        }
+
+        return all;
+    }
+
+    private async Task<List<SeerrRequest>> RequestsAsync(SeerrInstance seerr, string filter, int limit, CancellationToken ct)
     {
         const int PageSize = 100;
         var all = new List<SeerrRequest>();
         for (var skip = 0; skip < limit; skip += PageSize)
         {
-            using var request = Request(seerr, HttpMethod.Get, $"request?take={PageSize}&skip={skip}&filter=all&sort=added");
+            using var request = Request(seerr, HttpMethod.Get, $"request?take={PageSize}&skip={skip}&filter={filter}&sort=added");
             using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             var page = await response.Content.ReadFromJsonAsync<SeerrRequestPage>(Json, ct).ConfigureAwait(false);

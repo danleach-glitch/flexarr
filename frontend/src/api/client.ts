@@ -1,3 +1,5 @@
+import { currentLanguage, t } from '../i18n'
+import { linkSpeed } from '../lib/linkSpeed'
 import type {
   Activity,
   LiveChannel,
@@ -64,18 +66,18 @@ import type {
   SystemStatus,
   UpcomingItem,
 } from './types'
+import { PROFILE_STORAGE } from '../lib/profileScope'
 import { session } from '../lib/session'
 
 export type * from './types'
 
 // Where earlier versions kept the API key itself; it's traded for a session cookie and removed.
 const LEGACY_API_KEY_STORAGE = 'flexarr.apiKey'
-const PROFILE_STORAGE = 'flexarr.profile'
 
 /** Thrown when the server rejects the request for a missing or wrong API key. */
 export class UnauthorizedError extends Error {
   constructor() {
-    super('API key required')
+    super(t('API key required'))
   }
 }
 
@@ -172,6 +174,11 @@ export async function setupStatus(): Promise<{ open: boolean; install?: InstallK
  * server's log, and `pin` the admin PIN, which guards the server's settings; either being wrong is an ApiError
  * with status 400.
  */
+/** Sets the profile's language: a code from /languages, or null to follow each device. */
+export function setProfileLanguage(language: string | null) {
+  return request<{ language: string | null }>('PUT', '/me/language', { language })
+}
+
 export async function claimSetup(code: string, pin: string) {
   const response = await fetch('/api/v1/setup/claim', {
     method: 'POST',
@@ -200,7 +207,8 @@ export async function migrateStoredApiKey() {
 
 /** The chosen profile, plus the header that lets the session cookie make changes (another site can't send it). */
 export function authHeaders(): Record<string, string> {
-  const headers: Record<string, string> = { 'X-Requested-With': 'flexarr' }
+  // The server answers in the language shown here (the profile's own choice wins over it, server side).
+  const headers: Record<string, string> = { 'X-Requested-With': 'flexarr', 'Accept-Language': currentLanguage().code }
   const profile = profileToken()
   if (profile) headers['X-Flexarr-Profile'] = profile
   return headers
@@ -261,6 +269,23 @@ export async function unlockFirst() {
   return askToUnlock()
 }
 
+/** Told the app this browser isn't signed in any more (the key changed, or it was signed out from elsewhere). */
+export const SIGNED_OUT_EVENT = 'flexarr:signed-out'
+
+/** A 401 means the sign-in itself has gone; not for signing in, setup, or a PIN, whose refusals are about what was typed. */
+function signedOut(path: string) {
+  if (/^\/(session|setup)(\/|$)/.test(path) || path.startsWith('/admin/') || /^\/profiles\/[^/]+\/select$/.test(path) || path.includes('/api-key/')) return
+  window.dispatchEvent(new Event(SIGNED_OUT_EVENT))
+}
+
+/** A live channel's heartbeat, or a place reported while playing on: nothing a cached page shows has changed. */
+function routineReport(path: string, body: unknown) {
+  if (/^\/livetv\/watch\/[^/]+\/heartbeat$/.test(path)) return true
+  if (!/^\/playback\/[^/]+\/progress$/.test(path)) return false
+  const report = body as { paused?: boolean; ended?: boolean } | undefined
+  return report?.paused === false && !report.ended
+}
+
 async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal, retried = false): Promise<T> {
   const headers = authHeaders()
   // Files (profile pictures) go up as they are; everything else is JSON.
@@ -268,8 +293,9 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   if (body !== undefined) headers['Content-Type'] = file ? body.type || 'application/octet-stream' : 'application/json'
 
   // Any change can show up in any cached answer (a watched tick in a library page, a renamed collection), so a
-  // change clears them all, before and after (anything cached while it was under way may predate it).
-  const changes = method !== 'GET'
+  // change clears them all, before and after (anything cached while it was under way may predate it). Not the reports
+  // sent every few seconds while something plays, or every Back would ask afresh: pausing, ending or stopping does.
+  const changes = method !== 'GET' && !routineReport(path, body)
   if (changes) clearApiCache()
   const response = await fetch(path.startsWith('/api/') ? path : `/api/v1${path}`, {
     method,
@@ -284,8 +310,9 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   if (response.status === 403 && !changes && (await lockedHere(path))) {
     clearApiCache()
     lapsedListeners.forEach((listener) => listener())
-    throw new ApiError(403, 'Forbidden', ['Settings are locked here. Unlock them to see this.'])
+    throw new ApiError(403, 'Forbidden', [t('Settings are locked here. Unlock them to see this.')])
   }
+  if (response.status === 401) signedOut(path)
   if (!response.ok) throw await failure(response)
   if (response.status === 202 || response.status === 204) {
     return undefined as T
@@ -345,7 +372,7 @@ export const FETCH_TIMEOUT_MS = 30_000
 /** A GET that fails after FETCH_TIMEOUT_MS if the server hasn't answered, or as soon as `signal` aborts. */
 function timedGet<T>(path: string, signal?: AbortSignal): Promise<T> {
   const timeout = new AbortController()
-  const timer = setTimeout(() => timeout.abort(new DOMException('The server took too long to answer.', 'TimeoutError')), FETCH_TIMEOUT_MS)
+  const timer = setTimeout(() => timeout.abort(new DOMException(t('The server took too long to answer.'), 'TimeoutError')), FETCH_TIMEOUT_MS)
   const onAbort = () => timeout.abort(signal?.reason)
   if (signal?.aborted) onAbort()
   else signal?.addEventListener('abort', onAbort, { once: true })
@@ -518,8 +545,12 @@ export function getLibraryAlbums(
   return (options.take ?? 0) > 200 ? timedGet<Paged<ItemSummary>>(path, signal) : cachedGet<Paged<ItemSummary>>(path, signal)
 }
 
-/** A music library's genres counted by album (its own genres, or its artist's when it has none), with an artist's fanart. */
-export const getLibraryAlbumGenres = (id: string, signal?: AbortSignal) => cachedGet<{ name: string; count: number; backdrop?: string | null }[]>(`/libraries/${id}/album-genres`, signal)
+/**
+ * A music library's genres counted by album (its own genres, or its artist's when it has none), with an artist's
+ * fanart, or without any, `covers`: up to three of its albums' (absent from servers before 0.59).
+ */
+export const getLibraryAlbumGenres = (id: string, signal?: AbortSignal) =>
+  cachedGet<{ name: string; count: number; backdrop?: string | null; covers?: string[] | null }[]>(`/libraries/${id}/album-genres`, signal)
 
 /** Up to 200 of a genre's tracks in a music library, by artist and album, or shuffled by the server. */
 export const getGenreTracks = (id: string, genre: string, shuffle: boolean, signal?: AbortSignal) =>
@@ -649,7 +680,7 @@ export async function saveBookListening(changes: Partial<BookListening>) {
 
 /** A library's genres, biggest first; `backdrop` (from one of its titles) is absent from servers before 0.54. */
 export const getLibraryGenres = (id: string, signal?: AbortSignal) =>
-  cachedGet<{ name: string; count: number; backdrop?: string | null }[]>(`/libraries/${id}/genres`, signal)
+  cachedGet<{ name: string; count: number; backdrop?: string | null; covers?: string[] | null }[]>(`/libraries/${id}/genres`, signal)
 
 /**
  * Home. `listening` says what this app can open from the continue row besides films and episodes (books and podcast
@@ -954,7 +985,8 @@ export const getPodcastCountries = (signal?: AbortSignal) => cachedGet<PodcastCo
 export const importOpml = (file: Blob) => request<OpmlImport>('POST', '/podcasts/opml', file.type ? file : new Blob([file], { type: 'text/x-opml' }))
 export const opmlUrl = '/api/v1/podcasts/opml'
 
-export const startPlayback = (body: PlaybackRequest) => request<PlaybackInfo>('POST', '/playback', body)
+/** Starts playback, saying how fast this browser's connection has been lately (see lib/linkSpeed). */
+export const startPlayback = (body: PlaybackRequest) => request<PlaybackInfo>('POST', '/playback', { measuredBitrate: linkSpeed(), ...body })
 export const getPlaybackPreferences = (signal?: AbortSignal) => apiGet<PlaybackPreferences>('/me/playback-preferences', signal)
 export const setPlaybackPreferences = (preferences: PlaybackPreferences) => request<PlaybackPreferences>('PUT', '/me/playback-preferences', preferences)
 /**
@@ -989,6 +1021,25 @@ export function beaconProgress(sessionId: string, positionSeconds: number) {
   clearApiCache()
   const body = new Blob([JSON.stringify({ positionSeconds, paused: true })], { type: 'application/json' })
   navigator.sendBeacon?.(`/api/v1/playback/${sessionId}/progress`, body)
+}
+
+/**
+ * Gets a title ready ahead of Play (`prepare`): like startPlayback, but nothing anyone sees has changed yet, so the
+ * cached answers stay. Refused (503) when the server is busy.
+ */
+export async function prepareStream(body: PlaybackRequest): Promise<PlaybackInfo> {
+  const response = await fetch('/api/v1/playback', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ measuredBitrate: linkSpeed(), ...body, prepare: true }),
+  })
+  if (!response.ok) throw await failure(response)
+  return JSON.parse(await response.text(), asUtc) as PlaybackInfo
+}
+
+/** Lets a stream got ready ahead of Play go (best effort, and it outlives the page), leaving the cache alone. */
+export function dropStream(sessionId: string) {
+  return fetch(`/api/v1/playback/${sessionId}`, { method: 'DELETE', headers: authHeaders(), keepalive: true }).catch(() => undefined)
 }
 
 export function stopPlayback(sessionId: string) {
@@ -1136,19 +1187,22 @@ export const saveBackupSettings = (update: { folder?: string; nightly?: boolean 
 export const backUpNow = () => request<Backup>('POST', '/backups')
 export const deleteBackup = (name: string) => request<void>('DELETE', `/backups/${encodeURIComponent(name)}`)
 /**
- * Saves a backup to this computer, protected with `passphrase` when there is one. Without one it's a plain link, so the
- * browser writes it straight to disk rather than holding it all in the page first.
+ * Saves a backup to this computer, protected with `passphrase` when there is one. Without one it's a plain link (bought
+ * with the admin PIN, as the file holds every key), so the browser writes it straight to disk rather than holding it
+ * all in the page first.
  */
-export async function downloadBackup(name: string, passphrase?: string) {
-  if (passphrase) return download(`/backups/${encodeURIComponent(name)}/download`, { passphrase }, name)
+export async function downloadBackup(name: string, confirmation: KeyConfirmation, passphrase?: string) {
+  if (passphrase) return download(`/backups/${encodeURIComponent(name)}/download`, { passphrase, ...confirmation }, name)
+  const { url } = await request<{ url: string }>('POST', `/backups/${encodeURIComponent(name)}/download-link`, confirmation)
   const link = document.createElement('a')
-  link.href = `/api/v1/backups/${encodeURIComponent(name)}/download`
+  link.href = url
   link.download = name
   document.body.append(link)
   link.click()
   link.remove()
 }
-export const exportSettings = (passphrase?: string) => download('/backups/settings-export', { passphrase }, 'flexarr-settings.json')
+export const exportSettings = (confirmation: KeyConfirmation, passphrase?: string) =>
+  download('/backups/settings-export', { passphrase, ...confirmation }, 'flexarr-settings.json')
 /** Puts a backup kept on the server back in place; the server restarts to do it. */
 export const restoreBackup = (name: string, confirmation: KeyConfirmation) =>
   request<void>('POST', `/backups/${encodeURIComponent(name)}/restore`, confirmation)
@@ -1231,6 +1285,11 @@ export interface LibraryHealth {
     fileProblems: number
     /** Films and shows without artwork, left out of the score: no Radarr or Sonarr is connected to fill it in. */
     artworkNeedsConnection?: number
+    /** Music's checks; albums count as titles. Absent from servers before 0.59. */
+    albumsWithoutCover?: number
+    duplicateAlbums?: number
+    albumsWithRepeatedTracks?: number
+    splitArtists?: number
   }
   duplicates: {
     item: import('./types').ItemSummary
@@ -1249,6 +1308,14 @@ export interface LibraryHealth {
   downloading: Record<string, { progress: number; timeLeft: string | null; status: string | null }>
   /** Library folders whose files scans are keeping, as the folder looked unmounted or cleared out. */
   held: HeldFolder[]
+  /** Albums with no cover anywhere. Absent from servers before 0.59, as are the three below. */
+  albumsWithoutCover?: import('./types').ItemSummary[]
+  /** One release more than once (the same MusicBrainz release or Lidarr album). */
+  duplicateAlbums?: { albums: import('./types').ItemSummary[]; artist: string | null }[]
+  /** Albums with the same disc and track more than once: `repeated` tracks too many. */
+  albumsWithRepeatedTracks?: { album: import('./types').ItemSummary; artist: string | null; repeated: number }[]
+  /** One artist under two or more spellings. */
+  splitArtists?: { artists: import('./types').ItemSummary[] }[]
 }
 
 export interface HeldFolder {
@@ -1321,6 +1388,63 @@ export const fixMatch = (itemId: string, id: number) =>
 
 /** Back to automatic matching. */
 export const resetMatch = (itemId: string) => request<void>('DELETE', `/items/${itemId}/match`)
+/** A film's or show's details as edited by hand. Blank fields clear; a blank sort title is worked out from the title. */
+export interface DetailsEdit {
+  title: string
+  sortTitle?: string | null
+  originalTitle?: string | null
+  year?: number | null
+  overview?: string | null
+  genres?: string[]
+  studio?: string | null
+  locked: boolean
+}
+
+export interface AlbumEdit {
+  title: string
+  year?: number | null
+  genres?: string[]
+  albumType?: string | null
+  locked: boolean
+}
+
+export const editDetails = (itemId: string, edit: DetailsEdit) => request<void>('PUT', `/items/${itemId}/details`, edit)
+export const editAlbum = (itemId: string, edit: AlbumEdit) => request<void>('PUT', `/items/${itemId}/album-details`, edit)
+/** Back to automatic: the details come from the sources again. */
+export const resetDetails = (itemId: string) => request<void>('DELETE', `/items/${itemId}/details`)
+
+/** An album or artist a library one could be (Fix match): one Lidarr has, or Deezer's. */
+export interface MusicMatch {
+  provider: 'lidarr' | 'deezer'
+  id: string
+  instance: string | null
+  title: string
+  artist: string | null
+  year: number | null
+  tracks: number | null
+  type: string | null
+  /** The picture to show. */
+  cover: string | null
+  /** What to send back to choose it as the cover. */
+  coverValue: string | null
+  current: boolean
+  /** Another album or artist in the library already matched to it. */
+  inLibrary: string | null
+  /** An artist Lidarr follows. */
+  followed: boolean
+}
+
+export const searchMusicMatches = (itemId: string, q: string | undefined, signal?: AbortSignal) =>
+  apiGet<MusicMatch[]>(`/items/${itemId}/music-match${queryString({ q })}`, signal)
+/** Cover: undefined for the match's own, 'current' to keep the one there, or a result's coverValue. */
+export const fixMusicMatch = (itemId: string, match: { provider: string; id: string; instance?: string | null; cover?: string | null }) =>
+  request<void>('POST', `/items/${itemId}/music-match`, match)
+export const resetMusicMatch = (itemId: string) => request<void>('DELETE', `/items/${itemId}/music-match`)
+
+/** Merge (Library health): everything of the others moves to the one kept, and they go. Files are left alone. */
+export const mergeArtists = (keep: string, merge: string[]) => request<void>('POST', '/library-health/merge-artists', { keep, merge })
+export const mergeAlbums = (keep: string, merge: string[]) => request<void>('POST', '/library-health/merge-albums', { keep, merge })
+
 /** Keeps the match a title search found (Library health's Ignore): refreshes leave it as it is. */
 export const keepMatch = (itemId: string) => request<void>('POST', `/items/${itemId}/match/keep`)
 
@@ -1876,6 +2000,8 @@ export interface Me {
   kidsLock?: boolean
   /** A family guest's device: it stays on its profile. Absent from servers before 0.57. */
   isGuest?: boolean
+  /** The profile's chosen language (a BCP 47 code); null follows the browser. Absent from servers before 0.61. */
+  language?: string | null
 }
 
 export interface RemoteAccess {

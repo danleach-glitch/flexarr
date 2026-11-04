@@ -180,16 +180,46 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         LogPreparing(download.Id, download.Quality.ToString());
 
         var folder = Folder(options.CurrentValue);
-        Directory.CreateDirectory(folder);
         var extension = plan.IsAudioOnly ? "m4a" : "mp4";
         var partial = Path.Combine(folder, $"{download.Id:N}.part.{extension}");
+        try
+        {
+            await ConvertAsync(db, download, file, plan, folder, partial, extension, ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            // A missing ffmpeg, a busy database, a file that won't move: the download says it failed (it can be tried
+            // again) rather than sitting at "Preparing 0%" with its partial file until the server restarts.
+            LogPrepareFailed(ex, download.Id);
+            TryDelete(partial);
+            await MarkFailedAsync(download.Id, CancellationToken.None);
+        }
+    }
+
+    private async Task ConvertAsync(FlexarrDbContext db, Download download, MediaFile file, DownloadPlan plan, string folder, string partial, string extension,
+        CancellationToken ct)
+    {
+        Directory.CreateDirectory(folder);
         var finished = Path.Combine(folder, $"{download.Id:N}.{extension}");
         var settings = PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue);
-        var args = plan.IsAudioOnly
+        IReadOnlyList<string> Args(TranscodeSettings current) => plan.IsAudioOnly
             ? FfmpegCommand.M4a(file.Path, plan.AudioIndex ?? 0, plan.Convert?.AudioChannels ?? 2, partial)
-            : FfmpegCommand.Mp4(file.Path, plan.Convert, plan.VideoIndex, plan.AudioIndex, plan.VideoCodec, plan.Subtitles, partial, settings);
+            : FfmpegCommand.Mp4(file.Path, plan.Convert, plan.VideoIndex, plan.AudioIndex, plan.VideoCodec, plan.Subtitles, partial, current);
+
         // Someone starting to watch takes precedence: the conversion stops and goes back in the queue.
-        var error = await RunAsync(settings.FfmpegPath, args, file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => transcodes.ActiveCount > 0);
+        var error = await RunAsync(settings.FfmpegPath, Args(settings), file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => transcodes.ActiveCount > 0);
+
+        // The hardware encoder failed (busy, out of sessions, a codec it won't take): once more in software, as streams do.
+        if (error is not null && !ReferenceEquals(error, Yielded) && !plan.IsAudioOnly && plan.Convert is { VideoStreamIndex: >= 0 }
+            && settings is { SoftwareFallback: true } && settings.Resolved != HardwareAcceleration.None
+            && await db.Downloads.IgnoreQueryFilters().AnyAsync(d => d.Id == download.Id, ct))
+        {
+            LogSoftwareFallback(download.Id, settings.Resolved.ToString());
+            TryDelete(partial);
+            settings = settings with { HardwareAcceleration = HardwareAcceleration.None };
+            error = await RunAsync(settings.FfmpegPath, Args(settings), file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => transcodes.ActiveCount > 0);
+        }
+
         if (ReferenceEquals(error, Yielded))
         {
             File.Delete(partial);
@@ -224,6 +254,37 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         }
 
         await db.SaveChangesAsync(ct);
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Swept up as a leftover partial at the next start.
+        }
+    }
+
+    /// <summary>Marks a download failed in a fresh context (the one it was being prepared in may be what broke).</summary>
+    private async Task MarkFailedAsync(Guid id, CancellationToken ct)
+    {
+        try
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            await db.Downloads.IgnoreQueryFilters().Where(d => d.Id == id && d.Status == DownloadStatus.Preparing)
+                .ExecuteUpdateAsync(u => u
+                    .SetProperty(d => d.Status, DownloadStatus.Failed)
+                    .SetProperty(d => d.Error, "Converting this file didn't work."), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Still at Preparing: the next start puts it back in the queue.
+            LogPrepareFailed(ex, id);
+        }
     }
 
     /// <summary>Podcast episodes the phone plays as they come; anything else (Ogg, Opus) becomes an M4A.</summary>
@@ -461,6 +522,12 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Download {Id} stopped to make way for someone watching; it starts again when they're done")]
     private partial void LogYielded(Guid id);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Download {Id}: the {Encoder} encoder failed; converting in software instead")]
+    private partial void LogSoftwareFallback(Guid id, string encoder);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Preparing download {Id} failed")]
+    private partial void LogPrepareFailed(Exception exception, Guid id);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Preparing download {Id} ({Quality})")]
     private partial void LogPreparing(Guid id, string quality);

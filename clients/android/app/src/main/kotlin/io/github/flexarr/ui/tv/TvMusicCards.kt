@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.automirrored.filled.VolumeDown
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -59,6 +59,7 @@ import io.github.flexarr.ui.music.MusicMenuSubject
 import io.github.flexarr.ui.music.musicMenuActions
 import io.github.flexarr.ui.podcasts.Tabular
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import io.github.flexarr.ui.theme.Tokens
@@ -145,7 +146,7 @@ fun TvTrackCard(model: AppModel, item: ItemSummary, onClick: () -> Unit) {
                     Modifier.align(Alignment.BottomEnd).padding(6.dp).size(22.dp).background(Flexarr.screen.copy(alpha = 0.92f), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(if (playing) Icons.AutoMirrored.Filled.VolumeUp else Icons.Filled.PlayArrow, contentDescription = null, tint = Flexarr.room, modifier = Modifier.size(12.dp))
+                    Icon(if (playing) Icons.AutoMirrored.Filled.VolumeUp else FlexarrIcons.play, contentDescription = null, tint = Flexarr.room, modifier = Modifier.size(12.dp))
                 }
             }
         },
@@ -164,7 +165,7 @@ fun TvArtistCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Mo
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(item.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (item.childCount > 0) {
-                Text(if (item.childCount == 1) "1 album" else "${item.childCount} albums", fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1)
+                Text(t("{count, plural, one {# album} other {# albums}}", "count" to item.childCount), fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1)
             }
         }
     }
@@ -174,14 +175,14 @@ fun TvArtistCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Mo
 @Composable
 fun TvArtistsSeeAllCard(onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 110.dp) {
     Column(modifier.width(size + 15.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, shape = CircleShape, contentDescription = "See all artists", artwork = {
+        TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, shape = CircleShape, contentDescription = t("See all artists"), artwork = {
             Column(
                 Modifier.size(size).clip(CircleShape),
                 verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Icon(Icons.Outlined.GridView, contentDescription = null, tint = Flexarr.screen.copy(alpha = 0.85f), modifier = Modifier.size(22.dp))
-                Text("See all", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f))
+                Text(t("See all"), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f))
             }
         })
     }
@@ -289,7 +290,7 @@ fun TvTrackRow(
                 if (isCurrent) {
                     Icon(
                         if (isPlaying) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeDown,
-                        contentDescription = if (isPlaying) "Playing" else "Paused",
+                        contentDescription = if (isPlaying) t("Playing") else t("Paused"),
                         modifier = Modifier.size(13.dp),
                     )
                 } else {

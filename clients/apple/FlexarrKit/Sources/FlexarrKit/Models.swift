@@ -159,10 +159,10 @@ public enum LibrarySort: String, CaseIterable, Sendable, Identifiable {
 
     public var label: String {
         switch self {
-        case .title: "A–Z"
-        case .added: "Recently added"
-        case .year: "Year"
-        case .rating: "Rating"
+        case .title: t(Words.sortAToZ)
+        case .added: t(Words.recentlyAdded)
+        case .year: t(Words.year)
+        case .rating: t(Words.rating)
         }
     }
 }
@@ -416,7 +416,7 @@ public struct PlaylistSummary: Codable, Sendable, Hashable, Identifiable {
     public let updatedAt: Date
 
     /// "12 tracks".
-    public var trackCountLabel: String { trackCount == 1 ? "1 track" : "\(trackCount) tracks" }
+    public var trackCountLabel: String { t("{count, plural, one {# track} other {# tracks}}", ["count": trackCount]) }
 }
 
 /// One of the profile's daily music mixes ("Made for you"): the same all day, new tomorrow, so an id from yesterday is
@@ -542,7 +542,8 @@ public struct SearchResults: Codable, Sendable {
     /// Audiobooks (not in `titles`) and their series. Absent from servers before 0.58.
     public var books: [ItemSummary]? = nil
     public var bookSeries: [BookSeriesSearchResult]? = nil
-    /// Albums by name; artists are among `titles`. Absent from servers before music search.
+    /// Albums by name; artists are among `titles`. Servers from 0.57 on send it; optional as the apps read it only
+    /// from 0.59.
     public var albums: [ItemSummary]? = nil
 
     /// Films and shows, without the artists `titles` also holds.
@@ -679,13 +680,17 @@ public struct PlaybackRequest: Codable, Sendable, Hashable {
     public var replacesSessionId: String?
     /// With a show's id, a random episode starts; with an episode's, its `next` is a random one.
     public var shuffle: Bool?
-    /// Getting the next episode ready during the credits: conversion starts now, and it never ends another screen.
+    /// Getting a title ready before Play (the next episode, a page being looked at): conversion starts now, and it
+    /// never ends another screen.
     public var prepare: Bool?
     /// The listener's dialogue boost and night mode, for the server to apply when it converts the sound (the player
     /// can't shape a stream it doesn't decode). Servers before 0.56 ignore it.
     public var sound: PlaybackSound?
     /// A name for this device ("Dan's iPhone"), for a book's "Jump to where you were on …". Servers before 0.58 ignore it.
     public var deviceName: String? = nil
+    /// How fast media reaches this device lately, in bits per second: away from home the server converts a file that
+    /// needs more to fit (docs/fast-start.md). Servers before 0.59 ignore it.
+    public var measuredBitrate: Int? = nil
 
     public init(itemId: String, profile: DeviceProfile, fileId: String? = nil, audioStreamIndex: Int? = nil,
                 subtitleKey: String? = nil, maxBitrate: Int? = nil, maxHeight: Int? = nil,
@@ -873,6 +878,24 @@ public struct PlaybackPreferences: Codable, Sendable, Hashable {
 
     /// What a profile starts with, and what's assumed from a server that doesn't say.
     public static let standard = PlaybackPreferences()
+
+    private enum CodingKeys: String, CodingKey {
+        case autoPlayNext, skipIntros, skipRecaps, skipCredits, subtitleSize, subtitlePosition, subtitlesInBlackBars, listeningInContinue
+    }
+
+    /// A size or position from a newer server, read here as `unknown`, is left out (the server keeps the profile's own)
+    /// rather than sent back as "unknown", which the server refuses.
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(autoPlayNext, forKey: .autoPlayNext)
+        try container.encode(skipIntros, forKey: .skipIntros)
+        try container.encode(skipRecaps, forKey: .skipRecaps)
+        try container.encode(skipCredits, forKey: .skipCredits)
+        try container.encodeIfPresent(subtitleSize.flatMap { $0 == .unknown ? nil : $0 }, forKey: .subtitleSize)
+        try container.encodeIfPresent(subtitlePosition.flatMap { $0 == .unknown ? nil : $0 }, forKey: .subtitlePosition)
+        try container.encodeIfPresent(subtitlesInBlackBars, forKey: .subtitlesInBlackBars)
+        try container.encodeIfPresent(listeningInContinue, forKey: .listeningInContinue)
+    }
 }
 
 struct ProgressReport: Codable, Sendable {
@@ -1031,6 +1054,8 @@ public struct SignInInfo: Decodable, Sendable, Equatable {
     /// A family guest's device: it stays on its profile and has none of the household's devices. Absent from
     /// servers before 0.57.
     public var isGuest: Bool? = nil
+    /// The profile's chosen language (a BCP 47 code); nil follows the device. Absent from servers before 0.61.
+    public var language: String? = nil
 }
 
 /// What `POST /admin/unlock` answers.
@@ -1181,11 +1206,11 @@ public enum DownloadQuality: String, ForwardCompatibleEnum, Identifiable {
     /// "Original", "High (1080p)".
     public var label: String {
         switch self {
-        case .original: "Original"
-        case .high: "High (1080p)"
-        case .medium: "Medium (720p)"
-        case .small: "Small (480p)"
-        case .unknown: "Other"
+        case .original: t("Original")
+        case .high: t("High (1080p)")
+        case .medium: t("Medium (720p)")
+        case .small: t("Small (480p)")
+        case .unknown: t("Other")
         }
     }
 }
@@ -1605,10 +1630,10 @@ public enum SubtitlePosition: String, ForwardCompatibleEnum, CaseIterable {
 
     public var label: String {
         switch self {
-        case .bottom, .unknown: "Bottom"
-        case .raised: "Raised"
-        case .higher: "Higher"
-        case .top: "Top"
+        case .bottom, .unknown: t("Bottom")
+        case .raised: t("Raised")
+        case .higher: t("Higher")
+        case .top: t("Top")
         }
     }
 
@@ -1643,10 +1668,10 @@ public enum SubtitleSize: String, ForwardCompatibleEnum, CaseIterable {
 
     public var label: String {
         switch self {
-        case .small: "Small"
-        case .standard, .unknown: "Standard"
-        case .large: "Large"
-        case .extraLarge: "Extra large"
+        case .small: t("Small")
+        case .standard, .unknown: t("Standard")
+        case .large: t("Large")
+        case .extraLarge: t("Extra large")
         }
     }
 

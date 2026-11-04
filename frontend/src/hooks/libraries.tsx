@@ -6,6 +6,11 @@ import { usePolling } from './usePolling'
 const SCAN_POLL_MS = 2000
 const IDLE_POLL_MS = 30_000
 const MAX_IDLE_POLL_MS = 120_000
+/**
+ * How many answers in a row with nothing new a library that has never finished a scan keeps the quick checks going: a
+ * first scan that failed leaves it that way for good, and the tab shouldn't ask every 2 s forever (about 2 minutes).
+ */
+const UNSCANNED_PATIENCE = 60
 
 /** Libraries whose titles may have changed between two answers: their count or last scan moved, or they came or went. */
 function changedLibraries(before: Library[], after: Library[]) {
@@ -27,6 +32,7 @@ const touches = (ids: string[]) => (path: string) =>
 export function LibrariesProvider({ children }: { children: ReactNode }) {
   const [libraries, setLibraries] = useState<Library[]>([])
   const [idleMs, setIdleMs] = useState(IDLE_POLL_MS)
+  const [unchanged, setUnchanged] = useState(0)
   const last = useRef<string | undefined>(undefined)
   const previous = useRef<Library[] | undefined>(undefined)
   const inFlight = useRef<AbortController | undefined>(undefined)
@@ -40,6 +46,7 @@ export function LibrariesProvider({ children }: { children: ReactNode }) {
         const json = JSON.stringify(next)
         if (json === last.current) {
           setIdleMs((ms) => Math.min(ms * 2, MAX_IDLE_POLL_MS))
+          setUnchanged((n) => n + 1)
           return
         }
         // Titles came and went: cached pages showing them may be out of date (scan progress alone changes none).
@@ -49,6 +56,7 @@ export function LibrariesProvider({ children }: { children: ReactNode }) {
         previous.current = next
         setLibraries(next)
         setIdleMs(IDLE_POLL_MS)
+        setUnchanged(0)
       })
       .catch(() => undefined)
   }, [])
@@ -58,9 +66,10 @@ export function LibrariesProvider({ children }: { children: ReactNode }) {
     return () => inFlight.current?.abort()
   }, [reload])
 
-  // A library just added counts from the start: its first scan waits its turn before it shows progress. Not Podcasts,
-  // which is built in and never scanned.
-  const scanning = libraries.some((l) => l.scan || (!l.lastScannedAt && l.type !== 'Podcasts'))
+  // A library just added counts from the start: its first scan waits its turn before it shows progress, though not
+  // for ever (see UNSCANNED_PATIENCE). Not Podcasts, which is built in and never scanned.
+  const waiting = unchanged < UNSCANNED_PATIENCE
+  const scanning = libraries.some((l) => l.scan || (waiting && !l.lastScannedAt && l.type !== 'Podcasts'))
   usePolling(reload, scanning ? SCAN_POLL_MS : idleMs)
 
   const value = useMemo(() => ({ libraries, reload }), [libraries, reload])

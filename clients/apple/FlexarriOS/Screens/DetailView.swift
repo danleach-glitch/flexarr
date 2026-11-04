@@ -36,9 +36,13 @@ struct DetailView: View {
     @State private var showingTrailer = false
     /// A show's seasons and episodes the library lacks, and what's coming.
     @State private var gaps: ShowGaps = .none
+    /// Fetching `gaps`, on its own so a slow Sonarr or Seerr never holds up the page or a pull to refresh.
+    @State private var gapsTask: Task<Void, Never>?
     @Environment(\.scenePhase) private var scenePhase
 
     private var item: ItemSummary? { detail?.item ?? (preview?.kind == .season ? nil : preview) }
+    /// What Play would start here, got ready after a moment on the page.
+    private var warmTarget: ItemSummary? { item.flatMap(playTarget) }
     private var series: ItemSummary? {
         guard let item else { return nil }
         return item.kind == .series ? item : detail?.ancestors.first(where: { $0.kind == .series })
@@ -80,7 +84,7 @@ struct DetailView: View {
         }) { file in
             if let client = model.client, let item {
                 SubtitleSearchView(client: client, itemId: item.id, fileId: file.id, onDownloaded: { saved in
-                    subtitlesJustSaved = "\(saved.label) subtitles saved"
+                    subtitlesJustSaved = t("{language} subtitles saved", ["language": saved.label])
                     subtitleSearchFile = nil
                 }, onClose: { subtitleSearchFile = nil })
                 .presentationDetents([.medium, .large])
@@ -100,9 +104,18 @@ struct DetailView: View {
             await load()
         }
         .onAppear { isVisible = true }
-        .onDisappear { isVisible = false }
+        .onDisappear {
+            isVisible = false
+            if let warmTarget { model.dropReady(warmTarget) }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, isVisible, Freshness.isStale(loadedAt) { Task { await load() } }
+            if phase == .background, let warmTarget { model.dropReady(warmTarget) }
+        }
+        .task(id: warmTarget?.id) {
+            // Looked at for a moment: what Play would start is got ready, so it opens at once (docs/fast-start.md).
+            guard let warmTarget, (try? await Task.sleep(for: .seconds(2))) != nil else { return }
+            model.getReady(warmTarget)
         }
     }
 
@@ -145,7 +158,7 @@ struct DetailView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { overviewExpanded.toggle() } }
                     .accessibilityAddTraits(.isButton)
-                    .accessibilityHint(overviewExpanded ? "Shows less" : "Shows the whole overview")
+                    .accessibilityHint(overviewExpanded ? t("Shows less") : t("Shows the whole overview"))
             }
         }
     }
@@ -176,7 +189,18 @@ struct DetailView: View {
                              watched: isWatched(item), hasTrailer: trailer != nil, isKids: model.isKids,
                              platform: .phone, canPlayTrailers: canPlayTrailers,
                              canDownload: item.kind == .movie || item.kind == .episode,
-                             canSearchSubtitles: detail?.canSearchSubtitles == true && detail?.files.first != nil)
+                             canSearchSubtitles: detail?.canSearchSubtitles == true && detail?.files.first != nil,
+                             canWatchlist: watchlistState(item) != nil)
+    }
+
+    /// Whether it's on the watchlist, or nil when it can't go on one here: only films and shows, from servers that have one.
+    private func watchlistState(_ item: ItemSummary) -> Bool? {
+        guard model.hasWatchlist, item.kind == .movie || item.kind == .series else { return nil }
+        return onWatchlist ?? detail?.onWatchlist
+    }
+
+    private func setOnWatchlist(_ item: ItemSummary, _ on: Bool) {
+        Task { if await model.setOnWatchlist(.library(item.id), on) != nil { onWatchlist = on } }
     }
 
     private func isWatched(_ item: ItemSummary) -> Bool { item.userData.watched || item.userData.unwatchedCount == 0 }
@@ -221,30 +245,28 @@ struct DetailView: View {
         case .startOver:
             if let playable {
                 Button { model.play(playable, fromBeginning: true, from: pageToken) } label: {
-                    Label("Start over", systemImage: Symbol.startOver)
+                    Label(t(Words.startOver), systemImage: Symbol.startOver)
                 }
             }
         case .shuffle:
             if item.childCount > 0 {
-                Button { model.shuffle(item) } label: { Label("Shuffle", systemImage: Symbol.shuffle) }
+                Button { model.shuffle(item) } label: { Label(t(Words.shuffle), systemImage: Symbol.shuffle) }
             }
         case .trailer:
-            Button { showingTrailer = true } label: { Label("Trailer", systemImage: Symbol.trailer) }
+            Button { showingTrailer = true } label: { Label(t(Words.trailer), systemImage: Symbol.trailer) }
         case .watched:
+            // A toggle like Download: the tick fills once it's watched, and the name stays put.
             Button { Task { await model.setWatched(item, !watched) } } label: {
-                Label(watched ? "Watched" : "Mark as watched", systemImage: watched ? Symbol.isWatched : Symbol.watched)
+                Label(t("Watched"), systemImage: watched ? Symbol.isWatched : Symbol.watched)
             }
-            .accessibilityLabel(watched ? "Mark as unwatched" : "Mark as watched")
+            .accessibilityLabel(watched ? t(Words.markAsUnwatched) : t(Words.markAsWatched))
             .accessibilityAddTraits(watched ? .isSelected : [])
         case .watchlist:
-            // Only what the server can put on a watchlist: films and shows, from servers that have one.
-            if model.hasWatchlist, item.kind == .movie || item.kind == .series, let onList = onWatchlist ?? detail?.onWatchlist {
-                Button {
-                    Task { if await model.setOnWatchlist(.library(item.id), !onList) != nil { onWatchlist = !onList } }
-                } label: {
-                    Label("Watchlist", systemImage: onList ? Symbol.onWatchlist : Symbol.watchlist)
+            if let onList = watchlistState(item) {
+                Button { setOnWatchlist(item, !onList) } label: {
+                    Label(t(Words.watchlist), systemImage: onList ? Symbol.onWatchlist : Symbol.watchlist)
                 }
-                .accessibilityLabel(onList ? "Remove from watchlist" : "Add to watchlist")
+                .accessibilityLabel(onList ? t(Words.removeFromWatchlist) : t(Words.addToWatchlist))
             }
         case .download:
             DownloadButton(item: item)
@@ -252,26 +274,42 @@ struct DetailView: View {
             Menu {
                 ForEach(menu, id: \.self) { entry in
                     switch entry {
-                    case .markUnwatched:
-                        Button { Task { await model.setWatched(item, false) } } label: {
-                            Label("Mark as unwatched", systemImage: Symbol.markUnwatched)
+                    case .button(.shuffle):
+                        if item.childCount > 0 {
+                            Button { model.shuffle(item) } label: { Label(t(Words.shuffle), systemImage: Symbol.shuffle) }
                         }
+                    case .button(.trailer):
+                        Button { showingTrailer = true } label: { Label(t(Words.trailer), systemImage: Symbol.trailer) }
+                    case .button(.watched):
+                        Button { Task { await model.setWatched(item, !watched) } } label: {
+                            Label(watched ? t(Words.markAsUnwatched) : t(Words.markAsWatched),
+                                  systemImage: watched ? Symbol.markUnwatched : Symbol.watched)
+                        }
+                    case .button(.watchlist):
+                        if let onList = watchlistState(item) {
+                            Button { setOnWatchlist(item, !onList) } label: {
+                                Label(onList ? t(Words.removeFromWatchlist) : t(Words.addToWatchlist),
+                                      systemImage: onList ? Symbol.offWatchlist : Symbol.watchlist)
+                            }
+                        }
+                    case .button:
+                        EmptyView()
                     case .subtitles:
                         if let file = detail?.files.first {
                             Button { subtitleSearchFile = SubtitleSearchFile(id: file.id) } label: {
-                                Label("Search for subtitles", systemImage: Symbol.subtitles)
+                                Label(t("Search for subtitles"), systemImage: Symbol.subtitles)
                             }
                         }
                     case .goToShow:
                         if let series {
-                            Button { router.push(.item(series)) } label: { Label("Go to show", systemImage: Symbol.goToShow) }
+                            Button { router.push(.item(series)) } label: { Label(t(Words.goToShow), systemImage: Symbol.goToShow) }
                         }
                     }
                 }
             } label: {
-                Label("More", systemImage: Symbol.more)
+                Label(t("More"), systemImage: Symbol.more)
             }
-            .accessibilityLabel("More actions")
+            .accessibilityLabel(t("More actions"))
         }
     }
 
@@ -288,9 +326,9 @@ struct DetailView: View {
     private func playLabel(_ target: ItemSummary, container: ItemSummary) -> String {
         let resume = target.isResumable
         if container.kind == .series, let code = target.episodeCode {
-            return resume ? "Resume \(code)" : "Play \(code)"
+            return resume ? t(Words.resumeEpisode, ["episode": code]) : t("Play {episode}", ["episode": code])
         }
-        return resume ? "Resume from \(Format.timestamp(target.userData.positionSeconds))" : "Play"
+        return resume ? t(Words.resumeFrom, ["time": Format.timestamp(target.userData.positionSeconds)]) : t(Words.play)
     }
 
     // MARK: Sections
@@ -314,7 +352,7 @@ struct DetailView: View {
             let cast = detail.credits.sorted { rank($0.role) < rank($1.role) }
             if !cast.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    SectionHeading(title: "Cast and crew")
+                    SectionHeading(title: t(Words.castAndCrew))
                     ScrollView(.horizontal) {
                         LazyHStack(alignment: .top, spacing: 8) {
                             ForEach(Array(cast.prefix(30).enumerated()), id: \.offset) { _, credit in
@@ -329,7 +367,7 @@ struct DetailView: View {
 
             if !similar.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    SectionHeading(title: "More like this")
+                    SectionHeading(title: t(Words.moreLikeThis))
                     ScrollView(.horizontal) {
                         LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                             ForEach(similar) { other in
@@ -411,10 +449,10 @@ struct DetailView: View {
             .compactMap { $0 }.joined(separator: " ")
         let audio = [file.audioCodec?.uppercased(), file.audioChannels.map(AudioChannels.label)].compactMap { $0 }.joined(separator: " ")
         return LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), alignment: .topLeading)], alignment: .leading, spacing: 14) {
-            if !video.isEmpty { labeled("Video", video) }
-            if !audio.isEmpty { labeled("Audio", audio) }
-            if let studio = detail?.studio { labeled("Studio", studio) }
-            labeled("Size", ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file))
+            if !video.isEmpty { labeled(t("Video"), video) }
+            if !audio.isEmpty { labeled(t("Audio"), audio) }
+            if let studio = detail?.studio { labeled(t("Studio"), studio) }
+            labeled(t("Size"), formatBytes(file.size))
         }
         .padding(.horizontal, Layout.edge)
     }
@@ -458,7 +496,7 @@ struct DetailView: View {
                 loaded = try await client.item(shownID ?? id)
             }
             if shownID != before, shownID == loaded.item.id {
-                AccessibilityNotification.Announcement("Now showing \([loaded.item.episodeCode, loaded.item.title].compactMap { $0 }.joined(separator: ", "))").post()
+                AccessibilityNotification.Announcement(t("Now showing {title}", ["title": [loaded.item.episodeCode, loaded.item.title].compactMap { $0 }.joined(separator: ", ")])).post()
             }
             // A season opens as its series, with that season selected.
             if loaded.item.kind == .season, let parent = loaded.item.parentId {
@@ -472,11 +510,22 @@ struct DetailView: View {
             error = nil
 
             let item = loaded.item
+            // After the page, on their own: Sonarr or Seerr being slow never holds up the season, More like this
+            // or the end of a reload.
+            gapsTask?.cancel()
+            if item.kind == .series, !model.isKids {
+                let showId = item.id
+                gapsTask = Task {
+                    guard let shown = await Self.fetchGaps(client, showId), !Task.isCancelled, detail?.item.id == showId else { return }
+                    gaps = shown
+                }
+            }
+            // Beside the season, not after it.
+            let similarClient = similar.isEmpty && item.kind != .episode ? client : nil
+            async let shownSimilar = Self.fetchSimilar(similarClient, item.id)
             switch item.kind {
             case .series:
                 nextUp = try? await client.nextUp(item.id)
-                // After the page: Sonarr or Seerr being slow never holds it up.
-                if !model.isKids { gaps = (try? await client.showGaps(item.id)) ?? gaps }
                 if selectedSeasonID == nil {
                     selectedSeasonID = nextUp?.parentId ?? loaded.children.first?.id
                 }
@@ -488,12 +537,22 @@ struct DetailView: View {
                 break
             }
             await loadSelectedSeason(force: true)
-            if similar.isEmpty, item.kind != .episode {
-                similar = (try? await client.similar(item.id)) ?? []
-            }
+            if let shown = await shownSimilar { similar = shown }
         } catch {
             if detail == nil { self.error = ConnectionError(error).message }
         }
+    }
+
+    /// What the show is missing, or nil without a client (not a show, or a kids' profile) or when it can't be had.
+    nonisolated private static func fetchGaps(_ client: FlexarrClient?, _ showId: String) async -> ShowGaps? {
+        guard let client else { return nil }
+        return try? await client.showGaps(showId)
+    }
+
+    /// More like this, or nil without a client (already shown, or an episode) or when it can't be had.
+    nonisolated private static func fetchSimilar(_ client: FlexarrClient?, _ id: String) async -> [ItemSummary]? {
+        guard let client else { return nil }
+        return try? await client.similar(id)
     }
 
     private func loadSelectedSeason(force: Bool = false) async {
@@ -532,7 +591,7 @@ struct EpisodeRow: View {
                         }
                         .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(episode.episodeNumber.map { "Episode \($0)" } ?? "Special")
+                        Text(episode.episodeNumber.map { t("Episode {number}", ["number": $0]) } ?? t("Special"))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(isCurrent ? Color.screen : Color.usher)
                         Text(episode.title)

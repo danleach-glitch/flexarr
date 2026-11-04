@@ -40,10 +40,12 @@ public sealed class LibraryScannerTests : IAsyncLifetime
             "movies/The Nice Guys (2016)/notes.nfo");
         var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
 
+        var scanned = DateTime.UtcNow;
         var result = await Scanner().ScanAsync(library, null, default);
 
         Assert.Equal(4, result.Added);
         var movies = await _db.MediaItems.Include(i => i.Files).OrderBy(i => i.SortTitle).ToListAsync();
+        Assert.All(movies, m => Assert.True(m.FirstSeenAt >= scanned)); // when it was found, whatever its file's date
         Assert.Equal(["All of You", "Forrest Gump", "The Nice Guys"], movies.Select(m => m.Title));
         Assert.Equal(2, movies[1].Files.Count);
         Assert.Equal("tt30852384", movies[0].ImdbId);
@@ -673,6 +675,60 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AFolderThatCantBeRead_KeepsItsFiles()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var root = Touch("movies/Heat (1995)/Heat (1995).mkv", "movies/Alien (1979)/Alien (1979).mkv");
+        var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
+        await Scanner().ScanAsync(library, null, default);
+        var locked = Path.Combine(root, "movies/Heat (1995)");
+        var mode = File.GetUnixFileMode(locked);
+        File.SetUnixFileMode(locked, UnixFileMode.None);
+        try
+        {
+            var result = await Scanner().ScanAsync(library, null, default);
+
+            Assert.Equal(0, result.Missing);
+            Assert.False(await _db.MediaFiles.IgnoreQueryFilters().AnyAsync(f => f.MissingSince != null));
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked, mode);
+        }
+    }
+
+    [Fact]
+    public async Task Music_AnUpgradedOrRenamedTrack_KeepsItsTrack()
+    {
+        var root = Touch("music/Radiohead/OK Computer (1997)/01 - Airbag.mp3", "music/Radiohead/OK Computer (1997)/02 - Paranoid Android.mp3");
+        _probe.Tags["01 - Airbag.mp3"] = new() { ["artist"] = "Radiohead", ["album"] = "OK Computer", ["title"] = "Airbag", ["track"] = "1" };
+        _probe.Tags["02 - Paranoid Android.mp3"] = new() { ["artist"] = "Radiohead", ["album"] = "OK Computer", ["title"] = "Paranoid Android", ["track"] = "2" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+        await Scanner().ScanAsync(library, null, default);
+        var before = await _db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Track).ToDictionaryAsync(i => i.Title, i => i.Id);
+
+        // Lidarr swaps the MP3 for a FLAC (and renames the other) in one import.
+        File.Delete(Path.Combine(root, "music/Radiohead/OK Computer (1997)/01 - Airbag.mp3"));
+        File.Delete(Path.Combine(root, "music/Radiohead/OK Computer (1997)/02 - Paranoid Android.mp3"));
+        Touch("music/Radiohead/OK Computer (1997)/01 - Airbag.flac", "music/Radiohead/OK Computer (1997)/02 Paranoid Android.mp3");
+        _probe.Tags["01 - Airbag.flac"] = _probe.Tags["01 - Airbag.mp3"];
+        _probe.Tags["02 Paranoid Android.mp3"] = _probe.Tags["02 - Paranoid Android.mp3"];
+        await Scanner().ScanAsync(library, Path.Combine(root, "music/Radiohead/OK Computer (1997)"), default);
+
+        _db.ChangeTracker.Clear();
+        var tracks = await _db.MediaItems.IgnoreQueryFilters().Include(i => i.Files).Where(i => i.Kind == MediaKind.Track).ToListAsync();
+        Assert.Equal(2, tracks.Count);
+        Assert.All(tracks, t => Assert.Equal(before[t.Title], t.Id));
+        Assert.All(tracks, t => Assert.Null(t.MissingSince));
+        Assert.EndsWith("01 - Airbag.flac", tracks.Single(t => t.Title == "Airbag").Path, StringComparison.Ordinal);
+        Assert.All(tracks, t => Assert.Single(t.Files, f => f.MissingSince == null));
+    }
+
+    [Fact]
     public async Task Music_AFollowedArtistWithNothingYet_IsKept_ThenFilledInByTheirFirstAlbum()
     {
         var root = Touch("music/Radiohead/OK Computer (1997)/01 - Airbag.flac");
@@ -720,6 +776,46 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         Assert.Equal(["Beyoncé", "Florence + The Machine"], artists.Select(a => a.Title));
         Assert.All(artists, a => Assert.False(a.Placeholder));
         Assert.All(artists, a => Assert.Single(a.Children));
+    }
+
+    [Fact]
+    public async Task Music_MergedArtistsAndAlbums_StayMerged_WhenNewTracksArrive()
+    {
+        var root = Touch("music/Beyonce/Lemonade (2016)/01 - Pray You Catch Me.flac", "music/Beyoncé/Lemonade Deluxe/01 - Formation.flac");
+        _probe.Tags["01 - Pray You Catch Me.flac"] = new() { ["artist"] = "Beyonce", ["album"] = "Lemonade", ["title"] = "Pray You Catch Me", ["track"] = "1" };
+        _probe.Tags["01 - Formation.flac"] = new() { ["artist"] = "Beyoncé", ["album"] = "Lemonade (Deluxe)", ["title"] = "Formation", ["track"] = "12" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+        await Scanner().ScanAsync(library, null, default);
+        _db.ChangeTracker.Clear();
+
+        // As Library health's Merge leaves them: one artist and one album, and the names and folder merged away recorded.
+        var artists = await _db.MediaItems.Where(i => i.Kind == MediaKind.Artist).ToListAsync();
+        var keep = artists.Single(a => a.Title == "Beyoncé");
+        var gone = artists.Single(a => a.Title == "Beyonce");
+        var albums = await _db.MediaItems.Where(i => i.Kind == MediaKind.Album).ToListAsync();
+        var lemonade = albums.Single(a => a.Title == "Lemonade");
+        var deluxe = albums.Single(a => a.Title == "Lemonade (Deluxe)");
+        await _db.MediaItems.Where(i => i.ParentId == gone.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.ParentId, keep.Id));
+        await _db.MediaItems.Where(i => i.ParentId == deluxe.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.ParentId, lemonade.Id));
+        _db.MusicAliases.AddRange(
+            new MusicAlias { LibraryId = library.Id, Key = MusicKeys.ArtistKey("Beyonce"), ItemId = keep.Id },
+            new MusicAlias { LibraryId = library.Id, Key = MusicKeys.PathKey(deluxe.Path!), ItemId = lemonade.Id });
+        await _db.SaveChangesAsync();
+        await _db.MediaItems.Where(i => i.Id == gone.Id || i.Id == deluxe.Id).ExecuteDeleteAsync();
+        _db.ChangeTracker.Clear();
+
+        // A new album under the old spelling, and another track in the merged album's folder.
+        Touch("music/Beyonce/B'Day (2006)/01 - Deja Vu.flac", "music/Beyoncé/Lemonade Deluxe/02 - Sorry.flac");
+        _probe.Tags["01 - Deja Vu.flac"] = new() { ["artist"] = "Beyonce", ["album"] = "B'Day", ["title"] = "Deja Vu", ["track"] = "1" };
+        _probe.Tags["02 - Sorry.flac"] = new() { ["artist"] = "Beyoncé", ["album"] = "Lemonade (Deluxe)", ["title"] = "Sorry", ["track"] = "13" };
+        await Scanner().ScanAsync(library, null, default);
+        _db.ChangeTracker.Clear();
+
+        var artist = await _db.MediaItems.Include(i => i.Children).SingleAsync(i => i.Kind == MediaKind.Artist);
+        Assert.Equal(keep.Id, artist.Id);
+        Assert.Equal(["B'Day", "Lemonade"], artist.Children.Select(a => a.Title).Order());
+        var tracks = await _db.MediaItems.Where(i => i.ParentId == lemonade.Id).Select(i => i.Title).ToListAsync();
+        Assert.Equal(["Formation", "Pray You Catch Me", "Sorry"], tracks.Order());
     }
 
     [Fact]

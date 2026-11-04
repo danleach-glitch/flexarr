@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import android.view.KeyEvent
@@ -96,9 +99,9 @@ fun TvProfilePicker(model: AppModel, marksCurrent: Boolean = false, onDone: () -
                 forgetting = null
                 choose(cleared, null)
             } catch (e: FlexarrException.ParentPinNeeded) {
-                error = e.message ?: "That isn’t the admin PIN."
+                error = e.message ?: t("That isn’t the admin PIN.")
             } catch (e: FlexarrException.Http) {
-                error = if (e.status == 404) "Take the PIN off in Settings › Profiles on the web." else e.message
+                error = if (e.status == 404) t("Take the PIN off in Settings › Profiles on the web.") else e.message
             } catch (e: Exception) {
                 error = e.message
             } finally {
@@ -115,7 +118,7 @@ fun TvProfilePicker(model: AppModel, marksCurrent: Boolean = false, onDone: () -
             PinPad(model, forgot, error, checking = switching != null, onEdit = { error = null }, onCancel = {
                 forgetting = null
                 error = null
-            }, adminPin = true, note = "It takes ${forgot.name}’s PIN off.") { pin -> forget(forgot, pin) }
+            }, adminPin = true, note = t("It takes {name}’s PIN off.", "name" to forgot.name)) { pin -> forget(forgot, pin) }
         } else if (pinFor != null) {
             PinPad(model, pinFor, error, checking = switching != null, onEdit = { error = null }, onCancel = {
                 asking = null
@@ -127,12 +130,12 @@ fun TvProfilePicker(model: AppModel, marksCurrent: Boolean = false, onDone: () -
             })) { pin -> choose(pinFor, pin) }
         } else {
             Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically)) {
-                Text("Who’s watching?", style = marquee(38).copy(fontWeight = FontWeight.ExtraBold))
+                Text(t("Who’s watching?"), style = marquee(38).copy(fontWeight = FontWeight.ExtraBold))
                 Row(horizontalArrangement = Arrangement.spacedBy(40.dp)) {
                     model.profiles.forEach { profile ->
                         val caption = when {
-                            marksCurrent && profile.isCurrent -> "Watching now"
-                            profile.takesPin -> "PIN"
+                            marksCurrent && profile.isCurrent -> t("Watching now")
+                            profile.takesPin -> t("PIN")
                             else -> null
                         }
                         ProfileChoice(model, profile, caption, busy = switching == profile.id, modifier = Modifier.focusRequester(requesters.getValue(profile.id))) {
@@ -234,7 +237,7 @@ private fun PinPad(
             } else {
                 ProfileAvatar(model, profile, size = 90)
             }
-            Text(if (adminPin) "Enter the admin PIN" else "Enter ${profile.name}’s PIN",
+            Text(if (adminPin) t("Enter the admin PIN") else t("Enter {name}’s PIN", "name" to profile.name),
                 style = marquee(28).copy(fontWeight = FontWeight.ExtraBold))
             note?.let { Text(it, fontSize = 14.sp, color = Flexarr.usher) }
             Row(Modifier.height(20.dp), horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -244,12 +247,12 @@ private fun PinPad(
             }
             val message = when {
                 error != null -> error
-                shortPin -> "A PIN is 4 to 8 digits."
-                checking -> "Checking"
+                shortPin -> t("A PIN is 4 to 8 digits.")
+                checking -> t("Checking")
                 else -> " "
             }
             Text(message, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = if (error != null || shortPin) Flexarr.danger else Flexarr.screen)
-            onForgot?.let { TvActionButton("Forgot PIN?", onClick = it) }
+            onForgot?.let { TvActionButton(t("Forgot PIN?"), onClick = it) }
         }
         Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
             listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("delete", "0", "ok")).forEach { row ->
@@ -257,8 +260,8 @@ private fun PinPad(
                     row.forEach { key ->
                         val modifier = Modifier.width(65.dp).then(if (key == "1") Modifier.focusRequester(first) else Modifier)
                         when (key) {
-                            "delete" -> TvActionButton(null, onClick = { press(key) }, icon = Icons.AutoMirrored.Filled.Backspace, contentDescription = "Delete", modifier = modifier)
-                            "ok" -> TvActionButton("OK", onClick = { press(key) }, prominent = true, modifier = modifier)
+                            "delete" -> TvActionButton(null, onClick = { press(key) }, icon = Icons.AutoMirrored.Filled.Backspace, contentDescription = t(Words.delete), modifier = modifier)
+                            "ok" -> TvActionButton(t("OK"), onClick = { press(key) }, prominent = true, modifier = modifier)
                             else -> TvActionButton(key, onClick = { press(key) }, modifier = modifier)
                         }
                     }

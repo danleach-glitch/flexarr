@@ -81,14 +81,14 @@ extension AppModel {
 
 /// What film and show request buttons say, everywhere (buttons, menus, VoiceOver): music's words.
 enum TitleWords {
-    static let request = "Request"
-    static let requested = MusicWords.requested
-    static let unrequestAction = MusicWords.unrequestAction
-    static let unrequestHint = MusicWords.unrequestHint
-    static let keepIt = MusicWords.keepIt
-    static let cantRequest = "Can\u{2019}t request"
-    static let tryAgain = "Try again"
-    static let seerrNotAnswering = "Seerr isn\u{2019}t answering."
+    static var request: String { t(Words.request) }
+    static var requested: String { MusicWords.requested }
+    static var unrequestAction: String { MusicWords.unrequestAction }
+    static var unrequestHint: String { MusicWords.unrequestHint }
+    static var keepIt: String { MusicWords.keepIt }
+    static var cantRequest: String { t("Can’t request") }
+    static var tryAgain: String { t("Try again") }
+    static var seerrNotAnswering: String { t("Seerr isn’t answering.") }
 
     /// The question asked before taking a request back.
     static func unrequest(_ name: String) -> String { MusicWords.unrequest(name) }

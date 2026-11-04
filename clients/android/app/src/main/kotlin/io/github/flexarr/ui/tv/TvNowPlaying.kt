@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -32,7 +35,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
@@ -82,6 +84,7 @@ import io.github.flexarr.ui.music.MusicAurora
 import io.github.flexarr.ui.music.rememberCoverColours
 import io.github.flexarr.ui.podcasts.Tabular
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
@@ -175,7 +178,7 @@ fun TvNowPlayingScreen(model: AppModel, onClose: () -> Unit) {
                 }
             }
         } else {
-            RoomBackground(ambient = null) { TvStatusView("Nothing is playing.", empty = true) }
+            RoomBackground(ambient = null) { TvStatusView(t("Nothing is playing."), empty = true) }
         }
     }
 }
@@ -221,31 +224,31 @@ private fun Timeline(music: MusicPlayer) {
 @Composable
 private fun Controls(music: MusicPlayer, hasLyrics: Boolean, playPause: FocusRequester, lyricsControl: FocusRequester, onLyrics: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
-        TvRoundControl(Icons.Filled.Shuffle, "Shuffle", onClick = music::toggleShuffle, size = 42.dp, active = music.isShuffled)
-        TvRoundControl(Icons.Filled.SkipPrevious, "Previous", onClick = music::previous, size = 48.dp)
+        TvRoundControl(FlexarrIcons.shuffle, t(Words.shuffle), onClick = music::toggleShuffle, size = 42.dp, active = music.isShuffled)
+        TvRoundControl(Icons.Filled.SkipPrevious, t("Previous"), onClick = music::previous, size = 48.dp)
         TvRoundControl(
-            if (music.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-            if (music.isPlaying) "Pause" else "Play",
+            if (music.isPlaying) FlexarrIcons.pause else FlexarrIcons.play,
+            if (music.isPlaying) t("Pause") else t(Words.play),
             onClick = music::togglePlayPause,
             size = 60.dp,
             active = true,
             modifier = Modifier.focusRequester(playPause),
         )
-        TvRoundControl(Icons.Filled.SkipNext, "Next", onClick = music::next, size = 48.dp, enabled = music.hasNext)
+        TvRoundControl(Icons.Filled.SkipNext, t("Next"), onClick = music::next, size = 48.dp, enabled = music.hasNext)
         TvRoundControl(
             if (music.repeatMode == MusicPlayer.RepeatMode.One) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
             when (music.repeatMode) {
-                MusicPlayer.RepeatMode.Off -> "Repeat"
-                MusicPlayer.RepeatMode.All -> "Repeat all"
-                MusicPlayer.RepeatMode.One -> "Repeat one"
+                MusicPlayer.RepeatMode.Off -> t("Repeat")
+                MusicPlayer.RepeatMode.All -> t("Repeat all")
+                MusicPlayer.RepeatMode.One -> t("Repeat one")
             },
             onClick = music::cycleRepeat,
             size = 42.dp,
             active = music.repeatMode != MusicPlayer.RepeatMode.Off,
         )
-        if (hasLyrics) TvRoundControl(Icons.Filled.Lyrics, "Lyrics", onClick = onLyrics, size = 42.dp, modifier = Modifier.focusRequester(lyricsControl))
+        if (hasLyrics) TvRoundControl(Icons.Filled.Lyrics, t("Lyrics"), onClick = onLyrics, size = 42.dp, modifier = Modifier.focusRequester(lyricsControl))
         // Done with the music: the queue empties, and Now Playing and the bar go.
-        TvRoundControl(Icons.Filled.Stop, "Stop", onClick = music::stop, size = 42.dp)
+        TvRoundControl(Icons.Filled.Stop, t("Stop"), onClick = music::stop, size = 42.dp)
         if (music.isLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Flexarr.screen, strokeWidth = 2.dp)
     }
 }
@@ -259,7 +262,7 @@ private fun UpNext(music: MusicPlayer, modifier: Modifier) {
     val next = music.upNext
     if (next.isEmpty()) return
     Column(modifier.widthIn(max = 450.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Up next", style = marquee(16).copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(start = 15.dp, bottom = 3.dp))
+        Text(t(Words.upNext), style = marquee(16).copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(start = 15.dp, bottom = 3.dp))
         LazyColumn(contentPadding = PaddingValues(bottom = 30.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             itemsIndexed(next, key = { offset, track -> "${music.index + 1 + offset}-${track.id}" }) { offset, track ->
                 TvTrackRow(track, number = offset + 1, isCurrent = false, isPlaying = false, onClick = { music.skipTo(music.index + 1 + offset) }, modifier = Modifier.fillMaxWidth())
@@ -311,7 +314,7 @@ private fun TvLyrics(lyrics: Lyrics, position: () -> Double, onSeek: (Double) ->
         if (hasFocus) runCatching { following.requestFocus() }
     }
     LazyColumn(
-        modifier.fillMaxSize().onFocusChanged { hasFocus = it.hasFocus }.semantics { contentDescription = "Lyrics" },
+        modifier.fillMaxSize().onFocusChanged { hasFocus = it.hasFocus }.semantics { contentDescription = t("Lyrics") },
         state = list,
         contentPadding = PaddingValues(vertical = 150.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp),
@@ -370,7 +373,7 @@ fun TvNowPlayingBar(model: AppModel, modifier: Modifier = Modifier, onShown: (Bo
                 .background(Flexarr.seat.copy(alpha = 0.96f), RoundedCornerShape(Tokens.radiusPanel))
                 .border(BorderStroke(1.dp, Flexarr.aisle), RoundedCornerShape(Tokens.radiusPanel))
                 .padding(horizontal = 12.dp, vertical = 6.dp)
-                .semantics { contentDescription = "Now playing: ${track.title}${track.artistName?.let { " by $it" }.orEmpty()}" },
+                .semantics { contentDescription = track.artistName?.let { t("Now playing: {title} by {artist}", "title" to track.title, "artist" to it) } ?: t("Now playing: {title}", "title" to track.title) },
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

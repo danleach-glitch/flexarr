@@ -1,5 +1,7 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -64,7 +66,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Replay30
@@ -108,6 +109,7 @@ import androidx.media3.ui.PlayerView
 import io.github.flexarr.ActivePlayback
 import io.github.flexarr.BuildConfig
 import io.github.flexarr.appModel
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.usesTvInterface
 import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
@@ -162,8 +164,7 @@ class PlayerActivity : ComponentActivity() {
         setContent {
             FlexarrTheme {
                 if (pictureInPicture == null) {
-                    // Behind the constant, so a release build (which has no TV interface yet) leaves the TV player out.
-                    if (BuildConfig.TV_UI) TvPlayerScreen(controller, onClose = ::finish)
+                    TvPlayerScreen(controller, onClose = ::finish)
                     return@FlexarrTheme
                 }
                 // The corner window keeps the picture's shape, and goes there by itself only while playing.
@@ -196,6 +197,7 @@ class PlayerActivity : ComponentActivity() {
             startAt = intent.getDoubleExtra(EXTRA_START_AT, -1.0).takeIf { it >= 0 },
             from = intent.getStringExtra(EXTRA_FROM),
             startedWith = intent.getStringExtra(EXTRA_STARTED_WITH),
+            pressedAt = intent.getLongExtra(EXTRA_PRESSED_AT, -1L).takeIf { it >= 0 },
         )
     }
 
@@ -282,6 +284,7 @@ class PlayerActivity : ComponentActivity() {
         private const val EXTRA_ITEM = "itemId"
         private const val EXTRA_FROM = "from"
         private const val EXTRA_STARTED_WITH = "startedWith"
+        private const val EXTRA_PRESSED_AT = "pressedAt"
         private const val EXTRA_FROM_BEGINNING = "fromBeginning"
         private const val EXTRA_SHUFFLE = "shuffle"
         private const val EXTRA_START_AT = "startAt"
@@ -293,6 +296,8 @@ class PlayerActivity : ComponentActivity() {
         fun intent(context: Context, itemId: String, fromBeginning: Boolean, shuffle: Boolean = false, startAt: Int? = null, from: String? = null): Intent =
             Intent(context, PlayerActivity::class.java)
                 .putExtra(EXTRA_ITEM, itemId)
+                // When Play was pressed, for the start's timings (see StartTiming).
+                .putExtra(EXTRA_PRESSED_AT, android.os.SystemClock.elapsedRealtime())
                 .apply { if (from != null) putExtra(EXTRA_FROM, from) }
                 .putExtra(EXTRA_FROM_BEGINNING, fromBeginning)
                 .putExtra(EXTRA_SHUFFLE, shuffle)
@@ -369,7 +374,7 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
             interaction++
         }
         Box(
-            Modifier.fillMaxSize().semantics { onClick(label = if (controlsVisible) "Hide controls" else "Show controls") { toggleControls(); true } }.pointerInput(Unit) {
+            Modifier.fillMaxSize().semantics { onClick(label = if (controlsVisible) t("Hide controls") else t("Show controls")) { toggleControls(); true } }.pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { toggleControls() },
                     onDoubleTap = { offset ->
@@ -394,7 +399,7 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
                 Text(message, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     controller.retryLabel?.let { ActionButton(it, onClick = controller::retry, prominent = true) }
-                    ActionButton("Close", onClick = onClose, prominent = controller.retryLabel == null)
+                    ActionButton(t("Close"), onClick = onClose, prominent = controller.retryLabel == null)
                 }
             }
         }
@@ -419,16 +424,12 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
             )
         }
         // The pill stays up with or without the controls: it's how you skip.
-        controller.promptTitle?.takeIf { !asleep }?.let { title ->
-            Row(
-                Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(end = 24.dp, bottom = if (controlsVisible) 132.dp else 32.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                if (controller.countingDown) {
-                    Text("Cancel", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.glass(RoundedCornerShape(Tokens.radiusControl)).clickableNoRipple(controller::cancelNext).padding(horizontal = 18.dp, vertical = 12.dp))
-                }
-                ActionButton(title, onClick = controller::promptTapped, icon = if (title.startsWith("Skip")) Icons.Filled.SkipNext else Icons.Filled.PlayArrow, prominent = true)
-            }
+        FadingPrompt(
+            controller.promptTitle?.takeIf { !asleep },
+            controller.countingDown,
+            Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(end = 24.dp, bottom = if (controlsVisible) 132.dp else 32.dp),
+        ) { title, countingDown, held ->
+            PromptPill(title, countingDown, held, onTap = controller::promptTapped, onCancel = controller::cancelNext)
         }
         SleepPrompt(controller.sleep)
         ShakeForSleep(controller.sleep)
@@ -468,7 +469,7 @@ private fun Controls(controller: PlaybackController, onClose: () -> Unit, onPict
         Box(Modifier.fillMaxWidth().height(160.dp).align(Alignment.BottomCenter).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)))))
 
         Row(Modifier.fillMaxWidth().safeDrawingPadding().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Top) {
-            GlassButton(Icons.Filled.Close, "Close", size = 44, onClick = onClose)
+            GlassButton(Icons.Filled.Close, t("Close"), size = 44, onClick = onClose)
             if (info != null) {
                 Column(Modifier.weight(1f).padding(top = 2.dp)) {
                     Text(info.item.displayTitle, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -478,7 +479,7 @@ private fun Controls(controller: PlaybackController, onClose: () -> Unit, onPict
             }
             GlassCastButton()
             if (LocalContext.current.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
-                GlassButton(Icons.Filled.PictureInPictureAlt, "Picture in picture", size = 44, onClick = onPictureInPicture)
+                GlassButton(Icons.Filled.PictureInPictureAlt, t("Picture in picture"), size = 44, onClick = onPictureInPicture)
             }
         }
 
@@ -486,14 +487,14 @@ private fun Controls(controller: PlaybackController, onClose: () -> Unit, onPict
             // A film has neither episode button; an episode has both. Previous always works (with nothing before, it
             // starts this one again); Next is dimmed at the last.
             val episode = info?.item?.kind == MediaKind.Episode
-            if (episode) GlassButton(Icons.Filled.SkipPrevious, "Previous episode") { controller.playPrevious(); onInteract() }
+            if (episode) GlassButton(Icons.Filled.SkipPrevious, t("Previous episode")) { controller.playPrevious(); onInteract() }
             SkipButton(-controller.skipSeconds) { controller.skip(-controller.skipSeconds); onInteract() }
-            GlassButton(if (controller.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (controller.isPlaying) "Pause" else "Play", size = 76) {
+            GlassButton(if (controller.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (controller.isPlaying) t("Pause") else t(Words.play), size = 76) {
                 controller.togglePlayPause()
                 onInteract()
             }
             SkipButton(controller.skipSeconds) { controller.skip(controller.skipSeconds); onInteract() }
-            if (episode) GlassButton(Icons.Filled.SkipNext, "Next episode", enabled = info.next != null) { controller.playNext(); onInteract() }
+            if (episode) GlassButton(Icons.Filled.SkipNext, t("Next episode"), enabled = info.next != null) { controller.playNext(); onInteract() }
         }
 
         Column(Modifier.align(Alignment.BottomCenter), horizontalAlignment = Alignment.End) {
@@ -530,8 +531,8 @@ private fun Timeline(controller: PlaybackController, onInteract: () -> Unit, mod
                 valueRange = 0f..duration.toFloat(),
                 colors = SliderDefaults.colors(thumbColor = Flexarr.screen, activeTrackColor = Flexarr.screen, inactiveTrackColor = Flexarr.screen.copy(alpha = 0.3f)),
                 modifier = Modifier.fillMaxWidth().semantics {
-                    contentDescription = "Position"
-                    stateDescription = "${Format.timestamp(shown)} of ${Format.timestamp(controller.duration)}"
+                    contentDescription = t("Position")
+                    stateDescription = t("{position} of {duration}", "position" to Format.timestamp(shown), "duration" to Format.timestamp(controller.duration))
                 },
             )
             // While scrubbing, the picture at the head's place, above it, as on iPhone.
@@ -593,7 +594,8 @@ internal fun GlassButton(icon: ImageVector, label: String, size: Int = 56, enabl
 @Composable
 internal fun SkipButton(seconds: Int, enabled: Boolean = true, onClick: () -> Unit) {
     val back = seconds < 0
-    val label = "${if (back) "Back" else "Forward"} ${kotlin.math.abs(seconds)} seconds"
+    val label = if (back) t("{count, plural, one {Back # second} other {Back # seconds}}", "count" to -seconds)
+    else t("{count, plural, one {Forward # second} other {Forward # seconds}}", "count" to seconds)
     when (kotlin.math.abs(seconds)) {
         10 -> GlassButton(if (back) Icons.Filled.Replay10 else Icons.Filled.Forward10, label, enabled = enabled, onClick = onClick)
         30 -> GlassButton(if (back) Icons.Filled.Replay30 else Icons.Filled.Forward30, label, enabled = enabled, onClick = onClick)

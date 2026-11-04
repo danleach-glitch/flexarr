@@ -6,16 +6,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.LibraryType
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.tk
 
 /**
  * Which of a library's views its tab opens on: Browse (a hero and rows of just this library), All (every title, with
  * sort, genre and A–Z) or Genres (a tile for each). Settings › Libraries, for every library on this TV, as on the
  * Apple TV.
  */
-enum class TvLibraryOpening(val raw: String, val label: String) {
-    Browse("browse", "Browse"),
-    All("all", "All titles"),
-    Genres("genres", "Genres");
+enum class TvLibraryOpening(val raw: String, private val english: String) {
+    Browse("browse", Words.browse),
+    All("all", tk("All titles")),
+    Genres("genres", Words.genres);
+
+    /** In the language shown. */
+    val label: String get() = t(english)
 
     companion object {
         private var current: TvLibraryOpening? by mutableStateOf(null)

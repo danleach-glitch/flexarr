@@ -7,6 +7,7 @@ import { deviceTypeName } from '../lib/deviceTypes'
 import { AsyncButton } from './AsyncButton'
 import { DeviceTypeIcon } from './DeviceTypeIcon'
 import { Close } from './icons'
+import { t } from '../i18n'
 
 /** How long "Connected" stays before the prompt goes. */
 const DONE_MS = 2_500
@@ -37,8 +38,8 @@ export function PairingPrompt() {
 
   if (connected) {
     return (
-      <section className="pairing-prompt pairing-prompt-done" role="status" aria-label="Device connected">
-        <p className="pairing-prompt-title">“{connected.deviceName}” is connected</p>
+      <section className="pairing-prompt pairing-prompt-done" role="status" aria-label={t('Device connected')}>
+        <p className="pairing-prompt-title">{t('“{name}” is connected', { name: connected.deviceName })}</p>
       </section>
     )
   }
@@ -62,7 +63,7 @@ export function PairingPrompt() {
 /** "Apple TV · asking from your home network (192.168.1.70)", or "It’s asking …" when it hasn't said what it is. */
 const asking = (details: PairingDetails) => {
   const type = deviceTypeName(details.deviceType)
-  return type ? `${type}, asking ${askedFrom(details)}` : `It’s asking ${askedFrom(details)}.`
+  return type ? t('{type}, asking {where}', { type, where: askedFrom(details) }) : t('It’s asking {where}.', { where: askedFrom(details) })
 }
 
 function Prompt({
@@ -119,20 +120,21 @@ function Prompt({
   }
 
   return (
-    <section className="pairing-prompt" aria-label="A device is asking to connect" aria-live="polite">
+    <section className="pairing-prompt" aria-label={t('A device is asking to connect')} aria-live="polite">
       <span className="sign-in-icon">
         <DeviceTypeIcon type={details.deviceType} />
       </span>
       <div className="pairing-prompt-body">
-        <p className="pairing-prompt-title">Connect “{details.deviceName}”?</p>
+        <p className="pairing-prompt-title">{t('Connect “{name}”?', { name: details.deviceName })}</p>
         <p className="muted">{asking(details)}</p>
         <p>
-          {details.zone !== 'Local' && 'This didn’t come from your home network. '}
-          Check its screen shows <strong className="pairing-code">{details.code}</strong>.
+          {details.zone !== 'Local'
+            ? t.rich('This didn’t come from your home network. Check its screen shows {code}.', { code: <strong className="pairing-code">{details.code}</strong> })
+            : t.rich('Check its screen shows {code}.', { code: <strong className="pairing-code">{details.code}</strong> })}
         </p>
         {needsPin && asksPin && (
           <label className="field">
-            <span className="field-label">Admin PIN</span>
+            <span className="field-label">{t('Admin PIN')}</span>
             <input
               type="password"
               inputMode="numeric"
@@ -152,14 +154,14 @@ function Prompt({
       </div>
       <div className="pairing-prompt-actions">
         <AsyncButton className="button" busy={state === 'approving'} disabled={state === 'declining' || (needsPin && asksPin && pin.length < 4)} onClick={() => allow()}>
-          Allow
+          {t('Allow')}
         </AsyncButton>
         <AsyncButton className="button quiet" busy={state === 'declining'} disabled={state === 'approving'} onClick={() => decline()}>
-          Don’t allow
+          {t('Don’t allow')}
         </AsyncButton>
       </div>
       {/* Not now: the device keeps waiting, and can still be connected from Settings. */}
-      <button type="button" className="icon-button pairing-prompt-close" aria-label="Not now" title="Not now" onClick={() => onFinished(details.code)}>
+      <button type="button" className="icon-button pairing-prompt-close" aria-label={t('Not now')} title={t('Not now')} onClick={() => onFinished(details.code)}>
         <Close />
       </button>
     </section>

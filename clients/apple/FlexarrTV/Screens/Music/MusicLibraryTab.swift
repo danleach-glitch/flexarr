@@ -13,10 +13,10 @@ enum MusicOpening: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .browse: "Browse"
-        case .artists: "Artists"
-        case .albums: "Albums"
-        case .genres: "Genres"
+        case .browse: t(Words.browse)
+        case .artists: t(Words.artists)
+        case .albums: t(Words.albums)
+        case .genres: t(Words.genres)
         }
     }
 

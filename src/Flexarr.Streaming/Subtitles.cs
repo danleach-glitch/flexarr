@@ -220,7 +220,11 @@ public static partial class Subtitles
         try
         {
             File.CreateSymbolicLink(Path.Combine(folder, link), path);
-            var ok = await RunAsync(settings.FfmpegPath, ["-hide_banner", "-v", "error", "-nostdin", "-y", "-f", "lavfi", "-i", $"movie={link}[out0+subcc]",
+            // The movie filter opens the file itself, past the input's whitelist: held to local files through its own
+            // options where this FFmpeg has them.
+            var local = FfmpegFilters.MovieTakesFormatOptions(settings.FfmpegPath) ? ":format_opts=protocol_whitelist=file" : "";
+            var ok = await RunAsync(settings.FfmpegPath, ["-hide_banner", "-v", "error", "-nostdin", "-y", .. FfmpegCommand.LocalFile, "-f", "lavfi",
+                "-i", $"movie={link}{local}[out0+subcc]",
                 "-map", "0:1", "-c:s", "webvtt", "-f", "webvtt", partial], ct, folder).ConfigureAwait(false);
             if (ok && File.Exists(partial))
             {

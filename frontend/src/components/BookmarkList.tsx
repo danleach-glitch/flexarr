@@ -3,6 +3,7 @@ import { chapterIndexAt } from '../lib/books'
 import { formatClock } from '../lib/format'
 import { AsyncButton } from './AsyncButton'
 import { Close } from './icons'
+import { t } from '../i18n'
 
 /** Bookmarks in a book, in order: each a place (and its chapter) to jump to, its note, and a way to remove it. */
 export function BookmarkList({
@@ -19,7 +20,7 @@ export function BookmarkList({
   onRemove: (id: string) => Promise<unknown>
 }) {
   return (
-    <ol className="book-bookmarks" id={id} aria-label="Bookmarks">
+    <ol className="book-bookmarks" id={id} aria-label={t('Bookmarks')}>
       {[...bookmarks]
         .sort((a, b) => a.positionSeconds - b.positionSeconds)
         .map((b) => {
@@ -29,11 +30,11 @@ export function BookmarkList({
               <button className="book-bookmark-jump" onClick={() => onJump(b.positionSeconds)}>
                 <span className="book-bookmark-time">{formatClock(b.positionSeconds)}</span>
                 <span className="book-bookmark-text">
-                  {b.note ?? chapter?.title ?? 'Bookmark'}
+                  {b.note ?? chapter?.title ?? t('Bookmark')}
                   {b.note && chapter && <span className="muted">{chapter.title}</span>}
                 </span>
               </button>
-              <AsyncButton className="icon-button" aria-label={`Remove the bookmark at ${formatClock(b.positionSeconds)}`} onClick={() => onRemove(b.id)}>
+              <AsyncButton className="icon-button" aria-label={t('Remove the bookmark at {time}', { time: formatClock(b.positionSeconds) })} onClick={() => onRemove(b.id)}>
                 <Close />
               </AsyncButton>
             </li>

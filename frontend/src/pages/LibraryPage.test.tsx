@@ -67,6 +67,21 @@ describe('A music library', () => {
     expect(screen.getByRole('link', { name: 'Genres' })).toBeInTheDocument()
   })
 
+  it('shows Requested only once the status says requests work, so it never flickers in for a child', async () => {
+    let answer: (r: Response) => void = () => undefined
+    mockApi({
+      '/libraries/lib-music/browse': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+      '/libraries/lib-music/items': { total: 0, items: [] },
+      '/requests/music/status': () => new Promise<Response>((resolve) => (answer = resolve)),
+    })
+    renderAt('/library/lib-music')
+
+    expect(await screen.findByRole('link', { name: 'Albums' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Requested' })).not.toBeInTheDocument()
+    answer(new Response(JSON.stringify({ configured: true, reachable: true })))
+    expect(await screen.findByRole('link', { name: 'Requested' })).toBeInTheDocument()
+  })
+
   it('ends Browse with Your artists, and See all when there are more', async () => {
     mockApi({
       '/libraries/lib-music/browse': { featured: [], overviews: {}, rows: [{ id: 'recent', title: 'New albums', style: 'poster', items: [dummy] }], upcoming: [], downloading: 0 },
@@ -112,5 +127,22 @@ describe('A music library', () => {
     const tile = await screen.findByRole('link', { name: /Trip hop/ })
     expect(tile).toHaveTextContent('2 albums')
     expect(tile).toHaveAttribute('href', '/library/lib-music?view=genre&genre=Trip%20hop')
+  })
+
+  it('fans out album covers on a genre tile without an artist’s fanart', async () => {
+    mockApi({
+      '/libraries/lib-music/album-genres': [
+        { name: 'Shoegaze', count: 2, backdrop: null, covers: ['/api/v1/images/items/a1/poster?v=1', '/api/v1/images/items/a2/poster?v=1'] },
+        { name: 'Trip hop', count: 1, backdrop: '/api/v1/images/items/ar1/backdrop?v=1', covers: null },
+      ],
+    })
+    renderAt('/library/lib-music?view=genres')
+
+    const covered = await screen.findByRole('link', { name: /Shoegaze/ })
+    expect(covered).toHaveClass('book-genre-tile')
+    expect(covered.querySelectorAll('.book-genre-fan img')).toHaveLength(2)
+    const fanart = screen.getByRole('link', { name: /Trip hop/ })
+    expect(fanart).not.toHaveClass('book-genre-tile')
+    expect(fanart.querySelectorAll('img')).toHaveLength(1)
   })
 })

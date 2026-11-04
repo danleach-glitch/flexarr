@@ -187,9 +187,18 @@ final class MusicPlayer {
     @ObservationIgnored private var interruptionObserver: NSObjectProtocol?
     @ObservationIgnored private let nowPlaying = NowPlaying()
     @ObservationIgnored private var lastReport = Date.distantPast
+    /// The progress reports sent so far, one after another, so they reach the server in order.
+    @ObservationIgnored private var reports: Task<Void, Never>?
     @ObservationIgnored private var lastNowPlayingTime = Date.distantPast
     /// Bumped by every track change, so a session that arrives for a track skipped past is ended rather than played.
     @ObservationIgnored private var generation = 0
+    /// A book's start, timed until its first sound (see StartTiming).
+    @ObservationIgnored private var bookTiming: StartTiming?
+    /// A book got ready ahead of Play from its page (docs/fast-start.md), the one on its way, and its first file's
+    /// asset, loading already so its header is read by the time Play is pressed.
+    @ObservationIgnored private var warmBook: PreparedStream?
+    @ObservationIgnored private var warmingBook: (request: PlaybackRequest, task: Task<PreparedStream?, Never>)?
+    @ObservationIgnored private var warmAsset: (url: URL, asset: AVURLAsset)?
     /// Paused because a video started; Now Playing is handed back when it ends.
     @ObservationIgnored private var yieldedToVideo = false
     /// Which remote commands the lock screen has: music's previous and next, or a podcast's skips and speed.
@@ -777,7 +786,7 @@ final class MusicPlayer {
             // Finished (here, or before it was downloaded): it starts again from the beginning, as it does streamed.
             let finished = offlineLibrary?.isBookFinished(track.id) == true || downloaded.manifest.progress.finished
             let place = requested ?? (saved > 0 ? saved : finished ? 0 : local?.position ?? downloaded.manifest.progress.positionSeconds)
-            beginBook(downloaded.manifest, urls: downloaded.files, at: place)
+            beginBook(downloaded.manifest, urls: downloaded.files, at: place, resuming: requested == nil)
             if artwork == nil { loadArtwork(for: track, generation: mine) }
             // With a connection, the server knows the speed, bookmarks and listening settings chosen since the download,
             // and maybe a newer place from another device: offered, not jumped to.
@@ -800,11 +809,20 @@ final class MusicPlayer {
             isLoading = false
             return
         }
+        var timing = StartTiming(.book)
+        bookTiming = nil
         Task {
             do {
                 var request = PlaybackRequest(itemId: track.id, profile: Self.bookProfile, startPositionSeconds: requested)
                 request.deviceName = Self.deviceName
-                let info = try await client.startPlayback(request)
+                request.measuredBitrate = LinkSpeed.shared.current()
+                // Got ready on its page a moment ago: no wait for the server.
+                let ready = await takeReadyBook(request)
+                if ready == nil { dropReadyBook() }
+                let info: PlaybackInfo
+                if let ready { info = ready } else { info = try await client.startPlayback(request) }
+                timing.answered(info, warmed: ready != nil)
+                bookTiming = timing
                 guard mine == generation else {
                     try? await client.stopPlayback(sessionId: info.sessionId)
                     return
@@ -823,7 +841,7 @@ final class MusicPlayer {
                     start = local.position
                     jumpOffer = manifest.progress
                 }
-                beginBook(manifest, urls: urls, at: start)
+                beginBook(manifest, urls: urls, at: start, resuming: requested == nil && jumpOffer == nil)
             } catch {
                 guard mine == generation else { return }
                 isLoading = false
@@ -833,7 +851,72 @@ final class MusicPlayer {
         }
     }
 
-    private func beginBook(_ manifest: BookManifest, urls: [URL], at place: Double) {
+    // MARK: Getting a book ready ahead of Play
+
+    /// Gets `book` ready as Play would start it (from its place): the session, and the file that place is in, its
+    /// header loading. Not a book playing already or one downloaded here; any other got ready is let go.
+    func getReadyBook(_ book: ItemSummary, client: FlexarrClient) {
+        guard current?.id != book.id, offlineLibrary?.localBook(for: book.id) == nil else { return }
+        if self.client == nil { self.client = client }
+        let owner = client.profileToken
+        var wanted = PlaybackRequest(itemId: book.id, profile: Self.bookProfile)
+        wanted.deviceName = Self.deviceName
+        wanted.measuredBitrate = LinkSpeed.shared.current()
+        if let warmBook, warmBook.serves(wanted, owner: owner) { return }
+        if let warmingBook, PreparedStream.same(warmingBook.request, wanted) { return }
+        dropReadyBook()
+        var asking = wanted
+        asking.prepare = true
+        let task = Task { [weak self] () -> PreparedStream? in
+            guard let ready = try? await client.startPlayback(asking) else { return nil }
+            guard let self, let warming = self.warmingBook, PreparedStream.same(warming.request, wanted), let manifest = ready.book else {
+                try? await client.stopPlayback(sessionId: ready.sessionId)
+                return nil
+            }
+            let stream = PreparedStream(request: wanted, info: ready, owner: owner)
+            self.warmBook = stream
+            self.warmingBook = nil
+            // No title: browsing isn't listening.
+            log.info("Got ready ahead of Play", ["playbackId": ready.playbackId])
+            let file = manifest.timeline.locate(ready.startPositionSeconds).file
+            if manifest.files.indices.contains(file), let url = client.url(for: manifest.files[file].url) {
+                let type = Self.bookType(manifest.files[file])
+                let asset = AVURLAsset(url: url, options: type.map { [AVURLAssetOverrideMIMETypeKey: $0] })
+                self.warmAsset = (url, asset)
+                _ = try? await asset.load(.isPlayable, .duration)
+            }
+            return stream
+        }
+        warmingBook = (wanted, task)
+    }
+
+    /// Lets the book got ready go (best effort); with `itemId`, only if it's that book.
+    func dropReadyBook(itemId: String? = nil) {
+        if let itemId, (warmBook?.request.itemId ?? warmingBook?.request.itemId) != itemId { return }
+        warmingBook?.task.cancel()
+        warmingBook = nil
+        warmAsset = nil
+        guard let warmBook, let client else { self.warmBook = nil; return }
+        self.warmBook = nil
+        Task { try? await client.stopPlayback(sessionId: warmBook.info.sessionId) }
+    }
+
+    /// The book got ready for exactly `wanted`, taken over (waiting for it if it's on its way), or nil.
+    private func takeReadyBook(_ wanted: PlaybackRequest) async -> PlaybackInfo? {
+        let owner = client?.profileToken
+        if let warmBook, warmBook.serves(wanted, owner: owner) {
+            self.warmBook = nil
+            return warmBook.info
+        }
+        guard let warmingBook, PreparedStream.same(warmingBook.request, wanted) else { return nil }
+        let stream = await warmingBook.task.value
+        guard let stream, stream.owner == owner, warmBook?.info.sessionId == stream.info.sessionId else { return nil }
+        warmBook = nil
+        return stream.info
+    }
+
+    /// `resuming`: from the saved place (not a chapter, bookmark or jump), so landing within a second of it is as good.
+    private func beginBook(_ manifest: BookManifest, urls: [URL], at place: Double, resuming: Bool = false) {
         book = manifest
         bookmarks = manifest.bookmarks
         bookTimeline = manifest.timeline
@@ -844,7 +927,8 @@ final class MusicPlayer {
         nextBookOffer = nil
         bookPause = BookPause()
         bookFile = -1
-        loadBookFile(at: min(max(0, place), max(0, duration - 1)), play: true)
+        // Resuming: within a second of the place is as good, and a long MP3 doesn't have to be read up to it exactly.
+        loadBookFile(at: min(max(0, place), max(0, duration - 1)), play: true, tolerance: resuming ? 1 : 0)
         isLoading = false
         pushNowPlaying()
     }
@@ -875,7 +959,8 @@ final class MusicPlayer {
     }
 
     /// Puts the file holding `place` in the player (when it isn't already) and goes there in it.
-    private func loadBookFile(at place: Double, play: Bool) {
+    /// `tolerance`: how far from `place` (either way) the seek may land, in seconds; exact unless given.
+    private func loadBookFile(at place: Double, play: Bool, tolerance: Double = 0) {
         guard let timeline = bookTimeline, let manifest = book, !bookURLs.isEmpty else { return }
         let (file, offset) = timeline.locate(place)
         position = place
@@ -883,7 +968,8 @@ final class MusicPlayer {
             bookFile = file
             attach(item(url: bookURLs[file], type: Self.bookType(manifest.files[file])))
         }
-        player.seek(to: CMTime(seconds: offset, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        let slack = CMTime(seconds: tolerance, preferredTimescale: 600)
+        player.seek(to: CMTime(seconds: offset, preferredTimescale: 600), toleranceBefore: slack, toleranceAfter: slack)
         if play { player.play() }
     }
 
@@ -924,14 +1010,14 @@ final class MusicPlayer {
                 self.sessionId = nil
                 let length = duration
                 let bookId = track.id
-                Task {
+                sendInOrder {
                     await Self.send(client, session: sessionId, book: bookId, position: length, paused: true, ended: true)
                     try? await client.stopPlayback(sessionId: sessionId)
                 }
             } else if let client, expiredBookId == track.id {
                 expiredBookId = nil // reported as ended: nothing more to send for it
                 let bookId = track.id, length = duration
-                Task { try? await client.reportBookProgress(itemId: bookId, BookProgressUpdate(positionSeconds: length, device: Self.deviceName, recordedAt: Date(), ended: true)) }
+                sendInOrder { try? await client.reportBookProgress(itemId: bookId, BookProgressUpdate(positionSeconds: length, device: Self.deviceName, recordedAt: Date(), ended: true)) }
             }
         }
         BookPlaces.forget(track.id)
@@ -1041,7 +1127,10 @@ final class MusicPlayer {
     /// An item for a track's file or stream; speech keeps its pitch at other speeds. `type` names what a file sent as
     /// it is holds, for servers that send FLAC and MP3 without saying so (before 0.53).
     private func item(url: URL, type: String? = nil) -> AVPlayerItem {
-        let asset = AVURLAsset(url: url, options: type.map { [AVURLAssetOverrideMIMETypeKey: $0] })
+        // The file a book's page got ready, already loading.
+        let warmed = warmAsset?.url == url ? warmAsset?.asset : nil
+        warmAsset = nil
+        let asset = warmed ?? AVURLAsset(url: url, options: type.map { [AVURLAssetOverrideMIMETypeKey: $0] })
         let item = AVPlayerItem(asset: asset)
         if isPodcast || isBook { item.audioTimePitchAlgorithm = .timeDomain }
         return item
@@ -1086,7 +1175,7 @@ final class MusicPlayer {
         // A book whose session the server forgot: its last place goes to the book's own progress.
         if reporting, sessionId == nil, let bookId = expiredBookId, bookId == current?.id, position > 0, !isPlayingOffline, recordsHistory, let client {
             let update = BookProgressUpdate(positionSeconds: position, device: Self.deviceName, recordedAt: Date(), ended: false)
-            Task { try? await client.reportBookProgress(itemId: bookId, update) }
+            sendInOrder { try? await client.reportBookProgress(itemId: bookId, update) }
         }
         expiredBookId = nil
         guard let client, let sessionId else { return }
@@ -1094,9 +1183,22 @@ final class MusicPlayer {
         let position = self.position
         let record = recordsHistory && reporting
         let bookId = sessionBookId
-        Task {
+        sendInOrder {
             if record { await Self.send(client, session: sessionId, book: bookId, position: position, paused: true) }
             try? await client.stopPlayback(sessionId: sessionId)
+        }
+    }
+
+    /// Sends `request` after whatever was sent before it, with time to finish if the app goes to the background
+    /// meanwhile: pausing from the lock screen or taking AirPods out would otherwise let iOS suspend the app before the
+    /// last place reached the server.
+    private func sendInOrder(_ request: @escaping @MainActor () async -> Void) {
+        let previous = reports
+        let background = BackgroundTime(named: "Listening progress")
+        reports = Task {
+            await previous?.value
+            await request()
+            background.end()
         }
     }
 
@@ -1108,17 +1210,17 @@ final class MusicPlayer {
         if sessionId == nil, isBook, !isPlayingOffline, let track = current, expiredBookId == track.id {
             // The session's gone: the place goes to the book's own progress, as a download's does.
             lastReport = Date()
-            Task { try? await client.reportBookProgress(itemId: track.id, BookProgressUpdate(positionSeconds: position, device: Self.deviceName, recordedAt: Date(), ended: ended)) }
+            sendInOrder { try? await client.reportBookProgress(itemId: track.id, BookProgressUpdate(positionSeconds: position, device: Self.deviceName, recordedAt: Date(), ended: ended)) }
             return
         }
         guard let sessionId else { return }
         lastReport = Date()
         let bookId = sessionBookId
-        Task {
+        sendInOrder {
             if await Self.send(client, session: sessionId, book: bookId, position: position, paused: paused, ended: ended), self.sessionId == sessionId {
                 // Forgotten by the server (12 hours without a report): later reports go to the book's progress.
                 self.sessionId = nil
-                expiredBookId = bookId
+                self.expiredBookId = bookId
             }
         }
     }
@@ -1210,7 +1312,7 @@ final class MusicPlayer {
 
     private func trackFailed(_ reason: String?) {
         log.error("Track failed: \(reason ?? "no reason")", ["playbackId": playbackId])
-        errorMessage = reason ?? "This track couldn't be played."
+        errorMessage = reason ?? t("This track couldn't be played.")
         endSession()
         clearItem()
         // Move on rather than fall silent, unless it was the last one.
@@ -1223,6 +1325,10 @@ final class MusicPlayer {
         let playing = status == .playing
         guard playing != isPlaying else { return }
         isPlaying = playing
+        if playing, isBook, let started = bookTiming {
+            started.report(to: log, server: client?.baseURL)
+            bookTiming = nil
+        }
         // When a book or episode was paused, for smart rewind.
         if isBook || isPodcast {
             if playing { bookPause = BookPause() } else { bookPause.paused(at: Date()) }
@@ -1359,12 +1465,12 @@ struct BookmarkNotice: Equatable {
     let isError: Bool
 
     static func added(_ position: Double) -> BookmarkNotice {
-        BookmarkNotice(text: "Bookmarked \(Format.timestamp(position))", isError: false)
+        BookmarkNotice(text: t("Bookmarked {time}", ["time": Format.timestamp(position)]), isError: false)
     }
 
     static func failed(_ error: Error) -> BookmarkNotice {
         let offline = (error as? URLError).map { [.notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost, .timedOut, .cannotFindHost].contains($0.code) } ?? false
-        return BookmarkNotice(text: offline ? "No connection: bookmark not added" : "Bookmark not added", isError: true)
+        return BookmarkNotice(text: offline ? t("No connection: bookmark not added") : t("Bookmark not added"), isError: true)
     }
 
     /// A light tap for one added, the warning buzz for one that wasn't.

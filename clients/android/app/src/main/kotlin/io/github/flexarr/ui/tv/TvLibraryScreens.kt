@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +29,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +41,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -78,6 +89,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import io.github.flexarr.ui.theme.Tokens
 import io.github.flexarr.ui.theme.FlexarrIcons
 
@@ -159,12 +171,12 @@ fun TvMusicLibraryTab(model: AppModel, library: Library, takeFocus: Boolean, onF
 @Composable
 private fun LibraryViewSwitch(library: Library, selected: TvLibraryOpening, hasGenres: Boolean, takesFocus: Boolean, onFocusTaken: () -> Unit, onSelect: (TvLibraryOpening) -> Unit) {
     val all = when (library.type) {
-        LibraryType.TvShows -> "All shows"
-        LibraryType.HomeVideos -> "All folders"
-        else -> "All movies"
+        LibraryType.TvShows -> t("All shows")
+        LibraryType.HomeVideos -> t("All folders")
+        else -> t("All movies")
     }
-    val choices = listOf(TvLibraryOpening.Browse to "Browse", TvLibraryOpening.All to all) +
-        (if (hasGenres) listOf(TvLibraryOpening.Genres to "Genres") else emptyList())
+    val choices = listOf(TvLibraryOpening.Browse to t(Words.browse), TvLibraryOpening.All to all) +
+        (if (hasGenres) listOf(TvLibraryOpening.Genres to t(Words.genres)) else emptyList())
     val requester = remember { FocusRequester() }
     LaunchedEffect(takesFocus) {
         if (!takesFocus) return@LaunchedEffect
@@ -187,7 +199,7 @@ private fun LibraryBrowse(model: AppModel, library: Library, takeFocus: Boolean,
                 RoomBackground(ambient = null) {
                     Column(Modifier.padding(start = TvLayout.Edge, top = 28.dp)) {
                         switch()
-                        TvStatusView(if (library.scan == null) "Nothing in this library yet." else "Titles appear here as the scan finds them.", empty = true)
+                        TvStatusView(if (library.scan == null) t("Nothing in this library yet.") else t("Titles appear here as the scan finds them."), empty = true)
                     }
                 }
             } else {
@@ -233,7 +245,7 @@ private fun LibraryGenres(model: AppModel, library: Library, takeFocus: Boolean,
                     item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.padding(bottom = 18.dp)) { switch() } }
                     if (genres.isEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
-                            Box(Modifier.height(300.dp)) { TvStatusView("No genres here yet. They come with each ${if (music) "album" else "title"}’s details once a scan has found them.", empty = true) }
+                            Box(Modifier.height(300.dp)) { TvStatusView(if (music) t("No genres here yet. They come with each album’s details once a scan has found them.") else t("No genres here yet. They come with each title’s details once a scan has found them."), empty = true) }
                         }
                     }
                     itemsIndexed(genres, key = { _, genre -> genre.name }) { index, genre ->
@@ -251,8 +263,8 @@ private fun LibraryGenres(model: AppModel, library: Library, takeFocus: Boolean,
 
 private fun genreCaption(library: Library, genre: GenreCount): String {
     if (library.type == LibraryType.Music) return albumCount(genre.count)
-    val noun = if (library.type == LibraryType.TvShows) (if (genre.count == 1) "show" else "shows") else (if (genre.count == 1) "movie" else "movies")
-    return "${genre.count} $noun"
+    return if (library.type == LibraryType.TvShows) t("{count, plural, one {# show} other {# shows}}", "count" to genre.count)
+    else t("{count, plural, one {# movie} other {# movies}}", "count" to genre.count)
 }
 
 private const val GENRES_ACROSS = 5
@@ -276,7 +288,7 @@ enum class TvGridContent {
 
     /** "1,204 titles", "1 artist", "38 albums". */
     fun count(total: Int): String = when (this) {
-        Titles -> if (total == 1) "1 title" else "%,d titles".format(total)
+        Titles -> t("{count, plural, one {# title} other {# titles}}", "count" to total)
         Artists -> artistCount(total)
         Albums -> albumCount(total)
     }
@@ -316,6 +328,10 @@ fun TvLibraryGrid(
     var attempt by remember { mutableIntStateOf(0) }
     var choosingGenre by remember { mutableStateOf(false) }
     var focusTarget by remember { mutableStateOf<String?>(null) }
+    // Back from a title opened here: the grid is made again, so it loads as far as it had got and that title takes
+    // focus, rather than starting again at the top.
+    var loadedCount by rememberSaveable(library.id) { mutableIntStateOf(0) }
+    var opened by rememberSaveable(library.id) { mutableStateOf<String?>(null) }
     val targetRequester = remember { FocusRequester() }
     val firstRequester = remember { FocusRequester() }
     val grid = rememberLazyGridState()
@@ -345,7 +361,7 @@ fun TvLibraryGrid(
         try {
             // As far as it had got, however far that is, a page at a time: past MAX_PAGE_SIZE, one request would cut the
             // list short and lose the place.
-            val wanted = if (loadedOnce) items.size.coerceAtLeast(PAGE_SIZE) else PAGE_SIZE
+            val wanted = (if (loadedOnce) items.size else loadedCount).coerceAtLeast(PAGE_SIZE)
             val first = page(skip = 0, take = wanted.coerceAtMost(MAX_PAGE_SIZE))
             var fetched = first.items
             while (fetched.size < wanted && fetched.size < first.total) {
@@ -360,6 +376,14 @@ fun TvLibraryGrid(
             items = fetched
             total = first.total
             error = null
+            if (!loadedOnce) opened?.let { id ->
+                val index = fetched.indexOfFirst { it.id == id }
+                if (index >= 0) {
+                    // The header is the grid's first item.
+                    grid.scrollToItem(index + 1)
+                    focusTarget = id
+                }
+            }
             loadedOnce = true
         } catch (e: CancellationException) {
             throw e
@@ -369,6 +393,7 @@ fun TvLibraryGrid(
             if (current == generation) loading = false
         }
     }
+    LaunchedEffect(items.size) { if (items.isNotEmpty()) loadedCount = items.size }
     // More as the grid nears the end of what's loaded.
     LaunchedEffect(grid, sort, genre) {
         snapshotFlow { grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.collect { last ->
@@ -450,11 +475,23 @@ fun TvLibraryGrid(
         }
     }
 
+    // Left from the rail: the grid's poster nearest the letter, in the last column (the grid's bounds take in the rail, so
+    // focus search alone finds nothing to the left and would open the sidebar).
+    var gridTop by remember { mutableFloatStateOf(0f) }
+    fun leaveRail(letterCenter: Float): Boolean {
+        val titles = grid.layoutInfo.visibleItemsInfo.filter { it.index in 1..items.size }
+        val nearest = titles.minWithOrNull(compareBy({ abs(gridTop + it.offset.y + it.size.height / 2f - letterCenter) }, { -it.column }))
+            ?: return false
+        focusTarget = items[nearest.index - 1].id
+        return true
+    }
+
     val trailing = if (showsLetters) RAIL_GUTTER else TvLayout.Edge
     val spacing = (960.dp - TvLayout.Edge - trailing - TvLayout.PosterWidth * 6) / 5
     RoomBackground(ambient = items.firstOrNull()?.let { glowColor(it.accentColor) }, intensity = 0.18f) {
         LazyVerticalGrid(
             GridCells.Fixed(6),
+            modifier = Modifier.onGloballyPositioned { gridTop = it.boundsInRoot().top },
             state = grid,
             contentPadding = PaddingValues(start = TvLayout.Edge, end = trailing, top = if (top == null) 20.dp else 28.dp, bottom = 40.dp),
             horizontalArrangement = Arrangement.spacedBy(spacing),
@@ -477,12 +514,14 @@ fun TvLibraryGrid(
                     Box(Modifier.height(300.dp)) { TvStatusView(error, retry = { attempt++ }) }
                 }
                 items.isEmpty() && loadedOnce && !loading -> item(span = { GridItemSpan(maxLineSpan) }) {
-                    val noun = when (content) {
-                        TvGridContent.Albums -> "albums"
-                        TvGridContent.Artists -> "artists"
-                        TvGridContent.Titles -> "titles"
+                    val none = genre?.let {
+                        when (content) {
+                            TvGridContent.Albums -> t("No {genre} albums here.", "genre" to it)
+                            TvGridContent.Artists -> t("No {genre} artists here.", "genre" to it)
+                            TvGridContent.Titles -> t("No {genre} titles here.", "genre" to it)
+                        }
                     }
-                    Box(Modifier.height(300.dp)) { TvStatusView(genre?.let { "No $it $noun here." } ?: "Nothing in this library yet.", empty = true) }
+                    Box(Modifier.height(300.dp)) { TvStatusView(none ?: t("Nothing in this library yet."), empty = true) }
                 }
                 else -> itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
                     val modifier = when {
@@ -491,9 +530,9 @@ fun TvLibraryGrid(
                         else -> Modifier
                     }
                     when (content) {
-                        TvGridContent.Titles -> TvPosterCard(item, onClick = { navigator.open(item) }, modifier = modifier)
-                        TvGridContent.Artists -> TvArtistCard(item, onClick = { navigator.open(item) }, modifier = modifier)
-                        TvGridContent.Albums -> TvAlbumCard(item, onClick = { navigator.open(item) }, modifier = modifier, showsArtist = true)
+                        TvGridContent.Titles -> TvPosterCard(item, onClick = { opened = item.id; navigator.open(item) }, modifier = modifier)
+                        TvGridContent.Artists -> TvArtistCard(item, onClick = { opened = item.id; navigator.open(item) }, modifier = modifier)
+                        TvGridContent.Albums -> TvAlbumCard(item, onClick = { opened = item.id; navigator.open(item) }, modifier = modifier, showsArtist = true)
                     }
                 }
             }
@@ -505,14 +544,14 @@ fun TvLibraryGrid(
         }
         if (showsLetters) {
             val empty = remember(items, total) { emptyAlphabetLetters(items.map { alphabetLetter(it.title) }, items.size >= total) }
-            LetterRail(empty, jumping, ::jump, Modifier.align(Alignment.CenterEnd).padding(end = TvLayout.Edge - 10.dp))
+            LetterRail(empty, jumping, ::jump, ::leaveRail, Modifier.align(Alignment.CenterEnd).padding(end = TvLayout.Edge - 10.dp))
         }
     }
     if (choosingGenre) {
         val all = (genres.state as? Load.Loaded)?.value.orEmpty()
         TvChoiceMenu(
-            "Genre",
-            listOf("All genres" to null) + all.map { "${it.name}  (${it.count})" to it.name },
+            t("Genre"),
+            listOf(t("All genres") to null) + all.map { "${it.name}  (${it.count})" to it.name },
             selected = genre,
             onChoose = {
                 genre = it
@@ -548,29 +587,36 @@ private fun Header(
             Text(count, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
             if (genrePlay != null) {
                 Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(13.dp)) {
-                    TvActionButton("Play", onClick = { genrePlay(false) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient)
-                    TvActionButton("Shuffle", onClick = { genrePlay(true) }, icon = FlexarrIcons.shuffle, ambient = ambient)
+                    TvActionButton(t(Words.play), onClick = { genrePlay(false) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient)
+                    TvActionButton(t(Words.shuffle), onClick = { genrePlay(true) }, icon = FlexarrIcons.shuffle, ambient = ambient)
                 }
             }
         }
         Spacer(Modifier.weight(1f))
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             content.sorts.forEach { option -> TvPill(option.label, selected = sort == option, onClick = { onSort(option) }) }
-            if (hasGenres) TvPill(genre ?: "All genres", selected = genre != null, onClick = onGenre)
+            if (hasGenres) TvPill(genre ?: t("All genres"), selected = genre != null, onClick = onGenre)
         }
     }
 }
 
-/** The A–Z rail down the right of the grid. Right from the last column reaches it; a letter with nothing under it can't be picked. */
+/**
+ * The A–Z rail down the right of the grid. Right from the last column reaches it, and left goes back to the grid beside
+ * the letter ([onLeft], given the letter's centre in the window); a letter with nothing under it can't be picked.
+ */
 @Composable
-private fun LetterRail(empty: Set<String>, jumping: String?, onJump: (String) -> Unit, modifier: Modifier) {
-    Column(modifier) {
+private fun LetterRail(empty: Set<String>, jumping: String?, onJump: (String) -> Unit, onLeft: (Float) -> Boolean, modifier: Modifier) {
+    var focusedCenter by remember { mutableFloatStateOf(0f) }
+    Column(modifier.onPreviewKeyEvent { it.type == KeyEventType.KeyDown && it.key == Key.DirectionLeft && onLeft(focusedCenter) }) {
         alphabetLetters.forEach { letter ->
             val enabled = letter !in empty
+            var center by remember { mutableFloatStateOf(0f) }
             Surface(
                 onClick = { onJump(letter) },
                 enabled = enabled,
-                modifier = Modifier.size(27.dp, 15.5.dp),
+                modifier = Modifier.size(27.dp, 15.5.dp)
+                    .onGloballyPositioned { center = it.boundsInRoot().center.y }
+                    .onFocusChanged { if (it.isFocused) focusedCenter = center },
                 shape = ClickableSurfaceDefaults.shape(CircleShape),
                 colors = ClickableSurfaceDefaults.colors(
                     containerColor = Color.Transparent,

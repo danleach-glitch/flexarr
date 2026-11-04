@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.music
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import android.graphics.Bitmap
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -29,7 +32,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lyrics as LyricsIcon
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
@@ -92,6 +94,7 @@ import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.podcasts.Tabular
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.ambientColor
 import io.github.flexarr.ui.theme.marquee
 import kotlin.math.roundToInt
@@ -107,11 +110,11 @@ fun MusicNowPlayingBar(model: AppModel) {
     val track = music.current ?: return
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp).shadow(12.dp, RoundedCornerShape(Tokens.radiusPanel)).clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)
-            .semantics { contentDescription = "Now playing: ${track.title}${track.artistName?.let { " by $it" }.orEmpty()}" },
+            .semantics { contentDescription = track.artistName?.let { t("Now playing: {title} by {artist}", "title" to track.title, "artist" to it) } ?: t("Now playing: {title}", "title" to track.title) },
     ) {
         Row(Modifier.padding(end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.minimumInteractiveComponentSize().size(width = 36.dp, height = 56.dp).pressable(music::stop), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Close, contentDescription = "Stop and close", tint = Flexarr.usher, modifier = Modifier.size(16.dp))
+                Icon(Icons.Filled.Close, contentDescription = t("Stop and close"), tint = Flexarr.usher, modifier = Modifier.size(16.dp))
             }
             Row(Modifier.weight(1f).pressable({ model.showsMusicPlayer = true }).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 SquareArtwork(track, Modifier.size(44.dp), imageWidth = 185)
@@ -123,15 +126,15 @@ fun MusicNowPlayingBar(model: AppModel) {
             // On a Chromecast: its controls.
             val cast = Casting.shared?.takeIf { it.casts(Casting.Kind.Music) }
             if (cast != null) {
-                RoundButton(if (cast.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (cast.isPlaying) "Pause" else "Play", onClick = cast::togglePlayPause)
-                RoundButton(Icons.Filled.SkipNext, "Next", enabled = cast.hasNextTrack, onClick = cast::nextTrack)
+                RoundButton(if (cast.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (cast.isPlaying) t("Pause") else t(Words.play), onClick = cast::togglePlayPause)
+                RoundButton(Icons.Filled.SkipNext, t("Next"), enabled = cast.hasNextTrack, onClick = cast::nextTrack)
             } else {
                 if (music.isLoading) {
                     Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen, modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
                 } else {
-                    RoundButton(if (music.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (music.isPlaying) "Pause" else "Play", onClick = music::togglePlayPause)
+                    RoundButton(if (music.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (music.isPlaying) t("Pause") else t(Words.play), onClick = music::togglePlayPause)
                 }
-                RoundButton(Icons.Filled.SkipNext, "Next", enabled = music.hasNext, onClick = music::next)
+                RoundButton(Icons.Filled.SkipNext, t("Next"), enabled = music.hasNext, onClick = music::next)
             }
         }
         // How far the track has got, along the bottom edge: read as it's drawn, so the bar doesn't recompose each tick.
@@ -227,7 +230,7 @@ fun MusicNowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
 private fun Grabber(onClose: () -> Unit) {
     Box(
         Modifier.fillMaxWidth().clearAndSetSemantics {
-            contentDescription = "Close"
+            contentDescription = t("Close")
             role = Role.Button
             onClick { onClose(); true }
         },
@@ -292,19 +295,19 @@ private fun ScrubberAndControls(music: MusicPlayer, error: Boolean = false) {
 @Composable
 private fun Controls(music: MusicPlayer) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Transport(Icons.Filled.Shuffle, "Shuffle", size = 44, active = music.isShuffled, onClick = music::toggleShuffle)
-        Transport(Icons.Filled.SkipPrevious, "Previous", size = 56, onClick = music::previous)
+        Transport(FlexarrIcons.shuffle, t(Words.shuffle), size = 44, active = music.isShuffled, onClick = music::toggleShuffle)
+        Transport(Icons.Filled.SkipPrevious, t("Previous"), size = 56, onClick = music::previous)
         Box(Modifier.size(76.dp).clip(CircleShape).background(Flexarr.screen).pressable(music::togglePlayPause), contentAlignment = Alignment.Center) {
             if (music.isLoading) CircularProgressIndicator(color = Flexarr.room, modifier = Modifier.size(28.dp))
-            else Icon(if (music.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (music.isPlaying) "Pause" else "Play", tint = Flexarr.room, modifier = Modifier.size(32.dp))
+            else Icon(if (music.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, contentDescription = if (music.isPlaying) t("Pause") else t(Words.play), tint = Flexarr.room, modifier = Modifier.size(32.dp))
         }
-        Transport(Icons.Filled.SkipNext, "Next", size = 56, enabled = music.hasNext, onClick = music::next)
+        Transport(Icons.Filled.SkipNext, t("Next"), size = 56, enabled = music.hasNext, onClick = music::next)
         Transport(
             if (music.repeatMode == MusicPlayer.RepeatMode.One) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
             when (music.repeatMode) {
-                MusicPlayer.RepeatMode.Off -> "Repeat"
-                MusicPlayer.RepeatMode.All -> "Repeat all"
-                MusicPlayer.RepeatMode.One -> "Repeat one"
+                MusicPlayer.RepeatMode.Off -> t("Repeat")
+                MusicPlayer.RepeatMode.All -> t("Repeat all")
+                MusicPlayer.RepeatMode.One -> t("Repeat one")
             },
             size = 44,
             active = music.repeatMode != MusicPlayer.RepeatMode.Off,
@@ -326,7 +329,7 @@ private fun Extras(hasLyrics: Boolean, showingLyrics: Boolean, onLyrics: () -> U
     if (!hasLyrics && Casting.shared?.available != true) return
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(36.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
         CastButton(Modifier.size(44.dp))
-        if (hasLyrics) Transport(Icons.Filled.LyricsIcon, if (showingLyrics) "Hide lyrics" else "Lyrics", size = 44, active = showingLyrics, onClick = onLyrics)
+        if (hasLyrics) Transport(Icons.Filled.LyricsIcon, if (showingLyrics) t("Hide lyrics") else t("Lyrics"), size = 44, active = showingLyrics, onClick = onLyrics)
     }
 }
 
@@ -336,7 +339,7 @@ private fun UpNext(music: MusicPlayer) {
     val next = music.upNext.take(20)
     if (next.isEmpty()) return
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Up next", style = marquee(22).copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 12.dp).padding(top = 8.dp))
+        Text(t(Words.upNext), style = marquee(22).copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 12.dp).padding(top = 8.dp))
         next.forEachIndexed { offset, track ->
             TrackRow(track, offset + 1, isCurrent = false, isPlaying = false, subtitle = track.artistName) { music.skipTo(music.index + 1 + offset) }
         }
@@ -357,7 +360,7 @@ private fun LyricsView(lyrics: Lyrics, position: Double, onSeek: (Double) -> Uni
         val viewport = list.layoutInfo.viewportSize.height
         list.animateScrollToItem(line, scrollOffset = -(viewport / 2.5f).roundToInt())
     }
-    LazyColumn(modifier.fillMaxWidth().semantics { contentDescription = "Lyrics" }, state = list, contentPadding = PaddingValues(vertical = 120.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(modifier.fillMaxWidth().semantics { contentDescription = t("Lyrics") }, state = list, contentPadding = PaddingValues(vertical = 120.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         itemsIndexed(lyrics.lines) { index, line ->
             val target = when {
                 !lyrics.synced -> 0.9f

@@ -23,15 +23,15 @@ struct BookMoreMenu: View {
 
     var body: some View {
         menu
-            .accessibilityLabel("More actions")
-            .alert("Delete \(item.title)?", isPresented: $asking, presenting: plan) { _ in
-                Button("Delete book", role: .destructive) { Task { await delete() } }
-                Button("Keep it", role: .cancel) {}
+            .accessibilityLabel(t("More actions"))
+            .alert(t("Delete {title}?", ["title": item.title]), isPresented: $asking, presenting: plan) { _ in
+                Button(t("Delete book"), role: .destructive) { Task { await delete() } }
+                Button(t("Keep it"), role: .cancel) {}
             } message: { plan in
                 Text(plan.bookMessage)
             }
-            .alert("Couldn't delete it", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
-                Button("OK", role: .cancel) {}
+            .alert(t("Couldn't delete it"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+                Button(t("OK"), role: .cancel) {}
             } message: {
                 Text(failure ?? "")
             }
@@ -40,15 +40,15 @@ struct BookMoreMenu: View {
     @ViewBuilder
     private var menu: some View {
         #if os(tvOS)
-        Button { choosing = true } label: { Label("More", systemImage: Symbol.more) }
+        Button { choosing = true } label: { Label(t("More"), systemImage: Symbol.more) }
             .confirmationDialog(item.title, isPresented: $choosing) {
-                Button("Delete…", role: .destructive) { Task { await ask() } }
+                Button(t("Delete…"), role: .destructive) { Task { await ask() } }
             }
         #else
         Menu {
-            Button(role: .destructive) { Task { await ask() } } label: { Label("Delete…", systemImage: "trash") }
+            Button(role: .destructive) { Task { await ask() } } label: { Label(t("Delete…"), systemImage: Symbol.delete) }
         } label: {
-            Label("More", systemImage: Symbol.more)
+            Label(t("More"), systemImage: Symbol.more)
         }
         #endif
     }
@@ -66,9 +66,10 @@ struct BookMoreMenu: View {
     private func delete() async {
         guard let client = model.client else { return }
         do {
-            // Playing, it stops first, so its place isn't sent back for a book that's gone.
-            model.music.discard(item.id)
             try await client.deleteItem(item.id)
+            // Playing, it stops without sending its place back for a book that's gone. Only once it is gone: a delete
+            // that fails leaves it playing, its place kept.
+            model.music.discard(item.id)
             model.invalidate()
             dismiss()
         } catch {

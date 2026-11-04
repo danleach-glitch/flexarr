@@ -5,6 +5,7 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Books;
 
@@ -141,7 +142,7 @@ public static class BookEndpoints
 
             if (!double.IsFinite(request.PositionSeconds) || request.PositionSeconds < 0 || request.Note?.Length > 2000)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["bookmark"] = ["A place in the book, and a note of up to 2,000 characters."] });
+                return Problems.Field("A place in the book, and a note of up to 2,000 characters.", field: "bookmark");
             }
 
             var bookmark = new Core.Books.Bookmark { ProfileId = profile.Id, MediaItemId = id, PositionSeconds = request.PositionSeconds, Note = Note(request.Note) };
@@ -155,7 +156,7 @@ public static class BookEndpoints
         {
             if (request.Note?.Length > 2000)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["note"] = ["Up to 2,000 characters."] });
+                return Problems.Field("Up to 2,000 characters.", field: "note");
             }
 
             if (await db.Bookmarks.FirstOrDefaultAsync(b => b.Id == id && b.ProfileId == profile.Id, ct) is not { } bookmark)
@@ -181,7 +182,7 @@ public static class BookEndpoints
             if (request.Speed is { } s && (!double.IsFinite(s) || s is < 0.5 or > 3.5)
                 || request.SkipBackSeconds is { } b && !steps.Contains(b) || request.SkipForwardSeconds is { } f && !steps.Contains(f))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["listening"] = ["Speeds go from 0.5× to 3.5×; skips are 10, 15, 30, 45 or 60 seconds."] });
+                return Problems.Field("Speeds go from 0.5× to 3.5×; skips are 10, 15, 30, 45 or 60 seconds.", field: "listening");
             }
 
             if (await db.Profiles.FirstOrDefaultAsync(p => p.Id == profile.Id, ct) is not { } me)
@@ -209,7 +210,7 @@ public static class BookEndpoints
             if (request.Region is { } region && !Flexarr.Metadata.Books.BookMetadataSettings.Regions.Contains(region)
                 || request.Providers is { } providers && (providers.Count == 0 || providers.Any(p => !Flexarr.Metadata.Books.BookMetadataSettings.AllProviders.Contains(p))))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["bookMetadata"] = ["Pick a known Audible store and at least one provider."] });
+                return Problems.Field("Pick a known Audible store and at least one provider.", field: "bookMetadata");
             }
 
             var current = options.CurrentValue.BookMetadata;
@@ -261,7 +262,7 @@ public static class BookEndpoints
 
         return await converter.ConvertAsync(part.FileId, part.Path, ct) is { } converted
             ? Results.File(converted, "audio/mp4", enableRangeProcessing: true)
-            : Results.Problem("This book file couldn't be converted.", statusCode: 500);
+            : Problems.Of("This book file couldn't be converted.", status: 500);
     }
 
     private static string ContentType(string path) => Path.GetExtension(path).ToLowerInvariant() switch

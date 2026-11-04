@@ -100,7 +100,7 @@
 }
 
 .chapter-edit-number {
-  text-align: right;
+  text-align: end;
   font-variant-numeric: tabular-nums;
 }
 
@@ -206,7 +206,7 @@
 .book-genre-fan {
   position: absolute;
   top: 9%;
-  right: 6%;
+  inset-inline-end: 6%;
   z-index: -1;
   height: var(--fan);
   aspect-ratio: 1;
@@ -355,7 +355,7 @@
 /* How far through the chapter playing: a thin line under its title. */
 .chapter-progress {
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   bottom: 0;
   height: 2px;
   border-radius: 1px;
@@ -409,7 +409,7 @@
   border: 0;
   background: none;
   color: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -501,7 +501,7 @@
 .series-book-number {
   color: var(--usher);
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  text-align: end;
 }
 
 .series-book-cover {
@@ -638,6 +638,12 @@
   font-size: var(--step-3);
 }
 
+/* A film's, show's or album's details edited by hand: said beside the title, where Back to automatic undoes it. */
+.book-editor h2 .details-edited {
+  margin-inline-start: 10px;
+  vertical-align: middle;
+}
+
 .book-editor-fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 120px;
@@ -724,11 +730,11 @@
   gap: 6px;
   padding: 6px;
   border: 2px solid transparent;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: none;
   color: var(--usher);
   font-size: var(--step--1);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -825,7 +831,7 @@
   color: var(--usher);
   font: inherit;
   font-size: var(--step--1);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 

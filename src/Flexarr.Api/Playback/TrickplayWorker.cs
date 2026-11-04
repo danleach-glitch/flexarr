@@ -57,7 +57,9 @@ public sealed partial class TrickplayWorker(TrickplayQueue queue, IServiceScopeF
                 await using var scope = scopes.CreateAsyncScope();
                 var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
                 var file = await db.MediaFiles.AsNoTracking().Include(f => f.Streams).FirstOrDefaultAsync(f => f.Id == fileId, stoppingToken);
-                if (file is not { Width: > 0, Height: > 0 })
+                // Failed on this file as it is before (a codec ffmpeg can't decode, a broken file): not every play.
+                var version = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{file?.ModifiedAt.Ticks}|{file?.Size}");
+                if (file is not { Width: > 0, Height: > 0 } || Trickplay.Failed(settings.CacheDirectory, file.Id, version))
                 {
                     continue;
                 }
@@ -68,6 +70,7 @@ public sealed partial class TrickplayWorker(TrickplayQueue queue, IServiceScopeF
                 if (manifest is null)
                 {
                     LogFailed(file.Path);
+                    Trickplay.NoteFailure(settings.CacheDirectory, file.Id, version);
                 }
                 else
                 {

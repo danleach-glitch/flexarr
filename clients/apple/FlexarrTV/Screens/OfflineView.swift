@@ -1,3 +1,4 @@
+import FlexarrKit
 import SwiftUI
 
 /// The server can't be reached (no network, or no answer within a few seconds). There's nothing to play without it on
@@ -20,16 +21,17 @@ struct OfflineView: View {
                 .foregroundStyle(Color.silver)
                 .accessibilityHidden(true)
             // As the tunnel's problem screen words it.
-            Text(owner.map { "Can’t reach \($0)’s Flexarr" } ?? "Can’t reach this Flexarr")
+            Text(owner.map { t("Can’t reach {owner}’s Flexarr", ["owner": $0]) } ?? t("Can’t reach this Flexarr"))
                 .font(.system(size: 52, weight: .bold))
                 .foregroundStyle(Color.screen)
                 .accessibilityAddTraits(.isHeader)
-            Text(owner.map { "Check this device’s internet, or that \($0)’s server is on." } ?? "Check this device’s internet, or that its server is on.")
+            Text(owner.map { t("Check this device’s internet, or that {owner}’s server is on.", ["owner": $0]) }
+                 ?? t("Check this device’s internet, or that its server is on."))
                 .font(.system(size: 30))
                 .foregroundStyle(Color.usher)
             HStack(spacing: 30) {
                 // Stays focusable while it tries: a press meanwhile simply waits for the same check.
-                Button("Try again") {
+                Button(t("Try again")) {
                     guard !checking else { return }
                     Task {
                         checking = true
@@ -38,7 +40,7 @@ struct OfflineView: View {
                     }
                 }
                 .buttonStyle(ActionButtonStyle(prominent: true))
-                Button(owner == nil ? "Sign out" : "Leave") {
+                Button(owner == nil ? t("Sign out") : t("Leave")) {
                     if owner == nil { confirmSignOut = true } else { confirmLeave = true }
                 }
                 .buttonStyle(ActionButtonStyle())
@@ -49,8 +51,8 @@ struct OfflineView: View {
         .padding(80)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier("offline")
-        .confirmationDialog("Sign out of this server?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button("Sign out", role: .destructive) { model.signOut() }
+        .confirmationDialog(t("Sign out of this server?"), isPresented: $confirmSignOut, titleVisibility: .visible) {
+            Button(t("Sign out"), role: .destructive) { model.signOut() }
         }
         .leaveGuestConfirmation(isPresented: $confirmLeave, owner: owner ?? "this") { model.signOut() }
     }

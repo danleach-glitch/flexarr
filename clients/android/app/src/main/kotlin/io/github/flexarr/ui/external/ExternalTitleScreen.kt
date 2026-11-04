@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.external
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -118,7 +120,7 @@ private fun Page(model: AppModel, detail: ExternalDetail) {
                         detail.tagline?.takeIf { it.isNotBlank() }?.let {
                             Text(it, fontSize = 14.sp, fontStyle = FontStyle.Italic, color = Flexarr.screen.copy(alpha = 0.85f))
                         }
-                        FactsLine(facts(detail), scores = if (model.isKids) null else detail.scores)
+                        FactsLine(facts(detail, scores = !model.isKids), scores = if (model.isKids) null else detail.scores)
                         if (detail.genres.isNotEmpty()) {
                             Text(detail.genres.take(3).joinToString(", "), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                         }
@@ -141,7 +143,7 @@ private fun Page(model: AppModel, detail: ExternalDetail) {
         if (detail.cast.isNotEmpty()) {
             item(key = "cast") {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SectionHeading("Cast")
+                    SectionHeading(t("Cast"))
                     // Not buttons: these people aren't in the library, so there's nowhere for them to go.
                     LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(detail.cast.take(20)) { PersonCard(it.name, it.character, it.image) }
@@ -152,15 +154,15 @@ private fun Page(model: AppModel, detail: ExternalDetail) {
         if (detail.madeBy.isNotEmpty() || detail.studio != null) {
             item(key = "made-by") {
                 Row(Modifier.padding(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-                    if (detail.madeBy.isNotEmpty()) Labeled(if (detail.isShow) "Created by" else "Directed by", detail.madeBy.joinToString(", "))
-                    detail.studio?.let { Labeled(if (detail.isShow) "Network" else "Studio", it) }
+                    if (detail.madeBy.isNotEmpty()) Labeled(if (detail.isShow) t("Created by") else t("Directed by"), detail.madeBy.joinToString(", "))
+                    detail.studio?.let { Labeled(if (detail.isShow) t("Network") else t("Studio"), it) }
                 }
             }
         }
         if (detail.recommendations.isNotEmpty()) {
             item(key = "like") {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SectionHeading("If you like this")
+                    SectionHeading(t("If you like this"))
                     LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
                         items(detail.recommendations, key = { it.key }) { title -> TitleCard(title) { navigator.openExternal(title) } }
                     }
@@ -207,11 +209,11 @@ private fun Actions(model: AppModel, detail: ExternalDetail) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (model.hasWatchlist) {
                     LabeledAction(
-                        if (saved) "On watchlist" else "Watchlist",
+                        if (saved) t("On watchlist") else t(Words.watchlist),
                         if (saved) FlexarrIcons.onWatchlist else FlexarrIcons.watchlist,
                         {
                             onWatchlist = !saved
-                            navigator.watchlistChange(if (saved) "Couldn’t remove this from your watchlist" else "Couldn’t add this to your watchlist") {
+                            navigator.watchlistChange(if (saved) t("Couldn’t remove this from your watchlist") else t("Couldn’t add this to your watchlist")) {
                                 try {
                                     val added = model.setTitleOnWatchlist(detail.mediaType, detail.tmdbId, !saved)
                                     if (added?.requested == true) model.titleWasAsked(requestKey)
@@ -224,20 +226,20 @@ private fun Actions(model: AppModel, detail: ExternalDetail) {
                         Modifier.weight(1f),
                     )
                 }
-                if (trailer != null) LabeledAction("Trailer", FlexarrIcons.trailer, { showingTrailer = true }, Modifier.weight(1f))
+                if (trailer != null) LabeledAction(t(Words.trailer), FlexarrIcons.trailer, { showingTrailer = true }, Modifier.weight(1f))
             }
         }
     }
-    if (showingTrailer && trailer != null) TrailerSheet(trailer, "${detail.title} trailer", onClose = { showingTrailer = false })
+    if (showingTrailer && trailer != null) TrailerSheet(trailer, t("{title} trailer", "title" to detail.title), onClose = { showingTrailer = false })
     if (confirming) TitleUndoDialog(detail.title, onConfirm = { navigator.unrequestTitle(model, detail.mediaType, detail.tmdbId) }, onDismiss = { confirming = false })
 }
 
-/** "R   2026   1h 59m   Movie", as the TV's page. */
-private fun facts(detail: ExternalDetail): List<String> {
-    val length = if (detail.isShow) detail.seasons?.let { if (it == 1) "1 season" else "$it seasons" } else detail.runtimeMinutes?.let { Format.runtime(minutes = it) }
+/** "R   2026   1h 59m   Movie", as the TV's page; TMDB's score with [scores] (never for a kids profile). */
+private fun facts(detail: ExternalDetail, scores: Boolean): List<String> {
+    val length = if (detail.isShow) detail.seasons?.let { t("{count, plural, one {# season} other {# seasons}}", "count" to it) } else detail.runtimeMinutes?.let { Format.runtime(minutes = it) }
     val status = detail.status?.takeIf { it != "Released" && it != "Ended" }
-    val tmdb = detail.tmdbRating?.takeIf { detail.scores.imdb == null }?.let { String.format(Locale.ROOT, "%.1f/10", it) }
-    return listOfNotNull(detail.certification, detail.year?.toString(), length, if (detail.isShow) "Show" else "Movie", status, tmdb)
+    val tmdb = detail.tmdbRating?.takeIf { scores && detail.scores.imdb == null }?.let { String.format(Locale.ROOT, "%.1f/10", it) }
+    return listOfNotNull(detail.certification, detail.year?.toString(), length, if (detail.isShow) t("Show") else t("Movie"), status, tmdb)
 }
 
 @Composable

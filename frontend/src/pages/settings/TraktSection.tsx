@@ -21,21 +21,23 @@ import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
 import { relativeTime } from '../../lib/format'
+import { webLink } from '../../lib/links'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
+import { t, tk, Words } from '../../i18n'
 
 /** Why a connect ended without connecting. */
 const ended: Record<Exclude<TraktPendingConnect['state'], 'Waiting' | 'Connected'>, string> = {
-  Expired: 'The code ran out. Try again.',
-  Denied: 'Trakt said no.',
-  InUse: 'That Trakt account is connected to another profile.',
-  Failed: 'That didn’t work. Try again.',
+  Expired: tk('The code ran out. Try again.'),
+  Denied: tk('Trakt said no.'),
+  InUse: tk('That Trakt account is connected to another profile.'),
+  Failed: tk('That didn’t work. Try again.'),
 }
 
 /** The server's own words for what went wrong (its problem's detail), or that it couldn't be reached. */
-const problemText = (e: unknown, fallback = 'That didn’t work. Try again.') => {
+const problemText = (e: unknown, fallback?: string) => {
   if (e instanceof ApiError && typeof e.problem?.detail === 'string' && e.problem.detail) return e.problem.detail
-  if (e instanceof TypeError) return 'Couldn’t reach the server.'
-  return fallback
+  if (e instanceof TypeError) return t('Couldn’t reach the server.')
+  return fallback ?? t('That didn’t work. Try again.')
 }
 
 /** This profile's Trakt account: connect by code, how the sync is going, the first import, lists, and the admin's overview. */
@@ -52,17 +54,17 @@ export function TraktSection() {
 
   return (
     <section>
-      <SettingsHeader title="Trakt">Keep what you watch, your place and your watchlist in step with Trakt.</SettingsHeader>
-      {s === undefined && status.loading && <p className="muted">Loading…</p>}
+      <SettingsHeader title={t('Trakt')}>{t('Keep what you watch, your place and your watchlist in step with Trakt.')}</SettingsHeader>
+      {s === undefined && status.loading && <p className="muted">{t('Loading…')}</p>}
       {s === undefined && !status.loading && status.error && (
         <p className="error settings-status" role="alert">
-          Couldn’t reach the server.{' '}
+          {t('Couldn’t reach the server.')}{' '}
           <button type="button" className="text-button" onClick={reload}>
-            Try again
+            {t('Try again')}
           </button>
         </p>
       )}
-      {(s === null || s?.available === false) && <p className="muted">Trakt isn’t available on this server.</p>}
+      {(s === null || s?.available === false) && <p className="muted">{t('Trakt isn’t available on this server.')}</p>}
       {s?.available && (s.state === 'connected' ? <Connected status={s} reload={reload} /> : <Connect status={s} reload={reload} />)}
       {s?.available && s.state === 'connected' && <History status={s} reload={reload} />}
       {s?.available && s.state === 'connected' && <Lists />}
@@ -93,7 +95,7 @@ function Connect({ status, reload }: { status: TraktStatus; reload: () => void }
   if (pending?.state === 'Waiting') {
     const where = pending.verificationUrl.replace(/^https?:\/\//, '')
     return (
-      <SettingsGroup title="Connect" note={error ? <SaveStatus error={error} /> : 'Flexarr waits, so you can leave this.'}>
+      <SettingsGroup title={t('Connect')} note={error ? <SaveStatus error={error} /> : t('Flexarr waits, so you can leave this.')}>
         <SettingRow
           as="div"
           label={
@@ -103,18 +105,20 @@ function Connect({ status, reload }: { status: TraktStatus; reload: () => void }
           }
           help={
             <>
-              Enter this code at{' '}
-              <a href={pending.verificationUrl} target="_blank" rel="noreferrer">
-                {where}
-              </a>
-              .
+              {t.rich('Enter this code at {link}.', {
+                link: (
+                  <a href={webLink(pending.verificationUrl)} target="_blank" rel="noreferrer">
+                    {where}
+                  </a>
+                ),
+              })}
             </>
           }
         >
           <span className="library-row-actions">
-            <CopyButton text={pending.userCode} label="Copy code" />
+            <CopyButton text={pending.userCode} label={t('Copy code')} />
             <AsyncButton className="button quiet small" onClick={() => act(cancelTraktConnect)}>
-              Cancel
+              {t(Words.cancel)}
             </AsyncButton>
           </span>
         </SettingRow>
@@ -122,12 +126,12 @@ function Connect({ status, reload }: { status: TraktStatus; reload: () => void }
     )
   }
 
-  const problem = status.state === 'needsSignIn' ? 'Trakt signed Flexarr out.' : pending && pending.state !== 'Connected' ? (pending.error ?? ended[pending.state]) : null
+  const problem = status.state === 'needsSignIn' ? t('Trakt signed Flexarr out.') : pending && pending.state !== 'Connected' ? (pending.error ?? t(ended[pending.state])) : null
   return (
-    <SettingsGroup title="Account" note={error ? <SaveStatus error={error} /> : undefined}>
-      <SettingRow as="div" label={status.state === 'needsSignIn' ? `Connect ${status.username ?? 'Trakt'} again` : 'Connect Trakt'} help={problem ?? 'Each profile connects its own account.'}>
+    <SettingsGroup title={t('Account')} note={error ? <SaveStatus error={error} /> : undefined}>
+      <SettingRow as="div" label={status.state === 'needsSignIn' ? t('Connect {name} again', { name: status.username ?? 'Trakt' }) : t('Connect Trakt')} help={problem ?? t('Each profile connects its own account.')}>
         <AsyncButton className="button" onClick={() => act(connectTrakt)}>
-          Connect
+          {t('Connect')}
         </AsyncButton>
       </SettingRow>
     </SettingsGroup>
@@ -136,24 +140,24 @@ function Connect({ status, reload }: { status: TraktStatus; reload: () => void }
 
 function Connected({ status, reload }: { status: TraktStatus; reload: () => void }) {
   const { error, act } = useAction(reload)
-  const synced = status.lastSyncAt ? `Synced ${relativeTime(status.lastSyncAt)}` : 'Not synced yet'
-  const queued = status.queued > 0 ? `\u2003${status.queued} waiting to send` : ''
+  const synced = status.lastSyncAt ? t('Synced {time}', { time: relativeTime(status.lastSyncAt) }) : t('Not synced yet')
+  const queued = status.queued > 0 ? `\u2003${t('{count, number} waiting to send', { count: status.queued })}` : ''
   return (
-    <SettingsGroup title="Account" note={error ? <SaveStatus error={error} /> : undefined}>
-      <SettingRow as="div" label={status.username ?? 'Connected'} help={status.lastError ?? synced + queued}>
+    <SettingsGroup title={t('Account')} note={error ? <SaveStatus error={error} /> : undefined}>
+      <SettingRow as="div" label={status.username ?? t('Connected')} help={status.lastError ?? synced + queued}>
         <span className="library-row-actions">
           <AsyncButton className="button quiet" onClick={() => act(syncTraktNow)}>
-            Sync now
+            {t('Sync now')}
           </AsyncButton>
           <AsyncButton
             className="button danger"
-            onClick={() => (confirm('Disconnect Trakt? What you’ve watched stays as it is, here and on Trakt.') ? act(disconnectTrakt) : undefined)}
+            onClick={() => (confirm(t('Disconnect Trakt? What you’ve watched stays as it is, here and on Trakt.')) ? act(disconnectTrakt) : undefined)}
           >
-            Disconnect
+            {t('Disconnect')}
           </AsyncButton>
         </span>
       </SettingRow>
-      {status.watchlistFull && <SettingRow as="div" label="Trakt’s watchlist is full" help="New titles stay on Flexarr’s list." />}
+      {status.watchlistFull && <SettingRow as="div" label={t('Trakt’s watchlist is full')} help={t('New titles stay on Flexarr’s list.')} />}
     </SettingsGroup>
   )
 }
@@ -163,47 +167,51 @@ function History({ status, reload }: { status: TraktStatus; reload: () => void }
   const { error, act } = useAction(reload)
   const [preview, setPreview] = useState<TraktImportPreview | null>(null)
   const failed = error ?? (!status.importing && !status.importedAt ? status.importError : null)
-  const note = failed ? <SaveStatus error={failed} /> : preview && !status.importedAt && !status.importing ? 'Nothing is marked unwatched, on either side.' : undefined
+  const note = failed ? <SaveStatus error={failed} /> : preview && !status.importedAt && !status.importing ? t('Nothing is marked unwatched, on either side.') : undefined
 
   let row
-  if (status.importing) row = <SettingRow as="div" label="Bringing your history across…" />
-  else if (status.importedAt) row = <SettingRow as="div" label="History brought across" help={relativeTime(status.importedAt)} />
+  if (status.importing) row = <SettingRow as="div" label={t('Bringing your history across…')} />
+  else if (status.importedAt) row = <SettingRow as="div" label={t('History brought across')} help={relativeTime(status.importedAt)} />
   else if (preview)
     row = (
       <SettingRow as="div" label={summary(preview)} help={details(preview)}>
         <AsyncButton className="button" onClick={() => act(confirmTraktImport)}>
-          Bring across
+          {t('Bring across')}
         </AsyncButton>
       </SettingRow>
     )
   else
     row = (
-      <SettingRow as="div" label="Bring your Trakt history across" help="See what changes first.">
+      <SettingRow as="div" label={t('Bring your Trakt history across')} help={t('See what changes first.')}>
         <AsyncButton className="button" onClick={() => act(async () => setPreview(await previewTraktImport()))}>
-          See what changes
+          {t('See what changes')}
         </AsyncButton>
       </SettingRow>
     )
 
   return (
-    <SettingsGroup title="Your history" note={note}>
+    <SettingsGroup title={t('Your history')} note={note}>
       {row}
     </SettingsGroup>
   )
 }
 
-const n = (count: number, one: string, many = `${one}s`) => `${count.toLocaleString()} ${count === 1 ? one : many}`
-
 function summary(p: TraktImportPreview) {
-  return `Trakt has ${n(p.traktFilms, 'movie')} and ${n(p.traktEpisodes, 'episode')}`
+  return t('Trakt has {films, plural, one {# movie} other {# movies}} and {episodes, plural, one {# episode} other {# episodes}}', { films: p.traktFilms, episodes: p.traktEpisodes })
 }
+
+const titles = (count: number) => t('{count, plural, one {# title} other {# titles}}', { count })
 
 function details(p: TraktImportPreview) {
   const parts = [
-    p.inLibrary === 0 ? 'None are here yet' : `${p.inLibrary.toLocaleString()} are here${p.newToFlexarr > 0 ? `, ${p.newToFlexarr.toLocaleString()} not yet watched in Flexarr` : ''}`,
+    p.inLibrary === 0
+      ? t('None are here yet')
+      : p.newToFlexarr > 0
+        ? t('{count, number} are here, {fresh, number} not yet watched in Flexarr', { count: p.inLibrary, fresh: p.newToFlexarr })
+        : t('{count, number} are here', { count: p.inLibrary }),
   ]
-  if (p.notOnServer > 0) parts.push(`${p.notOnServer.toLocaleString()} will show as watched if they arrive`)
-  if (p.toTrakt > 0) parts.push(`${n(p.toTrakt, 'play')} from Flexarr ${p.toTrakt === 1 ? 'goes' : 'go'} to Trakt`)
+  if (p.notOnServer > 0) parts.push(t('{count, number} will show as watched if they arrive', { count: p.notOnServer }))
+  if (p.toTrakt > 0) parts.push(t('{count, plural, one {# play from Flexarr goes to Trakt} other {# plays from Flexarr go to Trakt}}', { count: p.toTrakt }))
   return parts.join('. ') + '.'
 }
 
@@ -215,8 +223,8 @@ function Lists() {
   const [error, setError] = useState<string | null>(null)
   if (lists.error)
     return (
-      <SettingsGroup title="Lists">
-        <SettingRow as="div" label="Couldn’t load your Trakt lists" help={problemText(lists.error, 'Try again in a moment.')} />
+      <SettingsGroup title={t('Lists')}>
+        <SettingRow as="div" label={t('Couldn’t load your Trakt lists')} help={problemText(lists.error, t('Try again in a moment.'))} />
       </SettingsGroup>
     )
   if (!lists.data || lists.data.length === 0) return null
@@ -238,12 +246,12 @@ function Lists() {
   }
 
   return (
-    <SettingsGroup title="Lists" note={error ? <SaveStatus error={error} /> : 'Chosen lists show in Collections, just for you.'}>
+    <SettingsGroup title={t('Lists')} note={error ? <SaveStatus error={error} /> : t('Chosen lists show in Collections, just for you.')}>
       {lists.data.map((l) => (
         <ToggleRow
           key={l.id}
           label={l.name}
-          help={l.owner ? `${l.owner}\u2003${n(l.itemCount, 'title')}` : n(l.itemCount, 'title')}
+          help={l.owner ? `${l.owner}\u2003${titles(l.itemCount)}` : titles(l.itemCount)}
           checked={selected.includes(l.id)}
           disabled={saving}
           onChange={(on) => void toggle(l.id, on)}
@@ -259,13 +267,13 @@ function Profiles({ me }: { me: string }) {
   const others = profiles.data?.filter((p) => p.state !== 'disconnected' && p.profileId !== me) ?? []
   if (others.length === 0) return null
   return (
-    <SettingsGroup title="Other profiles">
+    <SettingsGroup title={t('Other profiles')}>
       {others.map((p) => (
         <SettingRow
           key={p.profileId}
           as="div"
           label={p.profileName}
-          help={p.state === 'needsSignIn' ? 'Signed out' : (p.lastError ?? (p.lastSyncAt ? `${p.username}\u2003synced ${relativeTime(p.lastSyncAt)}` : `${p.username}\u2003not synced yet`))}
+          help={p.state === 'needsSignIn' ? t('Signed out') : (p.lastError ?? (p.lastSyncAt ? `${p.username}\u2003${t('synced {time}', { time: relativeTime(p.lastSyncAt) })}` : `${p.username}\u2003${t('not synced yet')}`))}
         />
       ))}
     </SettingsGroup>

@@ -8,7 +8,6 @@ import {
   getBookShelves,
   getLibraryBooks,
   getPerson,
-  imageUrl,
  
   type BookFilters,
   type BookShelves,
@@ -19,13 +18,15 @@ import {
 import { AsyncButton } from '../components/AsyncButton'
 import { BookPersonCard, BookSeriesCard } from '../components/BookCards'
 import { PosterCard } from '../components/Cards'
+import { GenreCovers } from '../components/GenreCovers'
 import { Hero } from '../components/Hero'
 import { ChevronLeft } from '../components/icons'
 import { Row } from '../components/Row'
 import { ScanProgress } from '../components/ScanProgress'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
-import { AlphaPicker, AlphaRail, useLibraryGrid } from './libraryGrid'
+import { AlphaPicker, AlphaRail, ShowMore, useLibraryGrid } from './libraryGrid'
+import { locale, t, tk, Words } from '../i18n'
 
 const PAGE_SIZE = 60
 
@@ -33,11 +34,11 @@ type View = 'browse' | 'all' | 'series' | 'authors' | 'genres' | 'narrators' | '
 
 /** The same views, in the same order, as the iPhone and Android apps. */
 const views: { view: View; label: string }[] = [
-  { view: 'browse', label: 'Browse' },
-  { view: 'all', label: 'All books' },
-  { view: 'genres', label: 'Genres' },
-  { view: 'series', label: 'Series' },
-  { view: 'authors', label: 'Authors' },
+  { view: 'browse', label: Words.browse },
+  { view: 'all', label: tk('All books') },
+  { view: 'genres', label: Words.genres },
+  { view: 'series', label: Words.series },
+  { view: 'authors', label: tk('Authors') },
 ]
 
 /** Views without a pill, still opened by their address: one genre's books has a page of its own. */
@@ -57,10 +58,10 @@ export function BooksLibrary({ library }: { library: Library }) {
   const heading = (
     <>
       <h1 className="library-title">{library.name}</h1>
-      <nav className="view-switch" aria-label={`${library.name} views`}>
+      <nav className="view-switch" aria-label={t('{name} views', { name: library.name })}>
         {views.map((v) => (
           <Link key={v.view} to={v.view === 'browse' ? `/library/${library.id}` : `/library/${library.id}?view=${v.view}`} aria-current={view === v.view ? 'page' : undefined}>
-            {v.label}
+            {t(v.label)}
           </Link>
         ))}
       </nav>
@@ -113,7 +114,7 @@ function Shelves({ library, heading }: { library: Library; heading: ReactNode })
 function ShelfRows({ library, data }: { library: Library; data: BookShelves }) {
   const all = `/library/${library.id}?view=all`
   const empty = [data.continueListening, data.nextInSeries, data.recentlyAdded, data.finished].every((s) => s.length === 0) && data.series.length === 0
-  if (empty) return <p className="page-message muted">{library.scan ? 'Books appear here as the scan finds them.' : 'No books yet.'}</p>
+  if (empty) return <p className="page-message muted">{library.scan ? t('Books appear here as the scan finds them.') : t('No books yet.')}</p>
   const books = (title: string, items: ItemSummary[], link?: string) =>
     items.length > 0 && (
       <Row title={title} link={link}>
@@ -123,24 +124,24 @@ function ShelfRows({ library, data }: { library: Library; data: BookShelves }) {
       </Row>
     )
   const shelves: Record<string, ReactNode> = {
-    continue: books('Continue listening', data.continueListening, `${all}&progress=inprogress&sort=listened`),
-    next: books('Next in series', data.nextInSeries),
-    recent: books('Recently added', data.recentlyAdded, `${all}&sort=added`),
+    continue: books(t('Continue listening'), data.continueListening, `${all}&progress=inprogress&sort=listened`),
+    next: books(t('Next in series'), data.nextInSeries),
+    recent: books(t(Words.recentlyAdded), data.recentlyAdded, `${all}&sort=added`),
     series: data.series.length > 0 && (
-      <Row title="Series" link={`/library/${library.id}?view=series`}>
+      <Row title={t(Words.series)} link={`/library/${library.id}?view=series`}>
         {data.series.map((s) => (
           <BookSeriesCard key={s.id} series={s} />
         ))}
       </Row>
     ),
     authors: data.authors.length > 0 && (
-      <Row title="Authors" link={`/library/${library.id}?view=authors`} style="people">
+      <Row title={t('Authors')} link={`/library/${library.id}?view=authors`} style="people">
         {data.authors.map((p) => (
           <BookPersonCard key={p.id} person={p} />
         ))}
       </Row>
     ),
-    finished: books('Finished', data.finished, `${all}&progress=finished`),
+    finished: books(t('Finished'), data.finished, `${all}&progress=finished`),
   }
   // In the profile's order, without the ones it switched off (Settings › Home & browse).
   const order = (data.order ?? Object.keys(shelves)).filter((id) => id in shelves)
@@ -163,27 +164,17 @@ function Genres({ library }: { library: Library }) {
   const { data, error, reload } = useApi((signal) => getBookGenres(library.id, signal), [library.id, library.itemCount])
   if (error) return <PageError error={error} onRetry={reload} />
   if (!data) return <div className="genre-grid" aria-busy="true" />
-  if (data.length === 0) return <p className="page-message muted">No genres here yet. They come with each book’s details once a scan has found them.</p>
-  const genres = [...data].sort((a, b) => a.name.localeCompare(b.name))
+  if (data.length === 0) return <p className="page-message muted">{t('No genres here yet. They come with each book’s details once a scan has found them.')}</p>
+  const genres = [...data].sort((a, b) => a.name.localeCompare(b.name, locale()))
   return (
-    <nav className="genre-grid" aria-label="Genres">
-      {genres.map((g) => {
-        const covers = (g.covers ?? []).slice(0, 3)
-        return (
-          <Link key={g.name} to={`/library/${library.id}?view=genre&genre=${encodeURIComponent(g.name)}`} className="genre-tile book-genre-tile">
-            {covers[0] && <img className="book-genre-wash" src={imageUrl(covers[0], 185)} alt="" loading="lazy" />}
-            {covers.length > 0 && (
-              <span className={`book-genre-fan book-genre-fan-${covers.length}`} aria-hidden="true">
-                {covers.map((cover, i) => (
-                  <img key={i} src={imageUrl(cover, 342)} alt="" loading="lazy" />
-                ))}
-              </span>
-            )}
-            <span className="genre-name">{g.name}</span>
-            <span className="genre-count">{g.count === 1 ? '1 book' : `${g.count.toLocaleString()} books`}</span>
-          </Link>
-        )
-      })}
+    <nav className="genre-grid" aria-label={t(Words.genres)}>
+      {genres.map((g) => (
+        <Link key={g.name} to={`/library/${library.id}?view=genre&genre=${encodeURIComponent(g.name)}`} className="genre-tile book-genre-tile">
+          <GenreCovers covers={g.covers} />
+          <span className="genre-name">{g.name}</span>
+          <span className="genre-count">{t('{count, plural, one {# book} other {# books}}', { count: g.count })}</span>
+        </Link>
+      ))}
     </nav>
   )
 }
@@ -195,7 +186,7 @@ function GenrePage({ library, genre }: { library: Library; genre: string }) {
       <header className="library-header">
         <div className="library-heading">
           <Link className="genre-back" to={`/library/${library.id}?view=genres`}>
-            <ChevronLeft /> Genres
+            <ChevronLeft /> {t(Words.genres)}
           </Link>
           <h1 className="library-title">{genre}</h1>
         </div>
@@ -206,13 +197,13 @@ function GenrePage({ library, genre }: { library: Library; genre: string }) {
 }
 
 const sorts: { value: NonNullable<BookFilters['sort']>; label: string }[] = [
-  { value: 'title', label: 'A–Z' },
-  { value: 'author', label: 'Author' },
-  { value: 'series', label: 'Series' },
-  { value: 'added', label: 'Recently added' },
-  { value: 'released', label: 'Year' },
-  { value: 'length', label: 'Length' },
-  { value: 'listened', label: 'Recently listened' },
+  { value: 'title', label: Words.sortAToZ },
+  { value: 'author', label: Words.author },
+  { value: 'series', label: Words.series },
+  { value: 'added', label: Words.recentlyAdded },
+  { value: 'released', label: Words.year },
+  { value: 'length', label: Words.length },
+  { value: 'listened', label: Words.recentlyListened },
 ]
 
 /**
@@ -239,7 +230,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
     const timer = setTimeout(() => setQuery(search.trim()), 250)
     return () => clearTimeout(timer)
   }, [search])
-  const { items, total, error, busy, jumping, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
+  const { items, total, error, moreError, busy, jumping, jumpFailed, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
     snapshotKey: `books-${view} ${library.id} ${key}`,
     query,
     pageSize: PAGE_SIZE,
@@ -260,11 +251,11 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
   return (
     <>
       <div className="library-tools book-filters">
-        <input type="search" placeholder={`Search ${library.name}`} aria-label={`Search ${library.name}`} value={search} onChange={(e) => setSearch(e.target.value)} />
-        <Choice label="Sort by" value={params.get('sort') ?? 'title'} onChange={(v) => set('sort', v === 'title' ? '' : v)}>
+        <input type="search" placeholder={t('Search {name}', { name: library.name })} aria-label={t('Search {name}', { name: library.name })} value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Choice label={t('Sort by')} value={params.get('sort') ?? 'title'} onChange={(v) => set('sort', v === 'title' ? '' : v)}>
           {sorts.map((s) => (
             <option key={s.value} value={s.value}>
-              {s.label}
+              {t(s.label)}
             </option>
           ))}
         </Choice>
@@ -272,39 +263,37 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
       {((filters.genre && view === 'all') || filters.author || progress) && (
         <p className="chips">
           {progress && progressLabels[progress] && (
-            <button className="chip" aria-pressed="true" onClick={() => set('progress', '')} aria-label={`${progressLabels[progress]}: clear`}>
-              {progressLabels[progress]} ×
+            <button className="chip" aria-pressed="true" onClick={() => set('progress', '')} aria-label={t('{filter}: clear', { filter: t(progressLabels[progress]) })}>
+              {t(progressLabels[progress])} ×
             </button>
           )}
           {filters.genre && view === 'all' && (
-            <button className="chip" aria-pressed="true" onClick={() => set('genre', '')} aria-label={`Genre ${filters.genre}: clear`}>
+            <button className="chip" aria-pressed="true" onClick={() => set('genre', '')} aria-label={t('Genre {genre}: clear', { genre: filters.genre })}>
               {filters.genre} ×
             </button>
           )}
           {filters.author && (
-            <button className="chip" aria-pressed="true" onClick={() => set('author', '')} aria-label={authorName ? `Author ${authorName}: clear` : 'Author: clear'}>
-              {authorName ?? 'Author'} ×
+            <button className="chip" aria-pressed="true" onClick={() => set('author', '')} aria-label={authorName ? t('Author {name}: clear', { name: authorName }) : t('Author: clear')}>
+              {authorName ?? t(Words.author)} ×
             </button>
           )}
         </p>
       )}
       {grown && !small && (
         <p className="library-new" role="status">
-          {library.itemCount > (loadedCount ?? 0) ? 'New books have arrived.' : 'Some books have gone.'}{' '}
+          {library.itemCount > (loadedCount ?? 0) ? t('New books have arrived.') : t('Some books have gone.')}{' '}
           <button className="button quiet small" onClick={restart}>
-            Refresh
+            {t('Refresh')}
           </button>
         </p>
       )}
       {error && <PageError error={error} onRetry={restart} />}
       {total !== undefined && (
-        <p className="muted book-count">
-          {total.toLocaleString()} {filtered ? 'matching' : total === 1 ? 'book' : 'books'}
-        </p>
+        <p className="muted book-count">{filtered ? t('{count} matching', { count: total }) : t('{count, plural, one {# book} other {# books}}', { count: total })}</p>
       )}
-      {total === 0 && <p className="page-message muted">{query ? `Nothing in ${library.name} matches “${query}”.` : filtered ? 'No books match.' : 'No books yet.'}</p>}
+      {total === 0 && <p className="page-message muted">{query ? t('Nothing in {name} matches “{query}”.', { name: library.name, query }) : filtered ? t('No books match.') : t('No books yet.')}</p>}
       <div className="library-body">
-        {letters && <AlphaPicker jump={(l) => void jump(l)} jumping={jumping} empty={empty} />}
+        {letters && <AlphaPicker jump={(l) => void jump(l)} jumping={jumping} failed={jumpFailed} empty={empty} />}
         <div className="poster-grid square" aria-busy={total === undefined} ref={grid} onClick={onGridClick}>
           {items.map((item) => (
             <div key={item.id} data-id={item.id}>
@@ -312,20 +301,14 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
             </div>
           ))}
         </div>
-        {letters && <AlphaRail jump={(l) => void jump(l)} jumping={jumping} empty={empty} />}
+        {letters && <AlphaRail jump={(l) => void jump(l)} jumping={jumping} failed={jumpFailed} empty={empty} />}
       </div>
-      {total !== undefined && items.length < total && (
-        <div className="load-more">
-          <AsyncButton className="button quiet" onClick={() => loadMore()} disabled={busy}>
-            Show {Math.min(PAGE_SIZE, total - items.length)} more
-          </AsyncButton>
-        </div>
-      )}
+      <ShowMore loaded={items.length} total={total} pageSize={PAGE_SIZE} busy={busy} error={moreError} onMore={() => void loadMore()} />
     </>
   )
 }
 
-const progressLabels: Record<string, string> = { notstarted: 'Not started', inprogress: 'In progress', finished: 'Finished' }
+const progressLabels: Record<string, string> = { notstarted: tk('Not started'), inprogress: tk('In progress'), finished: tk('Finished') }
 
 function Choice({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: ReactNode }) {
   return (
@@ -351,7 +334,7 @@ function usePaged<T>(load: (skip: number, signal?: AbortSignal) => Promise<Paged
 function SeriesList({ library }: { library: Library }) {
   const paged = usePaged((skip, signal) => getBookSeriesList(library.id, { skip, take: PAGE_SIZE }, signal), [library.id])
   return (
-    <PagedGrid paged={paged} empty="No series here yet." className="poster-grid square book-series-grid">
+    <PagedGrid paged={paged} empty={t('No series here yet.')} className="poster-grid square book-series-grid">
       {paged.items?.map((s) => (
         <BookSeriesCard key={s.id} series={s} />
       ))}
@@ -362,7 +345,7 @@ function SeriesList({ library }: { library: Library }) {
 function People({ library, role }: { library: Library; role: 'author' | 'narrator' }) {
   const paged = usePaged((skip, signal) => getBookPeople(library.id, { role, skip, take: PAGE_SIZE }, signal), [library.id, role])
   return (
-    <PagedGrid paged={paged} empty={`No ${role}s here yet.`} className="poster-grid people-grid">
+    <PagedGrid paged={paged} empty={role === 'author' ? t('No authors here yet.') : t('No narrators here yet.')} className="poster-grid people-grid">
       {paged.items?.map((p) => (
         <BookPersonCard key={p.id} person={p} />
       ))}
@@ -381,7 +364,7 @@ function PagedGrid<T>({ paged, empty, className, children }: { paged: ReturnType
       {paged.items && paged.total !== undefined && paged.items.length < paged.total && (
         <div className="load-more">
           <AsyncButton className="button quiet" onClick={paged.more}>
-            Show more
+            {t('Show more')}
           </AsyncButton>
         </div>
       )}

@@ -1,5 +1,10 @@
 package io.github.flexarr.ui.books
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
+import io.github.flexarr.ui.GetsReadyAfterAMoment
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,12 +30,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.outlined.Book
-import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Downloading
 import androidx.compose.material.icons.outlined.SyncProblem
@@ -129,17 +130,17 @@ fun bookActions(item: ItemSummary, showsDetails: Boolean, downloads: Boolean): L
     val model = LocalContext.current.appModel
     val finished = item.isBookFinished
     return buildList {
-        add(MenuAction(if (item.userData.positionSeconds > 0 && !finished) "Resume" else "Play") { navigator.playBook(item) })
-        if (showsDetails) add(MenuAction("Go to book") { navigator.openBook(item.id) })
+        add(MenuAction(if (item.userData.positionSeconds > 0 && !finished) t("Resume") else t(Words.play)) { navigator.playBook(item) })
+        if (showsDetails) add(MenuAction(t("Go to book")) { navigator.openBook(item.id) })
         if (downloads) {
             val download = model.bookDownloads.entry(item.id)
-            if (download == null) add(MenuAction("Download") { navigator.downloadBook(item) })
-            else add(MenuAction(if (download.isDownloaded) "Remove download" else "Stop download") { model.bookDownloads.remove(item.id) })
+            if (download == null) add(MenuAction(t(Words.download)) { navigator.downloadBook(item) })
+            else add(MenuAction(if (download.isDownloaded) t("Remove download") else t("Stop download")) { model.bookDownloads.remove(item.id) })
         }
-        if (!finished) add(MenuAction("Mark as finished") { navigator.setBookFinished(item, true) })
+        if (!finished) add(MenuAction(t(Words.markAsFinished)) { navigator.setBookFinished(item, true) })
         // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
         if ((finished || item.userData.positionSeconds > 0) && model.books.current?.id != item.id) {
-            add(MenuAction("Mark as unread") { navigator.setBookFinished(item, false) })
+            add(MenuAction(t(Words.markAsUnread)) { navigator.setBookFinished(item, false) })
         }
     }
 }
@@ -164,6 +165,8 @@ fun BookScreen(model: AppModel, id: String) {
     // The profile's default speed, for the time left at it.
     val listening = rememberLoader(model.credentials) { runCatching { client.bookListening() }.getOrNull() }
     val detail = (loader.state as? Load.Loaded)?.value
+    // Looked at for a moment: the book's session is got ready, so Play starts at once (docs/fast-start.md).
+    GetsReadyAfterAMoment(detail?.item)
     RoomBackground(ambient = detail?.item?.accentColor?.let(::glowColor), intensity = 0.3f) {
         Column {
             PageTitle("", onBack = { navigator.back() })
@@ -216,16 +219,16 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                     Text(
                         listOfNotNull(bookNumberLine(series.sequence, series.bookCount), series.name).joinToString("  "),
                         fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, textAlign = TextAlign.Center,
-                        modifier = Modifier.pressable({ navigator.openBookSeries(series.id) }, onClickLabel = "Open ${series.name}"),
+                        modifier = Modifier.pressable({ navigator.openBookSeries(series.id) }, onClickLabel = t("Open {name}", "name" to series.name)),
                     )
                 }
                 People(authors.map { it.personId to it.name }, prefix = null)
-                People(narrators.map { it.personId to it.name }, prefix = "Read by")
+                People(narrators.map { it.personId to it.name }, prefix = t("Read by"))
                 FactsLine(
                     listOfNotNull(
-                        bookTimeLine(duration, position, speed, finished)?.let { line -> if (speed != 1.0 && position > 0 && !finished) "$line at ${io.github.flexarr.core.BookSpeed.label(speed)}" else line },
+                        bookTimeLine(duration, position, speed, finished)?.let { line -> if (speed != 1.0 && position > 0 && !finished) t("{time} at {speed}", "time" to line, "speed" to io.github.flexarr.core.BookSpeed.label(speed)) else line },
                         item.releaseYear?.toString(),
-                        if (finished) "Finished" else null,
+                        if (finished) t("Finished") else null,
                     ),
                 )
             }
@@ -235,9 +238,9 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                 if (position > 0 && !finished && duration > 0) ProgressBar(position / duration)
                 // Play, Resume or Pause; a finished book plays from the start (Start over beside it says so too).
                 val label = when {
-                    playingThis && player.isPlaying -> "Pause"
-                    position > 0 && !finished -> "Resume"
-                    else -> "Play"
+                    playingThis && player.isPlaying -> t("Pause")
+                    position > 0 && !finished -> t("Resume")
+                    else -> t(Words.play)
                 }
                 ActionButton(
                     label,
@@ -249,7 +252,7 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    icon = if (playingThis && player.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    icon = if (playingThis && player.isPlaying) FlexarrIcons.pause else FlexarrIcons.play,
                     prominent = true,
                     ambient = glowColor(item.accentColor),
                 )
@@ -264,11 +267,11 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                     actions.forEach { button ->
                         when (button) {
                             // A place in the book is asked about before it's lost.
-                            BookActions.Button.START_OVER -> LabeledAction("Start over", Icons.Filled.Replay, { if (position > 0 && !finished) confirmStartOver = true else startOver() })
+                            BookActions.Button.START_OVER -> LabeledAction(t(Words.startOver), FlexarrIcons.startOver, { if (position > 0 && !finished) confirmStartOver = true else startOver() })
                             // Unread (no place, not finished, as if never started) in Finished's place once it's finished.
                             BookActions.Button.FINISHED ->
-                                if (finished) LabeledAction("Unread", Icons.Outlined.Book, { navigator.setBookFinished(item, false) })
-                                else LabeledAction("Finished", Icons.Outlined.CheckCircle, { navigator.setBookFinished(item, true) })
+                                if (finished) LabeledAction(t("Unread"), Icons.Outlined.Book, { navigator.setBookFinished(item, false) })
+                                else LabeledAction(t("Finished"), FlexarrIcons.watched, { navigator.setBookFinished(item, true) })
                             BookActions.Button.DOWNLOAD -> BookDownloadAction(model, item)
                             BookActions.Button.MORE -> BookMoreAction(model, item)
                             BookActions.Button.PLAY -> Unit
@@ -279,13 +282,13 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
             if (confirmStartOver) {
                 AlertDialog(
                     onDismissRequest = { confirmStartOver = false },
-                    title = { Text("Start over?") },
-                    text = { Text("You’re at ${Format.timestamp(position)}.") },
+                    title = { Text(t("Start over?")) },
+                    text = { Text(t("You’re at {time}.", "time" to Format.timestamp(position))) },
                     confirmButton = {
                         TextButton(onClick = {
                             confirmStartOver = false
                             startOver()
-                        }) { Text("Start over", color = Flexarr.screen) }
+                        }) { Text(t(Words.startOver), color = Flexarr.screen) }
                     },
                     dismissButton = {
                         Row {
@@ -294,9 +297,9 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                                 TextButton(onClick = {
                                     confirmStartOver = false
                                     navigator.setBookFinished(item, false)
-                                }) { Text("Mark as unread", color = Flexarr.screen) }
+                                }) { Text(t(Words.markAsUnread), color = Flexarr.screen) }
                             }
-                            TextButton(onClick = { confirmStartOver = false }) { Text("Cancel", color = Flexarr.screen) }
+                            TextButton(onClick = { confirmStartOver = false }) { Text(t(Words.cancel), color = Flexarr.screen) }
                         }
                     },
                     containerColor = Flexarr.seat,
@@ -304,7 +307,7 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
             }
         }
         if (chapters.isNotEmpty()) {
-            item("chapters-heading") { SectionHeading("Chapters") }
+            item("chapters-heading") { SectionHeading(t("Chapters")) }
             item("chapters") {
                 val current = chapters.chapterAt(position).takeIf { position > 0 && !finished }
                 val shown = if (allChapters || chapters.size <= 8) chapters else chapters.take(maxOf(8, (current ?: 0) + 3))
@@ -314,7 +317,7 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                     }
                     if (shown.size < chapters.size) {
                         Text(
-                            "All ${chapters.size} chapters", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver,
+                            t("All {count} chapters", "count" to chapters.size), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver,
                             modifier = Modifier.fillMaxWidth().pressable({ allChapters = true }).padding(16.dp),
                         )
                     }
@@ -322,7 +325,7 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
             }
         }
         if (bookmarks.isNotEmpty()) {
-            item("bookmarks-heading") { SectionHeading("Bookmarks") }
+            item("bookmarks-heading") { SectionHeading(t("Bookmarks")) }
             item("bookmarks") {
                 Column(Modifier.padding(horizontal = Edge).clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) {
                     bookmarks.forEach { bookmark ->
@@ -348,7 +351,7 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                         maxLines = if (allNotes) Int.MAX_VALUE else 6, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.pressable({ allNotes = !allNotes }, role = null),
                     )
-                    FactsLine(listOfNotNull(book?.publisher, book?.language?.uppercase(), if (book?.abridged == true) "Abridged" else null, if (book?.explicit == true) "Explicit" else null))
+                    FactsLine(listOfNotNull(book?.publisher, book?.language?.uppercase(), if (book?.abridged == true) t("Abridged") else null, if (book?.explicit == true) t("Explicit") else null))
                 }
             }
         }
@@ -360,9 +363,9 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                 }
             }
         }
-        bookRow("More in ${series?.name ?: "the series"}", book?.moreInSeries.orEmpty())
-        bookRow(authors.firstOrNull()?.let { "More by ${it.name}" } ?: "More by the author", book?.byAuthor.orEmpty())
-        bookRow(narrators.firstOrNull()?.let { "Read by ${it.name}" } ?: "More read by the narrator", book?.readByNarrator.orEmpty())
+        bookRow(series?.name?.let { t("More in {series}", "series" to it) } ?: t("More in the series"), book?.moreInSeries.orEmpty())
+        bookRow(authors.firstOrNull()?.let { t("More by {name}", "name" to it.name) } ?: t("More by the author"), book?.byAuthor.orEmpty())
+        bookRow(narrators.firstOrNull()?.let { t("Read by {name}", "name" to it.name) } ?: t("More read by the narrator"), book?.readByNarrator.orEmpty())
     }
 }
 
@@ -389,7 +392,7 @@ private fun People(people: List<Pair<String, String>>, prefix: String?) {
             Text(
                 name + if (index < people.size - 1) "," else "",
                 fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen,
-                modifier = Modifier.pressable({ navigator.openPerson(id, name) }, onClickLabel = "Open $name"),
+                modifier = Modifier.pressable({ navigator.openPerson(id, name) }, onClickLabel = t("Open {name}", "name" to name)),
             )
         }
     }
@@ -401,7 +404,7 @@ private fun AuthorCard(author: BookAuthor) {
     val navigator = LocalNavigator.current
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)
-            .pressable({ navigator.openPerson(author.id, author.name) }, onClickLabel = "Open ${author.name}").padding(12.dp),
+            .pressable({ navigator.openPerson(author.id, author.name) }, onClickLabel = t("Open {name}", "name" to author.name)).padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -428,10 +431,10 @@ private fun AuthorCard(author: BookAuthor) {
 private fun ChapterRow(chapter: BookChapter, index: Int, current: Int?, finished: Boolean, position: Double, onClick: () -> Unit) {
     val heard = finished || (current != null && index < current)
     val playing = index == current
-    Column(Modifier.fillMaxWidth().pressable(onClick, onClickLabel = "Play from ${chapter.title}").padding(horizontal = 16.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.fillMaxWidth().pressable(onClick, onClickLabel = t("Play from {chapter}", "chapter" to chapter.title)).padding(horizontal = 16.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.widthIn(min = 24.dp), contentAlignment = Alignment.CenterStart) {
-                if (playing) Icon(Icons.Filled.GraphicEq, contentDescription = "Playing", tint = Flexarr.silver, modifier = Modifier.size(16.dp))
+                if (playing) Icon(Icons.Filled.GraphicEq, contentDescription = t("Playing"), tint = Flexarr.silver, modifier = Modifier.size(16.dp))
                 else Text("${index + 1}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, style = Tabular)
             }
             Text(
@@ -451,7 +454,7 @@ private fun ChapterRow(chapter: BookChapter, index: Int, current: Int?, finished
 @Composable
 internal fun BookmarkRow(bookmark: Bookmark, onPlay: () -> Unit, onDelete: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().pressable(onPlay, onClickLabel = "Play from here").padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        Modifier.fillMaxWidth().pressable(onPlay, onClickLabel = t("Play from here")).padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -459,7 +462,7 @@ internal fun BookmarkRow(bookmark: Bookmark, onPlay: () -> Unit, onDelete: () ->
         Text(Format.timestamp(bookmark.positionSeconds), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, style = Tabular)
         Text(bookmark.note ?: "", fontSize = 15.sp, color = Flexarr.screen, modifier = Modifier.weight(1f), maxLines = 3, overflow = TextOverflow.Ellipsis)
         IconButton(onClick = onDelete) {
-            Icon(Icons.Filled.Close, contentDescription = "Delete the bookmark at ${Format.timestamp(bookmark.positionSeconds)}", tint = Flexarr.usher, modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.Close, contentDescription = t("Delete the bookmark at {time}", "time" to Format.timestamp(bookmark.positionSeconds)), tint = Flexarr.usher, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -473,14 +476,14 @@ private fun BookDownloadAction(model: AppModel, item: ItemSummary) {
     var menu by remember { mutableStateOf(false) }
     Box {
         when {
-            download == null -> LabeledAction("Download", FlexarrIcons.download, { navigator.downloadBook(item) })
-            download.isDownloaded -> LabeledAction("Downloaded", DownloadedIcon, { menu = true }, tint = Color.Unspecified)
-            download.phase == LocalPhase.Failed -> LabeledAction("Try again", Icons.Outlined.SyncProblem, { navigator.downloadBook(item) })
+            download == null -> LabeledAction(t(Words.download), FlexarrIcons.download, { navigator.downloadBook(item) })
+            download.isDownloaded -> LabeledAction(t("Downloaded"), DownloadedIcon, { menu = true }, tint = Color.Unspecified)
+            download.phase == LocalPhase.Failed -> LabeledAction(t("Try again"), Icons.Outlined.SyncProblem, { navigator.downloadBook(item) })
             else -> LabeledAction("${(store.progress(download) * 100).toInt()}%", Icons.Outlined.Downloading, { menu = true })
         }
         DropdownMenu(menu, onDismissRequest = { menu = false }, containerColor = Flexarr.seat) {
             DropdownMenuItem(
-                text = { Text(if (download?.isDownloaded == true) "Remove download" else "Stop download", color = Flexarr.danger) },
+                text = { Text(if (download?.isDownloaded == true) t("Remove download") else t("Stop download"), color = Flexarr.danger) },
                 onClick = { menu = false; store.remove(item.id) },
             )
         }
@@ -515,7 +518,7 @@ private fun SeriesPage(model: AppModel, series: BookSeries, missing: List<Missin
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 val done = series.books.count { it.book.isBookFinished }
                 Text(
-                    listOfNotNull(if (series.books.size == 1) "1 book" else "${series.books.size} books", if (done > 0) "$done finished" else null).joinToString("   "),
+                    listOfNotNull(t("{count, plural, one {# book} other {# books}}", "count" to series.books.size), if (done > 0) t("{count} finished", "count" to done) else null).joinToString("   "),
                     fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular,
                 )
                 if (next != null) {
@@ -524,7 +527,7 @@ private fun SeriesPage(model: AppModel, series: BookSeries, missing: List<Missin
                         "${if (next.userData.positionSeconds > 0) "Resume" else "Play"} ${next.title}",
                         onClick = { navigator.playBook(next) },
                         modifier = Modifier.fillMaxWidth(),
-                        icon = Icons.Filled.PlayArrow,
+                        icon = FlexarrIcons.play,
                         prominent = true,
                         ambient = glowColor(next.accentColor),
                     )
@@ -564,7 +567,7 @@ private fun SeriesPage(model: AppModel, series: BookSeries, missing: List<Missin
         if (missing.isNotEmpty()) {
             item("missing") {
                 Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SectionHeading("Not in your library", Modifier.bleed())
+                    SectionHeading(t(Words.notInYourLibrary), Modifier.bleed())
                     LazyRow(Modifier.bleed(), contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
                         items(missing, key = { it.asin }) { MissingBookCard(it) }
                     }
@@ -598,10 +601,10 @@ private fun BookMoreAction(model: AppModel, item: ItemSummary) {
     var plan by remember { mutableStateOf<DeletionPlan?>(null) }
     var busy by remember { mutableStateOf(false) }
     Box {
-        LabeledAction("More", FlexarrIcons.more, { open = true })
+        LabeledAction(t("More"), FlexarrIcons.more, { open = true })
         ItemMenu(
             listOf(
-                MenuAction("Delete…") {
+                MenuAction(t("Delete…")) {
                     val client = model.client ?: return@MenuAction
                     scope.launch {
                         try {
@@ -609,7 +612,7 @@ private fun BookMoreAction(model: AppModel, item: ItemSummary) {
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {
-                            navigator.tellFailure("Couldn’t delete this", e)
+                            navigator.tellFailure(t("Couldn’t delete this"), e)
                         }
                     }
                 },
@@ -621,7 +624,7 @@ private fun BookMoreAction(model: AppModel, item: ItemSummary) {
     plan?.let { shown ->
         AlertDialog(
             onDismissRequest = { if (!busy) plan = null },
-            title = { Text("Delete ${item.title}?") },
+            title = { Text(t("Delete {title}?", "title" to item.title)) },
             text = { Text(shown.bookMessage) },
             confirmButton = {
                 TextButton(
@@ -641,15 +644,15 @@ private fun BookMoreAction(model: AppModel, item: ItemSummary) {
                                 throw e
                             } catch (e: Exception) {
                                 plan = null
-                                navigator.tellFailure("Couldn’t delete this", e)
+                                navigator.tellFailure(t("Couldn’t delete this"), e)
                             } finally {
                                 busy = false
                             }
                         }
                     },
-                ) { Text("Delete book", color = Flexarr.danger) }
+                ) { Text(t("Delete book"), color = Flexarr.danger) }
             },
-            dismissButton = { TextButton(onClick = { plan = null }, enabled = !busy) { Text("Keep it", color = Flexarr.screen) } },
+            dismissButton = { TextButton(onClick = { plan = null }, enabled = !busy) { Text(t("Keep it"), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }

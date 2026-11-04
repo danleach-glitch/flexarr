@@ -1,6 +1,8 @@
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { formatClock } from '../lib/format'
-import { Close, Play } from './icons'
+import { Close } from './icons'
+import { icon } from './icons.generated'
+import { t, Words } from '../i18n'
 
 /**
  * What the player offers rather than does by itself, just above the bar: another device's place in the book, and the
@@ -15,26 +17,25 @@ export function BookOffers() {
       {offer ? (
         <>
           <span>
-            Jump to {formatClock(offer.position)}
-            {offer.device ? ` from ${offer.device}` : ''}?
+            {offer.device
+              ? t('Jump to {time} from {device}?', { time: formatClock(offer.position), device: offer.device })
+              : t('Jump to {time}?', { time: formatClock(offer.position) })}
           </span>
           <button className="button small" onClick={player.acceptBookOffer}>
-            Jump
+            {t('Jump')}
           </button>
-          <button className="icon-button" aria-label="Stay here" onClick={player.dismissBookOffer}>
+          <button className="icon-button" aria-label={t('Stay here')} onClick={player.dismissBookOffer}>
             <Close />
           </button>
         </>
       ) : (
         nextBook && (
           <>
-            <span>
-              Next: <strong>{nextBook.title}</strong>
-            </span>
+            <span>{t.rich('Next: {title}', { title: <strong>{nextBook.title}</strong> })}</span>
             <button className="button small" onClick={player.playNextBook}>
-              <Play /> Play
+              <icon.play /> {t(Words.play)}
             </button>
-            <button className="icon-button" aria-label="Not now" onClick={player.dismissNextBook}>
+            <button className="icon-button" aria-label={t('Not now')} onClick={player.dismissNextBook}>
               <Close />
             </button>
           </>

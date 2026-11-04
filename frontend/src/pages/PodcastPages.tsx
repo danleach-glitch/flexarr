@@ -31,7 +31,8 @@ import {
 import { Artwork } from '../components/Artwork'
 import { AsyncButton } from '../components/AsyncButton'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { Check, ChevronDown, ChevronUp, Close, More, Pause, Play } from '../components/icons'
+import { Check, ChevronDown, ChevronUp, Close, More } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
 import { EpisodeCard } from '../components/EpisodeCard'
 import { Row } from '../components/Row'
@@ -40,8 +41,12 @@ import { useAgeLimits } from '../hooks/sessionContext'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useApi } from '../hooks/useApi'
 import { episodeAsTrack, episodeDate, episodeLength, episodeProgress, looksLikeFeedUrl } from '../lib/podcasts'
+import { locale, t, Words } from '../i18n'
 
 const PAGE = 50
+
+/** A trailer or bonus episode's kind, as shown beside it. */
+const episodeKind = (type: PodcastEpisode['episodeType']) => (type === 'Trailer' ? t(Words.trailer) : type === 'Bonus' ? t('Bonus') : type)
 
 /** The page's heading, with the switch between what you follow and Apple's directory. */
 function PodcastsHeader({ view, children }: { view: 'yours' | 'browse'; children?: ReactNode }) {
@@ -50,14 +55,14 @@ function PodcastsHeader({ view, children }: { view: 'yours' | 'browse'; children
   return (
     <header className="library-header">
       <div className="library-heading">
-        <h1>Podcasts</h1>
-        <nav className="view-switch" aria-label="Podcasts views">
+        <h1>{t(Words.podcasts)}</h1>
+        <nav className="view-switch" aria-label={t('Podcasts views')}>
           <Link to="/podcasts" aria-current={view === 'yours' ? 'page' : undefined}>
-            Your podcasts
+            {t('Your podcasts')}
           </Link>
           {!limited && (
             <Link to="/podcasts/browse" aria-current={view === 'browse' ? 'page' : undefined}>
-              Browse
+              {t(Words.browse)}
             </Link>
           )}
         </nav>
@@ -79,13 +84,13 @@ function PodcastsGate({ children }: { children: ReactNode }) {
       <section className="podcast-empty panel">
         {status.data.needsLibrary ? (
           <>
-            <h2>Podcasts aren't ready yet</h2>
-            <p className="muted">Restart Flexarr to set them up.</p>
+            <h2>{t("Podcasts aren't ready yet")}</h2>
+            <p className="muted">{t('Restart Flexarr to set them up.')}</p>
           </>
         ) : (
           <>
-            <h2>Podcasts aren't available on this profile</h2>
-            <p className="muted">The main profile can change which libraries this profile sees in Settings › Profiles.</p>
+            <h2>{t("Podcasts aren't available on this profile")}</h2>
+            <p className="muted">{t('The main profile can change which libraries this profile sees in Settings › Profiles.')}</p>
           </>
         )}
       </section>
@@ -119,14 +124,17 @@ function PodcastsHome() {
   const file = useRef<HTMLInputElement>(null)
 
   async function importFile(chosen: File) {
-    setImporting('Adding your podcasts…')
+    setImporting(t('Adding your podcasts…'))
     setAdding(true)
     try {
       const result = await importOpml(chosen)
-      const parts = [`Followed ${result.added} ${result.added === 1 ? 'show' : 'shows'}`]
-      if (result.alreadySubscribed > 0) parts.push(`${result.alreadySubscribed} already followed`)
-      if (result.failed.length > 0) parts.push(`${result.failed.length} couldn't be read`)
-      setImporting(`${parts.join(', ')}.`)
+      setImporting(
+        t("{added, plural, one {Followed # show} other {Followed # shows}}{already, plural, =0 {} other {, # already followed}}{failed, plural, =0 {} other {, # couldn't be read}}.", {
+          added: result.added,
+          already: result.alreadySubscribed,
+          failed: result.failed.length,
+        }),
+      )
       changed()
     } catch (e) {
       setImporting(e instanceof Error ? e.message : String(e))
@@ -153,12 +161,12 @@ function PodcastsHome() {
           />
           {!limited && (
             <AsyncButton className="button quiet small" busy={adding} onClick={() => file.current?.click()}>
-              Import
+              {t('Import')}
             </AsyncButton>
           )}
           {!empty && (
             <a className="button quiet small" href={opmlUrl} download="Flexarr podcasts.opml">
-              Export
+              {t('Export')}
             </a>
           )}
         </div>
@@ -172,25 +180,26 @@ function PodcastsHome() {
 
       {empty && limited && (
         <section className="podcast-empty panel">
-          <h2>No podcasts yet</h2>
+          <h2>{t('No podcasts yet')}</h2>
         </section>
       )}
 
       {empty && !limited && (
         <section className="podcast-empty panel">
-          <h2>Follow a podcast to see its new episodes here</h2>
+          <h2>{t('Follow a podcast to see its new episodes here')}</h2>
           <p className="muted">
-            Find shows in <Link to="/podcasts/browse">Browse</Link>, or bring the ones you follow in another app: export them from it as OPML (Pocket Casts, Overcast and
-            most others can), then use Import.
+            {t.rich('Find shows in {browse}, or bring the ones you follow in another app: export them from it as OPML (Pocket Casts, Overcast and most others can), then use Import.', {
+              browse: <Link to="/podcasts/browse">{t(Words.browse)}</Link>,
+            })}
           </p>
           <Link className="button" to="/podcasts/browse">
-            Browse podcasts
+            {t('Browse podcasts')}
           </Link>
         </section>
       )}
 
       {(podcasts.data?.length ?? 0) > 0 && (
-        <Row title="Following" style="poster">
+        <Row title={t(Words.following)} style="poster">
           {podcasts.data!.map((podcast) => (
             <PodcastCard key={podcast.id} podcast={podcast} />
           ))}
@@ -199,13 +208,13 @@ function PodcastsHome() {
 
       {(upNext.data?.length ?? 0) > 0 && (
         <section className="podcast-section">
-          <h2>Up next</h2>
+          <h2>{t(Words.upNext)}</h2>
           <UpNextList key={upNext.data!.map((e) => e.id).join()} episodes={upNext.data!} onChanged={changed} />
         </section>
       )}
 
       {(listening.data?.length ?? 0) > 0 && (
-        <Row title="Continue listening" style="poster">
+        <Row title={t('Continue listening')} style="poster">
           {listening.data!.map((episode) => (
             <EpisodeCard key={episode.id} episode={episode} />
           ))}
@@ -214,7 +223,7 @@ function PodcastsHome() {
 
       {(fresh.data?.length ?? 0) > 0 && (
         <section className="podcast-section">
-          <h2>New episodes</h2>
+          <h2>{t('New episodes')}</h2>
           <EpisodeList
             episodes={fresh.data!.slice(0, 20).filter((e) => !heard.has(e.id))}
             showPodcast
@@ -235,7 +244,7 @@ function PodcastCard({ podcast }: { podcast: Podcast }) {
         <div className="card-frame">
           <Artwork src={podcast.artwork.poster} title={podcast.title} width={342} accent={podcast.accentColor} shape="square" />
           {podcast.unplayedCount > 0 && podcast.subscription && (
-            <span className="podcast-badge" aria-label={`${podcast.unplayedCount} unplayed`}>
+            <span className="podcast-badge" aria-label={t('{count} unplayed', { count: podcast.unplayedCount })}>
               {podcast.unplayedCount > 99 ? '99+' : podcast.unplayedCount}
             </span>
           )}
@@ -299,11 +308,11 @@ function EpisodeRow({
   }
   const actions: MenuAction[] = [
     // Up Next lives on the server, so it's the same on the phone.
-    { label: 'Play next', run: () => addToUpNext(episode.id, true).then(onChanged) },
-    { label: 'Add to Up Next', run: () => addToUpNext(episode.id).then(onChanged) },
-    ...(showPodcast ? [{ label: `Go to ${episode.podcastTitle}`, run: () => navigate(`/podcasts/${episode.podcastId}`) }] : []),
+    { label: t(Words.playNext), run: () => addToUpNext(episode.id, true).then(onChanged) },
+    { label: t('Add to Up Next'), run: () => addToUpNext(episode.id).then(onChanged) },
+    ...(showPodcast ? [{ label: t('Go to {title}', { title: episode.podcastTitle }), run: () => navigate(`/podcasts/${episode.podcastId}`) }] : []),
     // Part way through: forget the place without marking it played, which takes it out of the listening list.
-    ...(progress !== null && !played ? ['divider' as const, { label: 'Mark as unplayed', run: () => mark(false) }] : []),
+    ...(progress !== null && !played ? ['divider' as const, { label: t('Mark as unplayed'), run: () => mark(false) }] : []),
   ]
 
   return (
@@ -320,9 +329,9 @@ function EpisodeRow({
             </>
           )}
           {episodeDate(episode.publishedAt)}
-          {episode.episodeType !== 'Full' && <span className="podcast-episode-kind">{episode.episodeType}</span>}
+          {episode.episodeType !== 'Full' && <span className="podcast-episode-kind">{episodeKind(episode.episodeType)}</span>}
           {episode.explicit && (
-            <span className="podcast-episode-kind" title="Explicit">
+            <span className="podcast-episode-kind" title={t('Explicit')}>
               E
             </span>
           )}
@@ -335,22 +344,28 @@ function EpisodeRow({
           <button
             className={playing ? 'button small podcast-episode-play current' : 'button small podcast-episode-play'}
             onClick={() => (playing ? player.toggle() : player.play(track()))}
-            aria-label={`${playing && player.playing ? 'Pause' : progress !== null ? 'Resume' : 'Play'} ${episode.title}`}
+            aria-label={
+              playing && player.playing
+                ? t('Pause {title}', { title: episode.title })
+                : progress !== null
+                  ? t('Resume {title}', { title: episode.title })
+                  : t('Play {title}', { title: episode.title })
+            }
           >
-            <Play />
-            {playing && player.playing ? 'Playing' : episodeLength(episode)}
+            <icon.play />
+            {playing && player.playing ? t('Playing') : episodeLength(episode)}
           </button>
           {progress !== null && (
             <span className="podcast-episode-progress" aria-hidden="true">
               <span style={{ width: `${progress * 100}%` }} />
             </span>
           )}
-          <AsyncButton className={played ? 'icon-button podcast-episode-played on' : 'icon-button podcast-episode-played'} aria-label={played ? 'Mark as unplayed' : 'Mark as played'} aria-pressed={played} onClick={() => mark(!played)}>
+          <AsyncButton className={played ? 'icon-button podcast-episode-played on' : 'icon-button podcast-episode-played'} aria-label={played ? t('Mark as unplayed') : t(Words.markAsPlayed)} aria-pressed={played} onClick={() => mark(!played)}>
             <Check />
           </AsyncButton>
           <button
             className="icon-button"
-            aria-label={`More for ${episode.title}`}
+            aria-label={t('More for {title}', { title: episode.title })}
             aria-haspopup="menu"
             aria-expanded={menu !== null}
             onClick={(e) => {
@@ -362,7 +377,7 @@ function EpisodeRow({
           </button>
         </div>
       </div>
-      {menu && <Menu label={`More for ${episode.title}`} at={menu} actions={actions} onClose={() => setMenu(null)} />}
+      {menu && <Menu label={t('More for {title}', { title: episode.title })} at={menu} actions={actions} onClose={() => setMenu(null)} />}
     </div>
   )
 }
@@ -389,13 +404,13 @@ function UpNextList({ episodes, onChanged }: { episodes: PodcastEpisode[]; onCha
         <li key={episode.id} className="podcast-up-next-row">
           <EpisodeRow episode={episode} showPodcast onChanged={onChanged} />
           <div className="podcast-up-next-tools">
-            <button className="icon-button" aria-label={`Move ${episode.title} up`} disabled={i === 0} onClick={() => move(i, i - 1)}>
+            <button className="icon-button" aria-label={t('Move {title} up', { title: episode.title })} disabled={i === 0} onClick={() => move(i, i - 1)}>
               <ChevronUp />
             </button>
-            <button className="icon-button" aria-label={`Move ${episode.title} down`} disabled={i === order.length - 1} onClick={() => move(i, i + 1)}>
+            <button className="icon-button" aria-label={t('Move {title} down', { title: episode.title })} disabled={i === order.length - 1} onClick={() => move(i, i + 1)}>
               <ChevronDown />
             </button>
-            <button className="icon-button" aria-label={`Take ${episode.title} out of Up Next`} onClick={() => remove(episode.id)}>
+            <button className="icon-button" aria-label={t('Take {title} out of Up Next', { title: episode.title })} onClick={() => remove(episode.id)}>
               <Close />
             </button>
           </div>
@@ -453,8 +468,8 @@ function PodcastBrowse() {
           <input
             type="search"
             className="podcast-search"
-            placeholder="Search podcasts, or paste a feed's address"
-            aria-label="Search podcasts"
+            placeholder={t("Search podcasts, or paste a feed's address")}
+            aria-label={t('Search podcasts')}
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
           />
@@ -466,15 +481,15 @@ function PodcastBrowse() {
       ) : query ? (
         <>
           {results.error && <p className="error">{results.error.message}</p>}
-          {results.loading && !results.data && <p className="muted">Searching…</p>}
-          {results.data?.length === 0 && <p className="muted">Nothing found for “{query}”. If you have the show's feed address, paste it here instead.</p>}
+          {results.loading && !results.data && <p className="muted">{t('Searching…')}</p>}
+          {results.data?.length === 0 && <p className="muted">{t("Nothing found for “{query}”. If you have the show's feed address, paste it here instead.", { query })}</p>}
           <DirectoryGrid podcasts={results.data ?? []} />
         </>
       ) : (
         <>
-          <nav className="chips" aria-label="Categories">
+          <nav className="chips" aria-label={t('Categories')}>
             <button className={genre === null ? 'chip active' : 'chip'} aria-pressed={genre === null} onClick={() => chooseGenre(null)}>
-              All
+              {t('All')}
             </button>
             {genres.data?.map((g) => (
               <button key={g.id} className={genre === g.id ? 'chip active' : 'chip'} aria-pressed={genre === g.id} onClick={() => chooseGenre(g.id)}>
@@ -482,9 +497,9 @@ function PodcastBrowse() {
               </button>
             ))}
           </nav>
-          <h2 className="podcast-chart-title">Top podcasts{genre ? ` in ${genres.data?.find((g) => g.id === genre)?.name ?? ''}` : ''}</h2>
+          <h2 className="podcast-chart-title">{genre ? t('Top podcasts in {genre}', { genre: genres.data?.find((g) => g.id === genre)?.name ?? '' }) : t('Top podcasts')}</h2>
           {top.error && <p className="error">{top.error.message}</p>}
-          {top.loading && !top.data && <p className="muted">Loading the charts…</p>}
+          {top.loading && !top.data && <p className="muted">{t('Loading the charts…')}</p>}
           <DirectoryGrid podcasts={top.data ?? []} ranked />
         </>
       )}
@@ -508,10 +523,10 @@ function AddFeed({ url }: { url: string }) {
   }
   return (
     <form className="podcast-empty panel" onSubmit={add}>
-      <h2>Add a podcast by its feed</h2>
+      <h2>{t('Add a podcast by its feed')}</h2>
       <p className="muted podcast-feed-url">{url}</p>
       <AsyncButton className="button" type="submit" busy={state.adding}>
-        Add this podcast
+        {t('Add this podcast')}
       </AsyncButton>
       {state.error && (
         <p className="error" role="alert">
@@ -555,12 +570,12 @@ function DirectoryCard({ podcast, rank }: { podcast: DirectoryPodcast; rank?: nu
         <div className="card-frame">
           {podcast.artwork ? <img src={imageUrl(podcast.artwork, 342)} alt="" loading="lazy" /> : <Artwork src={null} title={podcast.title} width={342} shape="square" />}
           {rank && <span className="podcast-rank">{rank}</span>}
-          {podcast.subscribed && <span className="podcast-badge following">Following</span>}
-          {state.opening && <span className="podcast-opening">Opening…</span>}
+          {podcast.subscribed && <span className="podcast-badge following">{t(Words.following)}</span>}
+          {state.opening && <span className="podcast-opening">{t('Opening…')}</span>}
         </div>
       </button>
       <span className="card-title">{podcast.title}</span>
-      <span className="card-subtitle">{state.error ?? (!podcast.hasFeed ? 'No feed to add' : (podcast.author ?? podcast.genre ?? ''))}</span>
+      <span className="card-subtitle">{state.error ?? (!podcast.hasFeed ? t('No feed to add') : (podcast.author ?? podcast.genre ?? ''))}</span>
     </article>
   )
 }
@@ -619,7 +634,7 @@ function PodcastShow() {
     return () => clearTimeout(timer)
   }, [show.data, changed])
 
-  if (show.error) return <PageError error={show.error} message={show.error instanceof ApiError && show.error.status === 404 ? 'This podcast is no longer here.' : undefined} onRetry={show.reload} />
+  if (show.error) return <PageError error={show.error} message={show.error instanceof ApiError && show.error.status === 404 ? t('This podcast is no longer here.') : undefined} onRetry={show.reload} />
   if (!show.data) return <PageLoading />
   const podcast = show.data
   const subscription = podcast.subscription
@@ -678,22 +693,22 @@ function PodcastShow() {
           <p className="facts">
             {podcast.author && <span>{podcast.author}</span>}
             {podcast.categories[0] && <span>{podcast.categories[0]}</span>}
-            <span>{podcast.episodeCount === 1 ? '1 episode' : `${podcast.episodeCount.toLocaleString()} episodes`}</span>
-            {podcast.explicit && <span>Explicit</span>}
+            <span>{t('{count, plural, one {# episode} other {# episodes}}', { count: podcast.episodeCount })}</span>
+            {podcast.explicit && <span>{t('Explicit')}</span>}
           </p>
           <div className="detail-actions">
             {next && (
               <button className="button" onClick={() => player.play([episodeAsTrack(next)])}>
-                <Play /> {episodeProgress(next) !== null ? 'Resume' : sort === 'oldest' ? 'Play' : 'Play latest'}
+                <icon.play /> {episodeProgress(next) !== null ? t('Resume') : sort === 'oldest' ? t(Words.play) : t('Play latest')}
               </button>
             )}
             <AsyncButton className={subscription ? 'button quiet' : 'button'} onClick={follow} busy={busy} aria-pressed={subscription !== null}>
               {subscription ? (
                 <>
-                  <Check /> Following
+                  <Check /> {t(Words.following)}
                 </>
               ) : (
-                'Follow'
+                t(Words.follow)
               )}
             </AsyncButton>
           </div>
@@ -702,7 +717,7 @@ function PodcastShow() {
               <p className={expanded ? 'podcast-overview expanded' : 'podcast-overview'}>{podcast.overview}</p>
               {podcast.overview.length > 240 && (
                 <button className="text-button podcast-overview-toggle" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
-                  {expanded ? 'Less' : 'More'}
+                  {expanded ? t('Less') : t('More')}
                 </button>
               )}
             </>
@@ -712,53 +727,56 @@ function PodcastShow() {
 
       {podcast.error && (
         <p className="podcast-notice" role="status">
-          The feed couldn't be checked last time: {podcast.error}
+          {t("The feed couldn't be checked last time: {error}", { error: podcast.error })}
         </p>
       )}
 
       {marking && (
         <ConfirmDialog
-          title="Mark all as played?"
-          confirmLabel="Mark as played"
+          title={t('Mark all as played?')}
+          confirmLabel={t(Words.markAsPlayed)}
           busy={marking === 'busy'}
-          error={marking === 'failed' ? "That didn't work. Try again." : undefined}
+          error={marking === 'failed' ? t("That didn't work. Try again.") : undefined}
           onConfirm={markAllPlayed}
           onClose={() => setMarking(null)}
         >
           <p>
-            All {podcast.unplayedCount.toLocaleString()} unplayed {podcast.unplayedCount === 1 ? 'episode' : 'episodes'} of {podcast.title} will be marked as played.
+            {t('{count, plural, one {All # unplayed episode of {title} will be marked as played.} other {All # unplayed episodes of {title} will be marked as played.}}', {
+              count: podcast.unplayedCount,
+              title: podcast.title,
+            })}
           </p>
         </ConfirmDialog>
       )}
 
       <section className="podcast-episodes">
         <div className="podcast-episodes-tools">
-          <nav className="view-switch" aria-label="Which episodes">
+          <nav className="view-switch" aria-label={t('Which episodes')}>
             <button aria-current={filter === 'unplayed' ? 'page' : undefined} onClick={() => setFilter('unplayed')}>
-              Unplayed{podcast.unplayedCount > 0 ? ` (${podcast.unplayedCount.toLocaleString()})` : ''}
+              {podcast.unplayedCount > 0 ? t('Unplayed ({count})', { count: podcast.unplayedCount.toLocaleString(locale()) }) : t('Unplayed')}
             </button>
             <button aria-current={filter === 'all' ? 'page' : undefined} onClick={() => setFilter('all')}>
-              All
+              {t('All')}
             </button>
           </nav>
-          <input type="search" placeholder="Search episodes" aria-label="Search episodes" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <select aria-label="Order" value={sort} onChange={(e) => chooseSort(e.target.value as 'newest' | 'oldest')}>
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
+          <input type="search" placeholder={t('Search episodes')} aria-label={t('Search episodes')} value={search} onChange={(e) => setSearch(e.target.value)} />
+          <select aria-label={t('Order')} value={sort} onChange={(e) => chooseSort(e.target.value as 'newest' | 'oldest')}>
+            <option value="newest">{t('Newest first')}</option>
+            <option value="oldest">{t('Oldest first')}</option>
           </select>
           {podcast.unplayedCount > 0 && (
-            <button className="icon-button podcast-mark-all" aria-label="Mark all as played" title="Mark all as played" onClick={() => setMarking('asking')}>
+            <button className="icon-button podcast-mark-all" aria-label={t('Mark all as played')} title={t('Mark all as played')} onClick={() => setMarking('asking')}>
               <Check />
             </button>
           )}
         </div>
         {episodes && episodes.items.length === 0 && (
-          <p className="muted">{q ? `No episodes match “${q}”.` : filter === 'unplayed' ? 'There are no unplayed episodes.' : 'No episodes yet.'}</p>
+          <p className="muted">{q ? t('No episodes match “{query}”.', { query: q }) : filter === 'unplayed' ? t('There are no unplayed episodes.') : t('No episodes yet.')}</p>
         )}
         <EpisodeList episodes={items} onChanged={changed} onMarked={marked} />
         {episodes && episodes.items.length < episodes.total && (
           <AsyncButton className="button quiet podcast-more" busy={pagesShown < pages} onClick={() => setPages(pages + 1)}>
-            Show more episodes
+            {t('Show more episodes')}
           </AsyncButton>
         )}
       </section>
@@ -781,7 +799,7 @@ function EpisodeDetail() {
   const [version, setVersion] = useState(0)
   const episode = useApi((signal) => getPodcastEpisode(id, signal), [id, version])
   const player = useAudioPlayer()
-  if (episode.error) return <PageError error={episode.error} message={episode.error instanceof ApiError && episode.error.status === 404 ? 'This episode is no longer here.' : undefined} onRetry={episode.reload} />
+  if (episode.error) return <PageError error={episode.error} message={episode.error instanceof ApiError && episode.error.status === 404 ? t('This episode is no longer here.') : undefined} onRetry={episode.reload} />
   if (!episode.data) return <PageLoading />
   const e = episode.data
   const progress = episodeProgress(e)
@@ -804,23 +822,23 @@ function EpisodeDetail() {
           </p>
           <h1 className="podcast-episode-heading">{e.title}</h1>
           <p className="facts">
-            {e.publishedAt && <span>{new Date(e.publishedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</span>}
+            {e.publishedAt && <span>{new Date(e.publishedAt).toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' })}</span>}
             {episodeLength(e) && <span>{episodeLength(e)}</span>}
-            {e.season && <span>Season {e.season}</span>}
-            {e.episode && <span>Episode {e.episode}</span>}
-            {e.episodeType !== 'Full' && <span>{e.episodeType}</span>}
-            {e.explicit && <span>Explicit</span>}
+            {e.season && <span>{t('Season {number}', { number: e.season })}</span>}
+            {e.episode && <span>{t('Episode {number}', { number: e.episode })}</span>}
+            {e.episodeType !== 'Full' && <span>{episodeKind(e.episodeType)}</span>}
+            {e.explicit && <span>{t('Explicit')}</span>}
           </p>
           <div className="detail-actions">
             <button className="button" onClick={() => (playing ? player.toggle() : player.play([episodeAsTrack(e)]))}>
-              {playing && player.playing ? <Pause /> : <Play />} {playing && player.playing ? 'Pause' : progress !== null ? 'Resume' : 'Play'}
+              {playing && player.playing ? <icon.pause /> : <icon.play />} {playing && player.playing ? t('Pause') : progress !== null ? t('Resume') : t(Words.play)}
             </button>
             {progress !== null && !playing && (
               <button
                 className="button quiet"
                 onClick={() => player.play([{ ...episodeAsTrack(e), playFrom: 0 }])}
               >
-                Start over
+                {t(Words.startOver)}
               </button>
             )}
             {progress !== null && !e.userData.watched && (
@@ -831,7 +849,7 @@ function EpisodeDetail() {
                   setVersion((v) => v + 1)
                 }}
               >
-                Mark as unplayed
+                {t('Mark as unplayed')}
               </AsyncButton>
             )}
             <AsyncButton
@@ -844,10 +862,10 @@ function EpisodeDetail() {
             >
               {e.userData.watched ? (
                 <>
-                  <Check /> Played
+                  <Check /> {t('Played')}
                 </>
               ) : (
-                'Mark as played'
+                t(Words.markAsPlayed)
               )}
             </AsyncButton>
           </div>

@@ -6,6 +6,7 @@ using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Import;
 
@@ -17,14 +18,16 @@ public sealed record PlexAvatarResult(IReadOnlyList<PlexAvatarMatch> Matched, IR
 /// Copies Plex Home users' profile pictures onto the Flexarr profiles with the same names. The Plex server's own
 /// sign-in is read from its settings for the one plex.tv request and is never stored.
 /// </summary>
-public sealed class PlexAvatars(HttpClient http, FlexarrDbContext db, ProfileImages images)
+public sealed class PlexAvatars(HttpClient http, FlexarrDbContext db, ProfileImages images, Endpoints.MacAppHost macApp)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    internal static string MacAppProblem => Loc.T("The Mac app can’t read Plex’s sign-in, so it can’t bring over Plex profile pictures. Add pictures in Profiles instead.");
 
     public async Task<PlexAvatarResult> ImportAsync(string? databasePath, CancellationToken ct)
     {
         var token = await FindTokenAsync(PlexImporter.Resolve(databasePath), ct)
-            ?? throw new InvalidOperationException("Couldn't find Plex's sign-in on this computer. Is Plex Media Server installed here and signed in to plex.tv?");
+            ?? throw new InvalidOperationException(Loc.T("Couldn't find Plex's sign-in on this computer. Is Plex Media Server installed here and signed in to plex.tv?"));
 
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri("https://plex.tv/api/v2/home/users"));
         request.Headers.Add("X-Plex-Token", token);
@@ -72,7 +75,7 @@ public sealed class PlexAvatars(HttpClient http, FlexarrDbContext db, ProfileIma
         plex is not null && string.Equals(profile.Trim(), plex.Trim(), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Preferences.xml beside Plex's data (Linux, Docker, Windows), or the macOS preferences domain.</summary>
-    private static async Task<string?> FindTokenAsync(string? databasePath, CancellationToken ct)
+    private async Task<string?> FindTokenAsync(string? databasePath, CancellationToken ct)
     {
         // .../Plex Media Server/Plug-in Support/Databases/com.plexapp.plugins.library.db
         var plexFolder = databasePath is null ? null : Directory.GetParent(databasePath)?.Parent?.Parent?.FullName;
@@ -83,6 +86,13 @@ public sealed class PlexAvatars(HttpClient http, FlexarrDbContext db, ProfileIma
             {
                 return token;
             }
+        }
+
+        // The Mac app's sandbox leaves the server only its own FFmpeg to run, and `defaults` there would read the app's
+        // own settings, not Plex's: say so rather than that Plex isn't signed in.
+        if (macApp.IsAvailable)
+        {
+            throw new InvalidOperationException(MacAppProblem);
         }
 
         if (!OperatingSystem.IsMacOS())

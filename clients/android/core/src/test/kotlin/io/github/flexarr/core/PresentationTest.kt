@@ -1,8 +1,14 @@
 package io.github.flexarr.core
 
+import java.io.File
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.double
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.serializer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -97,16 +103,69 @@ class PresentationTest {
         assertEquals(PlaybackPrompt.None, PlaybackPrompt.at(2811.0, markers, 2831.0, hasNext = true))
         assertEquals(PlaybackPrompt.NextEpisode, PlaybackPrompt.at(2812.0, markers, 2831.0, hasNext = true))
         assertEquals(PlaybackPrompt.None, PlaybackPrompt.at(2812.0, markers, 2831.0, hasNext = false))
+        // Skip credits with auto-play: 8 seconds before them.
+        assertEquals(PlaybackPrompt.None, PlaybackPrompt.at(2803.0, markers, 2831.0, hasNext = true, skipCredits = true, autoPlayNext = true))
+        assertEquals(PlaybackPrompt.NextEpisode, PlaybackPrompt.at(2804.0, markers, 2831.0, hasNext = true, skipCredits = true, autoPlayNext = true))
     }
 
     @Test
-    fun `falls back to the end without a credits marker`() {
-        // 3% of a 47-minute episode: the last 85 seconds.
-        assertEquals(PlaybackPrompt.None, PlaybackPrompt.at(2740.0, emptyList(), 2831.0, hasNext = true))
-        assertEquals(PlaybackPrompt.NextEpisode, PlaybackPrompt.at(2750.0, emptyList(), 2831.0, hasNext = true))
-        // Never less than 30 seconds, nor more than 2 minutes.
-        assertEquals(30.0, PlaybackPrompt.unmarkedCreditsSeconds(600.0), 0.0)
-        assertEquals(120.0, PlaybackPrompt.unmarkedCreditsSeconds(7200.0), 0.0)
+    fun `falls back to a minute before the end without a credits marker`() {
+        assertEquals(PlaybackPrompt.None, PlaybackPrompt.at(2770.0, emptyList(), 2831.0, hasNext = true))
+        assertEquals(PlaybackPrompt.NextEpisode, PlaybackPrompt.at(2771.0, emptyList(), 2831.0, hasNext = true))
+    }
+
+    /**
+     * Every case in docs/next-episode-timing.json, the cases FlexarrKit and the web test against too, so the three
+     * can't drift. Found from the test's working directory (the module's), up to the repo root.
+     */
+    @Test
+    fun `next episode timing matches the shared cases`() {
+        val file = generateSequence(File("").absoluteFile) { it.parentFile }
+            .map { File(it, "docs/next-episode-timing.json") }
+            .firstOrNull { it.isFile } ?: error("docs/next-episode-timing.json not found above ${File("").absolutePath}")
+        val cases = FlexarrClient.json.parseToJsonElement(file.readText()).jsonObject.getValue("cases").jsonArray
+        assertTrue(cases.isNotEmpty())
+        for (element in cases) {
+            val case = element.jsonObject
+            val name = case.getValue("name").jsonPrimitive.content
+            val duration = case.getValue("duration").jsonPrimitive.double
+            val markers = case["credits"]?.jsonPrimitive?.doubleOrNull?.let { listOf(Marker(MarkerType.Credits, it, duration)) } ?: emptyList()
+            val actual = nextEpisodeTiming(
+                markers, duration,
+                skipCredits = case.getValue("skipCredits").jsonPrimitive.boolean,
+                autoPlayNext = case.getValue("autoPlayNext").jsonPrimitive.boolean,
+            )
+            val expect = case["expect"]?.takeIf { it !is JsonNull }?.jsonObject
+            if (expect == null) {
+                assertNull(name, actual)
+                continue
+            }
+            fun field(key: String) = expect[key]?.jsonPrimitive?.double
+            val expected = NextEpisodeTiming(field("showAt")!!, field("countdownFrom"), field("nextAt"), field("closeAt"))
+            assertEquals(name, expected, actual)
+        }
+    }
+
+    private val credits = listOf(Marker(MarkerType.Credits, 1300.0, 1400.0))
+
+    @Test
+    fun `no button before the end of a short episode without credits`() {
+        assertEquals(PlaybackPrompt.None, PlaybackPrompt.at(119.0, emptyList(), 120.0, hasNext = true))
+    }
+
+    @Test
+    fun `countdown seconds follow the position`() {
+        val timing = nextEpisodeTiming(credits, 1400.0, skipCredits = true, autoPlayNext = true)!!
+        assertNull(timing.secondsLeft(1291.9))
+        assertEquals(10, timing.secondsLeft(1292.0))
+        assertEquals(10, timing.secondsLeft(1292.5))
+        assertEquals(9, timing.secondsLeft(1293.0))
+        assertEquals(1, timing.secondsLeft(1301.5))
+        assertEquals(0, timing.secondsLeft(1302.0))
+        assertEquals(0, timing.secondsLeft(1310.0))
+        assertNull(nextEpisodeTiming(credits, 1400.0, skipCredits = true, autoPlayNext = false)!!.secondsLeft(1350.0))
+        // Credits under 8 seconds in: a shorter countdown from the start.
+        assertEquals(7, nextEpisodeTiming(listOf(Marker(MarkerType.Credits, 5.0, 60.0)), 60.0, skipCredits = true, autoPlayNext = true)!!.secondsLeft(0.0))
     }
 
     @Test

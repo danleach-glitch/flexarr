@@ -27,8 +27,6 @@ import {
   Fullscreen,
   Muted,
   Next,
-  Pause,
-  Play,
   Previous,
   Replay10,
   Reset,
@@ -36,26 +34,31 @@ import {
   Waveform,
   Volume,
 } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { SubtitleSearchDialog } from '../components/SubtitleSearchDialog'
 import { usePolling } from '../hooks/usePolling'
 import { hasSoundGraph, MAX_AUDIO_DELAY_SECONDS, useSoundChain } from '../hooks/soundChain'
 import { useAgeLimits } from '../hooks/sessionContext'
 import { announceWatched } from '../hooks/watched'
-import { clearEnding, isWatched, recordEnding, sendingFinalReport, type PlaybackEnding, type PlayState } from '../hooks/playbackEnding'
+import { clearEnding, isWatched, recordEnding, sendingFinalReport, whenBrowserBack, type PlaybackEnding, type PlayState } from '../hooks/playbackEnding'
 import { episodeCode, formatClock } from '../lib/format'
 import { belongsToFocused } from '../lib/focusedKeys'
 import { mediaErrorRecovery } from '../lib/hlsRecovery'
 import { speedLabel } from '../lib/podcasts'
 import { drawStyled, type StyledSubtitles } from '../lib/styledSubtitles'
 import { cueLine, pictureIn } from '../lib/subtitlePlacement'
-import { unmarkedCreditsSeconds } from '../lib/upNext'
+import { NEXT_EPISODE_COUNTDOWN_SECONDS, nextEpisodeTiming, upNextAt, upNextAtEnd, upNextFresh, upNextMoved, type UpNextState } from '../lib/upNext'
 import { dialogueBoostChoices, isShaping, nightModeChoices, readSoundSettings, shapingFor, speakerChoices, timeOfDay, unshaped, useSoundSettings, useSoundShaping, writeSoundSettings } from '../lib/soundSettings'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
+import { EARLY_STALL_MS, reportEarlyStall, reportStart, type StartTiming } from '../lib/startTiming'
+import { drop as dropPrepared, getReady, holds as holdsPrepared, take as takePrepared } from '../lib/preparedPlayback'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
+import { t, tk, Words } from '../i18n'
 
 type Quality = 'auto' | 1080 | 720 | 480
 const qualities: { value: Quality; label: string; bitrate?: number }[] = [
-  { value: 'auto', label: 'Best for this device' },
+  // Said through t(label) where shown; the rest are numbers.
+  { value: 'auto', label: tk('Best for this device') },
   { value: 1080, label: '1080p', bitrate: 10_000_000 },
   { value: 720, label: '720p', bitrate: 4_000_000 },
   { value: 480, label: '480p', bitrate: 1_500_000 },
@@ -64,42 +67,31 @@ const qualities: { value: Quality; label: string; bitrate?: number }[] = [
 /** The speeds the player offers; an episode's is kept for its show. */
 const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const
 
-/** The countdown between one episode finishing and the next starting. */
-const UP_NEXT_SECONDS = 5
 
-/**
- * The next episode's session, started during the credits so it opens at once. Kept outside the page so it survives
- * the move to the next episode's address, which is the same page with another id.
- */
-let prepared: { itemId: string; info: PlaybackInfo } | null = null
-
-/** Lets the prepared session go (best effort): it wasn't wanted, or something else is playing. */
-function dropPrepared() {
-  if (prepared) void stopPlayback(prepared.info.sessionId).catch(() => undefined)
-  prepared = null
-}
 
 const defaultPreferences: PlaybackPreferences = { autoPlayNext: true, skipIntros: false, skipRecaps: false, skipCredits: false, subtitleSize: 'Standard' }
 
 /** How much bigger than standard each subtitle size draws (player.css scales ::cue by --cue-scale). */
 export const subtitleScale: Record<SubtitleSize, number> = { Small: 0.8, Standard: 1, Large: 1.25, ExtraLarge: 1.5 }
-const subtitlePositions: SubtitlePosition[] = ['Bottom', 'Raised', 'Higher', 'Top']
+/** Said through t(position) where shown. */
+const subtitlePositions: SubtitlePosition[] = [tk('Bottom'), tk('Raised'), tk('Higher'), tk('Top')]
+/** Said through t(label) where shown. */
 const subtitleSizes: { value: SubtitleSize; label: string }[] = [
-  { value: 'Small', label: 'Small' },
-  { value: 'Standard', label: 'Standard' },
-  { value: 'Large', label: 'Large' },
-  { value: 'ExtraLarge', label: 'Extra large' },
+  { value: 'Small', label: tk('Small') },
+  { value: 'Standard', label: tk('Standard') },
+  { value: 'Large', label: tk('Large') },
+  { value: 'ExtraLarge', label: tk('Extra large') },
 ]
 
 /** "In time", "0.5s later", "1.25s earlier". */
 function delayLabel(seconds: number) {
-  if (seconds === 0) return 'In time'
-  return `${Math.abs(seconds)}s ${seconds > 0 ? 'later' : 'earlier'}`
+  if (seconds === 0) return t('In time')
+  return seconds > 0 ? t('{seconds}s later', { seconds: Math.abs(seconds) }) : t('{seconds}s earlier', { seconds: Math.abs(seconds) })
 }
 
 /** "In sync", "+0.15 s" (the sound later), "−0.2 s" (earlier). */
 function syncLabel(seconds: number) {
-  if (seconds === 0) return 'In sync'
+  if (seconds === 0) return t('In sync')
   return `${seconds > 0 ? '+' : '−'}${Math.abs(seconds)} s`
 }
 
@@ -146,8 +138,9 @@ function HoldButton({ onStep, ...props }: { onStep: (held: boolean) => void } & 
   )
 }
 const HIDE_CHROME_MS = 3000
-const STREAM_STOPPED = 'The stream stopped. The server may have had trouble converting this file.'
-const TAKEN_OVER = 'Someone started watching on another screen, so this one had to stop.'
+// Said through t() where shown.
+const STREAM_STOPPED = tk('The stream stopped. The server may have had trouble converting this file.')
+const TAKEN_OVER = tk('Someone started watching on another screen, so this one had to stop.')
 // Long enough for a server that's up, short enough that a hung one doesn't hold up the recovery.
 const REASON_TIMEOUT_MS = 5000
 
@@ -173,7 +166,7 @@ async function takenOverReason(sessionId: string): Promise<string | undefined> {
   const response = await fetch(`/api/v1/playback/${sessionId}/main.m3u8`, { signal: AbortSignal.timeout(REASON_TIMEOUT_MS) }).catch(() => null)
   if (response?.status !== 410) return undefined
   const problem = (await response.json().catch(() => null)) as { detail?: string } | null
-  return problem?.detail ?? TAKEN_OVER
+  return problem?.detail ?? t(TAKEN_OVER)
 }
 
 export function PlayerPage() {
@@ -201,12 +194,17 @@ export function PlayerPage() {
   const session = useRef<string | undefined>(undefined)
   const hideTimer = useRef<number | undefined>(undefined)
   const recoverRef = useRef<() => Promise<void>>(async () => undefined)
+  const convertInsteadRef = useRef<() => void>(() => undefined)
   const recovering = useRef(false)
   const lastRecovery = useRef(0)
   // Ends when the item changes or the page closes, so a recovery in progress gives up.
   const lifetime = useRef({ alive: true })
   // Counts playback requests, so only the latest one's answer is used.
   const requests = useRef(0)
+  /** This title's start, timed until its first picture (see lib/startTiming). */
+  const timing = useRef<StartTiming | null>(null)
+  /** When this title's first picture came, and its playback id, to note a stall soon after (see lib/startTiming). */
+  const started = useRef<{ at: number; id?: string } | null>(null)
 
   const [info, setInfo] = useState<PlaybackInfo>()
   // How the attached stream is played, set as it's attached: an error can come before the render that brings `info`.
@@ -227,10 +225,26 @@ export function PlayerPage() {
   const [subtitleKey, setSubtitleKey] = useState<string | null>(null)
   // Embedded subtitles are extracted on first use, which can take a little while for large files.
   const [subtitleStatus, setSubtitleStatus] = useState<'idle' | 'loading' | 'failed'>('idle')
-  const [upNextCancelled, setUpNextCancelled] = useState(false)
-  const [countdown, setCountdown] = useState(UP_NEXT_SECONDS)
-  // The episode is over (it ended, or its credits began with Skip credits on): the countdown to the next one runs.
-  const [finished, setFinished] = useState(false)
+  // The sleep timer stopped this episode: nothing moves on from it.
+  const [sleepStopped, setSleepStopped] = useState(false)
+  // Next Episode's Cancel, and a seek or start past where it would have moved on (lib/upNext). The ref is the same,
+  // for the timeupdate handler, which runs between renders.
+  const [upNextState, setUpNextStateValue] = useState<UpNextState>(upNextFresh)
+  const upNextStateRef = useRef<UpNextState>(upNextFresh)
+  const setUpNextState = (next: UpNextState) => {
+    upNextStateRef.current = next
+    setUpNextStateValue(next)
+  }
+  // The position at the last timeupdate (null before the first, so a start counts as a jump), whether a seek came
+  // since, and whether this episode has already moved on or closed.
+  const lastPosition = useRef<number | null>(null)
+  const seeked = useRef(false)
+  const movedOn = useRef(false)
+  const upNextTick = useRef<(position: number) => void>(() => undefined)
+  // The video ended (with a next episode to go to).
+  const [ended, setEnded] = useState(false)
+  // The countdown over the last frame when the file ended before its own had started; null when not running.
+  const [endCountdown, setEndCountdown] = useState<number | null>(null)
   const [preferences, setPreferences] = useState<PlaybackPreferences>(defaultPreferences)
   const [subtitleDelay, setSubtitleDelayState] = useState(0)
   // The file's sound offset, as last nudged here (the server is told a moment after the nudging stops).
@@ -255,7 +269,6 @@ export function PlayerPage() {
   const blackBars = preferences.subtitlesInBlackBars ?? false
   const [notice, setNotice] = useState<string>()
   // The latest request to get the next episode ready, so an older answer arriving late is let go.
-  const preparing = useRef<{ itemId: string } | null>(null)
   // Intros and recaps already skipped by themselves, so seeking back into one to watch it isn't overruled.
   const autoSkipped = useRef(new Set<string>())
 
@@ -314,7 +327,9 @@ export function PlayerPage() {
     setNativeHls(playback.method === 'Transcode' && !viaHlsJs)
     if (viaHlsJs) {
       // Subtitles are rendered as <track>s, so leave them out of the HLS manifest.
-      const player = new Hls({ startPosition: position, maxBufferLength: 60, backBufferLength: 90 })
+      // The first segment is fetched while the playlists load (not once the video element is ready), and there's only
+      // ever one quality, so no bandwidth test first.
+      const player = new Hls({ startPosition: position, maxBufferLength: 60, backBufferLength: 90, startFragPrefetch: true, testBandwidth: false })
       // Media errors get hls.js's own recovery first; one that keeps coming back asks the server for a fresh stream.
       const onMediaError = mediaErrorRecovery(player, () => void recoverRef.current())
       player.on(Hls.Events.ERROR, (_, data) => {
@@ -344,28 +359,30 @@ export function PlayerPage() {
       const request = ++requests.current
       const replaces = session.current
       try {
-        // The next episode, got ready during the last one's credits, opens straight away.
-        const ready = !options.audioStreamIndex && !options.subtitleKey && !options.forceTranscode && !replaces && prepared?.itemId === id ? prepared.info : null
-        if (ready) prepared = null
-        else dropPrepared()
-        const playback = ready ?? await startPlayback({
+        const wanted = {
           itemId: playingItem.current ?? id,
           shuffle: shuffleRef.current || undefined,
-          profile: detectProfile(),
           audioStreamIndex: options.audioStreamIndex,
           subtitleKey: options.subtitleKey,
           startPositionSeconds: options.startPositionSeconds,
           maxHeight: q === 'auto' ? undefined : q,
           maxBitrate: preset?.bitrate,
           forceTranscode: options.forceTranscode || q !== 'auto' || undefined,
-          replacesSessionId: replaces,
-        })
+        }
+        // Got ready ahead of time (the next episode during the credits, or on the title's page) for exactly this
+        // stream: it opens straight away. Anything else got ready is let go.
+        const ready = replaces ? null : await takePrepared(wanted)
+        if (replaces) dropPrepared()
+        const playback = ready ?? await startPlayback({ ...wanted, profile: detectProfile(), replacesSessionId: replaces })
         if (!life.alive || life !== lifetime.current || request !== requests.current) {
           void stopPlayback(playback.sessionId)
           // Nothing left for this request to do: a newer one (or none, the page has moved on) is in charge.
           return true
         }
         if (session.current && session.current !== playback.sessionId) void stopPlayback(session.current)
+        if (timing.current && timing.current.answeredAt === undefined) {
+          Object.assign(timing.current, { answeredAt: performance.now(), warmed: ready !== null, method: playback.method, playbackId: playback.playbackId })
+        }
         session.current = playback.sessionId
         // The same title again (another audio track, a recovery) keeps its speed; another starts at its show's.
         const sameTitle = playingItem.current === playback.item.id
@@ -418,7 +435,7 @@ export function PlayerPage() {
         session.current = undefined // Watch here instead starts afresh (see start).
         return setError({ message: takenOver, kind: 'takenOver' })
       }
-      if (!el || Date.now() - lastRecovery.current < 60_000) return setError({ message: STREAM_STOPPED, kind: 'other' })
+      if (!el || Date.now() - lastRecovery.current < 60_000) return setError({ message: t(STREAM_STOPPED), kind: 'other' })
       lastRecovery.current = Date.now()
       const position = el.currentTime
       hls.current?.destroy()
@@ -433,19 +450,27 @@ export function PlayerPage() {
         )
         if (settled) return // Playing again, or the server said why not.
       }
-      if (life.alive) setError({ message: STREAM_STOPPED, kind: 'other' })
+      if (life.alive) setError({ message: t(STREAM_STOPPED), kind: 'other' })
     } finally {
       recovering.current = false
     }
   }
+  // A browser that claimed it could play the file but can't: converted instead, on the audio and subtitles chosen.
+  const convertInstead = () =>
+    void restartHere({ forceTranscode: true, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
   useEffect(() => {
     recoverRef.current = recover
+    convertInsteadRef.current = convertInstead
   })
 
   useEffect(() => {
-    setUpNextCancelled(false)
-    setCountdown(UP_NEXT_SECONDS)
-    setFinished(false)
+    setSleepStopped(false)
+    setUpNextState(upNextFresh)
+    lastPosition.current = null
+    seeked.current = false
+    movedOn.current = false
+    setEnded(false)
+    setEndCountdown(null)
     // The last title's position goes too: left over, it would put the next episode in its own credits at once (Skip
     // credits would mark it watched and count down to the one after).
     setTime(0)
@@ -462,6 +487,7 @@ export function PlayerPage() {
     const el = video.current
     const life = { alive: true }
     lifetime.current = life
+    timing.current = { kind: 'video', pressedAt: performance.now() }
     void start({ startPositionSeconds: t !== null ? Number(t) : undefined })
     return () => {
       life.alive = false
@@ -528,58 +554,86 @@ export function PlayerPage() {
     // render when the value hasn't changed.
     const onTime = () => {
       setTime(Math.floor(el.currentTime))
+      // Next Episode follows the real position, so it moves on on time rather than up to a second late.
+      upNextTick.current(el.currentTime)
       for (let i = 0; i < el.buffered.length; i++) {
         if (el.buffered.start(i) <= el.currentTime + 0.5 && el.buffered.end(i) >= el.currentTime) setBufferedTo(Math.floor(el.buffered.end(i)))
       }
     }
     const onPlay = () => setPlaying(true)
     const onPause = () => setPlaying(false)
-    const onWaiting = () => setWaiting(true)
+    const onWaiting = () => {
+      setWaiting(true)
+      const first = started.current
+      // A seek (Skip intro, say) waits too: only a stall counts, and only the first.
+      if (el.seeking) return
+      if (first && performance.now() - first.at < EARLY_STALL_MS) reportEarlyStall(first.id, performance.now() - first.at)
+      started.current = null
+    }
     const onPlaying = () => setWaiting(false)
+    const onFirstPicture = () => {
+      if (timing.current?.answeredAt === undefined) return
+      reportStart(timing.current)
+      started.current = { at: performance.now(), id: timing.current.playbackId }
+      timing.current = null
+    }
     const onVolume = () => {
       setVolume(el.volume)
       setMuted(el.muted)
     }
     const onError = () => {
-      // A browser that claimed it could play the file but can't: convert instead.
-      if (method.current === 'DirectPlay') void restartHere({ forceTranscode: true })
+      if (method.current === 'DirectPlay') convertInsteadRef.current()
       else if (method.current === 'Transcode') void recoverRef.current()
-      else setError({ message: "This file couldn't be played.", kind: 'other' })
+      else setError({ message: t("This file couldn't be played."), kind: 'other' })
     }
     const onEnded = () => {
       if (session.current) void reportProgress(session.current, el.currentTime, true, true).catch(() => undefined)
-      if (info?.next && !upNextCancelled) setFinished(true)
+      if (info?.next) setEnded(true)
+    }
+    // Scrubbing back from the end plays on.
+    const onSeeking = () => {
+      seeked.current = true
+      if (!el.ended) {
+        setEnded(false)
+        setEndCountdown(null)
+      }
     }
     el.addEventListener('timeupdate', onTime)
     el.addEventListener('play', onPlay)
     el.addEventListener('pause', onPause)
     el.addEventListener('waiting', onWaiting)
     el.addEventListener('playing', onPlaying)
+    el.addEventListener('playing', onFirstPicture)
     el.addEventListener('canplay', onPlaying)
     el.addEventListener('volumechange', onVolume)
     el.addEventListener('error', onError)
     el.addEventListener('ended', onEnded)
+    el.addEventListener('seeking', onSeeking)
     return () => {
       el.removeEventListener('timeupdate', onTime)
       el.removeEventListener('play', onPlay)
       el.removeEventListener('pause', onPause)
       el.removeEventListener('waiting', onWaiting)
+      el.removeEventListener('playing', onFirstPicture)
       el.removeEventListener('playing', onPlaying)
       el.removeEventListener('canplay', onPlaying)
       el.removeEventListener('volumechange', onVolume)
       el.removeEventListener('error', onError)
       el.removeEventListener('ended', onEnded)
+      el.removeEventListener('seeking', onSeeking)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [info, upNextCancelled])
+  }, [info])
 
   // Subtitles sit where the profile put them over the picture (or in the black bar below it), and rise above the
-  // controls while they're showing. Cues are placed by their top edge as a percentage of the video's height (Chrome
-  // ignores lineAlign), so each cue's own height (its lines at the ::cue font size in player.css) is allowed for and
-  // multi-line cues grow upwards. A track's cues (a
+  // controls (and the Next Episode card) while they're showing. Cues are placed by their top edge as a percentage of
+  // the video's height (Chrome ignores lineAlign), so each cue's own height (its lines at the ::cue font size in
+  // player.css) is allowed for and multi-line cues grow upwards. A track's cues (a
   // film has a thousand or two) are all placed once, when they've loaded or the space changes; after that each
   // cuechange touches only the cues on screen.
   const controls = useRef<HTMLElement>(null)
+  // The Next Episode card, while it shows: subtitles rise above it too.
+  const [upNextCard, setUpNextCard] = useState<HTMLElement | null>(null)
   useEffect(() => {
     const el = video.current
     const tracks = el?.textTracks
@@ -589,7 +643,8 @@ export function PlayerPage() {
       const box = el.getBoundingClientRect()
       const height = box.height || innerHeight
       const linePx = Math.min(32, Math.max(17.6, innerWidth * 0.024)) * scale * 1.3 + 2
-      const controlsLift = chrome && controls.current ? controls.current.getBoundingClientRect().height + 20 : 0
+      const card = upNextCard ? box.bottom - upNextCard.getBoundingClientRect().top + 12 : 0
+      const controlsLift = Math.max(chrome && controls.current ? controls.current.getBoundingClientRect().height + 20 : 0, card)
       const { top, picture, bar } = pictureIn(box.width || innerWidth, height, el.videoWidth, el.videoHeight)
       for (const track of Array.from(el.textTracks)) {
         if (track.mode !== 'showing' || !track.cues) continue
@@ -624,7 +679,7 @@ export function PlayerPage() {
       window.removeEventListener('resize', onResize)
       el.removeEventListener('resize', onResize)
     }
-  }, [chrome, subtitleKey, scale, position, blackBars])
+  }, [chrome, subtitleKey, scale, position, blackBars, upNextCard])
 
   // Styled subtitles (ASS/SSA) are drawn as authored, with their fonts, over the video, rather than as plain cues. If
   // that can't start (a browser without WebGL or WebAssembly), the plain version shows instead.
@@ -726,20 +781,32 @@ export function PlayerPage() {
     else void container.current?.requestFullscreen?.()
   }
   // How this sitting ends, from what was playing when the player closes (by its own Back or the browser's).
-  const now = useRef({ info, time, duration, finished, credits: undefined as number | undefined })
-  now.current = { info, time, duration, finished, credits: info?.markers.find((m) => m.type === 'Credits')?.start }
+  const now = useRef({ info, time, duration, finished: ended, credits: undefined as number | undefined })
+  now.current = { info, time, duration, finished: ended, credits: info?.markers.find((m) => m.type === 'Credits')?.start }
   const endingNow = (): PlaybackEnding | undefined => {
     const { info: playing, time: at, duration: length, finished: over, credits: creditsStart } = now.current
     // A shuffle belongs to its show, whose page has nothing to move on to.
     if (!playing || shuffleRef.current) return undefined
     return { from: origin.current, startedWith: startedWith.current, stoppedOn: playing.item.id, watched: over || isWatched(at, length, creditsStart), next: playing.next?.id ?? null }
   }
-  // Leaving by the browser's Back (or a swipe) counts as closing too.
+  // Leaving by the browser's Back (or a swipe) counts as closing too. It's recorded as the history moves, before the
+  // router renders the page Play was pressed on (see browserMoved), so that page moves on at once; unmounting catches any other way out.
   useEffect(
-    () => () => {
-      if (leaving.current) return
-      const ending = endingNow()
-      if (ending) recordEnding(ending)
+    () => {
+      const record = () => {
+        if (leaving.current) return
+        const ending = endingNow()
+        if (ending) recordEnding(ending)
+      }
+      const onBack = () => {
+        record()
+        leaving.current = true
+      }
+      whenBrowserBack(onBack)
+      return () => {
+        whenBrowserBack(undefined, onBack)
+        record()
+      }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- on leaving only; it reads the latest through refs
     [],
@@ -792,7 +859,7 @@ export function PlayerPage() {
     try {
       await startSubtitleSync(info.item.id, subtitleKey, info.fileId)
     } catch (e) {
-      setResync({ state: 'failed', error: e instanceof ApiError && e.messages[0] ? e.messages[0] : 'The subtitles couldn’t be re-synced.' })
+      setResync({ state: 'failed', error: e instanceof ApiError && e.messages[0] ? e.messages[0] : t('The subtitles couldn’t be re-synced.') })
     }
   }
 
@@ -802,7 +869,7 @@ export function PlayerPage() {
       void getSubtitleSync(info.item.id, info.fileId).then((sync) => {
         if (sync.state === 'running') return
         if (sync.state === 'failed') {
-          setResync({ state: 'failed', error: sync.error ?? 'The subtitles couldn’t be re-synced.' })
+          setResync({ state: 'failed', error: sync.error ?? t('The subtitles couldn’t be re-synced.') })
           return
         }
         setResync(undefined)
@@ -838,14 +905,58 @@ export function PlayerPage() {
   const recap = info?.markers.find((m) => m.type === 'Recap')
   const credits = info?.markers.find((m) => m.type === 'Credits')
   const skippable = [recap, intro].find((m) => m && time >= m.start && time < m.end - 1)
-  const upNextAt = credits?.start ?? (duration ? duration - unmarkedCreditsSeconds(duration) : Infinity)
-  // Offered from the credits on, as a button; once the episode is over, with the countdown (auto-play off closes).
-  const showUpNext = !!info?.next && !upNextCancelled && (finished || (time >= upNextAt && duration > 0))
-  const counting = finished && preferences.autoPlayNext && showUpNext
+  // Waiting for the end means the credits, or the very end without them, at the speed it's playing.
+  const sleepEnd = credits?.start ?? duration
+  const sleepLeft = secondsLeft(sleep, clock, duration > 0 ? Math.max(0, (sleepEnd - time) / speed) : Infinity)
+
+  // When Next Episode shows and what follows (docs/next-episode-timing.md). The countdown follows the position, so the
+  // picture plays on under it, pausing holds it and scrubbing back before it puts it away.
+  const upNext = info?.next
+    ? nextEpisodeTiming({ credits: credits?.start, duration, skipCredits: preferences.skipCredits, autoPlayNext: preferences.autoPlayNext })
+    : null
+  // A sleep timer that stops playback before then holds the episode there: no countdown, and no closing.
+  const sleepsBefore = (at: number) => sleepLeft !== null && sleepLeft <= (at - time) / speed
+  const holds = (at: number) => sleepStopped || sleepsBefore(at)
+  const upNow = upNextAt({ timing: upNext, duration, state: upNextState, time, holds })
+  const countingLive = upNow.counting
+  const counting = countingLive || endCountdown !== null
+  const countdown = countingLive ? upNow.countdown : (endCountdown ?? 0)
+  // After Cancel the card stays, with only Play now.
+  const showUpNext = !!info?.next && !sleepStopped && (upNow.show || counting)
 
   const playNext = useCallback(() => {
     if (info?.next) navigate(`/play/${info.next.id}?t=0${shuffle ? '&shuffle=1' : ''}`, { replace: true })
   }, [info, navigate, shuffle])
+
+  // Moving on from Next Episode (Play now, or the countdown) counts this one as watched, whatever its length. The
+  // control bar's next button doesn't: that's skipping ahead mid-episode.
+  const moveOn = () => {
+    if (!info?.next || movedOn.current) return
+    movedOn.current = true
+    if (session.current && !ended) void reportProgress(session.current, video.current?.currentTime ?? time, true, true).catch(() => undefined)
+    playNext()
+  }
+
+  // Each timeupdate, on the real position: a seek or start past where it would move on plays on with the card up, and
+  // playing into it while counting down moves on (lib/upNext).
+  upNextTick.current = (position: number) => {
+    if (!info?.next || playingItem.current !== info.item.id || movedOn.current) return
+    const jumped = seeked.current || lastPosition.current === null
+    seeked.current = false
+    lastPosition.current = position
+    const state = upNextMoved(upNext, upNextStateRef.current, position, jumped)
+    if (state !== upNextStateRef.current) setUpNextState(state)
+    if (ended) return
+    const now = upNextAt({ timing: upNext, duration, state, time: position, holds })
+    if (now.action === 'next') moveOn()
+    else if (now.action === 'close') {
+      // Skip credits with auto-play off: the episode is over as the credits start, which closes the player.
+      movedOn.current = true
+      video.current?.pause()
+      if (session.current) void reportProgress(session.current, position, true, true).catch(() => undefined)
+      exit()
+    }
+  }
 
   // Like a music player's back: a few seconds in, or with nothing before (a film, a first episode), it starts this
   // title again; otherwise it goes to the episode before.
@@ -862,7 +973,7 @@ export function PlayerPage() {
     if (!wanted || autoSkipped.current.has(key)) return
     autoSkipped.current.add(key)
     seekTo(skippable.end)
-    setNotice(skippable.type === 'Recap' ? 'Skipped the recap' : 'Skipped the intro')
+    setNotice(skippable.type === 'Recap' ? t('Skipped the recap') : t('Skipped the intro'))
     // eslint-disable-next-line react-hooks/exhaustive-deps -- seekTo is a plain function of this render
   }, [skippable, preferences, error])
 
@@ -872,53 +983,54 @@ export function PlayerPage() {
     return () => clearTimeout(timer)
   }, [notice])
 
-  // Skip credits: the episode is over as soon as they start.
+  // A setting changed from the player's menu (auto-play, Skip credits) acts at once, playing or paused.
   useEffect(() => {
-    if (!preferences.skipCredits || !credits || !info?.next || upNextCancelled || finished || time < credits.start) return
-    // Only the title on screen: the moment after moving on, info can still be the last episode's.
-    if (playingItem.current !== info.item.id || (video.current?.currentTime ?? 0) < credits.start) return
-    video.current?.pause()
-    if (session.current) void reportProgress(session.current, time, true, true).catch(() => undefined)
-    setFinished(true)
-  }, [preferences.skipCredits, credits, info, upNextCancelled, finished, time])
+    const el = video.current
+    if (el && lastPosition.current !== null) upNextTick.current(el.currentTime)
+  }, [upNext?.showAt, upNext?.countdownFrom, upNext?.nextAt, upNext?.closeAt])
+
+  // The end: on to the next episode if the countdown had started; closed after Cancel or with auto-play off; otherwise
+  // (the file was shorter than the server said) a countdown runs over the last frame.
+  useEffect(() => {
+    if (!ended || !info?.next || playingItem.current !== info.item.id || movedOn.current) return
+    const end = upNextAtEnd({
+      counting: countingLive,
+      state: upNextStateRef.current,
+      autoPlayNext: preferences.autoPlayNext,
+      holds: holds(time + NEXT_EPISODE_COUNTDOWN_SECONDS),
+    })
+    if (end === 'next') moveOn()
+    else if (end === 'close') exit()
+    else if (end === 'countdown') setEndCountdown(NEXT_EPISODE_COUNTDOWN_SECONDS)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, as it ends
+  }, [ended])
 
   useEffect(() => {
-    if (finished) setCountdown(UP_NEXT_SECONDS)
-  }, [finished])
+    if (endCountdown === null) return
+    if (endCountdown <= 0) {
+      moveOn()
+      return
+    }
+    const timer = setTimeout(() => setEndCountdown((c) => (c === null ? null : c - 1)), 1000)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- moveOn is a plain function of this render
+  }, [endCountdown])
 
-  // Over with auto-play off (at the credits with Skip credits on, else at the end): back to where it was played from.
-  useEffect(() => {
-    if (finished && !preferences.autoPlayNext) exit()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- exit is a plain function of this render
-  }, [finished, preferences.autoPlayNext])
-
-  useEffect(() => {
-    if (!counting) return
-    // Nothing plays under the countdown.
-    video.current?.pause()
-    const timer = setInterval(() => setCountdown((c) => c - 1), 1000)
-    return () => clearInterval(timer)
-  }, [counting])
-
-  useEffect(() => {
-    if (counting && countdown <= 0) playNext()
-  }, [countdown, counting, playNext])
-
-  // Get the next episode ready once the Up Next card shows (the credits, or the last moments), and let it go if the
-  // viewer heads back into the episode.
+  // Get the next episode ready as the card shows, but no earlier than a minute before it would play (the warm-up keeps
+  // a stream only so long), and let it go if the viewer heads back into the episode or cancels.
+  const wantReady = !!info?.next && !sleepStopped && (upNow.prepare || endCountdown !== null)
   useEffect(() => {
     const next = info?.next
     if (!next) return
-    if (!showUpNext) {
-      if (prepared && !finished) dropPrepared()
+    if (!wantReady) {
+      if (holdsPrepared(next.id) && !ended) dropPrepared()
       return
     }
-    if (prepared?.itemId === next.id) return
-    dropPrepared()
+    // As the next episode's page will ask for it: from the start (see playNext). A busy server says no, and it starts
+    // the usual way.
     const q = quality
     const preset = qualities.find((x) => x.value === q)
-    const claim = { itemId: next.id }
-    void startPlayback({
+    getReady({
       itemId: next.id,
       profile: detectProfile(),
       startPositionSeconds: 0,
@@ -926,16 +1038,8 @@ export function PlayerPage() {
       maxBitrate: preset?.bitrate,
       forceTranscode: q !== 'auto' || undefined,
       shuffle: shuffle || undefined,
-      prepare: true,
     })
-      .then((ready) => {
-        // Still wanted? (Not if the card went away, or another episode is being got ready, meanwhile.)
-        if (prepared === null && claim === preparing.current) prepared = { itemId: next.id, info: ready }
-        else void stopPlayback(ready.sessionId).catch(() => undefined)
-      })
-      .catch(() => undefined) // A busy server: the next episode starts the usual way.
-    preparing.current = claim
-  }, [showUpNext, info, finished, quality, shuffle])
+  }, [wantReady, info, ended, quality, shuffle])
 
   // Leaving the player lets an unused next episode go.
   useEffect(() => () => dropPrepared(), [])
@@ -985,7 +1089,7 @@ export function PlayerPage() {
           },
           () => {
             setAudioDelayState(info.audioDelaySeconds ?? 0)
-            setNotice('The sound couldn’t be moved just now')
+            setNotice(t('The sound couldn’t be moved just now'))
           },
         ),
       local ? 400 : 1200,
@@ -1018,9 +1122,6 @@ export function PlayerPage() {
     return () => window.clearInterval(timer)
   }, [sleep])
 
-  // Waiting for the end means the credits, or the very end without them, at the speed it's playing.
-  const sleepEnd = credits?.start ?? duration
-  const sleepLeft = secondsLeft(sleep, clock, duration > 0 ? Math.max(0, (sleepEnd - time) / speed) : Infinity)
   const stillWatching = sleepLeft !== null && sleepLeft <= STILL_WATCHING_SECONDS && playing && !error
   const sleepWhat = info?.item.kind === 'Episode' ? 'episode' : 'movie'
 
@@ -1047,8 +1148,8 @@ export function PlayerPage() {
       unfade()
       setSleep(null)
       setAsleep(true)
-      setUpNextCancelled(true)
-      setFinished(false)
+      setSleepStopped(true)
+      setEndCountdown(null)
       dropPrepared()
       return
     }
@@ -1080,12 +1181,13 @@ export function PlayerPage() {
     savePreferences({ ...preferences, [key]: !preferences[key] })
   }
 
-  /** Not now: hide the card, and if the credits were skipped, let them play. */
+  /** Cancel the countdown: play on with only Play now on the card; the player then closes at the end (or now, if it has
+   * ended). It holds for the rest of the episode. */
   function cancelUpNext() {
-    setUpNextCancelled(true)
+    setUpNextState({ ...upNextStateRef.current, cancelled: true })
+    setEndCountdown(null)
     dropPrepared()
-    if (finished && video.current && !video.current.ended) void video.current.play()
-    setFinished(false)
+    if (ended) exit()
   }
 
   // ---------- Keyboard
@@ -1214,20 +1316,20 @@ export function PlayerPage() {
       {(stillWatching || asleep) && (
         <div className="player-sleep-dim" aria-hidden="true" style={{ opacity: asleep ? 1 : Math.min(1, 1 - (sleepLeft ?? 0) / STILL_WATCHING_SECONDS) }} />
       )}
-      {waiting && !error && <div className="player-spinner" role="status" aria-label="Loading" />}
+      {waiting && !error && <div className="player-spinner" role="status" aria-label={t('Loading')} />}
       {subtitleStatus !== 'idle' && (
         <p className="player-toast" role="status">
-          {subtitleStatus === 'loading' ? 'Preparing subtitles. They’ll appear in a moment.' : 'These subtitles couldn’t be loaded. Try another track.'}
+          {subtitleStatus === 'loading' ? t('Preparing subtitles. They’ll appear in a moment.') : t('These subtitles couldn’t be loaded. Try another track.')}
         </p>
       )}
       {resync && subtitleStatus === 'idle' && (
         <p className="player-toast" role="status">
-          {resync.state === 'running' ? 'Re-syncing the subtitles to the audio. This takes a minute or so.' : resync.error}
+          {resync.state === 'running' ? t('Re-syncing the subtitles to the audio. This takes a minute or so.') : resync.error}
         </p>
       )}
 
       <header className="player-top">
-        <button className="icon-button" onClick={exit} aria-label="Back">
+        <button className="icon-button" onClick={exit} aria-label={t('Back')}>
           <Back />
         </button>
         {item && (
@@ -1246,7 +1348,7 @@ export function PlayerPage() {
         )}
         {info?.transcodeSummary && (
           <span className="player-badge" title={info.reasons.join('\n')}>
-            Converting: {info.transcodeSummary}
+            {t('Converting: {summary}', { summary: info.transcodeSummary })}
           </span>
         )}
       </header>
@@ -1257,16 +1359,16 @@ export function PlayerPage() {
           <p id="player-error-message">{error.message}</p>
           {error.kind === 'takenOver' && (
             <p id="player-error-note" className="player-error-note muted">
-              The other screen will stop if you watch here.
+              {t('The other screen will stop if you watch here.')}
             </p>
           )}
           <div className="player-error-actions">
             {/* Starts afresh rather than picking up the stream that was ended, so it can take the place back. */}
             <button className="button" autoFocus onClick={() => void retry(error.kind === 'other' ? { forceTranscode: true } : {})}>
-              {error.kind === 'takenOver' ? 'Watch here instead' : 'Try again'}
+              {error.kind === 'takenOver' ? t('Watch here instead') : t('Try again')}
             </button>
             <button className="button quiet" onClick={exit}>
-              Go back
+              {t('Go back')}
             </button>
           </div>
         </div>
@@ -1280,16 +1382,16 @@ export function PlayerPage() {
 
       {stillWatching && (
         <div className="player-still-watching" role="alertdialog" aria-labelledby="still-watching-title" aria-describedby="still-watching-note">
-          <p id="still-watching-title">Still watching?</p>
+          <p id="still-watching-title">{t('Still watching?')}</p>
           <p id="still-watching-note" className="muted">
-            Pausing in {Math.max(1, Math.ceil(sleepLeft ?? 0))} s
+            {t('Pausing in {seconds} s', { seconds: Math.max(1, Math.ceil(sleepLeft ?? 0)) })}
           </p>
           <div className="player-error-actions">
             <button className="button" autoFocus onClick={() => chooseSleep(extended(sleep, Date.now()))}>
-              +15 min
+              {t('+15 min')}
             </button>
             <button className="button quiet" onClick={() => chooseSleep(null)}>
-              Turn off timer
+              {t('Turn off timer')}
             </button>
           </div>
         </div>
@@ -1297,35 +1399,42 @@ export function PlayerPage() {
 
       {skippable && !showUpNext && !error && (
         <button className="skip-button" onClick={() => seekTo(skippable.end)} autoFocus>
-          {skippable.type === 'Recap' ? 'Skip recap' : 'Skip intro'}
+          {skippable.type === 'Recap' ? t(Words.skipRecap) : t(Words.skipIntro)}
         </button>
       )}
 
+      {/* Said once as the card shows: the countdown's number ticks every second, so it stays out of the live region. */}
+      <div className="visually-hidden" aria-live="polite">
+        {showUpNext && info?.next && !error ? t('Next episode: {code} {title}', { code: episodeCode(info.next), title: info.next.title }) : ''}
+      </div>
+
       {showUpNext && info?.next && !error && (
-        <aside className="up-next" aria-live="polite">
+        <aside className="up-next" ref={setUpNextCard} aria-label={t('Next episode')}>
           <div className="up-next-still">
             <img src={imageUrl(info.next.artwork.thumb ?? info.next.artwork.backdrop, 500)} alt="" />
             {counting && (
               <svg viewBox="0 0 36 36" className="up-next-ring" aria-hidden="true">
-                <circle cx="18" cy="18" r="16" style={{ strokeDashoffset: 100 - (countdown / UP_NEXT_SECONDS) * 100 }} pathLength={100} />
+                <circle cx="18" cy="18" r="16" style={{ strokeDashoffset: 100 - (countdown / NEXT_EPISODE_COUNTDOWN_SECONDS) * 100 }} pathLength={100} />
               </svg>
             )}
           </div>
           <div className="up-next-text">
-            <span className="muted">
-              Next episode
-              {counting ? ` in ${Math.max(0, countdown)}` : ''}
+            <span className="muted up-next-count">
+              {counting ? t(Words.nextEpisodeIn, { seconds: countdown }) : t('Next episode')}
             </span>
             <strong>
               {episodeCode(info.next)} {info.next.title}
             </strong>
-            <div className="up-next-actions">
-              <button className="button small" onClick={playNext}>
-                <Play /> Play now
+            {/* One split pill: Play now and, while counting down, its X. Each half is its own button. */}
+            <div className={counting ? 'up-next-pill counting' : 'up-next-pill'}>
+              <button className="up-next-play" onClick={moveOn}>
+                <icon.play /> {t('Play now')}
               </button>
-              <button className="button quiet small" onClick={cancelUpNext}>
-                {finished ? 'Cancel' : 'Keep watching'}
-              </button>
+              {counting && (
+                <button className="up-next-cancel" onClick={cancelUpNext} aria-label={t(Words.cancel)}>
+                  <icon.removeFromRow />
+                </button>
+              )}
             </div>
           </div>
         </aside>
@@ -1335,25 +1444,25 @@ export function PlayerPage() {
       <footer className="player-controls" ref={controls} hidden={!!error} inert={!!error}>
         <Scrubber time={time} duration={duration} bufferedTo={bufferedTo} markers={info?.markers ?? []} previews={previews} onSeek={seekTo} />
         <div className="player-buttons">
-          <button className="icon-button" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
-            {playing ? <Pause /> : <Play />}
+          <button className="icon-button" onClick={toggle} aria-label={playing ? t('Pause') : t(Words.play)}>
+            {playing ? <icon.pause /> : <icon.play />}
           </button>
-          <button className="icon-button" onClick={() => seekBy(-10)} aria-label="Back 10 seconds">
+          <button className="icon-button" onClick={() => seekBy(-10)} aria-label={t('Back 10 seconds')}>
             <Replay10 />
           </button>
-          <button className="icon-button" onClick={() => seekBy(10)} aria-label="Forward 10 seconds">
+          <button className="icon-button" onClick={() => seekBy(10)} aria-label={t('Forward 10 seconds')}>
             <Forward10 />
           </button>
-          <button className="icon-button" onClick={playPrevious} aria-label="Previous">
+          <button className="icon-button" onClick={playPrevious} aria-label={t('Previous')}>
             <Previous />
           </button>
           {info?.next && (
-            <button className="icon-button" onClick={playNext} aria-label="Next episode">
+            <button className="icon-button" onClick={playNext} aria-label={t('Next episode')}>
               <Next />
             </button>
           )}
           <div className="player-volume">
-            <button className="icon-button" onClick={() => video.current && (video.current.muted = !video.current.muted)} aria-label={muted ? 'Unmute' : 'Mute'}>
+            <button className="icon-button" onClick={() => video.current && (video.current.muted = !video.current.muted)} aria-label={muted ? t('Unmute') : t('Mute')}>
               {muted || volume === 0 ? <Muted /> : <Volume />}
             </button>
             <input
@@ -1362,7 +1471,7 @@ export function PlayerPage() {
               max={1}
               step={0.05}
               value={muted ? 0 : volume}
-              aria-label="Volume"
+              aria-label={t('Volume')}
               onChange={(e) => {
                 if (!video.current) return
                 video.current.volume = Number(e.target.value)
@@ -1376,47 +1485,47 @@ export function PlayerPage() {
           <span className="player-spacer" />
 
           <div className="menu-anchor">
-            <button className="icon-button" aria-label="Subtitles" aria-expanded={menu === 'subtitles'} onClick={() => setMenu(menu === 'subtitles' ? null : 'subtitles')}>
+            <button className="icon-button" aria-label={t(Words.subtitles)} aria-expanded={menu === 'subtitles'} onClick={() => setMenu(menu === 'subtitles' ? null : 'subtitles')}>
               <Captions />
             </button>
             {menu === 'subtitles' && info && (
               <div className="player-menu" role="menu">
                 <div className="player-menu-column">
-                  <h3>Subtitles</h3>
+                  <h3>{t(Words.subtitles)}</h3>
                   <MenuItem selected={!subtitleKey} onClick={() => chooseSubtitle(null)}>
-                    Off
+                    {t('Off')}
                   </MenuItem>
                   {info.subtitles.map((s) => (
                     <MenuItem key={s.key} selected={s.key === subtitleKey} onClick={() => chooseSubtitle(s.key)}>
                       {s.label}
-                      {!s.isText && <span className="muted"> (burned in)</span>}
+                      {!s.isText && <span className="muted"> {t('(burned in)')}</span>}
                     </MenuItem>
                   ))}
                   {info.canSearchSubtitles && !kids && (
                     <button className="player-menu-item" onClick={searchForSubtitles}>
-                      Search for subtitles…
+                      {t('Search for subtitles…')}
                     </button>
                   )}
                   {info.canSearchSubtitles && !kids && selectedTrack?.isExternal && (
                     <button className="player-menu-item" disabled={resync?.state === 'running'} onClick={() => void resyncSubtitles()}>
-                      {resync?.state === 'running' ? 'Re-syncing…' : 'Re-sync to audio'}
+                      {resync?.state === 'running' ? t('Re-syncing…') : t('Re-sync to audio')}
                     </button>
                   )}
                   {selectedText && (
                     <>
-                      <h3>Timing</h3>
+                      <h3>{t('Timing')}</h3>
                       <div className="player-menu-stepper">
-                        <button aria-label="Show subtitles earlier" onClick={() => nudgeSubtitles(-0.25)}>
+                        <button aria-label={t('Show subtitles earlier')} onClick={() => nudgeSubtitles(-0.25)}>
                           −
                         </button>
                         <span aria-live="polite">{delayLabel(subtitleDelay)}</span>
-                        <button aria-label="Show subtitles later" onClick={() => nudgeSubtitles(0.25)}>
+                        <button aria-label={t('Show subtitles later')} onClick={() => nudgeSubtitles(0.25)}>
                           +
                         </button>
                       </div>
                       {subtitleDelay !== 0 && (
                         <button className="player-menu-item" onClick={() => nudgeSubtitles(0)}>
-                          Reset timing
+                          {t('Reset timing')}
                         </button>
                       )}
                     </>
@@ -1424,20 +1533,20 @@ export function PlayerPage() {
                 </div>
                 {info.subtitles.some((s) => s.isText) && (
                   <div className="player-menu-column">
-                    <h3>Subtitle size</h3>
+                    <h3>{t('Subtitle size')}</h3>
                     {subtitleSizes.map((s) => (
                       <MenuItem key={s.value} selected={(preferences.subtitleSize ?? 'Standard') === s.value} onClick={() => chooseSubtitleSize(s.value)}>
-                        {s.label}
+                        {t(s.label)}
                       </MenuItem>
                     ))}
-                    <h3>Position</h3>
+                    <h3>{t('Position')}</h3>
                     {subtitlePositions.map((p) => (
                       <MenuItem key={p} selected={position === p} onClick={() => choosePlacement({ subtitlePosition: p })}>
-                        {p}
+                        {t(p)}
                       </MenuItem>
                     ))}
                     <MenuItem selected={blackBars} onClick={() => choosePlacement({ subtitlesInBlackBars: !blackBars })}>
-                      In the black bars
+                      {t('In the black bars')}
                     </MenuItem>
                   </div>
                 )}
@@ -1447,7 +1556,7 @@ export function PlayerPage() {
 
           {info && info.audioTracks.length > 0 && (
           <div className="menu-anchor">
-            <button className="icon-button" aria-label="Audio" aria-expanded={menu === 'audio'} onClick={() => setMenu(menu === 'audio' ? null : 'audio')}>
+            <button className="icon-button" aria-label={t('Audio')} aria-expanded={menu === 'audio'} onClick={() => setMenu(menu === 'audio' ? null : 'audio')}>
               <Waveform />
             </button>
             {menu === 'audio' && (
@@ -1456,7 +1565,7 @@ export function PlayerPage() {
                   <div className="player-menu-column">
                     {info.audioTracks.length > 1 && (
                       <>
-                        <h3>Audio</h3>
+                        <h3>{t('Audio')}</h3>
                         {info.audioTracks.map((a) => (
                           <MenuItem key={a.index} selected={a.index === info.selectedAudioIndex} onClick={() => chooseAudio(a.index)}>
                             {a.label}
@@ -1467,16 +1576,16 @@ export function PlayerPage() {
                     )}
                     {/* Fixes the file for everyone, so it's worth saying so. */}
                     {/* A click moves it 10 ms; held, it jumps 50 ms at a time. */}
-                    <h3>Audio sync</h3>
+                    <h3>{t('Audio sync')}</h3>
                     <div className="player-menu-stepper">
-                      <HoldButton aria-label="Play the sound earlier" title="Hold to move faster" onStep={(held) => nudgeSound(held ? -0.05 : -0.01)}>
+                      <HoldButton aria-label={t('Play the sound earlier')} title={t('Hold to move faster')} onStep={(held) => nudgeSound(held ? -0.05 : -0.01)}>
                         −
                       </HoldButton>
                       <span aria-live="polite">{syncLabel(audioDelay)}</span>
-                      <HoldButton aria-label="Play the sound later" title="Hold to move faster" onStep={(held) => nudgeSound(held ? 0.05 : 0.01)}>
+                      <HoldButton aria-label={t('Play the sound later')} title={t('Hold to move faster')} onStep={(held) => nudgeSound(held ? 0.05 : 0.01)}>
                         +
                       </HoldButton>
-                      <button aria-label="Reset sync" title="Reset sync" disabled={audioDelay === 0} onClick={() => nudgeSound(0)}>
+                      <button aria-label={t('Reset sync')} title={t('Reset sync')} disabled={audioDelay === 0} onClick={() => nudgeSound(0)}>
                         <Reset />
                       </button>
                     </div>
@@ -1484,16 +1593,20 @@ export function PlayerPage() {
                 )}
                 {info.audioTracks.length > 0 && canShape && (
                   <div className="player-menu-column sound">
-                    <h3 id="sound-boost">Dialogue boost</h3>
-                    <Segments labelledBy="sound-boost" choices={dialogueBoostChoices.map((b) => ({ value: b, label: b }))} value={sound.dialogueBoost} onChoose={(dialogueBoost) => writeSoundSettings({ dialogueBoost })} />
-                    <h3 id="sound-night">Night mode</h3>
+                    <h3 id="sound-boost">{t('Dialogue boost')}</h3>
+                    <Segments labelledBy="sound-boost" choices={dialogueBoostChoices.map((b) => ({ value: b, label: t(b) }))} value={sound.dialogueBoost} onChoose={(dialogueBoost) => writeSoundSettings({ dialogueBoost })} />
+                    <h3 id="sound-night">{t('Night mode')}</h3>
                     <Segments
                       labelledBy="sound-night"
-                      choices={nightModeChoices.map((n) => ({ value: n, label: n === 'Scheduled' ? `${timeOfDay(sound.nightStart)}–${timeOfDay(sound.nightEnd)}` : n, spoken: n === 'Scheduled' ? `${timeOfDay(sound.nightStart)} to ${timeOfDay(sound.nightEnd)}, on a schedule` : undefined }))}
+                      choices={nightModeChoices.map((n) => ({
+                        value: n,
+                        label: n === 'Scheduled' ? `${timeOfDay(sound.nightStart)}–${timeOfDay(sound.nightEnd)}` : t(n),
+                        spoken: n === 'Scheduled' ? t('{start} to {end}, on a schedule', { start: timeOfDay(sound.nightStart), end: timeOfDay(sound.nightEnd) }) : undefined,
+                      }))}
                       value={sound.nightMode}
                       onChoose={(nightMode) => writeSoundSettings({ nightMode })}
                     />
-                    <h3 id="sound-speakers">Speakers</h3>
+                    <h3 id="sound-speakers">{t('Speakers')}</h3>
                     <Segments labelledBy="sound-speakers" choices={speakerChoices} value={sound.speakers} onChoose={(speakers) => writeSoundSettings({ speakers })} />
                   </div>
                 )}
@@ -1506,7 +1619,7 @@ export function PlayerPage() {
             <button
               className={speed !== 1 ? 'player-quality active' : 'player-quality'}
               aria-expanded={menu === 'speed'}
-              aria-label={`Speed: ${speedLabel(speed)}`}
+              aria-label={t('Speed: {speed}', { speed: speedLabel(speed) })}
               onClick={() => setMenu(menu === 'speed' ? null : 'speed')}
             >
               {speedLabel(speed)}
@@ -1514,13 +1627,13 @@ export function PlayerPage() {
             {menu === 'speed' && (
               <div className="player-menu" role="menu">
                 <div className="player-menu-column">
-                  <h3>Speed</h3>
+                  <h3>{t('Speed')}</h3>
                   {speeds.map((s) => (
                     <MenuItem key={s} selected={s === speed} onClick={() => chooseSpeed(s)}>
-                      {s === 1 ? 'Normal' : speedLabel(s)}
+                      {s === 1 ? t('Normal') : speedLabel(s)}
                     </MenuItem>
                   ))}
-                  {info?.item.kind === 'Episode' && <p className="player-menu-note muted">Kept for this show.</p>}
+                  {info?.item.kind === 'Episode' && <p className="player-menu-note muted">{t('Kept for this show.')}</p>}
                 </div>
               </div>
             )}
@@ -1530,34 +1643,34 @@ export function PlayerPage() {
             <button
               className="player-quality"
               aria-expanded={menu === 'quality'}
-              aria-label={`Quality: ${quality === 'auto' ? (info?.method === 'DirectPlay' ? 'Original' : 'Auto') : `${quality}p`}`}
+              aria-label={t('Quality: {quality}', { quality: quality === 'auto' ? (info?.method === 'DirectPlay' ? t('Original') : t('Auto')) : `${quality}p` })}
               onClick={() => setMenu(menu === 'quality' ? null : 'quality')}
             >
-              {quality === 'auto' ? (info?.method === 'DirectPlay' ? 'Original' : 'Auto') : `${quality}p`}
+              {quality === 'auto' ? (info?.method === 'DirectPlay' ? t('Original') : t('Auto')) : `${quality}p`}
             </button>
             {menu === 'quality' && (
               <div className="player-menu" role="menu">
                 <div className="player-menu-column">
-                  <h3>Quality</h3>
+                  <h3>{t('Quality')}</h3>
                   {qualities.map((q) => (
                     <MenuItem key={q.value} selected={q.value === quality} onClick={() => chooseQuality(q.value)}>
-                      {q.label}
+                      {q.value === 'auto' ? t(q.label) : q.label}
                     </MenuItem>
                   ))}
                 </div>
                 <div className="player-menu-column">
-                  <h3>While watching</h3>
+                  <h3>{t('While watching')}</h3>
                   <MenuItem toggle selected={preferences.autoPlayNext} onClick={() => togglePreference('autoPlayNext')}>
-                    Auto-play next episode
+                    {t(Words.autoPlayNext)}
                   </MenuItem>
                   <MenuItem toggle selected={preferences.skipIntros} onClick={() => togglePreference('skipIntros')}>
-                    Skip intros
+                    {t('Skip intros')}
                   </MenuItem>
                   <MenuItem toggle selected={preferences.skipRecaps} onClick={() => togglePreference('skipRecaps')}>
-                    Skip recaps
+                    {t('Skip recaps')}
                   </MenuItem>
                   <MenuItem toggle selected={preferences.skipCredits} onClick={() => togglePreference('skipCredits')}>
-                    Skip credits
+                    {t(Words.skipCredits)}
                   </MenuItem>
                 </div>
               </div>
@@ -1582,11 +1695,12 @@ export function PlayerPage() {
             {menu === 'sleep' && (
               <div className="player-menu" role="menu">
                 <div className="player-menu-column">
-                  <h3>Sleep timer</h3>
-                  {sleepChoices(sleepWhat).map((choice) => (
+                  <h3>{t('Sleep timer')}</h3>
+                  {sleepChoices(sleepWhat).map((choice, i, all) => (
                     <MenuItem
                       key={choice.label}
-                      selected={choice.label.startsWith('At the end') ? !!sleep && 'endOfEpisode' in sleep : false}
+                      // The last choice waits for the end.
+                      selected={i === all.length - 1 ? !!sleep && 'endOfEpisode' in sleep : false}
                       onClick={() => chooseSleep(choice.start())}
                     >
                       {choice.label}
@@ -1594,7 +1708,7 @@ export function PlayerPage() {
                   ))}
                   {sleep && (
                     <button className="player-menu-item" onClick={() => chooseSleep(null)}>
-                      Turn off
+                      {t('Turn off')}
                     </button>
                   )}
                 </div>
@@ -1603,7 +1717,7 @@ export function PlayerPage() {
           </div>
 
           {'pictureInPictureEnabled' in document && document.pictureInPictureEnabled && (
-            <button className="icon-button" aria-label="Picture in picture" onClick={() => void video.current?.requestPictureInPicture?.()}>
+            <button className="icon-button" aria-label={t('Picture in picture')} onClick={() => void video.current?.requestPictureInPicture?.()}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <rect x="3" y="5" width="18" height="14" rx="2" />
                 <rect x="12" y="11" width="7" height="6" rx="1" fill="currentColor" />
@@ -1613,7 +1727,7 @@ export function PlayerPage() {
           {'webkitShowPlaybackTargetPicker' in HTMLVideoElement.prototype && (
             <button
               className="icon-button"
-              aria-label="AirPlay"
+              aria-label={t('AirPlay')}
               onClick={() => (video.current as unknown as { webkitShowPlaybackTargetPicker: () => void }).webkitShowPlaybackTargetPicker()}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -1622,7 +1736,7 @@ export function PlayerPage() {
               </svg>
             </button>
           )}
-          <button className="icon-button" onClick={toggleFullscreen} aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}>
+          <button className="icon-button" onClick={toggleFullscreen} aria-label={fullscreen ? t('Exit full screen') : t('Full screen')}>
             {fullscreen ? <ExitFullscreen /> : <Fullscreen />}
           </button>
         </div>
@@ -1732,11 +1846,11 @@ function Scrubber({
       className="scrubber"
       role="slider"
       tabIndex={0}
-      aria-label="Seek"
+      aria-label={t('Seek')}
       aria-valuemin={0}
       aria-valuemax={Math.round(duration)}
       aria-valuenow={Math.round(time)}
-      aria-valuetext={`${formatClock(time)} of ${formatClock(duration)}`}
+      aria-valuetext={t('{time} of {duration}', { time: formatClock(time), duration: formatClock(duration) })}
       onPointerMove={(e) => setHover(at(e))}
       onPointerLeave={() => !dragging && setHover(null)}
       onPointerDown={(e) => {
@@ -1749,11 +1863,16 @@ function Scrubber({
         onSeek(at(e))
         setHover(null)
       }}
+      // A touch drag the browser takes over (it turned into a scroll) ends without a seek.
+      onPointerCancel={() => {
+        setDragging(false)
+        setHover(null)
+      }}
     >
       <div className="scrubber-track">
         <span className="scrubber-buffered" style={{ width: pct(bufferedTo) }} />
         {markers.map((m) => (
-          <span key={`${m.type}-${m.start}`} className={`scrubber-marker marker-${m.type.toLowerCase()}`} style={{ left: pct(m.start), width: `calc(${pct(m.end)} - ${pct(m.start)})` }} title={m.type} />
+          <span key={`${m.type}-${m.start}`} className={`scrubber-marker marker-${m.type.toLowerCase()}`} style={{ left: pct(m.start), width: `calc(${pct(m.end)} - ${pct(m.start)})` }} title={m.type === 'Intro' ? t('Intro') : m.type === 'Recap' ? t('Recap') : m.type === 'Credits' ? t('Credits') : m.type} />
         ))}
         <span className="scrubber-played" style={{ width: pct(shown) }} />
         <span className="scrubber-thumb" style={{ left: pct(shown) }} />

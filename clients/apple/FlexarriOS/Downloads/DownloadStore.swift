@@ -345,7 +345,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         let states = collection.trackIds.map { entry(for: $0)?.state }
         // A track never asked for (the requests were cut short) counts as failed, unless they're still being made.
         if !queueing.contains(collection.id), states.contains(where: { $0 == nil }) {
-            return .failed("Some tracks weren't downloaded. Try again.")
+            return .failed(t("Some tracks weren't downloaded. Try again."))
         }
         return LocalCollection.status(of: states)
     }
@@ -474,9 +474,41 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         for download in downloads where download.isDownloaded && download.finishedAt == nil {
             fetchNext(after: download)
         }
+        await recoverDroppedTransfers()
         poll()
         resumeBooks()
         await reconcilePodcasts()
+    }
+
+    /// Films, episodes and tracks shown as downloading with no transfer behind them (the system dropped it with the
+    /// app, or a guest's transfer ended when the app did): back to waiting, so the next look at the server fetches them
+    /// again, from where they'd got to when that was kept. Books aren't here: `resumeBooks` restarts their missing files.
+    private func recoverDroppedTransfers() async {
+        // Only ones already downloading before the system's list is asked for: a transfer started meanwhile isn't in it.
+        let candidates = Set(all.filter { download in
+            guard download.book == nil, case .downloading = download.state else { return false }
+            return true
+        }.map(\.id))
+        guard !candidates.isEmpty else { return }
+        let running = await runningTransfers()
+        for id in candidates.subtracting(running) {
+            guard let download = all.first(where: { $0.id == id }), case .downloading = download.state else { continue }
+            log.info("Picking up a download the system dropped: \(download.item.title)")
+            held(id, resumeData: nil)
+        }
+    }
+
+    /// The names (`taskDescription`) of every transfer under way, in either session.
+    private func runningTransfers() async -> Set<String> {
+        let sessions = madeGuestSession || GuestMode.isActive ? [session!, guestSession] : [session!]
+        var names = Set<String>()
+        for session in sessions {
+            let found: [String] = await withCheckedContinuation { continuation in
+                session.getAllTasks { tasks in continuation.resume(returning: tasks.compactMap(\.taskDescription)) }
+            }
+            names.formUnion(found)
+        }
+        return names
     }
 
     /// Listening done with no connection: a book's place goes to its progress with the time it was heard (the newest
@@ -783,9 +815,9 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             all.removeAll { $0.id == remote.id }
             save()
         case .received where !local.isDownloaded, .expired:
-            update(remote.id) { $0.state = .failed("This download ran out on the server. Download it again.") }
+            update(remote.id) { $0.state = .failed(t("This download ran out on the server. Download it again.")) }
         case .failed:
-            update(remote.id) { $0.state = .failed(remote.error ?? "The server couldn't get this ready.") }
+            update(remote.id) { $0.state = .failed(remote.error ?? t("The server couldn't get this ready.")) }
         default:
             break
         }
@@ -1077,13 +1109,14 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     fileprivate func bookFileStopped(_ id: String, file: Int, _ error: Error) {
         guard let download = all.first(where: { $0.id == id }), !download.isDownloaded else { return }
-        if (error as? URLError)?.code == .cancelled { return }
-        // Cut off part-way: carried on from there at the next catch-up.
+        // Cut off part-way (or cancelled by the system with where it got to, the app swiped away): carried on from
+        // there at the next catch-up.
         if let data = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
             resumeData["\(id)#\(file)"] = data
             return
         }
-        update(id) { $0.state = .failed("The download stopped. Try again.") }
+        if (error as? URLError)?.code == .cancelled { return }
+        update(id) { $0.state = .failed(t("The download stopped. Try again.")) }
     }
 
     fileprivate func progressed(_ id: String, _ fraction: Double) {
@@ -1107,15 +1140,17 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     fileprivate func stopped(_ id: String, _ error: Error) {
         if let (book, file) = Self.bookFile(id) { return bookFileStopped(book, file: file, error) }
         guard let download = all.first(where: { $0.id == id }), !download.isDownloaded else { return }
-        if (error as? URLError)?.code == .cancelled { return }
-        // Cut off part-way (the network went, or a guest's tunnel slept with the phone locked): back to waiting, to
-        // carry on from where it got to once the server's in reach again (the next catch-up, back in front).
+        // Cut off part-way (the network went, a guest's tunnel slept with the phone locked, or the system cancelled it
+        // when the app was swiped away): back to waiting, to carry on from where it got to once the server's in reach
+        // again (the next catch-up, back in front). Checked before "cancelled", which is how the system reports a
+        // transfer it stopped with the app.
         if let data = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
             held(id, resumeData: data)
             if isOnline { poll() }
             return
         }
-        update(id) { $0.state = .failed("The download stopped. Try again.") }
+        if (error as? URLError)?.code == .cancelled { return }
+        update(id) { $0.state = .failed(t("The download stopped. Try again.")) }
     }
 }
 

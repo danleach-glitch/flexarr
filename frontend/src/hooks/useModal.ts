@@ -26,19 +26,7 @@ export function useModal<T extends HTMLElement>(onClose: () => void, canClose = 
         if (closable.current) close.current()
         return
       }
-      if (e.key !== 'Tab' || !dialog.current) return
-      const focusable = [...dialog.current.querySelectorAll<HTMLElement>(FOCUSABLE)]
-      if (focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      const inside = dialog.current.contains(document.activeElement)
-      if (e.shiftKey && (document.activeElement === first || !inside)) {
-        e.preventDefault()
-        last.focus()
-      } else if (!e.shiftKey && (document.activeElement === last || !inside)) {
-        e.preventDefault()
-        first.focus()
-      }
+      if (dialog.current) trapTab(dialog.current, e)
     }
     document.addEventListener('keydown', onKey, true)
     return () => {
@@ -48,4 +36,25 @@ export function useModal<T extends HTMLElement>(onClose: () => void, canClose = 
   }, [opener])
 
   return dialog
+}
+
+/**
+ * Keeps Tab and Shift-Tab inside `container`: from its last control Tab goes to its first, from its first Shift-Tab to
+ * its last, and from outside it either one comes in. For a view that handles its own Escape (Now Playing, whose menus
+ * take Escape first) and so can't use `useModal`.
+ */
+export function trapTab(container: HTMLElement, e: KeyboardEvent) {
+  if (e.key !== 'Tab') return
+  const focusable = [...container.querySelectorAll<HTMLElement>(FOCUSABLE)]
+  if (focusable.length === 0) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  const inside = container.contains(document.activeElement)
+  if (e.shiftKey && (document.activeElement === first || !inside)) {
+    e.preventDefault()
+    last.focus()
+  } else if (!e.shiftKey && (document.activeElement === last || !inside)) {
+    e.preventDefault()
+    first.focus()
+  }
 }

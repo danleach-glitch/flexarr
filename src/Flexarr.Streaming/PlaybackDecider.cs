@@ -1,4 +1,5 @@
 using System.Globalization;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Media;
 using Flexarr.Streaming.Remux;
 
@@ -107,6 +108,9 @@ public sealed record PlaybackDecision(
 /// <summary>Chooses between direct play and transcoding, and how to transcode.</summary>
 public static class PlaybackDecider
 {
+    /// <summary>The reason given for converting a file that's above the bitrate allowed (in English: the reasons are Loc.T of it).</summary>
+    public static readonly string BitrateReason = Loc.Mark("Bitrate is above the quality limit");
+
     private static readonly HashSet<string> HlsAudioCodecs = new(StringComparer.OrdinalIgnoreCase) { "aac", "mp3", "ac3", "eac3" };
 
     /// <summary>What fragmented MP4 carries as it is: MPEG-TS's codecs and lossless FLAC and ALAC.</summary>
@@ -225,70 +229,72 @@ public static class PlaybackDecider
         var reasons = new List<string>();
         if (options.ForceTranscode)
         {
-            reasons.Add("Conversion was requested");
+            reasons.Add(Loc.T("Conversion was requested"));
         }
 
         if (!profile.Containers.Contains(ContainerName(file.Container), StringComparer.OrdinalIgnoreCase))
         {
-            reasons.Add($"This device can't open {file.Container?.ToUpperInvariant() ?? "this"} files");
+            reasons.Add(file.Container is { } container
+                ? Loc.T("This device can't open {container} files", new { container = container.ToUpperInvariant() })
+                : Loc.T("This device can't open this files"));
         }
 
         if (file.VideoCodec is { } codec && !profile.VideoCodecs.Contains(codec, StringComparer.OrdinalIgnoreCase))
         {
-            reasons.Add($"This device can't decode {codec.ToUpperInvariant()} video");
+            reasons.Add(Loc.T("This device can't decode {codec} video", new { codec = codec.ToUpperInvariant() }));
         }
 
         if (file.VideoRange != VideoRange.Sdr && !profile.Hdr)
         {
-            reasons.Add("This display doesn't support HDR");
+            reasons.Add(Loc.T("This display doesn't support HDR"));
         }
         else if (file.VideoRange == VideoRange.DolbyVision && !profile.DolbyVision)
         {
             // Profile 5 has no HDR10 picture underneath and shows purple and green; which profile this is isn't known
             // here, so it's repackaged (which knows, and keeps 7 and 8's HDR10) or converted.
-            reasons.Add("This display doesn't show Dolby Vision");
+            reasons.Add(Loc.T("This display doesn't show Dolby Vision"));
         }
         else if ((file.VideoRange == VideoRange.Hdr10 && profile.Hdr10 == false) || (file.VideoRange == VideoRange.Hlg && profile.Hlg == false))
         {
-            reasons.Add($"This display isn't showing {(file.VideoRange == VideoRange.Hlg ? "HLG" : "HDR10")} right now");
+            reasons.Add(Loc.T("This display isn't showing {range} right now", new { range = file.VideoRange == VideoRange.Hlg ? "HLG" : "HDR10" }));
         }
 
         if (video is not null && !DecodableProfile(video))
         {
-            reasons.Add($"Players can't decode {video.Codec.ToUpperInvariant()} {video.Profile} video");
+            reasons.Add(Loc.T("Players can't decode {codec} {profile} video", new { codec = video.Codec.ToUpperInvariant(), profile = video.Profile }));
         }
 
         if (Math.Max(file.Height ?? 0, (file.Width ?? 0) * 9 / 16) > maxHeight)
         {
-            reasons.Add($"Resolution is above {maxHeight}p");
+            reasons.Add(Loc.T("Resolution is above {height}p", new { height = maxHeight.ToString(CultureInfo.InvariantCulture) }));
         }
 
         if (maxBitrate > 0 && file.Bitrate > maxBitrate)
         {
-            reasons.Add("Bitrate is above the quality limit");
+            reasons.Add(Loc.T(BitrateReason));
         }
 
         if (audio is not null && !profile.AudioCodecs.Contains(audio.Codec, StringComparer.OrdinalIgnoreCase))
         {
-            reasons.Add($"This device can't decode {audio.Codec.ToUpperInvariant()} audio");
+            reasons.Add(Loc.T("This device can't decode {codec} audio", new { codec = audio.Codec.ToUpperInvariant() }));
         }
 
         // Browsers can't switch audio tracks in a plain <video>; any track but the first needs conversion.
         if (audio is not null && audioStreams.Count > 1 && audio.Index != audioStreams[0].Index && !profile.SelectsTracksItself)
         {
-            reasons.Add("The chosen audio track isn't the file's first");
+            reasons.Add(Loc.T("The chosen audio track isn't the file's first"));
         }
 
         if (subtitle is { IsText: false } && !profile.SelectsTracksItself)
         {
-            reasons.Add("Picture-based subtitles have to be burned in");
+            reasons.Add(Loc.T("Picture-based subtitles have to be burned in"));
         }
 
         // The file's sound is out of sync and the player can't move it that way itself: the server's stream moves it.
         var delay = video is null || audio is null ? 0 : options.AudioDelaySeconds;
         if (delay != 0 && (delay > 0 ? profile.DelaysAudio : profile.AdvancesAudio) != true)
         {
-            reasons.Add($"The sound is moved {(delay > 0 ? "later" : "earlier")} to match the picture");
+            reasons.Add(Loc.T("The sound is moved {direction, select, later {later} other {earlier}} to match the picture", new { direction = delay > 0 ? "later" : "earlier" }));
         }
 
         if (reasons.Count == 0)

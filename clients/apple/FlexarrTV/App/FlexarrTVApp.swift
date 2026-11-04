@@ -6,8 +6,12 @@ import TVServices
 @main
 struct FlexarrTVApp: App {
     @State private var model: AppModel
+    @State private var language: LanguageState
 
     init() {
+        // The language shown last, before anything draws (tvOS has no App Group: the Top Shelf reads its own copy).
+        Localization.shared.startWithLastShown()
+        _language = State(initialValue: LanguageState())
         Symbol.checkAll()
         ThisDevice.identify()
         // Artwork is fetched constantly while browsing; give it a generous disk cache.
@@ -26,6 +30,10 @@ struct FlexarrTVApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                // A new language redraws everything in it.
+                .id(language.code)
+                .environment(\.locale, language.locale)
+                .environment(\.layoutDirection, language.isRightToLeft ? .rightToLeft : .leftToRight)
                 .environment(model)
                 .preferredColorScheme(.dark)
                 .onOpenURL { model.open(url: $0) }
@@ -75,6 +83,24 @@ struct RootView: View {
                 }
             }
         }
+        // "Update your Flexarr server": signed in to a server older than the app supports. Goes by itself.
+        .overlay(alignment: .top) {
+            if let notice = model.serverUpdateNotice {
+                Label(notice, systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(Color.screen)
+                    .padding(.horizontal, 32)
+                    .padding(.vertical, 18)
+                    .background(Capsule().fill(Color.seat))
+                    .padding(.top, 40)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .task(id: notice) {
+                        try? await Task.sleep(for: .seconds(6))
+                        if model.serverUpdateNotice == notice { model.serverUpdateNotice = nil }
+                    }
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: model.serverUpdateNotice)
         .animation(.easeInOut(duration: 0.35), value: model.phase)
         .animation(.easeInOut(duration: 0.35), value: model.needsProfileChoice)
         .animation(.easeInOut(duration: 0.35), value: model.isOffline)
@@ -98,6 +124,7 @@ struct RootView: View {
                 Task { await model.ensureGuestTunnel() }
                 // Offline ends (or starts) as soon as it's known whether the server answers now.
                 Task { await model.checkConnection() }
+                model.warmConnection()
                 Task { await model.refreshErrorReports() }
             }
         }
@@ -111,48 +138,48 @@ struct RootView: View {
                 .transition(.opacity)
             }
         }
-        .alert("Couldn't request this", isPresented: Binding(
+        .alert(t("Couldn't request this"), isPresented: Binding(
             get: { model.requestError != nil },
             set: { if !$0 { model.requestError = nil } }
         )) {
-            Button("OK", role: .cancel) {}
+            Button(t("OK"), role: .cancel) {}
         } message: {
             Text(model.requestError ?? "")
         }
-        .alert("Couldn't change your watchlist", isPresented: Binding(
+        .alert(t("Couldn't change your watchlist"), isPresented: Binding(
             get: { model.watchlistError != nil },
             set: { if !$0 { model.watchlistError = nil } }
         )) {
-            Button("OK", role: .cancel) {}
+            Button(t("OK"), role: .cancel) {}
         } message: {
             Text(model.watchlistError ?? "")
         }
-        .alert("Couldn't play this channel", isPresented: Binding(
+        .alert(t("Couldn't play this channel"), isPresented: Binding(
             get: { model.liveTv.errorMessage != nil },
             set: { if !$0 { model.liveTv.errorMessage = nil } }
         )) {
-            Button("OK", role: .cancel) {}
+            Button(t("OK"), role: .cancel) {}
         } message: {
             Text(model.liveTv.errorMessage ?? "")
         }
-        .alert(model.player.problem == .takenOver ? "Stopped for another screen" : "Couldn't play this", isPresented: Binding(
+        .alert(model.player.problem == .takenOver ? t("Stopped for another screen") : t("Couldn't play this"), isPresented: Binding(
             get: { model.player.errorMessage != nil },
             set: { if !$0 { model.player.errorMessage = nil } }
         )) {
             // The main button comes first, so it has the focus.
             switch model.player.problem {
             case .takenOver:
-                Button("Watch here instead") { model.player.retry() }
-                Button("Go back", role: .cancel) {}
+                Button(t("Watch here instead")) { model.player.retry() }
+                Button(t("Go back"), role: .cancel) {}
             case .busy:
-                Button("Try again") { model.player.retry() }
-                Button("Go back", role: .cancel) {}
+                Button(t("Try again")) { model.player.retry() }
+                Button(t("Go back"), role: .cancel) {}
             case .other:
-                Button("OK", role: .cancel) {}
+                Button(t("OK"), role: .cancel) {}
             }
         } message: {
             if model.player.problem == .takenOver {
-                Text("\(model.player.errorMessage ?? "")\n\nThe other screen will stop if you watch here.")
+                Text(t("{message}\n\nThe other screen will stop if you watch here.", ["message": model.player.errorMessage ?? ""]))
             } else {
                 Text(model.player.errorMessage ?? "")
             }

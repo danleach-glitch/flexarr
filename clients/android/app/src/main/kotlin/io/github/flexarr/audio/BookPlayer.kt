@@ -29,6 +29,7 @@ import io.github.flexarr.core.BookSessionClock
 import io.github.flexarr.core.BookSpeed
 import io.github.flexarr.core.ChapterSleep
 import io.github.flexarr.core.endBookSession
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.reportBookSession
 import io.github.flexarr.core.BookTimeline
 import io.github.flexarr.core.Bookmark
@@ -48,6 +49,9 @@ import io.github.flexarr.core.previousChapterStart
 import io.github.flexarr.logging.FlexarrLog
 import io.github.flexarr.player.DeviceCapabilities
 import io.github.flexarr.player.ShakeListener
+import io.github.flexarr.player.StartTiming
+import io.github.flexarr.player.StartBuffer
+import io.github.flexarr.core.PreparedStreams
 import io.github.flexarr.player.SleepTimer
 import io.github.flexarr.player.mediaSources
 import io.github.flexarr.widget.PodcastWidgets
@@ -74,6 +78,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         created = true
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(mediaSources(context))
+            .setLoadControl(StartBuffer.loadControl())
             .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), true)
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
@@ -183,9 +188,16 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
     private var shownChapter: Int? = null
     private var files: List<BookFile> = emptyList()
 
+    /** A book's start, timed until its first sound (see [StartTiming]). */
+    private var timing: StartTiming? = null
+
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(playing: Boolean) {
             isPlaying = playing
+            if (playing) timing?.takeIf { it.isAnswered }?.let { started ->
+                started.report(flexarrLog, client?.baseUrl?.host, model.isGuest)
+                timing = null
+            }
             if (playing) startTicking()
             if (player.playbackState == Player.STATE_READY) report(paused = !playing)
             // The home screen's Continue listening widget follows.
@@ -230,10 +242,31 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
                 return
             }
             flexarrLog.warning("Book failed", error)
-            errorMessage = "This book couldn’t be played."
+            errorMessage = t("This book couldn’t be played.")
             endSession()
         }
     }
+
+    // Getting ready ahead of Play
+
+    /** A book got ready ahead of Play from its page (docs/fast-start.md), taken over by [start]. */
+    private val warm = PreparedStreams(
+        scope,
+        start = { request -> requireNotNull(model.client).startPlayback(request) },
+        stop = { sessionId -> model.client?.stopPlayback(sessionId) },
+    )
+
+    private fun request(book: ItemSummary, from: Double?) =
+        PlaybackRequest(itemId = book.id, profile = profile, startPositionSeconds = from, deviceName = model.deviceName, measuredBitrate = model.linkSpeed.current())
+
+    /** Gets [book] ready as Play would start it (from its place). Not a book loaded already, or one on this phone. */
+    fun getReady(book: ItemSummary) {
+        if (model.client == null || current?.id == book.id || model.bookDownloads.entry(book.id) != null) return
+        warm.getReady(request(book, from = null), owner = model.client?.profileToken)
+    }
+
+    /** Lets the book got ready go; with [itemId], only if it's that book. */
+    fun dropReady(itemId: String? = null) = warm.drop(itemId)
 
     // Starting
 
@@ -282,23 +315,32 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         if (model.podcasts.current != null) model.podcasts.stop()
         // The Continue listening widget shows this book, until an episode is played.
         PodcastWidgets.heard(context, bookId = book.id)
+        LastHeard.save(context, LastHeard("book:${book.id}", book.title, book.book?.authors, book.artwork.poster))
         AudioService.start(context)
         if (startDownloaded(book, from)) return
         val client = client ?: run {
             isLoading = false
-            errorMessage = "Connect to your server to play this book."
+            errorMessage = t("Connect to your server to play this book.")
             return
         }
+        val started = StartTiming(StartTiming.BOOK)
+        timing = null
         scope.launch {
             try {
-                val info = client.startPlayback(PlaybackRequest(itemId = book.id, profile = profile, startPositionSeconds = from, deviceName = model.deviceName))
+                val asked = request(book, from)
+                // Got ready on its page a moment ago: no wait for the server.
+                val ready = warm.take(asked, owner = model.client?.profileToken)
+                if (ready == null) warm.drop()
+                val info = ready ?: client.startPlayback(asked)
+                started.answered(info, warmed = ready != null)
+                timing = started
                 if (mine != generation) {
                     runCatching { client.stopPlayback(info.sessionId) }
                     return@launch
                 }
                 val manifest = info.book ?: run {
                     runCatching { client.stopPlayback(info.sessionId) }
-                    errorMessage = "This server can’t play books yet."
+                    errorMessage = t("This server can’t play books yet.")
                     return@launch
                 }
                 sessionId = info.sessionId

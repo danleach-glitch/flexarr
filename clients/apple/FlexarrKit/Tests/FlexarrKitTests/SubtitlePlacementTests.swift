@@ -19,6 +19,26 @@ struct SubtitlePlacementTests {
         #expect(newer.lift == SubtitlePosition.bottom.lift)
     }
 
+    @Test func sizesAndPositionsFromANewerServerAreLeftOutWhenSaving() throws {
+        let json = #"{"autoPlayNext":false,"skipIntros":true,"skipRecaps":false,"skipCredits":true,"subtitleSize":"Huge","subtitlePosition":"Middle","subtitlesInBlackBars":true}"#
+        let preferences = try FlexarrClient.decoder.decode(PlaybackPreferences.self, from: Data(json.utf8))
+        #expect(preferences.subtitleSize == .unknown)
+        #expect(preferences.subtitlePosition == .unknown)
+        let sent = try JSONSerialization.jsonObject(with: JSONEncoder().encode(preferences)) as? [String: Any] ?? [:]
+        #expect(sent["subtitleSize"] == nil)
+        #expect(sent["subtitlePosition"] == nil)
+        #expect(sent["subtitlesInBlackBars"] as? Bool == true)
+        #expect(sent["autoPlayNext"] as? Bool == false)
+        #expect(sent["skipCredits"] as? Bool == true)
+
+        var known = preferences
+        known.subtitleSize = .large
+        known.subtitlePosition = .raised
+        let sentKnown = try JSONSerialization.jsonObject(with: JSONEncoder().encode(known)) as? [String: Any] ?? [:]
+        #expect(sentKnown["subtitleSize"] as? String == "Large")
+        #expect(sentKnown["subtitlePosition"] as? String == "Raised")
+    }
+
     @Test func positionsRiseInOrder() {
         #expect(SubtitlePosition.bottom.lift! < SubtitlePosition.raised.lift!)
         #expect(SubtitlePosition.raised.lift! < SubtitlePosition.higher.lift!)

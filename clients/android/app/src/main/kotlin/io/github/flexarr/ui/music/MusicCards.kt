@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.music
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,6 +58,7 @@ import io.github.flexarr.ui.downloads.CardDownloadedMark
 import io.github.flexarr.ui.downloads.DownloadedMark
 import io.github.flexarr.ui.podcasts.Tabular
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import io.github.flexarr.ui.theme.Tokens
@@ -137,7 +139,7 @@ fun ArtistCard(item: ItemSummary, modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             SquareArtwork(item, Modifier.padding(horizontal = 6.dp), circular = true)
-            CardCaption(item.title, if (item.childCount == 1) "1 album" else if (item.childCount > 1) "${item.childCount} albums" else null, centred = true)
+            CardCaption(item.title, if (item.childCount > 0) t("{count, plural, one {# album} other {# albums}}", "count" to item.childCount) else null, centred = true)
         }
         ItemMenu(actions, menu, onDismiss = { menu = false })
     }
@@ -157,7 +159,7 @@ fun TrackCard(model: AppModel, item: ItemSummary, width: Dp, onClick: () -> Unit
                     Modifier.align(Alignment.BottomEnd).padding(6.dp).size(28.dp).clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.92f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(if (playing) Icons.AutoMirrored.Filled.VolumeUp else Icons.Filled.PlayArrow, contentDescription = null, tint = Flexarr.room, modifier = Modifier.size(16.dp))
+                    Icon(if (playing) Icons.AutoMirrored.Filled.VolumeUp else FlexarrIcons.play, contentDescription = null, tint = Flexarr.room, modifier = Modifier.size(16.dp))
                 }
             }
             CardCaption(item.title, item.artistName)
@@ -218,7 +220,7 @@ fun PlaylistCard(playlist: PlaylistSummary, width: Dp) {
 @Composable
 fun MixCard(mix: MixSummary, width: Dp) {
     val navigator = LocalNavigator.current
-    Column(Modifier.width(width).pressable({ navigator.playMix(mix.id) }, onClickLabel = "Play"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.width(width).pressable({ navigator.playMix(mix.id) }, onClickLabel = t(Words.play)), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         CoverMosaic(mix.covers)
         CardCaption(mix.name, mix.description.ifEmpty { null })
     }
@@ -255,7 +257,7 @@ fun TrackRow(
         ) {
             Box(Modifier.width(28.dp), contentAlignment = Alignment.CenterEnd) {
                 if (isCurrent) {
-                    Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = if (isPlaying) "Playing" else "Paused", tint = Flexarr.screen.copy(alpha = if (isPlaying) 1f else 0.6f), modifier = Modifier.size(18.dp))
+                    Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = if (isPlaying) t("Playing") else t("Paused"), tint = Flexarr.screen.copy(alpha = if (isPlaying) 1f else 0.6f), modifier = Modifier.size(18.dp))
                 } else {
                     Text(number.toString(), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
                 }

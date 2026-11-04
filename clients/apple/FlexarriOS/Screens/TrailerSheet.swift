@@ -15,13 +15,13 @@ struct TrailerSheet: View {
                 TrailerPlayer(trailer: trailer)
                     .aspectRatio(16 / 9, contentMode: .fit)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .accessibilityLabel("\(title) trailer")
+                    .accessibilityLabel(t("{title} trailer", ["title": title]))
             }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    Button(t("Close")) { dismiss() }
                 }
             }
         }

@@ -1,10 +1,12 @@
 package io.github.flexarr.audio
 
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.player.mediaSources
 import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.PowerManager
 import androidx.annotation.OptIn
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
@@ -31,10 +33,12 @@ import io.github.flexarr.AppModel
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.LocalDownload
+import io.github.flexarr.core.PlaybackInfo
 import io.github.flexarr.core.PlaybackMethod
 import io.github.flexarr.core.PlaybackRequest
 import io.github.flexarr.core.artistName
 import io.github.flexarr.player.DeviceCapabilities
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -48,7 +52,7 @@ internal val appInFront: Boolean
     get() = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 
 /**
- * Plays a queue of tracks through one player: each track is its own server session (started as it comes up, reported
+ * Plays a queue of tracks through one player: each track is its own server session (started just before it comes up, reported
  * on as it plays, ended as it finishes), so the server's history and stream limits see music the way they see video.
  * Lives for the app's lifetime so music carries on while the listener browses, and [AudioService] puts it on the lock
  * screen, in the notification shade and on headphones. A downloaded track plays from its file instead, with no session
@@ -104,7 +108,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
 
     /**
      * The player as the lock screen, notification and headphones see it: their next and previous move through the
-     * queue here (the player itself only ever holds the one track).
+     * queue here (the player itself holds the one track, and the next behind it in its last seconds: see [Upcoming]).
      */
     val sessionPlayer: Player by lazy {
         object : ForwardingPlayer(player) {
@@ -120,6 +124,19 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
             override fun seekToNextMediaItem() = next()
             override fun seekToPrevious() = previous()
             override fun seekToPreviousMediaItem() = previous()
+
+            // Scrubbing from the lock screen, notification or a car goes through seek(), so going back from the
+            // last seconds drops the next track got ready behind (see dropUpcoming). Only the one track is seekable.
+            override fun seekTo(positionMs: Long) = seek(positionMs / 1000.0)
+            override fun seekTo(mediaItemIndex: Int, positionMs: Long) {
+                if (mediaItemIndex == player.currentMediaItemIndex) seek(positionMs / 1000.0)
+            }
+            override fun seekToDefaultPosition() = seek(0.0)
+            override fun seekToDefaultPosition(mediaItemIndex: Int) {
+                if (mediaItemIndex == player.currentMediaItemIndex) seek(0.0)
+            }
+            override fun seekBack() = seek((player.currentPosition - player.seekBackIncrement) / 1000.0)
+            override fun seekForward() = seek((player.currentPosition + player.seekForwardIncrement) / 1000.0)
 
             // Play with nothing loaded (it failed, or a video stopped it): ask for the track again.
             override fun play() = resume()
@@ -166,6 +183,38 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
     private var lastReport = 0L
     private var ticker: Job? = null
 
+    /**
+     * Held from one track's end until the next starts playing, when the next couldn't be got ready ahead (see
+     * [Upcoming]): each track is its own session, so then the player is stopped (letting go of its own wake lock) while
+     * the next is asked for; with the screen off the phone could otherwise sleep part way through asking, and the album
+     * stall until the screen came on.
+     */
+    private val betweenTracks: PowerManager.WakeLock by lazy {
+        context.getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "flexarr:next-track")
+            .apply { setReferenceCounted(false) }
+    }
+
+    /**
+     * The next track, got ready in the current one's last [Gapless.LEAD_SECONDS]: its session started and its stream
+     * queued in the player behind the current one, so the player moves straight on to it (no gap, no round trip, and the
+     * phone kept awake by the player throughout). Dropped, its session ended, whenever what plays next changes first.
+     */
+    private class Upcoming(val index: Int, val client: FlexarrClient?) {
+        var sessionId: String? = null
+        var offline = false
+        var duration = 0.0
+        /** In the player, behind the current track. */
+        var queued = false
+    }
+
+    private var upcoming: Upcoming? = null
+
+    private fun holdAwakeForNextTrack() = runCatching { betweenTracks.acquire(BETWEEN_TRACKS_MS) }
+
+    private fun letSleep() {
+        if (betweenTracks.isHeld) runCatching { betweenTracks.release() }
+    }
+
     val current: ItemSummary? get() = queue.getOrNull(index)
     /** What plays after the current track, in order. */
     val upNext: List<ItemSummary> get() = queue.drop(index + 1)
@@ -178,17 +227,28 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(playing: Boolean) {
             isPlaying = playing
+            // The player keeps the phone awake itself from here.
+            if (playing) letSleep()
             if (playing) startTicking()
             if (!playing && sessionId != null && player.playbackState == Player.STATE_READY) report(paused = true)
+            // Paused by the listener (not just buffering): the next track's early session could time out on the server
+            // while they're away, so it goes and is got ready again once they're back near the end.
+            if (!playing && !player.playWhenReady) dropUpcoming()
         }
 
         override fun onPlaybackStateChanged(state: Int) {
             if (state == Player.STATE_ENDED && (sessionId != null || isPlayingOffline)) trackEnded()
         }
 
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            // The current track ended and the player went on to the one got ready behind it.
+            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) moveToUpcoming()
+        }
+
         override fun onPlayerError(error: PlaybackException) {
             flexarrLog.warning("Track failed", error)
-            errorMessage = "This track couldn’t be played."
+            errorMessage = t("This track couldn’t be played.")
+            dropUpcoming()
             endSession()
             player.clearMediaItems()
             // Move on rather than fall silent, unless it was the last one.
@@ -233,6 +293,8 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         if (tracks.isEmpty()) return
         if (queue.isEmpty()) return play(tracks, albums = albums)
         if (client == null) client = model.client
+        // What plays next may have changed: it's got ready again from the new queue.
+        dropUpcoming()
         val edited = change(MusicQueue(queue, original, index, isShuffled))
         original = edited.original
         queue = edited.tracks
@@ -284,11 +346,14 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         if (current == null) return
         val target = seconds.coerceIn(0.0, if (duration > 0) duration else seconds.coerceAtLeast(0.0))
         position = target
+        // Back from the end: the next track's early session goes (it's started again nearer the end).
+        if (!Gapless.isTimeToPrepare(target, duration)) dropUpcoming()
         player.seekTo((target * 1000).toLong())
     }
 
     /** Shuffles what's left to play (the current track keeps playing), or restores the given order. */
     fun toggleShuffle() {
+        dropUpcoming()
         val current = current ?: run { isShuffled = !isShuffled; return }
         if (isShuffled) {
             isShuffled = false
@@ -304,6 +369,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
     }
 
     fun cycleRepeat() {
+        dropUpcoming()
         repeatMode = repeatMode.next
     }
 
@@ -316,7 +382,9 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         if (isPlayingOffline && model.recordsHistory && track != null && player.currentPosition > 0) {
             model.downloads.record(track.id, player.currentPosition / 1000.0, finished = false)
         }
+        dropUpcoming()
         endSession()
+        letSleep()
         player.stop()
         player.clearMediaItems()
         queue = emptyList()
@@ -344,6 +412,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         trackStart = null
         generation++
         val mine = generation
+        dropUpcoming()
         endSession()
         // One thing plays at a time: a podcast stops (keeping its place) for the music.
         if (model.podcasts.current != null) model.podcasts.stop()
@@ -375,20 +444,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
                 }
                 sessionId = info.sessionId
                 if (info.durationSeconds > 0) duration = info.durationSeconds
-                val item = MediaItem.Builder()
-                    .setUri(client.url(info.url))
-                    .setMediaId(track.id)
-                    .setMediaMetadata(
-                        MediaMetadata.Builder()
-                            .setTitle(track.title)
-                            .setArtist(track.artistName)
-                            .setAlbumTitle(albumTitle(track))
-                            .setArtworkUri(client.imageUrl(track.artwork.poster, 600)?.let(Uri::parse))
-                            .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
-                            .build(),
-                    )
-                    .apply { if (info.method == PlaybackMethod.Transcode) setMimeType(MimeTypes.APPLICATION_M3U8) }
-                    .build()
+                val item = streamedItem(client, track, info)
                 if (startAt != null && info.startPositionSeconds > 0) player.setMediaItem(item, (info.startPositionSeconds * 1000).toLong()) else player.setMediaItem(item)
                 player.setWakeMode(C.WAKE_MODE_NETWORK)
                 player.prepare()
@@ -399,17 +455,31 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
                 if (mine != generation) return@launch
                 flexarrLog.warning("Couldn't start ${track.title}", e)
                 errorMessage = e.message
+                letSleep()
             } finally {
                 if (mine == generation) isLoading = false
             }
         }
     }
 
-    /** Downloaded: its file and its saved cover, no session (and no connection needed). From [startAt], or the start. */
-    private fun startDownloaded(track: ItemSummary, download: LocalDownload, file: File, startAt: Double?) {
-        isPlayingOffline = true
-        if (download.durationSeconds > 0) duration = download.durationSeconds
-        val item = MediaItem.Builder()
+    private fun streamedItem(client: FlexarrClient, track: ItemSummary, info: PlaybackInfo): MediaItem =
+        MediaItem.Builder()
+            .setUri(client.url(info.url))
+            .setMediaId(track.id)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(track.title)
+                    .setArtist(track.artistName)
+                    .setAlbumTitle(albumTitle(track))
+                    .setArtworkUri(client.imageUrl(track.artwork.poster, 600)?.let(Uri::parse))
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
+                    .build(),
+            )
+            .apply { if (info.method == PlaybackMethod.Transcode) setMimeType(MimeTypes.APPLICATION_M3U8) }
+            .build()
+
+    private fun downloadedItem(track: ItemSummary, download: LocalDownload, file: File): MediaItem =
+        MediaItem.Builder()
             .setUri(Uri.fromFile(file))
             .setMediaId(track.id)
             .setMediaMetadata(
@@ -422,6 +492,12 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
                     .build(),
             )
             .build()
+
+    /** Downloaded: its file and its saved cover, no session (and no connection needed). From [startAt], or the start. */
+    private fun startDownloaded(track: ItemSummary, download: LocalDownload, file: File, startAt: Double?) {
+        isPlayingOffline = true
+        if (download.durationSeconds > 0) duration = download.durationSeconds
+        val item = downloadedItem(track, download, file)
         if (startAt != null) player.setMediaItem(item, (startAt * 1000).toLong()) else player.setMediaItem(item)
         // The phone's own copy: no Wi-Fi to keep awake.
         player.setWakeMode(C.WAKE_MODE_LOCAL)
@@ -445,6 +521,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
                     if (player.duration > 0) duration = player.duration / 1000.0
                 }
                 if (!player.isPlaying) break
+                prepareUpcomingIfDue()
                 if (System.currentTimeMillis() - lastReport >= REPORT_INTERVAL_MS) report(paused = false)
                 delay(if (appInFront) 250 else 1_000)
             }
@@ -479,11 +556,102 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         }
     }
 
+    // The next track, ahead of time
+
+    /** In the current track's last seconds, starts the next one's session and queues it behind (see [Upcoming]). */
+    private fun prepareUpcomingIfDue() {
+        if (upcoming != null || isLoading || !player.isPlaying || player.mediaItemCount != 1) return
+        if (sessionId == null && !isPlayingOffline) return
+        if (!Gapless.isTimeToPrepare(position, duration)) return
+        val at = Gapless.upcoming(index, queue.size, repeatMode) ?: return
+        val track = queue[at]
+        // Set before asking, so it's asked once: should it fail, the track change falls back to asking at the end.
+        val next = Upcoming(at, client).also { upcoming = it }
+        val download = model.downloads.entry(track.id)?.takeIf { it.isDownloaded }
+        val file = download?.let(model.downloads::file)
+        if (download != null && file != null) {
+            next.offline = true
+            next.duration = download.durationSeconds
+            player.addMediaItem(downloadedItem(track, download, file))
+            next.queued = true
+            return
+        }
+        val client = next.client ?: return
+        scope.launch {
+            try {
+                // Got ready ahead (prepare): it never ends the track still playing to make room for its conversion,
+                // and isn't shown as playing until the player takes it up.
+                val info = client.startPlayback(PlaybackRequest(itemId = track.id, profile = profile, startPositionSeconds = 0.0, prepare = true))
+                if (upcoming !== next) {
+                    runCatching { client.stopPlayback(info.sessionId) } // Dropped before it arrived.
+                    return@launch
+                }
+                next.sessionId = info.sessionId
+                next.duration = info.durationSeconds
+                // The next one streams: the Wi-Fi stays awake for it, even after a downloaded track.
+                player.setWakeMode(C.WAKE_MODE_NETWORK)
+                player.addMediaItem(streamedItem(client, track, info))
+                next.queued = true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (upcoming === next) flexarrLog.warning("Couldn't get ${track.title} ready ahead", e)
+            }
+        }
+    }
+
+    /** Takes the next track back out of the player and ends its early session (nothing of it was heard). */
+    private fun dropUpcoming() {
+        val next = upcoming ?: return
+        upcoming = null
+        if (next.queued && created && player.mediaItemCount > 1) {
+            player.removeMediaItems(1, player.mediaItemCount)
+            if (isPlayingOffline) player.setWakeMode(C.WAKE_MODE_LOCAL)
+        }
+        val client = next.client ?: return
+        val session = next.sessionId ?: return
+        scope.launch { runCatching { client.stopPlayback(session) } }
+    }
+
+    /** The player went on to the track got ready behind: finish the old track's session and take up the new one's. */
+    private fun moveToUpcoming() {
+        val next = upcoming
+        if (next == null || !next.queued || player.currentMediaItemIndex != 1) return
+        upcoming = null
+        val finished = current
+        if (isPlayingOffline) {
+            // Heard through with no session: the play goes to the server when there's a connection.
+            if (model.recordsHistory && finished != null) model.downloads.record(finished.id, 0.0, finished = true)
+        } else {
+            val client = client
+            val session = sessionId
+            val end = duration
+            val records = model.recordsHistory
+            if (client != null && session != null) scope.launch {
+                if (records) runCatching { client.reportProgress(session, end, paused = true, ended = true) }
+                runCatching { client.stopPlayback(session) }
+            }
+        }
+        index = next.index
+        sessionId = next.sessionId
+        isPlayingOffline = next.offline
+        duration = next.duration.takeIf { it > 0 } ?: current?.durationSeconds ?: 0.0
+        position = 0.0
+        errorMessage = null
+        lastReport = System.currentTimeMillis()
+        player.setWakeMode(if (next.offline) C.WAKE_MODE_LOCAL else C.WAKE_MODE_NETWORK)
+        // The finished track leaves the player, which holds the one track again.
+        player.removeMediaItem(0)
+        startTicking()
+    }
+
     private fun trackEnded() {
         // Heard through with no session: the play goes to the server when there's a connection.
         val track = current
         if (isPlayingOffline && model.recordsHistory && track != null) model.downloads.record(track.id, 0.0, finished = true)
         report(paused = true, ended = true)
+        // Moving on: awake until the next track plays (see betweenTracks).
+        if (repeatMode == RepeatMode.One || index + 1 < queue.size || repeatMode == RepeatMode.All) holdAwakeForNextTrack()
         when {
             repeatMode == RepeatMode.One -> startCurrent()
             index + 1 < queue.size -> {
@@ -496,6 +664,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
             }
             else -> {
                 // The end of the queue: stay on the last track, ready to play again.
+                dropUpcoming()
                 endSession()
                 position = 0.0
                 isPlaying = false
@@ -511,6 +680,8 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
 
     private companion object {
         const val REPORT_INTERVAL_MS = 10_000L
+        /** The most the phone is kept awake between tracks, should the next never start. */
+        const val BETWEEN_TRACKS_MS = 30_000L
         val QUEUE_COMMANDS = setOf(
             Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
             Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,

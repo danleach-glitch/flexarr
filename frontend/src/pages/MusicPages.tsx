@@ -1,13 +1,14 @@
 import { useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { getItem, getMusicArtistExtras, getMusicRequestStatus, getRadio, getTracks, imageUrl, type AlbumType, type ItemDetail, type ItemSummary } from '../api/client'
+import { getItem, getMusicArtistExtras, getMusicRequestStatus, getRadio, getTracks, imageUrl, type ItemDetail, type ItemSummary } from '../api/client'
 import { openAddToPlaylist, type PlaylistAddition } from '../components/AddToPlaylist'
 import { Artwork } from '../components/Artwork'
 import { AsyncButton } from '../components/AsyncButton'
 import { DeleteDialog } from '../components/DeleteDialog'
 import { PosterCard } from '../components/Cards'
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
-import { More, Play, Radio, Shuffle } from '../components/icons'
+import { More, Play } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { LyricsPanel } from '../components/LyricsPanel'
 import { MusicExternalCard, MusicRequestButton } from '../components/MusicExternalCard'
 import { Row } from '../components/Row'
@@ -17,6 +18,10 @@ import { useAudioPlayer, useAudioTime, type AudioPlayer } from '../hooks/audioPl
 import { formatClock, formatDuration } from '../lib/format'
 
 import { shuffled } from '../lib/shuffle'
+import { albumTypeLabel } from '../lib/albums'
+import { DetailsEditor } from '../components/DetailsEditor'
+import { MusicMatchDialog } from '../components/MusicMatchDialog'
+import { t, tk, Words } from '../i18n'
 
 /**
  * The queue actions for a set of tracks, as a menu offers them, and (given what they belong to: a track, album or
@@ -24,31 +29,14 @@ import { shuffled } from '../lib/shuffle'
  */
 export function queueActions(player: AudioPlayer, tracks: () => Promise<ItemSummary[]> | ItemSummary[], item?: PlaylistAddition): MenuAction[] {
   return [
-    { label: 'Play next', run: async () => player.playNext(await tracks()) },
-    { label: 'Add to queue', run: async () => player.enqueue(await tracks()) },
-    ...(item ? [{ label: 'Add to playlist…', run: () => openAddToPlaylist({ id: item.id, title: item.title }) }] : []),
+    { label: t(Words.playNext), run: async () => player.playNext(await tracks()) },
+    { label: t(Words.addToQueue), run: async () => player.enqueue(await tracks()) },
+    ...(item ? [{ label: t('Add to playlist…'), run: () => openAddToPlaylist({ id: item.id, title: item.title }) }] : []),
   ]
 }
 
-/** What an album's page calls its kind of release: nothing for a plain album, or one nobody has typed. */
-export function albumTypeLabel(type: AlbumType | null | undefined): string | null {
-  switch (type) {
-    case 'ep':
-      return 'EP'
-    case 'single':
-      return 'Single'
-    case 'live':
-      return 'Live'
-    case 'compilation':
-      return 'Compilation'
-    case 'soundtrack':
-      return 'Soundtrack'
-    default:
-      return null
-  }
-}
-
-const sectionTitles = ['Albums', 'EPs and singles', 'Live and compilations', 'Other'] as const
+/** The shelves' English names, which key them; said through t(title) where shown. */
+const sectionTitles = [Words.albums, tk('EPs and singles'), tk('Live and compilations'), tk('Other')] as const
 type SectionTitle = (typeof sectionTitles)[number]
 
 // Where each kind is shelved. Anything else (plain albums, soundtracks the artist made, albums nobody has typed) is
@@ -102,6 +90,26 @@ export function MoreButton({ label, actions, disabled }: { label: string; action
 const andThen = (first: MenuAction[], then: MenuAction[]): MenuAction[] => (first.length && then.length ? [...first, 'divider', ...then] : [...first, ...then])
 
 /**
+ * Looking after an album or artist, for the main profile (locked or not, as for films): Edit… (albums) and Fix match…
+ * in its ⋯, and their dialogs.
+ */
+function useLibraryCare(detail: ItemDetail, onChange?: () => void): { actions: MenuAction[]; dialog: ReactNode } {
+  const { me } = useSession()
+  const [open, setOpen] = useState<'edit' | 'match' | null>(null)
+  if (!(me?.isAdmin === true || me?.canUnlock === true)) return { actions: [], dialog: null }
+  const changed = () => onChange?.()
+  return {
+    actions: [...(detail.item.kind === 'Album' ? [{ label: t('Edit…'), run: () => setOpen('edit') }] : []), { label: t('Fix match…'), run: () => setOpen('match') }],
+    dialog:
+      open === 'edit' ? (
+        <DetailsEditor detail={detail} onSaved={changed} onClose={() => setOpen(null)} />
+      ) : open === 'match' ? (
+        <MusicMatchDialog detail={detail} onFixed={changed} onClose={() => setOpen(null)} />
+      ) : null,
+  }
+}
+
+/**
  * Delete… in an album's or artist's ⋯, for the main profile (locked or not, as for films), and its dialog. Lidarr
  * deletes the files when it manages them; back to the artist (for an album) or the library afterwards.
  */
@@ -113,7 +121,7 @@ function useDeletion(detail: ItemDetail): { actions: MenuAction[]; dialog: React
   const parent = detail.ancestors[0]
   if (!(me?.isAdmin === true || me?.canUnlock === true)) return { actions: [], dialog: null }
   return {
-    actions: [{ label: 'Delete…', run: () => setDeleting(true), danger: true }],
+    actions: [{ label: t('Delete…'), run: () => setDeleting(true), danger: true }],
     dialog: deleting ? (
       <DeleteDialog
         item={item}
@@ -129,7 +137,7 @@ function useDeletion(detail: ItemDetail): { actions: MenuAction[]; dialog: React
 }
 
 /** An album: cover, facts and its tracklist. Discs are separated when there's more than one. */
-export function AlbumPage({ detail }: { detail: ItemDetail }) {
+export function AlbumPage({ detail, onChange }: { detail: ItemDetail; onChange?: () => void }) {
   const player = useAudioPlayer()
   const { item, children: tracks } = detail
   const artist = detail.ancestors[0]
@@ -139,6 +147,7 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
   // One track's menu at a time: which, and where it opened.
   const [trackMenu, setTrackMenu] = useState<{ index: number; at: MenuPoint } | null>(null)
   const deletion = useDeletion(detail)
+  const care = useLibraryCare(detail, onChange)
 
   const openMenu = (index: number, at: MenuPoint) => (e: MouseEvent) => {
     e.preventDefault()
@@ -164,20 +173,20 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
             )}
             {kind && <span>{kind}</span>}
             {item.year && <span>{item.year}</span>}
-            <span>{tracks.length === 1 ? '1 track' : `${tracks.length} tracks`}</span>
+            <span>{t('{count, plural, one {# track} other {# tracks}}', { count: tracks.length })}</span>
             {total > 0 && <span>{formatDuration(total)}</span>}
           </p>
           <div className="detail-actions">
             <button className="button" onClick={() => player.play(tracks, 0, { openNowPlaying: true })} disabled={tracks.length === 0}>
-              <Play /> Play
+              <icon.play /> {t(Words.play)}
             </button>
             <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0, { openNowPlaying: true })} disabled={tracks.length < 2}>
-              <Shuffle /> Shuffle
+              <icon.shuffle /> {t(Words.shuffle)}
             </button>
             <MoreButton
-              label={`More for ${item.title}`}
-              actions={andThen(tracks.length > 0 ? queueActions(player, () => tracks, item) : [], deletion.actions)}
-              disabled={tracks.length === 0 && deletion.actions.length === 0}
+              label={t('More for {title}', { title: item.title })}
+              actions={andThen(tracks.length > 0 ? queueActions(player, () => tracks, item) : [], [...care.actions, ...deletion.actions])}
+              disabled={tracks.length === 0 && deletion.actions.length === 0 && care.actions.length === 0}
             />
           </div>
         </div>
@@ -189,7 +198,7 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
           const newDisc = discs > 1 && (i === 0 || (tracks[i - 1].discNumber ?? 1) !== (track.discNumber ?? 1))
           return (
             <li key={track.id}>
-              {newDisc && <h2 className="tracklist-disc">Disc {track.discNumber ?? 1}</h2>}
+              {newDisc && <h2 className="tracklist-disc">{t('Disc {number}', { number: track.discNumber ?? 1 })}</h2>}
               <div className="track-row" onContextMenu={(e) => openMenu(i, { x: e.clientX, y: e.clientY })(e)}>
                 <button className={isCurrent ? 'track current' : 'track'} onClick={() => player.play(tracks, i)} aria-current={isCurrent || undefined}>
                   <span className="track-number">{isCurrent && player.playing ? <Play /> : (track.trackNumber ?? i + 1)}</span>
@@ -201,7 +210,7 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
                 </button>
                 <button
                   className="icon-button track-menu-button"
-                  aria-label={`More for ${track.title}`}
+                  aria-label={t('More for {title}', { title: track.title })}
                   aria-haspopup="menu"
                   aria-expanded={trackMenu?.index === i}
                   onClick={(e) => {
@@ -219,13 +228,14 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
       <PlayingLyrics tracks={tracks} />
       {trackMenu && tracks[trackMenu.index] && (
         <Menu
-          label={`More for ${tracks[trackMenu.index].title}`}
+          label={t('More for {title}', { title: tracks[trackMenu.index].title })}
           at={trackMenu.at}
-          actions={[{ label: 'Play', run: () => player.play(tracks, trackMenu.index) }, ...queueActions(player, () => [tracks[trackMenu.index]], tracks[trackMenu.index])]}
+          actions={[{ label: t(Words.play), run: () => player.play(tracks, trackMenu.index) }, ...queueActions(player, () => [tracks[trackMenu.index]], tracks[trackMenu.index])]}
           onClose={() => setTrackMenu(null)}
         />
       )}
       {deletion.dialog}
+      {care.dialog}
     </article>
   )
 }
@@ -246,11 +256,14 @@ function PlayingLyrics({ tracks }: { tracks: ItemSummary[] }) {
  * An artist and their albums, newest first, shelved by kind (see {@link albumSections}). Play and Shuffle take every
  * track they have; Radio mixes in artists like them.
  */
-export function ArtistPage({ detail }: { detail: ItemDetail }) {
+export function ArtistPage({ detail, onChange }: { detail: ItemDetail; onChange?: () => void }) {
   const player = useAudioPlayer()
   const { item, children: albums } = detail
   const [loading, setLoading] = useState(false)
   const deletion = useDeletion(detail)
+  // A followed artist with nothing filed yet has nothing to match.
+  const care = useLibraryCare(detail, onChange)
+  const careActions = albums.length === 0 ? [] : care.actions
   const navigate = useNavigate()
   // A followed artist none of whose music has arrived yet: nothing to play, but Following and what's out there.
   const waiting = albums.length === 0
@@ -295,24 +308,26 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
         <div className="music-header-text">
           <h1>{item.title}</h1>
           <p className="facts">
-            <span>{waiting ? 'No albums yet' : albums.length === 1 ? '1 album' : `${albums.length} albums`}</span>
+            <span>{waiting ? t('No albums yet') : t('{count, plural, one {# album} other {# albums}}', { count: albums.length })}</span>
           </p>
           <div className="detail-actions">
             {!waiting && (
               <>
                 <AsyncButton className="button" onClick={() => playAll(false)} disabled={loading}>
-                  <Play /> Play
+                  <icon.play /> {t(Words.play)}
                 </AsyncButton>
                 <AsyncButton className="button quiet" onClick={() => playAll(true)} disabled={loading}>
-                  <Shuffle /> Shuffle
+                  <icon.shuffle /> {t(Words.shuffle)}
                 </AsyncButton>
                 <AsyncButton className="button quiet" onClick={() => startRadio()} disabled={loading}>
-                  <Radio /> Radio
+                  <icon.radio /> {t(Words.radio)}
                 </AsyncButton>
               </>
             )}
             {extras.data && (
               <MusicRequestButton
+                // The server's answer, fresh after Edit or Fix match, replaces what the button last did.
+                key={String(extras.data.followed)}
                 kind="artist"
                 size="large"
                 request={{ kind: 'artist', artistId: item.id }}
@@ -323,10 +338,10 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
                 onUndone={waiting ? () => navigate(`/library/${item.libraryId}`, { replace: true }) : undefined}
               />
             )}
-            {(!waiting || deletion.actions.length > 0) && (
+            {(!waiting || deletion.actions.length > 0 || careActions.length > 0) && (
               <MoreButton
-                label={`More for ${item.title}`}
-                actions={andThen(waiting ? [] : queueActions(player, () => getTracks(item.id), item), deletion.actions)}
+                label={t('More for {title}', { title: item.title })}
+                actions={andThen(waiting ? [] : queueActions(player, () => getTracks(item.id), item), [...careActions, ...deletion.actions])}
               />
             )}
           </div>
@@ -337,7 +352,7 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
         return (
           <section key={section.title} className="music-section" aria-labelledby={headingId}>
             <h2 id={headingId} className="music-section-title">
-              {section.title}
+              {t(section.title)}
             </h2>
             <div className="poster-grid music-albums">
               {section.albums.map((album) => (
@@ -350,7 +365,7 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
       {extras.data && extras.data.missing.length > 0 && (
         <section className="music-section music-missing" aria-labelledby="music-section-missing">
           <h2 id="music-section-missing" className="music-section-title">
-            Not in your library
+            {t(Words.notInYourLibrary)}
           </h2>
           <div className="poster-grid music-albums">
             {extras.data.missing.map((a, i) => (
@@ -360,13 +375,14 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
         </section>
       )}
       {extras.data && extras.data.similar.length > 0 && (
-        <Row title="Fans also like">
+        <Row title={t(Words.fansAlsoLike)}>
           {extras.data.similar.map((s, i) => (
             <MusicExternalCard key={`${i}-${s.deezerId}`} item={s} unanswered={extras.data?.lidarrAnswered === false} />
           ))}
         </Row>
       )}
       {deletion.dialog}
+      {care.dialog}
     </article>
   )
 }

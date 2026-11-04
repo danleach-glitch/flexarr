@@ -1,11 +1,17 @@
 package io.github.flexarr.downloads
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.logging.FlexarrLog
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
 import androidx.core.app.NotificationCompat
+import io.github.flexarr.AppLink
 import io.github.flexarr.appModel
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.FlexarrException
@@ -54,14 +60,14 @@ internal class DownloadTransfer(
         if (!onMain { running.add(id) }) return Outcome.Done
         try {
             val client = onMain { store.currentClient } ?: return Outcome.Retry
-            show(local, "Getting ready", null)
+            show(local, t("Getting ready"), null)
             // The server converts it first: asked after every few seconds until it's ready.
             while (true) {
                 val remote = try {
                     client.offlineDownload(id)
                 } catch (e: FlexarrException.Http) {
                     if (e.status == 404) {
-                        onMain { store.failed(id, "The server doesn’t have this download any more. Download it again.") }
+                        onMain { store.failed(id, t("The server doesn’t have this download any more. Download it again.")) }
                         return Outcome.Done
                     }
                     throw e
@@ -71,21 +77,21 @@ internal class DownloadTransfer(
                 delay(POLL_MS)
             }
             val ready = onMain { store.byId(id) } ?: return Outcome.Done
-            show(ready, "Downloading", null)
+            show(ready, t("Downloading"), null)
             fetch(client, ready)
             return Outcome.Done
         } catch (e: CancellationException) {
             throw e // stopped: deleted, or off Wi-Fi (what came so far is kept for next time)
         } catch (e: FlexarrException.Unauthorized) {
-            onMain { store.failed(id, e.message ?: "The server didn’t accept this device’s sign-in.") }
+            onMain { store.failed(id, e.message ?: t("The server didn’t accept this device’s sign-in.")) }
             return Outcome.Done
         } catch (e: NoRoom) {
-            onMain { store.failed(id, "There isn’t room for this on the phone. Delete something and try again.") }
+            onMain { store.failed(id, t("There isn’t room for this on the phone. Delete something and try again.")) }
             return Outcome.Done
         } catch (e: Exception) {
             flexarrLog.warning("Download $id stopped; trying again later", e)
             if (attempt >= MAX_ATTEMPTS) {
-                onMain { store.failed(id, "The download stopped. Try again.") }
+                onMain { store.failed(id, t("The download stopped. Try again.")) }
                 return Outcome.Done
             }
             return Outcome.Retry
@@ -133,7 +139,7 @@ internal class DownloadTransfer(
                             val fraction = written.toDouble() / total
                             onMain { store.progressed(download.id, fraction) }
                             transferred(written, total)
-                            show(download, "Downloading", fraction)
+                            show(download, t("Downloading"), fraction)
                         }
                     }
                 }
@@ -163,21 +169,44 @@ internal class DownloadTransfer(
             return total == partBytes
         }
 
-        /** The notification a transfer shows while it runs: its title, what it's doing, and how far it's got. */
+        /**
+         * The notification a transfer shows while it runs: its title, what it's doing, and how far it's got. Tapping it
+         * opens Downloads; Stop download stops and deletes it, as in the app.
+         */
         fun notification(context: Context, download: LocalDownload?, status: String, fraction: Double? = null): Notification {
             val manager = context.getSystemService(NotificationManager::class.java)
             if (manager.getNotificationChannel(CHANNEL) == null) {
-                manager.createNotificationChannel(NotificationChannel(CHANNEL, "Downloads", NotificationManager.IMPORTANCE_LOW))
+                manager.createNotificationChannel(NotificationChannel(CHANNEL, t(Words.downloads), NotificationManager.IMPORTANCE_LOW))
             }
             val title = download?.item?.let { item -> if (item.seriesTitle != null && item.kind != MediaKind.Movie) "${item.seriesTitle}: ${item.title}" else item.title }
             return NotificationCompat.Builder(context, CHANNEL)
                 .setSmallIcon(android.R.drawable.stat_sys_download)
-                .setContentTitle(title ?: "Downloading")
+                .setContentTitle(title ?: t("Downloading"))
                 .setContentText(status)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
                 .setSilent(true)
                 .apply { if (fraction != null) setProgress(1000, (fraction * 1000).toInt(), false) else setProgress(0, 0, true) }
+                .setContentIntent(
+                    PendingIntent.getActivity(
+                        context,
+                        OPEN_DOWNLOADS_REQUEST,
+                        AppLink.Downloads.intent(context),
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                    ),
+                )
+                .apply {
+                    if (download != null) {
+                        val stop = Intent(context, StopDownloadReceiver::class.java).putExtra(StopDownloadReceiver.ID, download.id)
+                        val pending = PendingIntent.getBroadcast(
+                            context,
+                            notificationId(download.id),
+                            stop,
+                            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                        )
+                        addAction(0, t("Stop download"), pending)
+                    }
+                }
                 .build()
         }
 
@@ -185,11 +214,25 @@ internal class DownloadTransfer(
         fun notificationId(id: String?): Int = (id ?: "download").hashCode()
 
         private const val CHANNEL = "downloads"
+        private const val OPEN_DOWNLOADS_REQUEST = 0x0d0f
         private const val POLL_MS = 3_000L
         private const val PROGRESS_MS = 500L
         const val MAX_ATTEMPTS = 20
         /** Left free beside a download, so the phone isn't filled to the brim. */
         private const val RESERVE_BYTES = 200L * 1024 * 1024
+    }
+}
+
+/** A download notification's Stop download: stops the transfer and deletes what came, as Stop download does in the app. */
+class StopDownloadReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val id = intent.getStringExtra(ID) ?: return
+        // Broadcasts arrive on the main thread, where the store lives.
+        context.appModel.downloads.delete(id)
+    }
+
+    companion object {
+        const val ID = "id"
     }
 }
 

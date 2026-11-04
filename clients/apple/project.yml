@@ -7,10 +7,11 @@ options:
     tvOS: "18.2"
     iOS: "18.2"
   createIntermediateGroups: true
+  developmentLanguage: en
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "0.58.0"
+    MARKETING_VERSION: "0.60.0"
     CURRENT_PROJECT_VERSION: "1"
     # The Apple TV app's bundle ID; its Top Shelf extension's is this plus .topshelf. `make apple-install` sets it.
     FLEXARR_TV_BUNDLE_ID: io.github.flexarr.tv
@@ -43,7 +44,9 @@ targets:
         script: |
           [ -d "$SRCROOT/../tunnel/build/FlexarrTunnel.xcframework" ] || PATH="$PATH:/opt/homebrew/bin:/usr/local/go/bin" make -C "$SRCROOT/../.." tunnel-apple
     # Shared/ is the app model, player and design tokens both apps use.
-    sources: [Shared, FlexarrTV]
+    # Languages/: what tvOS reads itself (Shortcuts and Siri text, Info.plist prompts) in every bundled language, written by
+    # make strings. Their languages are what the App Store lists.
+    sources: [Shared, FlexarrTV, Languages/Localizable.xcstrings, Languages/AppShortcuts.xcstrings, Languages/FlexarrTV/InfoPlist.xcstrings]
     dependencies:
       - package: FlexarrKit
       - package: AetherEngine
@@ -133,7 +136,9 @@ targets:
         script: |
           [ -d "$SRCROOT/../tunnel/build/FlexarrTunnel.xcframework" ] || PATH="$PATH:/opt/homebrew/bin:/usr/local/go/bin" make -C "$SRCROOT/../.." tunnel-apple
     # WidgetShared is what the app and its widgets both know: the snapshot it writes for them, the Play/Pause intent.
-    sources: [Shared, FlexarriOS, WidgetShared]
+    # Languages/: what iOS reads itself (Shortcuts and Siri text, Info.plist prompts) in every bundled language, written by
+    # make strings. Their languages are what the App Store lists.
+    sources: [Shared, FlexarriOS, WidgetShared, Languages/Localizable.xcstrings, Languages/AppShortcuts.xcstrings, Languages/FlexarriOS/InfoPlist.xcstrings]
     dependencies:
       - package: FlexarrKit
       - package: AetherEngine
@@ -217,6 +222,9 @@ targets:
     platform: iOS
     # Tokens.swift is the design tokens (colours, radii) the app uses, so the widgets match it.
     sources: [Widgets, WidgetShared, Shared/Design/Tokens.swift]
+    # For t(): the widgets show the app's language, from the pack it keeps in the App Group.
+    dependencies:
+      - package: FlexarrKit
     info:
       path: Widgets/Info.plist
       properties:

@@ -81,7 +81,7 @@ final class PlayerControlsView: UIView {
     }
 
     override init(frame: CGRect) {
-        playButton = Self.button("play.fill", size: Self.symbolSize * 1.5)
+        playButton = Self.button(Symbol.play, size: Self.symbolSize * 1.5)
         backButton = Self.button("gobackward.10", size: Self.symbolSize)
         forwardButton = Self.button("goforward.10", size: Self.symbolSize)
         previousButton = Self.button("backward.end.fill", size: Self.symbolSize * 0.8)
@@ -121,7 +121,7 @@ final class PlayerControlsView: UIView {
     }
 
     func setPlaying(_ playing: Bool) {
-        playButton.configuration?.image = UIImage(systemName: playing ? "pause.fill" : "play.fill")
+        playButton.configuration?.image = UIImage(systemName: playing ? Symbol.pause : Symbol.play)
     }
 
     /// Live TV: the timeline is the rewind window, so the left label is the time of day at the playhead and the right
@@ -138,11 +138,17 @@ final class PlayerControlsView: UIView {
     private let downToMenus = UIFocusGuide()
     #endif
 
-    private static let timeOfDay: DateFormatter = {
+    /// Kept while the language shown stays the same (it's read on every tick).
+    private static var timeOfDayFormatter: DateFormatter?
+    private static var timeOfDay: DateFormatter {
+        let locale = Localization.locale
+        if let kept = timeOfDayFormatter, kept.locale == locale { return kept }
         let formatter = DateFormatter()
+        formatter.locale = locale
         formatter.timeStyle = .short
+        timeOfDayFormatter = formatter
         return formatter
-    }()
+    }
 
     func setTime(position: Double, duration: Double, buffered: Double) {
         scrubber.duration = duration
@@ -152,7 +158,7 @@ final class PlayerControlsView: UIView {
         if isLive {
             let behind = max(0, duration - shown)
             elapsedLabel.text = Self.timeOfDay.string(from: Date().addingTimeInterval(-behind))
-            remainingLabel.text = behind < LiveTransport.liveSlack ? "LIVE" : "−" + ScrubberView.clock(behind)
+            remainingLabel.text = behind < LiveTransport.liveSlack ? t("LIVE") : "−" + ScrubberView.clock(behind)
             return
         }
         elapsedLabel.text = ScrubberView.clock(shown)
@@ -176,16 +182,32 @@ final class PlayerControlsView: UIView {
     }
 
     /// The pill above the timeline: Skip Intro, Next Episode (counting down), with Cancel beside it while counting.
-    func setPrompt(_ title: String?, countingDown: Bool) {
+    /// `symbol` goes beside the title: forward.end.fill for a skip, the live symbol for Back to live.
+    func setPrompt(_ title: String?, symbol: String = "forward.fill", countingDown: Bool, takesFocus: Bool = true) {
+        promptTakesFocus = takesFocus
         if let title {
             UIView.performWithoutAnimation {
+                // Counting down, the pill keeps its "in 10" width, so it doesn't twitch as the number changes or goes.
+                if countingDown, promptWidthHold == nil {
+                    promptButton.configuration?.title = t(Words.nextEpisodeIn, ["seconds": 10])
+                    promptButton.configuration?.image = UIImage(systemName: "forward.fill")
+                    let width = promptButton.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).width
+                    promptWidthHold = promptButton.widthAnchor.constraint(greaterThanOrEqualToConstant: width)
+                    promptWidthHold?.isActive = true
+                }
                 promptButton.configuration?.title = title
-                let symbol = title.hasPrefix("Skip") ? "forward.end.fill" : title == "Back to live" ? "dot.radiowaves.left.and.right" : "forward.fill"
                 promptButton.configuration?.image = UIImage(systemName: symbol)
                 promptButton.layoutIfNeeded()
             }
         }
+        if title == nil {
+            promptWidthHold?.isActive = false
+            promptWidthHold = nil
+        }
         let wasHidden = promptButton.alpha == 0
+        if cancelButton.isHidden == countingDown { cancelButton.isHidden = !countingDown }
+        promptButton.layer.maskedCorners = countingDown ? [.layerMinXMinYCorner, .layerMinXMaxYCorner]
+            : [.layerMinXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMinYCorner, .layerMaxXMaxYCorner]
         UIView.animate(withDuration: 0.2) {
             self.promptButton.alpha = title == nil ? 0 : 1
             self.cancelButton.alpha = countingDown ? 1 : 0
@@ -198,6 +220,12 @@ final class PlayerControlsView: UIView {
     }
 
     var promptShown: Bool { promptButton.alpha > 0 }
+    private var promptWidthHold: NSLayoutConstraint?
+
+
+    /// Whether a showing pill takes focus (Select presses it). Not after Cancel, so Select pauses as usual.
+    private(set) var promptTakesFocus = true
+    var promptOffersFocus: Bool { promptShown && promptTakesFocus }
 
     /// Shows or fades everything but the Skip Intro / Next Episode pill, which shows whenever it's offered: fading this
     /// whole view took the pill with it, so Next Episode only appeared with the controls.
@@ -218,13 +246,13 @@ final class PlayerControlsView: UIView {
     /// The bed filled while a sleep timer runs.
     func setSleepActive(_ active: Bool) {
         sleepButton.configuration?.image = UIImage(systemName: active ? "bed.double.fill" : "bed.double")
-        sleepButton.accessibilityValue = active ? "On" : nil
+        sleepButton.accessibilityValue = active ? t("On") : nil
         sleepButton.setNeedsUpdateConfiguration()
     }
 
     /// A moment's "+15 s" in the middle of the picture after a skip.
     func flashSkip(_ seconds: Double) {
-        hud.text = (seconds > 0 ? "+" : "−") + "\(Int(abs(seconds))) s"
+        hud.text = seconds > 0 ? t("+{seconds} s", ["seconds": Int(abs(seconds))]) : t("−{seconds} s", ["seconds": Int(abs(seconds))])
         hudTask?.cancel()
         hud.alpha = 1
         hudTask = Task { [weak self] in
@@ -291,13 +319,16 @@ final class PlayerControlsView: UIView {
         let titles = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel]) // the detail sits bottom-left
         titles.axis = .vertical
         titles.spacing = 3
-        let prompts = UIStackView(arrangedSubviews: [cancelButton, promptButton])
+        let prompts = UIStackView(arrangedSubviews: [promptButton, cancelButton])
         promptRow = prompts
         prompts.axis = .horizontal
-        prompts.alignment = .center
-        prompts.spacing = 10
+        prompts.alignment = .fill
+        prompts.spacing = 2
         promptButton.alpha = 0
         cancelButton.alpha = 0
+        cancelButton.isHidden = true
+        promptButton.clipsToBounds = true
+        cancelButton.clipsToBounds = true
         promptButton.isUserInteractionEnabled = false
         cancelButton.isUserInteractionEnabled = false
 
@@ -309,19 +340,19 @@ final class PlayerControlsView: UIView {
         promptButton.addAction(UIAction { [weak self] _ in self?.onPrompt?() }, for: .primaryActionTriggered)
         cancelButton.addAction(UIAction { [weak self] _ in self?.onCancel?() }, for: .primaryActionTriggered)
         channelsButton.addAction(UIAction { [weak self] _ in self?.onChannels?() }, for: .primaryActionTriggered)
-        channelsButton.accessibilityLabel = "Channels"
+        channelsButton.accessibilityLabel = t("Channels")
         channelsButton.isHidden = true
         guideButton.addAction(UIAction { [weak self] _ in self?.onGuide?() }, for: .primaryActionTriggered)
-        guideButton.accessibilityLabel = "Guide"
+        guideButton.accessibilityLabel = t("Guide")
         guideButton.isHidden = true
         for button in [audioButton, subtitlesButton, speedButton, sleepButton] {
             button.showsMenuAsPrimaryAction = true
             button.isHidden = true
         }
-        audioButton.accessibilityLabel = "Audio"
-        subtitlesButton.accessibilityLabel = "Subtitles"
-        speedButton.accessibilityLabel = "Speed"
-        sleepButton.accessibilityLabel = "Sleep timer"
+        audioButton.accessibilityLabel = t("Audio")
+        subtitlesButton.accessibilityLabel = t(Words.subtitles)
+        speedButton.accessibilityLabel = t("Speed")
+        sleepButton.accessibilityLabel = t("Sleep timer")
         // The speed's badge: small type beside the gauge.
         speedButton.configuration?.imagePadding = 6
         let badgeFont = UIFont.monospacedDigitSystemFont(ofSize: Self.symbolSize * 0.6, weight: .bold)
@@ -567,24 +598,43 @@ final class PlayerControlsView: UIView {
     /// panels use them too.
     static func pill(filled: Bool) -> UIButton {
         var configuration = UIButton.Configuration.filled()
-        configuration.baseBackgroundColor = filled ? UIColor(Color.screen).withAlphaComponent(0.95) : UIColor.black.withAlphaComponent(0.55)
-        configuration.baseForegroundColor = filled ? UIColor(Color.room) : .white
-        configuration.cornerStyle = .capsule
+        // Next Episode and its X are the two halves of one pill (`PillButton` rounds their outer ends).
+        configuration.baseBackgroundColor = UIColor(Color.screen).withAlphaComponent(0.95)
+        configuration.baseForegroundColor = UIColor(Color.room)
+        configuration.cornerStyle = .fixed
+        configuration.background.cornerRadius = 0
         configuration.imagePadding = 8
         #if os(tvOS)
         configuration.contentInsets = NSDirectionalEdgeInsets(top: 16, leading: 28, bottom: 16, trailing: 30)
-        let font = UIFont.systemFont(ofSize: 26, weight: .semibold)
+        let font = UIFont.monospacedDigitSystemFont(ofSize: 26, weight: .semibold)
         #else
-        configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 18, bottom: 12, trailing: 20)
-        let font = UIFont.systemFont(ofSize: 16, weight: .semibold)
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 13, bottom: 8, trailing: 14)
+        configuration.imagePadding = 6
+        configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+        let font = UIFont.monospacedDigitSystemFont(ofSize: 14, weight: .semibold)
         #endif
         configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
             var attributes = attributes
             attributes.font = font
             return attributes
         }
-        if !filled { configuration.title = "Cancel" }
-        return UIButton(configuration: configuration)
+        guard !filled else { return PillButton.focusable(configuration) }
+        // Cancel: a round X beside the pill, named Cancel for VoiceOver.
+        #if os(tvOS)
+        let side: CGFloat = 22
+        #else
+        let side: CGFloat = 10
+        #endif
+        configuration.image = UIImage(systemName: "xmark")
+        configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: side, weight: .bold)
+        // With nothing focused (a phone), the X half rests grey beside the white Next Episode half, as on a TV.
+        configuration.baseBackgroundColor = UIColor(Color.aisle).withAlphaComponent(0.85)
+        configuration.baseForegroundColor = UIColor(Color.screen)
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: side, leading: side * 0.8, bottom: side, trailing: side * 1.2)
+        let button = PillButton.focusable(configuration)
+        button.layer.maskedCorners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
+        button.accessibilityLabel = t(Words.cancel)
+        return button
     }
 
     #if os(tvOS)
@@ -594,7 +644,7 @@ final class PlayerControlsView: UIView {
             self.focusNext = nil
             return [focusNext]
         }
-        return promptShown ? [promptButton] : [scrubber]
+        return promptOffersFocus ? [promptButton] : [scrubber]
     }
     #endif
 }
@@ -667,4 +717,34 @@ final class GradientView: UIView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
+/// A button whose rounded ends (`layer.maskedCorners`) stay half its height however wide it grows.
+final class PillButton: UIButton {
+    /// On Apple TV each half shows whether it has focus, as the system's buttons do: white with dark text when focused,
+    /// grey with light text when not. On a phone, Next Episode is white and its X grey.
+    static func focusable(_ configuration: UIButton.Configuration) -> PillButton {
+        let button = PillButton(configuration: configuration)
+        #if os(tvOS)
+        button.configurationUpdateHandler = { button in
+            guard var configuration = button.configuration else { return }
+            configuration.baseBackgroundColor = button.isFocused ? UIColor(Color.screen) : UIColor(Color.aisle).withAlphaComponent(0.85)
+            configuration.baseForegroundColor = button.isFocused ? UIColor(Color.room) : UIColor(Color.screen)
+            button.configuration = configuration
+        }
+        #endif
+        return button
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        layer.cornerRadius = bounds.height / 2
+    }
+
+    #if os(iOS)
+    /// Taps land up to 8 points above and below the compact pill, so it's easy to hit.
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        bounds.insetBy(dx: 0, dy: -8).contains(point)
+    }
+    #endif
 }

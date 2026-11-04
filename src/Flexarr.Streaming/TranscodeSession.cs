@@ -34,6 +34,10 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     // Held while ffmpeg is started or stopped. Never disposed: a request may still be waiting on it.
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Lock _playlistLock = new();
+
+    // Held while a repackaged segment's fragments are joined: the opening segment is asked for by the session's own
+    // start and by the player at once, and two joins writing one file would fail one of them.
+    private readonly SemaphoreSlim _joinGate = new(1, 1);
     private volatile Process? _process;
     private int _startSegment;
     private bool _released;
@@ -73,7 +77,12 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         _logger = logger;
         _reserve = reserve;
         Directory = System.IO.Directory.CreateDirectory(Path.Combine(settings.CacheDirectory, "transcodes", id)).FullName;
+        // Settled once: a fall back to software mid-session mustn't change where the segments start.
+        Opening = FfmpegCommand.HasOpening(plan, settings);
     }
+
+    /// <summary>The segments start with short ones (<see cref="FfmpegCommand.OpeningSegments"/>), for the whole session.</summary>
+    public bool Opening { get; }
 
     public string Id { get; }
 
@@ -83,14 +92,14 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     public double DurationSeconds { get; }
     public TranscodePlan Plan { get; }
     public string Directory { get; }
-    public int SegmentCount => Plan.Repackage?.SegmentStarts.Count ?? FfmpegCommand.SegmentCount(DurationSeconds);
+    public int SegmentCount => Plan.Repackage?.SegmentStarts.Count ?? FfmpegCommand.SegmentCount(DurationSeconds, Opening);
 
     /// <summary>The segment playing at <paramref name="seconds"/>.</summary>
     public int SegmentAt(double seconds)
     {
         if (Plan.Repackage is not { } repackage)
         {
-            return Math.Clamp((int)(Math.Max(0, seconds) / FfmpegCommand.SegmentSeconds), 0, SegmentCount - 1);
+            return Math.Clamp(FfmpegCommand.SegmentAtSeconds(seconds, Opening), 0, SegmentCount - 1);
         }
 
         var starts = repackage.SegmentStarts;
@@ -103,6 +112,12 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         return index;
     }
     public DateTime Created { get; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Got ready ahead of Play (a page being looked at, the next episode during the credits) and not yet asked for by a
+    /// player: it gives way to any real stream that needs its slot (see <see cref="TranscodeManager.CreateAsync"/>).
+    /// </summary>
+    public bool Warming { get; set; }
     public DateTime LastAccess { get; internal set; } = DateTime.UtcNow;
     public int LastRequested { get; private set; }
     public bool IsRunning => _process is { } process && IsAlive(process);
@@ -118,7 +133,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 
     public string MediaPlaylist() => Plan.Repackage is { } repackage
         ? FfmpegCommand.MediaPlaylist(repackage.SegmentStarts, DurationSeconds, StartSeconds)
-        : FfmpegCommand.MediaPlaylist(DurationSeconds, StartSeconds, Plan.Fmp4);
+        : FfmpegCommand.MediaPlaylist(DurationSeconds, StartSeconds, Plan.Fmp4, Opening);
 
     private string SegmentExtension => Plan.Fmp4 ? ".m4s" : ".ts";
 
@@ -245,7 +260,12 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 
             if (_disposed || DateTime.UtcNow > deadline || died)
             {
-                LogSegmentFailed(Id, index, _lastError ?? (_disposed ? "stopped" : "timed out"));
+                // Ended on purpose (closed, or got ready ahead of Play and made way for a stream): not a failure.
+                if (!_disposed)
+                {
+                    LogSegmentFailed(Id, index, _lastError ?? "timed out");
+                }
+
                 return null;
             }
 
@@ -262,7 +282,10 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     /// </summary>
     private async Task<bool> FallBackToSoftwareAsync(Process failed, int index, CancellationToken ct)
     {
+        // A fragmented-MP4 player holds the init segment it was sent and never asks again, and software's wouldn't
+        // match the hardware run's: once it's gone out, the segment fails and the player's recovery starts afresh.
         if (!_settings.SoftwareFallback || _settings.Resolved == HardwareAcceleration.None || Plan.Repackage is not null
+            || (Plan.Fmp4 && _init is not null)
             || DateTime.UtcNow - StartedAt > TimeSpan.FromSeconds(20) || HighestComplete() >= _startSegment)
         {
             return false;
@@ -295,6 +318,21 @@ public sealed partial class TranscodeSession : IAsyncDisposable
             return path;
         }
 
+        await _joinGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            // Another request joined it while this one waited.
+            return File.Exists(path) ? path : await JoinAsync(index, path, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _joinGate.Release();
+        }
+    }
+
+    /// <summary>Call with the join gate held.</summary>
+    private async Task<string?> JoinAsync(int index, string path, CancellationToken ct)
+    {
         List<string> parts;
         lock (_playlistLock)
         {
@@ -332,6 +370,48 @@ public sealed partial class TranscodeSession : IAsyncDisposable
             // A restart deleted the fragments meanwhile: the player asks again and gets the new run's.
             return null;
         }
+    }
+
+    /// <summary>The longest a run got ready ahead of Play keeps going, whether or not it has made its opening yet.</summary>
+    internal static readonly TimeSpan WarmRunLimit = TimeSpan.FromSeconds(45);
+
+    /// <summary>
+    /// Got ready ahead of Play and not taken up: stops ffmpeg once it has made <see cref="FfmpegCommand.WarmingRunAheadSeconds"/>
+    /// (or after <see cref="WarmRunLimit"/>), keeping what it made, so a glance at a page doesn't encode minutes nobody
+    /// may watch. A player that takes it up later plays what's there, and the first segment past it starts ffmpeg again
+    /// with the full run-ahead. True when it stopped ffmpeg.
+    /// </summary>
+    public async Task<bool> StopWarmRunAsync()
+    {
+        if (!Warming || !IsRunning)
+        {
+            return false;
+        }
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (!Warming || _disposed || !IsRunning
+                || (MadeSeconds() < FfmpegCommand.WarmingRunAheadSeconds && DateTime.UtcNow - StartedAt < WarmRunLimit))
+            {
+                return false;
+            }
+
+            StopProcess();
+            return true;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>How much of the film the current run has made, from where it started.</summary>
+    private double MadeSeconds()
+    {
+        var next = HighestComplete() + 1;
+        var madeTo = next >= SegmentCount ? DurationSeconds : SegmentStart(next);
+        return madeTo - SegmentStart(Math.Min(_startSegment, SegmentCount - 1));
     }
 
     /// <summary>
@@ -413,18 +493,35 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         }
     }
 
+    /// <summary>How long a killed ffmpeg is waited for, so it can't write one more segment after its folder is cleared.</summary>
+    private static readonly TimeSpan KillWait = TimeSpan.FromSeconds(2);
+
     /// <summary>Call with the gate held.</summary>
     private void StopProcess()
     {
         if (_process is { } process && IsAlive(process))
         {
             ProcessSignals.KillTree(process);
+            try
+            {
+                // A kill is only a signal: wait (briefly) for it to land before its segments are deleted or trusted.
+                process.WaitForExit(KillWait);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                // Already gone.
+            }
         }
     }
 
     /// <summary>Call with the gate held.</summary>
     private Task StartAsync(int segment)
     {
+        if (Opening && segment < FfmpegCommand.OpeningSegments)
+        {
+            segment = 0; // ffmpeg makes the short opening segments from the start (see FfmpegCommand.Hls).
+        }
+
         StopProcess();
         var previous = _process;
 
@@ -432,7 +529,9 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         DeleteSegments();
 
         var start = new ProcessStartInfo(_settings.FfmpegPath) { UseShellExecute = false, RedirectStandardError = true, RedirectStandardInput = false };
-        foreach (var arg in FfmpegCommand.Hls(Input, Plan, segment, Directory, _settings))
+        // The full burst even when got ready ahead of Play: the sweep stops that run once it has enough to open on (see
+        // StopWarmRunAsync), and one taken up while it's still going keeps the whole run-ahead.
+        foreach (var arg in FfmpegCommand.Hls(Input, Plan, segment, Directory, _settings, Opening, FfmpegCommand.RunAheadSeconds))
         {
             start.ArgumentList.Add(arg);
         }
@@ -476,7 +575,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 
     /// <summary>When segment <paramref name="index"/> starts in the film.</summary>
     private double SegmentStart(int index) =>
-        Plan.Repackage is { } repackage ? repackage.SegmentStarts[index] : index * (double)FfmpegCommand.SegmentSeconds;
+        Plan.Repackage is { } repackage ? repackage.SegmentStarts[index] : FfmpegCommand.SegmentStartSeconds(index, Opening);
 
     /// <summary>Deletes the segments more than <see cref="KeptBehind"/> before <paramref name="watching"/>.</summary>
     private async Task PruneAsync(int watching, CancellationToken ct)

@@ -21,7 +21,7 @@ struct TraktSettingsView: View {
     private var waiting: Bool { status?.pending?.state == .waiting || status?.importing == true }
 
     var body: some View {
-        SettingsPage(title: "Trakt", summary: "Keep what you watch, your place and your watchlist in step with Trakt.") {
+        SettingsPage(title: "Trakt", summary: t("Keep what you watch, your place and your watchlist in step with Trakt.")) {
             if unavailable || status?.available == false {
                 Text(TraktWords.unavailable).font(.system(size: 30)).foregroundStyle(Color.usher)
             } else if let status {
@@ -31,7 +31,7 @@ struct TraktSettingsView: View {
                     connect(status)
                 }
             } else if loadFailed {
-                SettingsRow(title: "Try again", symbol: "arrow.clockwise", help: TraktWords.unreachable) {
+                SettingsRow(title: t("Try again"), symbol: "arrow.clockwise", help: TraktWords.unreachable) {
                     Task { await load() }
                 }
             } else {
@@ -47,8 +47,8 @@ struct TraktSettingsView: View {
             }
         }
         .confirmationDialog(TraktWords.disconnectTitle, isPresented: $confirmDisconnect, titleVisibility: .visible) {
-            Button("Disconnect", role: .destructive) { run { try await $0.disconnectTrakt() } }
-            Button("Cancel", role: .cancel) {}
+            Button(t("Disconnect"), role: .destructive) { run { try await $0.disconnectTrakt() } }
+            Button(t(Words.cancel), role: .cancel) {}
         } message: {
             Text(TraktWords.disconnectMessage)
         }
@@ -59,7 +59,7 @@ struct TraktSettingsView: View {
             HStack(alignment: .center, spacing: 50) {
                 QRCode(text: pending.qrUrl)
                     .frame(width: 260, height: 260)
-                    .accessibilityLabel("QR code for \(pending.verificationUrl.replacingOccurrences(of: "https://", with: ""))")
+                    .accessibilityLabel(t("QR code for {address}", ["address": pending.verificationUrl.replacingOccurrences(of: "https://", with: "")]))
                 VStack(alignment: .leading, spacing: 16) {
                     Text(TraktWords.enterCode(at: pending.verificationUrl))
                         .font(.system(size: 30)).foregroundStyle(Color.usher)
@@ -73,23 +73,23 @@ struct TraktSettingsView: View {
                 }
             }
             .padding(.bottom, 30)
-            SettingsRow(title: "Cancel", symbol: "xmark", help: TraktWords.waiting) {
+            SettingsRow(title: t(Words.cancel), symbol: "xmark", help: TraktWords.waiting) {
                 run { try await $0.cancelTraktConnect() }
             }
         } else {
-            SettingsRow(title: status.state == .needsSignIn ? "Connect \(status.username ?? "Trakt") again" : "Connect Trakt", symbol: "link",
+            SettingsRow(title: status.state == .needsSignIn ? t("Connect {account} again", ["account": status.username ?? "Trakt"]) : t("Connect Trakt"), symbol: "link",
                         help: status.state == .needsSignIn ? TraktWords.signedOut
-                            : status.pending.flatMap { $0.error ?? $0.state.problem } ?? "Each profile connects its own account.") {
+                            : status.pending.flatMap { $0.error ?? $0.state.problem } ?? t("Each profile connects its own account.")) {
                 run { _ = try await $0.connectTrakt() }
             }
         }
     }
 
     @ViewBuilder private func connected(_ status: TraktStatus) -> some View {
-        SettingsFact("Account", status.username ?? "Connected")
+        SettingsFact(t("Account"), status.username ?? t("Connected"))
         Text(TraktWords.synced(status.lastSyncAt)).font(.system(size: 30)).foregroundStyle(Color.usher).padding(.horizontal, 32)
         if status.queued > 0 {
-            SettingsFact("Waiting to send", status.queued.formatted())
+            SettingsFact(t("Waiting to send"), status.queued.formatted(.number.locale(Localization.locale)))
         }
         if status.watchlistFull {
             Text(TraktWords.watchlistFull).font(.system(size: 28)).foregroundStyle(Color.usher).padding(.horizontal, 32)
@@ -97,13 +97,13 @@ struct TraktSettingsView: View {
 
         // One row whatever stage the import is at, so focus stays on it as it changes.
         importRow(status).padding(.top, 36)
-        SettingsRow(title: syncing ? "Syncing…" : "Sync now", symbol: "arrow.triangle.2.circlepath",
-                    help: status.lastError ?? "Flexarr syncs every few minutes by itself.") {
+        SettingsRow(title: syncing ? t("Syncing…") : t("Sync now"), symbol: "arrow.triangle.2.circlepath",
+                    help: status.lastError ?? t("Flexarr syncs every few minutes by itself.")) {
             guard !working else { return }
             syncing = true
             run { try await $0.syncTraktNow() }
         }
-        SettingsRow(title: "Disconnect", symbol: "xmark.circle", help: "Stop syncing this profile with Trakt.", destructive: true) {
+        SettingsRow(title: t("Disconnect"), symbol: "xmark.circle", help: t("Stop syncing this profile with Trakt."), destructive: true) {
             confirmDisconnect = true
         }
         // Beside the actions it's about, not below the lists.
@@ -112,7 +112,7 @@ struct TraktSettingsView: View {
         }
 
         if let lists, !lists.isEmpty {
-            SettingsGroupLabel("Lists").padding(.top, 36)
+            SettingsGroupLabel(t("Lists")).padding(.top, 36)
             Text(TraktWords.listsNote).font(.system(size: 26)).foregroundStyle(Color.usher).padding(.horizontal, 32)
             ForEach(lists) { list in
                 SettingsRow.toggle(list.name, isOn: chosen.contains(list.id), symbol: "list.bullet", help: list.detail) {
@@ -127,16 +127,18 @@ struct TraktSettingsView: View {
             return SettingsRow(title: TraktWords.importing, symbol: "clock.arrow.circlepath") {}
         }
         if let importedAt = status.importedAt {
-            return SettingsRow(title: TraktWords.imported, symbol: "checkmark.circle", value: importedAt.formatted(.relative(presentation: .named))) {}
+            return SettingsRow(title: TraktWords.imported, symbol: "checkmark.circle", value: importedAt.formatted(.relative(presentation: .named).locale(Localization.locale))) {}
         }
         if let preview {
-            let counts = "\(preview.traktFilms.formatted()) movies and \(preview.traktEpisodes.formatted()) episodes"
+            let counts = t("{movies, plural, one {# movie} other {# movies}} and {episodes, plural, one {# episode} other {# episodes}}",
+                           ["movies": preview.traktFilms, "episodes": preview.traktEpisodes])
             return SettingsRow(title: TraktWords.importAction, symbol: "arrow.down.circle", value: counts,
-                               help: "\(preview.summary). \(preview.details) Nothing is marked unwatched, on either side.") {
+                               help: t("{summary}. {details} Nothing is marked unwatched, on either side.",
+                                       ["summary": preview.summary, "details": preview.details])) {
                 run { try await $0.confirmTraktImport() }
             }
         }
-        return SettingsRow(title: TraktWords.importEntry, symbol: "clock.arrow.circlepath", help: status.importError ?? "See what changes first.") {
+        return SettingsRow(title: TraktWords.importEntry, symbol: "clock.arrow.circlepath", help: status.importError ?? t("See what changes first.")) {
             run { client in preview = try await client.previewTraktImport() }
         }
     }

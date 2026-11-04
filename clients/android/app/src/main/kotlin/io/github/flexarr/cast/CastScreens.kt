@@ -1,5 +1,7 @@
 package io.github.flexarr.cast
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +22,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PhoneAndroid
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
@@ -63,6 +64,7 @@ import io.github.flexarr.player.TimeStyle
 import io.github.flexarr.player.glass
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 /**
  * The Cast button: the system's list of Chromecasts to choose from, or (connected) the one in use, with Stop casting.
@@ -105,7 +107,7 @@ fun CastingScreen(casting: Casting, skipSeconds: Int, onClose: () -> Unit) {
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent, Color.Black.copy(alpha = 0.7f)))))
 
         Row(Modifier.fillMaxWidth().safeDrawingPadding().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Top) {
-            GlassButton(Icons.Filled.Close, "Close", size = 44, onClick = {
+            GlassButton(Icons.Filled.Close, t("Close"), size = 44, onClick = {
                 casting.stop()
                 onClose()
             })
@@ -125,7 +127,7 @@ fun CastingScreen(casting: Casting, skipSeconds: Int, onClose: () -> Unit) {
                 if (casting.isLoading) {
                     Box(Modifier.size(76.dp).glass(CircleShape), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen, modifier = Modifier.size(28.dp)) }
                 } else {
-                    GlassButton(if (casting.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (casting.isPlaying) "Pause" else "Play", size = 76, onClick = casting::togglePlayPause)
+                    GlassButton(if (casting.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (casting.isPlaying) t("Pause") else t(Words.play), size = 76, onClick = casting::togglePlayPause)
                 }
                 GlassSkip(skipSeconds) { casting.skip(skipSeconds) }
             }
@@ -135,7 +137,7 @@ fun CastingScreen(casting: Casting, skipSeconds: Int, onClose: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.Filled.PhoneAndroid, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(18.dp))
-                Text("Play on this phone", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
+                Text(t("Play on this phone"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
             }
         }
 
@@ -160,18 +162,18 @@ fun CastControls(casting: Casting) {
         CastTimeline(casting, Modifier.fillMaxWidth())
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
             if (music) {
-                Transport(Icons.Filled.SkipPrevious, "Previous", onClick = casting::previousTrack)
+                Transport(Icons.Filled.SkipPrevious, t("Previous"), onClick = casting::previousTrack)
             } else {
-                Transport(Icons.Filled.Replay, "Back 15 seconds") { casting.skip(-15) }
+                Transport(Icons.Filled.Replay, t("Back 15 seconds")) { casting.skip(-15) }
             }
             Box(Modifier.size(76.dp).clip(CircleShape).background(Flexarr.screen).pressable(casting::togglePlayPause), contentAlignment = Alignment.Center) {
                 if (casting.isLoading) CircularProgressIndicator(color = Flexarr.room, modifier = Modifier.size(28.dp))
-                else Icon(if (casting.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (casting.isPlaying) "Pause" else "Play", tint = Flexarr.room, modifier = Modifier.size(32.dp))
+                else Icon(if (casting.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, contentDescription = if (casting.isPlaying) t("Pause") else t(Words.play), tint = Flexarr.room, modifier = Modifier.size(32.dp))
             }
             if (music) {
-                Transport(Icons.Filled.SkipNext, "Next", enabled = casting.hasNextTrack, onClick = casting::nextTrack)
+                Transport(Icons.Filled.SkipNext, t("Next"), enabled = casting.hasNextTrack, onClick = casting::nextTrack)
             } else {
-                Transport(Icons.Filled.Forward30, "Forward 30 seconds") { casting.skip(30) }
+                Transport(Icons.Filled.Forward30, t("Forward 30 seconds")) { casting.skip(30) }
             }
         }
         PlayingOn(casting)
@@ -205,8 +207,8 @@ private fun CastTimeline(casting: Casting, modifier: Modifier) {
             valueRange = 0f..duration.toFloat(),
             colors = SliderDefaults.colors(thumbColor = Flexarr.screen, activeTrackColor = Flexarr.screen, inactiveTrackColor = Flexarr.screen.copy(alpha = 0.3f)),
             modifier = Modifier.fillMaxWidth().semantics {
-                contentDescription = "Position"
-                stateDescription = "${Format.timestamp(shown)} of ${Format.timestamp(casting.duration)}"
+                contentDescription = t("Position")
+                stateDescription = t("{position} of {duration}", "position" to Format.timestamp(shown), "duration" to Format.timestamp(casting.duration))
             },
         )
         Row(Modifier.fillMaxWidth()) {
@@ -223,7 +225,7 @@ private fun GlassSkip(seconds: Int, onClick: () -> Unit) {
     val back = seconds < 0
     val amount = kotlin.math.abs(seconds)
     Box(
-        Modifier.size(56.dp).glass(CircleShape).pressable(onClick).semantics { contentDescription = "${if (back) "Back" else "Forward"} $amount seconds" },
+        Modifier.size(56.dp).glass(CircleShape).pressable(onClick).semantics { contentDescription = if (back) t("{count, plural, one {Back # second} other {Back # seconds}}", "count" to amount) else t("{count, plural, one {Forward # second} other {Forward # seconds}}", "count" to amount) },
         contentAlignment = Alignment.Center,
     ) {
         Icon(Icons.Filled.Replay, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(28.dp).then(if (back) Modifier else Modifier.mirrored()))

@@ -1,6 +1,10 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.tk
 import java.util.Locale
+import kotlin.math.ceil
 
 // The words every screen shows, as FlexarrKit's Presentation.swift words them for the Apple apps. Wording follows
 // docs/design.md: plain words ("Resume from 32:10"), no middle-dot meta strings.
@@ -12,9 +16,9 @@ object Format {
         val h = minutes / 60
         val m = minutes % 60
         return when {
-            h == 0 -> "${m}m"
-            m == 0 -> "${h}h"
-            else -> "${h}h ${m}m"
+            h == 0 -> t("{minutes}m", "minutes" to m)
+            m == 0 -> t("{hours}h", "hours" to h)
+            else -> t("{hours}h {minutes}m", "hours" to h, "minutes" to m)
         }
     }
 
@@ -31,9 +35,9 @@ object Format {
 
     /** "42m left", "1h 3m left". */
     /** "1,204", in the device's own way of grouping digits. */
-    fun count(value: Int): String = java.text.NumberFormat.getIntegerInstance().format(value)
+    fun count(value: Int): String = java.text.NumberFormat.getIntegerInstance(io.github.flexarr.core.i18n.Localization.locale).format(value)
 
-    fun remaining(seconds: Double): String? = if (seconds < 60) null else runtime(seconds)?.let { "$it left" }
+    fun remaining(seconds: Double): String? = if (seconds < 60) null else runtime(seconds)?.let { t("{time} left", "time" to it) }
 }
 
 /** Duration in seconds from the probed file, falling back to the metadata's runtime. */
@@ -55,9 +59,13 @@ val ItemSummary.episodeCode: String?
     get() {
         if (kind != MediaKind.Episode || homeVideo == true) return null
         val episode = episodeNumber ?: return null
-        val season = seasonNumber?.let { "S$it" }.orEmpty()
-        val end = episodeNumberEnd
-        return if (end != null && end > episode) "${season}E$episode–E$end" else "${season}E$episode"
+        val end = episodeNumberEnd?.takeIf { it > episode }
+        val season = seasonNumber ?: return if (end != null) "E$episode–E$end" else "E$episode"
+        return if (end != null) {
+            t("S{season}E{episode}–E{last}", "season" to season.toString(), "episode" to episode.toString(), "last" to end.toString())
+        } else {
+            t(Words.seasonEpisodeShort, "season" to season.toString(), "episode" to episode.toString())
+        }
     }
 
 /** The headline for cards and the player: the series name for episodes, else the title. */
@@ -93,13 +101,13 @@ data class Scores(val imdb: Double?, val rottenTomatoes: RottenTomatoes?) {
     val isEmpty: Boolean get() = imdb == null && rottenTomatoes == null
 
     /** "7.8", as beside IMDb's mark. */
-    val imdbText: String? get() = imdb?.let { String.format(Locale.ROOT, "%.1f", it) }
+    val imdbText: String? get() = imdb?.let { String.format(io.github.flexarr.core.i18n.Localization.locale, "%.1f", it) }
 
     /** For TalkBack: "IMDb 7.8 out of 10". */
-    val imdbLabel: String? get() = imdbText?.let { "IMDb $it out of 10" }
+    val imdbLabel: String? get() = imdbText?.let { t("IMDb {score} out of 10", "score" to it) }
 
     /** For TalkBack: "Rotten Tomatoes 92%, Certified Fresh". */
-    val rottenTomatoesLabel: String? get() = rottenTomatoes?.let { "Rotten Tomatoes ${it.score}%, ${it.state.words}" }
+    val rottenTomatoesLabel: String? get() = rottenTomatoes?.let { t("Rotten Tomatoes {score}%, {tomato}", "score" to it.score, "tomato" to it.state.words) }
 
     companion object {
         /** The tomato follows the score when the server didn't say (or said something this app doesn't know). */
@@ -121,12 +129,18 @@ data class Scores(val imdb: Double?, val rottenTomatoes: RottenTomatoes?) {
 fun ItemSummary.facts(scores: Boolean = true): List<String> =
     buildList {
         releaseYear?.let { add(it.toString()) }
-        fun count(n: Int, noun: String) = add(if (n == 1) "1 $noun" else "$n ${noun}s")
+        val n = childCount
         when (kind) {
-            MediaKind.Series -> if (childCount > 0) count(childCount, if (homeVideo == true) "folder" else "season")
-            MediaKind.Season -> if (childCount > 0) count(childCount, if (homeVideo == true) "video" else "episode")
-            MediaKind.Artist -> if (childCount > 0) count(childCount, "album")
-            MediaKind.Album -> if (childCount > 0) count(childCount, "track")
+            MediaKind.Series -> if (n > 0) add(
+                if (homeVideo == true) t("{count, plural, one {# folder} other {# folders}}", "count" to n)
+                else t("{count, plural, one {# season} other {# seasons}}", "count" to n),
+            )
+            MediaKind.Season -> if (n > 0) add(
+                if (homeVideo == true) t("{count, plural, one {# video} other {# videos}}", "count" to n)
+                else t("{count, plural, one {# episode} other {# episodes}}", "count" to n),
+            )
+            MediaKind.Artist -> if (n > 0) add(t("{count, plural, one {# album} other {# albums}}", "count" to n))
+            MediaKind.Album -> if (n > 0) add(t("{count, plural, one {# track} other {# tracks}}", "count" to n))
             else -> (runtimeMinutes?.let(Format::runtime) ?: durationSeconds?.let(Format::runtime))?.let(::add)
         }
         contentRating?.takeIf { it.isNotEmpty() }?.let(::add)
@@ -134,38 +148,108 @@ fun ItemSummary.facts(scores: Boolean = true): List<String> =
         resolution?.takeIf { it.isNotEmpty() }?.let(::add)
     }
 
+/**
+ * When Next Episode shows, when its countdown runs and what happens after (docs/next-episode-timing.md), in seconds
+ * into the episode. Null means no button before the end: no known length, or no credits marker and an episode of 2
+ * minutes or less.
+ */
+data class NextEpisodeTiming(
+    /** Next Episode appears. */
+    val showAt: Double,
+    /** The countdown starts (null: no countdown, the viewer presses Next Episode). */
+    val countdownFrom: Double?,
+    /** The countdown has run out: the next episode plays. */
+    val nextAt: Double?,
+    /** The player closes before the end (Skip credits on, auto-play off). */
+    val closeAt: Double?,
+) {
+    /** The countdown's seconds left at [time], once it has started: they follow the playing position. */
+    fun secondsLeft(time: Double): Int? {
+        val from = countdownFrom ?: return null
+        val at = nextAt ?: return null
+        if (time < from) return null
+        return ceil(at - time).toInt().coerceIn(0, COUNTDOWN_SECONDS)
+    }
+
+    companion object {
+        const val COUNTDOWN_SECONDS = 10
+        /** With Skip credits on, the countdown starts this long before the credits... */
+        const val SKIP_CREDITS_LEAD = 8.0
+        /** ...and the next episode plays this far into them. */
+        const val SKIP_CREDITS_INTO = 2.0
+        /** With no credits marker, Next Episode shows this long before the end. */
+        const val UNMARKED_LEAD = 60.0
+        /** With no credits marker, an episode this long or shorter shows no button before the end. */
+        const val UNMARKED_MIN_DURATION = 120.0
+    }
+}
+
+fun nextEpisodeTiming(markers: List<Marker>, duration: Double, skipCredits: Boolean, autoPlayNext: Boolean): NextEpisodeTiming? {
+    // No known length: nothing to time against, credits or not.
+    if (duration <= 0) return null
+    val countdown = NextEpisodeTiming.COUNTDOWN_SECONDS.toDouble()
+    val credits = markers.firstOrNull { it.type == MarkerType.Credits }?.start
+    if (credits == null) {
+        if (duration <= NextEpisodeTiming.UNMARKED_MIN_DURATION) return null
+        val showAt = duration - NextEpisodeTiming.UNMARKED_LEAD
+        return if (autoPlayNext) NextEpisodeTiming(showAt, duration - countdown, duration, null) else NextEpisodeTiming(showAt, null, null, null)
+    }
+    return when {
+        skipCredits && autoPlayNext -> {
+            val from = (credits - NextEpisodeTiming.SKIP_CREDITS_LEAD).coerceAtLeast(0.0)
+            val next = credits + NextEpisodeTiming.SKIP_CREDITS_INTO
+            NextEpisodeTiming(from, from, minOf(next, duration), null)
+        }
+        autoPlayNext -> {
+            // Credits inside the last 10 seconds: the countdown (and so the button) starts first.
+            val from = (duration - countdown).coerceAtLeast(0.0)
+            NextEpisodeTiming(minOf(credits, from), from, duration, null)
+        }
+        skipCredits -> NextEpisodeTiming(credits, null, null, credits)
+        else -> NextEpisodeTiming(credits, null, null, null)
+    }
+}
+
 /** What the player should offer at a given moment, from the server's markers. */
 sealed interface PlaybackPrompt {
     data object None : PlaybackPrompt
     /** Inside an intro or recap: offer to jump to [to]. */
     data class Skip(val type: MarkerType, val to: Double) : PlaybackPrompt
-    /** The credits have started and there is a next episode. */
+    /** It's time to offer the next episode ([NextEpisodeTiming.showAt]), and there is one. */
     data object NextEpisode : PlaybackPrompt
 
     companion object {
-        fun at(time: Double, markers: List<Marker>, duration: Double, hasNext: Boolean): PlaybackPrompt {
+        fun at(
+            time: Double,
+            markers: List<Marker>,
+            duration: Double,
+            hasNext: Boolean,
+            skipCredits: Boolean = false,
+            autoPlayNext: Boolean = true,
+        ): PlaybackPrompt = at(time, markers, if (hasNext) nextEpisodeTiming(markers, duration, skipCredits, autoPlayNext) else null, hasNext)
+
+        /** The same, with the title's [timing] already worked out (once per title, not on every tick). */
+        fun at(time: Double, markers: List<Marker>, timing: NextEpisodeTiming?, hasNext: Boolean): PlaybackPrompt {
             for (marker in markers) {
                 if (marker.type != MarkerType.Intro && marker.type != MarkerType.Recap) continue
                 // Stop offering the skip in the last second so it doesn't flash as the marker ends.
                 if (time >= marker.start && time < marker.end - 1) return Skip(marker.type, marker.end)
             }
-            if (!hasNext) return None
-            markers.firstOrNull { it.type == MarkerType.Credits }?.let { credits ->
-                return if (time >= credits.start) NextEpisode else None
-            }
-            // No credits marker found: offer the next episode for the end of it, where credits usually are.
-            return if (duration > 120 && time >= duration - unmarkedCreditsSeconds(duration)) NextEpisode else None
+            if (!hasNext || timing == null) return None
+            return if (time >= timing.showAt) NextEpisode else None
         }
-
-        /**
-         * How long before the end the next episode is offered when no credits were found: 3% of the episode, between
-         * 30 seconds and 2 minutes (about 40 seconds of a half-hour show, 100 of an hour-long one).
-         */
-        fun unmarkedCreditsSeconds(duration: Double): Double = (duration * 0.03).coerceIn(30.0, 120.0)
     }
 }
 
-fun PlaybackInfo.prompt(at: Double): PlaybackPrompt = PlaybackPrompt.at(at, markers, durationSeconds, next != null)
+/**
+ * This title's Next Episode timing, with [preferences]' Skip credits and auto-play: the player's own, which it may have
+ * changed since the server sent [PlaybackInfo.preferences].
+ */
+fun PlaybackInfo.nextEpisodeTiming(preferences: PlaybackPreferences): NextEpisodeTiming? =
+    nextEpisodeTiming(markers, durationSeconds, preferences.skipCredits, preferences.autoPlayNext)
+
+fun PlaybackInfo.prompt(at: Double, preferences: PlaybackPreferences = this.preferences ?: PlaybackPreferences()): PlaybackPrompt =
+    PlaybackPrompt.at(at, markers, if (next != null) nextEpisodeTiming(preferences) else null, next != null)
 
 /**
  * What Home says when it has nothing to show: no library yet, a first scan under way, or libraries whose folders hold
@@ -179,46 +263,49 @@ data class EmptyHomeMessage(val title: String, val body: String, val folders: Li
             if (media.any { it.itemCount > 0 }) return null
             if (media.isEmpty()) {
                 return EmptyHomeMessage(
-                    "Nothing to watch yet",
-                    "Open Flexarr in a browser and add a library in Settings › Libraries.",
+                    t("Nothing to watch yet"),
+                    t("Open Flexarr in a browser and add a library in Settings › Libraries."),
                     emptyList(),
                 )
             }
             val names = list(media.map { it.name })
-            val wanted = list(media.map { kind(it.type) }.distinct())
+            val wanted = list(media.map { t(kind(it.type)) }.distinct())
             val scanning = media.mapNotNull { it.scan }
             if (scanning.isNotEmpty()) {
                 val total = scanning.sumOf { it.total }
                 val done = scanning.sumOf { it.processed }
-                val progress = if (total > 0) " ($done of $total)" else ""
                 return EmptyHomeMessage(
-                    "Looking through your library",
-                    "Flexarr is reading the files in $names$progress. Your $wanted appear here as they’re recognised.",
+                    t("Looking through your library"),
+                    if (total > 0) {
+                        t("Flexarr is reading the files in {names} ({done} of {total}). Your {wanted} appear here as they’re recognised.", "names" to names, "done" to done, "total" to total, "wanted" to wanted)
+                    } else {
+                        t("Flexarr is reading the files in {names}. Your {wanted} appear here as they’re recognised.", "names" to names, "wanted" to wanted)
+                    },
                     emptyList(),
                 )
             }
             val folders = media.flatMap { it.folders }
-            val where = if (folders.size > 1) "your library folders" else "your library folder"
             return EmptyHomeMessage(
-                "Your library is empty",
-                "Add files to $where, or connect Sonarr or Radarr in Flexarr on the web.",
+                t("Your library is empty"),
+                if (folders.size > 1) t("Add files to your library folders, or connect Sonarr or Radarr in Flexarr on the web.")
+                else t("Add files to your library folder, or connect Sonarr or Radarr in Flexarr on the web."),
                 folders,
             )
         }
 
         private fun kind(type: LibraryType) = when (type) {
-            LibraryType.Movies -> "movies"
-            LibraryType.TvShows -> "shows"
-            LibraryType.Music -> "music"
-            LibraryType.Podcasts -> "podcasts"
-            LibraryType.HomeVideos -> "home videos"
-            LibraryType.Audiobooks -> "audiobooks"
-            LibraryType.Unknown -> "titles"
+            LibraryType.Movies -> tk("movies")
+            LibraryType.TvShows -> tk("shows")
+            LibraryType.Music -> tk("music")
+            LibraryType.Podcasts -> tk("podcasts")
+            LibraryType.HomeVideos -> tk("home videos")
+            LibraryType.Audiobooks -> tk("audiobooks")
+            LibraryType.Unknown -> tk("titles")
         }
 
         /** "Films", "Films and TV", "Films, TV and Music". */
         private fun list(names: List<String>): String =
-            if (names.size <= 1) names.firstOrNull().orEmpty() else names.dropLast(1).joinToString(", ") + " and " + names.last()
+            if (names.size <= 1) names.firstOrNull().orEmpty() else t("{list} and {last}", "list" to names.dropLast(1).joinToString(", "), "last" to names.last())
     }
 }
 

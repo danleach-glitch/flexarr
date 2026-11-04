@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.livetv
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -167,9 +169,9 @@ fun LiveTvScreen(model: AppModel) {
             notice = try {
                 val recording = client.record(programme.id)
                 if (recording.clashes) {
-                    "${programme.title} clashes with recordings already on the list: every stream is wanted then, so it won’t record unless one of them comes off."
+                    t("{title} clashes with recordings already on the list: every stream is wanted then, so it won’t record unless one of them comes off.", "title" to programme.title)
                 } else {
-                    "${programme.title} will be recorded. Recordings, at the top, lists what’s set."
+                    t("{title} will be recorded. Recordings, at the top, lists what’s set.", "title" to programme.title)
                 }
             } catch (e: Exception) {
                 e.message
@@ -179,14 +181,14 @@ fun LiveTvScreen(model: AppModel) {
 
     RoomBackground(ambient = null) {
         Column {
-            PageTitle("Live TV", onBack = { navigator.back() }) {
+            PageTitle(t(Words.liveTv), onBack = { navigator.back() }) {
                 if (all.isNotEmpty()) {
-                    if (records) IconButton(onClick = navigator::openRecordings) { Icon(Icons.Filled.RadioButtonChecked, contentDescription = "Recordings", tint = Flexarr.screen) }
+                    if (records) IconButton(onClick = navigator::openRecordings) { Icon(Icons.Filled.RadioButtonChecked, contentDescription = t("Recordings"), tint = Flexarr.screen) }
                     IconButton(onClick = {
                         showsGuide = !showsGuide
                         context.settings.edit().putBoolean(GUIDE_KEY, showsGuide).apply()
                     }) {
-                        Icon(if (showsGuide) Icons.AutoMirrored.Filled.List else Icons.Filled.CalendarMonth, contentDescription = if (showsGuide) "List" else "Guide", tint = Flexarr.screen)
+                        Icon(if (showsGuide) Icons.AutoMirrored.Filled.List else Icons.Filled.CalendarMonth, contentDescription = if (showsGuide) t("List") else t("Guide"), tint = Flexarr.screen)
                     }
                 }
             }
@@ -194,7 +196,7 @@ fun LiveTvScreen(model: AppModel) {
             when {
                 loaded == null && error != null -> StatusView(error, retry = { scope.launch { load() } })
                 loaded == null -> StatusView()
-                loaded.isEmpty() -> StatusView("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.", empty = true)
+                loaded.isEmpty() -> StatusView(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user."), empty = true)
                 else -> {
                     Chips(filter, groups, onChoose = { chosen = it })
                     if (showsGuide) {
@@ -215,7 +217,7 @@ fun LiveTvScreen(model: AppModel) {
                                     item {
                                         Row(Modifier.padding(horizontal = Edge, vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                             Icon(Icons.Outlined.StarOutline, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(16.dp))
-                                            Text("Hold the channels you watch most to keep them first.", fontSize = 13.sp, color = Flexarr.usher)
+                                            Text(t("Hold the channels you watch most to keep them first."), fontSize = 13.sp, color = Flexarr.usher)
                                         }
                                     }
                                 }
@@ -229,9 +231,9 @@ fun LiveTvScreen(model: AppModel) {
     notice?.let { message ->
         AlertDialog(
             onDismissRequest = { notice = null },
-            title = { Text("Recording") },
+            title = { Text(t("Recording")) },
             text = { Text(message) },
-            confirmButton = { TextButton(onClick = { notice = null }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { notice = null }) { Text(t("OK")) } },
             containerColor = Flexarr.seat,
         )
     }
@@ -244,8 +246,8 @@ private val Context.settings get() = getSharedPreferences("settings", Context.MO
 @Composable
 private fun Chips(filter: Filter, groups: List<String>, onChoose: (Filter) -> Unit) {
     LazyRow(contentPadding = PaddingValues(horizontal = Edge, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        item { Chip("Favourites", filter == Filter.Favourites, star = true) { onChoose(Filter.Favourites) } }
-        item { Chip("All", filter == Filter.All) { onChoose(Filter.All) } }
+        item { Chip(t("Favourites"), filter == Filter.Favourites, star = true) { onChoose(Filter.Favourites) } }
+        item { Chip(t("All"), filter == Filter.All) { onChoose(Filter.All) } }
         if (groups.size > 1) items(groups) { name -> Chip(name, filter == Filter.Group(name)) { onChoose(Filter.Group(name)) } }
     }
 }
@@ -280,7 +282,7 @@ internal fun ChannelLogo(channel: LiveChannel, width: Dp, starting: Boolean, mod
 @Composable
 private fun ChannelRow(channel: LiveChannel, starting: Boolean, onWatch: () -> Unit, onRecord: ((LiveProgramme) -> Unit)?, onFavourite: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
-    val favouriteLabel = if (channel.isFavourite) "Remove from Favourites" else "Add to Favourites"
+    val favouriteLabel = if (channel.isFavourite) t("Remove from Favourites") else t("Add to Favourites")
     Box {
         Row(
             Modifier.fillMaxWidth().pressable(onWatch, onLongClick = { menu = true }).padding(horizontal = Edge, vertical = 6.dp)
@@ -290,7 +292,7 @@ private fun ChannelRow(channel: LiveChannel, starting: Boolean, onWatch: () -> U
         ) {
             Box {
                 ChannelLogo(channel, 104.dp, starting)
-                if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = LiveStar, modifier = Modifier.align(Alignment.TopEnd).padding(5.dp).size(10.dp))
+                if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = t("Favourite"), tint = LiveStar, modifier = Modifier.align(Alignment.TopEnd).padding(5.dp).size(10.dp))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -299,23 +301,23 @@ private fun ChannelRow(channel: LiveChannel, starting: Boolean, onWatch: () -> U
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     channel.now?.takeIf { it.isSetToRecord }?.let { RecordMark(it.isRecordingNow) }
-                    Text(channel.now?.displayTitle ?: "No listings", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(channel.now?.displayTitle ?: t("No listings"), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 channel.now?.let { now ->
                     LinearProgressIndicator(progress = { now.progress() }, modifier = Modifier.width(220.dp), color = Flexarr.silver, trackColor = Flexarr.aisle)
                 }
                 channel.next?.let { next ->
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Next: ${LiveTvController.startTime(next)} ${next.title}", fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        Text(t("Next: {time} {title}", "time" to LiveTvController.startTime(next), "title" to next.title), fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                         if (next.isSetToRecord) RecordMark(false)
                     }
                 }
             }
         }
         DropdownMenu(menu, onDismissRequest = { menu = false }, containerColor = Flexarr.seat) {
-            DropdownMenuItem(text = { Text("Watch") }, onClick = { menu = false; onWatch() })
+            DropdownMenuItem(text = { Text(t("Watch")) }, onClick = { menu = false; onWatch() })
             if (onRecord != null) listOfNotNull(channel.now, channel.next).forEach { programme ->
-                DropdownMenuItem(text = { Text("Record ${programme.title}") }, onClick = { menu = false; onRecord(programme) })
+                DropdownMenuItem(text = { Text(t("Record {title}", "title" to programme.title)) }, onClick = { menu = false; onRecord(programme) })
             }
             DropdownMenuItem(text = { Text(favouriteLabel) }, onClick = { menu = false; onFavourite() })
         }
@@ -327,14 +329,14 @@ private fun ChannelRow(channel: LiveChannel, starting: Boolean, onWatch: () -> U
 internal fun RecordMark(recordingNow: Boolean) {
     if (recordingNow) {
         Text(
-            "REC",
+            t("REC"),
             fontSize = 10.sp,
             fontWeight = FontWeight.Black,
             color = Color.White,
-            modifier = Modifier.clip(CircleShape).background(RecordRed).padding(horizontal = 5.dp, vertical = 1.dp).semantics { contentDescription = "Recording now" },
+            modifier = Modifier.clip(CircleShape).background(RecordRed).padding(horizontal = 5.dp, vertical = 1.dp).semantics { contentDescription = t("Recording now") },
         )
     } else {
-        Box(Modifier.size(9.dp).clip(CircleShape).background(RecordRed).semantics { contentDescription = "Set to record" })
+        Box(Modifier.size(9.dp).clip(CircleShape).background(RecordRed).semantics { contentDescription = t("Set to record") })
     }
 }
 
@@ -434,7 +436,7 @@ private fun LiveGuideView(
                     val programmes = byChannel[channel.id]?.programmes.orEmpty().filter { it.end > windowStart && it.start < windowEnd }
                     Box(Modifier.height(rowHeight).width(width + Edge)) {
                         Box(Modifier.height(rowHeight).width(width)) {
-                            if (programmes.isEmpty()) Text("No listings", fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp))
+                            if (programmes.isEmpty()) Text(t("No listings"), fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp))
                             // Laid end to end, with a gap wherever the listings have one.
                             Row(Modifier.fillMaxHeight()) {
                                 var at = windowStart
@@ -454,13 +456,13 @@ private fun LiveGuideView(
                                         modifier = Modifier.width(slot).fillMaxHeight().padding(end = 3.dp),
                                         onTap = { if (onNow) navigator.watch(channel, order) else details = programme to channel },
                                         menu = { close ->
-                                            if (onNow) DropdownMenuItem(text = { Text("Watch") }, onClick = { close(); navigator.watch(channel, order) })
+                                            if (onNow) DropdownMenuItem(text = { Text(t("Watch")) }, onClick = { close(); navigator.watch(channel, order) })
                                             if (records && programme.end > now) {
                                                 DropdownMenuItem(text = { Text(recordLabel(programme)) }, onClick = { close(); act { toggleRecording(client, programme, channel.id) } })
                                                 DropdownMenuItem(text = { Text(seriesLabel(programme)) }, onClick = { close(); act { toggleSeries(client, programme, channel.id); null } })
                                             }
                                             DropdownMenuItem(
-                                                text = { Text(if (channel.isFavourite) "Remove from Favourites" else "Add to Favourites") },
+                                                text = { Text(if (channel.isFavourite) t("Remove from Favourites") else t("Add to Favourites")) },
                                                 onClick = { close(); onFavourite(channel) },
                                             )
                                         },
@@ -486,12 +488,12 @@ private fun LiveGuideView(
             text = { Text(describe(programme)) },
             confirmButton = {
                 Column(horizontalAlignment = Alignment.End) {
-                    TextButton(onClick = { details = null; navigator.watch(channel, order) }) { Text("Watch ${channel.name} now") }
+                    TextButton(onClick = { details = null; navigator.watch(channel, order) }) { Text(t("Watch {channel} now", "channel" to channel.name)) }
                     if (records && programme.end > now) {
                         TextButton(onClick = { details = null; act { toggleRecording(client, programme, channel.id) } }) { Text(recordLabel(programme)) }
                         TextButton(onClick = { details = null; act { toggleSeries(client, programme, channel.id); null } }) { Text(seriesLabel(programme)) }
                     }
-                    TextButton(onClick = { details = null }) { Text("Close") }
+                    TextButton(onClick = { details = null }) { Text(t("Close")) }
                 }
             },
             containerColor = Flexarr.seat,
@@ -517,7 +519,8 @@ private fun GuideCell(
             .then(if (programme.isSetToRecord) Modifier.border(2.dp, RecordRed, shape) else Modifier)
             .pressable(onTap, onLongClick = { open = true })
             .semantics(mergeDescendants = true) {
-                contentDescription = "${channel.name}, ${programme.displayTitle}, ${LiveTvController.startTime(programme)}" + if (programme.isSetToRecord) ", set to record" else ""
+                contentDescription = if (programme.isSetToRecord) t("{channel}, {programme}, {time}, set to record", "channel" to channel.name, "programme" to programme.displayTitle, "time" to LiveTvController.startTime(programme))
+                    else t("{channel}, {programme}, {time}", "channel" to channel.name, "programme" to programme.displayTitle, "time" to LiveTvController.startTime(programme))
             },
     ) {
         if (onNow) Box(Modifier.padding(vertical = 10.dp).width(3.dp).fillMaxHeight().clip(RoundedCornerShape(2.dp)).background(Flexarr.silver))
@@ -538,17 +541,17 @@ private fun halfHourBefore(time: Instant): Instant = Instant.ofEpochSecond(time.
 
 private fun describe(programme: LiveProgramme): String = buildList {
     add(LiveTvController.timeRange(programme))
-    programme.season?.let { season -> add(programme.episode?.let { "Series $season, episode $it" } ?: "Series $season") }
-    if (programme.isNew) add("New")
+    programme.season?.let { season -> add(programme.episode?.let { t("Series {season}, episode {episode}", "season" to season, "episode" to it) } ?: t("Series {season}", "season" to season)) }
+    if (programme.isNew) add(t("New"))
     programme.description?.let(::add)
 }.joinToString("\n")
 
 // What the guide and the channel list can ask the DVR, as the iPhone's DvrActions.
 
 internal fun recordLabel(programme: LiveProgramme) =
-    if (programme.isRecordingNow) "Stop recording" else if (programme.isSetToRecord) "Don’t record" else "Record"
+    if (programme.isRecordingNow) t("Stop recording") else if (programme.isSetToRecord) t("Don’t record") else t("Record")
 
-internal fun seriesLabel(programme: LiveProgramme) = if (programme.series == true) "Stop recording the series" else "Record series"
+internal fun seriesLabel(programme: LiveProgramme) = if (programme.series == true) t("Stop recording the series") else t("Record series")
 
 /** Sets the showing to record, or takes it off the list (stopping it, if it's recording now). Says so if it clashes. */
 internal suspend fun toggleRecording(client: FlexarrClient, programme: LiveProgramme, channelId: String): String? {
@@ -558,7 +561,7 @@ internal suspend fun toggleRecording(client: FlexarrClient, programme: LiveProgr
     }
     val recording = client.record(programme.id)
     return if (recording.clashes) {
-        "${programme.title} clashes with recordings already on the list: every stream is wanted then, so it won’t record unless one of them comes off."
+        t("{title} clashes with recordings already on the list: every stream is wanted then, so it won’t record unless one of them comes off.", "title" to programme.title)
     } else {
         null
     }

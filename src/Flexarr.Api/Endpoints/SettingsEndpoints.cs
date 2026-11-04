@@ -7,6 +7,7 @@ using Flexarr.Api.Playback;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Media;
 using Flexarr.Core.Paths;
 using Flexarr.Core.Scanning;
@@ -16,6 +17,7 @@ using Flexarr.Metadata;
 using Flexarr.Streaming;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -43,7 +45,10 @@ public sealed record SettingsDto(
     bool AskPinForMainProfile = false,
     TraktAppDto? TraktApp = null,
     // Whether music can be requested through Lidarr (absent from servers before 0.59).
-    bool? AllowMusicRequests = null);
+    bool? AllowMusicRequests = null,
+    // The server runs in a container, where Docker's port forwarding can make visitors from the internet look like
+    // they're at home, so "only away from home" lets them in (absent from servers before 0.60).
+    bool? InContainer = null);
 
 /// <summary>The admin's own Trakt app, used instead of Flexarr's; the secret is never sent back, only whether there is one.</summary>
 public sealed record TraktAppDto(string ClientId, bool HasSecret);
@@ -89,7 +94,11 @@ public sealed record SettingsUpdate(
     // Ignored since 0.57: the main profile has a PIN of its own, set in Profiles like anyone's.
     bool? AskPinForMainProfile = null,
     TraktAppUpdate? TraktApp = null,
-    bool? AllowMusicRequests = null);
+    bool? AllowMusicRequests = null,
+    // Letting devices at home in without the key asks again, as showing the key does (see ConfirmKeyAsync): the admin
+    // PIN when it has one, otherwise a yes. Absent from web apps before 0.60.
+    string? Pin = null,
+    bool? Confirm = null);
 
 /// <param name="ApiKey">TMDB's API key or read access token; empty to remove it.</param>
 public sealed record TmdbKeyUpdate(string ApiKey);
@@ -106,7 +115,9 @@ public sealed record KeyRequest(string? Pin = null, bool Confirm = false, bool S
 
 public sealed record ArrStatusDto(string Name, ArrKind Kind, bool Ok, string? Version, string? Error);
 
-public sealed record StreamActivityDto(string SessionId, ItemSummaryDto Item, string? Series, PlaybackMethod Method, string? Transcode, double PositionSeconds, double DurationSeconds, bool Paused);
+/// <param name="Warming">Got ready ahead of Play (a page looked at) and converting, not watched yet. Absent before 0.59.</param>
+public sealed record StreamActivityDto(string SessionId, ItemSummaryDto Item, string? Series, PlaybackMethod Method, string? Transcode, double PositionSeconds, double DurationSeconds, bool Paused,
+    bool Warming = false);
 
 public sealed record ActivityDto(
     ScanStatusDto? Scan,
@@ -130,38 +141,55 @@ public static class SettingsEndpoints
                 await MainHasOwnPinAsync(db, ct)));
 
         group.MapPut("/", async (SettingsUpdate update, IOptionsMonitor<FlexarrOptions> options, LiveTv.LiveTvRefreshSignal liveTvRefresh, FlexarrDbContext db,
-            ILibraryScanQueue scans, CancellationToken ct) =>
+            ILibraryScanQueue scans, HttpContext http, CurrentProfile profile, PinGuard guard, CancellationToken ct) =>
         {
             var current = options.CurrentValue;
+            // Devices at home getting in without the key hands every one of them the main profile, so it asks again,
+            // as importing the access settings from a file does.
+            if (update.AuthenticationRequired == AuthenticationRequired.DisabledForLocalAddresses && current.AuthenticationRequired != AuthenticationRequired.DisabledForLocalAddresses
+                && await ConfirmKeyAsync(new KeyRequest(update.Pin, update.Confirm == true), http, db, profile, guard, ct,
+                    Loc.Mark("let devices at home in without the key")) is { } refused)
+            {
+                return refused;
+            }
+
             if (update.LiveTv is { BaseUrl.Length: > 0 } badLive && (WebAddress(badLive.BaseUrl) is null || string.IsNullOrWhiteSpace(badLive.Username)))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["liveTv"] = ["Enter Dispatcharr's http or https address and a user name."] });
+                return Problems.Field("Enter Dispatcharr's http or https address and a user name.", field: "liveTv");
             }
 
             if (update.Arr?.FirstOrDefault(a => WebAddress(a.BaseUrl) is null) is { } bad)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["arr"] = [$"{bad.Name}: “{bad.BaseUrl}” isn't a valid http or https address."] });
+                return Problems.Field("{name}: “{baseUrl}” isn't a valid http or https address.", field: "arr", args: new { name = bad.Name, baseUrl = bad.BaseUrl });
             }
 
             if (update.Seerr is { BaseUrl.Length: > 0 } badSeerr && WebAddress(badSeerr.BaseUrl) is null)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["seerr"] = [$"“{badSeerr.BaseUrl}” isn't a valid http or https address."] });
+                return Problems.Field("“{baseUrl}” isn't a valid http or https address.", field: "seerr", args: new { baseUrl = badSeerr.BaseUrl });
             }
 
             if (update.TraktApp is { } traktApp && (traktApp.ClientId?.Trim() ?? "") is { Length: > 0 } traktId
                 && (traktId.Length > 128 || !traktId.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_')))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["traktApp"] = ["That doesn't look like a Trakt client ID."] });
+                return Problems.Field("That doesn't look like a Trakt client ID.", field: "traktApp");
             }
 
             if (update.Bazarr is { BaseUrl.Length: > 0 } badBazarr && WebAddress(badBazarr.BaseUrl) is null)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["bazarr"] = [$"“{badBazarr.BaseUrl}” isn't a valid http or https address."] });
+                return Problems.Field("“{baseUrl}” isn't a valid http or https address.", field: "bazarr", args: new { baseUrl = badBazarr.BaseUrl });
             }
 
             if (update.Podcasts is { Country: { Length: > 0 } country } && Podcasts.PodcastCountries.Known(country) is null)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["podcasts"] = [$"Apple has no podcast charts for “{country}”."] });
+                return Problems.Field("Apple has no podcast charts for “{country}”.", field: "podcasts", args: new { country });
+            }
+
+            // A new recordings folder must be one Flexarr can write to now: otherwise every recording fails later (in the Mac
+            // app's sandbox, a typed path it was never given).
+            if (update.LiveTv is { BaseUrl.Length: > 0, DvrFolder: { } dvr } && dvr.Trim() is { Length: > 0 } dvrFolder
+                && dvrFolder != current.LiveTv?.DvrFolder && WritableFolder.Problem(dvrFolder) is { } dvrProblem)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["liveTv"] = [dvrProblem] });
             }
 
             // The file watcher reloads options shortly after the write; the response waits for the reload of this write
@@ -368,7 +396,7 @@ public static class SettingsEndpoints
                 : connection.ApiKey;
             if (WebAddress(connection.BaseUrl) is not { } url || key is null)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["arr"] = ["Enter an http or https address and the API key."] });
+                return Problems.Field("Enter an http or https address and the API key.", field: "arr");
             }
 
             return Results.Ok(await StatusAsync(client, new ArrInstance { Name = connection.Name, Kind = connection.Kind, BaseUrl = url, ApiKey = key }, ct));
@@ -380,18 +408,18 @@ public static class SettingsEndpoints
             var key = connection?.ApiKey.Trim() is { Length: > 0 } typed ? typed : options.CurrentValue.Tmdb?.ApiKey;
             if (string.IsNullOrEmpty(key))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["tmdb"] = ["Paste your TMDB API key or read access token."] });
+                return Problems.Field("Paste your TMDB API key or read access token.", field: "tmdb");
             }
 
             try
             {
                 return Results.Ok(await client.CheckKeyAsync(key, ct)
                     ? new TmdbTestDto(true, null)
-                    : new TmdbTestDto(false, "TMDB didn't accept that key. Copy it again from themoviedb.org › Settings › API."));
+                    : new TmdbTestDto(false, Loc.T("TMDB didn't accept that key. Copy it again from themoviedb.org › Settings › API.")));
             }
             catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
             {
-                return Results.Ok(new TmdbTestDto(false, "Couldn't reach TMDB from the server."));
+                return Results.Ok(new TmdbTestDto(false, Loc.T("Couldn't reach TMDB from the server.")));
             }
         }).WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
@@ -403,7 +431,7 @@ public static class SettingsEndpoints
             var password = string.IsNullOrEmpty(connection.Password) ? saved is not null && SameServer(saved.BaseUrl, connection.BaseUrl) ? saved.Password : null : connection.Password;
             if (WebAddress(connection.BaseUrl) is not { } url || string.IsNullOrWhiteSpace(connection.Username) || string.IsNullOrEmpty(password))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["liveTv"] = ["Enter Dispatcharr's address, a user name and its password."] });
+                return Problems.Field("Enter Dispatcharr's address, a user name and its password.", field: "liveTv");
             }
 
             var account = new LiveTv.XtreamAccount(url, connection.Username.Trim(), password);
@@ -414,7 +442,7 @@ public static class SettingsEndpoints
                 var info = await client.CheckAsync(account, timeout.Token);
                 if (!info.SignedIn)
                 {
-                    return Results.Ok(new LiveTvTestDto(false, null, null, null, "The Live TV source refused the user name or password."));
+                    return Results.Ok(new LiveTvTestDto(false, null, null, null, Loc.T("The Live TV source refused the user name or password.")));
                 }
 
                 var channels = await client.GetChannelsAsync(account, timeout.Token);
@@ -426,7 +454,7 @@ public static class SettingsEndpoints
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                return Results.Ok(new LiveTvTestDto(false, null, null, null, "The Live TV source didn't answer in time."));
+                return Results.Ok(new LiveTvTestDto(false, null, null, null, Loc.T("The Live TV source didn't answer in time.")));
             }
         }).WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
@@ -435,7 +463,10 @@ public static class SettingsEndpoints
             var episodes = db.MediaFiles.Where(f => f.MediaItem!.Kind == MediaKind.Episode && f.ProbeError == null);
             var topLevel = db.MediaItems.Where(i => i.ParentId == null);
             var streams = new List<StreamActivityDto>();
-            foreach (var session in sessions.Active.Where(s => DateTime.UtcNow - s.LastSeen < TimeSpan.FromMinutes(2)))
+            // What's watched, and what's converting ahead of Play (it holds a slot until a stream needs it).
+            var listed = sessions.Playing.Where(s => DateTime.UtcNow - s.LastSeen < TimeSpan.FromMinutes(2))
+                .Concat(sessions.Active.Where(s => s.Warming && s.Transcode is { IsActive: true }));
+            foreach (var session in listed)
             {
                 var item = await db.MediaItems.Where(i => i.Id == session.ItemId).Summaries(session.ProfileId).FirstOrDefaultAsync(ct);
                 if (item is null)
@@ -449,7 +480,7 @@ public static class SettingsEndpoints
                 var plan = session.Transcode?.Plan;
                 streams.Add(new StreamActivityDto(session.Id, item, series, session.Method,
                     plan is null ? null : $"{plan.TargetHeight}p at {plan.VideoBitrate / 1_000_000.0:0.#} Mbps",
-                    session.LastPosition, session.DurationSeconds, session.Paused));
+                    session.LastPosition, session.DurationSeconds, session.Paused, session.Warming));
             }
 
             var scan = progress.Current is { } p ? new ScanStatusDto(p.Path, p.Total, p.Processed) : null;
@@ -489,7 +520,8 @@ public static class SettingsEndpoints
         o.Bazarr is { BaseUrl.Length: > 0 } b ? new BazarrConnectionDto(b.BaseUrl, b.ApiKey.Length > 0) : null,
         mainHasOwnPin,
         o.Trakt.ClientId.Length > 0 ? new TraktAppDto(o.Trakt.ClientId, o.Trakt.ClientSecret.Length > 0) : null,
-        o.MusicRequests.Enabled);
+        o.MusicRequests.Enabled,
+        Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true");
 
     /// <summary>
     /// This machine's name on the network ("Dans-Mac-Mini"), which the web app puts in place of localhost in links to
@@ -517,8 +549,10 @@ public static class SettingsEndpoints
     /// Null when that's given; otherwise the refusal. Signing in with the key itself is enough.
     /// </summary>
     internal static async Task<IResult?> ConfirmKeyAsync(KeyRequest? request, HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard,
-        CancellationToken ct, string action = "see the API key")
+        CancellationToken ct, string? action = null)
     {
+        // The action is marked where it's written (Loc.Mark) and translated here, in the request's language.
+        action = action is null ? Loc.T("see the API key") : Loc.T(action);
         if (http.User.FindFirst(FlexarrClaims.Method)?.Value == ApiKeyAuthenticationHandler.Methods.ApiKey)
         {
             return null;
@@ -527,12 +561,12 @@ public static class SettingsEndpoints
         var main = await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == PlaybackState.DefaultUser, ct);
         if (main?.AdminPinHash is null)
         {
-            return request?.Confirm == true ? null : Results.Problem($"Confirm that you want to {action}.", statusCode: 400);
+            return request?.Confirm == true ? null : Problems.Of("Confirm that you want to {action}.", new { action }, status: 400);
         }
 
         if (string.IsNullOrEmpty(request?.Pin))
         {
-            return Results.Problem($"Enter the admin PIN to {action}.", statusCode: 403);
+            return Problems.Of("Enter the admin PIN to {action}.", new { action }, status: 403);
         }
 
         var (callers, browser) = ProfileEndpoints.PinCaller(http, current);
@@ -541,7 +575,7 @@ public static class SettingsEndpoints
         {
             PinCheck.Right => null,
             PinCheck.LockedOut => ProfileEndpoints.TooManyPins(http, retryAfter),
-            _ => Results.Problem("That PIN isn't right.", statusCode: 403),
+            _ => Problems.Of("That PIN isn't right.", status: 403),
         };
     }
 
@@ -573,11 +607,11 @@ public static class SettingsEndpoints
         {
             var reason = ex switch
             {
-                HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized } => "The API key was rejected.",
-                HttpRequestException { StatusCode: not null } http => $"It answered with HTTP {(int)http.StatusCode.Value}.",
-                HttpRequestException => "Nothing answered at that address.",
-                TaskCanceledException => "It didn't answer within 8 seconds.",
-                _ => "That doesn't look like a Sonarr, Radarr or Lidarr server.",
+                HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized } => Loc.T("The API key was rejected."),
+                HttpRequestException { StatusCode: not null } http => Loc.T("It answered with HTTP {status}.", new { status = (int)http.StatusCode.Value }),
+                HttpRequestException => Loc.T("Nothing answered at that address."),
+                TaskCanceledException => Loc.T("It didn't answer within 8 seconds."),
+                _ => Loc.T("That doesn't look like a Sonarr, Radarr or Lidarr server."),
             };
             return new ArrStatusDto(instance.Name, instance.Kind, false, null, reason);
         }

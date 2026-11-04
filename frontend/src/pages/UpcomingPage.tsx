@@ -1,10 +1,11 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { getDownloads, getUpcoming, imageUrl, type Download, type DownloadState, type UpcomingItem } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { friendlyTimeLeft, timeLabel } from '../lib/dates'
 import { episodeCode } from '../lib/format'
 import { webLink } from '../lib/links'
+import { locale, t, Words } from '../i18n'
 
 /** Yesterday (for what just arrived) and four weeks ahead. */
 const DAYS = 30
@@ -12,7 +13,8 @@ const DAYS = 30
 const dayKey = (d: Date) => d.toDateString()
 
 export function UpcomingPage() {
-  const today = new Date()
+  // The day the page opened: read once, so every render lays out the same days.
+  const [today] = useState(() => new Date())
   const calendarDays = Array.from({ length: DAYS }, (_, i) => new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1 + i))
   const daysAhead = Math.ceil((calendarDays[calendarDays.length - 1].getTime() - today.getTime()) / 86_400_000) + 1
   const upcoming = useApi((signal) => getUpcoming(daysAhead, signal), [daysAhead])
@@ -29,14 +31,14 @@ export function UpcomingPage() {
     <div className="upcoming-page">
       <header className="library-header">
         <div>
-          <h1>Coming soon</h1>
-          <p className="muted">What Sonarr and Radarr expect over the next few weeks. Anything you don’t have yet opens in Sonarr or Radarr.</p>
+          <h1>{t(Words.comingSoon)}</h1>
+          <p className="muted">{t('What Sonarr and Radarr expect over the next few weeks. Anything you don’t have yet opens in Sonarr or Radarr.')}</p>
         </div>
       </header>
 
       {downloads.data && downloads.data.length > 0 && (
         <section className="downloads">
-          <h2>Downloading now</h2>
+          <h2>{t('Downloading now')}</h2>
           <ul>
             {downloads.data.map((d) => (
               <DownloadRow key={d.id} download={d} />
@@ -45,10 +47,10 @@ export function UpcomingPage() {
         </section>
       )}
 
-      {upcoming.data && upcoming.data.length === 0 && <p className="muted">Nothing is scheduled. Monitored shows and movies will appear here as their dates approach.</p>}
+      {upcoming.data && upcoming.data.length === 0 && <p className="muted">{t('Nothing is scheduled. Monitored shows and movies will appear here as their dates approach.')}</p>}
 
       {upcoming.data && upcoming.data.length > 0 && (
-        <ol className="day-rows" aria-label="Release calendar">
+        <ol className="day-rows" aria-label={t('Release calendar')}>
           {calendarDays.map((d) => {
             const key = dayKey(d)
             const items = byDay.get(key) ?? []
@@ -63,8 +65,8 @@ export function UpcomingPage() {
                 data-week-start={d.getDay() === 1 || undefined}
               >
                 <h2 className="day-row-date">
-                  <span className="day-row-weekday">{key === todayKey ? 'Today' : d.toLocaleDateString(undefined, { weekday: 'short' })}</span>
-                  <span className="day-row-day">{d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</span>
+                  <span className="day-row-weekday">{key === todayKey ? t('Today') : d.toLocaleDateString(locale(), { weekday: 'short' })}</span>
+                  <span className="day-row-day">{d.toLocaleDateString(locale(), { day: 'numeric', month: 'short' })}</span>
                 </h2>
                 {items.length > 0 ? (
                   <div className="day-row-entries">
@@ -73,7 +75,7 @@ export function UpcomingPage() {
                     ))}
                   </div>
                 ) : (
-                  <span className="muted day-row-nothing">Nothing scheduled</span>
+                  <span className="muted day-row-nothing">{t('Nothing scheduled')}</span>
                 )}
               </li>
             )
@@ -100,9 +102,14 @@ function CalendarEntry({ items }: { items: UpcomingItem[] }) {
   const many = items.length > 1
   const sameSeason = items.every((i) => i.seasonNumber === item.seasonNumber)
   const code = (i: UpcomingItem) => episodeCode({ seasonNumber: i.seasonNumber, episodeNumber: i.episodeNumber, episodeNumberEnd: null, airDate: null })
-  const label = !many ? subtitle(item) : sameSeason ? `${code(item)}–E${String(last.episodeNumber ?? 0).padStart(2, '0')}, ${items.length} episodes` : `${items.length} episodes`
+  const episodes = t('{count, plural, one {# episode} other {# episodes}}', { count: items.length })
+  const label = !many
+    ? subtitle(item)
+    : sameSeason
+      ? t('{range}, {episodes}', { range: `${code(item)}–E${String(last.episodeNumber ?? 0).padStart(2, '0')}`, episodes })
+      : episodes
   const ready = items.every((i) => i.available)
-  const state = many ? (ready ? 'Ready to watch' : items.some((i) => i.download) ? 'Downloading' : null) : status(item)
+  const state = many ? (ready ? t('Ready to watch') : items.some((i) => i.download) ? t('Downloading') : null) : status(item)
   return (
     <EntryLink item={item} className="calendar-entry" data-ready={ready || undefined}>
       <span className="calendar-poster">{item.poster && <img src={imageUrl(item.poster, 92)} alt="" loading="lazy" />}</span>
@@ -126,7 +133,7 @@ function EntryLink({ item, className, children, ...rest }: { item: UpcomingItem;
   const manage = webLink(item.manageUrl)
   if (manage)
     return (
-      <a href={manage} target="_blank" rel="noreferrer" className={className} title={`Open in ${sourceName(item)}`} {...rest}>
+      <a href={manage} target="_blank" rel="noreferrer" className={className} title={t('Open in {app}', { app: sourceName(item) })} {...rest}>
         {children}
       </a>
     )
@@ -144,8 +151,8 @@ function subtitle(item: UpcomingItem) {
 }
 
 function status(item: UpcomingItem) {
-  if (item.available) return 'Ready to watch'
-  if (item.download) return `Downloading ${Math.round(item.download.progress * 100)}%`
+  if (item.available) return t('Ready to watch')
+  if (item.download) return t('Downloading {percent}%', { percent: Math.round(item.download.progress * 100) })
   return null
 }
 
@@ -173,10 +180,10 @@ function DownloadRow({ download: d }: { download: Download }) {
         </span>
         {attention && webLink(d.manageUrl) ? (
           <a className="download-attention" href={webLink(d.manageUrl)} target="_blank" rel="noreferrer">
-            Needs attention: open {sourceName(d)}
+            {t('Needs attention: open {app}', { app: sourceName(d) })}
           </a>
         ) : (
-          <span className={attention ? 'download-attention' : 'muted'}>{attention ? `Needs attention in ${sourceName(d)}` : text}</span>
+          <span className={attention ? 'download-attention' : 'muted'}>{attention ? t('Needs attention in {app}', { app: sourceName(d) }) : text}</span>
         )}
       </span>
     </li>
@@ -187,9 +194,9 @@ function DownloadRow({ download: d }: { download: Download }) {
 function downloadStatus(state: DownloadState): { text: string; attention?: true } {
   const status = state.status?.toLowerCase() ?? ''
   if (status.includes('blocked') || status.includes('failed') || status.includes('warning')) return { text: '', attention: true }
-  if (state.progress >= 0.999 || status.includes('importpending') || status.includes('importing')) return { text: 'Downloaded, waiting to be imported' }
-  if (status.includes('paused')) return { text: `Paused at ${Math.round(state.progress * 100)}%` }
-  if (status.includes('queued') || status.includes('delay')) return { text: 'Queued' }
+  if (state.progress >= 0.999 || status.includes('importpending') || status.includes('importing')) return { text: t('Downloaded, waiting to be imported') }
+  if (status.includes('paused')) return { text: t('Paused at {percent}%', { percent: Math.round(state.progress * 100) }) }
+  if (status.includes('queued') || status.includes('delay')) return { text: t('Queued') }
   const left = friendlyTimeLeft(state.timeLeft)
-  return { text: `${Math.round(state.progress * 100)}%${left ? `, ${left}` : ''}` }
+  return { text: left ? t('{percent}%, {left}', { percent: Math.round(state.progress * 100), left }) : t('{percent}%', { percent: Math.round(state.progress * 100) }) }
 }

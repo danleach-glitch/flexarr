@@ -1,4 +1,4 @@
-import { Fragment, lazy, Suspense, useEffect, useState, type ComponentType, type FormEvent, type ReactNode } from 'react'
+import { Fragment, lazy, Suspense, useEffect, useState, useSyncExternalStore, type ComponentType, type FormEvent, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router'
 import {
   ApiError,
@@ -12,32 +12,24 @@ import {
   profileToken,
   saveProfileToken,
   setupStatus,
+  SIGNED_OUT_EVENT,
   signIn,
   UnauthorizedError,
   type InstallKind,
   type Profile,
 } from './api/client'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { currentLanguage, onLanguageChange, settleLanguage, t, Words } from './i18n'
 import { ProfilePicker } from './components/ProfilePicker'
 import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
 import { LibrariesProvider } from './hooks/libraries'
 import { SessionProvider } from './hooks/session'
-import { useAgeLimits } from './hooks/sessionContext'
-import { CollectionPage, CollectionsPage } from './pages/CollectionsPage'
-import { DiscoverPage } from './pages/DiscoverPage'
-import { ExternalTitlePage } from './pages/ExternalTitlePage'
-import { MusicExternalAlbumPage, MusicExternalArtistPage } from './pages/MusicExternalPages'
+import { useAgeLimits, useSession } from './hooks/sessionContext'
 import { HomePage } from './pages/HomePage'
 import { ItemPage } from './pages/ItemPage'
 import { LibraryPage } from './pages/LibraryPage'
-import { MixPage } from './pages/MixPage'
 import { PersonPage } from './pages/PersonPage'
-import { BookSeriesPage } from './pages/BookSeriesPage'
-import { PlaylistPage, PlaylistsPage } from './pages/PlaylistsPage'
-import { PodcastBrowsePage, PodcastEpisodePage, PodcastPage, PodcastsPage } from './pages/PodcastPages'
-import { UpcomingPage } from './pages/UpcomingPage'
-import { WatchlistPage } from './pages/WatchlistPage'
 import { LinkPage } from './pages/LinkPage'
 import { errorReporter } from './lib/errorReporter'
 import { configureSentry } from './lib/sentry'
@@ -89,6 +81,23 @@ const SettingsPage = lazyPage(() => import('./pages/settings/SettingsPage').then
 const SetupGuidePage = lazyPage(() => import('./pages/SetupGuidePage').then((m) => ({ default: m.SetupGuidePage })))
 const LiveTvPage = lazyPage(() => import('./pages/LiveTvPage'))
 const LivePlayerPage = lazyPage(() => import('./pages/LivePlayerPage'))
+// Pages fewer people open on the way in load on demand too: the first page needs only Home, a library and a title.
+const CollectionsPage = lazyPage(() => import('./pages/CollectionsPage').then((m) => ({ default: m.CollectionsPage })))
+const CollectionPage = lazyPage(() => import('./pages/CollectionsPage').then((m) => ({ default: m.CollectionPage })))
+const DiscoverPage = lazyPage(() => import('./pages/DiscoverPage').then((m) => ({ default: m.DiscoverPage })))
+const ExternalTitlePage = lazyPage(() => import('./pages/ExternalTitlePage').then((m) => ({ default: m.ExternalTitlePage })))
+const MusicExternalAlbumPage = lazyPage(() => import('./pages/MusicExternalPages').then((m) => ({ default: m.MusicExternalAlbumPage })))
+const MusicExternalArtistPage = lazyPage(() => import('./pages/MusicExternalPages').then((m) => ({ default: m.MusicExternalArtistPage })))
+const MixPage = lazyPage(() => import('./pages/MixPage').then((m) => ({ default: m.MixPage })))
+const BookSeriesPage = lazyPage(() => import('./pages/BookSeriesPage').then((m) => ({ default: m.BookSeriesPage })))
+const PlaylistsPage = lazyPage(() => import('./pages/PlaylistsPage').then((m) => ({ default: m.PlaylistsPage })))
+const PlaylistPage = lazyPage(() => import('./pages/PlaylistsPage').then((m) => ({ default: m.PlaylistPage })))
+const PodcastsPage = lazyPage(() => import('./pages/PodcastPages').then((m) => ({ default: m.PodcastsPage })))
+const PodcastPage = lazyPage(() => import('./pages/PodcastPages').then((m) => ({ default: m.PodcastPage })))
+const PodcastBrowsePage = lazyPage(() => import('./pages/PodcastPages').then((m) => ({ default: m.PodcastBrowsePage })))
+const PodcastEpisodePage = lazyPage(() => import('./pages/PodcastPages').then((m) => ({ default: m.PodcastEpisodePage })))
+const UpcomingPage = lazyPage(() => import('./pages/UpcomingPage').then((m) => ({ default: m.UpcomingPage })))
+const WatchlistPage = lazyPage(() => import('./pages/WatchlistPage').then((m) => ({ default: m.WatchlistPage })))
 
 type ConnectionState =
   | { kind: 'loading' }
@@ -98,9 +107,14 @@ type ConnectionState =
   | { kind: 'unauthorized'; wrongKey?: boolean; setupOpen?: boolean; wrongCode?: boolean; pinMismatch?: boolean; badPin?: string }
   | { kind: 'error'; message: string }
 
-/** Pages a child's profile doesn't have (podcasts, the watchlist, collections, Live TV): a link to one goes Home. */
+/**
+ * Pages a child's profile doesn't have (podcasts, the watchlist, collections, Live TV): a link to one goes Home. Nothing
+ * shows (or is asked for) until it's known who's watching.
+ */
 function NotForKids() {
   const { kids } = useAgeLimits()
+  const { meLoaded } = useSession()
+  if (!meLoaded) return null
   return kids ? <Navigate to="/" replace /> : <Outlet />
 }
 
@@ -146,7 +160,7 @@ export function Shell() {
                   <Route path="link" element={<LinkPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="settings/:section" element={<SettingsPage />} />
-                  <Route path="*" element={<p className="page-message muted">There's nothing at this address.</p>} />
+                  <Route path="*" element={<p className="page-message muted">{t("There's nothing at this address.")}</p>} />
                 </Route>
               </Routes>
             </Suspense>
@@ -171,18 +185,23 @@ function takeLinkedSetupCode() {
 function whereTheCodeIs(install: InstallKind | undefined) {
   switch (install) {
     case 'MacApp':
-      return 'It’s in the Flexarr menu at the top of your screen.'
+      return t('It’s in the Flexarr menu at the top of your screen.')
     case 'MacLaunchAgent':
-      return 'It’s in the file setup-code.txt, in the .flexarr/data folder in your home folder.'
+      return t('It’s in the file setup-code.txt, in the .flexarr/data folder in your home folder.')
     case 'Docker':
-      return 'The Flexarr container’s log has it, and a link that fills it in for you.'
+      return t('The Flexarr container’s log has it, and a link that fills it in for you.')
     default:
-      return 'The server’s log has it, and a link that fills it in for you.'
+      return t('The server’s log has it, and a link that fills it in for you.')
   }
 }
 
 export default function App() {
   const [state, setState] = useState<ConnectionState>({ kind: 'loading' })
+  // A new language redraws everything in it, and nothing cached from the server is in the old one any more.
+  const language = useSyncExternalStore(onLanguageChange, () => currentLanguage().code)
+  useEffect(() => {
+    clearApiCache()
+  }, [language])
   const [attempt, setAttempt] = useState(0)
   // Unlocking or locking to kids profiles asks who's watching straight away (see pickProfileWith).
   useEffect(() => {
@@ -190,6 +209,18 @@ export default function App() {
     window.addEventListener(PICK_PROFILE_EVENT, again)
     return () => window.removeEventListener(PICK_PROFILE_EVENT, again)
   }, [])
+  // Signed out while using it (the key changed, "Sign out every other browser", an expired cookie): every request
+  // fails from then on, so look again, which finds the sign-in form.
+  const ready = state.kind === 'ready'
+  useEffect(() => {
+    if (!ready) return
+    const out = () => {
+      setState({ kind: 'loading' })
+      setAttempt((n) => n + 1)
+    }
+    window.addEventListener(SIGNED_OUT_EVENT, out)
+    return () => window.removeEventListener(SIGNED_OUT_EVENT, out)
+  }, [ready])
   const [setupInstall, setSetupInstall] = useState<InstallKind>()
   // Once the linked code turns out wrong (a new one since), the code box stays, whatever happens next.
   const [linkedCode, setLinkedCode] = useState(takeLinkedSetupCode)
@@ -212,6 +243,11 @@ export default function App() {
           getMe(controller.signal).catch(() => null),
         ]),
       )
+      // The profile's language (or the browser's) before the first real screen, so it doesn't change under you.
+      .then(async ([profiles, me]) => {
+        await settleLanguage(me?.language ?? null, controller.signal)
+        return [profiles, me] as const
+      })
       .then(([profiles, me]) => {
         // A stored choice the server no longer honours (the key or the PIN changed, or the profile went) would
         // quietly watch as someone else, often the main profile: forget it and ask again.
@@ -238,6 +274,7 @@ export default function App() {
         if (controller.signal.aborted) return
         if (error instanceof UnauthorizedError) {
           errorReporter.disable()
+          void settleLanguage(null, controller.signal)
           // A new server nobody has signed in to yet: this browser can set it up, no key needed.
           void setupStatus().then(({ open, install }) => {
             if (controller.signal.aborted) return
@@ -316,7 +353,7 @@ export default function App() {
   if (state.kind === 'ready') {
     return (
       <BrowserRouter>
-        <Shell />
+        <Shell key={language} />
       </BrowserRouter>
     )
   }
@@ -331,46 +368,46 @@ export default function App() {
         <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
         flexarr
       </p>
-      {codePage && <p className="connect-tagline">Your entertainment, on every screen.</p>}
-      <section className="panel" aria-label="Server status">
-        {state.kind === 'loading' && <p className="muted">Connecting…</p>}
-        {state.kind === 'error' && <p className="error">Can't reach the server ({state.message}). Check that Flexarr is running, then reload.</p>}
+      {codePage && <p className="connect-tagline">{t('Your entertainment, on every screen.')}</p>}
+      <section className="panel" aria-label={t('Server status')}>
+        {state.kind === 'loading' && <p className="muted">{t('Connecting…')}</p>}
+        {state.kind === 'error' && <p className="error">{t("Can't reach the server ({message}). Check that Flexarr is running, then reload.", { message: state.message })}</p>}
         {state.kind === 'unauthorized' && state.setupOpen && (
           <form className="setup-welcome api-key-form" onSubmit={setUp}>
-            <h1>Welcome to your Flexarr server</h1>
+            <h1>{t('Welcome to your Flexarr server')}</h1>
             {/* Opened from the Mac app (or a link with the code): nothing to look for, only a PIN to choose. */}
             {linkedCode ? (
               <input name="setupCode" type="hidden" value={linkedCode} />
             ) : (
               <>
-                <label htmlFor="setupCode">Setup code</label>
+                <label htmlFor="setupCode">{t('Setup code')}</label>
                 <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required />
-                {state.wrongCode && <p className="error">That isn't this server's setup code.</p>}
+                {state.wrongCode && <p className="error">{t("That isn't this server's setup code.")}</p>}
                 <p className="muted small-print setup-code-help">
                   {whereTheCodeIs(setupInstall)}{' '}
                   <a href="https://flexarr.io/guide/first-setup#enter-the-setup-code" target="_blank" rel="noreferrer">
-                    Can’t find it?
+                    {t('Can’t find it?')}
                   </a>
                 </p>
               </>
             )}
             <p className={linkedCode ? 'muted' : 'muted setup-pin-intro'}>
-              Choose a PIN to protect the server’s settings. Watching doesn’t need it.
+              {t('Choose a PIN to protect the server’s settings. Watching doesn’t need it.')}
             </p>
             <div className="field-row">
               <label>
-                PIN (required)
-                <input name="setupPin" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title="4 to 8 digits" placeholder="4 to 8 digits" required />
+                {t('PIN (required)')}
+                <input name="setupPin" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title={t('4 to 8 digits')} placeholder={t('4 to 8 digits')} required />
               </label>
               <label>
-                Confirm PIN
-                <input name="setupPinAgain" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title="4 to 8 digits" required />
+                {t('Confirm PIN')}
+                <input name="setupPinAgain" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title={t('4 to 8 digits')} required />
               </label>
             </div>
-            {state.pinMismatch && <p className="error">The two PINs don’t match. Type the same one in both.</p>}
+            {state.pinMismatch && <p className="error">{t('The two PINs don’t match. Type the same one in both.')}</p>}
             {state.badPin && <p className="error">{state.badPin}</p>}
             <button type="submit" className="button">
-              Set up Flexarr
+              {t('Set up Flexarr')}
             </button>
           </form>
         )}
@@ -378,20 +415,24 @@ export default function App() {
           // Arrived from a device's code: this browser isn't signed in, and only a signed-in main profile can let a device in.
           <div className="setup-welcome">
             {/* The same steps, words and look as the app's own code screen. */}
-            <h1>Connect this {thisDevice}</h1>
+            <h1>{t('{device, select, iPad {Connect this iPad} iPhone {Connect this iPhone} other {Connect this device}}', { device: thisDevice })}</h1>
             <ol className="setup-steps">
               <li>
                 <span>
-                  On your computer, open <strong>{window.location.origin}</strong> in a web browser.
+                  {t.rich('On your computer, open {address} in a web browser.', { address: <strong>{window.location.origin}</strong> })}
                 </span>
               </li>
               <li>
                 <span>
-                  Go to <strong>Settings</strong>, then <strong>Security</strong>, then <strong>Connect a device</strong>.
+                  {t.rich('Go to {settings}, then {security}, then {connect}.', {
+                    settings: <strong>{t(Words.settings)}</strong>,
+                    security: <strong>{t('Security')}</strong>,
+                    connect: <strong>{t('Connect a device')}</strong>,
+                  })}
                 </span>
               </li>
               <li>
-                <span>Type in this code:</span>
+                <span>{t('Type in this code:')}</span>
               </li>
             </ol>
             <p className="setup-code">{tvCode}</p>
@@ -399,17 +440,17 @@ export default function App() {
         )}
         {state.kind === 'unauthorized' && !state.setupOpen && !tvCode && (
           <form className="api-key-form" onSubmit={submitApiKey}>
-            <label htmlFor="apiKey">API key</label>
-            <p className="muted">Ask whoever set up Flexarr for the key, or connect from home.</p>
+            <label htmlFor="apiKey">{t('API key')}</label>
+            <p className="muted">{t('Ask whoever set up Flexarr for the key, or connect from home.')}</p>
             <div className="api-key-row">
               <input id="apiKey" name="apiKey" type="password" autoComplete="off" required />
               <button type="submit" className="button">
-                Connect
+                {t('Connect')}
               </button>
             </div>
-            {state.wrongKey && <p className="error">That isn't the right key.</p>}
+            {state.wrongKey && <p className="error">{t("That isn't the right key.")}</p>}
             <p className="muted small-print">
-              For whoever set it up: the key is in config.json in the server’s data folder. Opening Flexarr through Tailscale signs you in without it.
+              {t('For whoever set it up: the key is in config.json in the server’s data folder. Opening Flexarr through Tailscale signs you in without it.')}
             </p>
           </form>
         )}

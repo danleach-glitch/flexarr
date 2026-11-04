@@ -14,6 +14,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<LibraryFolder> LibraryFolders => Set<LibraryFolder>();
     public DbSet<MediaItem> MediaItems => Set<MediaItem>();
     public DbSet<MediaFile> MediaFiles => Set<MediaFile>();
+    public DbSet<MusicAlias> MusicAliases => Set<MusicAlias>();
     public DbSet<MediaStream> MediaStreams => Set<MediaStream>();
     public DbSet<Genre> Genres => Set<Genre>();
     public DbSet<Person> People => Set<Person>();
@@ -118,6 +119,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasIndex(i => new { i.LibraryId, i.Kind, i.SortTitle });
             e.HasIndex(i => i.Path);
             e.HasIndex(i => i.AddedAt);
+            e.HasIndex(i => i.FirstSeenAt);
             // Coming soon, requests, notifications and watch history all find titles by these.
             e.HasIndex(i => i.TmdbId);
             e.HasIndex(i => i.TvdbId);
@@ -459,6 +461,13 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasOne<Profile>().WithMany().HasForeignKey(s => s.ProfileId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<MusicAlias>(e =>
+        {
+            e.Property(a => a.Key).HasMaxLength(2000);
+            e.HasIndex(a => new { a.LibraryId, a.Key }).IsUnique();
+            e.HasOne<MediaItem>().WithMany().HasForeignKey(a => a.ItemId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<ContinueWatchingDismissal>(e =>
         {
             e.HasKey(d => new { d.ProfileId, d.SeriesId });
@@ -488,6 +497,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         var detects = ChangeTracker.AutoDetectChangesEnabled;
         ChangeTracker.DetectChanges();
         ChangeTracker.AutoDetectChangesEnabled = false;
+        var catalog = CatalogVersion.Touches(ChangeTracker);
         try
         {
             var rated = Rate();
@@ -514,6 +524,11 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         finally
         {
             ChangeTracker.AutoDetectChangesEnabled = detects;
+            // Moved on even if the save failed part-way: a needless re-check costs less than a stale cache.
+            if (catalog)
+            {
+                CatalogVersion.Bump();
+            }
         }
     }
 

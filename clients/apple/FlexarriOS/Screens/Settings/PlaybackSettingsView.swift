@@ -13,11 +13,11 @@ struct PlaybackSettingsView: View {
         List {
             if let preferences {
                 Section {
-                    toggle("Auto-play the next episode", \.autoPlayNext, preferences)
-                    toggle("Skip intros", \.skipIntros, preferences)
-                    toggle("Skip recaps", \.skipRecaps, preferences)
-                    toggle("Skip credits", \.skipCredits, preferences)
-                    Picker("Subtitle size", selection: Binding(
+                    toggle(t(Words.autoPlayNext), \.autoPlayNext, preferences)
+                    toggle(t("Skip intros"), \.skipIntros, preferences)
+                    toggle(t("Skip recaps"), \.skipRecaps, preferences)
+                    toggle(t(Words.skipCredits), \.skipCredits, preferences)
+                    Picker(t("Subtitle size"), selection: Binding(
                         get: { preferences.subtitleSize == .unknown ? .standard : preferences.subtitleSize ?? .standard },
                         set: { size in
                             var changed = preferences
@@ -28,7 +28,7 @@ struct PlaybackSettingsView: View {
                         ForEach(SubtitleSize.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
                     .listRowBackground(Color.seat)
-                    Picker("Subtitle position", selection: Binding(
+                    Picker(t("Subtitle position"), selection: Binding(
                         get: { preferences.subtitlePosition == .unknown ? .bottom : preferences.subtitlePosition ?? .bottom },
                         set: { position in
                             var changed = preferences
@@ -39,7 +39,7 @@ struct PlaybackSettingsView: View {
                         ForEach(SubtitlePosition.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
                     .listRowBackground(Color.seat)
-                    Toggle("Subtitles in the black bars", isOn: Binding(
+                    Toggle(t("Subtitles in the black bars"), isOn: Binding(
                         get: { preferences.subtitlesInBlackBars ?? false },
                         set: { on in
                             var changed = preferences
@@ -49,63 +49,63 @@ struct PlaybackSettingsView: View {
                     ))
                     .settingsRow()
                 } header: {
-                    Text("Your profile, on every device")
+                    Text(t("Your profile, on every device"))
                 } footer: {
-                    Text("Auto-play counts down five seconds, then starts the next episode. Subtitles that run early or late can be moved on Apple TV or the web. In the black bars puts subtitles below the picture of movies wider than the screen.")
+                    Text(t("The next episode starts after a 10-second countdown. Subtitles that run early or late can be moved on Apple TV or the web. In the black bars puts subtitles below the picture of movies wider than the screen."))
                 }
             }
 
             Section {
-                Picker("Skip back and forward", selection: $skipSeconds) {
+                Picker(t("Skip back and forward"), selection: $skipSeconds) {
                     ForEach([10.0, 15.0, 30.0], id: \.self) { seconds in
-                        Text("\(Int(seconds)) seconds").tag(seconds)
+                        Text(t("{seconds} seconds", ["seconds": Int(seconds)])).tag(seconds)
                     }
                 }
                 .settingsRow()
                 .onChange(of: skipSeconds) { _, seconds in UserDefaults.standard.set(seconds, forKey: "FlexarrSkipSeconds") }
-                Toggle("Play files directly", isOn: $playsFilesDirectly)
+                Toggle(t("Play files directly"), isOn: $playsFilesDirectly)
                     .settingsRow()
                     .onChange(of: playsFilesDirectly) { _, on in PlaybackController.usesEngine = on }
                 if playsFilesDirectly {
-                    Toggle("Lossless surround", isOn: $losslessAudio)
+                    Toggle(t("Lossless surround"), isOn: $losslessAudio)
                         .settingsRow()
                         .onChange(of: losslessAudio) { _, on in PlaybackController.losslessAudio = on }
                 }
             } header: {
-                Text("This \(ThisDevice.name)")
+                Text(t("This {device}", ["device": ThisDevice.name]))
             } footer: {
                 Text(playsFilesDirectly
-                    ? "Files play as they are, every format with HDR and Dolby Vision. Lossless surround sends TrueHD, DTS-HD and FLAC as multichannel PCM, for a receiver or eARC soundbar; off, they go as Dolby Digital Plus. Until you choose, it's on when what's connected takes it."
-                    : "Off, the server sends a stream instead of the file itself. Downloads and remote viewing are unaffected.")
+                    ? t("Files play as they are, every format with HDR and Dolby Vision. Lossless surround sends TrueHD, DTS-HD and FLAC as multichannel PCM, for a receiver or eARC soundbar; off, they go as Dolby Digital Plus. Until you choose, it's on when what's connected takes it.")
+                    : t("Off, the server sends a stream instead of the file itself. Downloads and remote viewing are unaffected."))
             }
             if playsFilesDirectly {
                 Section {
-                    Picker("Dialogue boost", selection: soundSetting(\.dialogueBoost)) {
-                        ForEach(SoundSettings.DialogueBoost.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    Picker(t("Dialogue boost"), selection: soundSetting(\.dialogueBoost)) {
+                        ForEach(SoundSettings.DialogueBoost.allCases, id: \.self) { Text(SoundNames.boost($0)).tag($0) }
                     }
                     .settingsRow()
-                    Picker("Night mode", selection: soundSetting(\.nightMode)) {
-                        ForEach(SoundSettings.NightMode.allCases, id: \.self) { Text($0 == .scheduled ? "On a schedule" : $0.rawValue).tag($0) }
+                    Picker(t("Night mode"), selection: soundSetting(\.nightMode)) {
+                        ForEach(SoundSettings.NightMode.allCases, id: \.self) { Text(SoundNames.night($0)).tag($0) }
                     }
                     .settingsRow()
                     if sound.nightMode == .scheduled {
-                        DatePicker("From", selection: minutes(\.nightStart), displayedComponents: .hourAndMinute)
+                        DatePicker(t("From"), selection: minutes(\.nightStart), displayedComponents: .hourAndMinute)
                             .settingsRow()
-                        DatePicker("Until", selection: minutes(\.nightEnd), displayedComponents: .hourAndMinute)
+                        DatePicker(t("Until"), selection: minutes(\.nightEnd), displayedComponents: .hourAndMinute)
                             .settingsRow()
                     }
-                    Picker("Speakers", selection: soundSetting(\.speakers)) {
+                    Picker(t("Speakers"), selection: soundSetting(\.speakers)) {
                         ForEach(SoundSettings.Speakers.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
                     .settingsRow()
                 } header: {
-                    Text("Sound")
+                    Text(t("Sound"))
                 } footer: {
-                    Text("Dialogue boost makes voices easier to follow; night mode quietens loud scenes. While either is on, or the speakers are set, surround plays as PCM rather than passed through, and Atmos without its height.")
+                    Text(t("Dialogue boost makes voices easier to follow; night mode quietens loud scenes. While either is on, or the speakers are set, surround plays as PCM rather than passed through, and Atmos without its height."))
                 }
             }
         }
-        .settingsPage("Playback")
+        .settingsPage(t("Playback"))
         // The player's audio menu changes these too: this page follows, so it never saves an old value back.
         .onReceive(NotificationCenter.default.publisher(for: SoundSettings.changed)) { _ in sound = SoundSettings.current }
         .animation(.default, value: preferences == nil)
@@ -156,6 +156,26 @@ struct PlaybackSettingsView: View {
             } catch {
                 preferences = current
             }
+        }
+    }
+}
+
+/// The names the sound settings show (their raw values are what's saved).
+enum SoundNames {
+    static func boost(_ boost: SoundSettings.DialogueBoost) -> String {
+        switch boost {
+        case .off: t("Off")
+        case .low: t("Low")
+        case .medium: t("Medium")
+        case .high: t("High")
+        }
+    }
+
+    static func night(_ night: SoundSettings.NightMode) -> String {
+        switch night {
+        case .off: t("Off")
+        case .on: t("On")
+        case .scheduled: t("On a schedule")
         }
     }
 }

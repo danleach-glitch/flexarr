@@ -46,7 +46,7 @@ public sealed partial class MarkerDetectionWorker(
             {
                 var worked = await RunOnceAsync(detector, stoppingToken);
                 // Give way to viewers: analysis competes with playback (and subtitle extraction) for the disk.
-                var busy = sessions.Active.Any(s => DateTime.UtcNow - s.LastSeen < TimeSpan.FromMinutes(2));
+                var busy = sessions.Playing.Any(s => DateTime.UtcNow - s.LastSeen < TimeSpan.FromMinutes(2));
                 await Task.Delay(!worked ? TimeSpan.FromMinutes(10) : busy ? TimeSpan.FromSeconds(20) : TimeSpan.FromSeconds(1), stoppingToken);
             }
             // Only shutdown ends the loop: a timeout inside (a TaskCanceledException) is just a failed pass.

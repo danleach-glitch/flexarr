@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.connect
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
@@ -26,7 +27,7 @@ fun InviteDialog(model: AppModel) {
         AlertDialog(
             onDismissRequest = model::dismissInvite,
             text = { Text(problem) },
-            confirmButton = { TextButton(onClick = model::dismissInvite) { Text("OK", color = Flexarr.screen) } },
+            confirmButton = { TextButton(onClick = model::dismissInvite) { Text(t("OK"), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
         return
@@ -35,14 +36,14 @@ fun InviteDialog(model: AppModel) {
     val invite = model.offeredInvite?.takeIf { !model.inviteFromCode } ?: return
     val owner = invite.ownerName
     val problem = model.joinProblem
-    val notNow: @Composable () -> Unit = { TextButton(onClick = model::dismissInvite) { Text("Not now", color = Flexarr.screen) } }
+    val notNow: @Composable () -> Unit = { TextButton(onClick = model::dismissInvite) { Text(t("Not now"), color = Flexarr.screen) } }
     when {
         model.joining -> AlertDialog(
             onDismissRequest = {},
             text = {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Flexarr.usher)
-                    Text("Joining $owner’s Flexarr…")
+                    Text(t("Joining {owner}’s Flexarr…", "owner" to owner))
                 }
             },
             confirmButton = {},
@@ -53,16 +54,16 @@ fun InviteDialog(model: AppModel) {
             onDismissRequest = model::dismissInvite,
             text = { Text(problem) },
             confirmButton = {
-                if (model.joinCanRetry) TextButton(onClick = model::confirmInvite) { Text("Try again", color = Flexarr.screen) } else notNow()
+                if (model.joinCanRetry) TextButton(onClick = model::confirmInvite) { Text(t("Try again"), color = Flexarr.screen) } else notNow()
             },
             dismissButton = if (model.joinCanRetry) notNow else null,
             containerColor = Flexarr.seat,
         )
         else -> AlertDialog(
             onDismissRequest = model::dismissInvite,
-            title = { Text("Join $owner’s Flexarr?") },
-            text = { Text("You’ll watch as ${invite.profileName}.") },
-            confirmButton = { TextButton(onClick = model::confirmInvite) { Text("Join", color = Flexarr.screen) } },
+            title = { Text(t("Join {owner}’s Flexarr?", "owner" to owner)) },
+            text = { Text(t("You’ll watch as {profile}.", "profile" to invite.profileName)) },
+            confirmButton = { TextButton(onClick = model::confirmInvite) { Text(t("Join"), color = Flexarr.screen) } },
             dismissButton = notNow,
             containerColor = Flexarr.seat,
         )

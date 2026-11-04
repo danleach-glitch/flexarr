@@ -45,7 +45,7 @@ A movie's or show's page has the same buttons on every app, in the same order:
 - **Trailer**, when the title has one. On the web, iPhone and Android phone it plays on the page. On Apple TV and Android TV it opens in the YouTube app, so the button only shows when YouTube is installed. Kids profiles don't have it.
 - **Watched** and **Watchlist**.
 - **Download**, on the iPhone and Android phone.
-- **⋯** for the rest, such as **Search for subtitles…**, and on the web **Add to collection…**, **Fix match…** and **Delete…**.
+- **⋯** for the rest, such as **Search for subtitles…**, and on the web **Add to collection…**, **Edit…**, **Fix match…** and **Delete…** (see [Library health](library-health.md#edit-details)).
 
 ## Discover
 

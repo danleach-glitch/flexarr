@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Security;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Updates;
 
@@ -83,14 +84,14 @@ public static class UpdateEndpoints
         {
             if (!CanInstall(checker, updater))
             {
-                return Results.Problem(
-                    checker.Available(ReleaseVersion.Current) ? "This server can't install updates itself." : "There's no newer release to install.",
-                    statusCode: StatusCodes.Status409Conflict);
+                return checker.Available(ReleaseVersion.Current)
+                    ? Problems.Of("This server can't install updates itself.", status: StatusCodes.Status409Conflict)
+                    : Problems.Of("There's no newer release to install.", status: StatusCodes.Status409Conflict);
             }
 
             if (!updater.Start(checker.Latest!))
             {
-                return Results.Problem("An update is already being installed.", statusCode: StatusCodes.Status409Conflict);
+                return Problems.Of("An update is already being installed.", status: StatusCodes.Status409Conflict);
             }
 
             return Results.Accepted(value: await ToDtoAsync(checker, updater, activity, install, options.CurrentValue, ct));

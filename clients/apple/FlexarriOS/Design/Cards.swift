@@ -38,7 +38,7 @@ struct PosterCard: View {
     private var subtitle: String? {
         if item.kind == .audiobook { return item.bookAuthors }
         if item.kind == .series, let count = item.userData.unwatchedCount, count > 0 {
-            return [item.releaseYear.map(String.init), "\(count) new"].compactMap { $0 }.joined(separator: "  ")
+            return [item.releaseYear.map(String.init), t("{count} new", ["count": count])].compactMap { $0 }.joined(separator: "  ")
         }
         return item.releaseYear.map(String.init)
     }
@@ -72,7 +72,7 @@ struct PosterArtwork: View {
                 }
             }
             .overlay(alignment: .topTrailing) {
-                if item.userData.watched { WatchedBadge(label: item.isBook ? "Finished" : "Watched").padding(6) }
+                if item.userData.watched { WatchedBadge(label: item.isBook ? t("Finished") : t("Watched")).padding(6) }
             }
             .downloadedMark(downloads.entry(for: item.id)?.isDownloaded == true, raised: item.progress != nil)
             .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
@@ -183,7 +183,7 @@ struct OutlinedNumeral: View {
 
 /// The tick on something watched; a book's is read as "Finished".
 struct WatchedBadge: View {
-    var label = "Watched"
+    var label = t("Watched")
 
     var body: some View {
         Image(systemName: Symbol.watched)
@@ -270,23 +270,23 @@ struct ItemContextMenu: View {
     @ViewBuilder
     private var listeningMenu: some View {
         Button { model.play(item) } label: {
-            Label(item.isResumable ? "Resume" : "Play", systemImage: Symbol.play)
+            Label(item.isResumable ? t("Resume") : t(Words.play), systemImage: Symbol.play)
         }
         if item.kind == .audiobook {
-            Button { router.push(.item(item)) } label: { Label("Go to book", systemImage: "info.circle") }
+            Button { router.push(.item(item)) } label: { Label(t("Go to book"), systemImage: Symbol.details) }
             if !model.isKids {
                 Button { Task { await model.setBookFinished(item, true) } } label: {
-                    Label("Mark as finished", systemImage: "checkmark.circle")
+                    Label(t(Words.markAsFinished), systemImage: Symbol.watched)
                 }
             }
         } else if !model.isKids {
             Button { Task { await model.setWatched(item, true) } } label: {
-                Label("Mark as played", systemImage: "checkmark.circle")
+                Label(t(Words.markAsPlayed), systemImage: Symbol.watched)
             }
         }
         // Forgets the place without marking it finished.
         Button { Task { await model.removeFromContinueWatching(item) } } label: {
-            Label("Remove", systemImage: "minus.circle")
+            Label(t("Remove"), systemImage: Symbol.removeFromRow)
         }
     }
 
@@ -294,17 +294,17 @@ struct ItemContextMenu: View {
     private var menu: some View {
         if item.kind == .movie || item.kind == .episode {
             Button { model.play(item) } label: {
-                Label(item.isResumable ? "Resume" : "Play", systemImage: Symbol.play)
+                Label(item.isResumable ? t("Resume") : t(Words.play), systemImage: Symbol.play)
             }
             if item.isResumable {
                 Button { model.play(item, fromBeginning: true) } label: {
-                    Label("Start over", systemImage: Symbol.startOver)
+                    Label(t(Words.startOver), systemImage: Symbol.startOver)
                 }
             }
         }
         if showsDetails {
             Button { router.push(.item(item)) } label: {
-                Label(item.kind == .episode ? "Go to episode" : "Go to details", systemImage: "info.circle")
+                Label(item.kind == .episode ? t("Go to episode") : t("Go to details"), systemImage: Symbol.details)
             }
         }
         let watched = item.userData.watched || item.userData.unwatchedCount == 0
@@ -312,28 +312,28 @@ struct ItemContextMenu: View {
         let marks = !model.isKids
         if marks {
             Button { Task { await model.setWatched(item, !watched) } } label: {
-                Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? Symbol.markUnwatched : "checkmark.circle")
+                Label(watched ? t(Words.markAsUnwatched) : t(Words.markAsWatched), systemImage: watched ? Symbol.markUnwatched : Symbol.watched)
             }
         }
         if model.hasWatchlist, item.kind == .movie || item.kind == .series {
             let onList = model.watchlistItems.contains(item.id)
             Button { Task { await model.setOnWatchlist(.library(item.id), !onList) } } label: {
-                Label(onList ? "Remove from watchlist" : "Add to watchlist", systemImage: onList ? "bookmark.slash" : Symbol.watchlist)
+                Label(onList ? t(Words.removeFromWatchlist) : t(Words.addToWatchlist), systemImage: onList ? Symbol.offWatchlist : Symbol.watchlist)
             }
         }
         // Part way through: unwatched forgets the place, which takes it out of Continue Watching.
         if marks && item.isResumable && !watched {
             Button { Task { await model.setWatched(item, false) } } label: {
-                Label("Mark as unwatched", systemImage: Symbol.markUnwatched)
+                Label(t(Words.markAsUnwatched), systemImage: Symbol.markUnwatched)
             }
         } else if inContinueWatching, item.kind == .episode, !watched {
             Button { Task { await model.removeFromContinueWatching(item) } } label: {
-                Label("Remove", systemImage: "minus.circle")
+                Label(t("Remove"), systemImage: Symbol.removeFromRow)
             }
         }
         if marks, item.kind == .episode, item.seriesId != nil, let show = item.seriesTitle {
             Button { Task { await model.setShowWatched(of: item) } } label: {
-                Label("Mark \(show) as watched", systemImage: "checkmark.circle.fill")
+                Label(t("Mark {show} as watched", ["show": show]), systemImage: Symbol.watched)
             }
         }
     }

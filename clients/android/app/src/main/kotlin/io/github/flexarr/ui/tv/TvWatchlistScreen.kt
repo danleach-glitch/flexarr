@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,8 +17,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.BookmarkRemove
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +44,7 @@ import io.github.flexarr.ui.components.MenuAction
 import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.rememberLoader
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
@@ -76,9 +78,9 @@ fun TvWatchlistScreen(model: AppModel) {
                     verticalArrangement = Arrangement.spacedBy(26.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    item(key = "title", span = { GridItemSpan(maxLineSpan) }) { Text("Watchlist", style = marquee(32)) }
+                    item(key = "title", span = { GridItemSpan(maxLineSpan) }) { Text(t(Words.watchlist), style = marquee(32)) }
                     if (state.value.isEmpty()) {
-                        item(key = "empty", span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.size(880.dp, 250.dp)) { TvStatusView("Nothing here yet.", empty = true) } }
+                        item(key = "empty", span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.size(880.dp, 250.dp)) { TvStatusView(t("Nothing here yet."), empty = true) } }
                     } else {
                         item(key = "filters", span = { GridItemSpan(maxLineSpan) }) {
                             Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.padding(vertical = 6.dp)) {
@@ -89,7 +91,7 @@ fun TvWatchlistScreen(model: AppModel) {
                             }
                         }
                         if (shown.isEmpty()) {
-                            item(key = "none", span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.size(880.dp, 200.dp)) { TvStatusView("Nothing on your watchlist matches.", empty = true) } }
+                            item(key = "none", span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.size(880.dp, 200.dp)) { TvStatusView(t("Nothing on your watchlist matches."), empty = true) } }
                         }
                         items(shown, key = { it.id }) { entry ->
                             val item = entry.item
@@ -103,9 +105,9 @@ fun TvWatchlistScreen(model: AppModel) {
     }
     if (choosing) {
         TvItemMenu(
-            "Show and sort",
-            WatchlistKind.entries.map { option -> MenuAction(if (option == kind) "${option.label} (showing)" else option.label) { kind = option } } +
-                WatchlistSort.entries.map { option -> MenuAction(if (option == sort) "${option.label} (sorted)" else option.label) { sort = option } },
+            t("Show and sort"),
+            WatchlistKind.entries.map { option -> MenuAction(if (option == kind) t("{option} (showing)", "option" to t(option.label)) else t(option.label)) { kind = option } } +
+                WatchlistSort.entries.map { option -> MenuAction(if (option == sort) t("{option} (sorted)", "option" to t(option.label)) else t(option.label)) { sort = option } },
             onDismiss = { choosing = false },
         )
     }
@@ -146,8 +148,8 @@ private fun EntryCard(model: AppModel, entry: WatchlistEntry) {
         TvItemMenu(
             entry.title,
             listOfNotNull(
-                MenuAction("Request") { navigator.watchlistChange("Couldn’t request this") { model.request(entry) } }.takeIf { canRequest },
-                MenuAction("Remove from watchlist", Icons.Outlined.BookmarkRemove) { navigator.watchlistChange("Couldn’t remove this from your watchlist") { model.removeFromWatchlist(entry) } },
+                MenuAction(t(Words.request)) { navigator.watchlistChange(t("Couldn’t request this")) { model.request(entry) } }.takeIf { canRequest },
+                MenuAction(t(Words.removeFromWatchlist), FlexarrIcons.offWatchlist) { navigator.watchlistChange(t("Couldn’t remove this from your watchlist")) { model.removeFromWatchlist(entry) } },
             ),
             onDismiss = { menu = false },
         )
@@ -157,9 +159,9 @@ private fun EntryCard(model: AppModel, entry: WatchlistEntry) {
 /** Where it's got to, then where it streams: "On its way   On Netflix", "Request   On Prime Video". */
 private fun note(entry: WatchlistEntry): String? {
     val status = when (entry.status) {
-        WatchlistStatus.OnItsWay -> "On its way"
-        WatchlistStatus.Coming -> entry.releaseDay?.let { "Out ${it.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))}" } ?: "Coming"
-        WatchlistStatus.NotAvailable -> if (entry.tmdbId != null) "Request" else null
+        WatchlistStatus.OnItsWay -> t("On its way")
+        WatchlistStatus.Coming -> entry.releaseDay?.let { t("Out {date}", "date" to it.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(io.github.flexarr.core.i18n.Localization.locale))) } ?: t("Coming")
+        WatchlistStatus.NotAvailable -> if (entry.tmdbId != null) t(Words.request) else null
         else -> null
     }
     return listOfNotNull(status, entry.streamingLine).joinToString("   ").takeIf { it.isNotEmpty() }

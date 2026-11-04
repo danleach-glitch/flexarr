@@ -1,4 +1,4 @@
-.PHONY: tunnel tunnel-test tunnel-apple tunnel-android guide apps tokens apple-install ios-install ios-upload ios-dsyms tv-upload mac-upload android-bundle android-upload android-listing setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
+.PHONY: tunnel tunnel-test tunnel-apple tunnel-android guide apps tokens strings languages apple-install ios-install ios-upload ios-dsyms tv-upload mac-upload android-bundle android-upload android-listing setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
 
 export DOTNET_CLI_TELEMETRY_OPTOUT := 1
 
@@ -123,6 +123,11 @@ guide: ## Build flexarr.io/guide (site/guide) from docs/guide
 tokens: ## Write design/tokens.json and the score marks out as the web's CSS and TS, Swift and Kotlin
 	python3 scripts/design/tokens.py
 
+strings: ## Collect every looked-up string into languages/packs/en.json, check the packs, write what's built from them
+	python3 scripts/i18n/strings.py
+
+languages: strings ## Build flexarr.io/languages (site/languages) from languages/ (part of make strings)
+
 apps: ## Build flexarr.io/apps (site/apps.html) from site/apps.json
 	node scripts/apps/build.mjs
 
@@ -174,7 +179,11 @@ android-bundle: tunnel-android ## Build the signed Android app bundle for Google
 	$(ANDROID_GRADLE) :app:bundleRelease
 android-upload: tunnel-android ## Upload the Android app to a Google Play testing track
 	$(ANDROID_GRADLE) -Pflexarr.track=$(TRACK) :app:publishReleaseBundle
+# The listing's contact email is public on Play but kept out of this repo: it's copied in from ~/.flexarr-release.
+PLAY_CONTACT_EMAIL ?= $(HOME)/.flexarr-release/play-contact-email.txt
 android-listing: ## Publish the Android app's Google Play listing
+	@test -f "$(PLAY_CONTACT_EMAIL)" || { echo "Missing $(PLAY_CONTACT_EMAIL) (the listing's contact email; docs/play-store.md)" >&2; exit 1; }
+	cp "$(PLAY_CONTACT_EMAIL)" clients/android/app/src/main/play/contact-email.txt
 	$(ANDROID_GRADLE) :app:publishReleaseListing
 
 docker: ## Build the container image

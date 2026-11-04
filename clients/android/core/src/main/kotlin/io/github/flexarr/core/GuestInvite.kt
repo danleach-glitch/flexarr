@@ -1,5 +1,6 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.t
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -60,7 +61,7 @@ data class GuestInvite(
     /** When it stops working. */
     @Serializable(with = InstantSerializer::class) val e: Instant? = null,
 ) {
-    val ownerName: String get() = n.trim().ifEmpty { "Someone" }
+    val ownerName: String get() = n.trim().ifEmpty { t("Someone") }
     val profileName: String get() = p
     val deviceName: String get() = g
     val tailnetTarget: String get() = a
@@ -154,10 +155,10 @@ data class GuestJoinProblem(val message: String, val canRetry: Boolean)
  * worth trying again; the rest need a new invite.
  */
 fun guestJoinProblem(error: Throwable, ownerName: String, keyRefused: Boolean = false): GuestJoinProblem = when {
-    keyRefused || (error is FlexarrException.Http && error.status == 410) -> GuestJoinProblem("That invite has run out or been used.", canRetry = false)
-    error is FlexarrException.Http && error.status == 503 -> GuestJoinProblem("$ownerName’s Flexarr isn’t taking guests just now.", canRetry = false)
-    error is FlexarrException.Http && (error.status == 403 || error.status == 404) -> GuestJoinProblem("This invite didn’t work. Ask $ownerName for a new one.", canRetry = false)
-    else -> GuestJoinProblem("Can’t reach $ownerName’s Flexarr. Check this device’s internet.", canRetry = true)
+    keyRefused || (error is FlexarrException.Http && error.status == 410) -> GuestJoinProblem(t("That invite has run out or been used."), canRetry = false)
+    error is FlexarrException.Http && error.status == 503 -> GuestJoinProblem(t("{name}’s Flexarr isn’t taking guests just now.", "name" to ownerName), canRetry = false)
+    error is FlexarrException.Http && (error.status == 403 || error.status == 404) -> GuestJoinProblem(t("This invite didn’t work. Ask {name} for a new one.", "name" to ownerName), canRetry = false)
+    else -> GuestJoinProblem(t("Can’t reach {name}’s Flexarr. Check this device’s internet.", "name" to ownerName), canRetry = true)
 }
 
 /**
@@ -212,10 +213,10 @@ class GuestTvCode(
 
     sealed class Failure(message: String) : Exception(message) {
         /** Another TV is showing this code: make another. */
-        class CodeTaken : Failure("That code is taken.")
+        class CodeTaken : Failure(t("That code is taken."))
         /** The invite couldn't be opened or isn't a well-formed one. */
-        class BadInvite : Failure("The invite couldn’t be opened.")
-        class Relay(val status: Int) : Failure("Flexarr’s relay answered with an error (HTTP $status).")
+        class BadInvite : Failure(t("The invite couldn’t be opened."))
+        class Relay(val status: Int) : Failure(t("Flexarr’s relay answered with an error (HTTP {status}).", "status" to status.toString()))
     }
 
     /** "ABCD-EFGH", as the TV shows it. */

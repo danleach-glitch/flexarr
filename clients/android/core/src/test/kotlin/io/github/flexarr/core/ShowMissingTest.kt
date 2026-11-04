@@ -77,6 +77,17 @@ class ShowMissingTest {
     }
 
     @Test
+    fun `older servers answering with their web page have no gaps either`() = runTest {
+        val client = FlexarrClient(server.url("/"))
+        val page = MockResponse.Builder().code(200).addHeader("Content-Type", "text/html").body("<!doctype html><html></html>").build()
+        server.enqueue(page)
+        server.enqueue(page)
+
+        assertEquals(ShowMissing.None, client.showMissing("old"))
+        assertEquals(BookSeriesMissing(), client.bookSeriesMissing("s1"))
+    }
+
+    @Test
     fun `a missing book says its number and year`() {
         assertEquals("Book 3, 2022", MissingBook("A", "The Bullet That Missed", "3", year = 2022).detail)
         assertEquals("2022", MissingBook("A", "Untitled", null, year = 2022).detail)

@@ -16,6 +16,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- One app for phones and TVs (docs/android-tv.md): phones need a touchscreen, TVs have a remote, and neither is
+         required. -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+
     <!-- On a TV, a trailer opens in the YouTube app: the Trailer button shows only when it's there. -->
     <queries>
         <package android:name="com.google.android.youtube.tv" />
@@ -26,11 +31,13 @@
     </queries>
 
     <!-- Back is predictive (Android 13 on: the screen behind shows as you swipe); every Back goes through Compose's
-         BackHandler, which takes part. The app is upright on phones (MainActivity says so, so tablets can turn); the player turns sideways. Home servers answer over plain http on the local network (network_security_config). The sign-in isn't backed
+         BackHandler, which takes part. The app is upright on phones (MainActivity says so, so tablets and TVs can turn); the player turns sideways. Home servers answer over plain http on the local network (network_security_config). The sign-in isn't backed
          up: its key lives in this device's Keystore and would be no use anywhere else. -->
     <application
         android:name=".FlexarrApplication"
         android:allowBackup="false"
+        android:localeConfig="@xml/locales_config"
+        android:banner="@drawable/tv_banner"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -61,6 +68,11 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- The TV's launcher, which shows the banner. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
             <!-- flexarr:// links from other apps and the browser, as the iPhone app takes them. AppLink.received keeps
                  them from playing anything or skipping "Who's watching?" by themselves. -->
@@ -108,7 +120,7 @@
         <activity
             android:name=".player.PlayerActivity"
             android:autoRemoveFromRecents="true"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode"
             android:exported="false"
             android:launchMode="singleTask"
             android:resizeableActivity="true"
@@ -120,7 +132,7 @@
         <activity
             android:name=".player.LivePlayerActivity"
             android:autoRemoveFromRecents="true"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode"
             android:exported="false"
             android:launchMode="singleTask"
             android:resizeableActivity="true"
@@ -140,6 +152,16 @@
             </intent-filter>
         </service>
 
+        <!-- The headset's play button with the app closed: AudioService picks up the last book or episode
+             (CarLibrary.onPlaybackResumption). -->
+        <receiver
+            android:name="androidx.media3.session.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
         <!-- Notifications from the server, through Firebase (docs/notifications.md). -->
         <service
             android:name=".notifications.FlexarrMessagingService"
@@ -149,6 +171,7 @@
             </intent-filter>
         </service>
         <receiver android:name=".notifications.DownloadReceiver" android:exported="false" />
+        <receiver android:name=".downloads.StopDownloadReceiver" android:exported="false" />
         <receiver android:name=".notifications.PairingReceiver" android:exported="false" />
         <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="new" />
 

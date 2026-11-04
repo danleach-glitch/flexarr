@@ -24,6 +24,9 @@ public sealed class FakePodcastHost : HttpMessageHandler
 
     public ConcurrentQueue<HttpRequestMessage> Requests { get; } = new();
 
+    /// <summary>URLs whose fetch fails in a way no HTTP error handling expects.</summary>
+    public ConcurrentDictionary<string, bool> Broken { get; } = new();
+
     public void Feed(string url, string xml) => Files[url] = (Encoding.UTF8.GetBytes(xml), "application/rss+xml");
 
     public void Json(string url, string json) => Files[url] = (Encoding.UTF8.GetBytes(json), "application/json");
@@ -34,6 +37,11 @@ public sealed class FakePodcastHost : HttpMessageHandler
     {
         Requests.Enqueue(request);
         var url = request.RequestUri!.AbsoluteUri;
+        if (Broken.ContainsKey(url))
+        {
+            throw new InvalidOperationException("Something unexpected");
+        }
+
         if (Redirects.TryGetValue(url, out var redirect))
         {
             var moved = new HttpResponseMessage((HttpStatusCode)redirect.Status);
@@ -680,6 +688,38 @@ public sealed class PodcastTests : IDisposable
     }
 
     [Fact]
+    public async Task AFeedThatFailsUnexpectedly_BacksOff_AndTheOthersStillRefresh()
+    {
+        await AddLibraryAsync();
+        var client = Client();
+        var broken = (await AddPodcastAsync(client)).GetProperty("id").GetString()!;
+        _host.Feed("https://feeds.example.com/other", Feed(1, "Another Show"));
+        var fine = (await AddPodcastAsync(client, "https://feeds.example.com/other")).GetProperty("id").GetString()!;
+        await client.PutAsJsonAsync(Api($"podcasts/{broken}/subscription"), new { });
+        await client.PutAsJsonAsync(Api($"podcasts/{fine}/subscription"), new { });
+        using (var scope = _server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            await db.PodcastFeeds.ExecuteUpdateAsync(u => u.SetProperty(f => f.NextCheckAt, DateTime.UtcNow.AddMinutes(-5)));
+            // The broken one is first in line.
+            await db.PodcastFeeds.Where(f => f.MediaItemId == Guid.Parse(broken)).ExecuteUpdateAsync(u => u.SetProperty(f => f.NextCheckAt, DateTime.UtcNow.AddMinutes(-10)));
+        }
+
+        _host.Broken[FeedUrl] = true;
+        var worker = ActivatorUtilities.CreateInstance<PodcastRefreshWorker>(_server.Services);
+        await worker.RunOnceAsync(CancellationToken.None);
+
+        using (var scope = _server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var feeds = await db.PodcastFeeds.AsNoTracking().ToDictionaryAsync(f => f.MediaItemId);
+            Assert.Equal(1, feeds[Guid.Parse(broken)].Failures);
+            Assert.True(feeds[Guid.Parse(broken)].NextCheckAt > DateTime.UtcNow);
+            Assert.True(feeds[Guid.Parse(fine)].NextCheckAt > DateTime.UtcNow);
+        }
+    }
+
+    [Fact]
     public async Task Seeking_GoesStraightToWhereTheRedirectsLed_UntilThatStopsWorking()
     {
         await AddLibraryAsync();
@@ -731,4 +771,23 @@ public sealed class PodcastTests : IDisposable
     [InlineData("2001:0:4136:e378::1", false)] // Teredo
     public void OnlyTheInternet_IsFetchedFrom(string address, bool allowed) =>
         Assert.Equal(allowed, PodcastFetcher.IsPublic(IPAddress.Parse(address)));
+
+    [Fact]
+    public async Task Artwork_ReachesTheHomeNetwork_OnlyFromAConfiguredServer()
+    {
+        // Something listening on this machine: a feed's artwork mayn't reach it, a configured Lidarr's may.
+        using var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        using var client = new HttpClient(PodcastFetcher.CreateArtworkHandler()) { Timeout = TimeSpan.FromSeconds(5) };
+
+        var refused = await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync(new Uri($"http://127.0.0.1:{port}/poster.jpg")));
+        Assert.Contains("isn't on the internet", refused.Message, StringComparison.Ordinal);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri($"http://127.0.0.1:{port}/api/v1/MediaCover/1/poster.jpg"));
+        request.Options.Set(Flexarr.Metadata.ImageCache.FromConfiguredServer, true);
+        _ = client.SendAsync(request);
+        using var accepted = await listener.AcceptTcpClientAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(accepted.Connected);
+    }
 }

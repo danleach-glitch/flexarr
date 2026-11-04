@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 import { imageUrl, type UpcomingItem } from '../api/client'
 import { dayLabel } from '../lib/dates'
 import { episodeCode } from '../lib/format'
+import { t } from '../i18n'
 
 /** An episode airing or a film releasing soon, from Sonarr and Radarr. */
 export function UpcomingCard({ item }: { item: UpcomingItem }) {
@@ -13,7 +14,7 @@ export function UpcomingCard({ item }: { item: UpcomingItem }) {
         </div>
         <span className="upcoming-when">{dayLabel(item.date)}</span>
         {item.download && (
-          <span className="progress" aria-label={`Downloading, ${Math.round(item.download.progress * 100)}%`}>
+          <span className="progress" aria-label={t('Downloading, {percent}%', { percent: Math.round(item.download.progress * 100) })}>
             <span style={{ width: `${item.download.progress * 100}%` }} />
           </span>
         )}

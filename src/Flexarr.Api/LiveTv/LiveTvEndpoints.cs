@@ -5,6 +5,7 @@ using Flexarr.Api.Configuration;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.LiveTv;
 using Flexarr.Streaming;
 using Flexarr.Streaming.Live;
@@ -13,6 +14,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.LiveTv;
 
@@ -138,7 +140,7 @@ public static partial class LiveTvEndpoints
             var settings = options.CurrentValue;
             if (settings.LiveTv is not { Account: { } account } liveTv)
             {
-                return Results.Problem("Live TV isn't set up. Connect Dispatcharr in Settings › Connections.", statusCode: StatusCodes.Status409Conflict);
+                return Problems.Of("Live TV isn't set up. Connect Dispatcharr in Settings › Connections.", status: StatusCodes.Status409Conflict);
             }
 
             if (await db.LiveChannels.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, ct) is not { } channel)
@@ -149,10 +151,12 @@ public static partial class LiveTvEndpoints
             // Every stream is recording something else: recording wins. The player offers that channel, or stopping it.
             if (await dvr.BlockingAsync(channel.Id, ct) is [var blocking, ..] all)
             {
-                var names = string.Join(" and ", all.Select(a => $"{a.Title} on {a.ChannelName}"));
+                var names = all.Select(a => Loc.T("{title} on {channel}", new { title = a.Title, channel = a.ChannelName }))
+                    .Aggregate((first, second) => Loc.T("{first} and {second}", new { first, second }));
                 return Results.Problem(
-                    $"{names} {(all.Count == 1 ? "is" : "are")} recording, using every stream there is. Watch {blocking.ChannelName}, or stop the recording.",
-                    statusCode: StatusCodes.Status409Conflict, title: "Recording", extensions: new Dictionary<string, object?>
+                    Loc.T("{names} {count, plural, one {is} other {are}} recording, using every stream there is. Watch {channel}, or stop the recording.",
+                        new { names, count = all.Count, channel = blocking.ChannelName }),
+                    statusCode: StatusCodes.Status409Conflict, title: Loc.T("Recording", ctx: "live-tv"), extensions: new Dictionary<string, object?>
                     {
                         ["recordingId"] = blocking.Id,
                         ["channelId"] = blocking.ChannelId,
@@ -199,7 +203,7 @@ public static partial class LiveTvEndpoints
             {
                 // A channel that wouldn't start is probed afresh next time: its format may be what changed.
                 memory.Remove($"livetv-format:{channel.Id}");
-                return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: "The channel couldn't be played");
+                return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: Loc.T("The channel couldn't be played"));
             }
 
             viewers.Add(new LiveViewer(viewerId, channel.Id, channel.Name, profile.Id, profile.SignInId, session));
@@ -288,7 +292,7 @@ public static partial class LiveTvEndpoints
             {
                 // Stopped for a recording: gone, with why.
                 return viewers.EndedBecause(viewer) is { } reason
-                    ? Results.Problem(reason, statusCode: StatusCodes.Status410Gone, title: "The channel was stopped")
+                    ? Results.Problem(reason, statusCode: StatusCodes.Status410Gone, title: Loc.T("The channel was stopped"))
                     : Results.NotFound();
             }
 

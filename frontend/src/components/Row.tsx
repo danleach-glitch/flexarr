@@ -1,6 +1,7 @@
 import { useRef, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { ChevronLeft, ChevronRight } from './icons'
+import { t } from '../i18n'
 
 /** A titled horizontal shelf. Arrow buttons page by a screenful; it also scrolls by trackpad and keyboard focus. */
 export function Row({ title, link, style = 'poster', children }: { title: string; link?: string | null; style?: string; children: ReactNode }) {
@@ -15,10 +16,10 @@ export function Row({ title, link, style = 'poster', children }: { title: string
       <header className="row-header">
         <h2>{link ? <Link to={link}>{title}</Link> : title}</h2>
         <div className="row-paging">
-          <button className="icon-button" onClick={() => page(-1)} aria-label={`Scroll ${title} back`}>
+          <button className="icon-button" onClick={() => page(-1)} aria-label={t('Scroll {title} back', { title })}>
             <ChevronLeft />
           </button>
-          <button className="icon-button" onClick={() => page(1)} aria-label={`Scroll ${title} forward`}>
+          <button className="icon-button" onClick={() => page(1)} aria-label={t('Scroll {title} forward', { title })}>
             <ChevronRight />
           </button>
         </div>

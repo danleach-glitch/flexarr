@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Flexarr.Api.Authentication;
 using Flexarr.Api.Backups;
 using Flexarr.Api.Books;
+using Flexarr.Api.Localization;
 using Flexarr.Api.Collections;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Devices;
@@ -128,9 +129,10 @@ builder.Services.AddHttpClient<MusicBrainzClient>(c =>
 builder.Services.AddSingleton<Flexarr.Api.Endpoints.MusicRequests.MusicCatalog>();
 builder.Services.AddScoped<Flexarr.Api.Endpoints.MusicRequests.MusicRequestContext>();
 builder.Services.AddHttpClient<TvMazeClient>(c => c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr/0.1 (+https://github.com/danleach-glitch/flexarr)"));
-// ImageCache follows redirects itself, only to https on the same site, so an artwork host can't bounce it elsewhere.
+// ImageCache follows redirects itself, only to https on the same site, so an artwork host can't bounce it elsewhere,
+// and reaches only the internet unless it's fetching from a configured Lidarr (see PodcastFetcher.CreateArtworkHandler).
 builder.Services.AddHttpClient<ImageCache>(c => c.Timeout = TimeSpan.FromSeconds(30))
-    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+    .ConfigurePrimaryHttpMessageHandler(PodcastFetcher.CreateArtworkHandler);
 builder.Services.AddHttpClient<PlexAvatars>(c => c.Timeout = TimeSpan.FromSeconds(30));
 // Podcast feeds and episodes come from anywhere on the internet, and only from the internet (see PodcastFetcher).
 // No overall timeout: a relayed episode streams for as long as it's listened to.
@@ -148,18 +150,31 @@ builder.Services.AddHttpClient(CommunityLogoIndex.ClientName, c =>
     c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr/0.1 (+https://github.com/danleach-glitch/flexarr)");
 });
 builder.Services.AddSingleton<CommunityLogoIndex>();
+// Language packs published at flexarr.io/languages, downloaded when a profile picks one (docs/languages.md).
+builder.Services.AddHttpClient(LanguageIndex.ClientName, c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(30);
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr (+https://github.com/danleach-glitch/flexarr)");
+});
+builder.Services.AddSingleton<LanguageIndex>();
+builder.Services.AddSingleton<ProfileLanguages>();
+builder.Services.AddHostedService<LanguageWorker>();
 builder.Services.AddSingleton<SearchIndex>();
 builder.Services.AddSingleton<BookFileConverter>();
+builder.Services.AddHostedService<BookConversionWarmer>();
 builder.Services.AddSingleton<LiveTvStatus>();
 builder.Services.AddSingleton<LiveTvRefreshSignal>();
 builder.Services.AddSingleton<LiveTvViewers>();
 builder.Services.AddScoped<LiveTvGuide>();
 builder.Services.AddHostedService<LiveTvGuideWorker>();
-// Live channels and films share the one transcode limit: each counts the other's (resolved when asked, as each needs the other).
+// Live channels and films share the one transcode limit: each counts the other's (resolved when asked, as each needs the other),
+// under one lock, so simultaneous starts on both sides can't go over it.
+var transcodeSlots = new Lock();
 builder.Services.AddSingleton(sp => new Flexarr.Streaming.Live.LiveStreams(
     () => PlaybackEndpoints.TranscodeSettingsFor(sp.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue),
     sp.GetRequiredService<ILoggerFactory>(),
-    () => sp.GetRequiredService<TranscodeManager>().ActiveCount));
+    () => sp.GetRequiredService<TranscodeManager>().ActiveCount,
+    transcodeSlots));
 builder.Services.AddHostedService<LiveTvSweeper>();
 builder.Services.AddSingleton<DvrSignal>();
 builder.Services.AddSingleton<DvrService>();
@@ -172,6 +187,7 @@ builder.Services.AddSingleton<PersonImages>();
 builder.Services.AddSingleton<PersonLookups>();
 builder.Services.AddSingleton<BackupStore>();
 builder.Services.AddSingleton<BackupUploads>();
+builder.Services.AddSingleton<DownloadLinks>();
 builder.Services.AddSingleton<IServerRestart, ServerRestart>();
 builder.Services.AddHostedService<BackupWorker>();
 // New releases from GitHub (Settings › Updates), and installing them on a Mac. The release lookup is small; a build is
@@ -272,7 +288,8 @@ builder.Services.AddScoped<LibraryScanner>();
 builder.Services.AddSingleton(sp => new TranscodeManager(
     () => PlaybackEndpoints.TranscodeSettingsFor(sp.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue),
     sp.GetRequiredService<ILoggerFactory>(),
-    () => sp.GetRequiredService<Flexarr.Streaming.Live.LiveStreams>().ConvertingCount));
+    () => sp.GetRequiredService<Flexarr.Streaming.Live.LiveStreams>().ConvertingCount,
+    transcodeSlots));
 builder.Services.AddSingleton<PlaybackSessions>();
 builder.Services.AddSingleton<MarkerQueue>();
 builder.Services.AddSingleton<TrickplayQueue>();
@@ -303,6 +320,8 @@ builder.Services.AddSingleton<GuestTvCodes>();
 builder.Services.AddScoped<GuestLinks>();
 builder.Services.AddHostedService<GuestPolicyWatcher>();
 builder.Services.AddHostedService<PlaybackSweeper>();
+builder.Services.AddSingleton<CacheJanitor>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<CacheJanitor>());
 builder.Services.AddHostedService<MarkerDetectionWorker>();
 
 builder.Services.AddSingleton<ILibraryScanQueue, LibraryScanQueue>();
@@ -381,6 +400,7 @@ app.Use((http, next) =>
     return next(http);
 });
 app.UseForwardedHeaders();
+app.UseFlexarrDeviceLanguage();
 app.UseFlexarrGuestGate();
 app.UseFlexarrLogging();
 app.UseFlexarrSecurityHeaders();
@@ -405,6 +425,7 @@ var webApp = new StaticFileOptions
 app.UseDefaultFiles();
 app.UseStaticFiles(webApp);
 app.UseAuthentication();
+app.UseFlexarrRequestLanguage();
 app.UseFlexarrRequestForgeryGuard();
 app.UseAuthorization();
 
@@ -441,6 +462,8 @@ app.MapGroup("/api/v1")
     .MapHealthEndpoints()
     .MapShowMissingEndpoints()
     .MapMatchEndpoints()
+    .MapItemEditEndpoints()
+    .MapMusicMatchEndpoints()
     .MapDeleteEndpoints()
     .MapLayoutEndpoints()
     .MapPairingApprovalEndpoints()
@@ -470,7 +493,7 @@ app.MapGroup("/api/v1")
 app.MapMcp("/api/v1/mcp").RequireAuthorization();
 
 // Artwork and media are fetched by <img>/<video> tags and native players, which can't send the API key header.
-app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapLiveTvStreamEndpoints().MapProfileImageEndpoints().MapPairingDeviceEndpoints().MapFirstRunEndpoints().MapGuestRedeemEndpoints();
+app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapLiveTvStreamEndpoints().MapProfileImageEndpoints().MapPairingDeviceEndpoints().MapFirstRunEndpoints().MapGuestRedeemEndpoints().MapLanguageEndpoints();
 
 // Emby/Jellyfin-compatible endpoints for the *arr apps' built-in connection.
 app.MapMediaBrowserEndpoints();

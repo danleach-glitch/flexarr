@@ -10,12 +10,12 @@ struct ComingSoonView: View {
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 30) {
-                Text("Coming soon")
+                Text(t(Words.comingSoon))
                     .font(.marquee(64, weight: .heavy))
                     .foregroundStyle(Color.screen)
                     .padding(.horizontal, Layout.edge)
                 if let days, days.isEmpty {
-                    StatusView(state: .empty("Nothing is scheduled. Monitored shows and movies appear here as their dates get close."))
+                    StatusView(state: .empty(t("Nothing is scheduled. Monitored shows and movies appear here as their dates get close.")))
                         .frame(height: 500)
                 } else if let days {
                     ForEach(days) { day in
@@ -83,11 +83,11 @@ struct UpcomingCard: View {
             .contextMenu {
                 if let id = item.libraryItemId {
                     Button { router.push(.itemID(id)) } label: {
-                        Label(item.kind == .movie ? "Go to movie" : item.kind == .audiobook ? "Go to book" : "Go to show", systemImage: "info.circle")
+                        Label(item.kind == .movie ? t("Go to movie") : item.kind == .audiobook ? t("Go to book") : t(Words.goToShow), systemImage: Symbol.details)
                     }
                 }
                 if !(item.overview ?? "").isEmpty {
-                    Button { showingAbout = true } label: { Label("About", systemImage: "text.alignleft") }
+                    Button { showingAbout = true } label: { Label(t("About"), systemImage: "text.alignleft") }
                 }
             }
             .fullScreenCover(isPresented: $showingAbout) {
@@ -163,13 +163,13 @@ private struct UpcomingAboutView: View {
                 .font(.marquee(64, weight: .heavy))
                 .foregroundStyle(Color.screen)
             Text(detail).font(.system(size: 30, weight: .semibold)).foregroundStyle(Color.screen.opacity(0.85))
-            Text("\(item.when) \(item.date.formatted(date: .complete, time: item.kind == .episode ? .shortened : .omitted))")
+            Text("\(item.when) \(item.date.formatted(Date.FormatStyle(date: .complete, time: item.kind == .episode ? .shortened : .omitted, locale: Localization.locale)))")
                 .font(.system(size: 26))
                 .foregroundStyle(Color.usher)
             if let overview = item.overview {
                 Text(overview).font(.system(size: 29)).foregroundStyle(Color.screen.opacity(0.88)).lineSpacing(6)
             }
-            Button("Close") { dismiss() }
+            Button(t("Close")) { dismiss() }
                 .buttonStyle(ActionButtonStyle())
                 .padding(.top, 20)
         }

@@ -28,7 +28,10 @@ public enum PlaybackEventKind
 /// <summary>
 /// A change in what's playing somewhere, for Home Assistant and the like: "a film started on the living room TV".
 /// </summary>
-/// <param name="SessionId">The playback; every event for one viewing carries the same id.</param>
+/// <param name="SessionId">
+/// The playback; every event for one viewing carries the same id. It's the public playback id (as players report it),
+/// never the session id itself, which works as the password for the stream.
+/// </param>
 /// <param name="DeviceId">The browser or device sign-in playing it; null for a stream opened with the API key.</param>
 /// <param name="Item">What's playing; null if it has since left the library.</param>
 /// <param name="Chapter">The chapter of a book playing. Absent from servers before 0.58.</param>
@@ -196,12 +199,12 @@ public sealed partial class PlaybackEventPublisher(PlaybackEvents events, SignIn
                 var device = session.SignInId is { } id ? signIns.List().FirstOrDefault(s => s.Id == id)?.Name : null;
                 var chapter = session.BookParts is null ? null : await db.MediaChapters.Where(c => c.MediaItemId == session.ItemId && c.StartSeconds <= session.LastPosition)
                     .OrderByDescending(c => c.StartSeconds).Select(c => c.Title).FirstOrDefaultAsync(stoppingToken);
-                events.Publish(new PlaybackEventDto(kind, session.Id, session.SignInId, device, session.ProfileId, profile, item, session.LastPosition,
+                events.Publish(new PlaybackEventDto(kind, Logging.Redactor.ShortHash(session.Id), session.SignInId, device, session.ProfileId, profile, item, session.LastPosition,
                     session.DurationSeconds, at, chapter));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                LogPublishFailed(ex, kind, session.Id);
+                LogPublishFailed(ex, kind, Logging.Redactor.ShortHash(session.Id));
             }
         }
     }

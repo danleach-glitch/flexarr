@@ -107,7 +107,7 @@ public struct Podcast: Codable, Sendable, Hashable, Identifiable {
         ItemSummary(id: id, libraryId: "", parentId: nil, kind: .podcast, title: title, year: nil, seasonNumber: nil, episodeNumber: nil,
                     episodeNumberEnd: nil, airDate: nil, childCount: episodeCount, durationSeconds: nil, resolution: nil,
                     addedAt: latestEpisodeAt ?? Date(timeIntervalSince1970: 0), artwork: artwork, accentColor: accentColor,
-                    communityRating: nil, criticRating: nil, contentRating: explicit ? "Explicit" : nil, runtimeMinutes: nil, releaseDate: nil,
+                    communityRating: nil, criticRating: nil, contentRating: explicit ? t("Explicit") : nil, runtimeMinutes: nil, releaseDate: nil,
                     userData: UserData(positionSeconds: 0, watched: unplayedCount == 0, playCount: 0, lastPlayedAt: nil, unwatchedCount: unplayedCount),
                     seriesTitle: author)
     }
@@ -162,7 +162,7 @@ public struct PodcastEpisode: Codable, Sendable, Hashable, Identifiable {
                     year: publishedAt.map { Calendar(identifier: .gregorian).component(.year, from: $0) },
                     seasonNumber: season, episodeNumber: episode, episodeNumberEnd: nil, airDate: nil, childCount: 0,
                     durationSeconds: durationSeconds, resolution: nil, addedAt: publishedAt ?? Date(), artwork: artwork,
-                    accentColor: accentColor, communityRating: nil, criticRating: nil, contentRating: explicit ? "Explicit" : nil,
+                    accentColor: accentColor, communityRating: nil, criticRating: nil, contentRating: explicit ? t("Explicit") : nil,
                     runtimeMinutes: durationSeconds.map { Int(($0 / 60).rounded()) }, releaseDate: nil, userData: userData,
                     seriesTitle: podcastTitle, seriesId: podcastId)
     }

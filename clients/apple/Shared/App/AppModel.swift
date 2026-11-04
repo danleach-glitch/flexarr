@@ -222,19 +222,18 @@ final class AppModel {
             // Screens reload once the server has the last report: asked straight away, a show's next up was still
             // the episode that had just ended. Not for long, though: a slow server gets another reload once it answers.
             guard let sent = self?.player.reportsSent else { self?.watchStateChanged(); return }
-            Task { @MainActor [weak self] in
-                let inTime = await withTaskGroup(of: Bool.self) { group in
-                    group.addTask { await sent.value; return true }
-                    group.addTask { try? await Task.sleep(for: .seconds(3)); return false }
-                    let first = await group.next() ?? false
-                    group.cancelAll()
-                    return first
-                }
+            // The wait runs on its own: awaiting the report can't be cut short, so a group racing the two would still
+            // wait for the report however long it took.
+            let late = Task { @MainActor [weak self] () -> Bool in
+                try? await Task.sleep(for: .seconds(3))
+                guard !Task.isCancelled else { return false }
                 self?.watchStateChanged()
-                if !inTime {
-                    await sent.value
-                    self?.invalidate()
-                }
+                return true
+            }
+            Task { @MainActor [weak self] in
+                await sent.value
+                late.cancel()
+                if await late.value { self?.invalidate() } else { self?.watchStateChanged() }
             }
         }
         // One thing plays at a time: a film starting pauses the music, which the lock screen offers back after.
@@ -285,8 +284,11 @@ final class AppModel {
         #if DEBUG
         // `-FlexarrPlay <id>` plays a title once the app's up (as flexarr://play/<id>, without tvOS asking first).
         if let play = defaults.string(forKey: "FlexarrPlay") {
+            // `-FlexarrPlayDelay <seconds>`: later than 3 s, say after `-FlexarrOpen` has had its page up a while
+            // (a warm-up to take over, docs/fast-start.md).
+            let delay = defaults.double(forKey: "FlexarrPlayDelay")
             Task { @MainActor in
-                try? await Task.sleep(for: .seconds(3))
+                try? await Task.sleep(for: .seconds(delay > 0 ? delay : 3))
                 if let url = URL(string: "flexarr://play/\(play)") { open(url: url) }
             }
         }
@@ -326,12 +328,23 @@ final class AppModel {
     }
 
     /// Asks the server whether it wants error reports now (after signing in, and each time the app comes to the
-    /// front), and starts or stops them to match.
+    /// front), and starts or stops them to match. Its version comes with the answer: too old, and a banner says so.
     func refreshErrorReports() async {
         guard let credentials, let client else { return }
         guard let status = try? await client.systemStatus(), self.credentials?.address == credentials.address else { return }
+        noteServerAge(status.version, of: credentials.address)
         errorReports = status.errorReports
         ErrorReports.apply(status.errorReports, server: credentials.address)
+    }
+
+    /// "Update your Flexarr server": a banner after signing in to a server older than the apps support
+    /// (`ServerSupport.minimumVersion`). Said once per server each time the app starts.
+    var serverUpdateNotice: String?
+    @ObservationIgnored private var toldToUpdate: Set<URL> = []
+
+    private func noteServerAge(_ version: String, of address: URL) {
+        guard ServerSupport.isTooOld(version), toldToUpdate.insert(address).inserted else { return }
+        serverUpdateNotice = ServerSupport.updateMessage
     }
 
     var currentProfile: Profile? { profiles.first(where: \.isCurrent) }
@@ -391,6 +404,8 @@ final class AppModel {
         } catch {
             throw ConnectionError(error)
         }
+        // Older than the apps support: not signed in to, and the connect screen says to update it.
+        guard !ServerSupport.isTooOld(status.version) else { throw ServerTooOld() }
         // The server's address for away from home comes with its status; it's kept beside this one.
         credentials.remoteAddress = await Self.remoteAddress(for: status, address: url)
         let typed = credentials
@@ -411,6 +426,8 @@ final class AppModel {
     }
 
     func signOut() {
+        player.dropReady()
+        music.dropReadyBook()
         // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way.
         let guest = credentials?.isGuest == true
         var told: Task<Void, Never>?
@@ -452,6 +469,7 @@ final class AppModel {
         // A guest leaving leaves its host's tailnet too: nothing of the tunnel stays on the device.
         if stoppingTunnel, credentials?.isGuest == true { GuestTunnel.shared.stop(forget: true) }
         tunnelProblem = nil
+        serverUpdateNotice = nil
         leaveOfflineMode()
         store.clear()
         libraries = []
@@ -500,7 +518,7 @@ final class AppModel {
             }
             // Not if it's been replaced meanwhile (another profile chosen, or connected again).
             guard credentials == refused else { return }
-            signedOutNotice = "This \(ThisDevice.name) was signed out."
+            signedOutNotice = t("This {device} was signed out.", ["device": ThisDevice.name])
             signedOutAsGuest = false
             forget()
         }
@@ -711,7 +729,7 @@ final class AppModel {
                     return
                 }
                 if second == 15 {
-                    if self.tunnelProblem == nil, !self.isOffline { self.tunnelProblem = "Still connecting" }
+                    if self.tunnelProblem == nil, !self.isOffline { self.tunnelProblem = t("Still connecting") }
                     return
                 }
             }
@@ -753,8 +771,9 @@ final class AppModel {
 
     /// The host removed this device (or deleted it from their tailnet): signed out, back to joining, saying why.
     private func removedAsGuest(_ guest: GuestTunnelInfo?) {
-        let owner = guest.map(\.ownerName).flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : "\($0)’s Flexarr" }
-        signedOutNotice = "You no longer have access to \(owner ?? "this Flexarr")."
+        let owner = guest.map(\.ownerName).flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 }
+        signedOutNotice = owner.map { t("You no longer have access to {owner}’s Flexarr.", ["owner": $0]) }
+            ?? t("You no longer have access to this Flexarr.")
         forget()
         signedOutAsGuest = true
     }
@@ -777,10 +796,10 @@ final class AppModel {
 
         var errorDescription: String? {
             switch self {
-            case .usedUp: "That invite has run out or been used."
-            case .paused(let owner): "\(owner)’s Flexarr isn’t taking guests just now."
-            case .otherServer: "This invite led to a different server than it named. Ask for a new one."
-            case .unreachable(let owner): "Can’t reach \(owner)’s Flexarr. Check this device’s internet."
+            case .usedUp: t("That invite has run out or been used.")
+            case .paused(let owner): t("{owner}’s Flexarr isn’t taking guests just now.", ["owner": owner])
+            case .otherServer: t("This invite led to a different server than it named. Ask for a new one.")
+            case .unreachable(let owner): t("Can’t reach {owner}’s Flexarr. Check this device’s internet.", ["owner": owner])
             case .failed(let why): why
             }
         }
@@ -823,7 +842,7 @@ final class AppModel {
             switch error {
             case FlexarrClientError.http(410, _): throw JoinError.usedUp
             case FlexarrClientError.http(503, _): throw JoinError.paused(owner: invite.ownerName)
-            case FlexarrClientError.http(_, let message): throw JoinError.failed(message ?? "The server refused the invite.")
+            case FlexarrClientError.http(_, let message): throw JoinError.failed(message ?? t("The server refused the invite."))
             default:
                 log.warning("Redeeming the invite failed: \(error.localizedDescription)")
                 throw JoinError.unreachable(owner: invite.ownerName)
@@ -884,6 +903,26 @@ final class AppModel {
         if profilesLoad == load { profilesLoad = nil }
     }
 
+    /// The languages the server offers (English first); empty from servers before 0.61. Settings › Language shows when
+    /// there's more than English.
+    var languages: [LanguageInfo] = []
+
+    /// The profile's chosen language (nil: the device's).
+    var profileLanguage: String?
+
+    private func settleLanguage(_ client: FlexarrClient) async {
+        languages = (try? await client.languages()) ?? []
+        await Localization.shared.settle(profileChoice: profileLanguage, client: client)
+    }
+
+    /// Picks the profile's language on every device (nil: each device's own) and shows it here.
+    func setLanguage(_ code: String?) async throws {
+        guard let client else { return }
+        try await client.setLanguage(code)
+        profileLanguage = code
+        await Localization.shared.settle(profileChoice: code, client: client)
+    }
+
     /// `serverAnswered`: it has just answered (coming back online), so it isn't asked again.
     private func loadProfilesNow(serverAnswered: Bool = false) async {
         // A guest with no network at all needn't wait for its tunnel to give up.
@@ -939,6 +978,9 @@ final class AppModel {
         profiles = list
         hasBeenOnline = true
         let me = await signIn.value
+        // In the profile's language (or the device's) before the first screen, so it doesn't change under you.
+        profileLanguage = me?.language
+        await settleLanguage(client)
         kidsLock = me?.kidsLock == true
         signInMethod = me?.method
         // Asked to, a shared Apple TV asks who's watching once each time the app starts, whoever watched last.
@@ -1046,6 +1088,9 @@ final class AppModel {
         let profile = selection.profile
         player.stop()
         music.stop()
+        // What the last profile got ready is theirs.
+        player.dropReady()
+        music.dropReadyBook()
         credentials.profileToken = selection.token
         store.saveProfile(selection.token)
         profiles = list.map { $0.marked(current: $0.id == profile.id) }
@@ -1253,6 +1298,43 @@ final class AppModel {
             return
         }
         player.play(itemId: item.id, preview: item, startAt: fromBeginning ? 0 : nil, client: client, from: from)
+    }
+
+    /// Back in front: the connection to the server is set up again before Play needs it (docs/fast-start.md).
+    func warmConnection() {
+        guard let client, !isOffline else { return }
+        Task { await client.warmConnection() }
+    }
+
+    /// Gets what Play would start for `item` ready, so it opens at once (docs/fast-start.md): a film or episode as a
+    /// video, a book in the audio player. Pages call this once they've been looked at for a moment.
+    /// `prewarmBytes`: also fetch a played-as-it-is file's opening bytes (a detail page; not a card focus passes over).
+    func getReady(_ item: ItemSummary, prewarmBytes: Bool = true) {
+        guard let client, let credentials, !isOffline else { return }
+        // A server before 0.59 would show the warm-up as playing and give it a transcode slot: only asked once per server.
+        guard let supported = warmUpsSupported[credentials.address] else {
+            Task {
+                let status = try? await client.systemStatus()
+                warmUpsSupported[credentials.address] = status.flatMap { ServerVersion.isAtLeast($0.version, major: 0, minor: 59) } ?? false
+                if warmUpsSupported[credentials.address] == true, self.credentials?.address == credentials.address { getReady(item, prewarmBytes: prewarmBytes) }
+            }
+            return
+        }
+        guard supported else { return }
+        switch item.kind {
+        case .movie, .episode: player.getReady(itemId: item.id, client: client, prewarmBytes: prewarmBytes)
+        case .audiobook: music.getReadyBook(item, client: client)
+        default: break
+        }
+    }
+
+    /// Whether each server (by address) understands warm-ups (0.59 on).
+    @ObservationIgnored private var warmUpsSupported: [URL: Bool] = [:]
+
+    /// The page that got `item` ready is going (or its focus moved on): what it got ready goes too, unless Play took it.
+    func dropReady(_ item: ItemSummary) {
+        player.dropReady(itemId: item.id)
+        music.dropReadyBook(itemId: item.id)
     }
 
     /// Plays a movie or episode directly; for a series or season, plays its next-up episode
@@ -1578,7 +1660,7 @@ final class AppModel {
             player.closePlayer()
             if command.handOff == true {
                 if let title { pendingRoute = .item(title) }
-                handOffNotice = "Now playing on \(command.sentBy ?? "your phone")"
+                handOffNotice = command.sentBy.map { t("Now playing on {device}", ["device": $0]) } ?? t("Now playing on your phone")
             }
         case .seek, .skip, .next, .previous, .skipSegment, .audioTrack, .subtitleTrack, .rate:
             if player.remote(command) { return }
@@ -1641,10 +1723,10 @@ final class AppModel {
         // https://flexarr.io/join#… or flexarr://join#…: a family invite, asked about first.
         if let invite = GuestInvite.parse(url.absoluteString) {
             if !GuestInvite.guestInvitesOffered {
-                inviteNotice = "Update Flexarr to join."
+                inviteNotice = t("Update Flexarr to join.")
             } else if credentials != nil, credentials?.isGuest != true {
                 // Its own server isn't left behind by a link: signing out is a choice made in Settings.
-                inviteNotice = "Sign out in Settings first, then open the invite again."
+                inviteNotice = t("Sign out in Settings first, then open the invite again.")
             } else {
                 pendingInvite = invite
             }
@@ -1742,6 +1824,11 @@ final class AppModel {
 }
 
 /// Turns transport errors into sentences that say what happened and what to do.
+/// The server is older than the apps support (`ServerSupport.minimumVersion`).
+struct ServerTooOld: LocalizedError {
+    var errorDescription: String? { ServerSupport.updateMessage }
+}
+
 struct ConnectionError: LocalizedError {
     let message: String
 
@@ -1749,23 +1836,23 @@ struct ConnectionError: LocalizedError {
         if let error = error as? ConnectionError {
             message = error.message
         } else if let error = error as? FlexarrClientError {
-            message = error.errorDescription ?? "Something went wrong."
+            message = error.errorDescription ?? t("Something went wrong.")
         } else if let error = error as? URLError {
             switch error.code {
             case .cannotFindHost, .dnsLookupFailed:
-                message = "Couldn't find that server. Check the address, or use its IP address instead of the name."
+                message = t("Couldn't find that server. Check the address, or use its IP address instead of the name.")
             case .cannotConnectToHost, .networkConnectionLost:
-                message = "The server isn't answering at that address. Make sure Flexarr is running and the port is right (usually 8383)."
+                message = t("The server isn't answering at that address. Make sure Flexarr is running and the port is right (usually 8383).")
             case .timedOut:
-                message = "The server took too long to answer. Is it on the same network as this \(ThisDevice.name)?"
+                message = t("The server took too long to answer. Is it on the same network as this {device}?", ["device": ThisDevice.name])
             case .notConnectedToInternet:
-                message = "This \(ThisDevice.name) isn't connected to a network."
+                message = t("This {device} isn't connected to a network.", ["device": ThisDevice.name])
             case .appTransportSecurityRequiresSecureConnection:
-                message = "Plain http only works for local addresses (.local names or IP addresses). Use https for anything else."
+                message = t("Plain http only works for local addresses (.local names or IP addresses). Use https for anything else.")
             case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate, .serverCertificateNotYetValid:
-                message = "The server's https certificate isn't trusted. Try its http address on your local network."
+                message = t("The server's https certificate isn't trusted. Try its http address on your local network.")
             case .cancelled:
-                message = "The request was cancelled."
+                message = t("The request was cancelled.")
             default:
                 message = error.localizedDescription
             }

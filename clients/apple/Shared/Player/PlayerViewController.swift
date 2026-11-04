@@ -322,10 +322,14 @@ final class PlayerViewController: UIViewController {
         nowPlaying.setEpisodeNavigation(hasPrevious: hasPrevious, hasNext: hasNext)
     }
 
-    func setPrompt(_ title: String?, countingDown: Bool) {
-        controls.setPrompt(title, countingDown: countingDown)
+    func setPrompt(_ title: String?, symbol: String = "forward.fill", countingDown: Bool, takesFocus: Bool = true) {
+        let focusChanged = controls.promptTakesFocus != takesFocus
+        controls.setPrompt(title, symbol: symbol, countingDown: countingDown, takesFocus: takesFocus)
         countingDownToNext = countingDown
         updateIdleTimer()
+        #if os(tvOS)
+        if focusChanged { setNeedsFocusUpdate(); updateFocusIfNeeded() }
+        #endif
 
     }
 
@@ -530,6 +534,13 @@ final class PlayerViewController: UIViewController {
         hideTask?.cancel()
         #if os(iOS)
         if isInPictureInPicture { pictureInPicture?.stopPictureInPicture() }
+        #else
+        // Closed mid-scan (Stop from the iPhone remote, the sleep timer, another device taking over): the display link
+        // holds this screen and would keep firing.
+        scan?.link.invalidate()
+        scan = nil
+        holdTask?.cancel()
+        holdTask = nil
         #endif
         guard presentingViewController != nil else { completion?(); return }
         dismiss(animated: true) { completion?() }
@@ -612,7 +623,7 @@ final class PlayerViewController: UIViewController {
     override var preferredFocusEnvironments: [UIFocusEnvironment] {
         if sleepPrompt.isAsking { return [sleepPrompt] }
         if audioSyncOpen { return [audioSyncPanel] }
-        return controlsVisible || controls.promptShown ? [controls] : [rootView]
+        return controlsVisible || controls.promptOffersFocus ? [controls] : [rootView]
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -652,8 +663,19 @@ final class PlayerViewController: UIViewController {
                 return
             case .select:
                 if scan != nil { endScan(commit: true); return }
-                if controls.scrubber.isFocused, controls.scrubber.commitScrubIfNeeded() { return }
-                if !controlsVisible && !controls.promptShown {
+                if controls.scrubber.isFocused, controls.scrubber.isScrubbing {
+                    // A scrub that only just began is the thumb slipping as it pressed: it's a plain play/pause.
+                    if controls.scrubber.scrubJustBegan {
+                        controls.scrubber.cancelScrubIfNeeded()
+                        togglePlayPause()
+                        return
+                    }
+                    // A scrub that was meant: go there and play, as Apple's player does.
+                    controls.scrubber.commitScrubIfNeeded()
+                    transport?.play()
+                    return
+                }
+                if !controlsVisible && !controls.promptOffersFocus {
                     togglePlayPause()
                     return
                 }
@@ -667,6 +689,11 @@ final class PlayerViewController: UIViewController {
                 if audioSyncOpen { return closeAudioSync() }
                 if controlsVisible {
                     hideControls()
+                    return
+                }
+                // Counting down to the next episode: Back is "not now", and a second Back leaves.
+                if countingDownToNext {
+                    delegate?.playerScreenCancelNext(self)
                     return
                 }
                 close()
@@ -691,6 +718,11 @@ final class PlayerViewController: UIViewController {
                         scan?.rate = 2
                     }
                     showScanRate()
+                    return
+                }
+                // Counting down with the controls hidden: the edges move between Cancel and Next Episode.
+                if countingDownToNext, !controlsVisible {
+                    super.pressesBegan(presses, with: event)
                     return
                 }
                 // The remote's edges skip when clicked and scan when held, unless focus is on a button row.
@@ -785,7 +817,7 @@ final class PlayerViewController: UIViewController {
 
     private func showScanRate() {
         guard let current = scan else { return }
-        controls.scrubber.scanLabel = current.direction < 0 ? "◀◀ \(Int(current.rate))×" : "▶▶ \(Int(current.rate))×"
+        controls.scrubber.scanLabel = current.direction < 0 ? "◀◀ \(Int(current.rate).formatted(.number.locale(Localization.locale)))×" : "▶▶ \(Int(current.rate).formatted(.number.locale(Localization.locale)))×"
     }
     #endif
 
@@ -802,21 +834,21 @@ final class PlayerViewController: UIViewController {
                 self?.rebuildMenus()
             }
         }
-        let boost = UIMenu(title: "Dialogue boost", subtitle: sound.dialogueBoost.rawValue, children: SoundSettings.DialogueBoost.allCases.map { level in
+        let boost = UIMenu(title: t("Dialogue boost"), subtitle: sound.dialogueBoost.label, children: SoundSettings.DialogueBoost.allCases.map { level in
             let pick = choose { $0.dialogueBoost = level }
-            return UIAction(title: level.rawValue, state: level == sound.dialogueBoost ? .on : .off) { _ in MainActor.assumeIsolated { pick() } }
+            return UIAction(title: level.label, state: level == sound.dialogueBoost ? .on : .off) { _ in MainActor.assumeIsolated { pick() } }
         })
-        let nightLabel = { (mode: SoundSettings.NightMode) in mode == .scheduled ? sound.nightHours : mode.rawValue }
-        let night = UIMenu(title: "Night mode", subtitle: nightLabel(sound.nightMode), children: SoundSettings.NightMode.allCases.map { mode in
+        let nightLabel = { (mode: SoundSettings.NightMode) in mode == .scheduled ? sound.nightHours : mode.label }
+        let night = UIMenu(title: t("Night mode"), subtitle: nightLabel(sound.nightMode), children: SoundSettings.NightMode.allCases.map { mode in
             let pick = choose { $0.nightMode = mode }
             return UIAction(title: nightLabel(mode), state: mode == sound.nightMode ? .on : .off) { _ in MainActor.assumeIsolated { pick() } }
         })
-        let speakers = UIMenu(title: "Speakers", subtitle: sound.speakers.label, children: SoundSettings.Speakers.allCases.map { choice in
+        let speakers = UIMenu(title: t("Speakers"), subtitle: sound.speakers.label, children: SoundSettings.Speakers.allCases.map { choice in
             let pick = choose { $0.speakers = choice }
             return UIAction(title: choice.label, state: choice == sound.speakers ? .on : .off) { _ in MainActor.assumeIsolated { pick() } }
         })
         // AirPlay plays the sound itself: the settings stand, and return when it stops.
-        return UIMenu(title: reach == .notOverAirPlay ? "Not over AirPlay" : "", options: .displayInline, children: [boost, night, speakers])
+        return UIMenu(title: reach == .notOverAirPlay ? t("Not over AirPlay") : "", options: .displayInline, children: [boost, night, speakers])
     }
 
     private func rebuildMenus() {
@@ -835,20 +867,20 @@ final class PlayerViewController: UIViewController {
             }))
         }
         if let audioSync {
-            let sync = UIAction(title: "Audio sync", image: UIImage(systemName: "waveform.badge.magnifyingglass")) { [weak self] _ in
+            let sync = UIAction(title: t("Audio sync"), image: UIImage(systemName: "waveform.badge.magnifyingglass")) { [weak self] _ in
                 MainActor.assumeIsolated { self?.openAudioSync() }
             }
-            sync.subtitle = audioSync == 0 ? "As the file is" : AudioSyncPanel.label(audioSync)
+            sync.subtitle = audioSync == 0 ? t("As the file is") : AudioSyncPanel.label(audioSync)
             audioItems.append(UIMenu(options: .displayInline, children: [sync]))
         }
         if transport.soundReach != .unsupported { audioItems.append(soundMenu(reach: transport.soundReach)) }
         controls.audioButton.isHidden = audioItems.isEmpty
-        controls.audioButton.menu = UIMenu(title: "Audio", children: audioItems)
+        controls.audioButton.menu = UIMenu(title: t("Audio"), children: audioItems)
 
         let subtitles = transport.subtitleTracks
         var items: [UIMenuElement] = []
         if !subtitles.isEmpty {
-            let off = UIAction(title: "Off", state: transport.activeSubtitleTrack == nil ? .on : .off) { [weak self] _ in
+            let off = UIAction(title: t("Off"), state: transport.activeSubtitleTrack == nil ? .on : .off) { [weak self] _ in
                 MainActor.assumeIsolated { self?.chooseSubtitle(nil) }
             }
             items.append(UIMenu(options: .displayInline, children: [off] + subtitles.map { track in
@@ -864,15 +896,15 @@ final class PlayerViewController: UIViewController {
                 self.transport?.teletextPage = page
                 self.rebuildMenus()
             }
-            items.append(UIMenu(title: "Teletext page", subtitle: page.map(String.init) ?? "Automatic", children: [
-                UIAction(title: "Automatic", state: page == nil ? .on : .off) { _ in MainActor.assumeIsolated { choose(nil) } },
+            items.append(UIMenu(title: t("Teletext page"), subtitle: page.map(String.init) ?? t("Automatic"), children: [
+                UIAction(title: t("Automatic"), state: page == nil ? .on : .off) { _ in MainActor.assumeIsolated { choose(nil) } },
             ] + teletextPages.map { number in
                 UIAction(title: String(number), state: page == number ? .on : .off) { _ in MainActor.assumeIsolated { choose(number) } }
             }))
         }
         if let current = subtitleDelay, !subtitles.isEmpty {
             let choices = Set(Self.delayChoices + [current]).sorted()
-            items.append(UIMenu(title: "Timing", subtitle: Self.delayLabel(current), children: choices.map { seconds in
+            items.append(UIMenu(title: t("Timing"), subtitle: Self.delayLabel(current), children: choices.map { seconds in
                 UIAction(title: Self.delayLabel(seconds), state: seconds == current ? .on : .off) { [weak self] _ in
                     MainActor.assumeIsolated {
                         guard let self, seconds != current else { return }
@@ -882,7 +914,7 @@ final class PlayerViewController: UIViewController {
             }))
         }
         if !subtitles.isEmpty {
-            items.append(UIMenu(title: "Size", subtitle: subtitleSize.label, children: SubtitleSize.allCases.map { size in
+            items.append(UIMenu(title: t("Size"), subtitle: subtitleSize.label, children: SubtitleSize.allCases.map { size in
                 UIAction(title: size.label, state: size == subtitleSize ? .on : .off) { [weak self] _ in
                     MainActor.assumeIsolated {
                         guard let self else { return }
@@ -901,19 +933,19 @@ final class PlayerViewController: UIViewController {
                 self.delegate?.playerScreen(self, subtitlePlacement: placement)
                 self.rebuildMenus()
             }
-            items.append(UIMenu(title: "Position", subtitle: placed.position.label, children: SubtitlePosition.allCases.map { position in
+            items.append(UIMenu(title: t("Position"), subtitle: placed.position.label, children: SubtitlePosition.allCases.map { position in
                 UIAction(title: position.label, state: position == placed.position ? .on : .off) { _ in
                     MainActor.assumeIsolated { place(SubtitlePlacement(position: position, inBlackBars: placed.inBlackBars)) }
                 }
             } + [
-                UIAction(title: "In the black bars", state: placed.inBlackBars ? .on : .off) { _ in
+                UIAction(title: t("In the black bars"), state: placed.inBlackBars ? .on : .off) { _ in
                     MainActor.assumeIsolated { place(SubtitlePlacement(position: placed.position, inBlackBars: !placed.inBlackBars)) }
                 },
             ]))
         }
         if subtitleSearch.available {
             var finding: [UIMenuElement] = [
-                UIAction(title: "Search for subtitles…", image: UIImage(systemName: "magnifyingglass")) { [weak self] _ in
+                UIAction(title: t("Search for subtitles…"), image: UIImage(systemName: "magnifyingglass")) { [weak self] _ in
                     MainActor.assumeIsolated {
                         guard let self else { return }
                         self.delegate?.playerScreenSearchSubtitles(self)
@@ -922,9 +954,9 @@ final class PlayerViewController: UIViewController {
             ]
             let showing = subtitles.first { $0.id == transport.activeSubtitleTrack }?.key
             if subtitleSearch.resyncing {
-                finding.append(UIAction(title: "Re-syncing…", attributes: .disabled) { _ in })
+                finding.append(UIAction(title: t("Re-syncing…"), attributes: .disabled) { _ in })
             } else if let showing, subtitleSearch.files.contains(showing) {
-                finding.append(UIAction(title: "Re-sync to audio", image: UIImage(systemName: "waveform")) { [weak self] _ in
+                finding.append(UIAction(title: t("Re-sync to audio"), image: UIImage(systemName: "waveform")) { [weak self] _ in
                     MainActor.assumeIsolated {
                         guard let self else { return }
                         self.delegate?.playerScreen(self, resyncSubtitle: showing)
@@ -934,13 +966,13 @@ final class PlayerViewController: UIViewController {
             items.append(UIMenu(options: .displayInline, children: finding))
         }
         controls.subtitlesButton.isHidden = items.isEmpty
-        controls.subtitlesButton.menu = UIMenu(title: "Subtitles", children: items)
+        controls.subtitlesButton.menu = UIMenu(title: t(Words.subtitles), children: items)
 
         // A show's remembered speed may be one the menu doesn't list (chosen in the browser, say).
         let rates = Set(Self.rateChoices + [transport.rate]).sorted().filter { $0 <= transport.maxRate }
         // Live TV has no speeds (it can't run ahead of the channel).
         controls.speedButton.isHidden = rates.count < 2 || transport.maxRate <= 1
-        controls.speedButton.menu = UIMenu(title: "Speed", children: rates.map { rate in
+        controls.speedButton.menu = UIMenu(title: t("Speed"), children: rates.map { rate in
             UIAction(title: Self.rateLabel(rate), state: rate == transport.rate ? .on : .off) { [weak self] _ in
                 MainActor.assumeIsolated {
                     guard let self, let transport = self.transport, rate != transport.rate else { return }
@@ -959,7 +991,7 @@ final class PlayerViewController: UIViewController {
         let current = sleep.setting
         var choices: [SleepTimer.Setting] = SleepTimer.minuteChoices.map { .minutes($0) }
         if episodeEnd != nil { choices.append(.endOfEpisode) }
-        let off = UIAction(title: "Off", state: current == nil ? .on : .off) { [weak self] _ in
+        let off = UIAction(title: t("Off"), state: current == nil ? .on : .off) { [weak self] _ in
             MainActor.assumeIsolated { self?.setSleep(nil) }
         }
         let items = choices.map { setting in
@@ -968,7 +1000,7 @@ final class PlayerViewController: UIViewController {
             }
         }
         sleepMinutesShown = sleep.remaining.map { Int(($0 / 60).rounded(.up)) }
-        let title = sleepMinutesShown.map { "Sleep timer (\($0) min left)" } ?? "Sleep timer"
+        let title = sleepMinutesShown.map { t("Sleep timer ({minutes} min left)", ["minutes": $0]) } ?? t("Sleep timer")
         controls.sleepButton.isHidden = false
         controls.sleepButton.menu = UIMenu(title: title, children: [UIMenu(options: .displayInline, children: [off])] + [UIMenu(options: .displayInline, children: items)])
         controls.setSleepActive(current != nil)
@@ -982,13 +1014,13 @@ final class PlayerViewController: UIViewController {
 
     /// "In time", "0.5s later", "1s earlier".
     static func delayLabel(_ seconds: Double) -> String {
-        guard seconds != 0 else { return "In time" }
-        let amount = abs(seconds).formatted(.number.precision(.fractionLength(0...2)))
-        return "\(amount)s \(seconds > 0 ? "later" : "earlier")"
+        guard seconds != 0 else { return t("In time") }
+        let amount = abs(seconds).formatted(.number.precision(.fractionLength(0...2)).locale(Localization.locale))
+        return seconds > 0 ? t("{amount}s later", ["amount": amount]) : t("{amount}s earlier", ["amount": amount])
     }
 
     static func rateLabel(_ rate: Float) -> String {
-        rate == 1 ? "Normal" : "\(rate.formatted(.number.precision(.fractionLength(0...2))))×"
+        rate == 1 ? t("Normal") : "\(rate.formatted(.number.precision(.fractionLength(0...2)).locale(Localization.locale)))×"
     }
 
     // MARK: Phase
@@ -1004,6 +1036,8 @@ final class PlayerViewController: UIViewController {
         switch phase ?? transport?.phase {
         case .playing: UIApplication.shared.isIdleTimerDisabled = true
         case .loading, .buffering: break
+        // Paused mid-countdown, the countdown holds: the screen may sleep as for any pause.
+        case .paused: UIApplication.shared.isIdleTimerDisabled = false
         default: UIApplication.shared.isIdleTimerDisabled = countingDownToNext
         }
     }
@@ -1133,7 +1167,7 @@ final class PlayerViewController: UIViewController {
         }
         if asking {
             if sleepPhase == .off { beginAsking() }
-            sleepPrompt.ask(detail: "Pausing in " + Format.timestamp(left.rounded(.up)))
+            sleepPrompt.ask(detail: t("Pausing in {time}", ["time": Format.timestamp(left.rounded(.up))]))
             transport.volume = Float(max(0, min(1, left / 10)))
         } else if sleepPhase == .asking {
             endAsking()

@@ -1,5 +1,6 @@
 package io.github.flexarr.ui
 
+import io.github.flexarr.core.i18n.t
 import android.content.Context
 import android.net.Uri
 import androidx.navigation.NavHostController
@@ -111,14 +112,14 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         model.scope.launch {
             try {
                 val tracks = client.mix(id).tracks
-                if (tracks.isEmpty()) throw IllegalStateException("There's nothing in it today.")
+                if (tracks.isEmpty()) throw IllegalStateException(t("There's nothing in it today."))
                 model.music.play(tracks)
                 // The TV shows Now Playing over everything when asked; the phone opens its sheet.
                 if (context.usesTvInterface) model.nowPlayingRequests++ else model.showsMusicPlayer = true
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                tell("Couldn’t play this mix", e)
+                tell(t("Couldn’t play this mix"), e)
             }
         }
     }
@@ -127,7 +128,7 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
      * An album from a music library's hero: from [resume] (the track it carries on from, part way in when that was left
      * half way), or from the start.
      */
-    fun playAlbum(album: ItemSummary, resume: ItemSummary?) = playMusic("Couldn’t play this album") { client ->
+    fun playAlbum(album: ItemSummary, resume: ItemSummary?) = playMusic(t("Couldn’t play this album")) { client ->
         val tracks = client.tracks(album.id)
         val from = albumStart(tracks, resume)
         model.music.play(tracks, start = from.index, albums = listOf(album), at = from.position)
@@ -135,14 +136,14 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     }
 
     /** An artist's whole catalogue shuffled, or their [radio] (them and artists like them). */
-    fun playArtist(artist: ItemSummary, radio: Boolean) = playMusic(if (radio) "Couldn’t start this radio" else "Couldn’t play this artist") { client ->
+    fun playArtist(artist: ItemSummary, radio: Boolean) = playMusic(if (radio) t("Couldn’t start this radio") else t("Couldn’t play this artist")) { client ->
         val tracks = if (radio) client.radio(artist.id) else client.tracks(artist.id)
         model.music.play(tracks, shuffled = !radio)
         tracks
     }
 
     /** A genre's tracks in a music library, in order or shuffled (the server shuffles them). */
-    fun playGenre(libraryId: String, genre: String, shuffled: Boolean) = playMusic("Couldn’t play this genre") { client ->
+    fun playGenre(libraryId: String, genre: String, shuffled: Boolean) = playMusic(t("Couldn’t play this genre")) { client ->
         client.genreTracks(libraryId, genre, shuffled).also { model.music.play(it) }
     }
 
@@ -164,7 +165,7 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
 
     /** Marks a book finished, or unread (no place, not finished); Continue listening follows. */
     fun setBookFinished(item: ItemSummary, finished: Boolean) =
-        changeWatchState(if (finished) "Couldn’t mark this as finished" else "Couldn’t mark this as unread") { it.setBookFinished(item.id, finished) }
+        changeWatchState(if (finished) t("Couldn’t mark this as finished") else t("Couldn’t mark this as unread")) { it.setBookFinished(item.id, finished) }
 
     /** Downloads a whole book, saying so if it didn't work. */
     fun downloadBook(item: ItemSummary) {
@@ -174,7 +175,7 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                tell("Couldn’t download this", e)
+                tell(t("Couldn’t download this"), e)
             }
         }
     }
@@ -269,7 +270,7 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     var addingToPlaylist by mutableStateOf<PlaylistAddition?>(null)
 
     fun setWatched(item: ItemSummary, watched: Boolean) =
-        changeWatchState(if (watched) "Couldn’t mark this as watched" else "Couldn’t mark this as unwatched") {
+        changeWatchState(if (watched) t("Couldn’t mark this as watched") else t("Couldn’t mark this as unwatched")) {
             it.setWatched(item.id, watched)
             if (watched) model.downloads.markedPlayed(item.id)
         }
@@ -277,7 +278,7 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     /** The show of an episode, all of it. */
     fun setShowWatched(episode: ItemSummary) {
         val show = episode.seriesId ?: return
-        changeWatchState("Couldn’t mark the show as watched") { it.setWatched(show, true) }
+        changeWatchState(t("Couldn’t mark the show as watched")) { it.setWatched(show, true) }
     }
 
     /**
@@ -287,7 +288,7 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     fun removeFromContinueWatching(item: ItemSummary) {
         if (model.books.current?.id == item.id) model.books.stop(reportsPlace = false)
         if (model.podcasts.current?.id == item.id) model.podcasts.stop(reportsPlace = false)
-        changeWatchState("Couldn’t remove this from Continue watching") { it.removeFromContinueWatching(item.id) }
+        changeWatchState(t("Couldn’t remove this from Continue watching")) { it.removeFromContinueWatching(item.id) }
     }
 
     /** A film or episode downloaded at Settings' size. */
@@ -298,7 +299,7 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                tell("Couldn’t download this", e)
+                tell(t("Couldn’t download this"), e)
             }
         }
     }
@@ -315,7 +316,7 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
                 throw e
             } catch (e: Exception) {
                 onFailed()
-                tell(if (on) "Couldn’t add this to your watchlist" else "Couldn’t remove this from your watchlist", e)
+                tell(if (on) t("Couldn’t add this to your watchlist") else t("Couldn’t remove this from your watchlist"), e)
             }
         }
     }
@@ -353,7 +354,7 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     /** "Couldn’t download this. The server can’t be reached." */
     private fun tell(failure: String, error: Exception) {
         val reason = error.message?.takeIf { it.isNotBlank() }
-        model.scope.launch { notices.showSnackbar(if (reason != null) "$failure. $reason" else "$failure.") }
+        model.scope.launch { notices.showSnackbar(if (reason != null) t("{failure}. {reason}", "failure" to failure, "reason" to reason) else t("{failure}.", "failure" to failure)) }
     }
 
     /**

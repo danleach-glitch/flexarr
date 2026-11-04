@@ -121,7 +121,7 @@ struct HomeView: View {
                 ProfileAvatar(profile: current, size: 44)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Profile: \(current.name)")
+            .accessibilityLabel(t("Profile: {name}", ["name": current.name]))
         }
     }
 
@@ -165,7 +165,7 @@ struct NewEpisodesRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeading(title: "New podcasts")
+            SectionHeading(title: t("New podcasts"))
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                     ForEach(episodes) { episode in
@@ -190,7 +190,7 @@ struct NewEpisodesRow: View {
                         }
                         .buttonStyle(CardButtonStyle())
                         .accessibilityLabel("\(episode.title), \(episode.podcastTitle)")
-                        .accessibilityHint("Shows the episode")
+                        .accessibilityHint(t("Shows the episode"))
                     }
                 }
                 .padding(.horizontal, Layout.edge)
@@ -295,17 +295,17 @@ struct HomeHero: View {
                         default: if let resume { model.play(resume) } else { Task { await model.playBest(item, router: router) } }
                         }
                     } label: {
-                        Label(resume != nil || item.isResumable ? "Resume" : "Play", systemImage: Symbol.play)
+                        Label(resume != nil || item.isResumable ? t("Resume") : t(Words.play), systemImage: Symbol.play)
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
                     if item.kind == .artist {
                         Button { Task { await model.playArtist(item, radio: true, router: router) } } label: {
-                            Label("Radio", systemImage: Symbol.radio)
+                            Label(t(Words.radio), systemImage: Symbol.radio)
                         }
                         .buttonStyle(ActionButtonStyle(ambient: item.glowColor))
                     }
                     Button { router.push(.item(item)) } label: {
-                        Label("More info", systemImage: "info.circle")
+                        Label(t("More info"), systemImage: Symbol.details)
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.glowColor))
                 }
@@ -361,7 +361,7 @@ struct HomeHero: View {
                                 .lineLimit(1)
                         }
                         if let narrator = item.book?.narrator {
-                            Text("Read by \(narrator)")
+                            Text(t("Read by {narrator}", ["narrator": narrator]))
                                 .font(.caption.weight(.medium))
                                 .foregroundStyle(Color.usher)
                                 .lineLimit(1)
@@ -399,8 +399,8 @@ private struct BookHeroPlayButton: View {
         Button {
             if playingThis { model.music.togglePlayPause() } else { model.playBook(item) }
         } label: {
-            Label(playingThis && model.music.isPlaying ? "Pause" : resumable ? "Resume from \(Format.timestamp(position))" : "Play",
-                  systemImage: playingThis && model.music.isPlaying ? "pause.fill" : Symbol.play)
+            Label(playingThis && model.music.isPlaying ? t("Pause") : resumable ? t(Words.resumeFrom, ["time": Format.timestamp(position)]) : t(Words.play),
+                  systemImage: playingThis && model.music.isPlaying ? Symbol.pause : Symbol.play)
         }
         .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
         .monospacedDigit()
@@ -519,10 +519,10 @@ private struct EmptyHome: View {
                     }
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Folders: \(message.folders.joined(separator: ", "))")
+                .accessibilityLabel(t("Folders: {folders}", ["folders": message.folders.joined(separator: ", ")]))
             }
             if !message.body.isEmpty {
-                Text("Pull down to refresh.")
+                Text(t("Pull down to refresh."))
                     .font(.footnote)
                     .foregroundStyle(Color.usher)
             }
@@ -555,7 +555,7 @@ struct ComingSoonRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeading(title: downloading > 0 ? "Coming soon (\(downloading) downloading)" : "Coming soon") { router.push(.comingSoon) }
+            SectionHeading(title: downloading > 0 ? t("Coming soon ({count} downloading)", ["count": downloading]) : t(Words.comingSoon)) { router.push(.comingSoon) }
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                     ForEach(items) { ComingSoonCard(item: $0, width: Layout.wideWidth(sizeClass)) }

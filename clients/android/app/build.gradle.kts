@@ -45,9 +45,6 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Signing in from launch arguments (MainActivity): debug builds, and the builds the baseline profile is made with.
         buildConfigField("boolean", "LAUNCH_ARGUMENTS", "false")
-        // The TV interface (ui/tv), while it's being built: debug builds only, and only debug's manifest offers the app
-        // to TVs (src/debug/AndroidManifest.xml). docs/android-tv.md.
-        buildConfigField("boolean", "TV_UI", "false")
         // Family invites ("Join someone’s Flexarr", invite links): debug builds, and release builds given
         // -Pflexarr.guestInvites=true, until servers have them on (docs/remote-guests.md).
         buildConfigField("boolean", "GUEST_INVITES", (providers.gradleProperty("flexarr.guestInvites").orNull == "true").toString())
@@ -65,7 +62,6 @@ android {
     buildTypes {
         debug {
             buildConfigField("boolean", "LAUNCH_ARGUMENTS", "true")
-            buildConfigField("boolean", "TV_UI", "true")
             buildConfigField("boolean", "GUEST_INVITES", "true")
         }
         // The baseline profile plugin's builds of release, made only to profile on a device: signed with the debug key.
@@ -80,9 +76,14 @@ android {
         }
     }
 
-    // English only for now, so the libraries' own words (Material's, say) don't turn up in other languages beside it.
+    // Only Flexarr's own languages (languages/languages.json, docs/languages.md), so the libraries' words (Material's,
+    // say) don't turn up in a language Flexarr itself isn't in. Android names pt-BR "pt-rBR".
     androidResources {
-        localeFilters += "en"
+        val registry = rootProject.file("../../languages/languages.json").readText()
+        Regex(""""([a-z]{2,3}(?:-[A-Za-z0-9]+)*)"\s*:\s*\{""").findAll(registry).map { it.groupValues[1] }.forEach { code ->
+            val parts = code.split('-')
+            localeFilters += if (parts.size == 2 && parts[1].length == 2) "${parts[0]}-r${parts[1]}" else if (parts.size == 1) code else "b+" + parts.joinToString("+")
+        }
     }
 
     buildFeatures {
@@ -137,18 +138,21 @@ sentry {
 }
 
 // The baseline profile's builds take launch arguments too, to sign in (the plugin copies release's fields over them, so
-// they're set per variant). They have the TV interface as well: benchmarkRelease is release as it ships (R8, no
-// debugging) but profileable, so it's the build to measure the TV interface with on a real stick
-// (`./gradlew :app:installBenchmarkRelease`, then Android Studio's profiler or Perfetto), and the TV journey in the
-// baseline profile is recorded with it.
+// they're set per variant). benchmarkRelease is release as it ships (R8, no debugging) but profileable, so it's the build
+// to measure the TV interface with on a real stick (`./gradlew :app:installBenchmarkRelease`, then Android Studio's
+// profiler or Perfetto), and the TV journey in the baseline profile is recorded with it.
+android {
+    // Only release goes to Play: the baseline profile's builds of it (installBenchmarkRelease) don't ask it for a
+    // version code.
+    playConfigs {
+        register("nonMinifiedRelease") { enabled.set(false) }
+        register("benchmarkRelease") { enabled.set(false) }
+    }
+}
 androidComponents {
     onVariants { variant ->
         if (variant.name == "nonMinifiedRelease" || variant.name == "benchmarkRelease") {
             variant.buildConfigFields?.put("LAUNCH_ARGUMENTS", com.android.build.api.variant.BuildConfigField("boolean", "true", null))
-            variant.buildConfigFields?.put("TV_UI", com.android.build.api.variant.BuildConfigField("boolean", "true", null))
-            // And debug's TV launcher entry and banner, so a stick shows it among its apps.
-            variant.sources.manifests.addStaticManifestFile("src/debug/AndroidManifest.xml")
-            variant.sources.res?.addStaticSourceDirectory("src/debug/res")
         }
     }
 }
@@ -241,6 +245,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     // Google Play's in-app rating prompt (ReviewPrompt).
     implementation(libs.play.review)
+    // Google Play's in-app updates (AppUpdates).
+    implementation(libs.play.app.update)
     // Scan code for family invites: Google Play services' own scanner, so the app needs no camera permission.
     implementation(libs.kotlinx.coroutines.guava)
     implementation(libs.coil.compose)

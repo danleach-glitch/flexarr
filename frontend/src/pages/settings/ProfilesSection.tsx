@@ -22,7 +22,8 @@ import {
   type RequestDestination,
 } from '../../api/client'
 import { AsyncButton, IconButton } from '../../components/AsyncButton'
-import { Crown, Pencil, Trash } from '../../components/icons'
+import { Crown, Pencil } from '../../components/icons'
+import { icon } from '../../components/icons.generated'
 import { Avatar } from '../../components/ProfilePicker'
 import { useApi } from '../../hooks/useApi'
 import { usePreviewUrl } from '../../hooks/usePreviewUrl'
@@ -31,6 +32,7 @@ import { ageLimitText, ratingSteps } from '../../lib/ratings'
 import { requestChoices, requestRows } from '../../lib/requestLibraries'
 import { RequestLibrarySelect } from './RequestLibrarySelect'
 import { SettingsHeader } from './shared'
+import { t, Words } from '../../i18n'
 
 export function ProfilesSection() {
   const [version, setVersion] = useState(0)
@@ -54,16 +56,16 @@ export function ProfilesSection() {
   return (
     <section>
       <SettingsHeader
-        title="Profiles"
+        title={t('Profiles')}
         action={
           editing === undefined && (
             <button className="button small" onClick={() => setEditing('new')}>
-              Add a profile
+              {t('Add a profile')}
             </button>
           )
         }
       >
-        Everyone gets their own Continue watching, history and Up next. A PIN keeps a profile private.
+        {t('Everyone gets their own Continue watching, history and Up next. A PIN keeps a profile private.')}
       </SettingsHeader>
       <div className="profile-list">
         {editing === 'new' && (
@@ -99,25 +101,25 @@ export function ProfilesSection() {
                 <strong className="profile-name">
                   {p.name}
                   {p.isMain && (
-                    <span className="profile-crown" title="Main profile: manages the server">
+                    <span className="profile-crown" title={t('Main profile: manages the server')}>
                       <Crown />
                     </span>
                   )}
-                  {p.isCurrent && <span className="tag profile-you">You</span>}
+                  {p.isCurrent && <span className="tag profile-you">{t('You')}</span>}
                 </strong>
                 <span className="muted">
-                  {[p.isMain ? 'Main profile, manages the server' : p.isKids ? null : 'Profile', p.hasPin ? 'PIN' : 'No PIN', ageLimitText(p)].filter(Boolean).join('\u2003')}
+                  {[p.isMain ? t('Main profile, manages the server') : p.isKids ? null : t('Profile'), p.hasPin ? t('PIN') : t('No PIN'), ageLimitText(p)].filter(Boolean).join('\u2003')}
                 </span>
               </span>
               <span className="library-row-actions">
-                <IconButton label="Edit" aria-label={`Edit ${p.name}`} icon={<Pencil />} onClick={() => setEditing(p)} />
+                <IconButton label={t('Edit')} aria-label={t('Edit {name}', { name: p.name })} icon={<Pencil />} onClick={() => setEditing(p)} />
                 {!p.isMain && (
                   <IconButton
-                    label="Remove"
-                    aria-label={`Remove ${p.name}`}
-                    icon={<Trash />}
+                    label={t('Remove')}
+                    aria-label={t('Remove {name}', { name: p.name })}
+                    icon={<icon.delete />}
                     className="button quiet small icon danger-icon"
-                    onClick={() => confirm(`Remove ${p.name}’s profile? Their watch history goes with it.`) && deleteProfile(p.id).then(reload)}
+                    onClick={() => confirm(t('Remove {name}’s profile? Their watch history goes with it.', { name: p.name })) && deleteProfile(p.id).then(reload)}
                   />
                 )}
               </span>
@@ -177,7 +179,7 @@ function ProfileForm({
   async function submit(e: FormEvent) {
     e.preventDefault()
     if (pin !== '' && !removePin && pin !== confirmPin) {
-      setErrors(['The two PINs don’t match. Type the same one in both.'])
+      setErrors([t('The two PINs don’t match. Type the same one in both.')])
       return
     }
     setSaving(true)
@@ -204,34 +206,34 @@ function ProfileForm({
   }
 
   const pinHelp = removePin
-    ? 'The PIN goes when you save.'
+    ? t('The PIN goes when you save.')
     : profile?.hasPin
-      ? `Asked for when someone switches to ${profile.name}.`
-      : 'Anyone can switch to this profile. A PIN keeps it private.'
+      ? t('Asked for when someone switches to {name}.', { name: profile.name })
+      : t('Anyone can switch to this profile. A PIN keeps it private.')
 
   return (
-    <form className="panel profile-form" onSubmit={submit} aria-label={profile ? `Edit ${profile.name}` : 'New profile'}>
+    <form className="panel profile-form" onSubmit={submit} aria-label={profile ? t('Edit {name}', { name: profile.name }) : t('New profile')}>
       <div className="profile-identity">
         <div className="profile-picture">
           <Avatar profile={{ name: name || '?', color, image: shownImage }} size={72} />
           <label className="text-button file-button">
-            {shownImage ? 'Change' : 'Add picture'}
+            {shownImage ? t('Change') : t('Add picture')}
             <input type="file" accept="image/*" onChange={(e) => setPicture(e.target.files?.[0])} />
           </label>
           {shownImage && (
             <button type="button" className="text-button" onClick={() => setPicture(null)}>
-              Remove
+              {t('Remove')}
             </button>
           )}
         </div>
         <div className="profile-identity-fields">
           <label className="field">
-            <span className="field-label">Name</span>
+            <span className="field-label">{t('Name')}</span>
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={60} />
           </label>
           <div className="field">
             <span className="field-label" id="profile-colour">
-              Colour
+              {t('Colour')}
             </span>
             <div className="swatches" role="radiogroup" aria-labelledby="profile-colour">
               {profileColours.map((c) => (
@@ -241,7 +243,7 @@ function ProfileForm({
                   role="radio"
                   aria-checked={c.value === color.toLowerCase()}
                   aria-label={c.name}
-                  title={shownImage ? `${c.name}, shown behind the picture while it loads` : c.name}
+                  title={shownImage ? t('{colour}, shown behind the picture while it loads', { colour: c.name }) : c.name}
                   className="swatch"
                   style={{ background: c.value }}
                   onClick={() => setColor(c.value)}
@@ -253,20 +255,20 @@ function ProfileForm({
       </div>
 
       <fieldset className="profile-section profile-pin">
-        <legend className="visually-hidden">PIN</legend>
+        <legend className="visually-hidden">{t('PIN')}</legend>
         <div className="profile-section-head">
           <span className="setting-text">
-            <strong>PIN</strong>
+            <strong>{t('PIN')}</strong>
             <span className="muted">{pinHelp}</span>
           </span>
           {!choosingPin && !removePin && (
             <span className="library-row-actions">
               <button type="button" className="button quiet small" onClick={() => setChoosingPin(true)}>
-                {profile?.hasPin ? 'Change' : 'Add a PIN'}
+                {profile?.hasPin ? t('Change') : t('Add a PIN')}
               </button>
               {profile?.hasPin && (
                 <button type="button" className="text-button danger-text" onClick={() => setRemovePin(true)}>
-                  Remove
+                  {t('Remove')}
                 </button>
               )}
             </span>
@@ -282,14 +284,14 @@ function ProfileForm({
                 setConfirmPin('')
               }}
             >
-              {removePin ? 'Keep it' : 'Cancel'}
+              {removePin ? t('Keep it') : t(Words.cancel)}
             </button>
           )}
         </div>
         {choosingPin && (
           <div className="field-row">
             <label>
-              {profile?.hasPin ? 'New PIN' : 'PIN'}
+              {profile?.hasPin ? t('New PIN') : t('PIN')}
               <input
                 type="password"
                 inputMode="numeric"
@@ -298,11 +300,11 @@ function ProfileForm({
                 required
                 autoFocus
                 onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                placeholder="4 to 8 digits"
+                placeholder={t('4 to 8 digits')}
               />
             </label>
             <label>
-              {profile?.hasPin ? 'Confirm new PIN' : 'Confirm PIN'}
+              {profile?.hasPin ? t('Confirm new PIN') : t('Confirm PIN')}
               <input
                 type="password"
                 inputMode="numeric"
@@ -316,21 +318,21 @@ function ProfileForm({
         )}
         {profile?.isMain && (
           <span className="field-help">
-            The admin PIN, for the server’s settings, is separate: it’s in <Link to="/settings/security">Security</Link>.
+            {t.rich('The admin PIN, for the server’s settings, is separate: it’s in {page}.', { page: <Link to="/settings/security">{t('Security')}</Link> })}
           </span>
         )}
       </fieldset>
 
       {!profile?.isMain && (
         <fieldset className="profile-section profile-libraries">
-          <legend className="visually-hidden">Age limit</legend>
+          <legend className="visually-hidden">{t('Age limit')}</legend>
           <span className="setting-text">
-            <strong>Age limit</strong>
-            <span className="muted">Titles rated above it, and unrated ones, are hidden.</span>
+            <strong>{t('Age limit')}</strong>
+            <span className="muted">{t('Titles rated above it, and unrated ones, are hidden.')}</span>
           </span>
           <div className="profile-library-list">
             <label className="profile-library">
-              <span>Up to</span>
+              <span>{t('Up to')}</span>
               <select
                 value={maxRatingAge ?? ''}
                 onChange={(e) => {
@@ -341,7 +343,7 @@ function ProfileForm({
                   else if (!profile && age <= 8 && mainHasPin) setIsKids(true)
                 }}
               >
-                <option value="">No limit</option>
+                <option value="">{t('No limit')}</option>
                 {[...ratingSteps].reverse().map((s) => (
                   <option key={s.age} value={s.age}>
                     {s.label}
@@ -351,8 +353,8 @@ function ProfileForm({
             </label>
             <label className="profile-library">
               <span className="setting-text">
-                <span>Kids profile</span>
-                <span className="muted">{mainHasPin ? 'No Settings. Leaving takes the admin PIN.' : 'Needs an admin PIN first.'}</span>
+                <span>{t('Kids profile')}</span>
+                <span className="muted">{mainHasPin ? t('No Settings. Leaving takes the admin PIN.') : t('Needs an admin PIN first.')}</span>
               </span>
               <input
                 type="checkbox"
@@ -368,10 +370,10 @@ function ProfileForm({
       )}
       {libraries.length > 1 && (
         <fieldset className="profile-section profile-libraries">
-          <legend className="visually-hidden">Libraries</legend>
+          <legend className="visually-hidden">{t(Words.libraries)}</legend>
           <span className="setting-text">
-            <strong>Libraries {profile ? `${profile.name} sees` : 'this profile sees'}</strong>
-            <span className="muted">The rest are hidden everywhere on this profile: Home, search, Discover, Coming soon and requests.</span>
+            <strong>{profile ? t('Libraries {name} sees', { name: profile.name }) : t('Libraries this profile sees')}</strong>
+            <span className="muted">{t('The rest are hidden everywhere on this profile: Home, search, Discover, Coming soon and requests.')}</span>
           </span>
           <div className="profile-library-list">
             {libraries.map((l) => (
@@ -392,9 +394,9 @@ function ProfileForm({
       {/* A profile with an age limit doesn't request: Seerr's titles have no ages Flexarr can check. */}
       {(requestFields.length > 0 || musicChoices.length > 1) && maxRatingAge === null && (
         <fieldset className="profile-section profile-libraries">
-          <legend className="visually-hidden">Requests</legend>
+          <legend className="visually-hidden">{t('Requests')}</legend>
           <span className="setting-text">
-            <strong>Where {profile ? `${profile.name}’s` : 'this profile’s'} requests go</strong>
+            <strong>{profile ? t('Where {name}’s requests go', { name: profile.name }) : t('Where this profile’s requests go')}</strong>
           </span>
           <div className="profile-library-list">
             {requestFields.map((r) => (
@@ -405,7 +407,7 @@ function ProfileForm({
             ))}
             {musicChoices.length > 1 && (
               <label className="profile-library">
-                <span>New music goes to</span>
+                <span>{t('New music goes to')}</span>
                 <RequestLibrarySelect choices={musicChoices} value={musicLibrary} onChange={setMusicLibrary} />
               </label>
             )}
@@ -414,10 +416,10 @@ function ProfileForm({
       )}
       {destinations.length > 0 && maxRatingAge === null && !isKids && (
         <fieldset className="profile-section">
-          <legend className="visually-hidden">Watchlist</legend>
+          <legend className="visually-hidden">{t(Words.watchlist)}</legend>
           <label className="profile-section-head">
             <span className="setting-text">
-              <strong>Request what {profile ? profile.name : 'this profile'} adds to the watchlist</strong>
+              <strong>{profile ? t('Request what {name} adds to the watchlist', { name: profile.name }) : t('Request what this profile adds to the watchlist')}</strong>
             </span>
             <input type="checkbox" role="switch" className="switch" checked={autoRequest} onChange={(e) => setAutoRequest(e.target.checked)} />
           </label>
@@ -432,10 +434,10 @@ function ProfileForm({
       )}
       <div className="form-actions">
         <button type="button" className="button quiet" onClick={onCancel}>
-          Cancel
+          {t(Words.cancel)}
         </button>
         <AsyncButton type="submit" className="button" busy={saving}>
-          {profile ? 'Save profile' : 'Add profile'}
+          {profile ? t('Save profile') : t('Add profile')}
         </AsyncButton>
       </div>
     </form>

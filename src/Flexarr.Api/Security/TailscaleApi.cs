@@ -7,6 +7,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Flexarr.Api.Configuration;
 using Microsoft.Extensions.Options;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Security;
 
@@ -70,10 +71,10 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
         using var request = new HttpRequestMessage(HttpMethod.Post, Url("api/v2/tailnet/-/keys")) { Content = JsonContent.Create(body, options: Json) };
         using var response = await SendAsync(request, ct);
         var created = await response.Content.ReadFromJsonAsync<CreatedKey>(Json, ct)
-            ?? throw new TailscaleApiException("Tailscale didn't return a key.");
+            ?? throw new TailscaleApiException(Loc.T("Tailscale didn't return a key."));
         if (string.IsNullOrEmpty(created.Key) || string.IsNullOrEmpty(created.Id))
         {
-            throw new TailscaleApiException("Tailscale didn't return a key.");
+            throw new TailscaleApiException(Loc.T("Tailscale didn't return a key."));
         }
 
         LogMinted(created.Id);
@@ -190,7 +191,6 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
             await GuardAsync(() => TokenAsync(ct, forceNew: true), ct);
             // Tailscale says what the client may do. Anything beyond making guest keys and reading the policy is more
             // than Flexarr should hold: a leaked secret could then change the policy or the owner's devices.
-            const string tooMuch = "This OAuth client can do more than Flexarr needs{0}. Make one with only Auth Keys (write) and Policy File (read).";
             if (_scope is null)
             {
                 // Tailscale didn't say: ask for something only a wider client may see (the tailnet's devices).
@@ -198,7 +198,7 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
                 try
                 {
                     using var _ = await GuardAsync(() => SendAsync(request, ct), ct);
-                    return string.Format(System.Globalization.CultureInfo.InvariantCulture, tooMuch, " (it can see your devices)");
+                    return Loc.T("This OAuth client can do more than Flexarr needs (it can see your devices). Make one with only Auth Keys (write) and Policy File (read).");
                 }
                 catch (TailscaleApiException ex) when (ex.Status is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized or HttpStatusCode.NotFound)
                 {
@@ -207,7 +207,9 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
             }
 
             var extra = _scope.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(s => !AllowedScopes.Contains(s)).ToList();
-            return extra.Count == 0 ? null : string.Format(System.Globalization.CultureInfo.InvariantCulture, tooMuch, $" ({string.Join(", ", extra)})");
+            return extra.Count == 0 ? null
+                : Loc.T("This OAuth client can do more than Flexarr needs ({scopes}). Make one with only Auth Keys (write) and Policy File (read).",
+                    new { scopes = string.Join(", ", extra) });
         }
         catch (TailscaleApiException ex)
         {
@@ -228,20 +230,20 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
         }
         catch (HttpRequestException ex)
         {
-            throw new TailscaleApiException($"Couldn't reach Tailscale ({ex.Message}).");
+            throw new TailscaleApiException(Loc.T("Couldn't reach Tailscale ({error}).", new { error = ex.Message }));
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            throw new TailscaleApiException("Tailscale didn't answer in time. Try again in a minute.");
+            throw new TailscaleApiException(Loc.T("Tailscale didn't answer in time. Try again in a minute."));
         }
         catch (JsonException)
         {
-            throw new TailscaleApiException("Tailscale's answer couldn't be read. Is something between this server and Tailscale?");
+            throw new TailscaleApiException(Loc.T("Tailscale's answer couldn't be read. Is something between this server and Tailscale?"));
         }
         catch (NotSupportedException)
         {
             // ReadFromJsonAsync on an answer that isn't JSON at all (a captive portal's HTML page).
-            throw new TailscaleApiException("Tailscale's answer couldn't be read. Is something between this server and Tailscale?");
+            throw new TailscaleApiException(Loc.T("Tailscale's answer couldn't be read. Is something between this server and Tailscale?"));
         }
     }
 
@@ -284,10 +286,14 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
 
         return status switch
         {
-            HttpStatusCode.Unauthorized => "Tailscale didn't accept the OAuth client. Check its ID and secret.",
-            HttpStatusCode.Forbidden => $"The OAuth client isn't allowed to do that{(message is null ? "" : $" ({message})")}. It needs auth_keys for the guest tag and policy_file:read.",
-            HttpStatusCode.TooManyRequests => "Tailscale asked Flexarr to slow down. Try again in a minute.",
-            _ => $"Tailscale answered {(int)status}{(message is null ? "" : $": {message}")}.",
+            HttpStatusCode.Unauthorized => Loc.T("Tailscale didn't accept the OAuth client. Check its ID and secret."),
+            HttpStatusCode.Forbidden => message is null
+                ? Loc.T("The OAuth client isn't allowed to do that. It needs auth_keys for the guest tag and policy_file:read.")
+                : Loc.T("The OAuth client isn't allowed to do that ({message}). It needs auth_keys for the guest tag and policy_file:read.", new { message }),
+            HttpStatusCode.TooManyRequests => Loc.T("Tailscale asked Flexarr to slow down. Try again in a minute."),
+            _ => message is null
+                ? Loc.T("Tailscale answered {status}.", new { status = (int)status })
+                : Loc.T("Tailscale answered {status}: {message}.", new { status = (int)status, message }),
         };
     }
 
@@ -296,7 +302,7 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
         var settings = Settings;
         if (!settings.HasClient)
         {
-            throw new TailscaleApiException("No Tailscale OAuth client is set up.");
+            throw new TailscaleApiException(Loc.T("No Tailscale OAuth client is set up."));
         }
 
         await _tokenLock.WaitAsync(ct);
@@ -321,14 +327,14 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
             if (!response.IsSuccessStatusCode)
             {
                 throw new TailscaleApiException(response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.BadRequest or HttpStatusCode.Forbidden
-                    ? "Tailscale didn't accept the OAuth client. Check its ID and secret."
-                    : $"Tailscale answered {(int)response.StatusCode} when signing in.", response.StatusCode);
+                    ? Loc.T("Tailscale didn't accept the OAuth client. Check its ID and secret.")
+                    : Loc.T("Tailscale answered {status} when signing in.", new { status = (int)response.StatusCode }), response.StatusCode);
             }
 
             var token = await response.Content.ReadFromJsonAsync<TokenResponse>(Json, ct);
             if (string.IsNullOrEmpty(token?.AccessToken))
             {
-                throw new TailscaleApiException("Tailscale didn't return an access token.");
+                throw new TailscaleApiException(Loc.T("Tailscale didn't return an access token."));
             }
 
             // Tokens last an hour; renew a little early.

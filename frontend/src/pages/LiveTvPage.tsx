@@ -5,12 +5,14 @@ import { getLiveChannels, getLiveGuide, getLiveTvStatus, type LiveChannel, type 
 import { FavouriteButton } from '../components/FavouriteButton'
 import { RecordControls } from '../components/RecordControls'
 import { ChannelLogo } from '../components/LiveChannelCard'
-import { Antenna, Play, RecordDot, SeriesDots, Star } from '../components/icons'
+import { Antenna, RecordDot, SeriesDots, Star } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { useFavourites } from '../hooks/useFavourites'
 import { useAgeLimits, useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { clock, programmeTime, programmeTitle, progress, tidyGroup } from '../lib/livetv'
+import { locale, t, Words } from '../i18n'
 
 const LiveRecordings = lazy(() => import('./LiveRecordings'))
 
@@ -36,16 +38,16 @@ export default function LiveTvPage() {
   if (status.data && !status.data.configured) {
     return (
       <div className="livetv-page">
-        <h1 className="livetv-title">Live TV</h1>
+        <h1 className="livetv-title">{t(Words.liveTv)}</h1>
         <div className="panel livetv-empty">
           <Antenna />
-          <p>Live TV isn’t set up yet.</p>
+          <p>{t('Live TV isn’t set up yet.')}</p>
           {me?.isAdmin || me?.canUnlock ? (
             <Link className="button" to="/settings/connections">
-              Set up Live TV
+              {t('Set up Live TV')}
             </Link>
           ) : (
-            <p className="muted">Ask whoever runs this Flexarr to connect Dispatcharr in Settings › Connections.</p>
+            <p className="muted">{t('Ask whoever runs this Flexarr to connect Dispatcharr in Settings › Connections.')}</p>
           )}
         </div>
       </div>
@@ -55,10 +57,10 @@ export default function LiveTvPage() {
   return (
     <div className="livetv-page">
       <header className="livetv-header">
-        <h1 className="livetv-title">Live TV</h1>
-        <div className="season-tabs livetv-tabs" role="tablist" aria-label="View">
+        <h1 className="livetv-title">{t(Words.liveTv)}</h1>
+        <div className="season-tabs livetv-tabs" role="tablist" aria-label={t('View')}>
           <button role="tab" aria-selected={view === 'now'} className={view === 'now' ? 'season-tab active' : 'season-tab'} onClick={() => setParams({}, { replace: true })}>
-            On now
+            {t('On now')}
           </button>
           <button
             role="tab"
@@ -66,7 +68,7 @@ export default function LiveTvPage() {
             className={view === 'guide' ? 'season-tab active' : 'season-tab'}
             onClick={() => setParams({ view: 'guide' }, { replace: true })}
           >
-            Guide
+            {t('Guide')}
           </button>
           {!limited && (
             <button
@@ -75,7 +77,7 @@ export default function LiveTvPage() {
               className={view === 'recordings' ? 'season-tab active' : 'season-tab'}
               onClick={() => setParams({ view: 'recordings' }, { replace: true })}
             >
-              Recordings
+              {t('Recordings')}
             </button>
           )}
         </div>
@@ -116,18 +118,18 @@ function OnNow() {
     </li>
   )
 
-  if (error) return <p className="error">Couldn’t load the channels: {error.message}</p>
-  if (!data) return <PageLoading label="Loading channels" />
-  if (data.length === 0) return <p className="page-message muted">No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.</p>
+  if (error) return <p className="error">{t('Couldn’t load the channels: {error}', { error: error.message })}</p>
+  if (!data) return <PageLoading label={t('Loading channels')} />
+  if (data.length === 0) return <p className="page-message muted">{t('No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.')}</p>
 
   return (
     <>
-      <div className="chips livetv-groups" role="toolbar" aria-label="Channel groups">
+      <div className="chips livetv-groups" role="toolbar" aria-label={t('Channel groups')}>
         <button className={group === FAVOURITES ? 'chip active' : 'chip'} onClick={() => setGroup(FAVOURITES)}>
-          <Star filled className="chip-star" /> Favourites
+          <Star filled className="chip-star" /> {t('Favourites')}
         </button>
         <button className={!group ? 'chip active' : 'chip'} onClick={() => setGroup('')}>
-          All
+          {t('All')}
         </button>
         {groups.map((g) => (
           <button key={g} className={group === g ? 'chip active' : 'chip'} onClick={() => setGroup(g)}>
@@ -138,7 +140,7 @@ function OnNow() {
       <ul className="livetv-list">{shown.map(row)}</ul>
       {data.every((c) => !isFavourite(c)) && (
         <p className="muted livetv-hint">
-          <Star /> Star the channels you watch most to keep them first.
+          <Star /> {t('Star the channels you watch most to keep them first.')}
         </p>
       )}
     </>
@@ -153,17 +155,17 @@ function OnNow() {
 function RecordMark({ programme }: { programme: LiveProgramme }) {
   if (programme.recording === 'recording')
     return (
-      <span className="record-badge" aria-label="Recording now">
-        REC
+      <span className="record-badge" aria-label={t('Recording now')}>
+        {t('REC')}
       </span>
     )
-  return programme.recording ? <RecordDot className="record-dot" aria-label="Set to record" /> : null
+  return programme.recording ? <RecordDot className="record-dot" aria-label={t('Set to record')} /> : null
 }
 
 function ChannelRow({ channel: c, favourite, onToggle }: { channel: LiveChannel; favourite: boolean; onToggle: () => void }) {
   return (
     <div className="livetv-row">
-      <Link className="livetv-row-link" to={`/live/${c.id}`} aria-label={`${c.number} ${c.name}${c.now ? `, now ${c.now.title}` : ''}`}>
+      <Link className="livetv-row-link" to={`/live/${c.id}`} aria-label={c.now ? t('{number} {name}, now {title}', { number: c.number, name: c.name, title: c.now.title }) : `${c.number} ${c.name}`}>
         <span className="livetv-row-number">{c.number}</span>
         <span className="livetv-row-logo">
           <ChannelLogo channel={c} />
@@ -171,7 +173,7 @@ function ChannelRow({ channel: c, favourite, onToggle }: { channel: LiveChannel;
         <span className="livetv-row-now">
           <strong>
             {c.now && <RecordMark programme={c.now} />}
-            {c.now ? programmeTitle(c.now) : 'No listings'}
+            {c.now ? programmeTitle(c.now) : t('No listings')}
           </strong>
           <span className="muted livetv-row-meta">
             <span className="livetv-row-name">{c.name}</span>
@@ -188,7 +190,7 @@ function ChannelRow({ channel: c, favourite, onToggle }: { channel: LiveChannel;
         <span className="livetv-row-next">
           {c.next && (
             <>
-              <span className="muted">Next{'\u2003'}{clock.format(new Date(c.next.start))}</span>
+              <span className="muted">{t('Next')}{'\u2003'}{clock.format(new Date(c.next.start))}</span>
               <span>
                 {c.next.title} <RecordMark programme={c.next} />
               </span>
@@ -241,25 +243,25 @@ function Guide() {
   const width = hours * 60 * PX_PER_MINUTE
   const slots = Array.from({ length: hours * 2 }, (_, i) => new Date(from.getTime() + i * 30 * 60_000))
 
-  if (failed) return <p className="error">Couldn’t load the guide: {failed}</p>
-  if (!guide) return <PageLoading label="Loading the guide" />
+  if (failed) return <p className="error">{t('Couldn’t load the guide: {error}', { error: failed })}</p>
+  if (!guide) return <PageLoading label={t('Loading the guide')} />
   const anyFavourite = guide.channels.some((c) => c.isFavourite)
   const favouritesOnly = favouritesChosen ?? anyFavourite
   const rows = favouritesOnly ? guide.channels.filter((c) => c.isFavourite) : guide.channels
 
   return (
     <>
-      <div className="chips livetv-groups" role="toolbar" aria-label="Channels">
+      <div className="chips livetv-groups" role="toolbar" aria-label={t('Channels')}>
         <button className={favouritesOnly ? 'chip active' : 'chip'} onClick={() => setFavouritesOnly(true)}>
-          <Star filled className="chip-star" /> Favourites
+          <Star filled className="chip-star" /> {t('Favourites')}
         </button>
         <button className={!favouritesOnly ? 'chip active' : 'chip'} onClick={() => setFavouritesOnly(false)}>
-          All channels
+          {t('All channels')}
         </button>
       </div>
       {favouritesOnly && rows.length === 0 && (
         <p className="muted livetv-hint">
-          <Star /> No favourites yet: star channels in On now, and the guide can show just them.
+          <Star /> {t('No favourites yet: star channels in On now, and the guide can show just them.')}
         </p>
       )}
       <div className="livetv-guide" ref={scroller}>
@@ -274,14 +276,14 @@ function Guide() {
           </div>
           {rows.map((c) => (
             <div key={c.id} className="livetv-guide-row">
-              <Link className="livetv-guide-channel" to={`/live/${c.id}`} aria-label={`Watch ${c.name}`}>
+              <Link className="livetv-guide-channel" to={`/live/${c.id}`} aria-label={t('Watch {name}', { name: c.name })}>
                 <ChannelLogo channel={c} />
                 <span>
                   <span className="muted">{c.number}</span> {c.name}
                 </span>
               </Link>
               <div className="livetv-guide-programmes" style={{ width }}>
-                {c.programmes.length === 0 && <span className="livetv-guide-none muted">No listings</span>}
+                {c.programmes.length === 0 && <span className="livetv-guide-none muted">{t('No listings')}</span>}
                 {c.programmes.map((p) => {
                   const left = Math.max(0, minutes(p.start)) * PX_PER_MINUTE
                   const right = Math.min(hours * 60, minutes(p.end)) * PX_PER_MINUTE
@@ -294,12 +296,12 @@ function Guide() {
                         .filter(Boolean)
                         .join(' ')}
                       style={{ left, width: Math.max(0, right - left - 2) }}
-                      title={`${p.title}\u2003${programmeTime(p)}${p.recording ? (p.recording === 'recording' ? '\u2003Recording now' : '\u2003Set to record') : ''}`}
+                      title={[p.title, programmeTime(p), p.recording ? (p.recording === 'recording' ? t('Recording now') : t('Set to record')) : null].filter(Boolean).join('\u2003')}
                       onClick={() => setSelected({ channel: c, programme: p })}
                     >
                       <strong>
                         {p.recording && <RecordMark programme={p} />}
-                        {p.series && !p.recording && <SeriesDots className="record-dot" aria-label="Series" />}
+                        {p.series && !p.recording && <SeriesDots className="record-dot" aria-label={t(Words.series)} />}
                         {programmeTitle(p)}
                       </strong>
                       <span className="muted">{programmeTime(p)}</span>
@@ -315,7 +317,7 @@ function Guide() {
       <div className="livetv-guide-more">
         {hours < 24 && (
           <button className="button quiet small" onClick={() => setHours((h) => Math.min(24, h + GUIDE_HOURS))}>
-            Show later
+            {t('Show later')}
           </button>
         )}
       </div>
@@ -323,20 +325,24 @@ function Guide() {
         <aside className="panel livetv-details" aria-live="polite">
           <h2>{selected.programme.title}</h2>
           <p className="muted">
-            {selected.channel.name}{'\u2003'}{new Date(selected.programme.start).toLocaleDateString(undefined, { weekday: 'long' })} {programmeTime(selected.programme)}
-            {selected.programme.season != null && `\u2003Series ${selected.programme.season}${selected.programme.episode != null ? `, episode ${selected.programme.episode}` : ''}`}
-            {selected.programme.isNew && '\u2003New'}
+            {selected.channel.name}{'\u2003'}{new Date(selected.programme.start).toLocaleDateString(locale(), { weekday: 'long' })} {programmeTime(selected.programme)}
+            {selected.programme.season != null &&
+              '\u2003' +
+                (selected.programme.episode != null
+                  ? t('Series {season}, episode {episode}', { season: selected.programme.season, episode: selected.programme.episode })
+                  : t('Series {season}', { season: selected.programme.season }))}
+            {selected.programme.isNew && '\u2003' + t('New')}
           </p>
           {selected.programme.subtitle && <p>{selected.programme.subtitle}</p>}
           {selected.programme.description && <p>{selected.programme.description}</p>}
           <div className="livetv-details-actions">
             {Date.parse(selected.programme.start) <= now && Date.parse(selected.programme.end) > now && (
               <button className="button small" onClick={() => navigate(`/live/${selected.channel.id}`)}>
-                <Play /> Watch now
+                <icon.play /> {t('Watch now')}
               </button>
             )}
             <button className="button quiet small" onClick={() => setSelected(undefined)}>
-              Close
+              {t('Close')}
             </button>
           </div>
           {!limited && <RecordControls programme={selected.programme} channelId={selected.channel.id} now={now} onChanged={() => setVersion((v) => v + 1)} />}

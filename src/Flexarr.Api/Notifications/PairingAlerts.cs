@@ -1,6 +1,8 @@
 using Flexarr.Api.Authentication;
+using Flexarr.Api.Localization;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Media;
 using Flexarr.Core.Notifications;
 using Microsoft.EntityFrameworkCore;
@@ -65,16 +67,27 @@ public sealed partial class PairingAlerts(IServiceScopeFactory scopes, ILogger<P
             return 0;
         }
 
-        var message = Message(pairing);
-        return await scope.ServiceProvider.GetRequiredService<Notifier>().SendAsync(db, phones, message, $"pairing-{pairing.Code}", ct);
+        var languages = scope.ServiceProvider.GetRequiredService<ProfileLanguages>();
+        var notifier = scope.ServiceProvider.GetRequiredService<Notifier>();
+        var sent = 0;
+        foreach (var profile in phones.GroupBy(p => p.ProfileId))
+        {
+            using var language = Loc.Use(await languages.OfAsync(profile.Key, ct));
+            sent += await notifier.SendAsync(db, profile, Message(pairing), $"pairing-{pairing.Code}", ct);
+        }
+
+        return sent;
     }
 
+    /// <summary>In the current language (<see cref="Loc.Use"/>).</summary>
     public static PushMessage Message(PairingDetailsDto pairing)
     {
         ArgumentNullException.ThrowIfNull(pairing);
         var kind = Kind(pairing.DeviceType);
-        return new PushMessage($"{pairing.DeviceName} wants to connect",
-            $"{(kind is null ? "" : $"{kind} · ")}Allow it if its screen shows {pairing.Code}.", Category,
+        return new PushMessage(Loc.T("{device} wants to connect", new { device = pairing.DeviceName }),
+            kind is null
+                ? Loc.T("Allow it if its screen shows {code}.", new { code = pairing.Code })
+                : Loc.T("{kind} · Allow it if its screen shows {code}.", new { kind, code = pairing.Code }), Category,
             Thread: Category, Open: new Dictionary<string, string> { ["pairing"] = pairing.Code });
     }
 
@@ -84,8 +97,8 @@ public sealed partial class PairingAlerts(IServiceScopeFactory scopes, ILogger<P
         Authentication.DeviceType.AppleTv => "Apple TV",
         Authentication.DeviceType.IPhone => "iPhone",
         Authentication.DeviceType.IPad => "iPad",
-        Authentication.DeviceType.AndroidPhone => "Android phone",
-        Authentication.DeviceType.AndroidTablet => "Android tablet",
+        Authentication.DeviceType.AndroidPhone => Loc.T("Android phone"),
+        Authentication.DeviceType.AndroidTablet => Loc.T("Android tablet"),
         Authentication.DeviceType.AndroidTv => "Android TV",
         _ => null,
     };

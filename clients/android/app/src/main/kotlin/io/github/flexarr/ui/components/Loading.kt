@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.components
 
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.logging.FlexarrLog
 import androidx.compose.runtime.Composable
@@ -95,7 +96,7 @@ fun <T> rememberLoader(vararg keys: Any?, onRefreshFailed: ((Exception) -> Unit)
         } catch (e: Exception) {
             // The server out of reach is expected now and then (a home server, away from home): not worth a warning.
             if (e is FlexarrException.Unreachable) flexarrLog.info("Couldn't load", e) else flexarrLog.warning("Couldn't load", e)
-            if (!shown) state = Load.Failed(e.message ?: "Something went wrong.") else refreshFailed?.invoke(e)
+            if (!shown) state = Load.Failed(e.message ?: t("Something went wrong.")) else refreshFailed?.invoke(e)
         } finally {
             refreshing = false
         }

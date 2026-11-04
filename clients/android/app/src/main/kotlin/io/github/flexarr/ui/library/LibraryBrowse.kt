@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.library
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,7 +36,7 @@ internal fun LibraryBrowse(model: AppModel, loader: Loader<Home?>, state: LazyLi
     when (val load = loader.state) {
         is Load.Loaded -> {
             val browse = load.value ?: return StatusView()
-            if (!browse.hasBrowse()) return StatusView("Nothing in this library yet.", empty = true)
+            if (!browse.hasBrowse()) return StatusView(t("Nothing in this library yet."), empty = true)
             PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry, modifier = Modifier.fillMaxSize()) {
                 LazyColumn(Modifier.fillMaxSize(), state = state, contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
                     if (browse.featured.isNotEmpty()) item(key = "hero") { HomeHero(browse, onIndex = onFeatured) }

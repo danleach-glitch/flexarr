@@ -1,9 +1,9 @@
 ---
 title: Library health
-description: Find spare copies and the space they use, files that can't be read, standard-definition movies and wrong matches, and fix them with Sonarr and Radarr.
+description: Find spare copies and the space they use, files that can't be read, standard-definition movies, wrong matches and music problems, and fix them with Sonarr, Radarr and Lidarr.
 ---
 
-Library health is a check-up for your movies and TV. It shows what's wrong, how much space spare copies take, and a button to fix each problem, usually by asking Sonarr or Radarr to do the work.
+Library health is a check-up for your movies, TV and music. It shows what's wrong, how much space spare copies take, and a button to fix each problem, usually by asking Sonarr or Radarr to do the work.
 
 Open it in the web app from **Settings › Libraries › Library health**, as the main profile with settings unlocked. The **Overview** page in Settings links to it too.
 
@@ -11,7 +11,7 @@ Open it in the web app from **Settings › Libraries › Library health**, as th
 
 ## The health score
 
-At the top is a score out of 100: the share of your movies and episodes with nothing wrong. Next to it is a breakdown of what's affecting the rest, such as spare copies, unreadable files or missing artwork.
+At the top is a score out of 100: the share of your movies, episodes and albums with nothing wrong. Next to it is a breakdown of what's affecting the rest, such as spare copies, unreadable files or missing artwork.
 
 Groups with nothing in them are left out, and a line underneath says what's all clear ("every title has a single copy", "every movie has an HD copy").
 
@@ -55,6 +55,17 @@ Movies and shows that Sonarr and Radarr don't manage get their details by search
 
 Titles with no poster or details are listed under **Missing artwork**. Artwork comes from `.nfo` files and pictures beside the title, from Radarr and Sonarr, from TVmaze for shows, and from TMDB for movies if you've added a key. If Radarr and Sonarr aren't connected, connect them in **Settings › Connections** ([Connect Sonarr, Radarr, Lidarr and Seerr](connect-arrs.md)), or see [Without Sonarr and Radarr](without-arrs.md). Otherwise the title wasn't found: fix its match, or rename its folder to the form `Title (Year)` and rescan.
 
+## Music
+
+Music has four groups of its own:
+
+- **Albums without a cover**: no cover file beside the tracks, none in them, and none from Lidarr. **Fix match** on the row finds the album, and its cover with it.
+- **Albums twice**: the same release more than once, usually two folders of one album. **Merge** asks which to keep, then moves the others' tracks to it.
+- **Artists under two names**: one artist filed under different spellings, such as *Beyoncé* and *Beyonce*, usually because their files' tags differ. **Merge** makes them one artist with all their albums, and an album both spellings had becomes one album, unless both copies have the same tracks: those stay under **Duplicate albums**.
+- **Tracks twice**: an album with the same track more than once, usually two copies in one folder. Remove the spare in Lidarr or the Finder.
+
+Merging happens in Flexarr only: no files are moved or deleted, and nothing changes in Lidarr. New tracks under the merged name or in the merged folder land in the one you kept.
+
 ## Fix match
 
 **Fix match** puts right a movie or show that's been matched to the wrong title. It's on each row in Check these matches and Missing artwork, and in the **⋯** menu on any movie's or show's page (main profile only).
@@ -68,6 +79,19 @@ Flexarr keeps your choice through every later refresh. If the title wasn't in So
 > **Note** If Sonarr or Radarr already use that folder for a different title, Flexarr won't change it for you. Remove that title in Sonarr or Radarr (keeping its files), then fix the match again.
 
 To undo a fix, open Fix match again and choose **Match automatically again**.
+
+### Albums and artists
+
+Albums and artists have **Fix match…** in the **⋯** on their page too (main profile only). The results are what Lidarr has, when it's connected, then Deezer's, so a music library without Lidarr can be fixed as well. Once you pick one, choose its cover: the match's own, another result's, or **Keep this one**. Nothing is added to or followed in Lidarr, and refreshes keep your choice. **Match automatically again** hands the album back to its files' tags and Lidarr's own matching.
+
+## Edit details
+
+To change what a movie, show or album says without matching it to something else, choose **⋯ › Edit…** on its page (main profile only, on the web):
+
+- Movies and shows: title, **Sort as**, original title, year, description, genres, and studio or network.
+- Albums: title, year, type and genres.
+
+Edits are **Locked** so refreshes keep them, while artwork, ratings, cast and episodes still update. The editor says **Edited**, and **Back to automatic** hands the details back to Radarr, Sonarr, Lidarr or wherever they came from. Fixing the match to a different title replaces your edits with the new title's, and the dialog says so first. Age ratings aren't edited here: use **Allow for kids** and **Block for kids** (see [Profiles](profiles.md)).
 
 ## Deleting a title
 

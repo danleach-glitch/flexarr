@@ -17,7 +17,8 @@ import {
 } from '../api/client'
 import { AsyncButton, IconButton } from '../components/AsyncButton'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { ChevronDown, ChevronUp, Close, Grip, More, Pencil, Play, Trash } from '../components/icons'
+import { ChevronDown, ChevronUp, Close, Grip, More, Pencil, Play } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { Menu, type MenuPoint } from '../components/ItemMenu'
 import { PlaylistCard, PlaylistCover } from '../components/PlaylistCover'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
@@ -25,6 +26,7 @@ import { useApi } from '../hooks/useApi'
 import { formatClock, formatDuration } from '../lib/format'
 import { MoreButton, queueActions } from './MusicPages'
 import { shuffled } from '../lib/shuffle'
+import { t, Words } from '../i18n'
 
 /**
  * Every playlist of the profile's, most recently changed first, and a way to start another. Inside a music library it
@@ -53,21 +55,21 @@ export function PlaylistsPage({ heading }: { heading?: ReactNode }) {
 
   const empty = playlists.data?.length === 0
   const newPlaylist = creating ? (
-    <form className="field-row playlist-new" onSubmit={create} aria-label="New playlist">
+    <form className="field-row playlist-new" onSubmit={create} aria-label={t('New playlist')}>
       <label className="grow">
-        <span className="visually-hidden">Playlist name</span>
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder="Name your playlist" autoFocus />
+        <span className="visually-hidden">{t('Playlist name')}</span>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder={t('Name your playlist')} autoFocus />
       </label>
       <AsyncButton className="button" type="submit" disabled={!name.trim()} busy={saving}>
-        Create
+        {t('Create')}
       </AsyncButton>
       <button className="button quiet" type="button" onClick={() => setCreating(false)}>
-        Cancel
+        {t(Words.cancel)}
       </button>
     </form>
   ) : (
     <button className="button" onClick={() => setCreating(true)}>
-      New playlist
+      {t('New playlist')}
     </button>
   )
 
@@ -76,8 +78,8 @@ export function PlaylistsPage({ heading }: { heading?: ReactNode }) {
       <header className="library-header">
         {heading ?? (
           <div>
-            <h1>Playlists</h1>
-            <p className="muted">Your own mixes. Add tracks, albums or whole artists from their ⋯ menu.</p>
+            <h1>{t('Playlists')}</h1>
+            <p className="muted">{t('Your own mixes. Add tracks, albums or whole artists from their ⋯ menu.')}</p>
           </div>
         )}
         {/* With none yet, the button waits in the middle of the page instead. */}
@@ -91,7 +93,7 @@ export function PlaylistsPage({ heading }: { heading?: ReactNode }) {
       {playlists.error && <p className="error">{playlists.error.message}</p>}
       {empty ? (
         <div className="playlists-empty">
-          <p className="muted">No playlists yet. Make one, or add a track to a new one from its ⋯ menu.</p>
+          <p className="muted">{t('No playlists yet. Make one, or add a track to a new one from its ⋯ menu.')}</p>
           {newPlaylist}
         </div>
       ) : (
@@ -132,7 +134,7 @@ export function PlaylistPage() {
     setVersion((v) => v + 1)
   }
 
-  if (error) return <PageError error={error} message={error.message.includes('404') ? 'That playlist isn’t here any more.' : undefined} onRetry={reload} />
+  if (error) return <PageError error={error} message={error.message.includes('404') ? t('That playlist isn’t here any more.') : undefined} onRetry={reload} />
   if (!data) return <PageLoading />
 
   const summary = data.summary
@@ -212,11 +214,11 @@ export function PlaylistPage() {
     const entry = entries[index]
     const track = entry.track
     return [
-      { label: 'Play', run: () => player.play(tracks, index) },
+      { label: t(Words.play), run: () => player.play(tracks, index) },
       ...queueActions(player, () => [track], track),
       'divider' as const,
-      ...(track.parentId ? [{ label: 'Use its cover for the playlist', run: () => act(() => setPlaylistCover(summary.id, track.parentId)) }] : []),
-      { label: 'Remove from playlist', run: () => remove(entry), danger: true },
+      ...(track.parentId ? [{ label: t('Use its cover for the playlist'), run: () => act(() => setPlaylistCover(summary.id, track.parentId)) }] : []),
+      { label: t('Remove from playlist'), run: () => remove(entry), danger: true },
     ]
   }
 
@@ -231,37 +233,37 @@ export function PlaylistPage() {
         </div>
         <div className="music-header-text">
           <p className="detail-kicker">
-            <Link to="/playlists">Playlists</Link>
+            <Link to="/playlists">{t('Playlists')}</Link>
           </p>
           {renaming ? (
-            <form className="field-row playlist-rename" onSubmit={rename} aria-label="Rename playlist">
+            <form className="field-row playlist-rename" onSubmit={rename} aria-label={t('Rename playlist')}>
               <label className="grow">
-                <span className="visually-hidden">Playlist name</span>
+                <span className="visually-hidden">{t('Playlist name')}</span>
                 <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoFocus />
               </label>
               <AsyncButton className="button" type="submit" disabled={!name.trim()} busy={saving}>
-                Save
+                {t('Save')}
               </AsyncButton>
               <button className="button quiet" type="button" onClick={() => setRenaming(false)}>
-                Cancel
+                {t(Words.cancel)}
               </button>
             </form>
           ) : (
             <h1>{summary.name}</h1>
           )}
           <p className="facts">
-            <span>{tracks.length === 1 ? '1 track' : `${tracks.length} tracks`}</span>
+            <span>{t('{count, plural, one {# track} other {# tracks}}', { count: tracks.length })}</span>
             {total > 0 && <span>{formatDuration(total)}</span>}
           </p>
           <div className="detail-actions">
             <button className="button" onClick={() => player.play(tracks, 0, { openNowPlaying: true })} disabled={tracks.length === 0}>
-              <Play /> Play
+              <icon.play /> {t(Words.play)}
             </button>
             <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0, { openNowPlaying: true })} disabled={tracks.length < 2}>
-              Shuffle
+              {t(Words.shuffle)}
             </button>
             <IconButton
-              label="Rename"
+              label={t('Rename')}
               icon={<Pencil />}
               className="button quiet icon"
               onClick={() => {
@@ -269,10 +271,10 @@ export function PlaylistPage() {
                 setRenaming(true)
               }}
             />
-            <IconButton label="Delete" icon={<Trash />} className="button quiet icon danger-icon" onClick={() => setDeleting(true)} />
+            <IconButton label={t(Words.delete)} icon={<icon.delete />} className="button quiet icon danger-icon" onClick={() => setDeleting(true)} />
             <MoreButton
-              label={`More for ${summary.name}`}
-              actions={[...queueActions(player, () => tracks), ...(summary.cover ? [{ label: 'Back to the mosaic cover', run: () => act(() => setPlaylistCover(summary.id, null)) }] : [])]}
+              label={t('More for {title}', { title: summary.name })}
+              actions={[...queueActions(player, () => tracks), ...(summary.cover ? [{ label: t('Back to the mosaic cover'), run: () => act(() => setPlaylistCover(summary.id, null)) }] : [])]}
               disabled={tracks.length === 0}
             />
           </div>
@@ -285,9 +287,9 @@ export function PlaylistPage() {
       </header>
 
       {entries.length === 0 ? (
-        <p className="muted collection-empty">Nothing in it yet. Add tracks, albums or artists from their ⋯ menu: Add to playlist.</p>
+        <p className="muted collection-empty">{t('Nothing in it yet. Add tracks, albums or artists from their ⋯ menu: Add to playlist.')}</p>
       ) : (
-        <ol className="tracklist playlist-tracks" aria-label={`Tracks in ${summary.name}`}>
+        <ol className="tracklist playlist-tracks" aria-label={t('Tracks in {name}', { name: summary.name })}>
           {entries.map(({ entryId, track }, i) => {
             const isCurrent = player.current?.id === track.id
             return (
@@ -318,18 +320,18 @@ export function PlaylistPage() {
                   <span className="track-time">{track.durationSeconds ? formatClock(track.durationSeconds) : ''}</span>
                 </button>
                 <span className="queue-actions">
-                  <button className="icon-button" aria-label={`Move ${track.title} up`} disabled={i === 0} onClick={() => move(i, i - 1)}>
+                  <button className="icon-button" aria-label={t('Move {title} up', { title: track.title })} disabled={i === 0} onClick={() => move(i, i - 1)}>
                     <ChevronUp />
                   </button>
-                  <button className="icon-button" aria-label={`Move ${track.title} down`} disabled={i === entries.length - 1} onClick={() => move(i, i + 1)}>
+                  <button className="icon-button" aria-label={t('Move {title} down', { title: track.title })} disabled={i === entries.length - 1} onClick={() => move(i, i + 1)}>
                     <ChevronDown />
                   </button>
-                  <button className="icon-button" aria-label={`Remove ${track.title} from the playlist`} onClick={() => remove(entries[i])}>
+                  <button className="icon-button" aria-label={t('Remove {title} from the playlist', { title: track.title })} onClick={() => remove(entries[i])}>
                     <Close />
                   </button>
                   <button
                     className="icon-button"
-                    aria-label={`More for ${track.title}`}
+                    aria-label={t('More for {title}', { title: track.title })}
                     aria-haspopup="menu"
                     aria-expanded={trackMenu?.index === i}
                     onClick={(e) => {
@@ -347,12 +349,12 @@ export function PlaylistPage() {
       )}
 
       {trackMenu && entries[trackMenu.index] && (
-        <Menu label={`More for ${entries[trackMenu.index].track.title}`} at={trackMenu.at} actions={menuFor(trackMenu.index)} onClose={() => setTrackMenu(null)} />
+        <Menu label={t('More for {title}', { title: entries[trackMenu.index].track.title })} at={trackMenu.at} actions={menuFor(trackMenu.index)} onClose={() => setTrackMenu(null)} />
       )}
       {deleting && (
         <ConfirmDialog
-          title={`Delete ${summary.name}?`}
-          confirmLabel="Delete playlist"
+          title={t('Delete {name}?', { name: summary.name })}
+          confirmLabel={t('Delete playlist')}
           danger
           onClose={() => setDeleting(false)}
           onConfirm={async () => {
@@ -365,7 +367,7 @@ export function PlaylistPage() {
             }
           }}
         >
-          <p>The tracks stay in your library.</p>
+          <p>{t('The tracks stay in your library.')}</p>
         </ConfirmDialog>
       )}
     </article>

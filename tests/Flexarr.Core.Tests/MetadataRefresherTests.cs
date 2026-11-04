@@ -108,6 +108,31 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RadarrDown_LeavesItsFilmsLinked_AndDue()
+    {
+        await AddMovieAsync("Dune", DateTime.UtcNow.AddDays(-30), poster: "https://image.test/dune.jpg", arrId: 7);
+        _radarr.Unreachable.Add("/api/v3/movie");
+
+        var result = await Refresher().RefreshLibraryAsync(_library, force: false, default);
+
+        var dune = await _db.MediaItems.AsNoTracking().SingleAsync();
+        Assert.Equal(new MetadataRefreshResult(0, 0, 0), result);
+        Assert.Equal((7, "Radarr"), (dune.ArrId!.Value, dune.MetadataSource!));
+        Assert.True(dune.MetadataUpdatedAt < DateTime.UtcNow.AddDays(-29)); // still due next time
+    }
+
+    [Fact]
+    public async Task RadarrAnsweringWithoutTheFilm_StillRefreshesIt()
+    {
+        await AddMovieAsync("Dune", DateTime.UtcNow.AddDays(-30), poster: "https://image.test/dune.jpg", arrId: 7);
+
+        await Refresher().RefreshLibraryAsync(_library, force: false, default); // Radarr answered: it has nothing
+
+        var dune = await _db.MediaItems.AsNoTracking().SingleAsync();
+        Assert.True(dune.MetadataUpdatedAt > DateTime.UtcNow.AddMinutes(-1));
+    }
+
+    [Fact]
     public async Task ArtworkDroppedMidDownload_DoesNotEndTheRefresh()
     {
         await AddMovieAsync("Dune", null, poster: null);
@@ -268,6 +293,23 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task OneSlowSeerrAnswer_DoesntStopTheNextTitlesScores()
+    {
+        await AddMovieAsync("Dune", null, poster: null, arrId: 7, tmdbId: "438631");
+        await AddMovieAsync("Heat", null, poster: null, arrId: 9, tmdbId: "949");
+        _radarr.Responses["/api/v3/movie"] = TwoFilms;
+        _radarr.Slow.Add("/api/v1/movie/438631/ratingscombined");
+        _radarr.Responses["/api/v1/movie/949/ratingscombined"] = """{"rt":{"criticsRating":"Certified Fresh","criticsScore":88}}""";
+
+        await Refresher(seerr: true).RefreshLibraryAsync(_library, force: true, default);
+
+        var items = await _db.MediaItems.AsNoTracking().ToDictionaryAsync(i => i.Title);
+        Assert.Equal(83, items["Dune"].CriticRating);
+        Assert.Null(items["Dune"].ScoresCheckedAt);
+        Assert.Equal((88, true), (items["Heat"].CriticRating, items["Heat"].CriticCertified));
+    }
+
+    [Fact]
     public async Task SeerrsScores_AreKeptForAMonth()
     {
         await AddMovieAsync("Dune", null, poster: null, arrId: 7, tmdbId: "438631");
@@ -282,7 +324,14 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
 
         Assert.Single(_radarr.Paths, p => p.StartsWith("/api/v1/", StringComparison.Ordinal));
         var dune = await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Title == "Dune");
-        Assert.Equal((83, true), (dune.CriticRating, dune.CriticCertified)); // Radarr's score, Seerr's certificate
+        Assert.Equal((84, true), (dune.CriticRating, dune.CriticCertified)); // Seerr's, not Radarr's differing 83
+
+        // Radarr losing its score meanwhile doesn't take Seerr's away either.
+        _radarr.Responses["/api/v3/movie"] = """[{"id":7,"title":"Dune","year":2021,"tmdbId":438631,"path":"/movies/Dune","ratings":{"imdb":{"value":8.0}}}]""";
+        await refresher.RefreshLibraryAsync(_library, force: true, default);
+
+        dune = await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Title == "Dune");
+        Assert.Equal((84, true, 8.0), (dune.CriticRating, dune.CriticCertified, dune.ImdbRating)); // and Radarr fills what Seerr didn't give
     }
 
     [Fact]
@@ -358,6 +407,9 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
         /// <summary>Paths that answer 500.</summary>
         public HashSet<string> Fail { get; } = [];
 
+        /// <summary>Paths that answer only when the caller has given up.</summary>
+        public HashSet<string> Slow { get; } = [];
+
         /// <summary>Paths whose host can't be reached.</summary>
         public HashSet<string> Unreachable { get; } = [];
 
@@ -380,6 +432,11 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new DroppingStream()) });
             }
 
+            if (Slow.Contains(request.RequestUri!.PathAndQuery))
+            {
+                return NeverAsync(cancellationToken);
+            }
+
             if (Unreachable.Contains(request.RequestUri!.PathAndQuery))
             {
                 throw new HttpRequestException("Connection refused (seerr.test:443)");
@@ -392,6 +449,12 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
 
             var body = Responses.GetValueOrDefault(request.RequestUri!.PathAndQuery, "[]");
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") });
+        }
+
+        private static async Task<HttpResponseMessage> NeverAsync(CancellationToken ct)
+        {
+            await Task.Delay(Timeout.Infinite, ct);
+            throw new InvalidOperationException("unreachable");
         }
     }
 

@@ -6,9 +6,13 @@ import { deviceTypeName } from '../lib/deviceTypes'
 import { askedFrom, pairingError } from '../lib/pairing'
 import { AsyncButton } from './AsyncButton'
 import { DeviceTypeIcon } from './DeviceTypeIcon'
+import { t } from '../i18n'
 
 /** "Apple TV · from your home network (192.168.1.70)", or just where from when it hasn't said what it is. */
-const where = (details: PairingDetails) => [deviceTypeName(details.deviceType), askedFrom(details)].filter(Boolean).join(', ')
+const where = (details: PairingDetails) => {
+  const type = deviceTypeName(details.deviceType)
+  return type ? t('{type}, {where}', { type, where: askedFrom(details) }) : askedFrom(details)
+}
 
 /**
  * Every device showing a code right now, to allow without typing the code (main profile only, and not from servers
@@ -23,13 +27,13 @@ export function WaitingPairings() {
   if (!available || !loaded) return null
   return (
     <div className="panel waiting-pairings">
-      <h2>Waiting to connect</h2>
+      <h2>{t('Waiting to connect')}</h2>
       {list.length === 0 ? (
-        <p className="muted">No devices are waiting. When one asks to connect, it shows here.</p>
+        <p className="muted">{t('No devices are waiting. When one asks to connect, it shows here.')}</p>
       ) : (
         <ul className="plain-list sign-in-list">
           {list.map((details) => (
-            <Row key={details.code} details={details} onAllowed={() => setDone(`“${details.deviceName}” is connected. It signs in within a couple of seconds.`)} />
+            <Row key={details.code} details={details} onAllowed={() => setDone(t('“{name}” is connected. It signs in within a couple of seconds.', { name: details.deviceName }))} />
           ))}
         </ul>
       )}
@@ -82,8 +86,8 @@ function Row({ details, onAllowed }: { details: PairingDetails; onAllowed: () =>
           <strong className="pairing-code">{details.code}</strong>
         </span>
         <span className="muted sign-in-meta">{where(details)}</span>
-        {details.turnedAway && <span className="muted sign-in-meta">You turned this away. Allow it if it’s yours.</span>}
-        {details.zone !== 'Local' && <span className="sign-in-meta">Not from your home network: only allow it if you started this just now.</span>}
+        {details.turnedAway && <span className="muted sign-in-meta">{t('You turned this away. Allow it if it’s yours.')}</span>}
+        {details.zone !== 'Local' && <span className="sign-in-meta">{t('Not from your home network: only allow it if you started this just now.')}</span>}
         {error && (
           <span className="error" role="alert">
             {error}
@@ -96,18 +100,18 @@ function Row({ details, onAllowed }: { details: PairingDetails; onAllowed: () =>
           busy={state === 'declining'}
           disabled={state === 'approving'}
           onClick={() => decline()}
-          aria-label={`Don’t allow ${details.deviceName}`}
+          aria-label={t('Don’t allow {name}', { name: details.deviceName })}
         >
-          Don’t allow
+          {t('Don’t allow')}
         </AsyncButton>
         <AsyncButton
           className="button small"
           busy={state === 'approving'}
           disabled={state === 'declining'}
           onClick={() => allow()}
-          aria-label={`Allow ${details.deviceName}`}
+          aria-label={t('Allow {name}', { name: details.deviceName })}
         >
-          Allow
+          {t('Allow')}
         </AsyncButton>
       </span>
     </li>

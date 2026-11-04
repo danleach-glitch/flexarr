@@ -5,6 +5,7 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -103,12 +104,14 @@ public static class ItemEndpoints
         }).WithTags("Items");
 
         // A music library's genres by album, for its Genres view: an album's own, or its artist's when it has none. The
-        // backdrop is an artist's fanart.
+        // backdrop is an artist's fanart; a genre none of whose artists has any gets up to three album covers instead.
         api.MapGet("/libraries/{id:guid}/album-genres", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
         {
             // Worked out here rather than in SQL, which can't count across both sides; a library has a few thousand albums at most.
             var albums = await db.MediaItems.Where(a => a.LibraryId == id && a.Kind == MediaKind.Album)
-                .Select(a => new { a.ParentId, Genres = a.Genres.Select(g => g.Name).ToList() }).ToListAsync(ct);
+                .OrderByDescending(a => a.AddedAt)
+                .Select(a => new { a.Id, a.ParentId, Cover = a.PosterUrl != null, a.MetadataUpdatedAt, a.ArtworkChangedAt, Genres = a.Genres.Select(g => g.Name).ToList() })
+                .ToListAsync(ct);
             var artists = await db.MediaItems.Where(a => a.LibraryId == id && a.Kind == MediaKind.Artist && !a.Placeholder)
                 .OrderByDescending(a => a.CommunityRating ?? 0).ThenBy(a => a.SortTitle)
                 .Select(a => new { a.Id, Fanart = a.BackdropUrl != null, a.MetadataUpdatedAt, a.ArtworkChangedAt, Genres = a.Genres.Select(g => g.Name).ToList() })
@@ -119,6 +122,8 @@ public static class ItemEndpoints
             // genre), for its picture.
             var counts = new Dictionary<string, int>();
             var artistsOf = new Dictionary<string, HashSet<Guid>>();
+            // Each genre's album covers, newest first (the albums come newest first), for one without fanart.
+            var coversOf = new Dictionary<string, List<string>>();
             void Note(string genre, Guid? artist)
             {
                 if (artist is { } a)
@@ -141,6 +146,18 @@ public static class ItemEndpoints
                 {
                     counts[genre] = counts.GetValueOrDefault(genre) + 1;
                     Note(genre, album.ParentId);
+                    if (album.Cover)
+                    {
+                        if (!coversOf.TryGetValue(genre, out var covers))
+                        {
+                            coversOf[genre] = covers = [];
+                        }
+
+                        if (covers.Count < 3)
+                        {
+                            covers.Add(ArtworkUrls.For(album.Id, ArtworkUrls.Version(album.MetadataUpdatedAt, album.ArtworkChangedAt), true, false, false, false).Poster!);
+                        }
+                    }
                 }
             }
 
@@ -161,8 +178,10 @@ public static class ItemEndpoints
                     var theirs = artistsOf.GetValueOrDefault(g.Key) ?? [];
                     var candidates = withFanart.Where(a => theirs.Contains(a.Id)).ToList();
                     var cover = candidates.FirstOrDefault(c => used.Add(c.Id)) ?? candidates.FirstOrDefault();
-                    return new LibraryGenreDto(g.Key, g.Value,
-                        cover is null ? null : ArtworkUrls.For(cover.Id, ArtworkUrls.Version(cover.MetadataUpdatedAt, cover.ArtworkChangedAt), false, true, false, false).Backdrop);
+                    return cover is null
+                        ? new LibraryGenreDto(g.Key, g.Value, null, coversOf.GetValueOrDefault(g.Key) ?? [])
+                        : new LibraryGenreDto(g.Key, g.Value,
+                            ArtworkUrls.For(cover.Id, ArtworkUrls.Version(cover.MetadataUpdatedAt, cover.ArtworkChangedAt), false, true, false, false).Backdrop);
                 }).ToList();
         }).WithTags("Items");
 
@@ -247,7 +266,7 @@ public static class ItemEndpoints
         {
             if (!Enum.IsDefined(request.Override))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["override"] = ["Choose none, allow or block."] });
+                return Problems.Field("Choose none, allow or block.", field: "override");
             }
 
             if (await db.MediaItems.IgnoreQueryFilters().FirstOrDefaultAsync(i => i.Id == id && i.MissingSince == null, ct) is not { } item)
@@ -257,7 +276,7 @@ public static class ItemEndpoints
 
             if (item.ParentId is not null)
             {
-                return Results.Problem("Allow or block the whole title: its seasons and episodes follow it.", statusCode: 409);
+                return Problems.Of("Allow or block the whole title: its seasons and episodes follow it.", status: 409);
             }
 
             item.KidsOverride = request.Override;
@@ -328,7 +347,8 @@ public static class ItemEndpoints
             ancestors, children, credits, files.Select(ToDto).ToList(), childOverviews, entity.MatchLocked,
             CanSearchSubtitles: bazarr && entity.Kind is (MediaKind.Movie or MediaKind.Episode) && entity.ArrId is not null && files.Count > 0,
             RatingAge: entity.RatingAge, KidsOverride: profile.IsMainProfile ? entity.KidsOverride : null,
-            Book: entity.Kind == MediaKind.Audiobook ? await Books.BookQueries.DetailAsync(db, entity, profile.Id, ct) : null);
+            Book: entity.Kind == MediaKind.Audiobook ? await Books.BookQueries.DetailAsync(db, entity, profile.Id, ct) : null,
+            DetailsLocked: entity.DetailsLocked, SortTitle: entity.SortTitle, ArtworkLocked: entity.ArtworkLocked);
     }
 
     private static FileDto ToDto(MediaFile f) => new(

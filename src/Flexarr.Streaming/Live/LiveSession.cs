@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using Flexarr.Core.Localization;
 using Microsoft.Extensions.Logging;
 
 namespace Flexarr.Streaming.Live;
@@ -94,7 +95,10 @@ public sealed partial class LiveSession : IAsyncDisposable
         process.Exited += (_, _) => OnExited(process, startedAt);
         process.BeginErrorReadLine();
         _process = process;
-        LogStarted(ChannelKey, Plan.Describe(), resume);
+        using (Loc.Use(null))
+        {
+            LogStarted(ChannelKey, Plan.Describe(), resume); // the log stays English
+        }
     }
 
     private void OnExited(Process process, DateTime startedAt)
@@ -170,7 +174,7 @@ public sealed partial class LiveSession : IAsyncDisposable
         {
             if (Failed)
             {
-                throw _lastError is { } failure ? LiveStreamException.FromError(failure) : new LiveStreamException("The channel couldn't be played.");
+                throw _lastError is { } failure ? LiveStreamException.FromError(failure) : new LiveStreamException(Loc.T("The channel couldn't be played."));
             }
 
             if (ReadPlaylist() is { } playlist && SegmentCount(playlist) >= segments)
@@ -181,7 +185,7 @@ public sealed partial class LiveSession : IAsyncDisposable
             await Task.Delay(250, ct).ConfigureAwait(false);
         }
 
-        throw _lastError is { } error ? LiveStreamException.FromError(error) : new LiveStreamException("The channel didn't start sending in time.");
+        throw _lastError is { } error ? LiveStreamException.FromError(error) : new LiveStreamException(Loc.T("The channel didn't start sending in time."));
     }
 
     /// <summary>ffmpeg's playlist as it stands; it writes a new one beside it and renames, so a read never sees half.</summary>

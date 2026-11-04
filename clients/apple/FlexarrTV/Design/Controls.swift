@@ -117,6 +117,10 @@ struct ArtworkButton<Artwork: View, Caption: View>: View {
     var focusID: String?
     /// What VoiceOver reads for the button, where its artwork has no words of its own (a mosaic of covers).
     var accessibilityText: String?
+    /// What pressing it does, for VoiceOver, where the label doesn't say.
+    var accessibilityHint: String?
+    /// Shown on (a request made): VoiceOver says selected.
+    var isSelected = false
     let action: () -> Void
     @ViewBuilder var artwork: () -> Artwork
     @ViewBuilder var caption: (_ focused: Bool) -> Caption
@@ -132,6 +136,8 @@ struct ArtworkButton<Artwork: View, Caption: View>: View {
             .focused($focused)
             .modifier(SharedFocus(binding: focus, id: focusID))
             .modifier(OptionalAccessibilityLabel(text: accessibilityText))
+            .accessibilityHint(accessibilityHint ?? "")
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
             .background {
                 RoundedRectangle(cornerRadius: Radius.art)
                     .fill(ambient)
@@ -270,7 +276,7 @@ struct ReadMoreText: View {
         }
         .buttonStyle(TextCardStyle(ambient: ambient))
         .padding(.horizontal, -30)
-        .accessibilityHint("Shows all of it")
+        .accessibilityHint(t("Shows all of it"))
         .fullScreenCover(isPresented: $reading) { FullTextView(title: title, text: text) }
     }
 }

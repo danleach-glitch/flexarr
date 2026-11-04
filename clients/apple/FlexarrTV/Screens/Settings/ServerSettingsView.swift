@@ -10,36 +10,36 @@ struct ServerSettingsView: View {
     @State private var confirmLeave = false
 
     var body: some View {
-        SettingsPage(title: "Server", summary: summary) {
-            SettingsGroupLabel("Connection")
+        SettingsPage(title: t("Server"), summary: summary) {
+            SettingsGroupLabel(t("Connection"))
             if let guest = model.credentials?.guest {
                 // A family guest: no address to show, just whose server, and a way to leave it.
-                SettingsFact("Connected by invite", "\(guest.ownerName)’s Flexarr")
-                SettingsRow(title: "Leave", symbol: "rectangle.portrait.and.arrow.right",
-                            help: "Stop watching \(guest.ownerName)’s Flexarr here. Joining again takes a new code.") {
+                SettingsFact(t("Connected by invite"), t("{owner}’s Flexarr", ["owner": guest.ownerName]))
+                SettingsRow(title: t("Leave"), symbol: "rectangle.portrait.and.arrow.right",
+                            help: t("Stop watching {owner}’s Flexarr here. Joining again takes a new code.", ["owner": guest.ownerName])) {
                     confirmLeave = true
                 }
                 .leaveGuestConfirmation(isPresented: $confirmLeave, owner: guest.ownerName) { model.signOut() }
             } else {
-            SettingsFact("Address", address(model.credentials?.address))
+            SettingsFact(t("Address"), address(model.credentials?.address))
             }
             if let remote = model.credentials?.remoteAddress {
-                SettingsFact("Away from home", address(remote))
-                SettingsFact("Connected", model.client?.addresses.isAway == true ? "Away, over Tailscale" : "At home")
+                SettingsFact(t("Away from home"), address(remote))
+                SettingsFact(t("Connected"), model.client?.addresses.isAway == true ? t("Away, over Tailscale") : t("At home"))
             }
 
-            SettingsGroupLabel("Server")
+            SettingsGroupLabel(t("Server"))
             if let status {
-                SettingsFact("Version", ServerVersion.short(status.version))
-                SettingsFact("Running on", status.osDescription)
-                SettingsFact("Up since", status.startTime.formatted(date: .abbreviated, time: .shortened))
+                SettingsFact(t("Version"), ServerVersion.short(status.version))
+                SettingsFact(t("Running on"), status.osDescription)
+                SettingsFact(t("Up since"), status.startTime.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: Localization.locale)))
             } else {
-                SettingsFact("Status", error ?? "Checking")
+                SettingsFact(t("Status"), error ?? t("Checking"))
             }
-            SettingsFact("Libraries", model.libraries.map(\.name).joined(separator: ", "))
+            SettingsFact(t(Words.libraries), model.libraries.map(\.name).joined(separator: ", "))
 
-            SettingsGroupLabel("Error reports")
-            SettingsFact("Error reports", errorReportsOn ? "On" : "Off")
+            SettingsGroupLabel(t("Error reports"))
+            SettingsFact(t("Error reports"), errorReportsOn ? t("On") : t("Off"))
             Text(ErrorReports.privacyNote)
                 .font(.system(size: 24))
                 .foregroundStyle(Color.usher)
@@ -47,15 +47,15 @@ struct ServerSettingsView: View {
                 .padding(.horizontal, 32)
 
             // The only control here, so focus has somewhere to land; it also tells whether the server's still up.
-            SettingsRow(title: checking ? "Checking…" : "Check again", symbol: "arrow.clockwise",
-                        help: "Ask the server how it is now.") {
+            SettingsRow(title: checking ? t("Checking…") : t("Check again"), symbol: "arrow.clockwise",
+                        help: t("Ask the server how it is now.")) {
                 Task { await load() }
             }
             .disabled(checking)
             .padding(.top, 30)
 
-            SettingsLinkRow(title: "Send diagnostics", symbol: "stethoscope",
-                            help: "Send this Apple TV's recent log to your server, to look into a problem.") {
+            SettingsLinkRow(title: t("Send diagnostics"), symbol: "stethoscope",
+                            help: t("Send this Apple TV's recent log to your server, to look into a problem.")) {
                 DiagnosticsSettingsView()
             }
         }
@@ -69,8 +69,8 @@ struct ServerSettingsView: View {
 
     private var summary: String {
         model.credentials?.remoteAddress == nil
-            ? "To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This Apple TV picks the address up by itself."
-            : "Away from home, this Apple TV reaches the server over Tailscale, which needs to be connected on it."
+            ? t("To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This Apple TV picks the address up by itself.")
+            : t("Away from home, this Apple TV reaches the server over Tailscale, which needs to be connected on it.")
     }
 
     /// Without its scheme, which says nothing here.

@@ -18,13 +18,15 @@ import { ScanProgress } from '../../components/ScanProgress'
 import { useLibraries } from '../../hooks/librariesContext'
 import { useSession } from '../../hooks/sessionContext'
 import { AsyncButton, IconButton } from '../../components/AsyncButton'
-import { Film, Pencil, Picture, Refresh, Trash } from '../../components/icons'
+import { Film, Pencil, Picture, Refresh } from '../../components/icons'
+import { icon } from '../../components/icons.generated'
 import { libraryIcons } from '../../components/libraryIcons'
 import { useApi } from '../../hooks/useApi'
 import { libraryTypeLabel, relativeTime } from '../../lib/format'
 import { BookDetailsGroup } from './BookDetailsGroup'
 import { SaveStatus, SettingLink, SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { errorText } from './useSettings'
+import { t, Words } from '../../i18n'
 
 export function LibrariesSection() {
   // The nav's list (which polls during scans) leaves out libraries hidden from this profile; Settings shows them all.
@@ -51,16 +53,16 @@ export function LibrariesSection() {
   return (
     <section>
       <SettingsHeader
-        title="Libraries"
+        title={t(Words.libraries)}
         action={
           !adding && (
             <button className="button small" onClick={() => setAdding(true)}>
-              Add library
+              {t('Add library')}
             </button>
           )
         }
       >
-        Folders of one kind of media. Rescanned every 12 hours, and whenever Sonarr, Radarr or Lidarr imports something.
+        {t('Folders of one kind of media. Rescanned every 12 hours, and whenever Sonarr, Radarr or Lidarr imports something.')}
       </SettingsHeader>
       {adding && (
         <AddLibraryForm
@@ -77,7 +79,7 @@ export function LibrariesSection() {
           {managed.map((library) => (
             <LibraryRow key={library.id} library={library} onChange={reload} />
           ))}
-          {managed.length === 0 && <p className="muted">No libraries yet. Add one to start.</p>}
+          {managed.length === 0 && <p className="muted">{t('No libraries yet. Add one to start.')}</p>}
         </div>
       )}
       {podcasts && <PodcastLibrary library={podcasts} onMoved={() => all.reload()} />}
@@ -92,19 +94,19 @@ function LibraryTools() {
   const health = useApi(getLibraryHealth, [])
   const score = health.data?.score
   return (
-    <SettingsGroup title="Tools">
+    <SettingsGroup title={t('Tools')}>
       <SettingLink
         to="/settings/health"
-        label="Library health"
+        label={t('Library health')}
         help={
           score
             ? score.withProblems === 0
-              ? `Score ${score.score}. Every movie and episode is in good shape.`
-              : `Score ${score.score}. ${score.withProblems.toLocaleString()} ${score.withProblems === 1 ? 'title needs' : 'titles need'} a look.`
-            : 'Spare copies, unreadable files, movies only in SD and wrong matches.'
+              ? t('Score {score}. Every movie and episode is in good shape.', { score: score.score })
+              : t('Score {score}. {count, plural, one {# title needs} other {# titles need}} a look.', { score: score.score, count: score.withProblems })
+            : t('Spare copies, unreadable files, movies only in SD and wrong matches.')
         }
       />
-      <SettingLink to="/settings/import" label="Bring over from Plex" help="Watch history, where you stopped, and profile pictures." />
+      <SettingLink to="/settings/import" label={t('Bring over from Plex')} help={t('Watch history, where you stopped, and profile pictures.')} />
     </SettingsGroup>
   )
 }
@@ -140,26 +142,26 @@ function PodcastLibrary({ library, onMoved }: { library: Library; onMoved: () =>
   }
 
   return (
-    <SettingsGroup title="Podcasts" note={error ? <SaveStatus error={error} /> : 'Built in, for everyone. Who follows what is up to each profile.'}>
-      <SettingRow as="div" label="Episodes folder" help={<code className="folder">{library.folders[0]}</code>}>
+    <SettingsGroup title={t(Words.podcasts)} note={error ? <SaveStatus error={error} /> : t('Built in, for everyone. Who follows what is up to each profile.')}>
+      <SettingRow as="div" label={t('Episodes folder')} help={<code className="folder">{library.folders[0]}</code>}>
         {!choosing && (
           <button className="button quiet small" onClick={() => setChoosing(true)}>
-            Change
+            {t('Change')}
           </button>
         )}
       </SettingRow>
       {choosing && (
         <div className="podcast-folder-picker">
-          <p className="muted">Episodes wait here on their way to phones, and each is deleted once the phone has it.</p>
+          <p className="muted">{t('Episodes wait here on their way to phones, and each is deleted once the phone has it.')}</p>
           <FolderPicker onPick={(path) => void move(path)} />
           <button type="button" className="text-button" onClick={() => setChoosing(false)}>
-            Cancel
+            {t(Words.cancel)}
           </button>
         </div>
       )}
-      <SettingRow label="Charts and search" help="Whose Apple Podcasts charts and directory Browse shows.">
+      <SettingRow label={t('Charts and search')} help={t('Whose Apple Podcasts charts and directory Browse shows.')}>
         <select value={chosen} onChange={(e) => void chooseCountry(e.target.value)} disabled={!settings.data || !countries.data}>
-          <option value="">{`This server’s region${!chosen && regionName ? ` (${regionName})` : ''}`}</option>
+          <option value="">{!chosen && regionName ? t('This server’s region ({region})', { region: regionName }) : t('This server’s region')}</option>
           {countries.data?.map((c) => (
             <option key={c.code} value={c.code}>
               {c.name}
@@ -189,7 +191,7 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
   }
 
   async function remove() {
-    if (!confirm(`Remove “${library.name}” from Flexarr? The files themselves stay where they are.`)) return
+    if (!confirm(t('Remove “{name}” from Flexarr? The files themselves stay where they are.', { name: library.name }))) return
     await deleteLibrary(library.id)
     onChange()
   }
@@ -216,8 +218,12 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
           </h3>
         )}
         <p className="muted">
-          {libraryTypeLabel[library.type]}{'\u2003'}{library.itemCount.toLocaleString()} {library.type === 'Audiobooks' ? (library.itemCount === 1 ? 'book' : 'books') : library.itemCount === 1 ? 'title' : 'titles'}{'\u2003'}
-          {scanning ? <span className="now-scanning">Now scanning…</span> : `scanned ${relativeTime(library.lastScannedAt)}`}
+          {libraryTypeLabel[library.type]}{'\u2003'}
+          {library.type === 'Audiobooks'
+            ? t('{count, plural, one {# book} other {# books}}', { count: library.itemCount })
+            : t('{count, plural, one {# title} other {# titles}}', { count: library.itemCount })}
+          {'\u2003'}
+          {scanning ? <span className="now-scanning">{t('Now scanning…')}</span> : t('scanned {time}', { time: relativeTime(library.lastScannedAt) })}
         </p>
         {library.folders.map((f) => (
           <code key={f} className="folder">
@@ -227,12 +233,12 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
         {/* Kids profiles never see audiobooks, so there's nothing to allow. */}
         {limits && library.fineForKids !== undefined && library.type !== 'Audiobooks' && (
           <label className="library-kids">
-            <span>Fine for kids, rated or not</span>
+            <span>{t('Fine for kids, rated or not')}</span>
             <input
               type="checkbox"
               role="switch"
               className="switch"
-              aria-label={`${library.name}: fine for kids, rated or not`}
+              aria-label={t('{name}: fine for kids, rated or not', { name: library.name })}
               checked={fineForKids}
               onChange={(e) => void toggleKids(e.target.checked)}
             />
@@ -243,20 +249,20 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
       </div>
       {!renaming && (
         <div className="library-row-actions">
-          <IconButton label="Rename" icon={<Pencil />} data-rename={library.id} aria-label={`Rename ${library.name}`} onClick={() => setRenaming(true)} />
+          <IconButton label={t('Rename')} icon={<Pencil />} data-rename={library.id} aria-label={t('Rename {name}', { name: library.name })} onClick={() => setRenaming(true)} />
           <IconButton
-            label="Scan for new and changed files"
+            label={t('Scan for new and changed files')}
             icon={<Refresh />}
             className="button quiet small icon scan-button"
             busy={scanning}
             onClick={() => scanLibrary(library.id).then(() => new Promise((done) => setTimeout(done, 2500))).then(onChange)}
           />
           <IconButton
-            label="Refresh artwork and details"
+            label={t('Refresh artwork and details')}
             icon={<Picture />}
-            onClick={() => scanLibrary(library.id, true).then(() => setMessage('Refreshing artwork and details from Sonarr and Radarr. This takes a few minutes.'))}
+            onClick={() => scanLibrary(library.id, true).then(() => setMessage(t('Refreshing artwork and details from Sonarr and Radarr. This takes a few minutes.')))}
           />
-          <IconButton label="Remove" icon={<Trash />} className="button quiet small icon danger-icon" onClick={remove} />
+          <IconButton label={t('Remove')} icon={<icon.delete />} className="button quiet small icon danger-icon" onClick={remove} />
         </div>
       )}
     </div>
@@ -290,15 +296,15 @@ function RenameLibraryForm({ library, onDone }: { library: Library; onDone: (ren
   return (
     <form className="library-rename" onSubmit={(e) => void save(e)} onKeyDown={(e) => e.key === 'Escape' && onDone(false)}>
       <label className="field">
-        <span className="field-label">Name for {library.name}</span>
+        <span className="field-label">{t('Name for {name}', { name: library.name })}</span>
         <input ref={input} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="off" />
       </label>
       <div className="form-actions">
         <button type="button" className="button quiet small" onClick={() => onDone(false)}>
-          Cancel
+          {t(Words.cancel)}
         </button>
         <AsyncButton type="submit" className="button small" busy={saving}>
-          Save
+          {t('Save')}
         </AsyncButton>
       </div>
       {error && (
@@ -332,25 +338,25 @@ function AddLibraryForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
   }
 
   return (
-    <form className="panel add-library" onSubmit={submit} aria-label="Add library">
+    <form className="panel add-library" onSubmit={submit} aria-label={t('Add library')}>
       <div className="field-row">
         <label>
-          Kind
+          {t('Kind')}
           <select value={type} onChange={(e) => setType(e.target.value as LibraryType)}>
-            <option value="Movies">Movies</option>
-            <option value="TvShows">TV shows</option>
-            <option value="Music">Music</option>
-            <option value="HomeVideos">Home videos</option>
-            <option value="Audiobooks">Audiobooks</option>
+            <option value="Movies">{t(Words.movies)}</option>
+            <option value="TvShows">{t('TV shows')}</option>
+            <option value="Music">{t(Words.music)}</option>
+            <option value="HomeVideos">{t('Home videos')}</option>
+            <option value="Audiobooks">{t(Words.audiobooks)}</option>
           </select>
         </label>
         <label>
-          Name
+          {t('Name')}
           <input type="text" value={name} placeholder={libraryTypeLabel[type]} onChange={(e) => setName(e.target.value)} />
         </label>
       </div>
       <div className="field">
-        <span className="field-label">Folder</span>
+        <span className="field-label">{t('Folder')}</span>
         <FolderPicker onOpen={setFolder} />
       </div>
       {errors.length > 0 && (
@@ -362,10 +368,10 @@ function AddLibraryForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
       )}
       <div className="form-actions">
         <button type="button" className="button quiet" onClick={onCancel}>
-          Cancel
+          {t(Words.cancel)}
         </button>
         <AsyncButton type="submit" className="button" busy={saving} disabled={!folder}>
-          Add library
+          {t('Add library')}
         </AsyncButton>
       </div>
     </form>

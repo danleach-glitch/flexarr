@@ -476,6 +476,13 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     };
 
     /// <summary>
+    /// Marks a request to a server the admin configured (a Lidarr), which may be on the home network. Every other
+    /// artwork address comes from somewhere anyone can write (a podcast feed, say), so the server's handler lets those
+    /// reach only the internet.
+    /// </summary>
+    public static readonly HttpRequestOptionsKey<bool> FromConfiguredServer = new("Flexarr.FromConfiguredServer");
+
+    /// <summary>
     /// Fetches at most <see cref="MaxDownloadBytes"/>, following redirects by hand: only to https on the same site
     /// (thetvdb.com to artworks.thetvdb.com, say), or where a known host keeps its pictures (<see cref="KnownRedirects"/>),
     /// so an artwork host can't point the server anywhere else.
@@ -515,6 +522,9 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancel);
         timeout.CancelAfter(DownloadTimeout);
         using var request = ArrClient.CreateRequest(instance, HttpMethod.Get, apiPath);
+        // May reach the home network; not kept open afterwards, so no other artwork request rides on the connection.
+        request.Options.Set(FromConfiguredServer, true);
+        request.Headers.ConnectionClose = true;
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
         return await SaveAsync(response, remoteUrl, path, job, timeout.Token).ConfigureAwait(false);
     }

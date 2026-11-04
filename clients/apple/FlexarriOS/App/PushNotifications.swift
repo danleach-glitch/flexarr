@@ -87,18 +87,18 @@ final class PushNotifications {
     }
 
     static func registerCategories() {
-        let play = UNNotificationAction(identifier: playAction, title: "Play", options: [.foreground],
+        let play = UNNotificationAction(identifier: playAction, title: t(Words.play), options: [.foreground],
                                         icon: UNNotificationActionIcon(systemImageName: "play.fill"))
         // Both run without opening the app: the download is asked for and fetched in the background.
-        let download = UNNotificationAction(identifier: downloadAction, title: "Download", options: [],
+        let download = UNNotificationAction(identifier: downloadAction, title: t(Words.download), options: [],
                                             icon: UNNotificationActionIcon(systemImageName: "arrow.down"))
-        let playOnTv = UNNotificationAction(identifier: playOnTvAction, title: "Play on Apple TV", options: [],
+        let playOnTv = UNNotificationAction(identifier: playOnTvAction, title: t("Play on Apple TV"), options: [],
                                             icon: UNNotificationActionIcon(systemImageName: "appletv.fill"))
         // The phone has to be unlocked to answer, and the code to check is in the notification. Allowing opens the app:
         // from 0.56 it takes the admin PIN when the main profile is locked here, and only the app can ask.
-        let allow = UNNotificationAction(identifier: allowPairingAction, title: "Allow", options: [.foreground],
+        let allow = UNNotificationAction(identifier: allowPairingAction, title: t("Allow"), options: [.foreground],
                                          icon: UNNotificationActionIcon(systemImageName: "checkmark"))
-        let decline = UNNotificationAction(identifier: declinePairingAction, title: "Don't allow",
+        let decline = UNNotificationAction(identifier: declinePairingAction, title: t("Don't allow"),
                                            options: [.destructive, .authenticationRequired],
                                            icon: UNNotificationActionIcon(systemImageName: "xmark"))
         UNUserNotificationCenter.current().setNotificationCategories([
@@ -274,7 +274,7 @@ final class PushNotifications {
 
     /// No token from Apple.
     struct NoToken: LocalizedError {
-        var errorDescription: String? { "Couldn't reach Apple's notification service. Check this \(ThisDevice.name) is online and try again." }
+        var errorDescription: String? { t("Couldn't reach Apple's notification service. Check this {device} is online and try again.", ["device": ThisDevice.name]) }
     }
 
     private func register(as credentials: ServerCredentials, settings: NotificationSettings,

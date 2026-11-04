@@ -1,5 +1,9 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.ui.getsReadyOnFocus
+
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -23,8 +27,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.runtime.Composable
@@ -255,7 +257,7 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
             ) {
                 val resume = home.resuming(item)
                 TvActionButton(
-                    if (resume != null || item.isResumable) "Resume" else "Play",
+                    if (resume != null || item.isResumable) t("Resume") else t(Words.play),
                     onClick = {
                         when {
                             item.kind == MediaKind.Album -> navigator.playAlbum(item, resume)
@@ -271,14 +273,14 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
                 )
                 if (item.kind == MediaKind.Artist) {
                     TvActionButton(
-                        "Radio", onClick = { navigator.playArtist(item, radio = true) }, icon = FlexarrIcons.radio, ambient = glow,
+                        t(Words.radio), onClick = { navigator.playArtist(item, radio = true) }, icon = FlexarrIcons.radio, ambient = glow,
                         modifier = Modifier.onFocusChanged { radioFocused = it.hasFocus },
                     )
                 }
                 TvActionButton(
-                    "More info",
+                    t("More info"),
                     onClick = { if (item.kind.isMusic) navigator.open(item) else navigator.openItem(item.id) },
-                    icon = Icons.Outlined.Info,
+                    icon = FlexarrIcons.details,
                     ambient = glow,
                     modifier = Modifier.onPreviewKeyEvent { event ->
                         (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight && items.size > 1).also { if (it) step(1) }
@@ -302,7 +304,7 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
 private fun ComingSoonRow(items: List<UpcomingItem>, downloading: Int) {
     val navigator = LocalNavigator.current
     Column {
-        TvRowHeading(if (downloading > 0) "Coming soon ($downloading downloading)" else "Coming soon")
+        TvRowHeading(if (downloading > 0) t("Coming soon ({count} downloading)", "count" to downloading) else t(Words.comingSoon))
         LazyRow(
             contentPadding = PaddingValues(start = TvLayout.Edge, end = TvLayout.Edge, top = 14.dp, bottom = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(TvLayout.RowSpacing),
@@ -337,7 +339,7 @@ private fun HomeRowView(row: HomeRow) {
                     }
                     HomeRowStyle.Playlists -> items(row.playlists.orEmpty(), key = { it.id }) { TvPlaylistCard(it, onClick = { navigator.openPlaylist(it.id) }) }
                     HomeRowStyle.Mixes -> items(row.mixes.orEmpty(), key = { it.id }) { TvMixCard(it, onClick = { navigator.playMix(it.id) }) }
-                    HomeRowStyle.Wide -> items(items, key = { it.id }) { TvWideCard(it, onClick = { navigator.play(it) }) }
+                    HomeRowStyle.Wide -> items(items, key = { it.id }) { TvWideCard(it, onClick = { navigator.play(it) }, modifier = Modifier.getsReadyOnFocus(it)) }
                     HomeRowStyle.Top10 -> itemsIndexed(items, key = { _, item -> item.id }) { index, item -> TvTop10Card(index + 1, item, onClick = { navigator.open(item) }) }
                     // Albums and artists as the music library draws them, not as posters with a film's menu.
                     else -> items(items, key = { it.id }) {
@@ -358,14 +360,14 @@ private fun HomeRowView(row: HomeRow) {
 @Composable
 internal fun TvSeeAllCard(wide: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, height: Dp? = null) {
     val width = if (wide) TvLayout.WideWidth else TvLayout.PosterWidth
-    TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, modifier = modifier, contentDescription = "See all", artwork = {
+    TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, modifier = modifier, contentDescription = t("See all"), artwork = {
         Column(
             Modifier.size(width, height ?: if (wide) width * 9f / 16f else width * 1.5f),
             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(Icons.Outlined.GridView, contentDescription = null, tint = Flexarr.screen.copy(alpha = 0.85f), modifier = Modifier.size(24.dp))
-            Text("See all", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f))
+            Text(t("See all"), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f))
         }
     })
 }

@@ -25,10 +25,12 @@ public static partial class MediaFileEnumerator
 
     private static readonly IReadOnlySet<string> BookExtensions = new HashSet<string>(AudioExtensions.Concat(ProtectedBookExtensions), StringComparer.OrdinalIgnoreCase);
 
+    // Not IgnoreInaccessible: a folder that can't be read would then look empty, its files deleted. Each folder's
+    // listing is tried on its own instead, and one that fails is reported as unreadable.
     private static readonly EnumerationOptions Options = new()
     {
         RecurseSubdirectories = false,
-        IgnoreInaccessible = true,
+        IgnoreInaccessible = false,
         AttributesToSkip = FileAttributes.Hidden | FileAttributes.System,
     };
 
@@ -40,7 +42,12 @@ public static partial class MediaFileEnumerator
     /// what someone called their own video.
     /// </param>
     /// <param name="books">Audiobooks: audio files and Audible's protected ones.</param>
-    public static IEnumerable<FileInfo> Enumerate(string root, string? scope = null, bool audio = false, bool everything = false, bool books = false)
+    /// <param name="unreadable">
+    /// Gets the folders that couldn't be listed (permissions, a share having trouble): their files weren't seen, which
+    /// doesn't mean they've gone.
+    /// </param>
+    public static IEnumerable<FileInfo> Enumerate(string root, string? scope = null, bool audio = false, bool everything = false, bool books = false,
+        ICollection<string>? unreadable = null)
     {
         scope ??= root;
         var extensions = books ? BookExtensions : audio ? AudioExtensions : VideoExtensions;
@@ -49,12 +56,24 @@ public static partial class MediaFileEnumerator
             return IsMedia(scope, extensions) ? [new FileInfo(scope)] : [];
         }
 
-        return Directory.Exists(scope) ? Walk(root, scope, extensions, everything) : [];
+        return Directory.Exists(scope) ? Walk(root, scope, extensions, everything, unreadable) : [];
     }
 
-    private static IEnumerable<FileInfo> Walk(string root, string directory, IReadOnlySet<string> extensions, bool everything)
+    private static IEnumerable<FileInfo> Walk(string root, string directory, IReadOnlySet<string> extensions, bool everything, ICollection<string>? unreadable)
     {
-        foreach (var file in Directory.EnumerateFiles(directory, "*", Options))
+        List<string> files, children;
+        try
+        {
+            files = Directory.EnumerateFiles(directory, "*", Options).ToList();
+            children = Directory.EnumerateDirectories(directory, "*", Options).ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            unreadable?.Add(directory);
+            yield break;
+        }
+
+        foreach (var file in files)
         {
             if (IsMedia(file, extensions) && (everything || !IsSample(file)))
             {
@@ -62,7 +81,7 @@ public static partial class MediaFileEnumerator
             }
         }
 
-        foreach (var child in Directory.EnumerateDirectories(directory, "*", Options))
+        foreach (var child in children)
         {
             // Depth 1 is the movie/series folder itself — a show can legitimately be called "Extras".
             var depth = Path.GetRelativePath(root, child).Count(c => c == Path.DirectorySeparatorChar) + 1;
@@ -71,7 +90,7 @@ public static partial class MediaFileEnumerator
                 continue;
             }
 
-            foreach (var file in Walk(root, child, extensions, everything))
+            foreach (var file in Walk(root, child, extensions, everything, unreadable))
             {
                 yield return file;
             }

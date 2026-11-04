@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,7 +17,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -52,6 +52,7 @@ import io.github.flexarr.ui.components.MenuAction
 import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.itemActions
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import io.github.flexarr.ui.theme.Tokens
@@ -80,7 +81,7 @@ fun TvPosterCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Mo
 private fun posterSubtitle(item: ItemSummary): String? {
     val unwatched = item.userData.unwatchedCount
     if (item.kind == MediaKind.Series && unwatched != null && unwatched > 0) {
-        return listOfNotNull(item.releaseYear?.toString(), "$unwatched new").joinToString("  ")
+        return listOfNotNull(item.releaseYear?.toString(), t("{count} new", "count" to unwatched)).joinToString("  ")
     }
     return item.releaseYear?.toString()
 }
@@ -119,7 +120,7 @@ fun TvWideCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Modi
                 val still = if (item.kind == MediaKind.Episode) item.artwork.thumb ?: item.artwork.backdrop else item.artwork.backdrop ?: item.artwork.thumb
                 RemoteImage(still, 560, Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(glowColor(item.accentColor).copy(alpha = 0.4f), Flexarr.seat))), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Flexarr.screen.copy(alpha = 0.5f), modifier = Modifier.size(22.dp))
+                        Icon(FlexarrIcons.play, contentDescription = null, tint = Flexarr.screen.copy(alpha = 0.5f), modifier = Modifier.size(22.dp))
                     }
                 }
                 item.progress?.let {
@@ -183,12 +184,12 @@ fun TvEpisodeCard(episode: ItemSummary, overview: String?, isCurrent: Boolean, o
         onClick = onClick,
         onLongClick = { menu = true },
         modifier = modifier.width(width),
-        contentDescription = listOfNotNull(episode.episodeNumber?.let { "Episode $it" }, episode.title).joinToString(", "),
+        contentDescription = listOfNotNull(episode.episodeNumber?.let { t("Episode {number}", "number" to it) }, episode.title).joinToString(", "),
         artwork = {
             Box(Modifier.size(width, width * 9f / 16f)) {
                 RemoteImage(episode.artwork.thumb ?: episode.artwork.backdrop, 500, Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().background(Flexarr.seat), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(20.dp))
+                        Icon(FlexarrIcons.play, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(20.dp))
                     }
                 }
                 episode.progress?.let {
@@ -202,7 +203,7 @@ fun TvEpisodeCard(episode: ItemSummary, overview: String?, isCurrent: Boolean, o
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     val color = if (isCurrent) Flexarr.screen else Flexarr.usher
-                    Text(episode.episodeNumber?.let { "Episode $it" } ?: "Special", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = color)
+                    Text(episode.episodeNumber?.let { t("Episode {number}", "number" to it) } ?: t("Special"), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = color)
                     episodeTime(episode)?.let { Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = color) }
                 }
                 Text(episode.title, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.88f), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -231,7 +232,7 @@ fun TvProgressBar(value: Double, modifier: Modifier = Modifier, tint: Color = Fl
 @Composable
 fun TvWatchedBadge(modifier: Modifier = Modifier) {
     Box(modifier.size(18.dp).background(Flexarr.screen.copy(alpha = 0.92f), CircleShape), contentAlignment = Alignment.Center) {
-        Icon(Icons.Filled.Check, contentDescription = "Watched", tint = Flexarr.room, modifier = Modifier.size(11.dp))
+        Icon(Icons.Filled.Check, contentDescription = t("Watched"), tint = Flexarr.room, modifier = Modifier.size(11.dp))
     }
 }
 

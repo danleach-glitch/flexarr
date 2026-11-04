@@ -36,10 +36,16 @@ public sealed class Profile
     /// <summary>When the profile picture last changed (null: no picture, show the initial).</summary>
     public DateTime? ImageUpdatedAt { get; set; }
 
+    /// <summary>
+    /// The language the apps and the server's messages are in for this profile, a BCP 47 code (de, pt-BR); null follows
+    /// each device's own language (docs/languages.md).
+    /// </summary>
+    public string? Language { get; set; }
+
     /// <summary>When an episode finishes, count down and play the next one.</summary>
     public bool AutoPlayNext { get; set; } = true;
 
-    /// <summary>Jump past intros, recaps and credits without being asked. Skipping credits starts the countdown to the next episode as they begin.</summary>
+    /// <summary>Jump past intros, recaps and credits without being asked. With Skip credits, the next episode plays as the credits begin (docs/next-episode-timing.md).</summary>
     public bool SkipIntros { get; set; }
 
     public bool SkipRecaps { get; set; }

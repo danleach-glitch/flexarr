@@ -1,8 +1,10 @@
 // What Live TV's pages share: how programme times read, and how far through one we are.
 
 import type { LiveProgramme } from '../api/client'
+import { locale } from '../i18n'
 
-export const clock = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
+/** A programme's start or end, as the language shown writes times. */
+export const clock = { format: (d: Date) => d.toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' }) }
 
 export const programmeTime = (p: Pick<LiveProgramme, 'start' | 'end'>) => `${clock.format(new Date(p.start))} – ${clock.format(new Date(p.end))}`
 

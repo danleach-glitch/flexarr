@@ -6,6 +6,7 @@ using Flexarr.Core.Books;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Metadata.Books;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
@@ -33,6 +34,49 @@ public class BookSeriesMissingTests(FlexarrApiFactory factory) : IClassFixture<F
         Assert.False(found.GetProperty("answered").GetBoolean());
         Assert.Empty(found.GetProperty("books").EnumerateArray());
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+    }
+
+    [Fact]
+    public async Task AnAgeLimitedProfile_SeesNoneOfIt_AndAudibleIsntAsked()
+    {
+        using var server = new FlexarrApiFactory();
+        var audible = new CountingHandler();
+        using var app = server.WithWebHostBuilder(b =>
+            b.ConfigureTestServices(s => s.AddHttpClient("books").ConfigurePrimaryHttpMessageHandler(() => audible)));
+        var library = new Library { Name = "Family books", Type = LibraryType.Audiobooks, FineForKids = true };
+        var series = new BookSeries { LibraryId = library.Id, Name = "Thursday Murder Club", SortName = "thursday murder club", ExternalId = "B0SERIES" };
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.AddRange(library, series);
+            await db.SaveChangesAsync();
+        }
+
+        var admin = app.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var teen = (await (await admin.PostAsJsonAsync(new Uri("/api/v1/profiles", UriKind.Relative), new { name = "Sam", maxRatingAge = 15 })).Content
+            .ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        var token = (await (await admin.PostAsJsonAsync(new Uri("/api/v1/session/device", UriKind.Relative), new { deviceName = "Kitchen" })).Content
+            .ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+        var device = app.CreateClient();
+        device.DefaultRequestHeaders.Add("X-Api-Key", token);
+        await device.PostAsJsonAsync(new Uri($"/api/v1/profiles/{teen}/select", UriKind.Relative), new { });
+
+        var found = await device.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/book-series/{series.Id}/missing", UriKind.Relative));
+
+        Assert.Empty(found.GetProperty("books").EnumerateArray());
+        Assert.Equal(0, audible.Requests);
+    }
+
+    private sealed class CountingHandler : HttpMessageHandler
+    {
+        public int Requests;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref Requests);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
     }
 
     private static SeriesBook Listed(string asin, string title, string? sequence) => new(asin, title, sequence, ["Richard Osman"], 2021, null);

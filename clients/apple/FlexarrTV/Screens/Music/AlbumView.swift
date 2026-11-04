@@ -80,7 +80,7 @@ struct AlbumView: View {
                     }
                     .disabled(tracks.isEmpty)
                     .focusSection()
-                    FocusedActionName(name: focusedAction == .shuffle ? "Shuffle" : focusedAction == .more ? "More" : nil)
+                    FocusedActionName(name: focusedAction == .shuffle ? t(Words.shuffle) : focusedAction == .more ? t("More") : nil)
                 }
                 .padding(.top, 8)
             }
@@ -98,13 +98,13 @@ struct AlbumView: View {
         switch button {
         case .play:
             Button { model.playTracks(tracks, albums: [item], showingNowPlaying: router) } label: {
-                Label("Play", systemImage: Symbol.play)
+                Label(t(Words.play), systemImage: Symbol.play)
             }
             .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true))
             .takesFocusFromLink()
         case .shuffle:
             Button { model.playTracks(tracks, shuffled: true, albums: [item], showingNowPlaying: router) } label: {
-                Label("Shuffle", systemImage: Symbol.shuffle)
+                Label(t(Words.shuffle), systemImage: Symbol.shuffle)
             }
             .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
             .focused($focusedAction, equals: .shuffle)
@@ -124,7 +124,7 @@ struct AlbumView: View {
         var facts: [String] = []
         if let year = item.releaseYear { facts.append(String(year)) }
         let count = tracks.isEmpty ? item.childCount : tracks.count
-        if count > 0 { facts.append(count == 1 ? "1 track" : "\(count) tracks") }
+        if count > 0 { facts.append(t("{count, plural, one {# track} other {# tracks}}", ["count": count])) }
         if let total = ItemSummary.totalRuntime(of: tracks) { facts.append(total) }
         return facts
     }
@@ -133,14 +133,14 @@ struct AlbumView: View {
     private var tracklist: some View {
         if tracks.isEmpty {
             if page.detail != nil {
-                StatusView(state: .empty("No tracks yet.")).frame(height: 200)
+                StatusView(state: .empty(t("No tracks yet."))).frame(height: 200)
             }
         } else {
             let discs = ItemSummary.discs(of: tracks)
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(discs, id: \.disc) { disc in
                     if discs.count > 1 {
-                        Text("Disc \(disc.disc)")
+                        Text(t("Disc {number}", ["number": disc.disc]))
                             .font(.marquee(34, weight: .bold))
                             .foregroundStyle(Color.usher)
                             .padding(.leading, 30)

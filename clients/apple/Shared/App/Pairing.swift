@@ -67,6 +67,12 @@ final class Pairing {
                 }
             } catch is CancellationError {
                 return
+            } catch let error as ServerTooOld {
+                // A new code wouldn't help: it says to update the server, and stops.
+                self.error = error.errorDescription
+                current = nil
+                renewedAt = nil
+                return
             } catch {
                 self.error = ConnectionError(error).message
                 try? await Task.sleep(for: .seconds(5))
@@ -88,13 +94,18 @@ final class Pairing {
                     abandon(token)
                     throw CancellationError()
                 }
+                // Trying again won't make the server newer.
+                if error is ServerTooOld {
+                    abandon(token)
+                    throw error
+                }
                 attempt += 1
                 guard attempt < 5 else {
                     // Give up on this one: sign it out (best effort) so it doesn't linger in the list.
                     abandon(token)
                     throw error
                 }
-                self.error = "Connecting… (\(ConnectionError(error).message))"
+                self.error = t("Connecting… ({problem})", ["problem": ConnectionError(error).message])
                 do {
                     try await Task.sleep(for: .seconds(2 * attempt))
                 } catch {

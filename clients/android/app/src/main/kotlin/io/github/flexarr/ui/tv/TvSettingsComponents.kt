@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -195,7 +196,7 @@ internal fun TvSettingsRow(
             when (accessory) {
                 TvSettingAccessory.None -> {}
                 TvSettingAccessory.Chevron -> Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(16.dp).alpha(0.55f))
-                TvSettingAccessory.Checkmark -> Icon(Icons.Filled.Check, contentDescription = "Chosen", modifier = Modifier.size(15.dp))
+                TvSettingAccessory.Checkmark -> Icon(Icons.Filled.Check, contentDescription = t("Chosen"), modifier = Modifier.size(15.dp))
                 TvSettingAccessory.Handle -> Icon(Icons.Filled.DragHandle, contentDescription = null, modifier = Modifier.size(15.dp).alpha(0.55f))
                 TvSettingAccessory.Moving -> Icon(Icons.Filled.SwapVert, contentDescription = null, modifier = Modifier.size(15.dp))
                 TvSettingAccessory.SwitchOn, TvSettingAccessory.SwitchOff -> Switch(

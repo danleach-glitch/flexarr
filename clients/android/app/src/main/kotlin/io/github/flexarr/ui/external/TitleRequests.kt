@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.external
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,13 +47,13 @@ internal fun AppModel.titleState(key: String, availability: Availability, inLibr
 internal val AppModel.canAskForTitles: Boolean get() = !isKids && !seerrUnreachable
 
 internal fun TitleRequestState.label(): String = when (this) {
-    TitleRequestState.CanRequest -> "Request"
-    TitleRequestState.Sending -> "Requesting…"
-    TitleRequestState.Requested, TitleRequestState.Undoing -> "Requested"
-    TitleRequestState.Refused -> "Can’t request"
-    TitleRequestState.Partly -> "Partly in your library"
-    TitleRequestState.InLibrary -> "In your library"
-    TitleRequestState.None -> "Not available"
+    TitleRequestState.CanRequest -> t(Words.request)
+    TitleRequestState.Sending -> t("Requesting…")
+    TitleRequestState.Requested, TitleRequestState.Undoing -> t(Words.requested)
+    TitleRequestState.Refused -> t("Can’t request")
+    TitleRequestState.Partly -> t(Words.partlyInYourLibrary)
+    TitleRequestState.InLibrary -> t(Words.inYourLibrary)
+    TitleRequestState.None -> t("Not available")
 }
 
 internal fun TitleRequestState.icon(): ImageVector? = when (this) {
@@ -65,12 +67,12 @@ internal fun TitleRequestState.pressable(model: AppModel): Boolean =
     model.canAskForTitles && (this == TitleRequestState.CanRequest || this == TitleRequestState.Requested)
 
 /** The one quiet line when Seerr is connected but not answering, as the web's. */
-internal const val SeerrNotAnswering = "Seerr isn’t answering."
+internal val SeerrNotAnswering get() = t("Seerr isn’t answering.")
 
 /** The question before Requested is taken back, its answer and the way out, as music's and the web's. */
-internal fun titleUndoTitle(name: String) = "Unrequest $name?"
-internal const val TitleUndoConfirm = "Unrequest"
-internal const val TitleUndoKeep = "Keep it"
+internal fun titleUndoTitle(name: String) = t("Unrequest {name}?", "name" to name)
+internal val TitleUndoConfirm get() = t(Words.unrequest)
+internal val TitleUndoKeep get() = t("Keep it")
 
 /** Asked once before Requested is taken back. */
 @Composable
@@ -96,7 +98,7 @@ internal fun TitleRequestNote(model: AppModel, key: String, state: TitleRequestS
 
 /** Asks Seerr for a film or show (or just [season] of a show), once; the snackbar says if it didn't work. */
 internal fun Navigator.requestTitle(model: AppModel, mediaType: String, tmdbId: Int, season: Int? = null) {
-    watchlistChange("Couldn’t request this") {
+    watchlistChange(t("Couldn’t request this")) {
         model.askForTitle(titleKey(mediaType, tmdbId, season)) { client ->
             if (season != null) client.requestSeasons(tmdbId, listOf(season)) else client.requestTitle(mediaType, tmdbId)
         }
@@ -105,7 +107,7 @@ internal fun Navigator.requestTitle(model: AppModel, mediaType: String, tmdbId: 
 
 /** Takes a film or show request (or just [season] of a show's) back, once; the snackbar says if it didn't work. */
 internal fun Navigator.unrequestTitle(model: AppModel, mediaType: String, tmdbId: Int, season: Int? = null) {
-    watchlistChange("Couldn’t unrequest this") {
+    watchlistChange(t("Couldn’t unrequest this")) {
         model.undoTitle(titleKey(mediaType, tmdbId, season)) { it.unrequestTitle(mediaType, tmdbId, season?.let(::listOf)) }
     }
 }

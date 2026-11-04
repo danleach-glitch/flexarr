@@ -9,13 +9,13 @@ struct SiriSettingsView: View {
     var body: some View {
         List {
             Section {
-                Picker("Siri plays on", selection: $siriDevice) {
-                    Text("This \(ThisDevice.name)").tag("")
+                Picker(t("Siri plays on"), selection: $siriDevice) {
+                    Text(t("This {device}", ["device": ThisDevice.name])).tag("")
                     ForEach(devices.filter { !$0.isThisOne }) { device in
                         Text(device.name).tag(device.id)
                     }
                     if !siriDevice.isEmpty, !devices.contains(where: { $0.id == siriDevice }) {
-                        Text(AppModel.siriDeviceName ?? "A device no longer signed in").tag(siriDevice)
+                        Text(AppModel.siriDeviceName ?? t("A device no longer signed in")).tag(siriDevice)
                     }
                 }
                 .settingsRow()
@@ -24,19 +24,19 @@ struct SiriSettingsView: View {
                     AppModel.siriDeviceName = devices.first { $0.id == id }?.name
                 }
             } footer: {
-                Text("Choose an Apple TV and Siri plays there (Flexarr needs to be open on it). You can also name one as you ask.")
+                Text(t("Choose an Apple TV and Siri plays there (Flexarr needs to be open on it). You can also name one as you ask."))
             }
 
             Section {
-                ForEach(["Play the next episode of Curb Your Enthusiasm in Flexarr", "Continue watching in Flexarr", "Pause Flexarr"], id: \.self) { phrase in
-                    Text("\u{201C}\(phrase)\u{201D}")
+                ForEach([t("Play the next episode of Curb Your Enthusiasm in Flexarr"), t("Continue watching in Flexarr"), t("Pause Flexarr")], id: \.self) { phrase in
+                    Text(t("“{phrase}”", ["phrase": phrase]))
                         .foregroundStyle(Color.usher)
                         .listRowBackground(Color.seat)
                 }
             } header: {
-                Text("Try saying")
+                Text(t("Try saying"))
             } footer: {
-                Text("Shows play from the episode you're up to.")
+                Text(t("Shows play from the episode you're up to."))
             }
         }
         .settingsPage("Siri")

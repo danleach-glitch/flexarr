@@ -1,5 +1,8 @@
 package io.github.flexarr.downloads
 
+import android.Manifest
+import android.content.pm.PackageManager
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.logging.FlexarrLog
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -22,6 +25,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import io.github.flexarr.AppModel
+import io.github.flexarr.usesTvInterface
 import io.github.flexarr.core.CollectionKind
 import io.github.flexarr.core.CollectionRules
 import io.github.flexarr.core.CollectionStatus
@@ -102,6 +106,21 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** Fetch the next episode by itself. */
     var downloadsNext: Boolean by mutableStateOf(prefs.getBoolean(NEXT, true))
         private set
+
+    /**
+     * Android 13 on asks before the app may show notifications, and nothing asked until someone turned on push
+     * notifications, so a download's progress (and its Stop download) went unseen. The first download asked for by
+     * hand asks ([MainActivity] shows Android's question), once.
+     */
+    var asksNotificationPermission by mutableStateOf(false)
+
+    private fun offerNotifications() {
+        if (Build.VERSION.SDK_INT < 33 || prefs.getBoolean(ASKED_NOTIFICATIONS, false)) return
+        prefs.edit().putBoolean(ASKED_NOTIFICATIONS, true).apply()
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            asksNotificationPermission = true
+        }
+    }
 
     /** Downloads the phone starts by itself wait for Wi-Fi (on unless turned off in Settings). */
     var automaticOnWiFiOnly: Boolean by mutableStateOf(prefs.getBoolean(WIFI_ONLY, true))
@@ -197,7 +216,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** Episodes by show, in episode order; the shows by name. */
     val shows: List<Pair<String, List<LocalDownload>>>
         get() = downloads.filter { it.item.kind == MediaKind.Episode }
-            .groupBy { it.item.seriesTitle ?: "Episodes" }
+            .groupBy { it.item.seriesTitle ?: t("Episodes") }
             .map { (show, episodes) -> show to episodes.sortedWith(compareBy({ it.item.seasonNumber ?: 0 }, { it.item.episodeNumber ?: 0 })) }
             .sortedBy { it.first }
 
@@ -448,6 +467,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             delete(existing.id)
         }
         val remote = client.requestDownload(itemId, quality)
+        if (!automatic) offerNotifications()
         val local = LocalDownload(
             id = remote.id,
             profileId = profileId,
@@ -659,9 +679,11 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /**
      * Holds what the server says the phone should: the newest unplayed episodes of each podcast that auto-downloads.
      * Missing ones are fetched, once there's Wi-Fi when Settings keeps them to it; ones that came by themselves and
-     * aren't wanted any more (played, pushed out by newer ones) go, unless they're part-heard.
+     * aren't wanted any more (played, pushed out by newer ones) go, unless they're part-heard. Not on a TV, which has no
+     * podcasts or downloads, though its profile may have episodes downloading on the phone.
      */
     suspend fun reconcilePodcasts() {
+        if (context.usesTvInterface) return
         val client = currentClient ?: return
         if (!isOnline || reconciling) return
         reconciling = true
@@ -867,6 +889,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         private const val QUALITY = "quality"
         private const val NEXT = "next"
         private const val WIFI_ONLY = "wifiOnly"
+        private const val ASKED_NOTIFICATIONS = "askedNotifications"
         private const val DECLINED = "declinedEpisodes"
         private const val UNSENT_DELETES = "unsentDeletes"
         /** The server whose downloads were kept when it refused this device's sign-in. */

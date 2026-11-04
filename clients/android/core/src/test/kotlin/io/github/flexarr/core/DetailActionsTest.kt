@@ -9,9 +9,9 @@ import io.github.flexarr.core.DetailActions.Button.TRAILER
 import io.github.flexarr.core.DetailActions.Button.WATCHED
 import io.github.flexarr.core.DetailActions.Button.WATCHLIST
 import io.github.flexarr.core.DetailActions.Kind
-import io.github.flexarr.core.DetailActions.MenuItem.GO_TO_SHOW
-import io.github.flexarr.core.DetailActions.MenuItem.MARK_UNWATCHED
-import io.github.flexarr.core.DetailActions.MenuItem.SUBTITLES
+import io.github.flexarr.core.DetailActions.MenuItem.GoToShow
+import io.github.flexarr.core.DetailActions.MenuItem.Moved
+import io.github.flexarr.core.DetailActions.MenuItem.Subtitles
 import io.github.flexarr.core.DetailActions.Platform
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -30,7 +30,8 @@ class DetailActionsTest {
         canPlayTrailers: Boolean = true,
         canDownload: Boolean = false,
         canSearchSubtitles: Boolean = false,
-    ) = DetailActions.of(DetailActions.Input(kind, hasProgress, isWatched, hasTrailer, isKids, platform, canPlayTrailers, canDownload, canSearchSubtitles))
+        canWatchlist: Boolean = true,
+    ) = DetailActions.of(DetailActions.Input(kind, hasProgress, isWatched, hasTrailer, isKids, platform, canPlayTrailers, canDownload, canSearchSubtitles, canWatchlist))
 
     @Test
     fun `a fresh movie plays, has its trailer, watched and watchlist`() {
@@ -40,19 +41,58 @@ class DetailActionsTest {
     }
 
     @Test
-    fun `a part-watched movie can start over, or be forgotten from the menu`() {
+    fun `a part-watched movie can start over`() {
         val result = actions(hasProgress = true)
-        assertEquals(listOf(PLAY, START_OVER, TRAILER, WATCHED, WATCHLIST, MORE), result.buttons)
-        assertEquals(listOf(MARK_UNWATCHED), result.menu)
+        assertEquals(listOf(PLAY, START_OVER, TRAILER, WATCHED, WATCHLIST), result.buttons)
+        assertEquals(emptyList<DetailActions.MenuItem>(), result.menu)
     }
 
     @Test
-    fun `a watched movie unmarks with its own button, not the menu`() {
+    fun `a watched movie unmarks with its own button`() {
         val result = actions(isWatched = true)
         assertEquals(listOf(PLAY, TRAILER, WATCHED, WATCHLIST), result.buttons)
         assertEquals(emptyList<DetailActions.MenuItem>(), result.menu)
-        // Rewatching part way: still only the one Mark as unwatched, the Watched button's.
-        assertEquals(emptyList<DetailActions.MenuItem>(), actions(hasProgress = true, isWatched = true).menu)
+    }
+
+    // A phone's row holds three beside Play, like an episode's; the rest go to the top of ⋯.
+    @Test
+    fun `a phone before starting keeps trailer and watchlist`() {
+        val result = actions(platform = Platform.PHONE, canDownload = true)
+        assertEquals(listOf(PLAY, TRAILER, WATCHLIST, DOWNLOAD, MORE), result.buttons)
+        assertEquals(listOf(Moved(WATCHED)), result.menu)
+    }
+
+    @Test
+    fun `a phone part way keeps start over and watched`() {
+        val result = actions(platform = Platform.PHONE, hasProgress = true, canDownload = true, canSearchSubtitles = true)
+        assertEquals(listOf(PLAY, START_OVER, WATCHED, DOWNLOAD, MORE), result.buttons)
+        assertEquals(listOf(Moved(TRAILER), Moved(WATCHLIST), Subtitles), result.menu)
+    }
+
+    @Test
+    fun `a phone once watched keeps watched and watchlist`() {
+        val result = actions(platform = Platform.PHONE, isWatched = true, canDownload = true)
+        assertEquals(listOf(PLAY, WATCHED, WATCHLIST, DOWNLOAD, MORE), result.buttons)
+        assertEquals(listOf(Moved(TRAILER)), result.menu)
+    }
+
+    @Test
+    fun `a phone show shuffles from the menu`() {
+        val result = actions(kind = Kind.SHOW, platform = Platform.PHONE)
+        assertEquals(listOf(PLAY, TRAILER, WATCHED, WATCHLIST, MORE), result.buttons)
+        assertEquals(listOf(Moved(SHUFFLE)), result.menu)
+    }
+
+    @Test
+    fun `a phone episode matches its page`() {
+        val result = actions(kind = Kind.EPISODE, platform = Platform.PHONE, hasProgress = true, hasTrailer = false, canDownload = true, canWatchlist = false)
+        assertEquals(listOf(PLAY, START_OVER, WATCHED, DOWNLOAD, MORE), result.buttons)
+        assertEquals(listOf(GoToShow), result.menu)
+    }
+
+    @Test
+    fun `a phone without a trailer fills the row with watched`() {
+        assertEquals(listOf(PLAY, WATCHED, WATCHLIST, DOWNLOAD), actions(platform = Platform.PHONE, hasTrailer = false, canDownload = true).buttons)
     }
 
     @Test
@@ -64,9 +104,9 @@ class DetailActionsTest {
 
     @Test
     fun `an episode goes to its show from the menu`() {
-        val result = actions(kind = Kind.EPISODE, hasTrailer = false)
-        assertEquals(listOf(PLAY, WATCHED, WATCHLIST, MORE), result.buttons)
-        assertEquals(listOf(GO_TO_SHOW), result.menu)
+        val result = actions(kind = Kind.EPISODE, hasTrailer = false, canWatchlist = false)
+        assertEquals(listOf(PLAY, WATCHED, MORE), result.buttons)
+        assertEquals(listOf(GoToShow), result.menu)
     }
 
     @Test
@@ -75,7 +115,7 @@ class DetailActionsTest {
         assertEquals(listOf(PLAY, START_OVER), result.buttons)
         assertEquals(emptyList<DetailActions.MenuItem>(), result.menu)
         assertEquals(listOf(PLAY, SHUFFLE), actions(kind = Kind.SHOW, isKids = true).buttons)
-        assertEquals(listOf(GO_TO_SHOW), actions(kind = Kind.EPISODE, isKids = true).menu)
+        assertEquals(listOf(GoToShow), actions(kind = Kind.EPISODE, isKids = true).menu)
     }
 
     @Test
@@ -87,15 +127,16 @@ class DetailActionsTest {
 
     @Test
     fun `phones download, TVs don't`() {
-        assertEquals(listOf(PLAY, TRAILER, WATCHED, WATCHLIST, DOWNLOAD), actions(platform = Platform.PHONE, canDownload = true).buttons)
+        assertTrue(DOWNLOAD in actions(platform = Platform.PHONE, canDownload = true).buttons)
         assertFalse(DOWNLOAD in actions(platform = Platform.TV, canDownload = true).buttons)
         assertFalse(DOWNLOAD in actions(platform = Platform.PHONE, canDownload = false).buttons)
     }
 
     @Test
     fun `the menu keeps its order`() {
-        val result = actions(kind = Kind.EPISODE, hasProgress = true, canSearchSubtitles = true)
-        assertEquals(listOf(MARK_UNWATCHED, SUBTITLES, GO_TO_SHOW), result.menu)
+        val result = actions(kind = Kind.SHOW, platform = Platform.PHONE, hasProgress = true, canSearchSubtitles = true)
+        assertEquals(listOf(Moved(SHUFFLE), Moved(TRAILER), Subtitles), result.menu)
+        assertEquals(listOf(Subtitles, GoToShow), actions(kind = Kind.EPISODE, canSearchSubtitles = true).menu)
         assertEquals(MORE, result.buttons.last())
     }
 

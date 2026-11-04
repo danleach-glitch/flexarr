@@ -8,14 +8,21 @@ namespace Flexarr.Api.Security;
 /// Announces Flexarr on the local network (Bonjour, "_flexarr._tcp") so apps can list it instead of asking for an
 /// address. The TXT record carries the address to use. Uses the system's own tools when there are some (dns-sd on
 /// macOS, avahi-publish on Linux), and otherwise answers itself (<see cref="MdnsResponder"/>): in Docker, on Linux
-/// without Avahi, and on Windows.
+/// without Avahi, and on Windows. Not in the Mac app, whose sandbox leaves the server only its own FFmpeg to run: the
+/// app announces the server itself (ServerProcess.swift).
 /// </summary>
-public sealed partial class BonjourAdvertiser(IServer server, IHostApplicationLifetime lifetime, ILogger<BonjourAdvertiser> logger) : BackgroundService
+public sealed partial class BonjourAdvertiser(IServer server, IHostApplicationLifetime lifetime, Endpoints.MacAppHost macApp, ILogger<BonjourAdvertiser> logger)
+    : BackgroundService
 {
     public const string ServiceType = "_flexarr._tcp";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (macApp.IsAvailable)
+        {
+            return;
+        }
+
         // Wait until Kestrel is listening, so the port is known.
         var started = new TaskCompletionSource();
         using var _ = lifetime.ApplicationStarted.Register(() => started.TrySetResult());

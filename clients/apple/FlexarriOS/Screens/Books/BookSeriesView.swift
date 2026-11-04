@@ -27,7 +27,8 @@ struct BookSeriesView: View {
                         .foregroundStyle(Color.screen)
                     if let series {
                         let finished = series.books.filter { $0.book.isFinishedBook }.count
-                        Text(finished > 0 ? "\(finished) of \(series.books.count) finished" : series.books.count == 1 ? "1 book" : "\(series.books.count) books")
+                        Text(finished > 0 ? t("{finished} of {count} finished", ["finished": finished, "count": series.books.count])
+                             : t("{count, plural, one {# book} other {# books}}", ["count": series.books.count]))
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(Color.usher)
                             .monospacedDigit()
@@ -36,7 +37,7 @@ struct BookSeriesView: View {
                 .padding(.horizontal, Layout.edge)
                 if let next {
                     Button { model.playBook(next) } label: {
-                        Label(next.isResumable ? "Resume \(next.title)" : "Play \(next.title)", systemImage: "play.fill")
+                        Label(next.isResumable ? t("Resume {title}", ["title": next.title]) : t("Play {title}", ["title": next.title]), systemImage: Symbol.play)
                             .lineLimit(1)
                             .frame(maxWidth: .infinity)
                     }
@@ -64,7 +65,7 @@ struct BookSeriesView: View {
                     }
                     if !gaps.books.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
-                            SectionHeading(title: "Not in your library")
+                            SectionHeading(title: t(Words.notInYourLibrary))
                             LazyVGrid(columns: [GridItem(.adaptive(minimum: 104, maximum: 150), spacing: 12, alignment: .top)], alignment: .leading, spacing: 18) {
                                 ForEach(gaps.books) { book in
                                     MissingBookCard(book: book)

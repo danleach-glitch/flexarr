@@ -1,4 +1,5 @@
 import { useMemo, useSyncExternalStore } from 'react'
+import { t, tk } from '../i18n'
 
 /**
  * How films and episodes sound in this browser: the speakers, a lift for the dialogue and night mode. A device
@@ -19,12 +20,23 @@ export type DialogueBoost = 'Off' | 'Low' | 'Medium' | 'High'
 export type NightMode = 'Off' | 'On' | 'Scheduled'
 
 export const speakerChoices: { value: Speakers; label: string }[] = [
-  { value: 'Auto', label: 'Auto' },
-  { value: 'Stereo', label: 'Stereo' },
+  {
+    value: 'Auto',
+    get label() {
+      return t('Auto')
+    },
+  },
+  {
+    value: 'Stereo',
+    get label() {
+      return t('Stereo')
+    },
+  },
   { value: 'Surround', label: '5.1' },
 ]
-export const dialogueBoostChoices: DialogueBoost[] = ['Off', 'Low', 'Medium', 'High']
-export const nightModeChoices: NightMode[] = ['Off', 'On', 'Scheduled']
+/** Said through t(value) where shown. */
+export const dialogueBoostChoices: DialogueBoost[] = [tk('Off'), tk('Low'), tk('Medium'), tk('High')]
+export const nightModeChoices: NightMode[] = [tk('Off'), tk('On'), tk('Scheduled')]
 
 /** The lift each strength gives the dialogue, in dB (the same in every app). */
 export const dialogueBoostDb: Record<DialogueBoost, number> = { Off: 0, Low: 3, Medium: 6, High: 9 }

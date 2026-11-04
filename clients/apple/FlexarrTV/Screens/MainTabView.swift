@@ -61,7 +61,7 @@ struct MainTabView: View {
                         .environment(\.focusesContent, $startFocus)
                 }
             } label: {
-                Label("Home", systemImage: Symbol.home)
+                Label(t(Words.home), systemImage: Symbol.home)
             }
             // Music that's playing gets a tab of its own, as the Music app does: the surest way to reach it with
             // the remote from anywhere.
@@ -69,12 +69,12 @@ struct MainTabView: View {
                 Tab(value: TabID.nowPlaying) {
                     NowPlayingView()
                 } label: {
-                    Label("Now Playing", systemImage: Symbol.nowPlaying)
+                    Label(t("Now Playing"), systemImage: Symbol.nowPlaying)
                 }
             }
             // The libraries and Live TV, in the order chosen in Settings › Sidebar: however many there are, the
             // sidebar scrolls rather than pushing Search and Settings out of reach as a tab bar would.
-            TabSection("Libraries") {
+            TabSection(t(Words.libraries)) {
                 ForEach(TabBarEntry.ordered(model: model, stored: tabBarOrder)) { entry in
                     Tab(value: entry.tab) {
                         switch entry {
@@ -103,27 +103,27 @@ struct MainTabView: View {
                     Tab(value: TabID.discover) {
                         TabStack(router: routers[.discover]) { DiscoverView() }
                     } label: {
-                        Label("Discover", systemImage: Symbol.discover)
+                        Label(t(Words.discover), systemImage: Symbol.discover)
                     }
                 }
                 if showsWatchlist {
                     Tab(value: TabID.watchlist) {
                         TabStack(router: routers[.watchlist]) { WatchlistView() }
                     } label: {
-                        Label("Watchlist", systemImage: Symbol.watchlist)
+                        Label(t(Words.watchlist), systemImage: Symbol.watchlist)
                     }
                 }
                 Tab(value: TabID.search, role: .search) {
                     TabStack(router: routers[.search]) { SearchView() }
                 } label: {
-                    Label("Search", systemImage: Symbol.search)
+                    Label(t(Words.search), systemImage: Symbol.search)
                 }
                 // The kids app has no Settings: a child's choices are a parent's to make.
                 if !model.isKids {
                     Tab(value: TabID.settings) {
                         TabStack(router: routers[.settings]) { SettingsView() }
                     } label: {
-                        Label("Settings", systemImage: Symbol.settings)
+                        Label(t(Words.settings), systemImage: Symbol.settings)
                     }
                 }
             } header: {
@@ -331,14 +331,19 @@ private struct SidebarVersion: ViewModifier {
                 HStack(alignment: .center, spacing: 12) {
                     HStack(alignment: .center, spacing: 6) {
                         BrandMark(size: 26)
-                        Text("flexarr")
+                        // Its full width, always: the footer otherwise squeezes it to "fle…" beside a longer version.
+                        Text(t("flexarr"))
                             .font(.marquee(22, weight: .black))
                             .foregroundStyle(Color.screen.opacity(0.8))
+                            .lineLimit(1)
+                            .fixedSize()
                     }
                     Text(Bundle.main.shortVersion)
                         .font(.system(size: 20, weight: .medium))
                         .foregroundStyle(Color.usher.opacity(0.7))
                         .monospacedDigit()
+                        .lineLimit(1)
+                        .fixedSize()
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Flexarr \(Bundle.main.shortVersion)")
@@ -545,7 +550,7 @@ struct StatusView: View {
                     .foregroundStyle(Color.screen)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 1000)
-                Button("Try again", action: retry)
+                Button(t("Try again"), action: retry)
                     .buttonStyle(ActionButtonStyle(prominent: true))
             case .empty(let message):
                 Text(message)
@@ -570,10 +575,13 @@ extension EnvironmentValues {
 private struct LinkFocus: ViewModifier {
     @Environment(\.focusesPlay) private var takesFocus
     @FocusState private var focused: Bool
+    /// Told when the button gains or loses focus (one focus binding on the button, this one).
+    var focusChanged: ((Bool) -> Void)?
 
     func body(content: Content) -> some View {
         content
             .focused($focused)
+            .onChange(of: focused) { _, now in focusChanged?(now) }
             .task {
                 guard takesFocus.wrappedValue else { return }
                 takesFocus.wrappedValue = false
@@ -588,7 +596,8 @@ private struct LinkFocus: ViewModifier {
 }
 
 extension View {
-    func takesFocusFromLink() -> some View { modifier(LinkFocus()) }
+    /// `focusChanged`: told when the button gains or loses focus, for a view that needs to know as well.
+    func takesFocusFromLink(focusChanged: ((Bool) -> Void)? = nil) -> some View { modifier(LinkFocus(focusChanged: focusChanged)) }
 
     /// `takesFocusFromLink()` when `on`: for a button inside a view that's sometimes the page's first and sometimes not.
     @ViewBuilder func takesFocusFromLink(_ on: Bool) -> some View {

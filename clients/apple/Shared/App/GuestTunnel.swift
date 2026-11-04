@@ -31,9 +31,9 @@ final class GuestTunnel: @unchecked Sendable {
 
         var errorDescription: String? {
             switch self {
-            case .needsInvite: "You no longer have access to this Flexarr."
-            case .timedOut: "Couldn’t reach the server in time."
-            case .failed(let why): "Couldn’t connect (\(why))."
+            case .needsInvite: t("You no longer have access to this Flexarr.")
+            case .timedOut: t("Couldn’t reach the server in time.")
+            case .failed(let why): t("Couldn’t connect ({reason}).", ["reason": why])
             }
         }
     }

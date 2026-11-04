@@ -1,6 +1,7 @@
 using Flexarr.Api.LiveTv;
 using Flexarr.Api.Playback;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.LiveTv;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,21 +17,21 @@ public sealed class ServerActivity(PlaybackSessions playback, LiveTvViewers live
     public async Task<IReadOnlyList<string>> InUseAsync(CancellationToken ct)
     {
         var reasons = new List<string>();
-        var streams = playback.Active.Count(s => !s.Finished);
+        var streams = playback.Playing.Count(s => !s.Finished);
         if (streams > 0)
         {
-            reasons.Add(streams == 1 ? "Something is playing." : $"{streams} things are playing.");
+            reasons.Add(Loc.T("{count, plural, one {Something is playing.} other {# things are playing.}}", new { count = streams }));
         }
 
         var channels = live.All.Count;
         if (channels > 0)
         {
-            reasons.Add(channels == 1 ? "Someone is watching Live TV." : $"{channels} people are watching Live TV.");
+            reasons.Add(Loc.T("{count, plural, one {Someone is watching Live TV.} other {# people are watching Live TV.}}", new { count = channels }));
         }
 
         foreach (var recording in dvr.Active)
         {
-            reasons.Add($"Recording {recording.Title}.");
+            reasons.Add(Loc.T("Recording {title}.", new { title = recording.Title }));
         }
 
         var soon = time.GetUtcNow().UtcDateTime + RecordingLeadTime + dvr.Before;
@@ -43,7 +44,7 @@ public sealed class ServerActivity(PlaybackSessions playback, LiveTvViewers live
             .FirstOrDefaultAsync(ct);
         if (next is not null)
         {
-            reasons.Add($"{next} is about to record.");
+            reasons.Add(Loc.T("{title} is about to record.", new { title = next }));
         }
 
         return reasons;

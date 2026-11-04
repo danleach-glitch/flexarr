@@ -42,6 +42,9 @@ public sealed partial class MetadataRefresher(
     /// <summary>The source of an artist's or album's details when nothing but its files' tags supplied them.</summary>
     public const string Tags = "Tags";
 
+    /// <summary>The source of an artist's or album's details when they were matched on Deezer by hand (Fix match).</summary>
+    public const string Deezer = "Deezer";
+
     /// <summary>The source of a film's or show's details when only the .nfo and artwork beside it supplied them.</summary>
     public const string Local = "Local files";
 
@@ -112,7 +115,7 @@ public sealed partial class MetadataRefresher(
         {
             var radarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Radarr).ToList();
             var known = (await KnownAsync(radarrs, only, i => i.TmdbId, arr.GetMoviesAsync, arr.GetMovieAsync, arr.GetMoviesByTmdbIdAsync, ct).ConfigureAwait(false))
-                .Select(k => (k.Instance, Movie: k.Entry)).ToList();
+                .Known.Select(k => (k.Instance, Movie: k.Entry)).ToList();
             result = await RefreshMovieAsync(item, Index(known, k => MapPath(k.Movie.Path)), Index(known, k => k.Movie.ImdbId),
                 Index(known, k => k.Movie.TmdbId > 0 ? k.Movie.TmdbId.ToString(CultureInfo.InvariantCulture) : null), radarrs, force: true, ct).ConfigureAwait(false);
         }
@@ -120,7 +123,7 @@ public sealed partial class MetadataRefresher(
         {
             var sonarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Sonarr).ToList();
             var known = (await KnownAsync(sonarrs, only, i => i.TvdbId, arr.GetSeriesAsync, arr.GetOneSeriesAsync, arr.GetSeriesByTvdbIdAsync, ct).ConfigureAwait(false))
-                .Select(k => (k.Instance, Series: k.Entry)).ToList();
+                .Known.Select(k => (k.Instance, Series: k.Entry)).ToList();
             result = await RefreshOneSeriesAsync(item, Index(known, k => MapPath(k.Series.Path)),
                 Index(known, k => k.Series.TvdbId > 0 ? k.Series.TvdbId.ToString(CultureInfo.InvariantCulture) : null), Index(known, k => k.Series.ImdbId),
                 sonarrs, force: true, ct).ConfigureAwait(false);
@@ -140,7 +143,7 @@ public sealed partial class MetadataRefresher(
     {
         // Nothing due: don't download Radarr's whole library to find out.
         var also = await WithinAsync(libraryId, MediaKind.Movie, within, ct).ConfigureAwait(false);
-        var items = await Stale(libraryId, MediaKind.Movie, force, also).Include(i => i.Genres).Include(i => i.Credits).ToListAsync(ct).ConfigureAwait(false);
+        var items = await Stale(libraryId, MediaKind.Movie, force, also).Include(i => i.Genres).Include(i => i.Credits).AsSplitQuery().ToListAsync(ct).ConfigureAwait(false);
         if (items.Count == 0)
         {
             return new MetadataRefreshResult(0, 0, 0);
@@ -148,9 +151,9 @@ public sealed partial class MetadataRefresher(
 
         var radarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Radarr).ToList();
         var onlyWithin = !force && items.All(i => also.Contains(i.Id)); // Just the webhook's: ask for just those.
-        var known = (await KnownAsync(radarrs, onlyWithin ? items : null, Hinted(also, tmdbId, i => i.TmdbId),
-                arr.GetMoviesAsync, arr.GetMovieAsync, arr.GetMoviesByTmdbIdAsync, ct).ConfigureAwait(false))
-            .Select(k => (k.Instance, Movie: k.Entry)).ToList();
+        var (fetched, allAnswered) = await KnownAsync(radarrs, onlyWithin ? items : null, Hinted(also, tmdbId, i => i.TmdbId),
+            arr.GetMoviesAsync, arr.GetMovieAsync, arr.GetMoviesByTmdbIdAsync, ct).ConfigureAwait(false);
+        var known = fetched.Select(k => (k.Instance, Movie: k.Entry)).ToList();
 
         var byPath = Index(known, k => MapPath(k.Movie.Path));
         var byImdb = Index(known, k => k.Movie.ImdbId);
@@ -159,6 +162,13 @@ public sealed partial class MetadataRefresher(
 
         foreach (var item in items)
         {
+            // A Radarr that didn't answer (down, restarting, a timeout) isn't a film gone from it: leave its films as they
+            // are, still linked and still due, rather than re-sourcing them from TMDB unlinked for a week.
+            if (!allAnswered && Unconfirmed(item, known.Select(k => (k.Instance, k.Movie.Id))))
+            {
+                continue;
+            }
+
             try
             {
                 switch (await RefreshMovieAsync(item, byPath, byImdb, byTmdb, radarrs, force, ct).ConfigureAwait(false))
@@ -195,7 +205,9 @@ public sealed partial class MetadataRefresher(
         CancellationToken ct)
     {
         _idsBefore = IdsOf(item);
+        var kept = Keep(item); // What was edited by hand stays; the sources fill in the rest.
         var result = await RefreshMovieFromSourcesAsync(item, byPath, byImdb, byTmdb, radarrs, force, ct).ConfigureAwait(false);
+        await RestoreAsync(item, kept, ct).ConfigureAwait(false);
         await ApplySeerrRatingsAsync(item, ct).ConfigureAwait(false);
         return result;
     }
@@ -279,13 +291,20 @@ public sealed partial class MetadataRefresher(
         item.Status = movie.Status;
         item.ReleaseDate = DateOnlyOf(movie.InCinemas ?? movie.DigitalRelease ?? movie.PhysicalRelease ?? movie.ReleaseDate);
         item.CommunityRating = movie.Ratings?.Imdb?.Value is > 0 ? movie.Ratings.Imdb.Value : movie.Ratings?.Tmdb?.Value is > 0 ? movie.Ratings.Tmdb.Value : null;
-        item.CriticRating = movie.Ratings?.RottenTomatoes?.Value is > 0 and var rt ? (int)Math.Round(rt) : null;
-        item.ImdbRating = movie.Ratings?.Imdb?.Value is > 0 and var imdb ? imdb : null;
-        item.CriticCertified &= item.CriticRating is >= 60;
         item.Popularity = movie.Popularity;
         item.TrailerYouTubeId = NullIfEmpty(movie.YouTubeTrailerId);
         item.ImdbId = NullIfEmpty(movie.ImdbId) ?? item.ImdbId;
         item.TmdbId = movie.TmdbId > 0 ? movie.TmdbId.ToString(CultureInfo.InvariantCulture) : item.TmdbId;
+
+        // Seerr's scores, while they're fresh, win: Radarr only fills what Seerr didn't give, so a film whose Radarr
+        // score is missing or differs doesn't lose Seerr's (and its Certified Fresh) on every refresh until Seerr is
+        // asked again. A film matched to a different title takes Radarr's.
+        var critic = movie.Ratings?.RottenTomatoes?.Value is > 0 and var rt ? (int)Math.Round(rt) : (int?)null;
+        var imdbRating = movie.Ratings?.Imdb?.Value is > 0 and var imdb ? imdb : (double?)null;
+        var seerrFresh = ScoresFresh(item) && IdsOf(item) == _idsBefore;
+        item.CriticRating = seerrFresh ? item.CriticRating ?? critic : critic;
+        item.ImdbRating = seerrFresh ? item.ImdbRating ?? imdbRating : imdbRating;
+        item.CriticCertified &= item.CriticRating is >= 60;
         item.ArrId = instance is null ? null : movie.Id;
         item.MetadataSource = instance?.Name ?? RadarrLookup;
         ForgetScoresIfRematched(item, keepArrScores: true);
@@ -390,15 +409,19 @@ public sealed partial class MetadataRefresher(
         foreach (var artist in artists)
         {
             var albums = await db.MediaItems.Where(i => i.ParentId == artist.Id && i.Kind == MediaKind.Album).Include(i => i.Genres).ToListAsync(ct).ConfigureAwait(false);
+            var kept = albums.Prepend(artist).Select(i => (Item: i, Kept: Keep(i))).ToList(); // What was edited or chosen by hand stays.
             try
             {
-                var hit = lidarrs
-                    .Select(l => (Instance: l, Artist: LidarrMatcher.MatchArtist(artist, albums.Select(a => a.Path), known.Where(k => k.Instance == l).Select(k => k.Artist).ToList(), settings.PathMappings)))
-                    .FirstOrDefault(h => h.Artist is not null);
+                // An artist matched by hand is the Lidarr artist chosen (or, matched on Deezer, none), never another.
+                var hit = artist.MatchLocked
+                    ? known.Where(k => k.Instance.Name == artist.MetadataSource && k.Artist.Id == artist.ArrId).Select(k => (k.Instance, Artist: (LidarrArtist?)k.Artist)).FirstOrDefault()
+                    : lidarrs
+                        .Select(l => (Instance: l, Artist: LidarrMatcher.MatchArtist(artist, albums.Select(a => a.Path), known.Where(k => k.Instance == l).Select(k => k.Artist).ToList(), settings.PathMappings)))
+                        .FirstOrDefault(h => h.Artist is not null);
                 // A followed artist still waiting for their first album, whom Lidarr no longer has or follows (changed in
                 // Lidarr itself): nothing is coming, so they leave the library.
                 // Every Lidarr is asked: any that follows a match keeps them.
-                if (artist.Placeholder && albums.Count == 0 && allAnswered
+                if (artist.Placeholder && albums.Count == 0 && allAnswered && !artist.MatchLocked
                     && !lidarrs.Any(l => LidarrMatcher.MatchArtist(artist, [], known.Where(k => k.Instance == l).Select(k => k.Artist).ToList(), settings.PathMappings)
                         is { Monitored: true, MonitorNewItems: "new" or "all" }))
                 {
@@ -422,6 +445,11 @@ public sealed partial class MetadataRefresher(
                 else
                 {
                     await ApplyTagsAsync(artist, albums, ct).ConfigureAwait(false);
+                    foreach (var album in albums.Where(a => a.MatchLocked))
+                    {
+                        await RefreshLockedAlbumAsync(album, null, ct).ConfigureAwait(false);
+                    }
+
                     if (answered)
                     {
                         unmatched++;
@@ -436,6 +464,11 @@ public sealed partial class MetadataRefresher(
             {
                 LogItemFailed(ex, artist.Title);
                 unmatched++;
+            }
+
+            foreach (var (item, keep) in kept)
+            {
+                await RestoreAsync(item, keep, ct).ConfigureAwait(false);
             }
 
             artist.MetadataUpdatedAt = DateTime.UtcNow;
@@ -461,7 +494,7 @@ public sealed partial class MetadataRefresher(
         {
             item.AccentColor = await images.AccentColorAsync(item.PosterUrl!, ct).ConfigureAwait(false);
             item.MetadataUpdatedAt = DateTime.UtcNow;
-            item.MetadataSource = Tags;
+            item.MetadataSource = item.MatchLocked ? item.MetadataSource : Tags; // Matched by hand: still what was chosen.
         }
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
@@ -504,7 +537,11 @@ public sealed partial class MetadataRefresher(
 
         foreach (var album in albums)
         {
-            if (lidarrAlbums is not null)
+            if (album.MatchLocked)
+            {
+                await RefreshLockedAlbumAsync(album, lidarr.Name == album.MetadataSource ? lidarrAlbums : null, ct).ConfigureAwait(false);
+            }
+            else if (lidarrAlbums is not null)
             {
                 if (LidarrMatcher.MatchAlbum(album, lidarrAlbums, files, settings.PathMappings) is { } lidarrAlbum)
                 {
@@ -550,6 +587,151 @@ public sealed partial class MetadataRefresher(
         }
     }
 
+    /// <summary>
+    /// An album matched by hand: the Lidarr album chosen is read again (from <paramref name="sameArtist"/>, its
+    /// artist's albums, when they were fetched; else by its id). One matched on Deezer keeps what it was given then.
+    /// When Lidarr can't say, it stays as it is.
+    /// </summary>
+    private async Task RefreshLockedAlbumAsync(MediaItem album, IReadOnlyList<LidarrAlbum>? sameArtist, CancellationToken ct)
+    {
+        if (album.ArrId is not { } albumId || settings.ArrInstances.FirstOrDefault(a => a.Kind == ArrKind.Lidarr && a.Name == album.MetadataSource) is not { } lidarr)
+        {
+            return;
+        }
+
+        try
+        {
+            var chosen = sameArtist?.FirstOrDefault(a => a.Id == albumId) ?? await arr.GetAlbumAsync(lidarr, albumId, ct).ConfigureAwait(false);
+            await ApplyAlbumAsync(album, chosen, lidarr, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (IsNetworkFailure(ex, ct))
+        {
+            LogArrUnavailable(lidarr.Name, ex.Message);
+        }
+    }
+
+    /// <summary>Fix match: an album is the Lidarr album chosen. The caller sets the lock and saves.</summary>
+    public async Task ApplyChosenAlbumAsync(MediaItem album, LidarrAlbum chosen, ArrInstance lidarr, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(album);
+        ArgumentNullException.ThrowIfNull(chosen);
+        ArgumentNullException.ThrowIfNull(lidarr);
+        album.DeezerId = null;
+        var kept = Keep(album);
+        await ApplyAlbumAsync(album, chosen, lidarr, ct).ConfigureAwait(false);
+        await RestoreAsync(album, kept, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Fix match: an album is the Deezer album chosen (read whole, with its genres). Kept as given: refreshes don't
+    /// ask Deezer again. The caller sets the lock and saves.
+    /// </summary>
+    public async Task ApplyChosenAlbumAsync(MediaItem album, DeezerAlbum chosen, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(album);
+        ArgumentNullException.ThrowIfNull(chosen);
+        var kept = Keep(album);
+        Rename(album, chosen.Title);
+        album.Year = chosen.Year ?? album.Year;
+        album.ReleaseDate = DateOnly.TryParseExact(chosen.ReleaseDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : null;
+        album.AlbumType = chosen.RecordType switch
+        {
+            "ep" => AlbumKind.Ep,
+            "single" => AlbumKind.SingleRelease,
+            "compile" => AlbumKind.Compilation,
+            "album" => AlbumKind.Album,
+            _ => album.AlbumType,
+        };
+        album.RuntimeMinutes = chosen.Duration > 0 ? (int)Math.Max(1, Math.Round(chosen.Duration / 60.0)) : album.RuntimeMinutes;
+        album.Overview = null;
+        album.CommunityRating = null;
+        album.ArrId = null;
+        album.DeezerId = chosen.Id.ToString(CultureInfo.InvariantCulture);
+        album.MetadataSource = Deezer;
+        if (chosen.Genres?.Data is { Count: > 0 } genres)
+        {
+            await SetGenresAsync(album, [.. genres.Select(g => g.Name)], ct).ConfigureAwait(false);
+        }
+
+        await SetChosenCoverAsync(album, ArtworkUrl.TrustedRemote(chosen.Cover), ct).ConfigureAwait(false);
+        await RestoreAsync(album, kept, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Fix match: an artist is the Lidarr artist chosen, and its albums are matched among that artist's. The caller locks and saves.</summary>
+    public async Task ApplyChosenArtistAsync(MediaItem artist, List<MediaItem> albums, LidarrArtist chosen, ArrInstance lidarr, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(artist);
+        ArgumentNullException.ThrowIfNull(chosen);
+        ArgumentNullException.ThrowIfNull(lidarr);
+        artist.DeezerId = null;
+        var kept = albums.Prepend(artist).Select(i => (Item: i, Kept: Keep(i))).ToList();
+        await ApplyArtistAsync(artist, albums, chosen, lidarr, ct).ConfigureAwait(false);
+        foreach (var (item, keep) in kept)
+        {
+            await RestoreAsync(item, keep, ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Fix match: an artist is the Deezer artist chosen, with their name and photo. The caller locks and saves.</summary>
+    public async Task ApplyChosenArtistAsync(MediaItem artist, DeezerArtist chosen, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(artist);
+        ArgumentNullException.ThrowIfNull(chosen);
+        var kept = Keep(artist);
+        Rename(artist, chosen.Name);
+        artist.ArrId = null;
+        artist.DeezerId = chosen.Id.ToString(CultureInfo.InvariantCulture);
+        artist.MetadataSource = Deezer;
+        if (ArtworkUrl.TrustedRemote(chosen.Picture) is { } photo)
+        {
+            await SetChosenCoverAsync(artist, photo, ct).ConfigureAwait(false);
+        }
+
+        await RestoreAsync(artist, kept, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Match automatically again, for an album or artist: unlocked, and back to its tags' name, with the cover beside
+    /// its files (or none, which the next scan or Lidarr fills in) in place of one from the match. The caller saves
+    /// and has the folder read again.
+    /// </summary>
+    public static void ForgetMusicMatch(MediaItem item, string? localCover)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        item.MatchLocked = false;
+        item.ArtworkLocked = false;
+        item.DeezerId = null;
+        if (!item.DetailsLocked && item.OriginalTitle is { } tagged)
+        {
+            item.Title = tagged;
+            item.SortTitle = SortTitle.For(tagged);
+            item.OriginalTitle = null;
+        }
+
+        if (item.PosterUrl is { } poster && !poster.StartsWith("file://", StringComparison.Ordinal) && !poster.StartsWith("embedded://", StringComparison.Ordinal))
+        {
+            item.PosterUrl = localCover;
+            item.AccentColor = null;
+        }
+
+        item.ArrId = null;
+        item.MetadataSource = Tags;
+        item.MetadataUpdatedAt = null;
+    }
+
+    /// <summary>A cover chosen (or brought by the match), with its colour; null keeps the one there.</summary>
+    public async Task SetChosenCoverAsync(MediaItem item, string? cover, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        if (cover is null || cover == item.PosterUrl)
+        {
+            return;
+        }
+
+        item.PosterUrl = cover;
+        item.AccentColor = await images.AccentColorAsync(cover, ct).ConfigureAwait(false);
+    }
+
     /// <summary>An artist Lidarr doesn't have, and its albums: the tags stand; the scanner's artwork gets its colour.</summary>
     private async Task ApplyTagsAsync(MediaItem artist, List<MediaItem> albums, CancellationToken ct)
     {
@@ -563,6 +745,17 @@ public sealed partial class MetadataRefresher(
 
     private async Task ApplyTagsAsync(MediaItem item, CancellationToken ct)
     {
+        if (item.MatchLocked)
+        {
+            // Matched by hand: what was chosen stands even where Lidarr doesn't vouch for it.
+            if (item.AccentColor is null && item.PosterUrl is { } chosen)
+            {
+                item.AccentColor = await images.AccentColorAsync(chosen, ct).ConfigureAwait(false);
+            }
+
+            return;
+        }
+
         // Artwork from a Lidarr that no longer has the item (or is no longer configured) can't be fetched any more.
         if (ArtworkUrl.IsArr(item.PosterUrl))
         {
@@ -627,8 +820,10 @@ public sealed partial class MetadataRefresher(
     /// (<c>/MediaCover/Albums/1/cover.jpg?lastWrite=…</c>) that needs a signed-in browser; the same file is served to
     /// the API under <paramref name="apiFolder"/>. The lastWrite stamp stays on, so a replaced image is fetched anew.
     /// </summary>
-    private static string? ArrImage(ArrInstance lidarr, IReadOnlyList<ArrImage> lidarrImages, string coverType, string apiFolder)
+    public static string? ArrImage(ArrInstance lidarr, IReadOnlyList<ArrImage> lidarrImages, string coverType, string apiFolder)
     {
+        ArgumentNullException.ThrowIfNull(lidarr);
+        ArgumentNullException.ThrowIfNull(lidarrImages);
         var image = lidarrImages.FirstOrDefault(i => string.Equals(i.CoverType, coverType, StringComparison.OrdinalIgnoreCase));
         if (image?.Url is not { Length: > 0 } url)
         {
@@ -646,7 +841,7 @@ public sealed partial class MetadataRefresher(
     private async Task<MetadataRefreshResult> RefreshSeriesAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, int? tvdbId, CancellationToken ct)
     {
         var also = await WithinAsync(libraryId, MediaKind.Series, within, ct).ConfigureAwait(false);
-        var items = await Stale(libraryId, MediaKind.Series, force, also).Include(i => i.Genres).Include(i => i.Credits).ToListAsync(ct).ConfigureAwait(false);
+        var items = await Stale(libraryId, MediaKind.Series, force, also).Include(i => i.Genres).Include(i => i.Credits).AsSplitQuery().ToListAsync(ct).ConfigureAwait(false);
         if (items.Count == 0)
         {
             return new MetadataRefreshResult(0, 0, 0);
@@ -654,9 +849,9 @@ public sealed partial class MetadataRefresher(
 
         var sonarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Sonarr).ToList();
         var onlyWithin = !force && items.All(i => also.Contains(i.Id)); // Just the webhook's: ask for just those.
-        var known = (await KnownAsync(sonarrs, onlyWithin ? items : null, Hinted(also, tvdbId, i => i.TvdbId),
-                arr.GetSeriesAsync, arr.GetOneSeriesAsync, arr.GetSeriesByTvdbIdAsync, ct).ConfigureAwait(false))
-            .Select(k => (k.Instance, Series: k.Entry)).ToList();
+        var (fetched, allAnswered) = await KnownAsync(sonarrs, onlyWithin ? items : null, Hinted(also, tvdbId, i => i.TvdbId),
+            arr.GetSeriesAsync, arr.GetOneSeriesAsync, arr.GetSeriesByTvdbIdAsync, ct).ConfigureAwait(false);
+        var known = fetched.Select(k => (k.Instance, Series: k.Entry)).ToList();
 
         var byPath = Index(known, k => MapPath(k.Series.Path));
         var byTvdb = Index(known, k => k.Series.TvdbId > 0 ? k.Series.TvdbId.ToString(CultureInfo.InvariantCulture) : null);
@@ -665,6 +860,12 @@ public sealed partial class MetadataRefresher(
 
         foreach (var item in items)
         {
+            // As for films: a Sonarr that didn't answer leaves its shows linked and due, not re-sourced from TVmaze.
+            if (!allAnswered && Unconfirmed(item, known.Select(k => (k.Instance, k.Series.Id))))
+            {
+                continue;
+            }
+
             try
             {
                 switch (await RefreshOneSeriesAsync(item, byPath, byTvdb, byImdb, sonarrs, force, ct).ConfigureAwait(false))
@@ -701,7 +902,9 @@ public sealed partial class MetadataRefresher(
         CancellationToken ct)
     {
         _idsBefore = IdsOf(item);
+        var kept = Keep(item); // What was edited by hand stays; the sources fill in the rest.
         var result = await RefreshSeriesFromSourcesAsync(item, byPath, byTvdb, byImdb, sonarrs, force, ct).ConfigureAwait(false);
+        await RestoreAsync(item, kept, ct).ConfigureAwait(false);
         await ApplySeerrRatingsAsync(item, ct).ConfigureAwait(false);
         return result;
     }
@@ -738,7 +941,7 @@ public sealed partial class MetadataRefresher(
     {
         if (seerr is null || _seerrDown || settings.Seerr is not { } instance
             || !int.TryParse(item.TmdbId, NumberStyles.None, CultureInfo.InvariantCulture, out var tmdbId) || tmdbId <= 0
-            || item.ScoresCheckedAt is { } checkedAt && DateTime.UtcNow - checkedAt < ScoresStaleAfter + Spread(item.Id))
+            || ScoresFresh(item))
         {
             return;
         }
@@ -755,9 +958,10 @@ public sealed partial class MetadataRefresher(
         catch (Exception ex) when (!ct.IsCancellationRequested
             && ex is HttpRequestException or IOException or OperationCanceledException or System.Text.Json.JsonException)
         {
-            // Seerr unreachable, slow or refusing the key: leave it alone for the rest of this refresh. Its error for one
-            // title (Overseerr answers 500 when a lookup behind it fails) is that title's alone, unless it keeps happening.
-            var unreachable = ex is IOException or OperationCanceledException
+            // Seerr unreachable or refusing the key: leave it alone for the rest of this refresh. Its error or a slow
+            // answer for one title (Overseerr answers 500 when a lookup behind it fails) is that title's alone, unless it
+            // keeps happening.
+            var unreachable = ex is IOException
                 || ex is HttpRequestException { StatusCode: null or System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden };
             _seerrDown = unreachable || ++_seerrFailuresInARow >= SeerrFailuresBeforeGivingUp;
             LogSeerrRatingsFailed(item.Title, ex.Message, _seerrDown);
@@ -779,6 +983,9 @@ public sealed partial class MetadataRefresher(
 
         item.ImdbRating = ratings?.Imdb ?? item.ImdbRating;
     }
+
+    /// <summary>Whether Seerr gave the item's scores recently enough not to be asked again yet.</summary>
+    private static bool ScoresFresh(MediaItem item) => item.ScoresCheckedAt is { } checkedAt && DateTime.UtcNow - checkedAt < ScoresStaleAfter + Spread(item.Id);
 
     /// <summary>0 to 14 days, the same for an item every time, so a library's scores don't all go stale together.</summary>
     private static TimeSpan Spread(Guid id) => TimeSpan.FromDays(Math.Abs(id.GetHashCode() % 15));
@@ -1543,7 +1750,8 @@ public sealed partial class MetadataRefresher(
     /// <param name="byArrId">Fetches one title by the instance's own id.</param>
     /// <param name="byExternalId">Fetches the titles (none or one) with a TMDB or TVDB id.</param>
     /// <param name="ct">Stops the fetch.</param>
-    private async Task<List<(ArrInstance Instance, T Entry)>> KnownAsync<T>(
+    /// <returns>What they have, and whether every instance asked answered (a title gone from one, a 404, counts as an answer).</returns>
+    private async Task<(List<(ArrInstance Instance, T Entry)> Known, bool AllAnswered)> KnownAsync<T>(
         List<ArrInstance> instances,
         IReadOnlyList<MediaItem>? only,
         Func<MediaItem, string?> externalId,
@@ -1553,6 +1761,7 @@ public sealed partial class MetadataRefresher(
         CancellationToken ct)
     {
         var known = new List<(ArrInstance Instance, T Entry)>();
+        var allAnswered = true;
         if (only is not null && only.All(i => i.ArrId is not null && instances.Any(a => a.Name == i.MetadataSource) || ExternalId(i) is not null))
         {
             foreach (var item in only)
@@ -1568,6 +1777,7 @@ public sealed partial class MetadataRefresher(
                     {
                         // Gone from that instance (a 404), or it's down: try the other id.
                         LogArrUnavailable(source.Name, ex.Message);
+                        allAnswered &= ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound };
                     }
                 }
 
@@ -1585,11 +1795,12 @@ public sealed partial class MetadataRefresher(
                     catch (Exception ex) when (IsNetworkFailure(ex, ct))
                     {
                         LogArrUnavailable(instance.Name, ex.Message);
+                        allAnswered = false;
                     }
                 }
             }
 
-            return known;
+            return (known, allAnswered);
         }
 
         foreach (var instance in instances)
@@ -1601,14 +1812,22 @@ public sealed partial class MetadataRefresher(
             catch (Exception ex) when (IsNetworkFailure(ex, ct))
             {
                 LogArrUnavailable(instance.Name, ex.Message);
+                allAnswered = false;
             }
         }
 
-        return known;
+        return (known, allAnswered);
 
         int? ExternalId(MediaItem item) =>
             int.TryParse(externalId(item), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) && n > 0 ? n : null;
     }
+
+    /// <summary>
+    /// Whether a title linked to a Radarr or Sonarr entry is missing from what was fetched. When an instance didn't
+    /// answer, that may only mean it's down, so the title is left as it is (unstamped, so it's tried again next time).
+    /// </summary>
+    private static bool Unconfirmed(MediaItem item, IEnumerable<(ArrInstance Instance, int Id)> known) =>
+        item.ArrId is { } arrId && !known.Any(k => k.Id == arrId && k.Instance.Name == item.MetadataSource);
 
     private async Task SaveEveryAsync(int count, CancellationToken ct)
     {

@@ -1,5 +1,7 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import kotlinx.serialization.Serializable
 
 // Music requests: artists and albums from outside the library (from Deezer, matched to MusicBrainz through Lidarr),
@@ -45,10 +47,10 @@ data class MusicExternal(
         get() {
             if (isArtist) return null
             val type = when (recordType) {
-                "ep" -> "EP"
-                "single" -> "Single"
-                "compile" -> "Compilation"
-                else -> "Album"
+                "ep" -> t("EP")
+                "single" -> t("Single")
+                "compile" -> t("Compilation")
+                else -> t("Album")
             }
             return listOfNotNull(type, year?.toString()).joinToString(", ")
         }
@@ -60,9 +62,9 @@ data class MusicExternal(
  */
 fun List<MusicExternal>.releaseShelves(): List<Pair<String, List<MusicExternal>>> =
     listOf(
-        "Albums" to filter { it.recordType !in setOf("ep", "single", "compile") },
-        "EPs and singles" to filter { it.recordType == "ep" || it.recordType == "single" },
-        "Compilations" to filter { it.recordType == "compile" },
+        t(Words.albums) to filter { it.recordType !in setOf("ep", "single", "compile") },
+        t("EPs and singles") to filter { it.recordType == "ep" || it.recordType == "single" },
+        t("Compilations") to filter { it.recordType == "compile" },
     ).filter { it.second.isNotEmpty() }
 
 /** One of Discover's music rows: "artists" are round photos, "albums" square covers. */
@@ -263,7 +265,7 @@ suspend fun FlexarrClient.unrequestAlbum(album: MusicExternal) {
 }
 
 /** What an unfollow or unrequest (music's, or a film's or show's) says when the server has no way to undo one yet (before 0.59). */
-const val UndoNeedsNewerServer = "Update the server to undo this."
+val UndoNeedsNewerServer: String get() = t("Update the server to undo this.")
 
 /**
  * An unfollow or unrequest, a bare 404 (or 405) from a server before 0.59, with no word of its own, saying so in

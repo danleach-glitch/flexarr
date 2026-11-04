@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { browseFilesystem, chooseFolderOnMac } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { Folder, FolderUp } from './icons'
+import { t } from '../i18n'
 
 type Props =
   /** Pick with the picker's own button, which `pickLabel` names. */
@@ -10,7 +11,7 @@ type Props =
   | { onOpen: (path: string) => void; onPick?: never; pickLabel?: never }
 
 /** Browse the server's filesystem and pick a folder, like the *arr root-folder picker. */
-export function FolderPicker({ onPick, onOpen, pickLabel = 'Use this folder' }: Props) {
+export function FolderPicker({ onPick, onOpen, pickLabel }: Props) {
   const [path, setPath] = useState<string>()
   const { data, error, loading } = useApi((signal) => browseFilesystem(path, signal), [path])
   const open = data && !data.chooseOnMac ? data.path : undefined
@@ -28,7 +29,7 @@ export function FolderPicker({ onPick, onOpen, pickLabel = 'Use this folder' }: 
         <code>{data?.path ?? path ?? '…'}</code>
         {onPick && (
           <button type="button" className="button" disabled={!data} onClick={() => data && onPick(data.path)}>
-            {pickLabel}
+            {pickLabel ?? t('Use this folder')}
           </button>
         )}
       </div>
@@ -37,7 +38,7 @@ export function FolderPicker({ onPick, onOpen, pickLabel = 'Use this folder' }: 
         {data?.parent && (
           <li>
             <button type="button" onClick={() => setPath(data.parent!)}>
-              <FolderUp /> Up a folder
+              <FolderUp /> {t('Up a folder')}
             </button>
           </li>
         )}
@@ -48,7 +49,7 @@ export function FolderPicker({ onPick, onOpen, pickLabel = 'Use this folder' }: 
             </button>
           </li>
         ))}
-        {!loading && data?.directories.length === 0 && <li className="muted">No subfolders</li>}
+        {!loading && data?.directories.length === 0 && <li className="muted">{t('No subfolders')}</li>}
       </ul>
     </div>
   )
@@ -82,12 +83,12 @@ function ChooseOnMac({ onPick }: { onPick: (path: string) => void }) {
       ) : (
         <p className="muted">
           {waiting
-            ? 'Choose the folder in the window on the Mac running Flexarr.'
-            : 'Flexarr can use the folders you choose on the Mac it runs on, and everything inside them.'}
+            ? t('Choose the folder in the window on the Mac running Flexarr.')
+            : t('Flexarr can use the folders you choose on the Mac it runs on, and everything inside them.')}
         </p>
       )}
       <button type="button" className="button" disabled={waiting} onClick={() => void choose()}>
-        <Folder /> {waiting ? 'Waiting for the Mac…' : 'Choose a folder on the Mac…'}
+        <Folder /> {waiting ? t('Waiting for the Mac…') : t('Choose a folder on the Mac…')}
       </button>
       {error && <p className="error">{error}</p>}
     </div>

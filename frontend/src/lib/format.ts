@@ -1,10 +1,11 @@
 import type { ItemSummary, LibraryType, MediaFile, VideoRange } from '../api/types'
+import { locale, t, Words } from '../i18n'
 
 export function formatDuration(seconds: number | null | undefined): string | null {
   if (!seconds) return null
   const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `${minutes}m`
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+  if (minutes < 60) return t('{minutes}m', { minutes })
+  return t('{hours}h {minutes}m', { hours: Math.floor(minutes / 60), minutes: minutes % 60 })
 }
 
 /** "1:02:05" or "4:07" for the player. */
@@ -16,6 +17,11 @@ export function formatClock(seconds: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`
 }
 
+/** A number in the language shown, with a fixed number of decimals (1.5, or 1,5 in German). */
+export function formatDecimal(value: number, digits: number): string {
+  return value.toLocaleString(locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits })
+}
+
 export function formatSize(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let value = bytes
@@ -24,17 +30,21 @@ export function formatSize(bytes: number): string {
     value /= 1024
     unit++
   }
-  return `${value.toFixed(value >= 100 || unit === 0 ? 0 : 1)} ${units[unit]}`
+  return t('{value} {unit}', { value: formatDecimal(value, value >= 100 || unit === 0 ? 0 : 1), unit: units[unit] })
 }
 
 export function formatBitrate(bitsPerSecond: number | null): string | null {
   if (!bitsPerSecond) return null
-  return bitsPerSecond >= 1_000_000 ? `${(bitsPerSecond / 1_000_000).toFixed(1)} Mbps` : `${Math.round(bitsPerSecond / 1000)} kbps`
+  return bitsPerSecond >= 1_000_000
+    ? t('{value} Mbps', { value: formatDecimal(bitsPerSecond / 1_000_000, 1) })
+    : t('{value} kbps', { value: Math.round(bitsPerSecond / 1000) })
 }
 
 export function formatChannels(channels: number | null): string | null {
   if (!channels) return null
-  return { 1: 'Mono', 2: 'Stereo', 6: '5.1', 8: '7.1' }[channels] ?? `${channels} channels`
+  if (channels === 1) return t('Mono')
+  if (channels === 2) return t('Stereo')
+  return { 6: '5.1', 8: '7.1' }[channels] ?? t('{channels} channels', { channels })
 }
 
 
@@ -44,17 +54,25 @@ type EpisodeNumbers = Pick<ItemSummary, 'seasonNumber' | 'episodeNumber' | 'epis
 export function episodeCode(item: EpisodeNumbers): string {
   if (item.homeVideo) return ''
   if (item.airDate) return item.airDate
-  const code = `S${item.seasonNumber ?? 0}E${item.episodeNumber ?? 0}`
-  return item.episodeNumberEnd ? `${code}–E${item.episodeNumberEnd}` : code
+  const season = item.seasonNumber ?? 0
+  const episode = item.episodeNumber ?? 0
+  return item.episodeNumberEnd
+    ? t('S{season}E{episode}–E{last}', { season: String(season), episode: String(episode), last: String(item.episodeNumberEnd) })
+    : t(Words.seasonEpisodeShort, { season: String(season), episode: String(episode) })
 }
 
 /** "Season 1, Episode 10" for buttons and headings on a show's pages (dated shows give the date; a home video its name). */
 export function episodeHeading(item: EpisodeNumbers): string {
   if (item.homeVideo) return item.title ?? ''
-  if (item.airDate) return new Date(item.airDate).toLocaleDateString(undefined, { dateStyle: 'long' })
-  const season = item.seasonNumber === 0 ? 'Specials' : `Season ${item.seasonNumber ?? 0}`
-  const episode = item.episodeNumberEnd ? `episodes ${item.episodeNumber ?? 0}–${item.episodeNumberEnd}` : `Episode ${item.episodeNumber ?? 0}`
-  return `${season}, ${episode.replace(/^episodes/, 'Episodes')}`
+  if (item.airDate) return new Date(item.airDate).toLocaleDateString(locale(), { dateStyle: 'long' })
+  const season = String(item.seasonNumber ?? 0)
+  const episode = String(item.episodeNumber ?? 0)
+  const last = String(item.episodeNumberEnd ?? '')
+  if (item.seasonNumber === 0)
+    return item.episodeNumberEnd ? t('Specials, Episodes {episode}–{last}', { episode, last }) : t('Specials, Episode {episode}', { episode })
+  return item.episodeNumberEnd
+    ? t('Season {season}, Episodes {episode}–{last}', { season, episode, last })
+    : t(Words.seasonEpisodeHeading, { season, episode })
 }
 
 const rangeLabel: Record<VideoRange, string | null> = {
@@ -71,12 +89,12 @@ export function pictureLabel(file: Pick<MediaFile, 'videoRange' | 'hdr10Plus'>):
 }
 
 export function relativeTime(iso: string | null): string {
-  if (!iso) return 'never'
+  if (!iso) return t('never')
   const seconds = (Date.now() - new Date(iso).getTime()) / 1000
-  if (seconds < 60) return 'just now'
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)} h ago`
-  return new Date(iso).toLocaleDateString()
+  if (seconds < 60) return t('just now')
+  if (seconds < 3600) return t('{minutes} min ago', { minutes: Math.floor(seconds / 60) })
+  if (seconds < 86400) return t('{hours} h ago', { hours: Math.floor(seconds / 3600) })
+  return new Date(iso).toLocaleDateString(locale())
 }
 
 export function year(item: Pick<ItemSummary, 'year' | 'releaseDate'>): number | null {
@@ -90,13 +108,26 @@ export function progressOf(item: ItemSummary): number | null {
   return Math.min(1, item.userData.positionSeconds / duration)
 }
 
+/** Each kind of library's name, in the language shown when it's read. */
 export const libraryTypeLabel: Record<LibraryType, string> = {
-  Movies: 'Movies',
-  TvShows: 'TV Shows',
-  Music: 'Music',
-  Podcasts: 'Podcasts',
-  HomeVideos: 'Home Videos',
-  Audiobooks: 'Audiobooks',
+  get Movies() {
+    return t(Words.movies)
+  },
+  get TvShows() {
+    return t('TV Shows')
+  },
+  get Music() {
+    return t(Words.music)
+  },
+  get Podcasts() {
+    return t(Words.podcasts)
+  },
+  get HomeVideos() {
+    return t('Home Videos')
+  },
+  get Audiobooks() {
+    return t(Words.audiobooks)
+  },
 }
 
 /** What an episode is called where it is: a home video's is just its name. */
@@ -115,5 +146,5 @@ export function unreadableReason(error: string): string {
 /** "12 Nov", or "12 Nov 2021" when it isn't this year. */
 export function airDay(iso: string, now = new Date()): string {
   const date = new Date(iso)
-  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric' })
+  return date.toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric' })
 }

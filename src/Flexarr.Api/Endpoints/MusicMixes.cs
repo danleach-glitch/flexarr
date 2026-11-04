@@ -4,6 +4,7 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -76,7 +77,7 @@ public static class MusicMixes
     public static async Task<HomeRowDto?> HomeRowAsync(FlexarrDbContext db, IMemoryCache cache, string profileId, CancellationToken ct)
     {
         var mixes = await TodaysAsync(db, cache, profileId, ct);
-        return mixes.Count == 0 ? null : new HomeRowDto(HomeRowId, "Made for you", "mixes", [], null, null, mixes.Select(m => m.Summary).ToList());
+        return mixes.Count == 0 ? null : new HomeRowDto(HomeRowId, Loc.T("Made for you"), "mixes", [], null, null, mixes.Select(m => m.Summary).ToList());
     }
 
     /// <summary>
@@ -110,7 +111,7 @@ public static class MusicMixes
             }
 
             clusters.Add(ids);
-            plans.Add(new MixPlan(Id($"genre:{genre.Name}"), $"{genre.Name} Mix", ListNames(genre.Members.Select(a => a.Name)), genre.Members.Select(a => a.Id).ToList(), genre.Name));
+            plans.Add(new MixPlan(Id($"genre:{genre.Name}"), Loc.T("{name} Mix", new { name = genre.Name }), ListNames(genre.Members.Select(a => a.Name)), genre.Members.Select(a => a.Id).ToList(), genre.Name));
         }
 
         var covered = clusters.SelectMany(c => c).ToHashSet();
@@ -122,8 +123,8 @@ public static class MusicMixes
             }
 
             var ids = chunk.Select(a => a.Id).ToList();
-            var name = chunk.Length == 1 ? $"{chunk[0].Name} Mix" : ListNames(chunk.Select(a => a.Name));
-            plans.Add(new MixPlan(Id($"artists:{string.Join(",", ids.Order())}"), name, "Made from the artists you play", ids, null));
+            var name = chunk.Length == 1 ? Loc.T("{name} Mix", new { name = chunk[0].Name }) : ListNames(chunk.Select(a => a.Name));
+            plans.Add(new MixPlan(Id($"artists:{string.Join(",", ids.Order())}"), name, Loc.T("Made from the artists you play"), ids, null));
         }
 
         return plans;
@@ -163,9 +164,9 @@ public static class MusicMixes
         {
             0 => "",
             1 => list[0],
-            2 => $"{list[0]} & {list[1]}",
-            3 => $"{list[0]}, {list[1]} & {list[2]}",
-            _ => $"{list[0]}, {list[1]} & more",
+            2 => Loc.T("{first} & {second}", new { first = list[0], second = list[1] }),
+            3 => Loc.T("{first}, {second} & {third}", new { first = list[0], second = list[1], third = list[2] }),
+            _ => Loc.T("{first}, {second} & more", new { first = list[0], second = list[1] }),
         };
     }
 
@@ -173,8 +174,9 @@ public static class MusicMixes
     internal static async Task<List<Mix>> TodaysAsync(FlexarrDbContext db, IMemoryCache cache, string profileId, CancellationToken ct)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        // A new age limit, or Allow and Block, makes them afresh: their names and covers come from what they hold.
-        var key = $"music-mixes:{profileId}:{today.DayNumber}:{db.MaxRatingAge}:{LibraryVisibility.KidsSettingsVersion}";
+        // A new age limit, or Allow and Block, makes them afresh: their names and covers come from what they hold. Kept
+        // per language, as their names and descriptions are in it.
+        var key = $"music-mixes:{profileId}:{today.DayNumber}:{db.MaxRatingAge}:{LibraryVisibility.KidsSettingsVersion}:{Loc.Language}";
         if (cache.TryGetValue(key, out List<Mix>? cached) && cached is not null)
         {
             return cached;
@@ -211,7 +213,7 @@ public static class MusicMixes
             .ToLookup(i => i.ArtistId);
         var artists = plays.Select(p => new MixArtist(
                 p.ArtistId,
-                tagged[p.ArtistId].Select(t => t.Name).FirstOrDefault(n => n != null) ?? "Unknown artist",
+                tagged[p.ArtistId].Select(t => t.Name).FirstOrDefault(n => n != null) ?? Loc.T("Unknown artist"),
                 p.Plays,
                 tagged[p.ArtistId].SelectMany(t => t.Genres).Distinct(StringComparer.Ordinal).ToList()))
             .ToList();

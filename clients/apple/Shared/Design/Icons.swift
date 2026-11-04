@@ -4,6 +4,8 @@
 enum Symbol {
     /// Play or Resume.
     static let play = "play.fill"
+    /// Pause.
+    static let pause = "pause.fill"
     /// Start over.
     static let startOver = "arrow.counterclockwise"
     /// Shuffle a show, an artist or a genre.
@@ -22,6 +24,8 @@ enum Symbol {
     static let watchlist = "bookmark"
     /// On the watchlist.
     static let onWatchlist = "bookmark.fill"
+    /// Remove from the watchlist.
+    static let offWatchlist = "bookmark.slash"
     /// Request a title or an album.
     static let request = "plus"
     /// Asked for, on its way.
@@ -40,10 +44,18 @@ enum Symbol {
     static let addToPlaylist = "text.badge.plus"
     /// Download.
     static let download = "arrow.down.circle"
+    /// Delete a title, album, artist or book.
+    static let delete = "trash"
+    /// Explicit (a badge on a track or episode).
+    static let explicit = "e.square.fill"
     /// Search for subtitles.
     static let subtitles = "captions.bubble"
     /// Go to the show.
     static let goToShow = "play.rectangle.on.rectangle"
+    /// Go to a title's page (details, episode, book, podcast).
+    static let details = "info.circle"
+    /// Take something out of Continue watching or Up next.
+    static let removeFromRow = "minus.circle"
     /// More actions.
     static let more = "ellipsis"
     /// Home.
@@ -80,5 +92,5 @@ enum Symbol {
     static let homeVideos = "folder"
 
     /// Every name above, so a debug build can check each one exists on this system.
-    static let all = [play, startOver, shuffle, radio, trailer, watched, isWatched, markUnwatched, watchlist, onWatchlist, request, requested, follow, following, goToArtist, playNext, addToQueue, addToPlaylist, download, subtitles, goToShow, more, home, libraries, search, settings, downloads, discover, comingSoon, liveTv, collections, nowPlaying, movies, shows, music, podcasts, audiobooks, homeVideos]
+    static let all = [play, pause, startOver, shuffle, radio, trailer, watched, isWatched, markUnwatched, watchlist, onWatchlist, offWatchlist, request, requested, follow, following, goToArtist, playNext, addToQueue, addToPlaylist, download, delete, explicit, subtitles, goToShow, details, removeFromRow, more, home, libraries, search, settings, downloads, discover, comingSoon, liveTv, collections, nowPlaying, movies, shows, music, podcasts, audiobooks, homeVideos]
 }

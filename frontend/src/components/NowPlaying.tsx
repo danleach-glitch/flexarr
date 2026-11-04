@@ -7,10 +7,12 @@ import { formatClock } from '../lib/format'
 import { authorsLine, chapterIndexAt, isBook } from '../lib/books'
 import { BookOffers } from './BookOffers'
 import { BookTools } from './BookTools'
-import { Close, Fullscreen, Next, Pause, Play, Queue, SkipBack, SkipForward } from './icons'
+import { Close, Fullscreen, Next, Queue, SkipBack, SkipForward } from './icons'
+import { icon } from './icons.generated'
 import { NowPlayingView } from './NowPlayingView'
 import { PodcastTools } from './PodcastTools'
 import { QueuePanel } from './QueuePanel'
+import { t, Words } from '../i18n'
 
 /**
  * The music bar along the bottom, there while something is queued. The cover opens Now Playing over the whole window;
@@ -60,7 +62,7 @@ export function NowPlaying() {
       {queueOpen && <QueuePanel onClose={closeQueue} style={accent} />}
       {viewOpen && <NowPlayingView onClose={closeView} />}
       {!viewOpen && <BookOffers />}
-      <aside className="now-playing" aria-label="Now playing" style={accent}>
+      <aside className="now-playing" aria-label={t(Words.nowPlaying)} style={accent}>
         <div className="now-playing-track">
           <button
             className="now-playing-cover"
@@ -68,7 +70,7 @@ export function NowPlaying() {
               setQueueOpen(false)
               setViewOpen(true)
             }}
-            aria-label="Open Now Playing"
+            aria-label={t('Open Now Playing')}
             aria-haspopup="dialog"
           >
             {track.artwork.poster && <img src={imageUrl(track.artwork.poster, 185)} alt="" />}
@@ -102,33 +104,33 @@ export function NowPlaying() {
         <div className="now-playing-centre">
           <div className="now-playing-controls">
             {book && (
-              <button className="icon-button now-playing-skip now-playing-chapter" onClick={player.previous} aria-label="Previous chapter" disabled={chapters.length === 0}>
+              <button className="icon-button now-playing-skip now-playing-chapter" onClick={player.previous} aria-label={t('Previous chapter')} disabled={chapters.length === 0}>
                 <Next style={{ transform: 'scaleX(-1)' }} />
               </button>
             )}
             {skips ? (
-              <button className="icon-button now-playing-skip" onClick={() => player.skipBy(-back)} aria-label={`Back ${back} seconds`}>
+              <button className="icon-button now-playing-skip" onClick={() => player.skipBy(-back)} aria-label={t('Back {seconds} seconds', { seconds: back })}>
                 <SkipBack seconds={back} />
               </button>
             ) : (
-              <button className="icon-button now-playing-skip" onClick={player.previous} aria-label="Previous track">
+              <button className="icon-button now-playing-skip" onClick={player.previous} aria-label={t('Previous track')}>
                 <Next style={{ transform: 'scaleX(-1)' }} />
               </button>
             )}
-            <button className="icon-button now-playing-toggle" onClick={player.toggle} aria-label={player.playing ? 'Pause' : 'Play'}>
-              {player.playing ? <Pause /> : <Play />}
+            <button className="icon-button now-playing-toggle" onClick={player.toggle} aria-label={player.playing ? t('Pause') : t(Words.play)}>
+              {player.playing ? <icon.pause /> : <icon.play />}
             </button>
             {skips ? (
-              <button className="icon-button now-playing-skip" onClick={() => player.skipBy(forward)} aria-label={`Forward ${forward} seconds`}>
+              <button className="icon-button now-playing-skip" onClick={() => player.skipBy(forward)} aria-label={t('Forward {seconds} seconds', { seconds: forward })}>
                 <SkipForward seconds={forward} />
               </button>
             ) : (
-              <button className="icon-button now-playing-skip" onClick={player.next} aria-label="Next track" disabled={upcoming === 0}>
+              <button className="icon-button now-playing-skip" onClick={player.next} aria-label={t('Next track')} disabled={upcoming === 0}>
                 <Next />
               </button>
             )}
             {book && (
-              <button className="icon-button now-playing-skip now-playing-chapter" onClick={player.next} aria-label="Next chapter" disabled={chapters.length === 0}>
+              <button className="icon-button now-playing-skip now-playing-chapter" onClick={player.next} aria-label={t('Next chapter')} disabled={chapters.length === 0}>
                 <Next />
               </button>
             )}
@@ -141,7 +143,7 @@ export function NowPlaying() {
               max={Math.max(1, Math.floor(duration))}
               value={Math.min(scrub.shown, Math.floor(duration))}
               {...scrub.inputProps}
-              aria-label="Seek"
+              aria-label={t('Seek')}
             />
             {/* Time left, at the speed it plays at. */}
             <span>-{formatClock(Math.max(0, duration - scrub.shown) / (skips ? player.speed || 1 : 1))}</span>
@@ -154,7 +156,7 @@ export function NowPlaying() {
             <button
               ref={queueButton}
               className="icon-button now-playing-queue"
-              aria-label={upcoming === 0 ? 'Queue' : `Queue, ${upcoming} ${upcoming === 1 ? 'track' : 'tracks'} to come`}
+              aria-label={upcoming === 0 ? t('Queue') : t('{count, plural, one {Queue, # track to come} other {Queue, # tracks to come}}', { count: upcoming })}
               aria-expanded={queueOpen}
               aria-controls="queue-panel"
               onClick={() => (queueOpen ? closeQueue() : setQueueOpen(true))}
@@ -169,7 +171,7 @@ export function NowPlaying() {
               setQueueOpen(false)
               player.stop()
             }}
-            aria-label="Stop and close"
+            aria-label={t('Stop and close')}
           >
             <Close />
           </button>

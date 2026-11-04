@@ -25,6 +25,13 @@ import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
 import androidx.media3.exoplayer.ExoPlayer
 import io.github.flexarr.AppModel
+import io.github.flexarr.core.PreparedStreams
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.logging.FlexarrLog
 import io.github.flexarr.ReviewPrompt
 import io.github.flexarr.data.PlayerSettings
 import io.github.flexarr.data.SoundSettings
@@ -35,7 +42,9 @@ import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.PlaybackInfo
 import io.github.flexarr.core.PlaybackMethod
 import io.github.flexarr.core.PlaybackPreferences
+import io.github.flexarr.core.NextEpisodeTiming
 import io.github.flexarr.core.PlaybackPrompt
+import io.github.flexarr.core.nextEpisodeTiming
 import io.github.flexarr.core.PlaybackRequest
 import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
@@ -46,7 +55,6 @@ import io.github.flexarr.core.DownloadedSubtitles
 import io.github.flexarr.player.subtitles.StyledSubtitles
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.ItemSummary
-import io.github.flexarr.core.prompt
 import io.github.flexarr.core.startSubtitleSync
 import io.github.flexarr.core.subtitleSync
 import kotlinx.coroutines.Job
@@ -70,6 +78,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     val player: ExoPlayer = ExoPlayer.Builder(context, shaper.renderers(context))
         .setMediaSourceFactory(mediaSources(context))
+        .setLoadControl(StartBuffer.loadControl())
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         .setHandleAudioBecomingNoisy(true)
         .setSeekBackIncrementMs(skipSeconds * 1000L)
@@ -163,7 +172,17 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private val autoSkipped = mutableSetOf<String>()
     private var lastReport = 0L
     private var isFinishing = false
+    /** On to the next episode: the pill goes as it is until the next one begins, rather than turning into "Next episode". */
+    private var movingOn = false
     private var nextCancelled = false
+    /**
+     * A seek or start landed past the countdown's end with no countdown running: the episode plays on with Next Episode
+     * up and counts down over its last 10 seconds, as with Skip credits off. Gone back before the countdown, it's over.
+     */
+    private var landedPastNext = false
+    /** This title's Next Episode timing, worked out once for its info and the player's own preferences. */
+    private var timingKey: Pair<PlaybackInfo, PlaybackPreferences>? = null
+    private var timingValue: NextEpisodeTiming? = null
     private var countdown: Int? = null
     private var countdownJob: Job? = null
     private var ticker: Job? = null
@@ -200,8 +219,29 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** The last progress report or stop sent: each waits for the one before, so the server hears them in order. */
     private var reporting: Job? = null
 
+    /** This title's start, timed until its first picture (see [StartTiming]). */
+    private var timing: StartTiming? = null
+    /** When the first picture came, where, and which playback, to note a stall soon after. */
+    private var firstFrame: Triple<Long, Long, String?>? = null
+    private val log = FlexarrLog("playback")
+
     init {
+        // How fast this stream's segments arrive, for the next start's measured speed (docs/fast-start.md). Only a
+        // converted or repackaged stream's: a file played as it is is one long download paced by the player.
+        player.addAnalyticsListener(object : AnalyticsListener {
+            override fun onLoadCompleted(eventTime: AnalyticsListener.EventTime, loadEventInfo: LoadEventInfo, mediaLoadData: MediaLoadData) {
+                if (mediaLoadData.dataType != C.DATA_TYPE_MEDIA || info?.method != PlaybackMethod.Transcode || isOffline) return
+                model.linkSpeed.sample(loadEventInfo.bytesLoaded, loadEventInfo.loadDurationMs)
+            }
+        })
         player.addListener(object : Player.Listener {
+            override fun onRenderedFirstFrame() {
+                val started = timing?.takeIf { it.isAnswered } ?: return
+                started.report(log, client.baseUrl.host, model.isGuest)
+                firstFrame = Triple(android.os.SystemClock.elapsedRealtime(), player.currentPosition, info?.playbackId)
+                timing = null
+            }
+
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
                 if (playing) {
@@ -216,12 +256,24 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
             override fun onPlaybackStateChanged(state: Int) {
                 isBuffering = state == Player.STATE_BUFFERING
+                // A stall soon after the first picture: its own entry beside the start's. Not a seek (Skip intro, say),
+                // which moves the place well past where playing alone would have got to.
+                if (state == Player.STATE_BUFFERING) firstFrame?.let { (at, position, playbackId) ->
+                    firstFrame = null
+                    val after = android.os.SystemClock.elapsedRealtime() - at
+                    if (after < EARLY_STALL_MS && abs(player.currentPosition - position - after) < 3000) {
+                        log.measured(
+                            "Playback ${playbackId ?: "unknown"} stalled soon after starting",
+                            mapOf("afterMs" to after.toString(), "remote" to (model.isGuest || StartTiming.looksRemote(client.baseUrl.host)).toString(), "playbackId" to playbackId),
+                        )
+                    }
+                }
                 if (state == Player.STATE_ENDED) itemEnded()
             }
 
             override fun onPlayerError(e: PlaybackException) {
                 if (isOffline) {
-                    error = "This download couldn’t be played. Delete it and download it again."
+                    error = t("This download couldn’t be played. Delete it and download it again.")
                     return
                 }
                 // The file played as it is, and this device's decoder couldn't cope after all (it claimed a codec it
@@ -257,7 +309,9 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /**
      * Asks the server for [itemId] (or a random episode of a show, with [shuffle]) and starts it, as a new sitting.
      */
-    fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null, from: String? = null, startedWith: String? = null) {
+    fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null, from: String? = null, startedWith: String? = null,
+              pressedAt: Long? = null) {
+        timing = pressedAt?.let { StartTiming(StartTiming.VIDEO, it) } ?: StartTiming(StartTiming.VIDEO)
         // A new sitting: nothing before it for Previous episode.
         trail.clear()
         origin = from to (startedWith ?: itemId)
@@ -285,6 +339,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 replacesSessionId = info?.sessionId,
                 shuffle = if (shuffle) true else null,
                 subtitleKey = if (subtitlesOff) "off" else viewerSubtitleKey,
+                measuredBitrate = model.linkSpeed.current(),
             )
         }
     }
@@ -304,7 +359,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         val download = model.downloads.byId(downloadId)
         val file = download?.let(model.downloads::file)
         if (download == null || file == null) {
-            error = "This download isn’t on the phone any more."
+            error = t("This download isn’t on the phone any more.")
             return
         }
         newTitle(subtitlesOff = false)
@@ -361,11 +416,17 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         scope.launch {
             try {
                 // Whether this server can have fragmented MP4, or read a chosen teletext page, depends on its version, asked once.
-                val profile = serverProfile ?: runCatching { client.systemStatus().version }.getOrNull().let { version ->
+                // The app's own (asked once per server, shared with warm-ups so both ask for the same stream).
+                val profile = serverProfile ?: (model.server() ?: (null to DeviceCapabilities.withServer(deviceProfile, null))).let { (version, profile) ->
                     serverReadsTeletextPages = Teletext.canChoosePage(version)
-                    DeviceCapabilities.withServer(deviceProfile, version)
+                    profile
                 }.also { serverProfile = it }
-                val started = startPlayback(request(profile), attempts) { !closed && mine == openGeneration } ?: return@launch
+                val asked = request(profile)
+                // Got ready on its page (or by a TV's focus) a moment ago, for exactly this: no wait for the server.
+                val ready = if (asked.replacesSessionId == null) model.warmUps.take(asked, owner = client.profileToken) else null
+                if (ready == null && asked.replacesSessionId == null) model.warmUps.drop()
+                val started = ready ?: startPlayback(asked, attempts) { !closed && mine == openGeneration } ?: return@launch
+                timing?.answered(started, warmed = ready != null)
                 if (closed || mine != openGeneration) {
                     runCatching { client.stopPlayback(started.sessionId) }
                     return@launch
@@ -378,7 +439,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     Log.w("Flexarr", "Couldn't open the stream again", e)
                 } else {
                     val takenOver = e is FlexarrException.Http && e.status == 410
-                    fail(e.message ?: "This couldn’t be played.", retry = request, takenOver = takenOver)
+                    fail(e.message ?: t("This couldn’t be played."), retry = request, takenOver = takenOver)
                 }
             } finally {
                 if (mine == openGeneration) {
@@ -448,8 +509,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         retryRequest = if (takenOver && retry != null) { profile -> retry(profile).copy(replacesSessionId = null) } else retry
         retryLabel = when {
             retry == null -> null
-            takenOver -> "Watch here instead"
-            else -> "Try again"
+            takenOver -> t("Watch here instead")
+            else -> t("Try again")
         }
     }
 
@@ -500,10 +561,16 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         retryLabel = null
         preferences = started.preferences ?: PlaybackPreferences()
         prompt = PlaybackPrompt.None
+        movingOn = false
         autoSkipped.clear()
-        isFinishing = false
-        nextCancelled = false
-        countdown = null
+        // The same title opened again (another audio track, a recovery, the converted stream): Cancel and the countdown
+        // hold for the rest of the episode.
+        if (!sameTitle) {
+            isFinishing = false
+            nextCancelled = false
+            landedPastNext = false
+            countdown = null
+        }
         countdownJob?.cancel()
         updatePrompt()
         duration = started.durationSeconds
@@ -584,7 +651,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         position = seconds
         if (player.duration > 0) duration = player.duration / 1000.0
         sleep.check(::untilEndOfEpisode)
-        val next = info.prompt(seconds)
+        val baseTiming = nextTiming(info)
+        val next = PlaybackPrompt.at(seconds, info.markers, if (info.next != null) baseTiming else null, info.next != null)
         // Skip intros and recaps by themselves when the profile asks, once each.
         if (next is PlaybackPrompt.Skip && (if (next.type == MarkerType.Intro) preferences.skipIntros else preferences.skipRecaps) &&
             autoSkipped.add("${next.type.raw}@${next.to}")
@@ -592,17 +660,49 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             seekTo(next.to)
             return
         }
-        // Skip credits: the episode is over as soon as they start (unless the sleep timer stops it there). With
-        // auto-play off, that closes the player.
-        val credits = info.markers.firstOrNull { it.type == MarkerType.Credits }
-        if (preferences.skipCredits && info.next != null && !nextCancelled && !isFinishing && !sleepHoldsEpisode && credits != null && seconds >= credits.start) {
-            player.pause()
-            report(paused = true, ended = true)
-            if (preferences.autoPlayNext) {
-                beginFinishing()
-            } else {
+        // Next Episode's countdown follows the position (docs/next-episode-timing.md): the picture plays on under it,
+        // pausing holds it and going back before it puts it away. Not after Cancel, nor while the sleep timer stops
+        // this episode, nor once the file has ended (that's the wall-clock countdown's).
+        // Scrubbed back from the last frame: the wall-clock countdown gives way to the position's.
+        if (countdownJob?.isActive == true && player.playbackState != Player.STATE_ENDED) {
+            countdownJob?.cancel()
+            endCountdown()
+        }
+        val wallClock = countdownJob?.isActive == true || player.playbackState == Player.STATE_ENDED
+        if (baseTiming != null && info.next != null && !nextCancelled && !sleepHoldsEpisode && !wallClock) {
+            val baseNextAt = baseTiming.nextAt
+            if (landedPastNext && seconds < (baseTiming.countdownFrom ?: 0.0)) landedPastNext = false
+            // Landed past the countdown's end without counting down (a seek into the credits, a start there): not on at
+            // once. Only playing into it while counting down moves on.
+            if (!landedPastNext && !isFinishing && baseNextAt != null && seconds >= baseNextAt) landedPastNext = true
+            val timing = if (landedPastNext) baseTiming.playingOn(info.durationSeconds) else baseTiming
+            // Skip credits with auto-play off: the episode is over as the credits start, and the player closes.
+            val closeAt = timing.closeAt
+            if (closeAt != null && seconds >= closeAt) {
+                player.pause()
+                report(paused = true, ended = true)
                 return onClose()
             }
+            val left = timing.secondsLeft(seconds)
+            val nextAt = timing.nextAt
+            if (left != null && nextAt != null) {
+                // Played into it while counting down: on to the next. Landed at the very end: the file's end has it.
+                if (seconds >= nextAt && isFinishing) return playNext(watched = true)
+                if (seconds < nextAt && !isFinishing) {
+                    isFinishing = true
+                    prepareNext()
+                }
+                if (isFinishing && countdown != left) {
+                    countdown = left
+                    updatePrompt()
+                }
+            } else if (isFinishing) {
+                // Gone back before the countdown.
+                endCountdown()
+            }
+        } else if (isFinishing && !wallClock && !nextCancelled) {
+            // The sleep timer took this episode's end mid-countdown.
+            endCountdown()
         }
         if (next != prompt) {
             prompt = next
@@ -617,6 +717,27 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         if (System.currentTimeMillis() - lastReport >= REPORT_INTERVAL_MS && player.isPlaying) report(paused = false)
     }
 
+    private fun nextTiming(info: PlaybackInfo): NextEpisodeTiming? {
+        val key = timingKey
+        if (key == null || key.first !== info || key.second != preferences) {
+            timingValue = info.nextEpisodeTiming(preferences)
+            timingKey = info to preferences
+        }
+        return timingValue
+    }
+
+    /** The countdown over the last 10 seconds instead, as with Skip credits off, after landing past this timing's end. */
+    private fun NextEpisodeTiming.playingOn(duration: Double): NextEpisodeTiming {
+        val end = duration.takeIf { it > 0 } ?: return this
+        return copy(countdownFrom = (end - COUNTDOWN_SECONDS).coerceAtLeast(0.0), nextAt = end, closeAt = null)
+    }
+
+    private fun endCountdown() {
+        isFinishing = false
+        countdown = null
+        updatePrompt()
+    }
+
     fun togglePlayPause() = if (player.isPlaying) player.pause() else player.play()
 
     fun skip(seconds: Int) = seekTo((player.currentPosition / 1000.0 + seconds).coerceAtLeast(0.0))
@@ -627,13 +748,19 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         keepTicking()
     }
 
-    /** Ignored while a session is being asked for, so a second tap (or the countdown running out) doesn't open two. */
-    fun playNext() {
+    /**
+     * Ignored while a session is being asked for, so a second tap (or the countdown running out) doesn't open two.
+     * [watched]: moved on from Next Episode or its countdown, which counts the episode as watched whatever its length.
+     * The transport's Next (skipping mid-episode) counts it only once past the credits.
+     */
+    fun playNext(watched: Boolean = false) {
         val current = info ?: return
         val next = current.next ?: return
         if (isOpening) return
+        movingOn = true
+        updatePrompt()
         // Moved on from the credits: watched, as on iPhone.
-        val finished = isPastCredits(current, player.currentPosition / 1000.0)
+        val finished = watched || isPastCredits(current, player.currentPosition / 1000.0)
         report(paused = true, ended = finished)
         if (finished && model.recordsHistory) ReviewPrompt.titleFinished(closing = false)
         if (isOffline) {
@@ -643,8 +770,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         }
         trail.add(current.item)
         val subtitlesOff = nextSubtitlesOff(current)
+        timing = StartTiming(StartTiming.VIDEO)
         val ready = prepared
-        if (ready != null && ready.info.item.id == next.id && ready.subtitlesOff == subtitlesOff) {
+        // Not after half an hour on the up-next card: the server may have let it go by then.
+        if (ready != null && ready.info.item.id == next.id && ready.subtitlesOff == subtitlesOff &&
+            android.os.SystemClock.elapsedRealtime() - ready.at < PreparedStreams.NEXT_EPISODE_MAX_AGE_MS) {
+            timing?.answered(ready.info, warmed = true)
             // Got ready during the credits: this session ends, and the next one opens straight away.
             Log.i("Flexarr", "Using the next episode got ready during the credits")
             prepared = null
@@ -669,7 +800,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     // The next episode, got ready during the credits.
 
-    private class Prepared(val info: PlaybackInfo, val subtitlesOff: Boolean)
+    private class Prepared(val info: PlaybackInfo, val subtitlesOff: Boolean, val at: Long = android.os.SystemClock.elapsedRealtime())
 
     private var prepared: Prepared? = null
     private var preparing: Job? = null
@@ -730,15 +861,15 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     }
 
     fun promptTapped() {
-        if (isFinishing) return playNext()
+        if (isFinishing) return playNext(watched = true)
         when (val current = prompt) {
             is PlaybackPrompt.Skip -> seekTo(current.to)
-            PlaybackPrompt.NextEpisode -> playNext()
+            PlaybackPrompt.NextEpisode -> playNext(watched = true)
             PlaybackPrompt.None -> Unit
         }
     }
 
-    /** Not now: stop counting, and if the credits were skipped, let them play. */
+    /** Not now: stop counting and let the episode play on; it closes at its end unless Next Episode is pressed. */
     fun cancelNext() {
         nextCancelled = true
         dropPrepared()
@@ -747,21 +878,24 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         countdown = null
         countdownJob?.cancel()
         updatePrompt()
-        if (!ended) player.play()
+        // Cancelled once the file had ended: it closes, as it would have at the end.
+        if (ended) onClose()
     }
 
     private fun itemEnded() {
         report(paused = true, ended = true)
         when {
             sleepHoldsEpisode -> sleep.fallAsleep()
+            // The file ended before the countdown had run (it was shorter than the server said): on at once.
+            isFinishing && countdownJob?.isActive != true && info?.next != null && !nextCancelled -> playNext(watched = true)
             info?.next != null && !nextCancelled && preferences.autoPlayNext -> beginFinishing()
             else -> onClose()
         }
     }
 
-    /** The episode is over (with auto-play on): count down to the next one. */
+    /** The file ended before the countdown started (with auto-play on): count down over the last frame. */
     private fun beginFinishing() {
-        if (info?.next == null || isFinishing) return
+        if (info?.next == null || countdownJob?.isActive == true) return
         isFinishing = true
         prepareNext()
         countdownJob?.cancel()
@@ -774,18 +908,23 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     if (!isFinishing) return@launch
                     countdown = (countdown ?: 1) - 1
                 }
-                if (isFinishing) playNext()
+                if (isFinishing) playNext(watched = true)
             }
         }
         updatePrompt()
     }
 
     private fun updatePrompt() {
+        if (movingOn) {
+            promptTitle = null
+            countingDown = false
+            return
+        }
         // "Next Episode in 4" (on shuffle too: the next one just happens to be random).
-        val nextTitle = countdown?.let { "Next episode in $it" } ?: "Next episode"
+        val nextTitle = countdown?.let { t(Words.nextEpisodeIn, "seconds" to it) } ?: t("Next episode")
         promptTitle = if (isFinishing) nextTitle else when (val current = prompt) {
             PlaybackPrompt.None -> null
-            is PlaybackPrompt.Skip -> if (current.type == MarkerType.Recap) "Skip recap" else "Skip intro"
+            is PlaybackPrompt.Skip -> if (current.type == MarkerType.Recap) t(Words.skipRecap) else t(Words.skipIntro)
             // The sleep timer stops this episode at its end: there's no next one to offer.
             PlaybackPrompt.NextEpisode -> if (sleepHoldsEpisode) null else nextTitle
         }
@@ -979,7 +1118,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     // One is already running for this file: follow that.
                     if (e.status != 409) throw e
                 }
-                showFlash("Re-syncing subtitles…")
+                showFlash(t("Re-syncing subtitles…"))
                 var misses = 0
                 // A film's re-sync takes a minute or more; given up on after half an hour.
                 repeat(600) {
@@ -993,13 +1132,13 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     when (status.state) {
                         SubtitleSyncState.Running, SubtitleSyncState.Unknown -> return@repeat
                         SubtitleSyncState.Done -> return@launch resyncDone(itemId, fileId, status.key ?: key)
-                        SubtitleSyncState.Failed -> return@launch resyncFailed(status.error ?: "The subtitles couldn’t be re-synced.")
-                        SubtitleSyncState.Idle -> return@launch resyncFailed("The re-sync stopped before it finished.")
+                        SubtitleSyncState.Failed -> return@launch resyncFailed(status.error ?: t("The subtitles couldn’t be re-synced."))
+                        SubtitleSyncState.Idle -> return@launch resyncFailed(t("The re-sync stopped before it finished."))
                     }
                 }
-                resyncFailed("The re-sync is taking too long. Try again later.")
+                resyncFailed(t("The re-sync is taking too long. Try again later."))
             } catch (e: FlexarrException) {
-                resyncFailed(e.message ?: "The subtitles couldn’t be re-synced.")
+                resyncFailed(e.message ?: t("The subtitles couldn’t be re-synced."))
             }
         }
     }
@@ -1009,7 +1148,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         isResyncing = false
         val current = info ?: return
         if (current.item.id != itemId || current.fileId != fileId) return
-        showFlash("Subtitles re-synced")
+        showFlash(t("Subtitles re-synced"))
         viewerChoseSubtitle = true
         viewerSubtitleKey = key
         reopen()
@@ -1128,8 +1267,11 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     }
 
     companion object {
+        /** How soon after the first picture a stall still counts as part of starting. */
+        const val EARLY_STALL_MS = 30_000L
+
         private const val REPORT_INTERVAL_MS = 10_000L
-        private const val COUNTDOWN_SECONDS = 5
+        private const val COUNTDOWN_SECONDS = NextEpisodeTiming.COUNTDOWN_SECONDS
         private const val SUBTITLE_ID_PREFIX = "flexarr-subtitle:"
         // A stream that stops is asked for again 6 times, 3 s apart, at most once a minute, as on iPhone.
         private const val RECOVERY_INTERVAL_MS = 60_000L
@@ -1165,17 +1307,17 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
         /**
          * Why the player stopped, in words: ExoPlayer's own ("io network connection failed") say little. [subject] is
-         * what was playing ("This", "This channel").
+         * what was playing ("This", "This channel"): [channel] for a live channel.
          */
-        fun playerErrorMessage(e: PlaybackException, subject: String = "This"): String = when (e.errorCode) {
+        fun playerErrorMessage(e: PlaybackException, channel: Boolean = false): String = when (e.errorCode) {
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT, PlaybackException.ERROR_CODE_TIMEOUT ->
-                "Lost the connection to the server. Make sure this phone is online and Flexarr is running, then try again."
+                t("Lost the connection to the server. Make sure this phone is online and Flexarr is running, then try again.")
             PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS, PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND, PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE ->
-                "The server stopped sending this. It may have restarted: try again in a moment."
-            in PARSING_ERRORS -> "$subject came in a form the phone couldn’t read."
-            in DECODER_ERRORS -> "This phone couldn’t decode the picture or the sound."
-            in AUDIO_ERRORS -> "The sound couldn’t be played on this phone."
-            else -> "$subject couldn’t be played."
+                t("The server stopped sending this. It may have restarted: try again in a moment.")
+            in PARSING_ERRORS -> if (channel) t("This channel came in a form the phone couldn’t read.") else t("This came in a form the phone couldn’t read.")
+            in DECODER_ERRORS -> t("This phone couldn’t decode the picture or the sound.")
+            in AUDIO_ERRORS -> t("The sound couldn’t be played on this phone.")
+            else -> if (channel) t("This channel couldn’t be played.") else t("This couldn’t be played.")
         }
 
         const val MAX_RATE = 2f
@@ -1188,20 +1330,19 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
         /** "In time", "0.5s later", "1s earlier". */
         fun delayLabel(seconds: Double): String {
-            if (seconds == 0.0) return "In time"
-            val amount = abs(seconds).let { if (it == Math.floor(it)) it.toInt().toString() else it.toString().trimEnd('0') }
-            return "${amount}s ${if (seconds > 0) "later" else "earlier"}"
+            if (seconds == 0.0) return t("In time")
+            return if (seconds > 0) t("{amount}s later", "amount" to abs(seconds)) else t("{amount}s earlier", "amount" to abs(seconds))
         }
 
         fun rateLabel(rate: Float): String {
-            if (rate == 1f) return "Normal"
+            if (rate == 1f) return t("Normal")
             val text = if (rate == Math.floor(rate.toDouble()).toFloat()) rate.toInt().toString() else rate.toString().trimEnd('0')
             return "$text×"
         }
 
         /** "+0.15 s", "−0.30 s", "0.00 s". */
         fun syncLabel(seconds: Double): String {
-            val amount = String.format(java.util.Locale.US, "%.2f s", abs(seconds))
+            val amount = String.format(io.github.flexarr.core.i18n.Localization.locale, "%.2f s", abs(seconds))
             return if (seconds > 0.0005) "+$amount" else if (seconds < -0.0005) "−$amount" else amount
         }
     }

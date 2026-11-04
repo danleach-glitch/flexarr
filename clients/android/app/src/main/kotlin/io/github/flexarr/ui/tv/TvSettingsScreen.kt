@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
+import androidx.compose.material.icons.filled.Language
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -48,7 +51,7 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.Tokens
 
 /** Settings' pages, opened from the first and from each other; Back goes to the one before. */
-internal enum class TvSettingsPageId { Main, Playback, Libraries, Sidebar, Trakt, Server, Diagnostics }
+internal enum class TvSettingsPageId { Main, Playback, Libraries, Sidebar, Language, Trakt, Server, Diagnostics }
 
 /**
  * Settings, as the Apple TV's SettingsView: a short list of pages, each row saying how it's set now, the details a
@@ -82,6 +85,7 @@ fun TvSettingsScreen(model: AppModel, onSwitchProfile: () -> Unit) {
         TvSettingsPageId.Playback -> TvPlaybackSettings(model)
         TvSettingsPageId.Libraries -> TvLibrarySettings()
         TvSettingsPageId.Sidebar -> TvSidebarSettings(model, libraries)
+        TvSettingsPageId.Language -> TvLanguageSettings(model)
         TvSettingsPageId.Trakt -> TvTraktSettings(model)
         TvSettingsPageId.Server -> TvServerSettings(model, libraries, returningFrom, onDiagnostics = { open(TvSettingsPageId.Diagnostics) })
         TvSettingsPageId.Diagnostics -> TvDiagnosticsSettings(model)
@@ -118,41 +122,51 @@ private fun MainPage(
 
     fun Modifier.focusFor(page: TvSettingsPageId?) = if (page == focusOn) focusRequester(focus) else this
 
-    TvSettingsPage("Settings", summary = "Flexarr for Android TV ${BuildConfig.VERSION_NAME}") {
+    TvSettingsPage(t(Words.settings), summary = t("Flexarr for Android TV {version}", "version" to BuildConfig.VERSION_NAME)) {
         if (profile != null) {
-            item { TvSettingsGroupLabel("Watching as") }
+            item { TvSettingsGroupLabel(t("Watching as")) }
             item {
                 if (switches) {
                     TvSettingsRow(
-                        profile.name, onClick = onSwitchProfile, modifier = Modifier.focusFor(null), profile = model to profile, value = "Switch",
-                        help = "Switch to another profile. Each has its own Continue watching, watch history and playback settings.",
+                        profile.name, onClick = onSwitchProfile, modifier = Modifier.focusFor(null), profile = model to profile, value = t("Switch"),
+                        help = t("Switch to another profile. Each has its own Continue watching, watch history and playback settings."),
                     )
                 } else {
-                    TvSettingsFact("Profile", profile.name, profile = model to profile)
+                    TvSettingsFact(t("Profile"), profile.name, profile = model to profile)
                 }
             }
         }
         item {
             TvSettingsRow(
-                "Playback", onClick = { open(TvSettingsPageId.Playback) },
+                t("Playback"), onClick = { open(TvSettingsPageId.Playback) },
                 modifier = Modifier.padding(top = if (profile == null) 0.dp else 18.dp).focusFor(TvSettingsPageId.Playback),
                 icon = Icons.Outlined.PlayCircle, accessory = TvSettingAccessory.Chevron,
-                help = "Auto-play, skipping intros and credits, subtitle size, and how far the remote skips.",
+                help = t("Auto-play, skipping intros and credits, subtitle size, and how far the remote skips."),
             )
         }
         item {
             TvSettingsRow(
-                "Libraries", onClick = { open(TvSettingsPageId.Libraries) }, modifier = Modifier.focusFor(TvSettingsPageId.Libraries),
-                icon = Icons.Filled.VideoLibrary, value = "Open on ${TvLibraryOpening.saved(context).label}", accessory = TvSettingAccessory.Chevron,
-                help = "Whether a library opens on its highlights (Browse), on every title, A to Z, or on its genres.",
+                t(Words.libraries), onClick = { open(TvSettingsPageId.Libraries) }, modifier = Modifier.focusFor(TvSettingsPageId.Libraries),
+                icon = Icons.Filled.VideoLibrary, value = t("Open on {view}", "view" to TvLibraryOpening.saved(context).label), accessory = TvSettingAccessory.Chevron,
+                help = t("Whether a library opens on its highlights (Browse), on every title, A to Z, or on its genres."),
             )
+        }
+        // Once the server offers more than English (from 0.61).
+        if (model.languages.size > 1) {
+            item {
+                TvSettingsRow(
+                    io.github.flexarr.core.i18n.t("Language"), onClick = { open(TvSettingsPageId.Language) }, modifier = Modifier.focusFor(TvSettingsPageId.Language),
+                    icon = Icons.Filled.Language, value = io.github.flexarr.ui.settings.languageValue(model), accessory = TvSettingAccessory.Chevron,
+                    help = io.github.flexarr.core.i18n.t("The language Flexarr is in for this profile, on every device."),
+                )
+            }
         }
         if (sidebarFirst != null) {
             item {
                 TvSettingsRow(
-                    "Sidebar", onClick = { open(TvSettingsPageId.Sidebar) }, modifier = Modifier.focusFor(TvSettingsPageId.Sidebar),
-                    icon = Icons.Filled.Menu, value = "${sidebarFirst.title} first", accessory = TvSettingAccessory.Chevron,
-                    help = "The order of your libraries and Live TV in the sidebar, between Home and Discover.",
+                    t("Sidebar"), onClick = { open(TvSettingsPageId.Sidebar) }, modifier = Modifier.focusFor(TvSettingsPageId.Sidebar),
+                    icon = Icons.Filled.Menu, value = t("{name} first", "name" to sidebarFirst.title), accessory = TvSettingAccessory.Chevron,
+                    help = t("The order of your libraries and Live TV in the sidebar, between Home and Discover."),
                 )
             }
         }
@@ -161,37 +175,37 @@ private fun MainPage(
                 TvSettingsRow(
                     "Trakt", onClick = { open(TvSettingsPageId.Trakt) }, modifier = Modifier.focusFor(TvSettingsPageId.Trakt),
                     icon = Icons.Filled.Sync, value = trakt.settingsValue, accessory = TvSettingAccessory.Chevron,
-                    help = "Keep what this profile watches, and its watchlist, in step with Trakt.",
+                    help = t("Keep what this profile watches, and its watchlist, in step with Trakt."),
                 )
             }
         }
         item {
             // With an address for away from home, which of the two it's using; otherwise the server's name.
             val connection = if (model.isGuest) {
-                "By invite"
+                t("By invite")
             } else if (model.credentials?.remoteAddress != null) {
-                if (model.client?.addresses?.isAway == true) "Away" else "At home"
+                if (model.client?.addresses?.isAway == true) t("Away") else t("At home")
             } else {
                 model.credentials?.address?.let { FlexarrClient.normalizeAddress(it)?.host }
             }
             TvSettingsRow(
-                "Server", onClick = { open(TvSettingsPageId.Server) }, modifier = Modifier.focusFor(TvSettingsPageId.Server),
+                t("Server"), onClick = { open(TvSettingsPageId.Server) }, modifier = Modifier.focusFor(TvSettingsPageId.Server),
                 icon = Icons.Filled.Dns, value = connection, accessory = TvSettingAccessory.Chevron,
-                help = "The server this TV uses: its address, how it’s reached and what it’s running.",
+                help = t("The server this TV uses: its address, how it’s reached and what it’s running."),
             )
         }
         item {
             if (model.isGuest) {
                 TvSettingsRow(
-                    "Leave", onClick = { confirmSignOut = true }, modifier = Modifier.padding(top = 18.dp),
+                    t("Leave"), onClick = { confirmSignOut = true }, modifier = Modifier.padding(top = 18.dp),
                     icon = Icons.AutoMirrored.Filled.Logout, destructive = true,
-                    help = "Stop watching ${owner?.let { "$it’s" } ?: "this"} Flexarr here. Joining again takes a new code.",
+                    help = owner?.let { t("Stop watching {owner}’s Flexarr here. Joining again takes a new code.", "owner" to it) } ?: t("Stop watching this Flexarr here. Joining again takes a new code."),
                 )
             } else {
                 TvSettingsRow(
-                    "Sign out", onClick = { confirmSignOut = true }, modifier = Modifier.padding(top = 18.dp),
+                    t("Sign out"), onClick = { confirmSignOut = true }, modifier = Modifier.padding(top = 18.dp),
                     icon = Icons.AutoMirrored.Filled.Logout, destructive = true,
-                    help = "Disconnect this TV from the server. You’ll need to connect it again to watch.",
+                    help = t("Disconnect this TV from the server. You’ll need to connect it again to watch."),
                 )
             }
         }
@@ -203,15 +217,15 @@ private fun MainPage(
             Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 val guest = model.isGuest
                 Text(
-                    if (guest) owner?.let { "Leave $it’s Flexarr?" } ?: "Leave this Flexarr?" else "Sign out of this server?",
+                    if (guest) owner?.let { t("Leave {owner}’s Flexarr?", "owner" to it) } ?: t("Leave this Flexarr?") else t("Sign out of this server?"),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                 )
-                Text(if (guest) "Joining again takes a new code." else "This TV will need to connect again to use the server.", fontSize = 14.sp, color = Flexarr.usher)
+                Text(if (guest) t("Joining again takes a new code.") else t("This TV will need to connect again to use the server."), fontSize = 14.sp, color = Flexarr.usher)
                 // As the Apple TV: Cancel first, and where focus starts; Leave (or Sign out) after it.
                 Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TvActionButton("Cancel", onClick = { confirmSignOut = false }, prominent = true, modifier = Modifier.focusRequester(cancel))
-                    TvActionButton(if (guest) "Leave" else "Sign out", onClick = {
+                    TvActionButton(t(Words.cancel), onClick = { confirmSignOut = false }, prominent = true, modifier = Modifier.focusRequester(cancel))
+                    TvActionButton(if (guest) t("Leave") else t("Sign out"), onClick = {
                         confirmSignOut = false
                         model.signOut()
                     }, ambient = Flexarr.danger)

@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
@@ -43,6 +45,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -100,6 +103,7 @@ import io.github.flexarr.ui.components.BrandMark
 import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.profiles.ProfileAvatar
+import io.github.flexarr.ui.TvAppUpdatePrompt
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.marquee
 import io.github.flexarr.ui.theme.Tokens
@@ -109,12 +113,12 @@ import io.github.flexarr.ui.theme.FlexarrIcons
 /** A screen of its own in the sidebar: Home, a library, Discover, Search or Settings. [route] is its first screen's. */
 private data class TvTab(val route: String, val title: String, val icon: ImageVector) {
     companion object {
-        val Home = TvTab("home", "Home", FlexarrIcons.home)
-        val LiveTv = TvTab("tab/livetv", "Live TV", FlexarrIcons.liveTv)
-        val Discover = TvTab("discover", "Discover", FlexarrIcons.discover)
-        val Watchlist = TvTab("watchlist", "Watchlist", FlexarrIcons.watchlist)
-        val Search = TvTab("search", "Search", FlexarrIcons.search)
-        val Settings = TvTab("settings", "Settings", FlexarrIcons.settings)
+        val Home get() = TvTab("home", t(Words.home), FlexarrIcons.home)
+        val LiveTv get() = TvTab("tab/livetv", t(Words.liveTv), FlexarrIcons.liveTv)
+        val Discover get() = TvTab("discover", t(Words.discover), FlexarrIcons.discover)
+        val Watchlist get() = TvTab("watchlist", t(Words.watchlist), FlexarrIcons.watchlist)
+        val Search get() = TvTab("search", t(Words.search), FlexarrIcons.search)
+        val Settings get() = TvTab("settings", t(Words.settings), FlexarrIcons.settings)
 
         fun library(library: Library) = TvTab("tab/library/${library.id}", library.name, library.icon)
     }
@@ -175,6 +179,13 @@ fun TvMainScreen(model: AppModel) {
     LaunchedEffect(model.credentials, model.isKids) { model.loadLiveTvStatus() }
     // Whether the server keeps watchlists, and what's on this profile's (the sidebar, cards' menus and title pages offer it).
     LaunchedEffect(model.credentials, model.isKids) { model.refreshWatchlist() }
+    // "Update your Flexarr server": signed in to a server older than the app supports. Said once, then cleared.
+    LaunchedEffect(model.serverUpdateNotice) {
+        val notice = model.serverUpdateNotice ?: return@LaunchedEffect
+        // Cleared once it's gone: clearing it first would restart this effect and cancel the snackbar.
+        navigator.notices.showSnackbar(notice, duration = SnackbarDuration.Long)
+        model.serverUpdateNotice = null
+    }
 
     fun closeSidebar() {
         sidebarOpen = false
@@ -312,7 +323,7 @@ fun TvMainScreen(model: AppModel) {
                 @Composable
                 fun MissingLibrary() = when (val state = libraries.state) {
                     is Load.Failed -> TvStatusView(state.message, retry = libraries.retry)
-                    is Load.Loaded -> TvStatusView("This library isn’t here any more.", empty = true)
+                    is Load.Loaded -> TvStatusView(t("This library isn’t here any more."), empty = true)
                     Load.Loading -> TvStatusView()
                 }
                 fun arrives(route: String) = arrivingAt == route
@@ -394,6 +405,8 @@ fun TvMainScreen(model: AppModel) {
                 showingNowPlaying = true
             }, onClose = ::closeSidebar, onFocusLeft = { sidebarOpen = false }, closesOnBack = !atTabRoot)
             SnackbarHost(navigator.notices, Modifier.align(Alignment.BottomCenter).padding(bottom = 30.dp))
+            // Google Play's updates: a downloaded one asks to restart (AppUpdates says when).
+            TvAppUpdatePrompt()
         }
         if (showingNowPlaying) {
             Box(Modifier.trapsFocus()) { TvNowPlayingScreen(model, onClose = { showingNowPlaying = false }) }
@@ -459,7 +472,7 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
                 // Music that's playing gets a place of its own, as the Music app does: the surest way to reach it.
                 if (nowPlaying) {
                     item(key = "now-playing") {
-                        SidebarRow("Now Playing", selected = false, onClick = onNowPlaying, icon = { Icon(FlexarrIcons.nowPlaying, contentDescription = null, modifier = Modifier.size(20.dp)) })
+                        SidebarRow(t("Now Playing"), selected = false, onClick = onNowPlaying, icon = { Icon(FlexarrIcons.nowPlaying, contentDescription = null, modifier = Modifier.size(20.dp)) })
                     }
                 }
                 items(tabs, key = { it.route }) { tab ->

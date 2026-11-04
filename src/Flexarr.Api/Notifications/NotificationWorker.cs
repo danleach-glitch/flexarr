@@ -1,10 +1,12 @@
 using System.Globalization;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints;
+using Flexarr.Api.Localization;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.LiveTv;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Media;
 using Flexarr.Core.Notifications;
 using Flexarr.Integrations.Arr;
@@ -67,14 +69,16 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
         var notifier = scope.ServiceProvider.GetRequiredService<Notifier>();
+        // Each notification is written in the language of the profile it's for (docs/languages.md).
+        var languages = scope.ServiceProvider.GetRequiredService<ProfileLanguages>();
         var now = clock.GetUtcNow().UtcDateTime;
         // The cursors move on even with nobody listening, so turning notifications on doesn't bring a backlog.
         var devices = await db.NotificationDevices.ToListAsync(ct);
 
-        await LibraryAsync(db, notifier, devices, now, ct);
-        await PodcastsAsync(db, notifier, devices, now, ct);
-        await RecordingsAsync(db, notifier, devices, now, ct);
-        await UpcomingAsync(db, notifier, devices, now, ct);
+        await LibraryAsync(db, notifier, languages, devices, now, ct);
+        await PodcastsAsync(db, notifier, languages, devices, now, ct);
+        await RecordingsAsync(db, notifier, languages, devices, now, ct);
+        await UpcomingAsync(db, notifier, languages, devices, now, ct);
     }
 
     // ---- Films, episodes and requests ----
@@ -85,7 +89,8 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
 
     private sealed record Show(Guid Id, string Title, string? Poster, string? TmdbId, string? TvdbId, string? ImdbId, DateTime AddedAt);
 
-    private static async Task LibraryAsync(FlexarrDbContext db, Notifier notifier, List<NotificationDevice> devices, DateTime now, CancellationToken ct)
+    private static async Task LibraryAsync(FlexarrDbContext db, Notifier notifier, ProfileLanguages languages, List<NotificationDevice> devices, DateTime now,
+        CancellationToken ct)
     {
         if (await WindowAsync(db, "library", now - Settle, ct) is not var (from, to))
         {
@@ -106,8 +111,8 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         var shows = await ShowsAsync(db, fresh, ct);
         fresh = await WithoutReplacementsAsync(db, fresh, shows, ct);
 
-        var answered = await RequestsAsync(db, to, now, ct);
-        answered.AddRange(await WatchlistArrivalsAsync(db, answered, to, now, ct));
+        var answered = await RequestsAsync(db, languages, from, to, now, ct);
+        answered.AddRange(await WatchlistArrivalsAsync(db, languages, answered, to, now, ct));
         if (devices.Count == 0)
         {
             await SaveAsync(db, ct);
@@ -129,19 +134,20 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
                 && !watched.Contains(i.Id)).ToList();
 
             // Phones of one profile can still want different things.
+            using var language = Loc.Use(await languages.OfAsync(profile.Key, ct));
             foreach (var wants in profile.GroupBy(d => (d.Films, d.Shows, d.Requests)))
             {
-                var messages = new List<PushMessage>();
+                var messages = new List<Named>();
                 // A phone that hears about requests and the watchlist gets those instead of the usual news for the same
                 // titles; one that doesn't still gets the usual news.
                 var visible = wants.Key.Requests ? unseen.Where(i => !told.Contains(i.Id)).ToList() : unseen;
                 if (wants.Key.Requests)
                 {
-                    messages.AddRange(theirs.Select(a => a.Message));
+                    messages.AddRange(theirs.Select(a => new Named(a.Message, a.Message.Title)));
                 }
 
                 messages.AddRange(Compose(visible.Where(i => i.Kind == MediaKind.Movie ? wants.Key.Films : wants.Key.Shows), shows, from));
-                foreach (var message in messages.Count > Flood ? [Summary(messages)] : messages)
+                foreach (var message in messages.Count > Flood ? [Summary(messages)] : messages.Select(m => m.Message))
                 {
                     await notifier.SendAsync(db, wants, message, null, ct);
                 }
@@ -291,11 +297,12 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     /// Requests whose film, or a new episode of whose show, is now in the library. Looked for every minute rather than
     /// among the minute's new items, since what's in the library may only learn its TMDB id a while after it lands.
     /// </summary>
-    private static async Task<List<Answered>> RequestsAsync(FlexarrDbContext db, DateTime settled, DateTime now, CancellationToken ct)
+    private static async Task<List<Answered>> RequestsAsync(FlexarrDbContext db, ProfileLanguages languages, DateTime from, DateTime settled, DateTime now,
+        CancellationToken ct)
     {
         var answered = new List<Answered>();
         var open = await db.MediaRequests.Where(r => r.FulfilledAt == null).ToListAsync(ct);
-        answered.AddRange(await MusicAnsweredAsync(db, open.Where(r => r.Kind is MediaKind.Album or MediaKind.Artist).ToList(), settled, now, ct));
+        answered.AddRange(await MusicAnsweredAsync(db, languages, open.Where(r => r.Kind is MediaKind.Album or MediaKind.Artist).ToList(), from, settled, now, ct));
         foreach (var request in open.Where(r => r.Kind is not (MediaKind.Album or MediaKind.Artist)))
         {
 
@@ -308,7 +315,9 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
                 if (film is not null)
                 {
                     request.FulfilledAt = now;
-                    answered.Add(new Answered(request.ProfileId, new PushMessage("Your request is ready", $"{WithYear(film.Title, film.Year)} is in the library.",
+                    using var language = Loc.Use(await languages.OfAsync(request.ProfileId, ct));
+                    answered.Add(new Answered(request.ProfileId, new PushMessage(Loc.T("Your request is ready"),
+                        Loc.T("{title} is in the library.", new { title = WithYear(film.Title, film.Year) }),
                         "flexarr.video", $"item:{film.Id}", Artwork(film.PosterUrl), Video(film.Id, film.Id)), [film.Id]));
                 }
 
@@ -325,8 +334,11 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             {
                 var first = episodes[0];
                 request.FulfilledAt = now;
-                var what = episodes.Count == 1 ? $"{first.Series} {EpisodeLabel(first.SeasonNumber, first.EpisodeNumber)} is in the library." : $"{first.Series} is in the library.";
-                answered.Add(new Answered(request.ProfileId, new PushMessage("Your request is ready", what, "flexarr.video", $"item:{first.SeriesId}",
+                using var language = Loc.Use(await languages.OfAsync(request.ProfileId, ct));
+                var what = episodes.Count == 1
+                    ? Loc.T("{show} {episode} is in the library.", new { show = first.Series, episode = EpisodeLabel(first.SeasonNumber, first.EpisodeNumber) })
+                    : Loc.T("{title} is in the library.", new { title = first.Series });
+                answered.Add(new Answered(request.ProfileId, new PushMessage(Loc.T("Your request is ready"), what, "flexarr.video", $"item:{first.SeriesId}",
                     Artwork(first.Poster), Video(first.SeriesId, first.Id)), episodes.Select(e => e.Id).ToList()));
             }
         }
@@ -337,16 +349,23 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     /// <summary>How far back music requests are looked for: an album Lidarr hasn't found in this long isn't coming.</summary>
     private static readonly TimeSpan MusicWaitsFor = TimeSpan.FromDays(90);
 
+    /// <summary>How far before the window music is looked at again, for an album the scan only matched up later.</summary>
+    private static readonly TimeSpan MusicLate = TimeSpan.FromHours(1);
+
     /// <summary>
     /// Music requests answered: the album asked for (by its release group, or by title under its artist when the scan
     /// hasn't learned the release group), or, for a followed artist, each new album of theirs: one released since the
     /// follow and added since the last notice. A follow stays open. Albums in a library hidden from whoever asked don't
-    /// count. One query a minute for all of them, compared by name here.
+    /// count. One query a minute for all of them, compared by name here: the albums added since the last window (and
+    /// a little before, for one whose artist or release group the scan learned late), not since the oldest follow.
     /// </summary>
-    private static async Task<List<Answered>> MusicAnsweredAsync(FlexarrDbContext db, List<MediaRequest> requests, DateTime settled, DateTime now, CancellationToken ct)
+    private static async Task<List<Answered>> MusicAnsweredAsync(FlexarrDbContext db, ProfileLanguages languages, List<MediaRequest> requests, DateTime window,
+        DateTime settled, DateTime now, CancellationToken ct)
     {
         var answered = new List<Answered>();
-        static DateTime From(MediaRequest r) => (r.LastAnsweredAt is { } last && last > r.RequestedAt ? last : r.RequestedAt).AddMinutes(-1);
+        // A follow's notice covers everything up to the window it was told in, so the next starts there; a request's
+        // own time gets a minute's slack for an album that landed as it was asked for.
+        static DateTime From(MediaRequest r) => r.LastAnsweredAt is { } last && last > r.RequestedAt.AddMinutes(-1) ? last : r.RequestedAt.AddMinutes(-1);
         var waiting = requests.Where(r => r.RequestedAt > now - MusicWaitsFor || r.Kind == MediaKind.Artist).ToList();
         if (waiting.Count == 0)
         {
@@ -354,12 +373,22 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         }
 
         var since = waiting.Min(From);
+        if (window - MusicLate > since)
+        {
+            since = window - MusicLate;
+        }
+
+        // When Flexarr first saw it, not its file's date: a manual import or an album only the 12-hourly scan found
+        // lands dated hours or days back. Albums from before Flexarr kept that have only their file's date. Two
+        // branches rather than FirstSeenAt ?? AddedAt, so each can use its index instead of scanning every item.
         var arrived = await db.MediaItems.AsNoTracking()
-            .Where(i => i.Kind == MediaKind.Album && i.Parent != null && i.AddedAt > since && i.AddedAt <= settled)
-            .OrderBy(i => i.AddedAt)
+            .Where(i => i.Kind == MediaKind.Album && i.Parent != null
+                && ((i.FirstSeenAt != null && i.FirstSeenAt > since && i.FirstSeenAt <= settled)
+                    || (i.FirstSeenAt == null && i.AddedAt > since && i.AddedAt <= settled)))
+            .OrderBy(i => i.FirstSeenAt ?? i.AddedAt)
             .Select(i => new
             {
-                i.Id, i.LibraryId, i.Title, i.MusicBrainzId, i.PosterUrl, i.AddedAt, i.ReleaseDate, i.Year,
+                i.Id, i.LibraryId, i.Title, i.MusicBrainzId, i.PosterUrl, AddedAt = i.FirstSeenAt ?? i.AddedAt, i.ReleaseDate, i.Year,
                 Artist = i.Parent!.Title, ArtistMusicBrainzId = i.Parent.MusicBrainzId,
             })
             .ToListAsync(ct);
@@ -389,10 +418,12 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
                     continue;
                 }
 
-                request.LastAnsweredAt = now;
+                request.LastAnsweredAt = settled;
                 var first = fresh[0];
-                var body = fresh.Count == 1 ? $"{first.Title} is in the library." : $"{first.Title} and {fresh.Count - 1} more are in the library.";
-                answered.Add(new Answered(request.ProfileId, new PushMessage($"New from {first.Artist}", body, "flexarr.music", $"item:{first.Id}", Artwork(first.PosterUrl),
+                using var language = Loc.Use(await languages.OfAsync(request.ProfileId, ct));
+                var body = Loc.T("{more, plural, =0 {{title} is in the library.} other {{title} and # more are in the library.}}",
+                    new { title = first.Title, more = fresh.Count - 1 });
+                answered.Add(new Answered(request.ProfileId, new PushMessage(Loc.T("New from {artist}", new { artist = first.Artist }), body, "flexarr.music", $"item:{first.Id}", Artwork(first.PosterUrl),
                     new Dictionary<string, string> { ["item"] = first.Id.ToString() }), fresh.Select(a => a.Id).ToList()));
                 continue;
             }
@@ -405,7 +436,9 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             }
 
             request.FulfilledAt = now;
-            answered.Add(new Answered(request.ProfileId, new PushMessage("Your request is ready", $"{album.Title} by {album.Artist} is in the library.", "flexarr.music",
+            using var albumLanguage = Loc.Use(await languages.OfAsync(request.ProfileId, ct));
+            answered.Add(new Answered(request.ProfileId, new PushMessage(Loc.T("Your request is ready"),
+                Loc.T("{title} by {artist} is in the library.", new { title = album.Title, artist = album.Artist }), "flexarr.music",
                 $"item:{album.Id}", Artwork(album.PosterUrl), new Dictionary<string, string> { ["item"] = album.Id.ToString() }), [album.Id]));
         }
 
@@ -418,7 +451,8 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     /// An entry already pointing at the title keeps it, and none is pointed at a title another of the profile's holds
     /// (one item, one entry per profile), so marking them can't upset the save that follows the notices.
     /// </summary>
-    private static async Task<List<Answered>> WatchlistArrivalsAsync(FlexarrDbContext db, List<Answered> requests, DateTime settled, DateTime now, CancellationToken ct)
+    private static async Task<List<Answered>> WatchlistArrivalsAsync(FlexarrDbContext db, ProfileLanguages languages, List<Answered> requests, DateTime settled,
+        DateTime now, CancellationToken ct)
     {
         var answered = new List<Answered>();
         var waiting = await db.WatchlistEntries.Where(w => w.ArrivedAt == null && w.RemovedAt == null && w.TmdbId != null).ToListAsync(ct);
@@ -474,7 +508,9 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
                 .Select(e => e.Id).FirstOrDefaultAsync(ct);
             var items = entry.Kind == MediaKind.Movie ? [title.Id]
                 : await db.MediaItems.AsNoTracking().Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId == title.Id && e.AddedAt <= settled).Select(e => e.Id).ToListAsync(ct);
-            answered.Add(new Answered(entry.ProfileId, new PushMessage("From your watchlist", $"{WithYear(title.Title, title.Year)} is ready to watch.", "flexarr.video",
+            using var language = Loc.Use(await languages.OfAsync(entry.ProfileId, ct));
+            answered.Add(new Answered(entry.ProfileId, new PushMessage(Loc.T("From your watchlist"),
+                Loc.T("{title} is ready to watch.", new { title = WithYear(title.Title, title.Year) }), "flexarr.video",
                 $"item:{title.Id}", Artwork(title.PosterUrl), Video(title.Id, first)), items));
         }
 
@@ -482,13 +518,17 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         return answered;
     }
 
-    /// <summary>A notification per film, and one per show however many of its episodes came.</summary>
-    private static IEnumerable<PushMessage> Compose(IEnumerable<Fresh> items, Dictionary<Guid, Show> shows, DateTime since)
+    /// <summary>A notification, and the name a <see cref="Summary"/> of many lists it by.</summary>
+    private sealed record Named(PushMessage Message, string Name);
+
+    /// <summary>A notification per film, and one per show however many of its episodes came, in the current language.</summary>
+    private static IEnumerable<Named> Compose(IEnumerable<Fresh> items, Dictionary<Guid, Show> shows, DateTime since)
     {
         foreach (var film in items.Where(i => i.Kind == MediaKind.Movie).OrderBy(i => i.AddedAt))
         {
-            yield return new PushMessage($"New film: {WithYear(film.Title, film.Year)}", Short(film.Overview) ?? "Ready to watch.", "flexarr.video",
-                $"item:{film.Id}", Artwork(film.Poster), Video(film.Id, film.Id));
+            var name = WithYear(film.Title, film.Year);
+            yield return new Named(new PushMessage(Loc.T("New film: {title}", new { title = name }), Short(film.Overview) ?? Loc.T("Ready to watch."), "flexarr.video",
+                $"item:{film.Id}", Artwork(film.Poster), Video(film.Id, film.Id)), name);
         }
 
         foreach (var group in items.Where(i => i.Kind == MediaKind.Episode && i.SeriesId is not null).GroupBy(i => i.SeriesId!.Value))
@@ -503,36 +543,47 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             // The show itself arrived with these; the rest of a pack that took longer to land is "new episodes".
             var isNew = show.AddedAt > since;
             string title, body;
+            var label = EpisodeLabel(first.Season, first.Episode);
             if (episodes.Count == 1)
             {
-                title = isNew ? $"New show: {show.Title}" : show.Title;
-                body = $"{(isNew ? "" : "New episode · ")}{EpisodeLabel(first.Season, first.Episode)} · {first.Title}";
+                title = isNew ? Loc.T("New show: {title}", new { title = show.Title }) : show.Title;
+                body = isNew ? $"{label} · {first.Title}" : Loc.T("New episode · {episode} · {title}", new { episode = label, title = first.Title });
             }
             else
             {
-                title = isNew ? $"New show: {show.Title}" : $"{episodes.Count} new episodes of {show.Title}";
+                title = isNew ? Loc.T("New show: {title}", new { title = show.Title })
+                    : Loc.T("{count, plural, one {# new episode of {show}} other {# new episodes of {show}}}", new { count = episodes.Count, show = show.Title });
                 var seasons = episodes.Select(e => e.Season).Distinct().ToList();
                 body = seasons.Count == 1 && first.Season is { } s
-                    ? $"{(s == 0 ? "Specials" : $"Season {s}")} · {episodes.Count} episodes"
-                    : $"{episodes.Count} episodes across {seasons.Count} seasons";
+                    ? s == 0
+                        ? Loc.T("Specials · {count, plural, one {# episode} other {# episodes}}", new { count = episodes.Count })
+                        : Loc.T("Season {season} · {count, plural, one {# episode} other {# episodes}}", new { season = s, count = episodes.Count })
+                    : Loc.T("{count, plural, one {# episode} other {# episodes}} across {seasons, plural, one {# season} other {# seasons}}",
+                        new { count = episodes.Count, seasons = seasons.Count });
             }
 
-            yield return new PushMessage(title, body, "flexarr.video", $"item:{show.Id}", Artwork(show.Poster), Video(show.Id, first.Id));
+            // A summary of many names a show by its title, as "New show: …" did before it was translated.
+            yield return new Named(new PushMessage(title, body, "flexarr.video", $"item:{show.Id}", Artwork(show.Poster), Video(show.Id, first.Id)),
+                isNew ? show.Title : title);
         }
     }
 
     /// <summary>A flood (a big import, a whole collection at once) told in one notification.</summary>
-    private static PushMessage Summary(List<PushMessage> messages)
+    private static PushMessage Summary(List<Named> messages)
     {
-        var names = messages.Select(m => m.Title.Replace("New film: ", "", StringComparison.Ordinal).Replace("New show: ", "", StringComparison.Ordinal)).ToList();
-        var body = string.Join(", ", names.Take(4)) + (names.Count > 4 ? $" and {names.Count - 4} more" : "");
-        var music = messages.All(m => m.Category == "flexarr.music");
-        return new PushMessage(music ? $"{messages.Count} new albums" : $"{messages.Count} new things to watch", body, music ? "flexarr.music" : "flexarr.video", "library");
+        var names = messages.Select(m => m.Name).ToList();
+        var body = Loc.T("{names}{more, plural, =0 {} other { and # more}}", new { names = string.Join(", ", names.Take(4)), more = Math.Max(0, names.Count - 4) });
+        var music = messages.All(m => m.Message.Category == "flexarr.music");
+        return new PushMessage(music
+                ? Loc.T("{count, plural, one {# new album} other {# new albums}}", new { count = messages.Count })
+                : Loc.T("{count, plural, one {# new thing to watch} other {# new things to watch}}", new { count = messages.Count }),
+            body, music ? "flexarr.music" : "flexarr.video", "library");
     }
 
     // ---- Podcasts ----
 
-    private static async Task PodcastsAsync(FlexarrDbContext db, Notifier notifier, List<NotificationDevice> devices, DateTime now, CancellationToken ct)
+    private static async Task PodcastsAsync(FlexarrDbContext db, Notifier notifier, ProfileLanguages languages, List<NotificationDevice> devices, DateTime now,
+        CancellationToken ct)
     {
         if (await WindowAsync(db, "podcasts", now, ct) is not var (from, to))
         {
@@ -573,9 +624,11 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             }
 
             var newest = episodes[0];
+            using var language = Loc.Use(await languages.OfAsync(follow.ProfileId, ct));
             var message = episodes.Count == 1
-                ? new PushMessage($"New: {show.Title}", newest.Title, "flexarr.podcast", $"podcast:{show.Id}", Artwork(show.PosterUrl), Podcast(show.Id, newest.MediaItemId))
-                : new PushMessage($"{episodes.Count} new episodes from {show.Title}", string.Join("\n", episodes.Take(3).Select(e => e.Title)), "flexarr.podcast",
+                ? new PushMessage(Loc.T("New: {show}", new { show = show.Title }), newest.Title, "flexarr.podcast", $"podcast:{show.Id}", Artwork(show.PosterUrl), Podcast(show.Id, newest.MediaItemId))
+                : new PushMessage(Loc.T("{count, plural, one {# new episode from {show}} other {# new episodes from {show}}}", new { count = episodes.Count, show = show.Title }),
+                    string.Join("\n", episodes.Take(3).Select(e => e.Title)), "flexarr.podcast",
                     $"podcast:{show.Id}", Artwork(show.PosterUrl), Podcast(show.Id, newest.MediaItemId));
             await notifier.SendAsync(db, listening.Where(d => d.ProfileId == follow.ProfileId), message, $"podcast:{newest.MediaItemId}", ct);
         }
@@ -590,7 +643,8 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
 
     // ---- Recordings ----
 
-    private static async Task RecordingsAsync(FlexarrDbContext db, Notifier notifier, List<NotificationDevice> devices, DateTime now, CancellationToken ct)
+    private static async Task RecordingsAsync(FlexarrDbContext db, Notifier notifier, ProfileLanguages languages, List<NotificationDevice> devices, DateTime now,
+        CancellationToken ct)
     {
         if (await WindowAsync(db, "recordings", now - RecordingSettle, ct) is not var (from, to))
         {
@@ -628,11 +682,16 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             }
 
             var item = recording.FilePath is { } path ? items.GetValueOrDefault(path) : null;
-            var episode = recording.Season is { } s && recording.Episode is { } e ? $"S{s} E{e}" : null;
-            var body = string.Join(" · ", new[] { episode, recording.Subtitle, recording.ChannelName }.Where(p => !string.IsNullOrWhiteSpace(p)));
             var open = item is null ? null : new Dictionary<string, string> { ["item"] = item.MediaItemId.ToString(), ["play"] = item.MediaItemId.ToString() };
-            await notifier.SendAsync(db, recipients, new PushMessage($"Recorded: {recording.Title}", body, "flexarr.recording", "recordings", Artwork(item?.Poster), open),
-                $"recording:{recording.Id}", ct);
+            // A household recording goes to several profiles: each hears it in its own language.
+            foreach (var profile in recipients.GroupBy(d => d.ProfileId))
+            {
+                using var language = Loc.Use(await languages.OfAsync(profile.Key, ct));
+                var episode = recording.Season is { } s && recording.Episode is { } e ? EpisodeLabel(s, e) : null;
+                var body = string.Join(" · ", new[] { episode, recording.Subtitle, recording.ChannelName }.Where(p => !string.IsNullOrWhiteSpace(p)));
+                await notifier.SendAsync(db, profile, new PushMessage(Loc.T("Recorded: {title}", new { title = recording.Title }), body, "flexarr.recording", "recordings",
+                    Artwork(item?.Poster), open), $"recording:{recording.Id}", ct);
+            }
         }
 
         await db.SaveChangesAsync(ct);
@@ -644,7 +703,8 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     /// Once a day at each phone's hour: what's airing today of the shows its profile watches, and films it asked for
     /// that come out today. Nothing's sent on a day with nothing on.
     /// </summary>
-    private async Task UpcomingAsync(FlexarrDbContext db, Notifier notifier, List<NotificationDevice> devices, DateTime now, CancellationToken ct)
+    private async Task UpcomingAsync(FlexarrDbContext db, Notifier notifier, ProfileLanguages languages, List<NotificationDevice> devices, DateTime now,
+        CancellationToken ct)
     {
         var due = new List<(NotificationDevice Device, DateOnly Today, TimeZoneInfo Zone)>();
         foreach (var device in devices.Where(d => d.Upcoming))
@@ -686,16 +746,17 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
                 continue;
             }
 
+            using var language = Loc.Use(await languages.OfAsync(device.ProfileId, ct));
             var lines = on.Take(5).Select(u => u.Kind == MediaKind.Movie
                 ? $"{u.Title} · {u.When}"
                 : $"{u.SeriesTitle} · {EpisodeLabel(u.SeasonNumber, u.EpisodeNumber)}").ToList();
             if (on.Count > 5)
             {
-                lines.Add($"and {on.Count - 5} more");
+                lines.Add(Loc.T("and {count} more", new { count = on.Count - 5 }));
             }
 
             var single = on.Count == 1 && on[0].LibraryItemId is { } id ? new Dictionary<string, string> { ["item"] = id.ToString() } : null;
-            await notifier.SendAsync(db, [device], new PushMessage("On today", string.Join("\n", lines), "flexarr.upcoming", "upcoming",
+            await notifier.SendAsync(db, [device], new PushMessage(Loc.T("On today"), string.Join("\n", lines), "flexarr.upcoming", "upcoming",
                 on.Count == 1 ? Artwork(on[0].Poster) : null, single), $"upcoming:{today:yyyy-MM-dd}", ct);
         }
 
@@ -762,7 +823,9 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
 
     private static string WithYear(string title, int? year) => year is { } y ? $"{title} ({y.ToString(CultureInfo.InvariantCulture)})" : title;
 
-    private static string EpisodeLabel(int? season, int? episode) => episode is { } e ? $"S{season ?? 1} E{e}" : season is { } s ? $"Season {s}" : "New episode";
+    private static string EpisodeLabel(int? season, int? episode) => episode is { } e
+        ? Loc.T("S{season} E{episode}", new { season = (season ?? 1).ToString(CultureInfo.InvariantCulture), episode = e.ToString(CultureInfo.InvariantCulture) })
+        : season is { } s ? Loc.T("Season {season}", new { season = s.ToString(CultureInfo.InvariantCulture) }) : Loc.T("New episode");
 
     /// <summary>The start of an overview, cut at a word, short enough to read at a glance.</summary>
     private static string? Short(string? text)

@@ -7,7 +7,6 @@
   <meta name="description" content="An honest comparison of Flexarr with Plex, Jellyfin and Emby, and with the Infuse, Plezy, Swiftfin and Rivulet apps: what each does, what it costs, and where Flexarr isn&#39;t the right fit yet.">
   <meta name="theme-color" content="#1b1720">
   <meta name="color-scheme" content="dark">
-  <meta name="robots" content="noindex">
   <meta name="apple-itunes-app" content="app-id=6826618084">
   <link rel="canonical" href="https://flexarr.io/why">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -94,6 +93,7 @@
       <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
       <nav class="site-nav" aria-label="Main">
         <a href="/#features">Features</a>
+        <a href="/why" aria-current="page">Why Flexarr</a>
         <a class="keep" href="/apps">The Apps</a>
         <a href="/#setup">Install</a>
         <a class="keep" href="/guide">Guide</a>
@@ -108,7 +108,7 @@
         <p class="kicker">Why Flexarr</p>
         <h1>How Flexarr compares.</h1>
         <p class="lede">Flexarr, side by side with Plex, Jellyfin and Emby, and with the apps people use to watch them. Where another one does something better, we say so.</p>
-        <p class="stamp">Checked <strong>1 November 2026</strong> against Flexarr 0.57.0</p>
+        <p class="stamp">Checked <strong>3 November 2026</strong> against Flexarr 0.60.0</p>
       </div>
 
       <section aria-labelledby="fit">
@@ -117,16 +117,16 @@
           <div>
             <h3>Flexarr suits you if</h3>
             <ul>
-              <li><span aria-hidden="true">✅</span><span><strong>You run Sonarr, Radarr or Lidarr.</strong> Flexarr takes its details and artwork straight from them, so there's no second library to keep in step.</span></li>
+              <li><span aria-hidden="true">✅</span><span><strong>You run Sonarr, Radarr or Lidarr.</strong> Flexarr takes its details and artwork straight from them, so there's no second library to keep in step, and asks them for what you don't have yet: a film, a season, an album or every new release from an artist.</span></li>
               <li><span aria-hidden="true">✅</span><span><strong>You'd rather not pay or sign up.</strong> Every feature and every app is free, with no account and no company server in the middle.</span></li>
               <li><span aria-hidden="true">✅</span><span><strong>Your household watches on Apple devices and the web.</strong> The Apple TV, iPhone and iPad apps play files as they are, HDR and Dolby Vision included.</span></li>
-              <li><span aria-hidden="true">✅</span><span><strong>You want it all in one place.</strong> Films, TV, music, podcasts, live TV, requests, a watchlist, Trakt and downloads come with the server, not as add-ons. Audiobooks join them in the next release.</span></li>
+              <li><span aria-hidden="true">✅</span><span><strong>You want it all in one place.</strong> Films, TV, music, audiobooks, podcasts, live TV, requests, a watchlist, Trakt and downloads come with the server, not as add-ons.</span></li>
             </ul>
           </div>
           <div>
             <h3>Look elsewhere if</h3>
             <ul>
-              <li><span aria-hidden="true">❌</span><span><strong>You need Android, a smart TV, a games console or a desktop app.</strong> Flexarr's Android and Google TV apps are still being built. Plex, Jellyfin and Emby run on far more devices.</span></li>
+              <li><span aria-hidden="true">❌</span><span><strong>You need Android today, a smart TV, a games console or a desktop app.</strong> Flexarr's Android and Google TV app is built and being tested before it reaches Google Play. Plex, Jellyfin and Emby run on far more devices.</span></li>
               <li><span aria-hidden="true">❌</span><span><strong>You want photos or a language other than English.</strong> Flexarr has neither yet.</span></li>
               <li><span aria-hidden="true">❌</span><span><strong>You track what you watch on AniList or MyAnimeList,</strong> or want to watch together with friends elsewhere.</span></li>
               <li><span aria-hidden="true">❌</span><span><strong>You want years of track record.</strong> Flexarr's first release was on 24 October 2026, and it's mostly one person's work. Plex and Emby date from around 2008, Jellyfin from 2018.</span></li>
@@ -150,7 +150,7 @@
             <thead>
               <tr>
                 <th scope="col"><span class="visually-hidden">Feature</span></th>
-                <th scope="col" class="us">Flexarr<small>0.57.0</small></th>
+                <th scope="col" class="us">Flexarr<small>0.60.0</small></th>
                 <th scope="col">Plex<small>Media Server and apps</small></th>
                 <th scope="col">Jellyfin<small>12.4, with Swiftfin 1.6.1</small></th>
                 <th scope="col">Emby<small>4.10</small></th>
@@ -167,7 +167,7 @@
               </tr>
               <tr>
                 <th scope="row">Watching away from home</th>
-                <td class="us"><span class="m">✅</span>Free, over Tailscale with nothing opened on your router, or through your own HTTPS reverse proxy. The apps switch over by themselves.</td>
+                <td class="us"><span class="m">✅</span>Free, over Tailscale with nothing opened on your router, or through your own HTTPS reverse proxy. The apps switch over by themselves, and a title too big for the connection is converted to fit.</td>
                 <td><span class="m">💳</span>A relay is built in, but limited to 2 Mbps. Your own videos away from home need Plex Pass or a Remote Watch Pass ($2.99 a month).<a class="ref" href="#s3">3</a><a class="ref" href="#s12">12</a></td>
                 <td><span class="m">🟡</span>Free. You set up port forwarding, a reverse proxy or Tailscale yourself.<a class="ref" href="#s29">29</a></td>
                 <td><span class="m">🟡</span>Free, through port forwarding or UPnP. No relay.<a class="ref" href="#s41">41</a></td>
@@ -204,7 +204,7 @@
               <tr class="group"><th colspan="5" scope="colgroup"><span>Your library</span></th></tr>
               <tr>
                 <th scope="row">Built on Sonarr, Radarr and Lidarr</th>
-                <td class="us"><span class="m">✅</span>Details and artwork come straight from them, with no keys of its own. Setup finds them on your network and adds Flexarr's webhook to each.</td>
+                <td class="us"><span class="m">✅</span>Details and artwork come straight from them, with no keys of its own. Setup finds them on your network and adds Flexarr's webhook to each. What they expect next shows as <i>Coming soon</i>.</td>
                 <td><span class="m">❌</span>Uses its own online lookups. The *arr apps only tell it to rescan.<a class="ref" href="#s64">64</a></td>
                 <td><span class="m">❌</span>Uses its own lookups. It can read the .nfo files the *arr apps write.<a class="ref" href="#s21">21</a></td>
                 <td><span class="m">❌</span>Uses its own lookups. It can read the .nfo files the *arr apps write.</td>
@@ -217,11 +217,39 @@
                 <td><span class="m">✅</span>Yes.<a class="ref" href="#s59">59</a></td>
               </tr>
               <tr>
+                <th scope="row">Fix a wrong match, edit details</th>
+                <td class="us"><span class="m">✅</span>Fix match and Edit for films, shows, albums, artists and books, kept through refreshes. Library health finds albums twice, artists under two spellings and missing covers, and merges them.</td>
+                <td><span class="m">✅</span>Fix Match, and editing an item's details.<a class="ref" href="#s75">75</a></td>
+                <td><span class="m">✅</span>Identify, and the metadata editor with locks.<a class="ref" href="#s76">76</a></td>
+                <td><span class="m">✅</span>Identify, and the metadata manager.<a class="ref" href="#s77">77</a></td>
+              </tr>
+              <tr>
+                <th scope="row">IMDb and Rotten Tomatoes scores</th>
+                <td class="us"><span class="m">✅</span>Both, side by side, with Certified Fresh, Fresh or Rotten, from Radarr and Seerr. Kids profiles don't see them.</td>
+                <td><span class="m">🟡</span>One source per library (Rotten Tomatoes, IMDb or TMDB), not both at once, users report.<a class="ref" href="#s78">78</a></td>
+                <td><span class="m">🟡</span>A community score and a critic (Rotten Tomatoes) score, from OMDb or .nfo files. No setting chooses the source.<a class="ref" href="#s79">79</a></td>
+                <td><span class="m">🟡</span>A critic (Rotten Tomatoes) score for films from OMDb; users report none for shows.<a class="ref" href="#s80">80</a></td>
+              </tr>
+              <tr>
                 <th scope="row">Request new titles from the apps</th>
-                <td class="us"><span class="m">✅</span>Discover and Request in every app, through Seerr.</td>
+                <td class="us"><span class="m">✅</span>Discover, Search and Request in every app, through Seerr. Take a request back, and watch it download, from the web.</td>
                 <td><span class="m">❌</span>Not in the apps. Requests go through a separate site such as Seerr.</td>
                 <td><span class="m">❌</span>Not in the apps. Requests go through a separate site such as Seerr.</td>
                 <td><span class="m">❌</span>Not in the apps. Requests go through a separate site such as Seerr.</td>
+              </tr>
+              <tr>
+                <th scope="row">Find and add new music</th>
+                <td class="us"><span class="m">✅</span>Discover › Music, through Lidarr: request an album, or follow an artist to get each new release. Matched by barcode, so the right artist downloads.</td>
+                <td><span class="m">❌</span>Not in the apps. Music is added in Lidarr itself.</td>
+                <td><span class="m">❌</span>Not in the apps. Music is added in Lidarr itself.</td>
+                <td><span class="m">❌</span>Not in the apps. Music is added in Lidarr itself.</td>
+              </tr>
+              <tr>
+                <th scope="row">What a show is missing</th>
+                <td class="us"><span class="m">✅</span>A show's page lists the seasons and episodes you don't have, with Request for a season and Search for an episode.</td>
+                <td><span class="m">❔</span>None built in that we found.</td>
+                <td><span class="m">🟡</span>Missing episodes can be shown in seasons, a display setting. No way to ask for them.<a class="ref" href="#s81">81</a></td>
+                <td><span class="m">🟡</span>View Missing Episodes on a show's menu. No way to ask for them.<a class="ref" href="#s82">82</a></td>
               </tr>
               <tr>
                 <th scope="row">Watchlist</th>
@@ -246,7 +274,7 @@
               </tr>
               <tr>
                 <th scope="row">Audiobooks</th>
-                <td class="us"><span class="m">✅</span>In the next release: a library of their own, with chapters, series, speeds, bookmarks and a sleep timer, downloads, CarPlay and Android Auto, in every app, from a folder of books.</td>
+                <td class="us"><span class="m">✅</span>A library of their own, from a folder of books, with details and covers from Audible, Apple Books and Open Library and no keys to set up. Chapters, series, authors with photos, speed per book, smart rewind, bookmarks and a sleep timer, in every app including the Apple TV, with downloads on the phones.</td>
                 <td><span class="m">❌</span>No library for them; people use music libraries instead.<a class="ref" href="#s60">60</a></td>
                 <td><span class="m">🟡</span>In a Books library, on most apps but not Swiftfin.<a class="ref" href="#s22">22</a></td>
                 <td><span class="m">🟡</span>Basic support.<a class="ref" href="#s59">59</a></td>
@@ -260,7 +288,7 @@
               </tr>
               <tr>
                 <th scope="row">Music</th>
-                <td class="us"><span class="m">✅</span>Synced lyrics, playlists, daily mixes, artist radio, crossfade, offline albums and a visualiser.</td>
+                <td class="us"><span class="m">✅</span>A library page like Movies and TV, synced lyrics, playlists, daily mixes, artist radio, crossfade, offline albums and a visualiser.</td>
                 <td><span class="m">🟡</span>Plexamp is a fine music app. Lyrics, its Sonic mixes and radio need Plex Pass.<a class="ref" href="#s8">8</a></td>
                 <td><span class="m">🟡</span>Synced lyrics, playlists and instant mixes. No crossfade in the web app; no music in Swiftfin.<a class="ref" href="#s27">27</a></td>
                 <td><span class="m">🟡</span>Playlists and instant mixes. Lyrics need Premiere.<a class="ref" href="#s36">36</a></td>
@@ -290,7 +318,7 @@
               <tr class="group"><th colspan="5" scope="colgroup"><span>Apps and devices</span></th></tr>
               <tr>
                 <th scope="row">The server runs on</th>
-                <td class="us"><span class="m">✅</span>Docker, Synology, Unraid, Linux, Mac, and Windows with Docker Desktop.</td>
+                <td class="us"><span class="m">✅</span>Docker, Synology, Unraid, Linux, Mac, and Windows with Docker Desktop. A Mac App Store app is in the works.</td>
                 <td><span class="m">✅</span>Windows, Mac, Linux, Docker and most NAS.<a class="ref" href="#s65">65</a></td>
                 <td><span class="m">✅</span>Windows, Mac, Linux, Docker and Synology.<a class="ref" href="#s66">66</a></td>
                 <td><span class="m">✅</span>Windows, Mac, Linux, Docker and most NAS.<a class="ref" href="#s42">42</a></td>
@@ -311,7 +339,7 @@
               </tr>
               <tr>
                 <th scope="row">Android, Android TV and Fire TV</th>
-                <td class="us"><span class="m">❌</span>Being built, for phones and Google TV. The web app works in a phone's browser until then.</td>
+                <td class="us"><span class="m">❌</span>Not yet. One app for phones, tablets and Google TV is built, with downloads, Android Auto and the Google Assistant, and is being tested before Google Play. Until then, the web app works in a phone's browser.</td>
                 <td><span class="m">✅</span>Yes.<a class="ref" href="#s65">65</a></td>
                 <td><span class="m">✅</span>Yes.<a class="ref" href="#s25">25</a></td>
                 <td><span class="m">🟡</span>Phones need payment; up to five TVs play free.<a class="ref" href="#s43">43</a></td>
@@ -346,7 +374,7 @@
               </tr>
               <tr>
                 <th scope="row">Downloads for offline</th>
-                <td class="us"><span class="m">✅</span>Free on iPhone and iPad: films, episodes, albums, playlists and podcasts.</td>
+                <td class="us"><span class="m">✅</span>Free on iPhone and iPad: films, episodes, albums, playlists, audiobooks and podcasts. With no connection, the app opens on them in seconds.</td>
                 <td><span class="m">💳</span>With Plex Pass.<a class="ref" href="#s5">5</a></td>
                 <td><span class="m">🟡</span>In the Jellyfin and Android apps, not in Swiftfin.<a class="ref" href="#s25">25</a></td>
                 <td><span class="m">💳</span>With Premiere.<a class="ref" href="#s36">36</a></td>
@@ -411,7 +439,7 @@
               </tr>
               <tr>
                 <th scope="row">Siri and Shortcuts</th>
-                <td class="us"><span class="m">✅</span>"Play the next episode of <i>Ted Lasso</i> in Flexarr", here or on the Apple TV, plus skip intro, subtitles and night mode.</td>
+                <td class="us"><span class="m">✅</span>"Play the next episode of <i>Ted Lasso</i> in Flexarr", here or on the Apple TV, plus "Resume listening", skip intro, subtitles and night mode.</td>
                 <td><span class="m">🟡</span>In Plexamp.<a class="ref" href="#s8">8</a></td>
                 <td><span class="m">❔</span>None that we found.</td>
                 <td><span class="m">❔</span>None that we found. Alexa and Google Home with Premiere.<a class="ref" href="#s36">36</a></td>
@@ -480,7 +508,7 @@
               </tr>
               <tr>
                 <th scope="row">Runs on</th>
-                <td class="us"><span class="m">🟡</span>iPhone, iPad, Apple TV (in review) and any browser.</td>
+                <td class="us"><span class="m">🟡</span>iPhone, iPad, Apple TV (in review) and any browser. Android and Google TV are being tested.</td>
                 <td><span class="m">🟡</span>Apple only: iPhone, iPad, Apple TV, Mac and Vision Pro.<a class="ref" href="#s47">47</a></td>
                 <td><span class="m">✅</span>Apple, Android, Android TV, Fire TV, Windows, Mac and Linux.<a class="ref" href="#s49">49</a></td>
                 <td><span class="m">🟡</span>iPhone, iPad and Apple TV.<a class="ref" href="#s51">51</a></td>
@@ -536,7 +564,7 @@
               </tr>
               <tr>
                 <th scope="row">Downloads for offline</th>
-                <td class="us"><span class="m">✅</span>iPhone and iPad.</td>
+                <td class="us"><span class="m">✅</span>iPhone and iPad, audiobooks included.</td>
                 <td><span class="m">✅</span>iPhone and iPad.<a class="ref" href="#s48">48</a></td>
                 <td><span class="m">✅</span>Phones, tablets and computers.<a class="ref" href="#s49">49</a></td>
                 <td><span class="m">❔</span>Not advertised.</td>
@@ -584,7 +612,7 @@
               </tr>
               <tr>
                 <th scope="row">Request new titles</th>
-                <td class="us"><span class="m">✅</span>Through Seerr.</td>
+                <td class="us"><span class="m">✅</span>Films and shows through Seerr, music through Lidarr.</td>
                 <td><span class="m">❌</span>No.</td>
                 <td><span class="m">✅</span>Through Seerr.<a class="ref" href="#s49">49</a></td>
                 <td><span class="m">❌</span>No.</td>
@@ -615,8 +643,8 @@
       <section aria-labelledby="method">
         <h2 id="method">How we checked</h2>
         <div class="method">
-          <p>Every claim about another product was checked on 28 October 2026 (the dialogue row on 30 October, the watchlist row on 31 October) against that company's own pages, support articles, App Store listings and code, linked below. Where the only evidence is what users report on a forum, the table says "users report". Where we couldn't confirm something, it shows ❔ rather than a guess.</p>
-          <p>Flexarr is described as it is in version 0.57.0, the latest release, except where a row says "In the next release": that work is finished and waiting for the next version. The App Store apps can trail a release by a few days while Apple reviews them. Plans on its <a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/roadmap.md" target="_blank" rel="noopener">roadmap</a> don't count until they ship.</p>
+          <p>Every claim about another product was checked on 28 October 2026 (the dialogue row on 30 October, the watchlist row on 31 October, and the match, scores and missing-episodes rows on 3 November) against that company's own pages, support articles, App Store listings and code, linked below. Where the only evidence is what users report on a forum, the table says "users report". Where we couldn't confirm something, it shows ❔ rather than a guess.</p>
+          <p>Flexarr is described as it is in version 0.60.0, the latest release. The App Store apps can trail a release by a few days while Apple reviews them, and the Android app isn't out until it reaches Google Play. Plans on its <a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/roadmap.md" target="_blank" rel="noopener">roadmap</a> don't count until they ship.</p>
           <p>Prices and features change. If something here is wrong or out of date, <a href="https://github.com/danleach-glitch/flexarr/issues" target="_blank" rel="noopener">tell us on GitHub</a> and we'll fix it.</p>
         </div>
         <ol class="sources">
@@ -694,6 +722,14 @@
           <li id="s72">Enhance Dialogue on Apple TV, answered by Firecore (October 2024): <a href="https://community.firecore.com/t/does-enhance-dialogues-feature-also-work-for-infuse-in-apple-tv-4k/51364" target="_blank" rel="noopener">community.firecore.com</a></li>
           <li id="s73">Universal Watchlist: <a href="https://support.plex.tv/articles/universal-watchlist/" target="_blank" rel="noopener">support.plex.tv</a></li>
           <li id="s74">KefinTweaks, a community plugin with a watchlist: <a href="https://github.com/ranaldsgift/KefinTweaks/wiki" target="_blank" rel="noopener">github.com</a></li>
+          <li id="s75">Fix Match / Match: <a href="https://support.plex.tv/articles/201018497-fix-match-match/" target="_blank" rel="noopener">support.plex.tv</a></li>
+          <li id="s76">Locking an item's details in Jellyfin: <a href="https://forum.jellyfin.org/t-lock-this-item-to-prevent-future-changes" target="_blank" rel="noopener">forum.jellyfin.org</a></li>
+          <li id="s77">Emby's metadata manager: <a href="https://emby.media/support/articles/Metadata-manager.html" target="_blank" rel="noopener">emby.media</a></li>
+          <li id="s78">Users on showing IMDb as well as Rotten Tomatoes: <a href="https://forums.plex.tv/t/show-imdb-as-well-as-rotten-tomatoes/646895" target="_blank" rel="noopener">forums.plex.tv</a></li>
+          <li id="s79">Users on Jellyfin's ratings from .nfo files (January 2025): <a href="https://forum.jellyfin.org/t-wrong-ratings-from-local-nfo" target="_blank" rel="noopener">forum.jellyfin.org</a></li>
+          <li id="s80">Rotten Tomatoes critic rating for TV shows: <a href="https://emby.media/community/topic/77854-rotten-tomatoes-criticrating-for-tv-shows" target="_blank" rel="noopener">emby.media/community</a></li>
+          <li id="s81">Episodes missing within seasons: <a href="https://forum.jellyfin.org/t-episodes-missing-within-seasons" target="_blank" rel="noopener">forum.jellyfin.org</a></li>
+          <li id="s82">Show missing episodes option in Emby 4.8 (2024): <a href="https://emby.media/community/topic/126287-show-missing-episode-option-gone-in-4810/" target="_blank" rel="noopener">emby.media/community</a></li>
         </ol>
       </section>
 
@@ -710,6 +746,7 @@
       <nav aria-label="Project">
         <a href="/guide">Guide</a>
         <a href="/apps">Apps</a>
+        <a href="/why">Why Flexarr</a>
         <a href="https://github.com/danleach-glitch/flexarr" target="_blank" rel="noopener">GitHub</a>
         <a href="https://github.com/danleach-glitch/flexarr/releases" target="_blank" rel="noopener">Releases</a>
         <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>

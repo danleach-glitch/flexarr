@@ -30,7 +30,7 @@ struct WatchlistView: View {
     var body: some View {
         Group {
             if let entries, entries.isEmpty {
-                StatusView(state: .empty("Nothing here yet."))
+                StatusView(state: .empty(t("Nothing here yet.")))
             } else if let entries {
                 ScrollView {
                     if let error {
@@ -42,7 +42,7 @@ struct WatchlistView: View {
                             .padding(.horizontal, Layout.edge)
                     }
                     if shown.isEmpty, !entries.isEmpty {
-                        StatusView(state: .empty("Nothing on your watchlist matches.")).frame(height: 300)
+                        StatusView(state: .empty(t("Nothing on your watchlist matches."))).frame(height: 300)
                     }
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                         ForEach(shown) { entry in
@@ -60,27 +60,27 @@ struct WatchlistView: View {
             }
         }
         .background(RoomBackground(ambient: nil))
-        .navigationTitle("Watchlist")
+        .navigationTitle(t(Words.watchlist))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Picker("Show", selection: $showing) {
-                        Text("Everything").tag(WatchlistStatus?.none)
-                        Text("Ready to watch").tag(WatchlistStatus?.some(.ready))
-                        Text("On its way").tag(WatchlistStatus?.some(.onItsWay))
-                        Text("Coming").tag(WatchlistStatus?.some(.coming))
-                        Text("Not available").tag(WatchlistStatus?.some(.notAvailable))
+                    Picker(t("Show"), selection: $showing) {
+                        Text(t("Everything")).tag(WatchlistStatus?.none)
+                        Text(t("Ready to watch")).tag(WatchlistStatus?.some(.ready))
+                        Text(t("On its way")).tag(WatchlistStatus?.some(.onItsWay))
+                        Text(t("Coming")).tag(WatchlistStatus?.some(.coming))
+                        Text(t("Not available")).tag(WatchlistStatus?.some(.notAvailable))
                     }
-                    Picker("Kind", selection: $kind) {
-                        Text("Movies and shows").tag(String?.none)
-                        Text("Movies").tag(String?.some("movie"))
-                        Text("Shows").tag(String?.some("tv"))
+                    Picker(t("Kind"), selection: $kind) {
+                        Text(t(Words.moviesAndShows)).tag(String?.none)
+                        Text(t(Words.movies)).tag(String?.some("movie"))
+                        Text(t(Words.shows)).tag(String?.some("tv"))
                     }
-                    Picker("Sort", selection: $sort) {
+                    Picker(t("Sort"), selection: $sort) {
                         ForEach(WatchlistSort.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
                 } label: {
-                    Label("Filter", systemImage: filtered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                    Label(t("Filter"), systemImage: filtered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                 }
             }
         }
@@ -140,7 +140,7 @@ private struct WatchlistCard: View {
                     Text(entry.title)
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(Color.screen.opacity(0.9))
-                    Text([entry.isShow ? "Show" : "Movie", entry.year.map(String.init)].compactMap { $0 }.joined(separator: ", "))
+                    Text([entry.isShow ? t("Show") : t("Movie"), entry.year.map(String.init)].compactMap { $0 }.joined(separator: ", "))
                         .font(.caption)
                         .foregroundStyle(Color.usher)
                     if let streaming = entry.streamingLabel {
@@ -156,7 +156,7 @@ private struct WatchlistCard: View {
             .contextMenu {
                 if let key {
                     Button(role: .destructive) { Task { await model.setOnWatchlist(key, false) } } label: {
-                        Label("Remove from watchlist", systemImage: "bookmark.slash")
+                        Label(t(Words.removeFromWatchlist), systemImage: Symbol.offWatchlist)
                     }
                 }
             }
@@ -167,7 +167,7 @@ private struct WatchlistCard: View {
     private var status: some View {
         switch entry.status {
         case .onItsWay:
-            Text("On its way").font(.caption.weight(.semibold)).foregroundStyle(Color.silver)
+            Text(t("On its way")).font(.caption.weight(.semibold)).foregroundStyle(Color.silver)
         case .coming:
             Text(comingLabel).font(.caption.weight(.semibold)).foregroundStyle(Color.silver)
         case .notAvailable:
@@ -184,7 +184,7 @@ private struct WatchlistCard: View {
                         onChange()
                     }
                 } label: {
-                    Text("Request").font(.caption.weight(.semibold))
+                    Text(t(Words.request)).font(.caption.weight(.semibold))
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -197,9 +197,9 @@ private struct WatchlistCard: View {
 
     /// "Out 5 Mar 2027", in the phone's own format (the date is a calendar day, so it's read and shown in UTC).
     private var comingLabel: String {
-        guard let raw = entry.releaseDate, let date = try? Date(raw, strategy: .iso8601.year().month().day()) else { return "Coming" }
-        var style = Date.FormatStyle(date: .abbreviated, time: .omitted)
+        guard let raw = entry.releaseDate, let date = try? Date(raw, strategy: .iso8601.year().month().day()) else { return t("Coming") }
+        var style = Date.FormatStyle(date: .abbreviated, time: .omitted, locale: Localization.locale)
         style.timeZone = TimeZone(identifier: "UTC") ?? .gmt
-        return "Out \(date.formatted(style))"
+        return t("Out {date}", ["date": date.formatted(style)])
     }
 }

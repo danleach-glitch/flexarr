@@ -8,6 +8,7 @@ using Flexarr.Api.Security;
 using Flexarr.Api.Updates;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
+using Flexarr.Core.Localization;
 using Flexarr.Integrations.Arr;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -135,7 +136,7 @@ public static partial class SetupGuideEndpoints
 
             if (string.IsNullOrEmpty(current.WebhookSecret))
             {
-                return Results.Ok(new ArrWebhookDto(false, null, "The server has no webhook secret yet. Restart it and try again."));
+                return Results.Ok(new ArrWebhookDto(false, null, Loc.T("The server has no webhook secret yet. Restart it and try again.")));
             }
 
             var logger = loggers.CreateLogger(typeof(SetupGuideEndpoints));
@@ -149,7 +150,7 @@ public static partial class SetupGuideEndpoints
                 var existing = notifications.FirstOrDefault(n => IsWebhook(n) && Field(n, "url")?.GetValue<string>() is { } url
                     && url.Contains(path, StringComparison.OrdinalIgnoreCase) && url.Contains(secret, StringComparison.Ordinal));
                 notification = existing ?? (await client.GetNotificationSchemaAsync(arr, ct)).OfType<JsonObject>().FirstOrDefault(IsWebhook)
-                    ?? throw new InvalidOperationException($"{arr.Name} has no Webhook connection to add.");
+                    ?? throw new InvalidOperationException(Loc.T("{name} has no Webhook connection to add.", new { name = arr.Name }));
                 if (existing is null)
                 {
                     // The apps want names of their own.
@@ -201,7 +202,7 @@ public static partial class SetupGuideEndpoints
                 }
 
                 LogWebhookUnreachable(logger, arr.Name, string.Join(", ", tried));
-                return Results.Ok(new ArrWebhookDto(false, null, $"{arr.Name} couldn't reach Flexarr. Add the webhook by hand: see Settings › Connections › Webhooks."));
+                return Results.Ok(new ArrWebhookDto(false, null, Loc.T("{name} couldn't reach Flexarr. Add the webhook by hand: see Settings › Connections › Webhooks.", new { name = arr.Name })));
             }
             catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or System.Text.Json.JsonException
                 || (ex is TaskCanceledException && !ct.IsCancellationRequested))

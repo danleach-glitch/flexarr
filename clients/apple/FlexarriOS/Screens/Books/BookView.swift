@@ -60,19 +60,28 @@ struct BookView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .alert("Note", isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })) {
-            TextField("Note", text: $note)
-            Button("Save") { if let editing { save(note, for: editing) } }
-            Button("Cancel", role: .cancel) {}
+        .alert(t("Note"), isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })) {
+            TextField(t("Note"), text: $note)
+            Button(t("Save")) { if let editing { save(note, for: editing) } }
+            Button(t(Words.cancel), role: .cancel) {}
         }
         .task(id: model.refreshToken) {
             guard loadedToken != model.refreshToken || Freshness.isStale(loadedAt) else { return }
             await load()
         }
         .onAppear { isVisible = true }
-        .onDisappear { isVisible = false }
+        .onDisappear {
+            isVisible = false
+            if let book = detail?.item ?? preview { model.dropReady(book) }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, isVisible, Freshness.isStale(loadedAt) { Task { await load() } }
+            if phase == .background, let book = detail?.item ?? preview { model.dropReady(book) }
+        }
+        .task(id: id) {
+            // Looked at for a moment: the book's session is got ready, so Play starts at once (docs/fast-start.md).
+            guard (try? await Task.sleep(for: .seconds(2))) != nil, let book = detail?.item ?? preview else { return }
+            model.getReady(book)
         }
     }
 
@@ -101,7 +110,7 @@ struct BookView: View {
                             .foregroundStyle(Color.silver)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityHint("Opens the series")
+                    .accessibilityHint(t("Opens the series"))
                 }
                 people
                 FactsLine(facts: facts(item))
@@ -130,11 +139,11 @@ struct BookView: View {
                 }
                 if !narrators.isEmpty {
                     HStack(spacing: 4) {
-                        Text("Read by").foregroundStyle(Color.usher)
+                        Text(t("Read by")).foregroundStyle(Color.usher)
                         names(narrators)
                     }
                 } else if let narrator = item?.book?.narrator {
-                    Text("Read by \(narrator)").foregroundStyle(Color.usher)
+                    Text(t("Read by {narrator}", ["narrator": narrator])).foregroundStyle(Color.usher)
                 }
             }
             .font(.subheadline.weight(.medium))
@@ -158,9 +167,9 @@ struct BookView: View {
         var facts: [String] = []
         if let length = Format.runtime(seconds: duration) { facts.append(length) }
         if position > 0, !item.isFinishedBook, let left = Format.remaining((duration - position) / max(0.5, speed)) {
-            facts.append(speed == 1 ? left : "\(left) at \(BookSpeed.label(speed))")
+            facts.append(speed == 1 ? left : t("{time} at {speed}", ["time": left, "speed": BookSpeed.label(speed)]))
         }
-        if item.isFinishedBook { facts.append("Finished") }
+        if item.isFinishedBook { facts.append(t("Finished")) }
         return facts
     }
 
@@ -171,8 +180,8 @@ struct BookView: View {
             Button {
                 if playingThis { model.music.togglePlayPause() } else { model.playBook(item) }
             } label: {
-                Label(playingThis && model.music.isPlaying ? "Pause" : resumable ? "Resume from \(Format.timestamp(position))" : "Play",
-                      systemImage: playingThis && model.music.isPlaying ? "pause.fill" : "play.fill")
+                Label(playingThis && model.music.isPlaying ? t("Pause") : resumable ? t(Words.resumeFrom, ["time": Format.timestamp(position)]) : t(Words.play),
+                      systemImage: playingThis && model.music.isPlaying ? Symbol.pause : Symbol.play)
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
@@ -189,26 +198,26 @@ struct BookView: View {
                         Button {
                             if resumable { confirmingStartOver = true } else { Task { await model.listenAgain(item) } }
                         } label: {
-                            Label("Start over", systemImage: "arrow.counterclockwise")
+                            Label(t(Words.startOver), systemImage: Symbol.startOver)
                         }
-                        .confirmationDialog("Start over?", isPresented: $confirmingStartOver, titleVisibility: .visible) {
-                            Button("Start over", role: .destructive) { Task { await model.listenAgain(item) } }
+                        .confirmationDialog(t("Start over?"), isPresented: $confirmingStartOver, titleVisibility: .visible) {
+                            Button(t(Words.startOver), role: .destructive) { Task { await model.listenAgain(item) } }
                             // Not while it plays, which would set the place again.
                             if !model.isKids, !playingThis {
-                                Button("Mark as unread") { Task { await setFinished(false) } }
+                                Button(t(Words.markAsUnread)) { Task { await setFinished(false) } }
                             }
-                            Button("Cancel", role: .cancel) {}
+                            Button(t(Words.cancel), role: .cancel) {}
                         } message: {
-                            Text("You're at \(Format.timestamp(position)).")
+                            Text(t("You're at {time}.", ["time": Format.timestamp(position)]))
                         }
                     case .finished:
                         // Unread (no place, not finished, as if never started) in Finished's place once it's finished.
                         if item.isFinishedBook {
-                            Button { Task { await setFinished(false) } } label: { Label("Unread", systemImage: "book.closed") }
-                                .accessibilityLabel("Mark as unread")
+                            Button { Task { await setFinished(false) } } label: { Label(t("Unread"), systemImage: "book.closed") }
+                                .accessibilityLabel(t(Words.markAsUnread))
                         } else {
-                            Button { Task { await setFinished(true) } } label: { Label("Finished", systemImage: "checkmark") }
-                                .accessibilityLabel("Mark as finished")
+                            Button { Task { await setFinished(true) } } label: { Label(t("Finished"), systemImage: Symbol.watched) }
+                                .accessibilityLabel(t(Words.markAsFinished))
                         }
                     case .download:
                         BookDownloadButton(item: item)
@@ -239,7 +248,7 @@ struct BookView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { overviewExpanded.toggle() } }
                 .accessibilityAddTraits(.isButton)
-                .accessibilityHint(overviewExpanded ? "Shows less" : "Shows the whole description")
+                .accessibilityHint(overviewExpanded ? t("Shows less") : t("Shows the whole description"))
         }
         if let authors = book?.authorCards, !authors.isEmpty {
             VStack(spacing: 10) {
@@ -250,9 +259,9 @@ struct BookView: View {
         if let book {
             if book.chapters.count > 1 { chapters(book.chapters, item: item) }
             if !book.bookmarks.isEmpty { bookmarks(book.bookmarks, chapters: book.chapters, item: item) }
-            bookRow("More in the series", book.moreInSeries)
-            bookRow(firstName(.author).map { "More by \($0)" } ?? "More by the author", book.byAuthor)
-            bookRow(firstName(.narrator).map { "More read by \($0)" } ?? "More from the narrator", book.readByNarrator)
+            bookRow(t("More in the series"), book.moreInSeries)
+            bookRow(firstName(.author).map { t("More by {name}", ["name": $0]) } ?? t("More by the author"), book.byAuthor)
+            bookRow(firstName(.narrator).map { t("More read by {name}", ["name": $0]) } ?? t("More from the narrator"), book.readByNarrator)
             details(book)
         }
     }
@@ -292,7 +301,7 @@ struct BookView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(author.name)
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint("Opens their page")
+        .accessibilityHint(t("Opens their page"))
     }
 
     private func firstName(_ role: CreditRole) -> String? {
@@ -310,7 +319,7 @@ struct BookView: View {
             return Array(chapters[start..<min(chapters.count, start + 8)])
         }()
         return VStack(alignment: .leading, spacing: 4) {
-            SectionHeading(title: "Chapters", actionTitle: allChapters ? "Fewer" : "All \(chapters.count)",
+            SectionHeading(title: t("Chapters"), actionTitle: allChapters ? t("Fewer") : t("All {count}", ["count": chapters.count]),
                            action: chapters.count > 8 ? { withAnimation { allChapters.toggle() } } : nil)
             ForEach(shown) { chapter in
                 let index = chapters.firstIndex(of: chapter) ?? 0
@@ -350,7 +359,7 @@ struct BookView: View {
     private func bookmarks(_ marks: [Bookmark], chapters: [BookChapter], item: ItemSummary) -> some View {
         let timeline = BookTimeline(files: [], chapters: chapters, duration: duration)
         return VStack(alignment: .leading, spacing: 4) {
-            SectionHeading(title: "Bookmarks")
+            SectionHeading(title: t("Bookmarks"))
             ForEach(marks.sorted { $0.positionSeconds < $1.positionSeconds }) { mark in
                 Button { model.playBook(item, at: mark.positionSeconds) } label: {
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -360,7 +369,7 @@ struct BookView: View {
                             .foregroundStyle(Color.usher)
                             .frame(minWidth: 52, alignment: .leading)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(mark.note ?? timeline.chapter(at: mark.positionSeconds)?.title ?? "Bookmark")
+                            Text(mark.note ?? timeline.chapter(at: mark.positionSeconds)?.title ?? t("Bookmark"))
                                 .font(.subheadline)
                                 .foregroundStyle(Color.screen)
                                 .multilineTextAlignment(.leading)
@@ -377,8 +386,8 @@ struct BookView: View {
                 }
                 .buttonStyle(.plain)
                 .contextMenu {
-                    Button { note = mark.note ?? ""; editing = mark } label: { Label("Edit note", systemImage: "pencil") }
-                    Button(role: .destructive) { delete(mark) } label: { Label("Delete", systemImage: "trash") }
+                    Button { note = mark.note ?? ""; editing = mark } label: { Label(t("Edit note"), systemImage: "pencil") }
+                    Button(role: .destructive) { delete(mark) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
                 }
             }
         }
@@ -402,11 +411,11 @@ struct BookView: View {
 
     private func details(_ book: BookDetail) -> some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), alignment: .topLeading)], alignment: .leading, spacing: 14) {
-            if let publisher = book.publisher { labeled("Publisher", publisher) }
-            if let year = item?.releaseYear { labeled("Released", String(year)) }
-            if let language = book.language { labeled("Language", language) }
-            if book.abridged { labeled("Edition", "Abridged") }
-            if let genres = detail?.genres, !genres.isEmpty { labeled("Genre", genres.prefix(2).joined(separator: ", ")) }
+            if let publisher = book.publisher { labeled(t("Publisher"), publisher) }
+            if let year = item?.releaseYear { labeled(t("Released"), String(year)) }
+            if let language = book.language { labeled(t("Language"), language) }
+            if book.abridged { labeled(t("Edition"), t("Abridged")) }
+            if let genres = detail?.genres, !genres.isEmpty { labeled(t("Genre"), genres.prefix(2).joined(separator: ", ")) }
         }
         .padding(.horizontal, Layout.edge)
     }

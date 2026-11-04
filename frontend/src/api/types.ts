@@ -195,6 +195,12 @@ export interface ItemDetail {
   kidsOverride?: KidsOverride | null
   /** A book's edition, series, chapters and bookmarks. Absent from servers before 0.58. */
   book?: BookDetail | null
+  /** Details edited by hand (films, shows, albums), which refreshes keep. Absent from servers before 0.59. */
+  detailsLocked?: boolean | null
+  /** The title it's sorted by. Absent from servers before 0.59. */
+  sortTitle?: string | null
+  /** A cover chosen by hand in Fix match, which refreshes keep. Absent from servers before 0.59. */
+  artworkLocked?: boolean | null
 }
 
 export type KidsOverride = 'None' | 'Allow' | 'Block'
@@ -466,6 +472,8 @@ export interface Marker {
 
 export interface PlaybackInfo {
   sessionId: string
+  /** A short hash of the session id, for lining logs up (absent from older servers). */
+  playbackId?: string
   method: PlaybackMethod
   url: string
   reasons: string[]
@@ -537,6 +545,8 @@ export interface TranscodingSettings {
   vaapiDevice: string
   softwarePreset: string
   maxStreamingBitrate: number
+  /** Lower the quality away from home when the connection can't keep up (absent from servers before 0.59). */
+  awayFromHome?: 'Automatic' | 'Original'
 }
 
 export interface ArrConnection {
@@ -588,6 +598,8 @@ export interface Settings {
   traktApp?: { clientId: string; hasSecret: boolean } | null
   /** Whether music can be requested through Lidarr. Absent from servers before 0.59. */
   allowMusicRequests?: boolean | null
+  /** The server runs in a container (Docker). Absent from servers before 0.60. */
+  inContainer?: boolean | null
 }
 
 export interface SettingsUpdate {
@@ -608,6 +620,9 @@ export interface SettingsUpdate {
   /** An empty client id goes back to Flexarr's own app; a blank secret keeps the saved one. */
   traktApp?: { clientId: string; clientSecret?: string }
   allowMusicRequests?: boolean
+  /** Letting devices at home in without the key asks again: the admin PIN, or a yes when it has none. */
+  pin?: string
+  confirm?: boolean
 }
 
 export interface ArrStatus {
@@ -651,6 +666,8 @@ export interface Activity {
     positionSeconds: number
     durationSeconds: number
     paused: boolean
+    /** Converting ahead of Play (a page looked at), not watched yet. Absent before 0.59. */
+    warming?: boolean
   }[]
 }
 

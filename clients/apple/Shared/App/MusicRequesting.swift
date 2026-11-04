@@ -95,10 +95,11 @@ extension AppModel {
         return album.isRequestable ? .requestable : .none
     }
 
-    /// Whether Lidarr watches for the artist's new releases (or the profile just asked it to).
+    /// Whether Lidarr watches for the artist's new releases (or the profile just asked it to). Servers from 0.59 say so
+    /// in `followed`, for library artists too; older ones only as a requested availability.
     func isFollowing(_ artist: MusicExternal, followed: Bool = false) -> Bool {
         if musicUndone.contains(artist.id) { return false }
-        return followed || artist.availability == .requested || musicAsked.contains(artist.id)
+        return followed || (artist.followed ?? (artist.availability == .requested)) || musicAsked.contains(artist.id)
     }
 
     func isFollowing(libraryArtist id: String, followed: Bool) -> Bool {
@@ -159,34 +160,34 @@ extension EnvironmentValues {
 
 /// The one line said when Lidarr isn't answering.
 enum MusicWords {
-    static let lidarrNotAnswering = "Lidarr isn\u{2019}t answering."
+    static var lidarrNotAnswering: String { t("Lidarr isn’t answering.") }
     /// Said when a server from before unfollowing and unrequesting is asked to.
-    static let updateServerToUndo = "Update the server to undo this."
+    static var updateServerToUndo: String { t("Update the server to undo this.") }
 
     /// The buttons' names: one word to follow, everywhere (buttons, menus, VoiceOver).
-    static let follow = "Follow"
-    static let following = "Following"
-    static let requestAlbum = "Request album"
-    static let requested = "Requested"
+    static var follow: String { t(Words.follow) }
+    static var following: String { t(Words.following) }
+    static var requestAlbum: String { t(Words.requestAlbum) }
+    static var requested: String { t(Words.requested) }
     /// The actions that take music back, in the questions below and the hold menus.
-    static let stopFollowingAction = "Stop following"
-    static let unrequestAction = "Unrequest"
+    static var stopFollowingAction: String { t(Words.stopFollowing) }
+    static var unrequestAction: String { t(Words.unrequest) }
     /// What pressing Following or Requested does, for VoiceOver: phrases, as hints are read.
-    static let stopFollowingHint = "Stops following this artist"
-    static let unrequestHint = "Cancels the request"
+    static var stopFollowingHint: String { t("Stops following this artist") }
+    static var unrequestHint: String { t("Cancels the request") }
     /// The safe answers to the questions below.
-    static let keepFollowing = "Keep following"
-    static let keepIt = "Keep it"
+    static var keepFollowing: String { t("Keep following") }
+    static var keepIt: String { t("Keep it") }
 
     /// The questions asked before taking music back, the web's words.
-    static func stopFollowing(_ artist: String) -> String { "Stop following \(artist)?" }
-    static func unrequest(_ album: String) -> String { "Unrequest \(album)?" }
+    static func stopFollowing(_ artist: String) -> String { t("Stop following {artist}?", ["artist": artist]) }
+    static func unrequest(_ album: String) -> String { t("Unrequest {album}?", ["album": album]) }
 }
 
 extension MusicExternal {
     /// What VoiceOver reads for its card: the name, or the album and its artist.
     var accessibilityName: String {
-        if isAlbum, let artist { return "\(title), \(artist)" }
+        if isAlbum, let artist { return t("{album}, {artist}", ["album": title, "artist": artist]) }
         return title
     }
 

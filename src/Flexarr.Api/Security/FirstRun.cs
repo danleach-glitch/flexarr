@@ -5,6 +5,7 @@ using Flexarr.Api.Configuration;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Security;
 
@@ -206,7 +207,7 @@ public static class FirstRunEndpoints
             var fromWebApp = http.Request.Headers.ContainsKey(ApiKeyAuthenticationHandler.RequestedWithHeader);
             if (fromWebApp && firstRun.OpenTo(http) && !AdminEndpoints.IsPin(claim?.Pin))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["pin"] = ["Choose a PIN of 4 to 8 digits."] });
+                return Problems.Field("Choose a PIN of 4 to 8 digits.", field: "pin");
             }
 
             // Done inside the claim, before setup closes, so it's all or nothing. (A sign-in closes setup too.)
@@ -228,13 +229,12 @@ public static class FirstRunEndpoints
                 : FirstRun.ClaimResult.Closed;
             if (result == FirstRun.ClaimResult.WrongCode)
             {
-                return Results.Problem("That isn't this server's setup code. It's in the server's log, and in setup-code.txt in its data folder.",
-                    statusCode: 400);
+                return Problems.Of("That isn't this server's setup code. It's in the server's log, and in setup-code.txt in its data folder.", status: 400);
             }
 
             if (result == FirstRun.ClaimResult.Closed)
             {
-                return Results.Problem("This server is already set up. Sign in with a code from a device that's signed in.", statusCode: 403);
+                return Problems.Of("This server is already set up. Sign in with a code from a device that's signed in.", status: 403);
             }
 
             ApiKeyAuthenticationHandler.AppendSessionCookie(http, token!);

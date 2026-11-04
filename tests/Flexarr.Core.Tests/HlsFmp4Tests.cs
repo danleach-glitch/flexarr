@@ -27,7 +27,7 @@ public sealed class HlsFmp4Tests : IDisposable
         var plan = new TranscodePlan(0, 1, 640, 360, 1_000_000, ToneMap: false, CopyAudio: false, AudioChannels: 8, BurnSubtitle: null,
             SourceAudioCodec: "pcm_s24le", Fmp4: true, LosslessAudio: true, HighResolutionAudio: true);
 
-        var (audio, firstSeconds) = await SegmentAsync(clip, plan, startSegment: 2);
+        var (audio, firstSeconds) = await SegmentAsync(clip, plan, startSegment: 4); // 12 s in, after the three short opening segments
 
         Assert.Equal(("flac", 8, "s32"), (audio.Codec, audio.Channels, audio.SampleFormat));
         Assert.InRange(firstSeconds, 11.9, 12.1);
@@ -47,7 +47,7 @@ public sealed class HlsFmp4Tests : IDisposable
         var plan = new TranscodePlan(0, 1, 640, 360, 1_000_000, ToneMap: false, CopyAudio: true, AudioChannels: 6, BurnSubtitle: null,
             SourceAudioCodec: "eac3", Fmp4: true);
 
-        var (audio, firstSeconds) = await SegmentAsync(clip, plan, startSegment: 1);
+        var (audio, firstSeconds) = await SegmentAsync(clip, plan, startSegment: 3); // 6 s in, the first full-length segment
 
         Assert.Equal(("eac3", 6), (audio.Codec, audio.Channels));
         Assert.InRange(firstSeconds, 5.5, 6.1);

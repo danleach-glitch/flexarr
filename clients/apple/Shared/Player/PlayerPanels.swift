@@ -1,3 +1,4 @@
+import FlexarrKit
 import UIKit
 
 /// Nudging a file's sound earlier or later when it's out of step with the picture: a glass panel over the bottom of
@@ -46,13 +47,14 @@ final class AudioSyncPanel: UIView {
 
     /// "+0.15 s", "−0.30 s", "0.00 s".
     static func label(_ seconds: Double) -> String {
-        let amount = String(format: "%.2f s", abs(seconds))
-        return seconds > 0.0005 ? "+" + amount : seconds < -0.0005 ? "−" + amount : amount
+        let amount = abs(seconds).formatted(.number.precision(.fractionLength(2)).locale(Localization.locale))
+        return seconds > 0.0005 ? t("+{amount} s", ["amount": amount])
+            : seconds < -0.0005 ? t("−{amount} s", ["amount": amount]) : t("{amount} s", ["amount": amount])
     }
 
     private func showValue() {
         valueLabel.text = Self.label(seconds)
-        captionLabel.text = seconds > 0.0005 ? "Sound later" : seconds < -0.0005 ? "Sound earlier" : "As the file is"
+        captionLabel.text = seconds > 0.0005 ? t("Sound later") : seconds < -0.0005 ? t("Sound earlier") : t("As the file is")
     }
 
     private func nudge(_ change: Double?) {
@@ -108,17 +110,17 @@ final class AudioSyncPanel: UIView {
         layer.cornerCurve = .continuous
         layer.borderWidth = 1 / UIScreen.main.scale
         layer.borderColor = UIColor.white.withAlphaComponent(0.14).cgColor
-        titleLabel.text = "Audio sync"
+        titleLabel.text = t("Audio sync")
         titleLabel.textColor = UIColor.white.withAlphaComponent(0.7)
         valueLabel.textColor = .white
         valueLabel.textAlignment = .center
         captionLabel.textColor = UIColor.white.withAlphaComponent(0.6)
         for label in [titleLabel, valueLabel, captionLabel] { label.textAlignment = .center }
 
-        earlierButton.accessibilityLabel = "Sound earlier"
-        laterButton.accessibilityLabel = "Sound later"
-        resetButton.configuration?.title = "Reset"
-        doneButton.configuration?.title = "Done"
+        earlierButton.accessibilityLabel = t("Sound earlier")
+        laterButton.accessibilityLabel = t("Sound later")
+        resetButton.configuration?.title = t("Reset")
+        doneButton.configuration?.title = t(Words.done)
         for (button, direction) in [(earlierButton, -1.0), (laterButton, 1.0)] {
             button.addAction(UIAction { [weak self] _ in
                 guard let self, Date() > heldUntil else { return }
@@ -205,12 +207,12 @@ final class SleepPromptView: UIView {
         dim.backgroundColor = .black
         dim.alpha = 0
         dim.isUserInteractionEnabled = false
-        titleLabel.text = "Still watching?"
+        titleLabel.text = t("Still watching?")
         titleLabel.textColor = .white
         detailLabel.textColor = UIColor.white.withAlphaComponent(0.75)
-        moreButton.configuration?.title = "+15 min"
+        moreButton.configuration?.title = t("+{minutes} min", ["minutes": 15])
         moreButton.configuration?.image = UIImage(systemName: "bed.double")
-        cancelButton.configuration?.title = "Cancel timer"
+        cancelButton.configuration?.title = t("Cancel timer")
         moreButton.addAction(UIAction { [weak self] _ in self?.onMore?() }, for: .primaryActionTriggered)
         cancelButton.addAction(UIAction { [weak self] _ in self?.onCancel?() }, for: .primaryActionTriggered)
         stack.axis = .vertical
@@ -251,14 +253,14 @@ final class SleepPromptView: UIView {
         setButtonsEnabled(true)
         UIView.animate(withDuration: 3) { self.dim.alpha = 0.55 }
         UIView.animate(withDuration: 0.4) { self.stack.alpha = 1 }
-        titleLabel.text = "Still watching?"
+        titleLabel.text = t("Still watching?")
     }
 
     /// Run out: the picture is paused under the dim, and only a line says why.
     func sleep() {
         isHidden = false
         setButtonsEnabled(false)
-        titleLabel.text = "Paused by the sleep timer"
+        titleLabel.text = t("Paused by the sleep timer")
         detailLabel.text = nil
         UIView.animate(withDuration: 1) {
             self.dim.alpha = 0.7

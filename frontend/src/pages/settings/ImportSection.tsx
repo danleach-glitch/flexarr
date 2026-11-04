@@ -13,6 +13,7 @@ import {
 import { AsyncButton } from '../../components/AsyncButton'
 import { useApi } from '../../hooks/useApi'
 import { SettingsHeader } from './shared'
+import { locale, t, Words } from '../../i18n'
 
 const database = 'com.plexapp.plugins.library.db'
 
@@ -60,20 +61,20 @@ export function ImportSection() {
 
   return (
     <section>
-      <SettingsHeader title="Bring over from Plex" back={{ to: '/settings/libraries', label: 'Libraries' }}>
-        Copies what you’ve watched, and where you stopped, from Plex. Plex isn’t changed, and it’s safe to run again.
+      <SettingsHeader title={t('Bring over from Plex')} back={{ to: '/settings/libraries', label: t(Words.libraries) }}>
+        {t('Copies what you’ve watched, and where you stopped, from Plex. Plex isn’t changed, and it’s safe to run again.')}
       </SettingsHeader>
       <div className="panel">
-        {source.loading && <p className="muted">Looking for Plex…</p>}
+        {source.loading && <p className="muted">{t('Looking for Plex…')}</p>}
         {source.data && !source.data.found && onMac && (
           <div className="field">
             <span className="field-label">
-              Choose Plex’s folder: <code>Plex Media Server</code>, in your Library’s Application Support folder. Flexarr opens it in a window on the Mac.
+              {t.rich('Choose Plex’s folder: {folder}, in your Library’s Application Support folder. Flexarr opens it in a window on the Mac.', { folder: <code>Plex Media Server</code> })}
             </span>
             {source.error && <p className="error">{source.error.message}</p>}
             <div className="form-actions">
               <AsyncButton className="button small" onClick={chooseOnMac}>
-                Choose Plex’s folder on the Mac…
+                {t('Choose Plex’s folder on the Mac…')}
               </AsyncButton>
             </div>
           </div>
@@ -86,11 +87,11 @@ export function ImportSection() {
               setLookup((n) => n + 1)
             }}
           >
-            <span className="field-label">Plex wasn't found in the usual places. Where is com.plexapp.plugins.library.db?</span>
+            <span className="field-label">{t("Plex wasn't found in the usual places. Where is com.plexapp.plugins.library.db?")}</span>
             <input type="text" value={path} onChange={(e) => setPath(e.target.value)} placeholder="/path/to/Plug-in Support/Databases/com.plexapp.plugins.library.db" />
             <div className="form-actions">
               <AsyncButton type="submit" className="button quiet small" busy={source.loading}>
-                Look there
+                {t('Look there')}
               </AsyncButton>
             </div>
           </form>
@@ -98,17 +99,17 @@ export function ImportSection() {
         {source.data?.found && (
           <>
             <p className="muted">
-              Found Plex at <code className="folder">{source.data.path}</code>
+              {t.rich('Found Plex at {folder}', { folder: <code className="folder">{source.data.path}</code> })}
             </p>
             {source.data.accounts.length === 0 ? (
-              <p>That Plex server has no watch history to bring over.</p>
+              <p>{t('That Plex server has no watch history to bring over.')}</p>
             ) : (
               <label className="field">
-                <span className="field-label">Whose history</span>
+                <span className="field-label">{t('Whose history')}</span>
                 <select value={chosen} onChange={(e) => setAccount(Number(e.target.value))}>
                   {source.data.accounts.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.name}: {a.watched.toLocaleString()} watched, {a.inProgress.toLocaleString()} in progress
+                      {t('{name}: {watched, number} watched, {inProgress, number} in progress', { name: a.name, watched: a.watched, inProgress: a.inProgress })}
                     </option>
                   ))}
                 </select>
@@ -116,7 +117,7 @@ export function ImportSection() {
             )}
             {profiles.data && profiles.data.length > 1 && (
               <label className="field">
-                <span className="field-label">Into which Flexarr profile</span>
+                <span className="field-label">{t('Into which Flexarr profile')}</span>
                 <select value={target ?? profiles.data.find((p) => p.isMain)?.id} onChange={(e) => setTarget(e.target.value)}>
                   {profiles.data.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -128,9 +129,9 @@ export function ImportSection() {
             )}
             {result && (
               <p role="status" className="import-result">
-                Brought over {result.matched.toLocaleString()} titles: {result.watched.toLocaleString()} watched and {result.inProgress.toLocaleString()} to resume.
-                {result.keptNewer > 0 && ` ${result.keptNewer} you'd watched more recently in Flexarr were left as they were.`}
-                {result.unmatched > 0 && ` ${result.unmatched.toLocaleString()} files Plex knows about aren't in your Flexarr libraries.`}
+                {t('Brought over {count, plural, one {# title} other {# titles}}: {watched, number} watched and {inProgress, number} to resume.', { count: result.matched, watched: result.watched, inProgress: result.inProgress })}
+                {result.keptNewer > 0 && ` ${t("{count, number} you'd watched more recently in Flexarr were left as they were.", { count: result.keptNewer })}`}
+                {result.unmatched > 0 && ` ${t("{count, plural, one {# file Plex knows about isn't in your Flexarr libraries.} other {# files Plex knows about aren't in your Flexarr libraries.}}", { count: result.unmatched })}`}
               </p>
             )}
             {error && (
@@ -140,7 +141,7 @@ export function ImportSection() {
             )}
             <div className="form-actions">
               <AsyncButton className="button" busy={busy} disabled={chosen === undefined} onClick={run}>
-                Bring history over
+                {t('Bring history over')}
               </AsyncButton>
             </div>
           </>
@@ -171,12 +172,15 @@ function PlexPictures({ path }: { path?: string }) {
 
   return (
     <div className="panel">
-      <h3 className="panel-title">Profile pictures</h3>
-      <p className="muted">Uses your Plex Home users’ pictures for the Flexarr profiles with the same names, in place of any picture they have.</p>
+      <h3 className="panel-title">{t('Profile pictures')}</h3>
+      <p className="muted">{t('Uses your Plex Home users’ pictures for the Flexarr profiles with the same names, in place of any picture they have.')}</p>
       {result && (
         <p role="status" className="import-result">
-          {result.matched.length > 0 ? `Updated ${result.matched.map((m) => m.profile).join(' and ')}.` : 'No profiles matched a Plex user’s name.'}
-          {result.unmatchedPlexUsers.length > 0 && ` No profile is called ${result.unmatchedPlexUsers.join(' or ')}; add one and run this again.`}
+          {result.matched.length > 0
+            ? t('Updated {names}.', { names: new Intl.ListFormat(locale(), { type: 'conjunction' }).format(result.matched.map((m) => m.profile)) })
+            : t('No profiles matched a Plex user’s name.')}
+          {result.unmatchedPlexUsers.length > 0 &&
+            ` ${t('No profile is called {names}; add one and run this again.', { names: new Intl.ListFormat(locale(), { type: 'disjunction' }).format(result.unmatchedPlexUsers) })}`}
         </p>
       )}
       {error && (
@@ -186,7 +190,7 @@ function PlexPictures({ path }: { path?: string }) {
       )}
       <div className="form-actions">
         <AsyncButton className="button quiet small" busy={busy} onClick={run}>
-          Use Plex profile pictures
+          {t('Use Plex profile pictures')}
         </AsyncButton>
       </div>
     </div>

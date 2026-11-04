@@ -7,6 +7,8 @@ using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Collections;
 
@@ -61,7 +63,7 @@ public static class CollectionEndpoints
             // Working them out takes a few dozen queries over the whole library, and they hardly change from minute to minute.
             // Keyed by the libraries hidden from the profile and its age limit too, so changing either takes effect at once.
             var hiddenLibraries = string.Join(',', db.HiddenLibraryIds.Order());
-            var all = await cache.GetOrCreateAsync($"collection-suggestions:{profile.Id}:{hiddenLibraries}:{db.MaxRatingAge}:{LibraryVisibility.KidsSettingsVersion}", entry =>
+            var all = await cache.GetOrCreateAsync($"collection-suggestions:{profile.Id}:{hiddenLibraries}:{db.MaxRatingAge}:{LibraryVisibility.KidsSettingsVersion}:{Loc.Language}", entry =>
             {
                 entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
                 return CollectionSuggestions.ForAsync(db, profile.Id, ct);
@@ -94,13 +96,13 @@ public static class CollectionEndpoints
         {
             if (string.IsNullOrWhiteSpace(request.Name))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = ["Give the collection a name."] });
+                return Problems.Field("Give the collection a name.", field: "name");
             }
 
             var personal = request.Personal ?? !profile.IsMainProfile;
             if (!personal && !profile.IsMainProfile)
             {
-                return Results.Problem("Only the main profile can make collections for the whole household.", statusCode: 403);
+                return Problems.Of("Only the main profile can make collections for the whole household.", status: 403);
             }
 
             var collection = new Collection
@@ -184,7 +186,7 @@ public static class CollectionEndpoints
 
             if (!await db.MediaItems.AnyAsync(i => i.Id == request.ItemId && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series || i.Kind == MediaKind.Audiobook), ct))
             {
-                return Results.Problem("Only movies, shows and audiobooks can be added to a collection.", statusCode: 400);
+                return Problems.Of("Only movies, shows and audiobooks can be added to a collection.", status: 400);
             }
 
             if (!await db.CollectionItems.AnyAsync(i => i.CollectionId == id && i.MediaItemId == request.ItemId, ct))

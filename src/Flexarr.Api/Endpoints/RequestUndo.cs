@@ -18,13 +18,14 @@ public sealed record TitleUndoBody(string MediaType, int TmdbId, IReadOnlyList<i
 /// Taking a film or show request back, as music's unrequest does: Seerr's request goes, Radarr or Sonarr stop wanting
 /// it and drop its downloads, and a film or show with nothing on disk leaves them. Files are never deleted. Seerr,
 /// Radarr and Sonarr are the household's, so it's for everyone: every profile's open request for the title closes.
-/// Nothing to take back (already undone, in the library, or in a library the profile can't see) answers 204 and
-/// changes nothing. Throws <see cref="ServiceException"/> when one of them refuses or doesn't answer.
+/// Nothing to take back (already undone, in the library, in a library the profile can't see, or never requested:
+/// added in Radarr or Sonarr by hand) answers 204 and changes nothing. Throws <see cref="ServiceException"/> when one of them refuses or doesn't answer.
 /// </summary>
 public static class RequestUndo
 {
     /// <summary>Which service failed, for a plain message (their own words can name addresses and go to the log).</summary>
-    public sealed class ServiceException(string service, HttpRequestException inner) : Exception($"{service} didn't answer.", inner)
+    /// <remarks>The inner exception is an <see cref="HttpRequestException"/>, or a timeout.</remarks>
+    public sealed class ServiceException(string service, Exception inner) : Exception($"{service} didn't answer.", inner)
     {
         public string Service { get; } = service;
     }
@@ -59,6 +60,14 @@ public static class RequestUndo
 
         var chosen = !movie && body.Seasons is { Count: > 0 } given ? given.Where(n => n > 0).ToHashSet() : null;
         var open = (record?.Requests ?? []).Where(r => r.Status is not (Declined or Completed)).ToList();
+        var onDisk = new HashSet<int>();
+
+        // Only a real request is taken back. Seerr reads a title someone added in Radarr or Sonarr by hand as
+        // processing, so it can show as requested; with no open request in Seerr or Flexarr, nobody asked for it.
+        if (open.Count == 0 && !await db.MediaRequests.AnyAsync(r => r.Kind == kind && r.TmdbId == body.TmdbId && r.FulfilledAt == null, ct))
+        {
+            return Results.NoContent();
+        }
 
         // Radarr or Sonarr first: a request deleted in Seerr while they still want it would download anyway.
         if (movie)
@@ -82,20 +91,26 @@ public static class RequestUndo
             var tvdbId = record?.TvdbId ?? open.Select(r => r.Media?.TvdbId).FirstOrDefault(t => t is > 0)
                 ?? (await db.MediaItems.IgnoreQueryFilters().Where(i => i.Kind == MediaKind.Series && i.TmdbId == tmdb && i.TvdbId != null)
                     .Select(i => i.TvdbId).FirstOrDefaultAsync(ct) is { } stored && int.TryParse(stored, CultureInfo.InvariantCulture, out var parsed) ? parsed : null);
+            // The whole show means the seasons its open requests asked for, not every season without files: one
+            // the admin monitored by hand in Sonarr isn't anyone's request. Without Seerr's seasons, every one not yet in.
+            var asked = open.SelectMany(r => r.Seasons ?? []).Select(s => s.SeasonNumber).Where(n => n > 0).ToHashSet();
             if (tvdbId is { } tvdb)
             {
                 foreach (var sonarr in options.Arr.Where(a => a.Kind == ArrKind.Sonarr))
                 {
                     foreach (var series in await Call("Sonarr", () => arr.GetSeriesByTvdbIdAsync(sonarr, tvdb, ct)))
                     {
-                        chosen = await UndoSeasonsAsync(arr, sonarr, series, chosen, ct);
+                        (chosen, var complete) = await UndoSeasonsAsync(arr, sonarr, series, chosen, asked.Count > 0 ? asked : null, ct);
+                        onDisk.UnionWith(complete);
                     }
                 }
             }
         }
 
-        // Then Seerr: every request the undo covers. A show's request that also asked for seasons still wanted stays.
-        var covered = open.Where(r => movie || chosen is null || (r.Seasons is { Count: > 0 } seasons && seasons.All(s => chosen.Contains(s.SeasonNumber)))).ToList();
+        // Then Seerr: every request the undo covers. A show's request that also asked for seasons still wanted stays;
+        // seasons already on disk don't keep one open, or the whole show's undo could never close it.
+        var covered = open.Where(r => movie || chosen is null
+            || (r.Seasons is { Count: > 0 } seasons && seasons.All(s => chosen.Contains(s.SeasonNumber) || onDisk.Contains(s.SeasonNumber)))).ToList();
         foreach (var request in covered)
         {
             await Call("Seerr", () => seerrClient.DeleteRequestAsync(seerr, request.Id, ct));
@@ -130,15 +145,23 @@ public static class RequestUndo
     }
 
     /// <summary>
-    /// Sonarr stops wanting the seasons (given, or every one with nothing on disk) and their downloads go; a show
-    /// with nothing on disk at all, and no season still wanted, leaves Sonarr.
+    /// Sonarr stops wanting the seasons (given, or else those asked for, or every one, that aren't all on disk) and
+    /// their downloads go; a partly downloaded season keeps its files. A show with nothing on disk at all, and no
+    /// season still wanted, leaves Sonarr.
     /// </summary>
-    /// <returns>The seasons undone, for matching Seerr's requests; null for "the whole show".</returns>
-    private static async Task<HashSet<int>?> UndoSeasonsAsync(ArrClient arr, ArrInstance sonarr, SonarrSeries series, HashSet<int>? chosen, CancellationToken ct)
+    /// <returns>The seasons undone, for matching Seerr's requests (null for "the whole show"), and the seasons all on disk.</returns>
+    private static async Task<(HashSet<int>? Undone, HashSet<int> Complete)> UndoSeasonsAsync(ArrClient arr, ArrInstance sonarr, SonarrSeries series,
+        HashSet<int>? chosen, HashSet<int>? asked, CancellationToken ct)
     {
         var episodes = await Call("Sonarr", () => arr.GetEpisodesAsync(sonarr, series.Id, ct));
         var seasonsWithFiles = episodes.Where(e => e.HasFile).Select(e => e.SeasonNumber).ToHashSet();
-        var scope = chosen ?? [.. series.Seasons.Select(s => s.SeasonNumber).Where(n => n > 0 && !seasonsWithFiles.Contains(n))];
+
+        // A season is on disk only when every wanted episode that has aired has its file: one still part way through
+        // keeps downloading otherwise, while its request closes. An episode the admin unmonitored doesn't count against
+        // it, and one with no air date counts as aired, since its season (it has files) has started.
+        var now = DateTime.UtcNow;
+        var complete = seasonsWithFiles.Where(n => episodes.All(e => e.SeasonNumber != n || e.HasFile || !e.Monitored || e.AirDateUtc > now)).ToHashSet();
+        var scope = chosen ?? [.. (asked ?? series.Seasons.Select(s => s.SeasonNumber)).Where(n => n > 0 && !complete.Contains(n))];
 
         var missing = episodes.Where(e => scope.Contains(e.SeasonNumber) && !e.HasFile && e.Monitored).Select(e => e.Id).ToList();
         if (missing.Count > 0)
@@ -156,7 +179,7 @@ public static class RequestUndo
             await Call("Sonarr", () => arr.RemoveSeriesAsync(sonarr, series.Id, ct));
         }
 
-        return chosen is null && seasonsWithFiles.Count == 0 ? null : scope;
+        return (chosen is null && seasonsWithFiles.Count == 0 ? null : scope, complete);
     }
 
     /// <summary>
@@ -184,6 +207,10 @@ public static class RequestUndo
         {
             throw new ServiceException(service, ex);
         }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            throw new ServiceException(service, ex); // HttpClient's own timeout, not the caller going away
+        }
     }
 
     private static async Task Call(string service, Func<Task> call)
@@ -195,6 +222,10 @@ public static class RequestUndo
         catch (HttpRequestException ex)
         {
             throw new ServiceException(service, ex);
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            throw new ServiceException(service, ex); // HttpClient's own timeout, not the caller going away
         }
     }
 }

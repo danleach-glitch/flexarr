@@ -3,6 +3,7 @@ using Flexarr.Integrations.Arr;
 using Flexarr.Integrations.Arr.Models;
 using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints.MusicRequests;
 
@@ -44,7 +45,7 @@ public static partial class MusicUndo
         }
         else
         {
-            return Results.ValidationProblem(new Dictionary<string, string[]> { ["artistId"] = ["Give the artist's artistId, deezerId or musicBrainzId."] });
+            return Problems.Field("Give the artist's artistId, deezerId or musicBrainzId.", field: "artistId");
         }
 
         // By MusicBrainz id when there is one (a same-named artist is someone else); by name only without one.
@@ -122,7 +123,7 @@ public static partial class MusicUndo
         }
         else
         {
-            return Results.ValidationProblem(new Dictionary<string, string[]> { ["musicBrainzId"] = ["Give the album's musicBrainzId or deezerId."] });
+            return Problems.Field("Give the album's musicBrainzId or deezerId.", field: "musicBrainzId");
         }
 
         if (found is null && releaseGroupId is not null)
@@ -223,7 +224,7 @@ public static partial class MusicUndo
             : [];
         foreach (var queued in mine.Where(q => q.DownloadId is null || !shared.Contains(q.DownloadId)))
         {
-            await c.Client.DeleteAsync(lidarr, $"queue/{queued.Id}?removeFromClient=true&blocklist=false", ct);
+            await c.Client.RemoveFromQueueAsync(lidarr, queued.Id, ct);
         }
     }
 
@@ -283,7 +284,7 @@ public static partial class MusicUndo
         return null;
     }
 
-    private static IResult NotAnswering => Results.Problem("Lidarr isn't answering. Try again later.", statusCode: 502);
+    private static IResult NotAnswering => Problems.Of("Lidarr isn't answering. Try again later.", status: 502);
 
     private static bool LidarrDown(MusicRequestContext c) => c.Lidarrs.Any(l => MusicMatcher.IsDown(c.Cache, l));
 

@@ -3,6 +3,7 @@ using System.Text.Json;
 using Flexarr.Api.Endpoints;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Media;
 using Flexarr.Integrations.Arr;
 using Microsoft.EntityFrameworkCore;
@@ -65,7 +66,7 @@ public sealed partial class TraktRecommendations(FlexarrDbContext db, TraktClien
             .OrderBy(t => t.LibraryItemId is null)
             .Take(RowSize)
             .ToList();
-        return items.Count == 0 ? null : new ExternalRowDto(RowId, "For you, from Trakt", items);
+        return items.Count == 0 ? null : new ExternalRowDto(RowId, Loc.T("For you, from Trakt"), items);
     }
 
     private static string Key(Pick p) => $"{p.MediaType}:{p.TmdbId.ToString(CultureInfo.InvariantCulture)}";

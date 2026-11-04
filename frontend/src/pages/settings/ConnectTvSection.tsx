@@ -1,11 +1,12 @@
 import { ConnectTv } from '../../components/ConnectTv'
 import { WaitingPairings } from '../../components/WaitingPairings'
 import { SettingsHeader } from './shared'
+import { t } from '../../i18n'
 
 export function ConnectTvSection() {
   return (
     <section>
-      <SettingsHeader title="Connect a device" back={{ to: '/settings/security', label: 'Security' }} />
+      <SettingsHeader title={t('Connect a device')} back={{ to: '/settings/security', label: t('Security') }} />
       {/* Devices already asking come first: allowing one there needs no code typed. */}
       <WaitingPairings />
       <ConnectTv titled={false} />

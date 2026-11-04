@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import android.Manifest
 import android.content.Intent
 import android.os.Build
@@ -56,7 +58,7 @@ fun NotificationSettingsScreen(model: AppModel) {
     var problem by remember { mutableStateOf<Pair<String, String>?>(null) }
     var testSent by remember { mutableStateOf(false) }
 
-    fun attempt(title: String = "Couldn’t change notifications", action: suspend () -> Unit) {
+    fun attempt(title: String = t("Couldn’t change notifications"), action: suspend () -> Unit) {
         val credentials = model.credentials ?: return
         if (working) return
         working = true
@@ -64,7 +66,7 @@ fun NotificationSettingsScreen(model: AppModel) {
             try {
                 action()
             } catch (e: Exception) {
-                problem = title to (e.message ?: "Something went wrong.")
+                problem = title to (e.message ?: t("Something went wrong."))
             } finally {
                 working = false
                 allowed = notifications.isAllowed
@@ -96,20 +98,20 @@ fun NotificationSettingsScreen(model: AppModel) {
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle("Notifications", onBack = { navigator.back() }) }
+            item { PageTitle(t("Notifications"), onBack = { navigator.back() }) }
             if (!notifications.isAvailable) {
                 item {
-                    Group(footer = "This build of Flexarr was made without Google’s notification service, so it can’t get notifications. Versions from Google Play can.") {
-                        Fact("Notifications", "Not available")
+                    Group(footer = t("This build of Flexarr was made without Google’s notification service, so it can’t get notifications. Versions from Google Play can.")) {
+                        Fact(t("Notifications"), t("Not available"))
                     }
                 }
                 return@LazyColumn
             }
             if (!allowed && notifications.isOn) {
                 item {
-                    Group(footer = "Notifications are off for Flexarr in Android's settings. Allow them there first.") {
+                    Group(footer = t("Notifications are off for Flexarr in Android's settings. Allow them there first.")) {
                         Text(
-                            "Open Settings",
+                            t("Open Settings"),
                             fontSize = 17.sp,
                             color = Flexarr.silver,
                             modifier = Modifier.fillMaxWidth().pressable({
@@ -122,23 +124,23 @@ fun NotificationSettingsScreen(model: AppModel) {
             item {
                 Group(
                     footer = when {
-                        device?.relay == false -> "Your server has notifications turned off, so none will arrive. They can be turned on in its configuration."
-                        !notifications.isOn -> "Hear when something new is ready. This phone gets them for one profile."
+                        device?.relay == false -> t("Your server has notifications turned off, so none will arrive. They can be turned on in its configuration.")
+                        !notifications.isOn -> t("Hear when something new is ready. This phone gets them for one profile.")
                         else -> null
                     },
                 ) {
-                    Toggle("Notifications", notifications.isOn, ::turn, enabled = !working)
+                    Toggle(t("Notifications"), notifications.isOn, ::turn, enabled = !working)
                 }
             }
             if (notifications.isOn) {
                 item {
                     Group {
-                        Fact("For", notifications.profileName ?: "Your profile")
+                        Fact(t("For"), notifications.profileName ?: t("Your profile"))
                         val current = model.currentProfile
                         if (current != null && notifications.profileId != null && current.id != notifications.profileId) {
                             Divider()
                             Text(
-                                "Get notifications for ${current.name} instead",
+                                t("Get notifications for {name} instead", "name" to current.name),
                                 fontSize = 17.sp,
                                 color = Flexarr.silver,
                                 modifier = Modifier.fillMaxWidth().pressable({ attempt { device = notifications.move(model.credentials!!) } }, enabled = !working)
@@ -149,26 +151,26 @@ fun NotificationSettingsScreen(model: AppModel) {
                 }
                 item {
                     val settings = notifications.settings
-                    Group(header = "Tell me about") {
-                        Toggle("Movies", settings.films, { save(settings.copy(films = it)) })
+                    Group(header = t("Tell me about")) {
+                        Toggle(t(Words.movies), settings.films, { save(settings.copy(films = it)) })
                         Divider()
-                        Toggle("Shows", settings.shows, { save(settings.copy(shows = it)) })
+                        Toggle(t(Words.shows), settings.shows, { save(settings.copy(shows = it)) })
                         if (model.podcastStatus?.available != false) {
                             Divider()
-                            Toggle("Podcasts", settings.podcasts, { save(settings.copy(podcasts = it)) })
+                            Toggle(t(Words.podcasts), settings.podcasts, { save(settings.copy(podcasts = it)) })
                         }
                         if (model.hasLiveTv) {
                             Divider()
-                            Toggle("Recordings", settings.recordings, { save(settings.copy(recordings = it)) })
+                            Toggle(t("Recordings"), settings.recordings, { save(settings.copy(recordings = it)) })
                         }
                         Divider()
-                        Toggle("Requests", settings.requests, { save(settings.copy(requests = it)) }, detail = "When something you requested is ready")
+                        Toggle(t("Requests"), settings.requests, { save(settings.copy(requests = it)) }, detail = t("When something you requested is ready"))
                     }
                 }
                 item {
                     val settings = notifications.settings
                     Group {
-                        Toggle("Upcoming", settings.upcoming, { save(settings.copy(upcoming = it)) }, detail = "Each morning, what’s airing today")
+                        Toggle(t("Upcoming"), settings.upcoming, { save(settings.copy(upcoming = it)) }, detail = t("Each morning, what’s airing today"))
                         if (settings.upcoming) {
                             Divider()
                             HourPicker(settings.upcomingHour) { save(settings.copy(upcomingHour = it)) }
@@ -178,11 +180,11 @@ fun NotificationSettingsScreen(model: AppModel) {
                 item {
                     Group {
                         Text(
-                            "Send test notification",
+                            t("Send test notification"),
                             fontSize = 17.sp,
                             color = Flexarr.silver,
                             modifier = Modifier.fillMaxWidth()
-                                .pressable({ attempt("Couldn’t send a test notification") { notifications.sendTest(model.credentials!!); testSent = true } }, enabled = !working)
+                                .pressable({ attempt(t("Couldn’t send a test notification")) { notifications.sendTest(model.credentials!!); testSent = true } }, enabled = !working)
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
                         )
                     }
@@ -196,16 +198,16 @@ fun NotificationSettingsScreen(model: AppModel) {
             onDismissRequest = { problem = null },
             title = { Text(title) },
             text = { Text(message) },
-            confirmButton = { TextButton(onClick = { problem = null }) { Text("OK", color = Flexarr.screen) } },
+            confirmButton = { TextButton(onClick = { problem = null }) { Text(t("OK"), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }
     if (testSent) {
         AlertDialog(
             onDismissRequest = { testSent = false },
-            title = { Text("Test notification sent") },
-            text = { Text("It should arrive in a moment.") },
-            confirmButton = { TextButton(onClick = { testSent = false }) { Text("OK", color = Flexarr.screen) } },
+            title = { Text(t("Test notification sent")) },
+            text = { Text(t("It should arrive in a moment.")) },
+            confirmButton = { TextButton(onClick = { testSent = false }) { Text(t("OK"), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }
@@ -215,10 +217,10 @@ fun NotificationSettingsScreen(model: AppModel) {
 @Composable
 private fun HourPicker(hour: Int, onChange: (Int) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    val format = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
+    val format = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(io.github.flexarr.core.i18n.Localization.locale)
     androidx.compose.foundation.layout.Box {
         androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().pressable({ open = true }).padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text("At", fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
+            Text(t("At"), fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
             Text(LocalTime.of(hour, 0).format(format), fontSize = 17.sp, color = Flexarr.usher)
         }
         DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {

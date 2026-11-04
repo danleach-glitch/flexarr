@@ -25,27 +25,27 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .unauthorized:
-            "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against the API key in Settings on the web. Over Tailscale, your Tailscale account needs linking in Settings › Remote access."
+            t("The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against the API key in Settings on the web. Over Tailscale, your Tailscale account needs linking in Settings › Remote access.")
         case .recordingInTheWay(let recording):
             recording.message
         case .parentPinNeeded(let message):
-            message ?? "Enter the admin PIN."
+            message ?? t("Enter the admin PIN.")
         case .ownPinWrong(let message):
-            message ?? "That PIN isn’t right."
+            message ?? t("That PIN isn’t right.")
         case .kidsLocked(let message):
-            message ?? "Child lock is on for this device."
+            message ?? t("Child lock is on for this device.")
         case .guestRemoved(let message):
-            message ?? "This device was removed from the server."
+            message ?? t("This device was removed from the server.")
         case .http(let status, let message):
-            message ?? "The server answered with an error (HTTP \(status))."
+            message ?? t("The server answered with an error (HTTP {status}).", ["status": String(status)])
         case .unexpectedResponse:
-            "That address answered, but not like a Flexarr server. Check the host name and port."
+            t("That address answered, but not like a Flexarr server. Check the host name and port.")
         case .invalidResponse:
-            "The server sent a response that couldn't be read."
+            t("The server sent a response that couldn't be read.")
         case .invalidAddress:
-            "That doesn't look like a server address. Try something like http://192.168.1.20:8383."
+            t("That doesn't look like a server address. Try something like http://192.168.1.20:8383.")
         case .unreachable:
-            "Couldn't reach the server, at home or over Tailscale. Make sure Flexarr is running, and that Tailscale is connected on this device."
+            t("Couldn't reach the server, at home or over Tailscale. Make sure Flexarr is running, and that Tailscale is connected on this device.")
         }
     }
 }
@@ -796,6 +796,28 @@ public struct FlexarrClient: Sendable {
         try await get("me")
     }
 
+    /// The languages this server offers, English first. Empty from servers before 0.61 (which answer 404).
+    public func languages() async throws -> [LanguageInfo] {
+        struct Languages: Decodable { let languages: [LanguageInfo] }
+        do {
+            let list: Languages = try await get("languages")
+            return list.languages
+        } catch FlexarrClientError.http(status: 404, _) {
+            return []
+        }
+    }
+
+    /// A language's strings for the Apple apps.
+    public func languagePack(_ code: String) async throws -> LanguagePack {
+        try await get("languages/\(code)", query: [URLQueryItem(name: "scope", value: "apple")])
+    }
+
+    /// The signed-in profile's language: a code from `languages()`, or nil to follow each device.
+    public func setLanguage(_ code: String?) async throws {
+        struct Choice: Encodable { let language: String? }
+        _ = try await send("PUT", "me/language", body: Choice(language: code))
+    }
+
     /// Unlocks managing the server for this sign-in with the admin PIN, for a while (servers from 0.56, where
     /// choosing the main profile isn't enough by itself). 403: not the right PIN; 429: too many wrong ones, with the
     /// server's message; 409: the main profile has no PIN yet. Returns when it locks again.
@@ -850,6 +872,14 @@ public struct FlexarrClient: Sendable {
     public func url(for relative: String) -> URL? {
         if relative.hasPrefix("http://") || relative.hasPrefix("https://") { return URL(string: relative) }
         return URL(string: relative, relativeTo: baseURL.appending(path: "/"))?.absoluteURL
+    }
+
+    /// A small request (the server's health check) so the connection is up before anything that matters asks:
+    /// coming back to the app, the first real request (Play) doesn't pay for setting it up. Best effort.
+    public func warmConnection() async {
+        var request = URLRequest(url: baseURL.appending(path: "health"))
+        request.timeoutInterval = 5
+        _ = try? await session.data(for: request)
     }
 
     /// Artwork URL with a width hint for the server's image cache. Image endpoints are anonymous.
@@ -944,6 +974,8 @@ public struct FlexarrClient: Sendable {
         request.httpMethod = method
         request.timeoutInterval = timeout
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        // The server answers in the language shown here (the profile's own choice wins over it, server side).
+        request.setValue(Localization.shared.code, forHTTPHeaderField: "Accept-Language")
         if let apiKey, !apiKey.isEmpty {
             request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key")
         }

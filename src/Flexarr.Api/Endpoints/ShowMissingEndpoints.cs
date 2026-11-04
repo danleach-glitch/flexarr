@@ -10,6 +10,7 @@ using Flexarr.Integrations.Arr.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -118,7 +119,7 @@ public static class ShowMissingEndpoints
 
             if (await SonarrSeriesAsync(show, options.CurrentValue, arr, cache, ct) is not { } managed)
             {
-                return Results.Problem("Sonarr doesn't manage this show, so there's nothing to search with.", statusCode: 409);
+                return Problems.Of("Sonarr doesn't manage this show, so there's nothing to search with.", status: 409);
             }
 
             try
@@ -132,7 +133,7 @@ public static class ShowMissingEndpoints
                     .Select(e => e.Id).ToList();
                 if (episodes.Count == 0)
                 {
-                    return Results.Problem("Nothing in that season is missing.", statusCode: 409);
+                    return Problems.Of("Nothing in that season is missing.", status: 409);
                 }
 
                 await arr.SetEpisodesMonitoredAsync(managed.Instance, episodes, true, ct);
@@ -142,7 +143,7 @@ public static class ShowMissingEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Results.Problem($"{managed.Instance.Name} didn't take the search ({(int?)ex.StatusCode ?? 0}).", statusCode: 502);
+                return Problems.Of("{name} didn't take the search ({status}).", new { name = managed.Instance.Name, status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
         }).WithTags("Items").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 

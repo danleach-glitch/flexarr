@@ -1,5 +1,7 @@
 import type { BookChapter, BookFile, BookProgress, BookSeriesRef, ItemSummary } from '../api/types'
 import { formatClock } from './format'
+import { profileKey } from './profileScope'
+import { locale, t } from '../i18n'
 
 /** A book, rather than a film, track or episode. */
 export const isBook = (item: Pick<ItemSummary, 'kind'> | undefined) => item?.kind === 'Audiobook'
@@ -10,12 +12,14 @@ export function authorsLine(item: Pick<ItemSummary, 'book'>): string | null {
   if (!book?.authors) return null
   const shown = book.authors.split(', ').length
   const more = book.authorCount - shown
-  return more > 0 ? `${book.authors} and ${more} more` : book.authors
+  return more > 0 ? t('{names} and {count} more', { names: book.authors, count: more }) : book.authors
 }
 
 /** "Book 3 of 7", or "7 books" for a book without a number in its series. */
 export const seriesPlace = (series: BookSeriesRef) =>
-  series.sequence ? `Book ${series.sequence} of ${series.bookCount}` : series.bookCount === 1 ? '1 book' : `${series.bookCount} books`
+  series.sequence
+    ? t('Book {number} of {count}', { number: series.sequence, count: series.bookCount })
+    : t('{count, plural, one {# book} other {# books}}', { count: series.bookCount })
 
 // ---------- The timeline: a book's files back to back
 
@@ -141,7 +145,7 @@ export function clampSpeed(speed: number): number {
 export const stepSpeed = (speed: number, direction: 1 | -1) => clampSpeed(clampSpeed(speed) + direction * SPEED_STEP)
 
 /** "1×", "1.25×", "0.8×". */
-export const formatSpeed = (speed: number) => `${Number(clampSpeed(speed).toFixed(2))}×`
+export const formatSpeed = (speed: number) => `${Number(clampSpeed(speed).toFixed(2)).toLocaleString(locale())}×`
 
 /** The quick choices offered beside the fine steps, for books and podcasts alike. */
 export const bookSpeedPresets = [0.8, 1, 1.1, 1.2, 1.25, 1.5, 1.75, 2, 2.5, 3] as const
@@ -205,7 +209,8 @@ export function startDecision(progress: BookProgress, local: LocalPlace | null, 
   return { start: local.position, offer: { position: server, device: progress.device } }
 }
 
-const placeKey = (bookId: string) => `flexarr.bookPlace.${bookId}`
+/** This browser's place in a book, for the profile chosen here (a child never starts at a parent's place). */
+const placeKey = (bookId: string) => profileKey(`flexarr.bookPlace.${bookId}`)
 
 export function readLocalPlace(bookId: string): LocalPlace | null {
   try {
@@ -238,7 +243,7 @@ export function deviceName(userAgent = navigator.userAgent): string {
         ? 'Chrome'
         : /Safari\//.test(userAgent)
           ? 'Safari'
-          : 'A browser'
+          : t('A browser')
   const system = /iPhone/.test(userAgent)
     ? 'iPhone'
     : /iPad/.test(userAgent)
@@ -254,7 +259,7 @@ export function deviceName(userAgent = navigator.userAgent): string {
               : /Linux/.test(userAgent)
                 ? 'Linux'
                 : null
-  return system ? `${browser} on ${system}` : browser
+  return system ? t('{browser} on {system}', { browser, system }) : browser
 }
 
 /** A language code ("en", "eng", "en-GB"), as opposed to a word a tag might carry instead ("English", "francais"). */
@@ -265,7 +270,7 @@ export function languageName(code: string | null | undefined): string | null {
   if (!code) return null
   if (!LANGUAGE_CODE.test(code)) return code
   try {
-    return new Intl.DisplayNames(undefined, { type: 'language' }).of(code.replaceAll('_', '-')) ?? code
+    return new Intl.DisplayNames([locale()], { type: 'language' }).of(code.replaceAll('_', '-')) ?? code
   } catch {
     return code
   }
@@ -282,5 +287,5 @@ export function languageOptions(codes: string[], chosen?: string): { value: stri
     const label = languageName(code) ?? code
     if (!byName.has(label)) byName.set(label, code)
   }
-  return [...byName].map(([label, value]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label))
+  return [...byName].map(([label, value]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label, locale()))
 }

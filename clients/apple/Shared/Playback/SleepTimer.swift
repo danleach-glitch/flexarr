@@ -1,3 +1,4 @@
+import FlexarrKit
 import Foundation
 import Observation
 
@@ -16,9 +17,9 @@ final class SleepTimer {
         /// "15 minutes", "End of episode".
         var label: String {
             switch self {
-            case .minutes(let minutes): "\(minutes) minutes"
-            case .endOfEpisode: "End of episode"
-            case .endOfChapter: "End of chapter"
+            case .minutes(let minutes): t("{count, plural, one {# minute} other {# minutes}}", ["count": minutes])
+            case .endOfEpisode: t("End of episode")
+            case .endOfChapter: t("End of chapter")
             }
         }
     }

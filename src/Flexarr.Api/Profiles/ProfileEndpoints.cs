@@ -9,6 +9,8 @@ using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Flexarr.Api.Localization;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Profiles;
 
@@ -75,6 +77,8 @@ public sealed record ForgotPinRequest(string? AdminPin);
 
 public static partial class ProfileEndpoints
 {
+    private static readonly string HiddenDestination = Loc.Mark("That library is hidden from this profile.");
+
     public static RouteGroupBuilder MapProfileEndpoints(this RouteGroupBuilder api)
     {
         var group = api.MapGroup("/profiles").WithTags("Profiles");
@@ -130,7 +134,7 @@ public static partial class ProfileEndpoints
             // mustn't quietly change the main profile's own PIN instead.
             if (profile.IsMain && (!string.IsNullOrEmpty(request.CurrentPin) || !string.IsNullOrEmpty(request.ApiKey)))
             {
-                return Results.Problem("The admin PIN is changed with POST /admin/pin now (Settings › Security). The main profile's PIN here is its own.",
+                return Results.Problem(detail: Loc.T("The admin PIN is changed with POST /admin/pin now (Settings › Security). The main profile's PIN here is its own."),
                     statusCode: 409, extensions: new Dictionary<string, object?> { ["adminPinMoved"] = true });
             }
 
@@ -192,26 +196,26 @@ public static partial class ProfileEndpoints
         {
             if (current.IsGuest)
             {
-                return Results.Problem("A guest's device stays on the profile it was invited to.", statusCode: 403);
+                return Problems.Of("A guest's device stays on the profile it was invited to.", status: 403);
             }
 
             if (current.SignInId is not { } signInId)
             {
-                return Results.Problem("Child lock needs a browser or device that's signed in.", statusCode: 409);
+                return Problems.Of("Child lock needs a browser or device that's signed in.", status: 409);
             }
 
             var kids = await db.Profiles.AsNoTracking().Where(p => p.IsKids).OrderBy(p => p.CreatedAt).ToListAsync(ct);
             var chosen = request.ProfileId is { } wanted ? kids.FirstOrDefault(p => p.Id == wanted) : kids.FirstOrDefault(p => p.Id == current.Id) ?? kids.FirstOrDefault();
             if (chosen is null)
             {
-                return request.ProfileId is null ? Results.Problem("Add a kids profile first.", statusCode: 409) : Results.NotFound();
+                return request.ProfileId is null ? Problems.Of("Add a kids profile first.", status: 409) : Results.NotFound();
             }
 
             // Locked already, moving to another kids profile goes through Who's watching, which asks for whatever PIN it takes.
             var alreadyLocked = signIns.ById(signInId)?.KidsLock == true;
             if (alreadyLocked && chosen.Id != current.Id)
             {
-                return Results.Problem($"Choose {chosen.Name} in Who’s watching.", statusCode: 409);
+                return Problems.Of("Choose {name} in Who’s watching.", new { name = chosen.Name }, status: 409);
             }
 
             // The main profile turns it on without its PIN (turning it off takes it); anyone else needs it, so nobody
@@ -236,7 +240,7 @@ public static partial class ProfileEndpoints
             // A family guest has no say over anyone's PIN, and no tries at the admin PIN to spend.
             if (current.IsGuest)
             {
-                return Results.Problem("Guests can't change PINs.", statusCode: 403);
+                return Problems.Of("Guests can't change PINs.", status: 403);
             }
 
             if (await db.Profiles.FindAsync([id], ct) is not { } profile)
@@ -258,7 +262,7 @@ public static partial class ProfileEndpoints
 
             if (result == PinCheck.Wrong)
             {
-                return Results.Problem("That isn't the admin PIN.", statusCode: 403, extensions: new Dictionary<string, object?> { ["parentPin"] = true });
+                return Results.Problem(detail: Loc.T("That isn't the admin PIN."), statusCode: 403, extensions: new Dictionary<string, object?> { ["parentPin"] = true });
             }
 
             profile.SetPin(null);
@@ -291,7 +295,7 @@ public static partial class ProfileEndpoints
         {
             if (id != current.Id && !current.IsAdmin)
             {
-                return Results.Problem("Only the main profile can choose for someone else.", statusCode: 403);
+                return Problems.Of("Only the main profile can choose for someone else.", status: 403);
             }
 
             if (await db.Profiles.FindAsync([id], ct) is not { } profile)
@@ -299,17 +303,26 @@ public static partial class ProfileEndpoints
                 return Results.NotFound();
             }
 
+            // Any library of the kind, as the admin may be choosing for someone else, but not one hidden from the profile.
             var errors = new Dictionary<string, string[]>();
             async Task<bool> IsAsync(Guid? libraryId, LibraryType type) =>
                 libraryId is not { } chosen || await db.Libraries.IgnoreQueryFilters().AnyAsync(l => l.Id == chosen && l.Type == type, ct);
             if (!await IsAsync(request.ShowsLibraryId, LibraryType.TvShows))
             {
-                errors["showsLibraryId"] = ["That isn’t a TV library."];
+                errors["showsLibraryId"] = [Loc.T("That isn’t a TV library.")];
+            }
+            else if (request.ShowsLibraryId is { } shows && profile.HiddenLibraryIds.Contains(shows))
+            {
+                errors["showsLibraryId"] = [Loc.T(HiddenDestination)];
             }
 
             if (!await IsAsync(request.FilmsLibraryId, LibraryType.Movies))
             {
-                errors["filmsLibraryId"] = ["That isn’t a movie library."];
+                errors["filmsLibraryId"] = [Loc.T("That isn’t a movie library.")];
+            }
+            else if (request.FilmsLibraryId is { } films && profile.HiddenLibraryIds.Contains(films))
+            {
+                errors["filmsLibraryId"] = [Loc.T(HiddenDestination)];
             }
 
             if (errors.Count > 0)
@@ -329,7 +342,7 @@ public static partial class ProfileEndpoints
         {
             if (id != current.Id && !current.IsAdmin)
             {
-                return Results.Problem("Only the main profile can choose for someone else.", statusCode: 403);
+                return Problems.Of("Only the main profile can choose for someone else.", status: 403);
             }
 
             if (await db.Profiles.FindAsync([id], ct) is not { } profile)
@@ -339,7 +352,12 @@ public static partial class ProfileEndpoints
 
             if (request.LibraryId is { } chosen && !await db.Libraries.IgnoreQueryFilters().AnyAsync(l => l.Id == chosen && l.Type == LibraryType.Music, ct))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["libraryId"] = ["That isn’t a music library."] });
+                return Problems.Field("That isn’t a music library.", field: "libraryId");
+            }
+
+            if (request.LibraryId is { } music && profile.HiddenLibraryIds.Contains(music))
+            {
+                return Problems.Field("That library is hidden from this profile.", field: "libraryId");
             }
 
             profile.RequestMusicLibraryId = request.LibraryId;
@@ -364,12 +382,12 @@ public static partial class ProfileEndpoints
         {
             if (id != current.Id && !current.IsAdmin)
             {
-                return Results.Problem("Only the main profile can choose for someone else.", statusCode: 403);
+                return Problems.Of("Only the main profile can choose for someone else.", status: 403);
             }
 
             if (request.Order is null || request.Order.Count > 500 || request.Order.Any(e => string.IsNullOrWhiteSpace(e) || e.Length > 64))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["order"] = ["List the libraries by id."] });
+                return Problems.Field("List the libraries by id.", field: "order");
             }
 
             if (await db.Profiles.FindAsync([id], ct) is not { } profile)
@@ -387,17 +405,17 @@ public static partial class ProfileEndpoints
         {
             if (id != current.Id && !current.IsAdmin)
             {
-                return Results.Problem("Only the main profile can choose for someone else.", statusCode: 403);
+                return Problems.Of("Only the main profile can choose for someone else.", status: 403);
             }
 
             if (await db.Profiles.AsNoTracking().AnyAsync(p => p.Id == id && p.IsKids, ct))
             {
-                return Results.Problem("A kids profile has the standard menu.", statusCode: 403);
+                return Problems.Of("A kids profile has the standard menu.", status: 403);
             }
 
             if (request.Hidden is null || request.Hidden.Any(h => !NavigationRequest.Items.Contains(h)))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["hidden"] = [$"Choose from {string.Join(", ", NavigationRequest.Items)}."] });
+                return Problems.Field("Choose from {items}.", field: "hidden", args: new { items = string.Join(", ", NavigationRequest.Items) });
             }
 
             if (await db.Profiles.FindAsync([id], ct) is not { } profile)
@@ -415,7 +433,7 @@ public static partial class ProfileEndpoints
         {
             if (id == PlaybackState.DefaultUser)
             {
-                return Results.Problem("The main profile can't be removed.", statusCode: 409);
+                return Problems.Of("The main profile can't be removed.", status: 409);
             }
 
             // A device locked to it would be left as nobody in particular: it moves to another kids profile, if there is one.
@@ -449,12 +467,12 @@ public static partial class ProfileEndpoints
 
             if (http.ContentLength is not > 0 || http.ContentLength > ProfileImages.MaxUploadBytes)
             {
-                return Results.Problem("Pictures can be up to 15 MB.", statusCode: 413);
+                return Problems.Of("Pictures can be up to 15 MB.", status: 413);
             }
 
             if (!await images.SaveAsync(id, http.Body, ct))
             {
-                return Results.Problem("That file isn't a picture Flexarr can read. Try a JPEG or PNG.", statusCode: 400);
+                return Problems.Of("That file isn't a picture Flexarr can read. Try a JPEG or PNG.", status: 400);
             }
 
             profile.ImageUpdatedAt = DateTime.UtcNow;
@@ -488,7 +506,7 @@ public static partial class ProfileEndpoints
             // A family guest keeps the profile its invite gave it.
             if (current.IsGuest && profile.Id != current.Id)
             {
-                return Results.Problem("Guests stay on the profile they were invited to.", statusCode: 403);
+                return Problems.Of("Guests stay on the profile they were invited to.", status: 403);
             }
 
             // Child lock is what keeps a child in kids profiles: a device with it on offers nothing else, and only the admin
@@ -496,7 +514,7 @@ public static partial class ProfileEndpoints
             // but the chosen profile's own. (`parentPin`, from apps that asked for it before, is accepted and not needed.)
             if (!profile.IsKids && signIns.ById(current.SignInId)?.KidsLock == true)
             {
-                return Results.Problem("Child lock is on for this device.", statusCode: 403, extensions: new Dictionary<string, object?> { ["kidsLock"] = true });
+                return Results.Problem(detail: Loc.T("Child lock is on for this device."), statusCode: 403, extensions: new Dictionary<string, object?> { ["kidsLock"] = true });
             }
 
             // Choosing the main profile asks for its own PIN, if it has one; the admin PIN does too (it can change the
@@ -506,7 +524,7 @@ public static partial class ProfileEndpoints
             var adminPinOnly = profile.IsMain && current.TakesAdminPinForMain;
             if (adminPinOnly && profile.AdminPinHash is null)
             {
-                return Results.Problem("The main profile can only be chosen here once there's an admin PIN.", statusCode: 403);
+                return Problems.Of("The main profile can only be chosen here once there's an admin PIN.", status: 403);
             }
 
             var pinGiven = !string.IsNullOrEmpty(request.Pin);
@@ -546,7 +564,7 @@ public static partial class ProfileEndpoints
                 if (result == PinCheck.Wrong)
                 {
                     // `ownPin`: the PIN for this choice was the wrong one (apps from before also sent a parent's).
-                    return Results.Problem("That PIN isn't right.", statusCode: 403, extensions: new Dictionary<string, object?> { ["ownPin"] = true });
+                    return Results.Problem(detail: Loc.T("That PIN isn't right."), statusCode: 403, extensions: new Dictionary<string, object?> { ["ownPin"] = true });
                 }
 
                 // The same digits may be both PINs (as they are on a server upgraded with the PIN asked for).
@@ -641,7 +659,7 @@ public static partial class ProfileEndpoints
 
     /// <summary>A 429 saying how long to wait, with Retry-After.</summary>
     internal static IResult TooManyPins(HttpContext http, TimeSpan retryAfter) =>
-        TryAgainLater(http, retryAfter, when => $"Too many wrong PINs. Try again in {when}.");
+        TryAgainLater(http, retryAfter, when => Loc.T("Too many wrong PINs. Try again in {when}.", new { when }));
 
     /// <summary>
     /// A 429 whose message says how long to wait, with Retry-After and the same number of seconds as
@@ -654,7 +672,10 @@ public static partial class ProfileEndpoints
         var seconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
         http.Response.Headers.RetryAfter = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
         var minutes = (int)Math.Ceiling(seconds / 60.0);
-        var when = seconds < 60 ? $"{seconds} second{(seconds == 1 ? "" : "s")}" : minutes <= 1 ? "a minute" : $"{minutes} minutes";
+        // How long, in the request's language, for the message to drop in as {when}.
+        var when = seconds < 60 ? Loc.T("{count, plural, one {# second} other {# seconds}}", new { count = seconds })
+            : minutes <= 1 ? Loc.T("a minute")
+            : Loc.T("{count, plural, one {# minute} other {# minutes}}", new { count = minutes });
         return Results.Problem(message(when), statusCode: 429, extensions: new Dictionary<string, object?> { ["retryAfterSeconds"] = seconds });
     }
 
@@ -680,9 +701,10 @@ public static partial class ProfileEndpoints
         var other = await db.Profiles.AsNoTracking().Where(p => p.IsKids && p.Id != profileId).OrderBy(p => p.CreatedAt).Select(p => p.Id).FirstOrDefaultAsync(ct);
         if (other is null)
         {
-            return Results.Problem(locked.Count == 1
-                ? $"{locked[0].Name} is locked to this profile. Unlock it in Settings › Devices first."
-                : $"{locked.Count} devices are locked to this profile. Unlock them in Settings › Devices first.", statusCode: 409);
+            return locked.Count == 1
+                ? Problems.Of("{name} is locked to this profile. Unlock it in Settings › Devices first.", new { name = locked[0].Name }, status: 409)
+                : Problems.Of("{count, plural, one {# device is locked to this profile. Unlock it in Settings › Devices first.} other {# devices are locked to this profile. Unlock them in Settings › Devices first.}}",
+                    new { count = locked.Count }, status: 409);
         }
 
         foreach (var signIn in locked)
@@ -702,22 +724,22 @@ public static partial class ProfileEndpoints
     {
         if (request.MaxRatingAge is { } age && !RatingAges.Steps.Contains(age))
         {
-            return Results.ValidationProblem(new Dictionary<string, string[]> { ["maxRatingAge"] = ["An age limit is U (0), PG (8), 12, 15 or 18."] });
+            return Problems.Field("An age limit is U (0), PG (8), 12, 15 or 18.", field: "maxRatingAge");
         }
 
         if (request.IsKids && request.MaxRatingAge is null)
         {
-            return Results.ValidationProblem(new Dictionary<string, string[]> { ["maxRatingAge"] = ["A kids profile needs an age limit."] });
+            return Problems.Field("A kids profile needs an age limit.", field: "maxRatingAge");
         }
 
         if (isMain && (request.IsKids || request.MaxRatingAge is not null))
         {
-            return Results.Problem("The main profile can't have an age limit: it manages the server.", statusCode: 409);
+            return Problems.Of("The main profile can't have an age limit: it manages the server.", status: 409);
         }
 
         if (request.IsKids && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.AdminPinHash == null, ct))
         {
-            return Results.Problem("Choose an admin PIN first: it's what keeps children in their profiles.", statusCode: 409);
+            return Problems.Of("Choose an admin PIN first: it's what keeps children in their profiles.", status: 409);
         }
 
         return null;
@@ -740,7 +762,7 @@ public static partial class ProfileEndpoints
         if (string.IsNullOrEmpty(pin))
         {
             // Apps from before kids profiles show this as it is: they can choose the main profile and give its PIN.
-            return Results.Problem("Choose the main profile and enter the admin PIN.", statusCode: 403, extensions: parent);
+            return Results.Problem(detail: Loc.T("Choose the main profile and enter the admin PIN."), statusCode: 403, extensions: parent);
         }
 
         var (callers, browser) = PinCaller(http, current);
@@ -749,7 +771,7 @@ public static partial class ProfileEndpoints
         {
             PinCheck.Right => null,
             PinCheck.LockedOut => TooManyPins(http, retryAfter),
-            _ => Results.Problem("That PIN isn't right.", statusCode: 403, extensions: parent),
+            _ => Results.Problem(detail: Loc.T("That PIN isn't right."), statusCode: 403, extensions: parent),
         };
     }
 
@@ -758,17 +780,17 @@ public static partial class ProfileEndpoints
         var errors = new Dictionary<string, string[]>();
         if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 60)
         {
-            errors["name"] = ["Give the profile a name (up to 60 characters)."];
+            errors["name"] = [Loc.T("Give the profile a name (up to 60 characters).")];
         }
 
         if (!string.IsNullOrEmpty(request.Pin) && (request.Pin.Length is < 4 or > 8 || !request.Pin.All(char.IsAsciiDigit)))
         {
-            errors["pin"] = ["A PIN is 4 to 8 digits."];
+            errors["pin"] = [Loc.T("A PIN is 4 to 8 digits.")];
         }
 
         if (request.Color is { } c && !HexColour().IsMatch(c))
         {
-            errors["color"] = ["Colours look like #a9c2ec."];
+            errors["color"] = [Loc.T("Colours look like #a9c2ec.")];
         }
 
         return errors.Count > 0 ? Results.ValidationProblem(errors) : null;

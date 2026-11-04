@@ -820,6 +820,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<DateTime?>("ArtworkChangedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("ArtworkLocked")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("ArtworkStamp")
                         .HasColumnType("TEXT");
 
@@ -838,6 +841,12 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<int?>("CriticRating")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("DeezerId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("DetailsLocked")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("DiscNumber")
                         .HasColumnType("INTEGER");
 
@@ -846,6 +855,9 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.Property<int?>("EpisodeNumberEnd")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("FirstSeenAt")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("HandedOverAt")
                         .HasColumnType("TEXT");
@@ -965,6 +977,8 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.HasIndex("AddedAt");
 
+                    b.HasIndex("FirstSeenAt");
+
                     b.HasIndex("ImdbId");
 
                     b.HasIndex("ParentId");
@@ -1063,6 +1077,36 @@ namespace Flexarr.Core.Data.Migrations
                     b.HasIndex("MediaFileId");
 
                     b.ToTable("MediaStreams");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.MusicAlias", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("LibraryId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemId");
+
+                    b.HasIndex("LibraryId", "Key")
+                        .IsUnique();
+
+                    b.ToTable("MusicAliases");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.Person", b =>
@@ -1274,6 +1318,9 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.Property<bool>("IsKids")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("Language")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Layout")
                         .HasColumnType("TEXT");
@@ -2299,6 +2346,15 @@ namespace Flexarr.Core.Data.Migrations
                     b.HasOne("Flexarr.Core.Media.MediaFile", null)
                         .WithMany("Streams")
                         .HasForeignKey("MediaFileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.MusicAlias", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.MediaItem", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

@@ -75,13 +75,23 @@ public sealed partial class BookFileConverter : IDisposable
     /// Starts converting the parts a player is about to ask for that need it, the one at <paramref name="fromSeconds"/>
     /// first, so they're ready (or under way) by the time it does; no more than <see cref="MaxPrepared"/>.
     /// </summary>
-    public void Prepare(IEnumerable<BookPart> parts, double fromSeconds = 0)
+    public void Prepare(IEnumerable<BookPart> parts, double fromSeconds = 0) => Prepare(parts, fromSeconds, MaxPrepared);
+
+    /// <summary>
+    /// <see cref="Prepare(IEnumerable{BookPart}, double)"/>, no more than <paramref name="most"/> files; returns how many
+    /// it started (or found under way, or done).
+    /// </summary>
+    public int Prepare(IEnumerable<BookPart> parts, double fromSeconds, int most)
     {
         ArgumentNullException.ThrowIfNull(parts);
-        foreach (var part in parts.Where(p => p.Convert).OrderBy(p => p.OffsetSeconds + p.DurationSeconds <= fromSeconds).ThenBy(p => p.Index).Take(MaxPrepared))
+        var started = 0;
+        foreach (var part in parts.Where(p => p.Convert).OrderBy(p => p.OffsetSeconds + p.DurationSeconds <= fromSeconds).ThenBy(p => p.Index).Take(most))
         {
             _ = Start(part.FileId, part.Path);
+            started++;
         }
+
+        return started;
     }
 
     /// <summary>
@@ -268,7 +278,10 @@ public sealed partial class BookFileConverter : IDisposable
     {
         var settings = PlaybackEndpoints.TranscodeSettingsFor(_options.CurrentValue);
         var start = new ProcessStartInfo(settings.FfmpegPath) { RedirectStandardError = true, RedirectStandardOutput = true, UseShellExecute = false };
-        foreach (var arg in new[] { "-v", "error", "-y", "-i", path, "-map", "0:a:0", "-vn", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", "-f", "mp4", temporary })
+        // Local files only (a "book" that's really a playlist mustn't have ffmpeg fetch addresses), and never stdin.
+        string[] args = ["-v", "error", "-nostdin", "-y", .. Streaming.FfmpegCommand.LocalFile, "-i", path, "-map", "0:a:0", "-vn", "-c:a", "aac", "-b:a", "128k",
+            "-movflags", "+faststart", "-f", "mp4", temporary];
+        foreach (var arg in args)
         {
             start.ArgumentList.Add(arg);
         }

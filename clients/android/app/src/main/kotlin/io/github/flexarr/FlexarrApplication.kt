@@ -24,6 +24,11 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
+        // The language shown last, before anything draws, for the app and its widgets and notifications alike; its
+        // dates and numbers in this device's own variant (docs/languages.md).
+        io.github.flexarr.core.i18n.Localization.cacheDir = filesDir
+        io.github.flexarr.core.i18n.Localization.deviceLanguages = android.os.LocaleList.getDefault().toLanguageTags().split(',')
+        io.github.flexarr.core.i18n.Localization.startWithLastShown()
         FlexarrClient.deviceType = deviceType()
         LogHub.start(this)
         // Read once (decrypting it takes a moment) for both.
@@ -70,5 +75,5 @@ val Context.appModel: AppModel get() = (applicationContext as FlexarrApplication
 val Context.isTelevision: Boolean
     get() = getSystemService(UiModeManager::class.java).currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
 
-/** The TV interface (ui/tv) rather than the phone's: on a TV, in the builds that have it so far ([BuildConfig.TV_UI]). */
-val Context.usesTvInterface: Boolean get() = BuildConfig.TV_UI && isTelevision
+/** The TV interface (ui/tv) rather than the phone's: on a TV. */
+val Context.usesTvInterface: Boolean get() = isTelevision

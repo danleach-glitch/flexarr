@@ -115,7 +115,7 @@ struct ExternalTitleView: View {
 
             HStack(alignment: .top, spacing: 8) {
                 if trailer != nil {
-                    Button { showingTrailer = true } label: { Label("Trailer", systemImage: Symbol.trailer) }
+                    Button { showingTrailer = true } label: { Label(t(Words.trailer), systemImage: Symbol.trailer) }
                 }
                 if model.hasWatchlist, let onList = onWatchlist ?? detail?.onWatchlist {
                     Button {
@@ -126,9 +126,9 @@ struct ExternalTitleView: View {
                             }
                         }
                     } label: {
-                        Label("Watchlist", systemImage: onList ? Symbol.onWatchlist : Symbol.watchlist)
+                        Label(t(Words.watchlist), systemImage: onList ? Symbol.onWatchlist : Symbol.watchlist)
                     }
-                    .accessibilityLabel(onList ? "Remove from watchlist" : "Add to watchlist")
+                    .accessibilityLabel(onList ? t(Words.removeFromWatchlist) : t(Words.addToWatchlist))
                 }
             }
             .buttonStyle(LabeledActionStyle())
@@ -138,19 +138,19 @@ struct ExternalTitleView: View {
 
     /// "R   2026   1h 59m   Movie".
     private var facts: [String] {
-        guard let detail else { return [title.year.map(String.init), title.isShow ? "Show" : "Movie"].compactMap { $0 } }
+        guard let detail else { return [title.year.map(String.init), title.isShow ? t("Show") : t("Movie")].compactMap { $0 } }
         let length: String? = detail.isShow
-            ? detail.seasons.map { $0 == 1 ? "1 season" : "\($0) seasons" }
+            ? detail.seasons.map { t("{count, plural, one {# season} other {# seasons}}", ["count": $0]) }
             : detail.runtimeMinutes.flatMap { Format.runtime(minutes: $0) }
         let status = detail.status.flatMap { ["Released", "Ended"].contains($0) ? nil : $0 }
-        return [detail.certification, detail.year.map(String.init), length, detail.isShow ? "Show" : "Movie", status].compactMap { $0 }
+        return [detail.certification, detail.year.map(String.init), length, detail.isShow ? t("Show") : t("Movie"), status].compactMap { $0 }
     }
 
     @ViewBuilder
     private func sections(_ detail: ExternalDetail) -> some View {
         if !detail.cast.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                SectionHeading(title: "Cast")
+                SectionHeading(title: t("Cast"))
                 ScrollView(.horizontal) {
                     LazyHStack(alignment: .top, spacing: 14) {
                         ForEach(Array(detail.cast.enumerated()), id: \.offset) { _, person in
@@ -164,14 +164,14 @@ struct ExternalTitleView: View {
         }
         if !detail.madeBy.isEmpty || detail.studio != nil {
             HStack(alignment: .top, spacing: 32) {
-                if !detail.madeBy.isEmpty { labeled(detail.isShow ? "Created by" : "Directed by", detail.madeBy.joined(separator: ", ")) }
-                if let studio = detail.studio { labeled(detail.isShow ? "Network" : "Studio", studio) }
+                if !detail.madeBy.isEmpty { labeled(detail.isShow ? t("Created by") : t("Directed by"), detail.madeBy.joined(separator: ", ")) }
+                if let studio = detail.studio { labeled(detail.isShow ? t("Network") : t("Studio"), studio) }
             }
             .padding(.horizontal, Layout.edge)
         }
         if !detail.recommendations.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                SectionHeading(title: "If you like this")
+                SectionHeading(title: t("If you like this"))
                 ScrollView(.horizontal) {
                     LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                         ForEach(detail.recommendations) { other in
@@ -228,7 +228,7 @@ struct ExternalTitleView: View {
                     guard !requesting else { return }
                     Task { await request() }
                 } label: {
-                    Label(requesting ? "Requesting…" : outcome == nil ? TitleWords.request : TitleWords.tryAgain, systemImage: Symbol.request)
+                    Label(requesting ? t("Requesting…") : outcome == nil ? TitleWords.request : TitleWords.tryAgain, systemImage: Symbol.request)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(ActionButtonStyle(prominent: true))
@@ -248,7 +248,7 @@ struct ExternalTitleView: View {
                 Button(TitleWords.keepIt, role: .cancel) {}
             }
         case .partlyAvailable, .inLibrary, .none:
-            Label(title.availability.label ?? "Not available", systemImage: state == .inLibrary ? Symbol.watched : Symbol.requested)
+            Label(title.availability.label ?? t("Not available"), systemImage: state == .inLibrary ? Symbol.watched : Symbol.requested)
                 .frame(maxWidth: .infinity)
                 .modifier(DisabledAction())
         }
@@ -278,7 +278,7 @@ struct ExternalTitleView: View {
             detail = try await client.externalTitle(preview)
             error = nil
         } catch FlexarrClientError.http(status: 404, _) {
-            error = "Flexarr can’t find that title."
+            error = t("Flexarr can’t find that title.")
         } catch {
             if detail == nil { self.error = ConnectionError(error).message }
         }

@@ -32,7 +32,7 @@ struct SubtitleSearchView: View {
         HStack(spacing: 0) {
             Spacer(minLength: 0)
             VStack(alignment: .leading, spacing: 18) {
-                Text("Search for subtitles")
+                Text(t("Search for subtitles"))
                     .font(.marquee(48, weight: .black))
                     .foregroundStyle(Color.screen)
                     .padding(.horizontal, 40)
@@ -48,9 +48,9 @@ struct SubtitleSearchView: View {
         #else
         NavigationStack {
             list
-                .navigationTitle("Search for subtitles")
+                .navigationTitle(t("Search for subtitles"))
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar { Button("Done", action: close) }
+                .toolbar { Button(t(Words.done), action: close) }
         }
         .task { await runSearch() }
         #endif
@@ -67,18 +67,18 @@ struct SubtitleSearchView: View {
                         .padding(.bottom, 8)
                 }
                 Button { pick(nil) } label: {
-                    row(id: Self.bestMatch, title: "Best match", detail: "Flexarr picks the closest one", provider: nil, matchesFile: false)
+                    row(id: Self.bestMatch, title: t("Best match"), detail: t("Flexarr picks the closest one"), provider: nil, matchesFile: false)
                 }
                 .buttonStyle(PickerRowStyle(current: false))
                 .focused($focused, equals: Self.bestMatch)
 
                 switch search {
                 case .searching:
-                    status { ProgressView(); Text("Searching…") }
+                    status { ProgressView(); Text(t("Searching…")) }
                 case .failed(let message):
                     status { Text(message).foregroundStyle(Color.danger) }
                 case .found(let results) where results.isEmpty:
-                    status { Text("No subtitles found") }
+                    status { Text(t("No subtitles found")) }
                 case .found(let results):
                     ForEach(results) { result in
                         Button { pick(result.id) } label: {
@@ -111,7 +111,7 @@ struct SubtitleSearchView: View {
                     .font(titleFont)
                     .foregroundStyle(Color.screen)
                     .lineLimit(1)
-                Text(downloading == id ? "Downloading…" : detail)
+                Text(downloading == id ? t("Downloading…") : detail)
                     .font(detailFont)
                     .foregroundStyle(Color.usher)
                     .lineLimit(2)
@@ -119,7 +119,7 @@ struct SubtitleSearchView: View {
                     HStack(spacing: 10) {
                         if let provider { Text(provider) }
                         if matchesFile {
-                            Label("Matches your file", systemImage: "checkmark.seal.fill")
+                            Label(t("Matches your file"), systemImage: "checkmark.seal.fill")
                                 .foregroundStyle(Color.go)
                         }
                     }

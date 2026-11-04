@@ -18,7 +18,7 @@ enum ErrorReports {
     private static let running = OSAllocatedUnfairLock<String??>(initialState: nil)
 
     /// What Settings › Server says under the error-reports row.
-    static let privacyNote = "Set on your server, in Settings › Logs on the web. When on, crashes and errors go to Sentry, the error tracker Flexarr uses: what went wrong and where in the code, the app version, the OS and device model, and a random id. Never titles, file names, what you watch, names, addresses or keys."
+    static var privacyNote: String { t("Set on your server, in Settings › Logs on the web. When on, crashes and errors go to Sentry, the error tracker Flexarr uses: what went wrong and where in the code, the app version, the OS and device model, and a random id. Never titles, file names, what you watch, names, addresses or keys.") }
 
     /// Whether reports are being sent now.
     static var isOn: Bool { running.withLock { $0 != nil } }

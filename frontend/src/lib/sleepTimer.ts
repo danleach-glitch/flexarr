@@ -1,3 +1,5 @@
+import { t } from '../i18n'
+
 /**
  * The sleep timer the podcast player and the video player share: in so many minutes, or when what's playing ends.
  * `until` is a Date.now() time. A book's can stop at the end of the chapter: `at` is where that is on its timeline.
@@ -19,17 +21,22 @@ export const EXTEND_MINUTES = 15
 /** The menu's choices, the last ending with what's playing ("At the end of this episode"); each timer starts when chosen. */
 export function sleepChoices(end: string): { label: string; start: () => SleepTimer }[] {
   return [
-    ...sleepMinutes.map((minutes) => ({ label: `In ${minutes} minutes`, start: () => ({ until: Date.now() + minutes * 60_000 }) })),
-    { label: `At the end of this ${end}`, start: () => ({ endOfEpisode: true }) as const },
+    ...sleepMinutes.map((minutes) => ({ label: t('In {minutes} minutes', { minutes }), start: () => ({ until: Date.now() + minutes * 60_000 }) })),
+    { label: atTheEnd(end), start: () => ({ endOfEpisode: true }) as const },
   ]
 }
 
 /** A book's choices: the minutes, or the end of the chapter, which ends at `chapterEnd` on the book's timeline. */
 export function bookSleepChoices(chapterEnd: number | null): { label: string; start: () => SleepTimer }[] {
   return [
-    ...sleepMinutes.map((minutes) => ({ label: `In ${minutes} minutes`, start: () => ({ until: Date.now() + minutes * 60_000 }) })),
-    ...(chapterEnd !== null ? [{ label: 'At the end of this chapter', start: () => ({ endOfChapter: true, at: chapterEnd }) as const }] : []),
+    ...sleepMinutes.map((minutes) => ({ label: t('In {minutes} minutes', { minutes }), start: () => ({ until: Date.now() + minutes * 60_000 }) })),
+    ...(chapterEnd !== null ? [{ label: t('At the end of this chapter'), start: () => ({ endOfChapter: true, at: chapterEnd }) as const }] : []),
   ]
+}
+
+/** "At the end of this episode" (or movie, film, chapter). */
+function atTheEnd(end: string): string {
+  return t('{end, select, episode {At the end of this episode} movie {At the end of this movie} film {At the end of this film} chapter {At the end of this chapter} other {At the end of this {end}}}', { end })
 }
 
 /** Whole minutes left on a running timer (at least 1), or null when it waits for the end instead. */
@@ -40,7 +47,11 @@ export function minutesLeft(timer: SleepTimer | null, now: number): number | nul
 /** The timer's button, said: "Sleep timer, 12 min left". */
 export function sleepLabel(timer: SleepTimer | null, now: number, end = 'episode'): string {
   const minutes = minutesLeft(timer, now)
-  return timer === null ? 'Sleep timer' : minutes !== null ? `Sleep timer, ${minutes} min left` : `Sleep timer, at the end of this ${end}`
+  return timer === null
+    ? t('Sleep timer')
+    : minutes !== null
+      ? t('Sleep timer, {minutes} min left', { minutes })
+      : t('{end, select, episode {Sleep timer, at the end of this episode} movie {Sleep timer, at the end of this movie} film {Sleep timer, at the end of this film} chapter {Sleep timer, at the end of this chapter} other {Sleep timer, at the end of this {end}}}', { end })
 }
 
 /**

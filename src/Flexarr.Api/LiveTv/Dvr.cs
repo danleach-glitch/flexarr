@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using Flexarr.Api.Configuration;
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.LiveTv;
 using Flexarr.Core.Scanning;
@@ -184,7 +185,7 @@ public sealed partial class DvrService(IServiceScopeFactory scopes, IOptionsMoni
             {
                 foreach (var viewer in viewers.All.Where(v => v.Session == session))
                 {
-                    viewers.End(viewer.Id, $"Recording {title} needed the stream. You can watch that channel, or stop the recording.");
+                    viewers.End(viewer.Id, () => Loc.T("Recording {title} needed the stream. You can watch that channel, or stop the recording.", new { title }));
                 }
 
                 await streams.EndAsync(session);
@@ -218,6 +219,18 @@ public sealed partial class DvrService(IServiceScopeFactory scopes, IOptionsMoni
 
         active.Stop.Cancel();
         return true;
+    }
+
+    /// <summary>
+    /// Stops a recording that's marked as under way but isn't running here: the server has just restarted and the
+    /// scheduler hasn't carried it on yet. It's started already stopped, so what it recorded before the restart is saved
+    /// (or, with nothing, it ends), rather than the scheduler carrying it on moments later.
+    /// </summary>
+    public void StopResumed(Recording recording)
+    {
+        ArgumentNullException.ThrowIfNull(recording);
+        Start(recording, recording.ChannelId);
+        Stop(recording.Id);
     }
 
     private async Task RunAsync(Guid id, ActiveRecording active)

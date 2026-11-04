@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.search
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,7 +39,6 @@ import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.BookmarkRemove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -235,7 +236,7 @@ fun SearchScreen(model: AppModel) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            error = e.message ?: "Something went wrong."
+            error = e.message ?: t("Something went wrong.")
         }
     }
 
@@ -270,7 +271,7 @@ fun SearchScreen(model: AppModel) {
 
     RoomBackground(ambient = null) {
         Column(Modifier.fillMaxSize()) {
-            PageTitle("Search")
+            PageTitle(t(Words.search))
             SearchField(query, onChange = { query = it }, modifier = Modifier.padding(horizontal = Edge).padding(bottom = 8.dp).focusRequester(focus)) {
                 keyboard?.hide()
                 // Pressing Search keeps the words as a recent search, as picking a result does, shown at once.
@@ -317,7 +318,7 @@ fun SearchScreen(model: AppModel) {
                         onClear = ::clear,
                         onReopen = { record(null, it.id) },
                     )
-                    else -> item { StatusView("Find movies, shows, episodes and people in your libraries.", empty = true, modifier = Modifier.height(240.dp)) }
+                    else -> item { StatusView(t("Find movies, shows, episodes and people in your libraries."), empty = true, modifier = Modifier.height(240.dp)) }
                 }
             }
         }
@@ -335,14 +336,14 @@ private fun LazyListScope.results(
     onPick: (ItemSummary?) -> Unit,
 ) {
     if (results.isEmpty && beyond.isNullOrEmpty() && (music == null || music.isEmpty) && !waitingForMore) {
-        item { StatusView("Nothing matches “$query”.", empty = true, modifier = Modifier.height(240.dp)) }
+        item { StatusView(t("Nothing matches “{query}”.", "query" to query), empty = true, modifier = Modifier.height(240.dp)) }
     }
     // The server lists artists among the titles: films and shows here, artists with the albums below.
     val films = results.titles.filter { it.kind != MediaKind.Artist }
     val artists = results.titles.filter { it.kind == MediaKind.Artist }
     if (films.isNotEmpty()) {
         item(key = "titles") {
-            Section("Movies and shows") {
+            Section(t(Words.moviesAndShows)) {
                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
                     items(films, key = { it.id }) { PosterCard(it, onOpen = { onPick(it) }) }
                 }
@@ -351,7 +352,7 @@ private fun LazyListScope.results(
     }
     if (artists.isNotEmpty()) {
         item(key = "artists") {
-            Section("Artists") {
+            Section(t(Words.artists)) {
                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
                     items(artists, key = { it.id }) { ArtistCard(it, Modifier.width(PosterWidth)) }
                 }
@@ -360,7 +361,7 @@ private fun LazyListScope.results(
     }
     if (results.albums.isNotEmpty()) {
         item(key = "albums") {
-            Section("Albums") {
+            Section(t(Words.albums)) {
                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
                     items(results.albums, key = { it.id }) { AlbumCard(it, width = PosterWidth, showsArtist = true) }
                 }
@@ -369,7 +370,7 @@ private fun LazyListScope.results(
     }
     if (results.books.isNotEmpty() || results.bookSeries.isNotEmpty()) {
         item(key = "books") {
-            Section("Audiobooks") {
+            Section(t(Words.audiobooks)) {
                 val navigator = LocalNavigator.current
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (results.books.isNotEmpty()) {
@@ -389,7 +390,7 @@ private fun LazyListScope.results(
     }
     if (results.episodes.isNotEmpty()) {
         item(key = "episodes") {
-            Section("Episodes") {
+            Section(t("Episodes")) {
                 val navigator = LocalNavigator.current
                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
                     items(results.episodes, key = { it.id }) { episode ->
@@ -401,7 +402,7 @@ private fun LazyListScope.results(
     }
     if (!beyond.isNullOrEmpty() || (music != null && !music.isEmpty)) {
         item(key = "beyond") {
-            Section("Not in your library") {
+            Section(t(Words.notInYourLibrary)) {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     if (!beyond.isNullOrEmpty()) {
                         LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
@@ -425,11 +426,11 @@ private fun LazyListScope.results(
     }
     if (results.people.isNotEmpty()) {
         item(key = "people") {
-            Section("People") {
+            Section(t("People")) {
                 val navigator = LocalNavigator.current
                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(results.people, key = { it.id }) { person ->
-                        PersonCard(person.name, if (person.credits == 1) "1 title" else "${person.credits} titles", person.image) {
+                        PersonCard(person.name, t("{count, plural, one {# title} other {# titles}}", "count" to person.credits), person.image) {
                             onPick(null)
                             navigator.openPerson(person.id, person.name)
                         }
@@ -456,9 +457,9 @@ private fun ExternalCard(model: AppModel, title: ExternalTitle) {
     val on = onWatchlist ?: title.onWatchlist ?: (title.key in model.watchlistTitles)
     val actions = buildList {
         if (model.hasWatchlist) {
-            add(MenuAction(if (on) "Remove from watchlist" else "Add to watchlist", if (on) Icons.Outlined.BookmarkRemove else FlexarrIcons.watchlist) {
+            add(MenuAction(if (on) t(Words.removeFromWatchlist) else t(Words.addToWatchlist), if (on) FlexarrIcons.offWatchlist else FlexarrIcons.watchlist) {
                 onWatchlist = !on
-                navigator.watchlistChange(if (on) "Couldn’t remove this from your watchlist" else "Couldn’t add this to your watchlist") {
+                navigator.watchlistChange(if (on) t("Couldn’t remove this from your watchlist") else t("Couldn’t add this to your watchlist")) {
                     try {
                         val added = model.setTitleOnWatchlist(title.mediaType, title.tmdbId, !on)
                         if (added?.requested == true) model.titleWasAsked(requestKey)
@@ -471,8 +472,8 @@ private fun ExternalCard(model: AppModel, title: ExternalTitle) {
         }
         if (model.canAskForTitles) {
             when (state) {
-                TitleRequestState.CanRequest -> add(MenuAction("Request", FlexarrIcons.request) { navigator.requestTitle(model, title.mediaType, title.tmdbId) })
-                TitleRequestState.Requested -> add(MenuAction("Unrequest", FlexarrIcons.requested) { confirming = true })
+                TitleRequestState.CanRequest -> add(MenuAction(t(Words.request), FlexarrIcons.request) { navigator.requestTitle(model, title.mediaType, title.tmdbId) })
+                TitleRequestState.Requested -> add(MenuAction(t(Words.unrequest), FlexarrIcons.requested) { confirming = true })
                 else -> Unit
             }
         }
@@ -521,11 +522,11 @@ private fun LazyListScope.recentRows(
     if (recents.queries.isNotEmpty()) {
         item(key = "recent-searches") {
             Column {
-                RecentHeading("Recent searches", onClear)
+                RecentHeading(t("Recent searches"), onClear)
                 Column(Modifier.padding(top = 4.dp)) {
                     recents.queries.forEach { text ->
                         Row(
-                            Modifier.fillMaxWidth().heightIn(min = 48.dp).pressable({ onSearch(text) }, onClickLabel = "Search").padding(start = Edge, end = Edge - 12.dp),
+                            Modifier.fillMaxWidth().heightIn(min = 48.dp).pressable({ onSearch(text) }, onClickLabel = t(Words.search)).padding(start = Edge, end = Edge - 12.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
@@ -533,10 +534,10 @@ private fun LazyListScope.recentRows(
                             Text(text, fontSize = 17.sp, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                             // The usual 48 to touch, around a small ×.
                             Box(
-                                Modifier.size(48.dp).clickable(role = Role.Button, onClickLabel = "Remove") { onForget(text) },
+                                Modifier.size(48.dp).clickable(role = Role.Button, onClickLabel = t("Remove")) { onForget(text) },
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Icon(Icons.Filled.Close, contentDescription = "Remove $text", tint = Flexarr.usher, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Filled.Close, contentDescription = t("Remove {search}", "search" to text), tint = Flexarr.usher, modifier = Modifier.size(18.dp))
                             }
                         }
                     }
@@ -547,7 +548,7 @@ private fun LazyListScope.recentRows(
     if (recents.items.isNotEmpty()) {
         item(key = "recently-opened") {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                RecentHeading("Recently opened", onClear.takeIf { recents.queries.isEmpty() })
+                RecentHeading(t("Recently opened"), onClear.takeIf { recents.queries.isEmpty() })
                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
                     items(recents.items, key = { it.id }) { PosterCard(it, onOpen = { onReopen(it) }) }
                 }
@@ -563,11 +564,11 @@ private fun RecentHeading(title: String, onClear: (() -> Unit)?) {
         SectionHeading(title, Modifier.weight(1f))
         if (onClear != null) {
             Text(
-                "Clear",
+                t("Clear"),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Flexarr.usher,
-                modifier = Modifier.padding(end = Edge - 4.dp).pressable(onClear, onClickLabel = "Clear recent searches").padding(start = 12.dp, top = 20.dp).padding(4.dp),
+                modifier = Modifier.padding(end = Edge - 4.dp).pressable(onClear, onClickLabel = t("Clear recent searches")).padding(start = 12.dp, top = 20.dp).padding(4.dp),
             )
         }
     }
@@ -587,7 +588,7 @@ fun SearchField(
     query: String,
     onChange: (String) -> Unit,
     modifier: Modifier = Modifier,
-    placeholder: String = "Movies, shows, episodes and people",
+    placeholder: String = t("Movies, shows, episodes and people"),
     onSearch: () -> Unit,
 ) {
     Row(
@@ -615,9 +616,9 @@ fun SearchField(
         if (query.isNotEmpty()) {
             Icon(
                 Icons.Filled.Cancel,
-                contentDescription = "Clear",
+                contentDescription = t("Clear"),
                 tint = Flexarr.usher,
-                modifier = Modifier.size(20.dp).clickable(role = Role.Button, onClickLabel = "Clear") { onChange("") },
+                modifier = Modifier.size(20.dp).clickable(role = Role.Button, onClickLabel = t("Clear")) { onChange("") },
             )
         }
     }
@@ -648,8 +649,7 @@ fun PersonScreen(model: AppModel, id: String, name: String) {
                             person?.let {
                                 val count = it.credits.distinctBy { credit -> credit.item.id }.size
                                 val books = it.credits.all { credit -> credit.item.kind == io.github.flexarr.core.MediaKind.Audiobook }
-                                val noun = if (books) "book" else "title"
-                                Text(if (count == 1) "1 $noun in your library" else "$count ${noun}s in your library", fontSize = 15.sp, color = Flexarr.usher)
+                                Text(if (books) t("{count, plural, one {# book in your library} other {# books in your library}}", "count" to count) else t("{count, plural, one {# title in your library} other {# titles in your library}}", "count" to count), fontSize = 15.sp, color = Flexarr.usher)
                             }
                         }
                     }

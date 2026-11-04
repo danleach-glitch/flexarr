@@ -1,6 +1,9 @@
+using Flexarr.Core.Localization;
+
 namespace Flexarr.Api.Logging;
 
 /// <summary>A part of the server whose detail can be turned up or down on its own, made of the loggers under its prefixes.</summary>
+/// <param name="Name">English, marked with Loc.Mark: translated with Loc.T where it's shown.</param>
 public sealed record LogArea(string Key, string Name, IReadOnlyList<string> Prefixes);
 
 public static class LogAreas
@@ -14,16 +17,16 @@ public static class LogAreas
 
     public static readonly IReadOnlyList<LogArea> All =
     [
-        new(General, "General", []),
-        new("playback", "Playback", ["Flexarr.Streaming", "Flexarr.Api.Playback", "Flexarr.Api.Downloads"]),
-        new("library", "Library scans", ["Flexarr.Core.Scanning", "Flexarr.Core.Probing", "Flexarr.Core.Libraries", "Flexarr.Api.Scanning", "Flexarr.Api.Import"]),
-        new("integrations", "Sonarr, Radarr, Seerr and Bazarr", ["Flexarr.Integrations", "System.Net.Http.HttpClient.ArrClient", "System.Net.Http.HttpClient.SeerrClient", "System.Net.Http.HttpClient.BazarrClient"]),
-        new("metadata", "Metadata and artwork", ["Flexarr.Metadata"]),
-        new("livetv", "Live TV", ["Flexarr.Api.LiveTv", "Flexarr.Core.LiveTv", "Flexarr.Streaming.Live"]),
-        new("podcasts", "Podcasts", ["Flexarr.Api.Podcasts", "Flexarr.Core.Podcasts"]),
-        new("notifications", "Notifications", ["Flexarr.Api.Notifications", "Flexarr.Core.Notifications"]),
-        new(Requests, "Web requests", ["Serilog.AspNetCore.RequestLoggingMiddleware"]),
-        new(Clients, "Apps and browsers", [ClientSource]),
+        new(General, Loc.Mark("General"), []),
+        new("playback", Loc.Mark("Playback"), ["Flexarr.Streaming", "Flexarr.Api.Playback", "Flexarr.Api.Downloads"]),
+        new("library", Loc.Mark("Library scans"), ["Flexarr.Core.Scanning", "Flexarr.Core.Probing", "Flexarr.Core.Libraries", "Flexarr.Api.Scanning", "Flexarr.Api.Import"]),
+        new("integrations", Loc.Mark("Sonarr, Radarr, Seerr and Bazarr"), ["Flexarr.Integrations", "System.Net.Http.HttpClient.ArrClient", "System.Net.Http.HttpClient.SeerrClient", "System.Net.Http.HttpClient.BazarrClient"]),
+        new("metadata", Loc.Mark("Metadata and artwork"), ["Flexarr.Metadata"]),
+        new("livetv", Words.LiveTv, ["Flexarr.Api.LiveTv", "Flexarr.Core.LiveTv", "Flexarr.Streaming.Live"]),
+        new("podcasts", Words.Podcasts, ["Flexarr.Api.Podcasts", "Flexarr.Core.Podcasts"]),
+        new("notifications", Loc.Mark("Notifications"), ["Flexarr.Api.Notifications", "Flexarr.Core.Notifications"]),
+        new(Requests, Loc.Mark("Web requests"), ["Serilog.AspNetCore.RequestLoggingMiddleware"]),
+        new(Clients, Loc.Mark("Apps and browsers"), [ClientSource]),
     ];
 
     private static readonly (string Prefix, string Key)[] ByPrefix =

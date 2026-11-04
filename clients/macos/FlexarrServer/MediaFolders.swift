@@ -6,18 +6,49 @@ import AppKit
 @MainActor
 final class MediaFolders {
     private static let defaultsKey = "MediaFolderBookmarks"
+    /// Bookmarks that couldn't be opened (their drive, a USB disk or a NAS, wasn't mounted yet): kept, and tried again
+    /// whenever a drive mounts, rather than forgotten until the folder is chosen again.
+    private var waiting: [Data] = []
+    private var mountObserver: NSObjectProtocol?
 
     init() {
         let bookmarks = UserDefaults.standard.array(forKey: Self.defaultsKey) as? [Data] ?? []
-        var kept: [Data] = []
+        var saved: [Data] = []
         for bookmark in bookmarks {
-            var stale = false
-            guard let url = try? URL(resolvingBookmarkData: bookmark, options: .withSecurityScope,
-                                     bookmarkDataIsStale: &stale),
-                  url.startAccessingSecurityScopedResource() else { continue }
-            kept.append(stale ? (try? Self.bookmark(url)) ?? bookmark : bookmark)
+            if let opened = Self.open(bookmark) {
+                saved.append(opened)
+            } else {
+                saved.append(bookmark)
+                waiting.append(bookmark)
+            }
         }
-        UserDefaults.standard.set(kept, forKey: Self.defaultsKey)
+        UserDefaults.standard.set(saved, forKey: Self.defaultsKey)
+        // On the main queue, so it runs on the main actor.
+        mountObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didMountNotification,
+                                                                          object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.openWaiting() }
+        }
+    }
+
+    /// A drive mounted: the folders on it that were waiting open now (the server, a child of this app, sees them too).
+    private func openWaiting() {
+        guard !waiting.isEmpty else { return }
+        var saved = UserDefaults.standard.array(forKey: Self.defaultsKey) as? [Data] ?? []
+        waiting = waiting.filter { bookmark in
+            guard let opened = Self.open(bookmark) else { return true }
+            if let index = saved.firstIndex(of: bookmark) { saved[index] = opened }
+            return false
+        }
+        UserDefaults.standard.set(saved, forKey: Self.defaultsKey)
+    }
+
+    /// Resolves a bookmark and opens its folder: the bookmark to keep (renewed when stale), or nil when the folder
+    /// can't be reached now.
+    private static func open(_ bookmark: Data) -> Data? {
+        var stale = false
+        guard let url = try? URL(resolvingBookmarkData: bookmark, options: .withSecurityScope, bookmarkDataIsStale: &stale),
+              url.startAccessingSecurityScopedResource() else { return nil }
+        return stale ? (try? Self.bookmark(url)) ?? bookmark : bookmark
     }
 
     /// Shows the folder window, starting in `start` if given (~ is the person's home), and keeps the folder chosen.
@@ -33,8 +64,8 @@ final class MediaFolders {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.prompt = "Use with Flexarr"
-        panel.message = "Choose a folder for Flexarr. It can use everything inside it."
+        panel.prompt = t("Use with Flexarr")
+        panel.message = t("Choose a folder for Flexarr. It can use everything inside it.")
         NSApp.activate()
         guard panel.runModal() == .OK, let url = panel.url,
               let bookmark = try? Self.bookmark(url), url.startAccessingSecurityScopedResource() else { return nil }
@@ -46,6 +77,7 @@ final class MediaFolders {
         }
         bookmarks.append(bookmark)
         UserDefaults.standard.set(bookmarks, forKey: Self.defaultsKey)
+        waiting = waiting.filter(bookmarks.contains)
         return url.path
     }
 

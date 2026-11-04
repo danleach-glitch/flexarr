@@ -1,5 +1,10 @@
 package io.github.flexarr.ui.detail
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
+import io.github.flexarr.ui.GetsReadyAfterAMoment
+
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import io.github.flexarr.player.LocalPlayFrom
@@ -39,18 +44,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.Theaters
 import androidx.compose.material.icons.filled.Cast
-import androidx.compose.material.icons.filled.ClosedCaption
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -204,7 +199,8 @@ fun DetailScreen(model: AppModel, id: String) {
                 val alike = if (similar.isEmpty() && item.kind != MediaKind.Episode) async { runCatching { client.similar(item.id) }.getOrNull() } else null
                 when (item.kind) {
                     MediaKind.Series -> {
-                        launch {
+                        // On the effect's own scope, not this one: the page (and pull to refresh) doesn't wait for Sonarr.
+                        this@LaunchedEffect.launch {
                             runCatching { client.showMissing(item.id) }.onSuccess {
                                 missing = it
                                 // Whether Seerr is answering, so a season's Request and Requested can wait while it isn't.
@@ -275,7 +271,7 @@ fun DetailScreen(model: AppModel, id: String) {
                                 },
                                 onSearch = { season, episodes ->
                                     asked = asked + season
-                                    navigator.watchlistChange("Couldn’t search for season $season") {
+                                    navigator.watchlistChange(t("Couldn’t search for season {season}", "season" to season)) {
                                         try {
                                             client.searchMissing(item.id, season, episodes)
                                         } catch (e: Exception) {
@@ -295,7 +291,7 @@ fun DetailScreen(model: AppModel, id: String) {
         IconButton(
             onClick = { navigator.back() },
             modifier = Modifier.statusBarsPadding().padding(8.dp).clip(CircleShape).background(Flexarr.room.copy(alpha = 0.55f)),
-        ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Flexarr.screen) }
+        ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = t("Back"), tint = Flexarr.screen) }
     }
     }
 }
@@ -367,6 +363,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
         MediaKind.Series -> nextUp ?: season?.children?.firstOrNull()
         else -> null
     }
+    GetsReadyAfterAMoment(playable)
     val watched = item.userData.watched || item.userData.unwatchedCount == 0
     val kind = when (item.kind) {
         MediaKind.Series -> DetailActions.Kind.SHOW
@@ -375,6 +372,14 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
     }
     val file = detail.files.firstOrNull()
     val trailer = detail.trailerId
+    // Only what the server can put on a watchlist: films and shows, from servers that have one (0.56).
+    // What was tapped here (the row's button or ⋯), until the page loads again and the server says.
+    var watchlistChanged by remember(detail) { mutableStateOf<Boolean?>(null) }
+    val onWatchlist = detail.onWatchlist.takeIf { item.kind == MediaKind.Movie || item.kind == MediaKind.Series }?.let { watchlistChanged ?: it }
+    val toggleWatchlist = { on: Boolean ->
+        watchlistChanged = !on
+        navigator.setOnWatchlist(item, !on, onFailed = { watchlistChanged = on })
+    }
     val actions = DetailActions.of(
         DetailActions.Input(
             kind = kind,
@@ -386,6 +391,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
             platform = DetailActions.Platform.PHONE,
             canDownload = item.kind == MediaKind.Movie || item.kind == MediaKind.Episode,
             canSearchSubtitles = detail.canSearchSubtitles == true && file != null,
+            canWatchlist = onWatchlist != null,
         ),
     )
     // Another screen: a film or episode as it is, a show the episode that screen's profile is up to. The phone's own
@@ -396,56 +402,68 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
         if (playable != null) {
             ActionButton(playLabel(playable, item), onClick = { navigator.play(playable, from = from) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient, modifier = Modifier.fillMaxWidth())
         }
-        // Sharing the width, until large text or many actions would shrink the names to fit: then each its own size,
-        // scrolling sideways.
-        val crowded = LocalDensity.current.fontScale > 1.3f || buttons.size > 6
+        // Sharing the width, until large text would shrink the names to fit: then each its own size, scrolling sideways.
+        val crowded = LocalDensity.current.fontScale > 1.3f
         Row(if (crowded) Modifier.horizontalScroll(rememberScrollState()) else Modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val slot = if (crowded) Modifier.widthIn(min = 72.dp) else Modifier.weight(1f)
             buttons.forEach { button ->
                 when (button) {
                     DetailActions.Button.PLAY -> Unit
                     DetailActions.Button.START_OVER -> playable?.let { target ->
-                        LabeledAction("Start over", FlexarrIcons.startOver, { navigator.play(target, fromBeginning = true, from = from) }, slot)
+                        LabeledAction(t(Words.startOver), FlexarrIcons.startOver, { navigator.play(target, fromBeginning = true, from = from) }, slot)
                     }
-                    DetailActions.Button.SHUFFLE -> if (item.childCount > 0) LabeledAction("Shuffle", FlexarrIcons.shuffle, { navigator.shuffle(item) }, slot)
-                    DetailActions.Button.TRAILER -> LabeledAction("Trailer", FlexarrIcons.trailer, { showingTrailer = true }, slot)
-                    // Pressed in once it's watched ("Watched", a filled tick); pressing it again unmarks it.
+                    DetailActions.Button.SHUFFLE -> if (item.childCount > 0) LabeledAction(t(Words.shuffle), FlexarrIcons.shuffle, { navigator.shuffle(item) }, slot)
+                    DetailActions.Button.TRAILER -> LabeledAction(t(Words.trailer), FlexarrIcons.trailer, { showingTrailer = true }, slot)
+                    // A toggle like Download: the tick fills once it's watched, and the name stays put.
                     DetailActions.Button.WATCHED -> LabeledAction(
-                        if (watched) "Watched" else "Mark as watched",
+                        t("Watched"),
                         if (watched) FlexarrIcons.isWatched else FlexarrIcons.watched,
                         { navigator.setWatched(item, !watched) },
-                        slot.semantics { contentDescription = if (watched) "Watched. Mark as unwatched" else "Mark as watched" },
+                        slot.semantics { contentDescription = if (watched) t("Watched. Mark as unwatched") else t(Words.markAsWatched) },
                         maxLines = 2,
                     )
-                    // Only what the server can put on a watchlist: films and shows, from servers that have one (0.56).
-                    DetailActions.Button.WATCHLIST -> if (item.kind == MediaKind.Movie || item.kind == MediaKind.Series) {
-                        detail.onWatchlist?.let { saved -> WatchlistAction(item, saved, detail, slot) }
-                    }
+                    DetailActions.Button.WATCHLIST -> onWatchlist?.let { on -> WatchlistAction(on, { toggleWatchlist(on) }, slot) }
                     DetailActions.Button.DOWNLOAD -> DownloadAction(model, item, slot)
                     DetailActions.Button.MORE -> Box(slot) {
-                        LabeledAction("More", FlexarrIcons.more, { more = true }, Modifier.fillMaxWidth())
+                        LabeledAction(t("More"), FlexarrIcons.more, { more = true }, Modifier.fillMaxWidth())
                         DropdownMenu(more, onDismissRequest = { more = false }) {
                             actions.menu.forEach { entry ->
                                 when (entry) {
-                                    // Part way through: forget the place without marking it watched (it leaves Continue watching).
-                                    DetailActions.MenuItem.MARK_UNWATCHED ->
-                                        DropdownMenuItem(text = { Text("Mark as unwatched") }, onClick = { more = false; navigator.setWatched(item, false) })
-                                    DetailActions.MenuItem.SUBTITLES -> file?.let { found ->
-                                        DropdownMenuItem(text = { Text("Search for subtitles") }, onClick = { more = false; searchingSubtitlesFor = found.id })
+                                    is DetailActions.MenuItem.Moved -> when (entry.button) {
+                                        DetailActions.Button.SHUFFLE -> if (item.childCount > 0) {
+                                            DropdownMenuItem(text = { Text(t(Words.shuffle)) }, onClick = { more = false; navigator.shuffle(item) })
+                                        }
+                                        DetailActions.Button.TRAILER ->
+                                            DropdownMenuItem(text = { Text(t(Words.trailer)) }, onClick = { more = false; showingTrailer = true })
+                                        DetailActions.Button.WATCHED ->
+                                            DropdownMenuItem(
+                                                text = { Text(if (watched) t(Words.markAsUnwatched) else t(Words.markAsWatched)) },
+                                                onClick = { more = false; navigator.setWatched(item, !watched) },
+                                            )
+                                        DetailActions.Button.WATCHLIST -> onWatchlist?.let { on ->
+                                            DropdownMenuItem(
+                                                text = { Text(if (on) t(Words.removeFromWatchlist) else t(Words.addToWatchlist)) },
+                                                onClick = { more = false; toggleWatchlist(on) },
+                                            )
+                                        }
+                                        else -> Unit
                                     }
-                                    DetailActions.MenuItem.GO_TO_SHOW -> series?.let { show ->
-                                        DropdownMenuItem(text = { Text("Go to show") }, onClick = { more = false; navigator.openItem(show.id) })
+                                    DetailActions.MenuItem.Subtitles -> file?.let { found ->
+                                        DropdownMenuItem(text = { Text(t("Search for subtitles")) }, onClick = { more = false; searchingSubtitlesFor = found.id })
+                                    }
+                                    DetailActions.MenuItem.GoToShow -> series?.let { show ->
+                                        DropdownMenuItem(text = { Text(t(Words.goToShow)) }, onClick = { more = false; navigator.openItem(show.id) })
                                     }
                                 }
                             }
-                            if (playsOn) DropdownMenuItem(text = { Text("Play on another screen") }, onClick = { more = false; choosingScreen = true })
+                            if (playsOn) DropdownMenuItem(text = { Text(t("Play on another screen")) }, onClick = { more = false; choosingScreen = true })
                         }
                     }
                 }
             }
         }
     }
-    if (showingTrailer && trailer != null) TrailerSheet(trailer, "${item.title} trailer", onClose = { showingTrailer = false })
+    if (showingTrailer && trailer != null) TrailerSheet(trailer, t("{title} trailer", "title" to item.title), onClose = { showingTrailer = false })
     if (choosingScreen) PlayOnSheet(LocalClient.current, item, onClose = { choosingScreen = false })
     searchingSubtitlesFor?.let { fileId ->
         SubtitleSearchSheet(
@@ -454,7 +472,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
             fileId,
             onDownloaded = { saved ->
                 searchingSubtitlesFor = null
-                savedSubtitles = "${saved.label} subtitles saved"
+                savedSubtitles = t("{language} subtitles saved", "language" to saved.label)
             },
             onClose = { searchingSubtitlesFor = null },
         )
@@ -462,7 +480,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
     savedSubtitles?.let { message ->
         AlertDialog(
             onDismissRequest = { savedSubtitles = null },
-            confirmButton = { TextButton(onClick = { savedSubtitles = null }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { savedSubtitles = null }) { Text(t("OK")) } },
             text = { Text(message) },
             containerColor = Flexarr.seat,
         )
@@ -471,27 +489,20 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
 
 /** "Watchlist", its bookmark filled once it's there; tapping puts it on or takes it off. */
 @Composable
-private fun WatchlistAction(item: ItemSummary, saved: Boolean, detail: ItemDetail, modifier: Modifier) {
-    val navigator = LocalNavigator.current
-    // What was tapped here, until the page loads again and the server says.
-    var changed by remember(detail) { mutableStateOf<Boolean?>(null) }
-    val on = changed ?: saved
+private fun WatchlistAction(on: Boolean, onClick: () -> Unit, modifier: Modifier) {
     LabeledAction(
-        "Watchlist",
+        t(Words.watchlist),
         if (on) FlexarrIcons.onWatchlist else FlexarrIcons.watchlist,
-        {
-            changed = !on
-            navigator.setOnWatchlist(item, !on, onFailed = { changed = on })
-        },
-        modifier.semantics { contentDescription = if (on) "On watchlist. Remove from watchlist" else "Add to watchlist" },
+        onClick,
+        modifier.semantics { contentDescription = if (on) t("On watchlist. Remove from watchlist") else t(Words.addToWatchlist) },
     )
 }
 
 private fun playLabel(target: ItemSummary, container: ItemSummary): String {
     val resume = target.isResumable
     val code = target.episodeCode
-    if (container.kind == MediaKind.Series && code != null) return if (resume) "Resume $code" else "Play $code"
-    return if (resume) "Resume from ${Format.timestamp(target.userData.positionSeconds)}" else "Play"
+    if (container.kind == MediaKind.Series && code != null) return if (resume) t(Words.resumeEpisode, "episode" to code) else t("Play {episode}", "episode" to code)
+    return if (resume) t(Words.resumeFrom, "time" to Format.timestamp(target.userData.positionSeconds)) else t(Words.play)
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.sections(
@@ -529,7 +540,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
         // Anything else that holds titles (an album, say, until music has its own screens) lists them.
         item(key = "children") {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                SectionHeading("In this")
+                SectionHeading(t("In this"))
                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
                     items(detail.children, key = { it.id }) { PosterCard(it) }
                 }
@@ -544,7 +555,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
     if (cast.isNotEmpty()) {
         item(key = "cast") {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                SectionHeading("Cast and crew")
+                SectionHeading(t(Words.castAndCrew))
                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(cast.take(30)) { credit ->
                         val navigator = LocalNavigator.current
@@ -557,7 +568,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
     if (similar.isNotEmpty()) {
         item(key = "similar") {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                SectionHeading("More like this")
+                SectionHeading(t(Words.moreLikeThis))
                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
                     items(similar, key = { it.id }) { PosterCard(it, width = PosterWidth) }
                 }
@@ -613,14 +624,14 @@ private fun EpisodeRow(episode: ItemSummary, overview: String?, isCurrent: Boole
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.width(140.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat)) {
                     RemoteImage(episode.artwork.thumb ?: episode.artwork.backdrop, 400, Modifier.fillMaxSize()) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Flexarr.usher) }
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(FlexarrIcons.play, contentDescription = null, tint = Flexarr.usher) }
                     }
                     episode.progress?.let { ProgressBar(it, Modifier.align(Alignment.BottomCenter).padding(6.dp)) }
                     if (episode.userData.watched) WatchedBadge(Modifier.align(Alignment.TopEnd).padding(5.dp))
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(
-                        episode.episodeNumber?.let { "Episode $it" } ?: "Special",
+                        episode.episodeNumber?.let { t("Episode {number}", "number" to it) } ?: t("Special"),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = if (isCurrent) Flexarr.screen else Flexarr.usher,
@@ -647,10 +658,10 @@ private fun FileInfo(file: MediaFile, studio: String?) {
     val video = listOfNotNull(file.height?.let { "${it}p" }, file.videoCodec?.uppercase(Locale.ROOT), file.pictureLabel).joinToString(" ")
     val audio = listOfNotNull(file.audioCodec?.uppercase(Locale.ROOT), file.audioChannels?.let(::channelsLabel)).joinToString(" ")
     val facts = listOfNotNull(
-        video.takeIf { it.isNotEmpty() }?.let { "Video" to it },
-        audio.takeIf { it.isNotEmpty() }?.let { "Audio" to it },
-        studio?.let { "Studio" to it },
-        "Size" to fileSizeLabel(file.size),
+        video.takeIf { it.isNotEmpty() }?.let { t("Video") to it },
+        audio.takeIf { it.isNotEmpty() }?.let { t("Audio") to it },
+        studio?.let { t("Studio") to it },
+        t("Size") to fileSizeLabel(file.size),
     )
     Column(Modifier.padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         facts.chunked(2).forEach { pair ->
@@ -669,16 +680,16 @@ private fun FileInfo(file: MediaFile, studio: String?) {
 
 /** "5.1", "Stereo", "Mono". */
 internal fun channelsLabel(count: Int) = when (count) {
-    1 -> "Mono"
-    2 -> "Stereo"
+    1 -> t("Mono")
+    2 -> t("Stereo")
     6 -> "5.1"
     8 -> "7.1"
-    else -> "$count ch"
+    else -> t("{count} ch", "count" to count)
 }
 
 internal fun fileSizeLabel(bytes: Long): String {
     val gb = bytes / 1_000_000_000.0
-    return if (gb >= 1) String.format(Locale.getDefault(), "%.1f GB", gb) else String.format(Locale.getDefault(), "%.0f MB", bytes / 1_000_000.0)
+    return if (gb >= 1) String.format(io.github.flexarr.core.i18n.Localization.locale, "%.1f GB", gb) else String.format(io.github.flexarr.core.i18n.Localization.locale, "%.0f MB", bytes / 1_000_000.0)
 }
 
 /** Drawn into its own layer, then faded to nothing over the bottom of it, so there's no seam with the wash behind. */

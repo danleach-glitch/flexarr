@@ -6,6 +6,46 @@ namespace Flexarr.Core.Tests;
 public class FfprobeMediaProbeTests
 {
     [Fact]
+    public async Task ACancelledProbe_StopsFfprobe()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        // Stands in for ffprobe stuck on a share that's stopped answering: it notes its process id, then hangs.
+        var dir = Directory.CreateTempSubdirectory("flexarr-probe-").FullName;
+        try
+        {
+            var pidFile = Path.Combine(dir, "pid");
+            var ffprobe = Path.Combine(dir, "ffprobe");
+            File.WriteAllText(ffprobe, $"#!/bin/sh\necho $$ > '{pidFile}'\nexec sleep 30\n");
+            File.SetUnixFileMode(ffprobe, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            using var cancel = new CancellationTokenSource();
+            var probing = new FfprobeMediaProbe(ffprobe).ProbeAsync("/film.mkv", cancel.Token);
+            for (var i = 0; i < 100 && !File.Exists(pidFile); i++)
+            {
+                await Task.Delay(20);
+            }
+
+            await cancel.CancelAsync();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => probing);
+            var pid = int.Parse(File.ReadAllText(pidFile).Trim(), System.Globalization.CultureInfo.InvariantCulture);
+            using var process = System.Diagnostics.Process.GetProcessById(pid);
+            Assert.True(process.WaitForExit(5000), "ffprobe was left running");
+        }
+        catch (ArgumentException)
+        {
+            // GetProcessById: already gone, as it should be.
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Parse_RealHevcAacFile()
     {
         var result = FfprobeMediaProbe.Parse(File.ReadAllText(Path.Combine("Fixtures", "ffprobe-hevc-aac.json")));

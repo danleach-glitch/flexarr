@@ -25,7 +25,7 @@ final class DiagnosticsUpload {
     var outcome: String? {
         switch state {
         case .idle, .sending: nil
-        case .sent(let id): "Sent to your server (\(id)). Mention that if you ask for help."
+        case .sent(let id): t("Sent to your server ({id}). Mention that if you ask for help.", ["id": id])
         case .failed(let message): message
         }
     }
@@ -39,7 +39,7 @@ final class DiagnosticsUpload {
             state = .sent(id)
             note = ""
         } catch FlexarrClientError.unexpectedResponse, FlexarrClientError.http(status: 404, _), FlexarrClientError.http(status: 405, _) {
-            state = .failed("This server doesn't take diagnostics yet. Update Flexarr on it, then try again.")
+            state = .failed(t("This server doesn't take diagnostics yet. Update Flexarr on it, then try again."))
         } catch {
             state = .failed(ConnectionError(error).message)
         }

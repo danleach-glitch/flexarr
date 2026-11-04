@@ -11,6 +11,7 @@ import { bookSpeedPresets, skipSteps, withCurrent } from '../../lib/books'
 import { PODCAST_PREFERENCES_CHANGED, speedLabel } from '../../lib/podcasts'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
+import { t } from '../../i18n'
 
 /**
  * How this profile listens to podcasts and books: one speed, skip steps and smart rewind for both (a book with a
@@ -40,7 +41,7 @@ export function ListeningSection() {
     try {
       setSaved(await savePodcastPreferences(changes))
     } catch {
-      setError("That didn't save. Try again.")
+      setError(t("That didn't save. Try again."))
       settle()
       // What the server has now, in place of the change that didn't save.
       void getPodcastPreferences().then(setSaved, () => undefined)
@@ -61,38 +62,38 @@ export function ListeningSection() {
       ))}
     </select>
   )
-  const seconds = (n: number) => `${n} seconds`
+  const seconds = (n: number) => t('{count, plural, one {# second} other {# seconds}}', { count: n })
 
   return (
     <section>
-      <SettingsHeader title="Podcasts & audiobooks" />
+      <SettingsHeader title={t('Podcasts & audiobooks')} />
       {p && (
         <>
           <SettingsGroup
-            title="Listening"
-            note={`${name ? `${name}’s` : 'This profile’s'} own, in every app. A book with a speed of its own keeps it.`}
+            title={t('Listening')}
+            note={name ? t('{name}’s own, in every app. A book with a speed of its own keeps it.', { name }) : t('This profile’s own, in every app. A book with a speed of its own keeps it.')}
           >
-            <SettingRow label="Speed">{select(p.speed, withCurrent(bookSpeedPresets, p.speed), speedLabel, (speed) => void save({ speed }))}</SettingRow>
+            <SettingRow label={t('Speed')}>{select(p.speed, withCurrent(bookSpeedPresets, p.speed), speedLabel, (speed) => void save({ speed }))}</SettingRow>
             {p.skipBackSeconds !== undefined && (
-              <SettingRow label="Skip back">
+              <SettingRow label={t('Skip back')}>
                 {select(p.skipBackSeconds, withCurrent(skipSteps, p.skipBackSeconds), seconds, (skipBackSeconds) => void save({ skipBackSeconds }))}
               </SettingRow>
             )}
             {p.skipForwardSeconds !== undefined && (
-              <SettingRow label="Skip forward">
+              <SettingRow label={t('Skip forward')}>
                 {select(p.skipForwardSeconds, withCurrent(skipSteps, p.skipForwardSeconds), seconds, (skipForwardSeconds) => void save({ skipForwardSeconds }))}
               </SettingRow>
             )}
             {p.smartRewind !== undefined && (
-              <ToggleRow label="Smart rewind" help="After a pause, start a little earlier." checked={p.smartRewind} onChange={(smartRewind) => void save({ smartRewind })} />
+              <ToggleRow label={t('Smart rewind')} help={t('After a pause, start a little earlier.')} checked={p.smartRewind} onChange={(smartRewind) => void save({ smartRewind })} />
             )}
           </SettingsGroup>
           <SettingsGroup
-            title="Automatic downloads"
-            note="On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted. Notifications for new episodes are in each phone’s Settings."
+            title={t('Automatic downloads')}
+            note={t('On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted. Notifications for new episodes are in each phone’s Settings.')}
           >
-            <ToggleRow label="Download new episodes" checked={p.autoDownload} onChange={(autoDownload) => void save({ autoDownload })} />
-            <SettingRow label="Episodes to keep">
+            <ToggleRow label={t('Download new episodes')} checked={p.autoDownload} onChange={(autoDownload) => void save({ autoDownload })} />
+            <SettingRow label={t('Episodes to keep')}>
               <select value={p.keepEpisodes} disabled={!p.autoDownload} onChange={(e) => void save({ keepEpisodes: Number(e.target.value) })}>
                 {withCurrent([1, 2, 3, 5, 10], p.keepEpisodes).map((n) => (
                   <option key={n} value={n}>

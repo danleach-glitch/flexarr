@@ -38,7 +38,7 @@ struct ArtistView: View {
                         header(item)
                         if !page.albums.isEmpty {
                             VStack(alignment: .leading, spacing: 28) {
-                                Text("Albums")
+                                Text(t(Words.albums))
                                     .font(.marquee(40, weight: .bold))
                                     .foregroundStyle(Color.screen)
                                 LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {
@@ -49,12 +49,12 @@ struct ArtistView: View {
                                 .focusSection()
                             }
                         } else if page.detail != nil, !hasOutside {
-                            StatusView(state: .empty("No albums yet."))
+                            StatusView(state: .empty(t("No albums yet.")))
                                 .frame(height: 200)
                         }
                         if let missing = extras?.missing, !missing.isEmpty {
                             VStack(alignment: .leading, spacing: 28) {
-                                Text("Not in your library")
+                                Text(t(Words.notInYourLibrary))
                                     .font(.marquee(40, weight: .bold))
                                     .foregroundStyle(Color.screen)
                                 LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {
@@ -67,7 +67,7 @@ struct ArtistView: View {
                         }
                         if let similar = extras?.similar, !similar.isEmpty {
                             // The row runs to the screen's edges, as rows elsewhere do.
-                            ExternalMusicRow(title: "Fans also like", items: similar, artists: true)
+                            ExternalMusicRow(title: t(Words.fansAlsoLike), items: similar, artists: true)
                                 .padding(.horizontal, -Layout.edge)
                         }
                     }
@@ -155,9 +155,9 @@ struct ArtistView: View {
     /// Follow focused too, as pressing it does nothing).
     private var focusedName: String? {
         switch focusedAction {
-        case .shuffle: return "Shuffle"
-        case .radio: return "Radio"
-        case .more: return "More"
+        case .shuffle: return t(Words.shuffle)
+        case .radio: return t(Words.radio)
+        case .more: return t("More")
         default: break
         }
         if paused && actions.has(.follow) { return MusicWords.lidarrNotAnswering }
@@ -170,21 +170,21 @@ struct ArtistView: View {
         switch button {
         case .play:
             Button { Task { await model.playAll(of: page, shuffled: false, router: router) } } label: {
-                Label("Play", systemImage: Symbol.play)
+                Label(t(Words.play), systemImage: Symbol.play)
             }
             .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true))
             .takesFocusFromLink()
             .disabled(page.albums.isEmpty)
         case .shuffle:
             Button { Task { await model.playAll(of: page, shuffled: true, router: router) } } label: {
-                Label("Shuffle", systemImage: Symbol.shuffle)
+                Label(t(Words.shuffle), systemImage: Symbol.shuffle)
             }
             .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
             .focused($focusedAction, equals: .shuffle)
             .disabled(page.albums.isEmpty)
         case .radio:
             Button { Task { await model.playArtist(item, radio: true, router: router) } } label: {
-                Label("Radio", systemImage: Symbol.radio)
+                Label(t(Words.radio), systemImage: Symbol.radio)
             }
             .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
             .focused($focusedAction, equals: .radio)

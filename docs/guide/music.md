@@ -32,6 +32,10 @@ On Apple TV, **Settings › Libraries** chooses which view music opens on. The T
 
 The picture needs artists' artwork from Lidarr. A library with none shows its rows without it.
 
+## Wrong albums and artists
+
+If an album or artist shows the wrong name or cover, the main profile can choose **⋯ › Fix match…** on its page, on the web, and pick the right one from Lidarr or Deezer, cover and all. **⋯ › Edit…** changes an album's title, year, type and genres by hand. **Library health** lists albums without a cover, albums you have twice and artists under two spellings, and merges them. See [Library health](library-health.md#music).
+
 ## Deleting music
 
 On the web, an album's or artist's **⋯ › Delete…** deletes it for good, for the main profile. When Lidarr manages it, Lidarr deletes the files: an artist goes from Lidarr altogether, and an album's files go while Lidarr stops wanting it, so it doesn't download again and can still be requested later. Without Lidarr, Flexarr deletes the files itself, and any folders that leaves empty.

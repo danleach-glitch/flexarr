@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi, movies } from '../test/mockApi'
-import { apiGet, clearApiCache, FETCH_TIMEOUT_MS, getLibraries, getLibraryGenres, getLibraryItems, keepPage, keptPage, onAdminLapsed, onLockedChange, savePlayerPreferences, setWatched } from './client'
+import { apiGet, clearApiCache, FETCH_TIMEOUT_MS, getLibraries, liveHeartbeat, reportProgress, getLibraryGenres, getLibraryItems, keepPage, keptPage, onAdminLapsed, onLockedChange, savePlayerPreferences, setWatched } from './client'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -11,6 +11,23 @@ const sent = (fetchMock: ReturnType<typeof mockApi>, path: string) =>
   fetchMock.mock.calls.filter(([input]) => new URL(String(input), 'http://localhost').pathname === `/api/v1${path}`).length
 
 describe('API cache', () => {
+  it('keeps cached answers through progress reports while playing, but not a pause or a change', async () => {
+    const fetchMock = mockApi({ '/libraries/l/genres': [], 'POST /playback/s/progress': undefined, 'POST /livetv/watch/v/heartbeat': undefined })
+    clearApiCache()
+    await getLibraryGenres('l')
+    await reportProgress('s', 10, false)
+    await liveHeartbeat('v')
+    await getLibraryGenres('l')
+    expect(sent(fetchMock, '/libraries/l/genres')).toBe(1)
+
+    await reportProgress('s', 20, true)
+    await getLibraryGenres('l')
+    expect(sent(fetchMock, '/libraries/l/genres')).toBe(2)
+    await reportProgress('s', 30, false, true)
+    await getLibraryGenres('l')
+    expect(sent(fetchMock, '/libraries/l/genres')).toBe(3)
+  })
+
   it('keeps the 100 most recently used answers', async () => {
     const fetchMock = mockApi(Object.fromEntries(Array.from({ length: 101 }, (_, i) => [`/libraries/l${i}/genres`, []])))
     await getLibraryGenres('l0')

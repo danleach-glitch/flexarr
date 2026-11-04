@@ -97,7 +97,7 @@ public struct ExternalDetail: Codable, Sendable, Hashable {
     /// Rotten Tomatoes audience, percent.
     public let audienceScore: Int?
     public let imdbRating: Double?
-    /// A YouTube trailer, when TMDB lists one.
+    /// A YouTube trailer, when TMDB lists one. Servers from 0.57 on send it; optional as the apps read it only from 0.59.
     public var trailerYouTubeId: String? = nil
     public let cast: [ExternalPerson]
     /// Directors of a film, creators of a show.

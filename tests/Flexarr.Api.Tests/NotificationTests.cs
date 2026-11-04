@@ -2,10 +2,12 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Flexarr.Api.Localization;
 using Flexarr.Api.Notifications;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.LiveTv;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Media;
 using Flexarr.Core.Notifications;
 using Flexarr.Core.Podcasts;
@@ -244,6 +246,41 @@ public sealed class NotificationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task NewFilm_IsTold_InItsProfilesLanguage()
+    {
+        // A pseudo-language of this test's own (en-XA is LanguageEndpointTests'; the catalog is shared, newest version wins).
+        Loc.Catalog.Install(LanguagePack.Read("""
+            {"format":1,"code":"en-XB","name":"Pseudo (notifications)","direction":"ltr","version":1,"coverage":{"server":1},
+             "messages":{"New film: {title}":"⟦Ñéŵ ƒíĺɱ: {title}⟧","Ready to watch.":"⟦Ŕéàđý ţö ŵàţçĥ.⟧"},"scopes":{"New film: {title}":"s","Ready to watch.":"s"}}
+            """u8));
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        string profileId;
+        using (var scope = _server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            profileId = (await db.NotificationDevices.SingleAsync()).ProfileId;
+            var profile = await db.Profiles.SingleAsync(p => p.Id == profileId);
+            profile.Language = "en-XB";
+            await db.SaveChangesAsync();
+            _server.Services.GetRequiredService<ProfileLanguages>().Changed(profileId, "en-XB");
+        }
+
+        await StartAsync();
+        var library = OldLibrary(LibraryType.Movies);
+        var film = Film(library, "Arrival", _clock.Now.AddMinutes(1));
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.MediaItems.Add(film);
+        });
+
+        var sent = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(5)));
+        Assert.Equal("⟦Ñéŵ ƒíĺɱ: Arrival (2020)⟧", sent.GetProperty("t").GetString());
+        Assert.Equal("⟦Ŕéàđý ţö ŵàţçĥ.⟧", sent.GetProperty("b").GetString());
+    }
+
+    [Fact]
     public async Task Replacements_FirstScans_AndHiddenLibraries_AreNotNews()
     {
         var (_, phone) = await PhoneAsync();
@@ -402,6 +439,59 @@ public sealed class NotificationTests : IAsyncLifetime
         Assert.Equal("Third is in the library.", next.GetProperty("b").GetString());
         using var scope = _server.Services.CreateScope();
         Assert.Null((await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaRequests.SingleAsync()).FulfilledAt);
+    }
+
+    [Fact]
+    public async Task AFollowedArtist_SecondAlbumLandingWhileTheFirstSettles_IsToldNextTime()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var library = OldLibrary(LibraryType.Music);
+        var start = _clock.Now;
+        var (artist, _) = Album(library, "Wet Leg", "Wet Leg", start.AddDays(-30), artistMbid: "wl");
+        MediaItem New(string title, DateTime added) => new()
+        {
+            LibraryId = library.Id, Kind = MediaKind.Album, Title = title, SortTitle = title, AddedAt = added, ParentId = artist.Id,
+            Year = 2026, ReleaseDate = DateOnly.FromDateTime(start),
+        };
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.MediaItems.AddRange(artist, New("moisturizer", start.AddMinutes(5)), New("moisturizer (Deluxe)", start.AddMinutes(8)));
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Artist, MusicBrainzId = "wl", Title = "Wet Leg", RequestedAt = start.AddDays(-1) });
+        });
+
+        // At 9 minutes only the album has settled; the deluxe edition, a minute behind it, is told on the next run.
+        Assert.Equal("moisturizer is in the library.", Assert.Single(await RunAtAsync(start.AddMinutes(9))).GetProperty("b").GetString());
+        Assert.Equal("moisturizer (Deluxe) is in the library.", Assert.Single(await RunAtAsync(start.AddMinutes(12))).GetProperty("b").GetString());
+        Assert.Empty(await RunAtAsync(start.AddMinutes(20)));
+    }
+
+    [Fact]
+    public async Task AnAlbumWhoseFileIsDaysOld_ScannedNow_AnswersItsRequest()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var library = OldLibrary(LibraryType.Music);
+        // Imported by hand days after it downloaded: the scanner dates it by its file, but only sees it now.
+        var (artist, album) = Album(library, "Wet Leg", "moisturizer", _clock.Now.AddDays(-3), releaseGroup: "rg");
+        album.FirstSeenAt = _clock.Now.AddMinutes(1);
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.MediaItems.AddRange(artist, album);
+            db.MediaRequests.Add(new MediaRequest
+            {
+                ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Album, MusicBrainzId = "rg", Title = "moisturizer", ArtistName = "Wet Leg", RequestedAt = _clock.Now.AddDays(-5),
+            });
+        });
+
+        var sent = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(5)));
+
+        Assert.Equal("Your request is ready", sent.GetProperty("t").GetString());
+        Assert.Equal(album.Id.ToString(), sent.GetProperty("u").GetProperty("item").GetString());
     }
 
     [Fact]

@@ -74,7 +74,15 @@ public sealed class MediaItem
     public string? TmdbId { get; set; }
     public string? ImdbId { get; set; }
 
+    /// <summary>When its file was made (the scanner dates an item by its file), so it can be well before Flexarr saw it.</summary>
     public DateTime AddedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// When the scanner first put it in the library: what "it's arrived" means for a request, where <see cref="AddedAt"/>
+    /// can be days earlier (a manual import, an album only the 12-hourly scan picked up). Null for items from before 0.59.
+    /// </summary>
+    public DateTime? FirstSeenAt { get; set; }
+
     public List<MediaFile> Files { get; set; } = [];
 
     /// <summary>
@@ -153,6 +161,19 @@ public sealed class MediaItem
     /// by folder or title again.
     /// </summary>
     public bool MatchLocked { get; set; }
+
+    /// <summary>
+    /// Details edited by hand (films, shows, albums): refreshes keep the title, sort title, original title, year,
+    /// description, genres and studio (or an album's type) as they are, and still update everything else. Books use
+    /// <see cref="MatchLocked"/> for this instead.
+    /// </summary>
+    public bool DetailsLocked { get; set; }
+
+    /// <summary>A poster or cover chosen by hand (in Fix match): refreshes keep <see cref="PosterUrl"/> as it is.</summary>
+    public bool ArtworkLocked { get; set; }
+
+    /// <summary>Deezer's id for an album or artist matched there by hand (Fix match without Lidarr).</summary>
+    public string? DeezerId { get; set; }
 
     public string? MetadataSource { get; set; }
     public DateTime? MetadataUpdatedAt { get; set; }

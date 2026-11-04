@@ -10,10 +10,21 @@ import androidx.compose.runtime.setValue
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.MusicRequestStatus
 import io.github.flexarr.core.RequestStatus
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.requestRefusal
 import io.github.flexarr.core.requestStatus
 import io.github.flexarr.core.musicRequestStatus
 import io.github.flexarr.player.PlaybackEnding
+import io.github.flexarr.player.DeviceCapabilities
+import io.github.flexarr.core.PreparedStreams
+import io.github.flexarr.core.LinkSpeed
+import io.github.flexarr.core.ServerVersion
+import io.github.flexarr.core.ServerSupport
+import io.github.flexarr.core.ServerTooOldException
+import io.github.flexarr.core.PlaybackRequest
+import io.github.flexarr.core.DeviceProfile
+import io.github.flexarr.core.ItemSummary
+import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.LiveTvStatus
 import io.github.flexarr.core.liveTvStatus
@@ -82,6 +93,38 @@ private val flexarrLog = FlexarrLog("signin")
  * the [savedSignIn] (read once at launch, as decrypting it takes a moment).
  */
 class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
+    /** The languages the server offers (English first); empty from servers before 0.61. Settings › Language shows when there's more than English. */
+    var languages by mutableStateOf(emptyList<io.github.flexarr.core.i18n.LanguageInfo>())
+        private set
+
+    /** The profile's chosen language (null: the device's). */
+    var profileLanguage by mutableStateOf<String?>(null)
+        private set
+
+    /** The language shown: the whole app is keyed on it, so a new one redraws everything in it. */
+    var languageCode by mutableStateOf(io.github.flexarr.core.i18n.Localization.code)
+        private set
+
+    init {
+        io.github.flexarr.core.i18n.Localization.onChange {
+            android.os.Handler(android.os.Looper.getMainLooper()).post { languageCode = io.github.flexarr.core.i18n.Localization.code }
+        }
+    }
+
+    private suspend fun settleLanguage(client: FlexarrClient) {
+        languages = runCatching { client.languages() }.getOrDefault(emptyList())
+        io.github.flexarr.core.i18n.Localization.settle(profileLanguage, languages) { code -> runCatching { client.languagePack(code) }.getOrNull() }
+        io.github.flexarr.core.i18n.Localization.lastShown = io.github.flexarr.core.i18n.Localization.code.takeIf { it != "en" }
+    }
+
+    /** Picks the profile's language on every device (null: each device's own) and shows it here. */
+    suspend fun setLanguage(code: String?) {
+        val client = client ?: return
+        client.setLanguage(code)
+        profileLanguage = code
+        settleLanguage(client)
+    }
+
     sealed interface Phase {
         data object SignedOut : Phase
         data class SignedIn(val credentials: ServerCredentials) : Phase
@@ -257,6 +300,71 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Audiobooks, playing on under every screen; music, podcasts and books take turns. */
     val books = BookPlayer(context, this)
 
+    /** A film or episode got ready ahead of Play from its page or a TV's focus (docs/fast-start.md), taken over by the player. */
+    val warmUps = PreparedStreams(
+        scope,
+        start = { request -> requireNotNull(client).startPlayback(request) },
+        stop = { sessionId -> client?.stopPlayback(sessionId) },
+    )
+
+    /** How fast the video player's stream segments have come lately, sent with each start (docs/fast-start.md). */
+    val linkSpeed = LinkSpeed()
+
+    /** The server's version and the video profile the player asks with, worked out once per server (not on a failure). */
+    private var serverInfo: Triple<String, String, DeviceProfile>? = null
+
+    /**
+     * The server's version (null if it couldn't be asked) and the video profile the player asks with
+     * ([DeviceCapabilities.withServer]): shared by the player and warm-ups, so both ask for exactly the same stream.
+     */
+    suspend fun server(): Pair<String?, DeviceProfile>? {
+        val client = client ?: return null
+        val address = client.baseUrl.toString()
+        serverInfo?.let { (forServer, version, profile) -> if (forServer == address) return version to profile }
+        val version = runCatching { client.systemStatus().version }.getOrNull()
+        val profile = DeviceCapabilities.withServer(DeviceCapabilities.profile(context), version)
+        if (version != null) serverInfo = Triple(address, version, profile)
+        return version to profile
+    }
+
+    /** The one warm-up being worked out (the server's version first), and for which title, so a drop can cancel it. */
+    private var warmJob: Pair<String, Job>? = null
+
+    /**
+     * Gets what Play would start for [item] ready, so it opens at once (docs/fast-start.md): a film or episode as a
+     * video, a book in its player. Pages call this once looked at for a moment, the TV once Play or a card has focus.
+     */
+    fun getReady(item: ItemSummary) {
+        if (item.kind != MediaKind.Movie && item.kind != MediaKind.Episode && item.kind != MediaKind.Audiobook) return
+        if (client == null || serverUnreachable || downloads.entry(item.id)?.isDownloaded == true) return
+        warmJob?.second?.cancel()
+        warmJob = item.id to scope.launch {
+            // A server before 0.59 would show the warm-up as playing and give it a transcode slot.
+            val (version, profile) = server() ?: return@launch
+            if (version == null || !ServerVersion.atLeast(version, 0, 59)) return@launch
+            if (item.kind == MediaKind.Audiobook) {
+                books.getReady(item)
+            } else {
+                warmUps.getReady(PlaybackRequest(itemId = item.id, profile = profile, measuredBitrate = linkSpeed.current()), owner = client?.profileToken)
+            }
+        }
+    }
+
+    /** What was got ready for [itemId] goes (its page left, the focus moved on), unless Play took it. */
+    fun dropReady(itemId: String) {
+        warmJob?.let { (id, job) -> if (id == itemId) job.cancel() }
+        warmUps.drop(itemId)
+        books.dropReady(itemId)
+    }
+
+    /** Everything got ready goes (going to the background, another profile, signing out). */
+    private fun dropAllReady() {
+        warmJob?.second?.cancel()
+        warmJob = null
+        warmUps.drop()
+        books.dropReady()
+    }
+
     /** The book's Now Playing sheet is open. */
     var showsBookPlayer by mutableStateOf(false)
 
@@ -268,6 +376,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     /** What's new, from the server through Firebase. */
     val notifications = PushNotifications(context)
+
+    /**
+     * Google Play's in-app updates, one for the whole launch: kept here rather than on a screen, so rotating, a font-size
+     * change or dark mode doesn't ask about the same update again.
+     */
+    val appUpdates: AppUpdates by lazy { AppUpdates.create(context.applicationContext) }
 
     /** Films, episodes and podcast episodes kept on this phone to play with no connection. */
     val downloads = DownloadStore(context, this)
@@ -326,6 +440,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     /** The live channel being started, for its card to show a spinner. */
     var liveStartingChannel: String? by mutableStateOf(null)
+
+    /**
+     * The channel ids the live player steps through with Previous and Next, as the screen listed them. Kept here rather
+     * than in the player's intent: a line-up of thousands would overflow what an intent can carry.
+     */
+    var liveChannelOrder: List<String> = emptyList()
 
     val hasLiveTv: Boolean get() = liveTvStatus?.let { it.configured && it.channels > 0 } ?: false
 
@@ -605,11 +725,22 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     var musicUnreachable by mutableStateOf(false)
         private set
 
+    /**
+     * The last answer from [musicStatus], for this server and profile, kept a minute so each artist page and search
+     * doesn't ask again first, as [offersMusicAlbums] is. Only one where Lidarr answered (or isn't set up): while it
+     * isn't answering, each page asks again.
+     */
+    private var musicStatusCache: Triple<String, Long, MusicRequestStatus>? = null
+
     /** Music requests' status for this profile, noting whether Lidarr answered ([musicUnreachable]). */
     suspend fun musicStatus(): MusicRequestStatus {
         val client = client ?: return MusicRequestStatus(configured = false, reachable = false)
+        val key = "${credentials?.address}|${client.profileToken}"
+        val now = System.currentTimeMillis()
+        musicStatusCache?.let { (cachedKey, at, status) -> if (cachedKey == key && now - at in 0L until 60_000L) return status }
         val status = client.musicRequestStatus()
         if (client.profileToken == this.client?.profileToken) musicUnreachable = status.configured && !status.reachable
+        musicStatusCache = if (!status.configured || status.reachable) Triple(key, now, status) else null
         return status
     }
 
@@ -755,8 +886,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 if (!tryNext || index == candidates.lastIndex) throw e
             }
         }
+        // Older than the apps support: not signed in to, and the connect screen says to update it.
+        if (ServerSupport.isTooOld(status!!.version)) throw ServerTooOldException()
         // The server's address for away from home comes with its status; it's kept beside this one.
-        credentials = credentials!!.copy(remoteAddress = remoteAddress(status!!, credentials.address))
+        credentials = credentials!!.copy(remoteAddress = remoteAddress(status!!, credentials.address), serverId = status.serverId)
         credentials = withOwnToken(credentials)
         store.save(credentials)
         saved = true
@@ -784,8 +917,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     fun offerInvite(invite: GuestInvite?, fromCode: Boolean = false) {
         when {
-            invite == null -> inviteProblem = "That invite isn’t complete. Ask for the link again."
-            phase is Phase.SignedIn -> inviteProblem = "Sign out in Settings first, then open the invite again."
+            invite == null -> inviteProblem = t("That invite isn’t complete. Ask for the link again.")
+            phase is Phase.SignedIn -> inviteProblem = t("Sign out in Settings first, then open the invite again.")
             else -> {
                 offeredInvite = invite
                 inviteFromCode = fromCode
@@ -823,7 +956,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 joinProblem = e.message
                 joinCanRetry = e.canRetry
             } catch (e: Exception) {
-                joinProblem = "That didn’t work."
+                joinProblem = t("That didn’t work.")
                 joinCanRetry = true
             } finally {
                 joining = false
@@ -934,6 +1067,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     private var remoteChecked = false
 
     /**
+     * "Update your Flexarr server": signed in to a server older than the apps support ([ServerSupport.MINIMUM_VERSION]).
+     * Checked once per launch with the address for away from home; the main screens show it as a snackbar, then clear it.
+     */
+    var serverUpdateNotice: String? by mutableStateOf(null)
+
+    /**
      * Keeps the saved address for away from home in step with the server's (remote access turned on or off since, or
      * a sign-in from before the app kept one). Best effort, once per launch, after the profiles are up.
      */
@@ -946,15 +1085,26 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         // A guest only ever reaches the server through its tunnel.
         if (credentials.isGuest) return
         val status = runCatching { credentials.client().systemStatus() }.getOrNull() ?: return
+        if (ServerSupport.isTooOld(status.version) && this.credentials?.address == credentials.address) serverUpdateNotice = ServerSupport.UPDATE_MESSAGE
         val remote = remoteAddress(status, credentials.address, kept = credentials.remoteAddress)
         // Who's watching may have been chosen meanwhile: what matters is that it's still the same sign-in.
         val now = this.credentials ?: return
-        if (remote == now.remoteAddress || now.address != credentials.address || now.apiKey != credentials.apiKey) return
-        if (saved) store.saveRemoteAddress(remote)
-        phase = Phase.SignedIn(now.copy(remoteAddress = remote))
+        if (now.address != credentials.address || now.apiKey != credentials.apiKey) return
+        // A sign-in from before the app kept the server's id learns it now; one it knows already keeps it (a different
+        // answer from home was already turned away before the sign-in was sent).
+        val serverId = now.serverId ?: status.serverId
+        if (remote == now.remoteAddress && serverId == now.serverId) return
+        if (saved) {
+            store.saveRemoteAddress(remote)
+            store.saveServerId(serverId)
+        }
+        phase = Phase.SignedIn(now.copy(remoteAddress = remote, serverId = serverId))
     }
 
     fun signOut() {
+        dropAllReady()
+        // The headset's play button has nothing of this sign-in's to pick up again.
+        io.github.flexarr.audio.LastHeard.clear(context)
         // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way. Not
         // for a sign-in from the command line, which may be the server's own API key.
         val client = client
@@ -1048,7 +1198,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 if (credentials?.guest != guest) return@launch
                 if (network.isOffline) return@launch goOffline()
             }
-            if (tunnelProblem == null && !offlineAsGuest && !serverUnreachable && credentials?.guest == guest) tunnelProblem = "Still connecting"
+            if (tunnelProblem == null && !offlineAsGuest && !serverUnreachable && credentials?.guest == guest) tunnelProblem = t("Still connecting")
         }
         try {
             withContext(Dispatchers.IO) { tunnel.port() }
@@ -1060,7 +1210,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         } catch (e: TunnelException) {
             if (credentials?.guest != guest || e.needsLogin) return false
             flexarrLog.warning("The guest tunnel didn't start: ${e.message}")
-            if (offlineAsGuest || network.isOffline) goOffline() else tunnelProblem = e.message ?: "The tunnel didn't start"
+            if (offlineAsGuest || network.isOffline) goOffline() else tunnelProblem = e.message ?: t("The tunnel didn't start")
             return false
         } finally {
             early.cancel()
@@ -1099,6 +1249,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             }
             val list = listed.await().getOrThrow()
             val me = signIn.await()
+            // In the profile's language (or the device's) before the first screen, so it doesn't change under you.
+            profileLanguage = me?.language
+            settleLanguage(client)
             // A token for a profile that's since been removed acts as nobody: forget it and ask again.
             val credentials = credentials
             if (list.none { it.isCurrent } && credentials?.profileToken != null) {
@@ -1185,6 +1338,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         // Straight from one profile to another (the TV's "Who's watching?", a link for someone else): their music,
         // podcasts and Up Next go, as switchProfile's do.
         if (isSwitch(currentProfile?.id, selection.profile.id)) {
+            dropAllReady()
             music.stop()
             podcasts.stop()
             books.stop()
@@ -1207,7 +1361,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Back to choosing who's watching. Never for a guest, which the server keeps on its invite's profile. */
     fun switchProfile() {
         val credentials = credentials?.takeIf { !isGuest } ?: return
-        // Someone else's music, podcasts and Up Next.
+        // Someone else's music, podcasts, Up Next and anything got ready.
+        dropAllReady()
         music.stop()
         podcasts.stop()
         books.stop()
@@ -1345,9 +1500,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                     notifications.forget()
                     forget()
                     signedOutNotice = if (kept) {
-                        "This device was signed out. Its downloads are kept, and catch up when it connects to this server again."
+                        t("This device was signed out. Its downloads are kept, and catch up when it connects to this server again.")
                     } else {
-                        "This device was signed out."
+                        t("This device was signed out.")
                     }
                 }
             } catch (_: Exception) {
@@ -1367,7 +1522,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         downloads.signedOut(null)
         notifications.forget()
         forget()
-        signedOutNotice = if (owner != null) "You no longer have access to $owner’s Flexarr." else "You no longer have access to this Flexarr."
+        signedOutNotice = if (owner != null) t("You no longer have access to {name}’s Flexarr.", "name" to owner) else t("You no longer have access to this Flexarr.")
         signedOutAsGuest = true
     }
 
@@ -1424,6 +1579,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     /** Back in front: a guest's tunnel is started again if it stopped while the app was away. */
     fun cameToFront() {
+        // The connection to the server is set up again before Play needs it.
+        client?.let { scope.launch { it.warmConnection() } }
         tunnelIdle?.cancel()
         if (credentials?.isGuest == true) scope.launch(Dispatchers.IO) { tunnel.ensureRunning() }
         // Offline mode ends (or starts) as soon as it's known whether the server answers now, and tries again while
@@ -1563,6 +1720,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      * download coming in), so it doesn't keep the phone's radio busy. Anything that needs it later starts it again.
      */
     fun wentToBackground() {
+        dropAllReady()
         // Offline mode doesn't keep trying in the background: coming back to the front checks.
         if (!inFront) {
             offlineRetry?.cancel()

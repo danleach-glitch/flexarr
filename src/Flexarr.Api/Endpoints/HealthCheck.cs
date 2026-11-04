@@ -1,11 +1,18 @@
 using Flexarr.Core.Data;
+using Flexarr.Core.Localization;
 using Flexarr.Core.Probing;
 using Microsoft.EntityFrameworkCore;
 
 namespace Flexarr.Api.Endpoints;
 
 /// <param name="Problem">"Missing" (not on disk), "Empty" (zero bytes) or "Unreadable" (ffprobe still can't read it).</param>
-public sealed record FileProblemDto(Guid FileId, Guid ItemId, string Path, string Problem, string? Detail);
+/// <param name="Detail">For Missing and Empty, English marked with Loc.Mark: the check runs in the background, so it's
+/// translated when it's shown (<see cref="Localized"/>). For Unreadable, ffprobe's own words.</param>
+public sealed record FileProblemDto(Guid FileId, Guid ItemId, string Path, string Problem, string? Detail)
+{
+    /// <summary>This problem with its detail in the request's language.</summary>
+    public FileProblemDto Localized() => Problem is "Missing" or "Empty" && Detail is not null ? this with { Detail = Loc.T(Detail) } : this;
+}
 
 public sealed record HealthCheckDto(bool Running, int Checked, int Total, DateTime? FinishedAt, IReadOnlyList<FileProblemDto> Problems);
 
@@ -65,11 +72,11 @@ public sealed partial class HealthCheck(IServiceScopeFactory scopes, IMediaProbe
                 var info = new FileInfo(file.Path);
                 if (!info.Exists)
                 {
-                    problems.Add(new FileProblemDto(file.Id, file.MediaItemId, file.Path, "Missing", "Not on disk. It may have been deleted or moved, or its drive isn't connected."));
+                    problems.Add(new FileProblemDto(file.Id, file.MediaItemId, file.Path, "Missing", Loc.Mark("Not on disk. It may have been deleted or moved, or its drive isn't connected.")));
                 }
                 else if (info.Length == 0)
                 {
-                    problems.Add(new FileProblemDto(file.Id, file.MediaItemId, file.Path, "Empty", "The file is 0 bytes."));
+                    problems.Add(new FileProblemDto(file.Id, file.MediaItemId, file.Path, "Empty", Loc.Mark("The file is 0 bytes.")));
                 }
                 else if (file.ProbeError is not null)
                 {

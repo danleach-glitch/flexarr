@@ -1,5 +1,7 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,6 +46,7 @@ import androidx.tv.material3.Text
 import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
 import io.github.flexarr.core.Teletext
+import io.github.flexarr.core.i18n.tk
 import io.github.flexarr.data.SoundSettings
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.tv.TakeFocus
@@ -53,7 +56,11 @@ import io.github.flexarr.ui.theme.Tokens
 // The player's menus for the remote, as the Apple TV's: a button for each beneath the timeline, opening a panel down
 // the right of the picture, with a page for each submenu. The same choices as the phone's dropdowns (PlayerMenus.kt).
 
-internal enum class TvMenu(val title: String) { Audio("Audio"), Subtitles("Subtitles"), Speed("Speed"), Sleep("Sleep timer") }
+internal enum class TvMenu(private val english: String) {
+    Audio(tk("Audio")), Subtitles(tk(Words.subtitles)), Speed(tk("Speed")), Sleep(tk("Sleep timer"));
+
+    val title: String get() = t(english)
+}
 
 /** The menus' buttons; [menus] are the ones this player has (a live channel has only Sleep). */
 @Composable
@@ -133,18 +140,18 @@ internal fun TvMenuPanel(
 }
 
 private fun pageTitle(menu: TvMenu, page: String?): String = when (page) {
-    "dialogue" -> "Dialogue boost"
-    "night" -> "Night mode"
-    "speakers" -> "Speakers"
-    "timing" -> "Timing"
-    "teletext" -> "Teletext page"
-    "size" -> "Size"
-    "position" -> "Position"
+    "dialogue" -> t("Dialogue boost")
+    "night" -> t("Night mode")
+    "speakers" -> t("Speakers")
+    "timing" -> t("Timing")
+    "teletext" -> t("Teletext page")
+    "size" -> t("Size")
+    "position" -> t("Position")
     else -> menu.title
 }
 
 private fun nightLabel(sound: SoundSettings, mode: SoundSettings.NightMode = sound.nightMode) =
-    if (mode == SoundSettings.NightMode.Scheduled) sound.nightHours else mode.name
+    if (mode == SoundSettings.NightMode.Scheduled) sound.nightHours else mode.label
 
 /** The rows of [menu]'s [page] (null: its first page), as the phone's menus have them. */
 private fun panelItems(
@@ -158,7 +165,7 @@ private fun panelItems(
     close: () -> Unit,
 ): List<PanelItem> = buildList {
     if (menu == TvMenu.Sleep) {
-        add(PanelItem("Off", checked = sleep.setting == null) { sleep.set(null); close() })
+        add(PanelItem(t("Off"), checked = sleep.setting == null) { sleep.set(null); close() })
         val choices = SleepTimer.minuteChoices.map { SleepTimer.Setting.Minutes(it) } +
             if (offersEndOfEpisode) listOf(SleepTimer.Setting.EndOfEpisode) else emptyList()
         choices.forEachIndexed { i, setting -> add(PanelItem(setting.label, checked = setting == sleep.setting, gapBefore = i == 0) { sleep.set(setting); close() }) }
@@ -171,7 +178,7 @@ private fun panelItems(
     when (menu) {
         TvMenu.Audio -> when (page) {
             "dialogue" -> SoundSettings.DialogueBoost.entries.forEach { boost ->
-                add(PanelItem(boost.name, checked = boost == sound.dialogueBoost) { controller.changeSound { it.copy(dialogueBoost = boost) } })
+                add(PanelItem(boost.label, checked = boost == sound.dialogueBoost) { controller.changeSound { it.copy(dialogueBoost = boost) } })
             }
             "night" -> SoundSettings.NightMode.entries.forEach { mode ->
                 add(PanelItem(nightLabel(sound, mode), checked = mode == sound.nightMode) { controller.changeSound { it.copy(nightMode = mode) } })
@@ -186,11 +193,11 @@ private fun panelItems(
                     }
                 }
                 controller.audioSync?.let { sync ->
-                    add(PanelItem("Audio sync", value = if (sync == 0.0) "As the file is" else PlaybackController.syncLabel(sync), gapBefore = isNotEmpty()) { close(); onAudioSync() })
+                    add(PanelItem(t("Audio sync"), value = if (sync == 0.0) t("As the file is") else PlaybackController.syncLabel(sync), gapBefore = isNotEmpty()) { close(); onAudioSync() })
                 }
-                add(PanelItem("Dialogue boost", value = sound.dialogueBoost.name, opens = true, gapBefore = true) { openPage("dialogue") })
-                add(PanelItem("Night mode", value = nightLabel(sound), opens = true) { openPage("night") })
-                add(PanelItem("Speakers", value = sound.speakers.label, opens = true) { openPage("speakers") })
+                add(PanelItem(t("Dialogue boost"), value = sound.dialogueBoost.label, opens = true, gapBefore = true) { openPage("dialogue") })
+                add(PanelItem(t("Night mode"), value = nightLabel(sound), opens = true) { openPage("night") })
+                add(PanelItem(t("Speakers"), value = sound.speakers.label, opens = true) { openPage("speakers") })
             }
         }
         TvMenu.Subtitles -> when (page) {
@@ -201,7 +208,7 @@ private fun panelItems(
                 }
             }
             "teletext" -> (listOf(null) + Teletext.pages).forEach { number ->
-                add(PanelItem(number?.toString() ?: "Automatic", checked = number == controller.teletextPage, enabled = !reopening) { close(); controller.chooseTeletextPage(number) })
+                add(PanelItem(number?.toString() ?: t("Automatic"), checked = number == controller.teletextPage, enabled = !reopening) { close(); controller.chooseTeletextPage(number) })
             }
             "size" -> SubtitleSize.choices.forEach { size ->
                 add(PanelItem(size.label, checked = size == controller.subtitleSize) { controller.chooseSubtitleSize(size) })
@@ -210,31 +217,31 @@ private fun panelItems(
                 SubtitlePosition.choices.forEach { position ->
                     add(PanelItem(position.label, checked = position == controller.subtitlePosition) { controller.setSubtitlePlacement(position, controller.subtitlesInBlackBars) })
                 }
-                add(PanelItem("In the black bars", value = if (controller.subtitlesInBlackBars) "On" else "Off", gapBefore = true) {
+                add(PanelItem(t("In the black bars"), value = if (controller.subtitlesInBlackBars) t("On") else t("Off"), gapBefore = true) {
                     controller.setSubtitlePlacement(controller.subtitlePosition, !controller.subtitlesInBlackBars)
                 })
             }
             else -> {
-                add(PanelItem("Off", checked = controller.subtitleKey == null, enabled = !reopening) { close(); controller.selectSubtitle(null) })
+                add(PanelItem(t("Off"), checked = controller.subtitleKey == null, enabled = !reopening) { close(); controller.selectSubtitle(null) })
                 info.subtitles.forEach { track ->
                     add(PanelItem(track.label, checked = track.key == controller.subtitleKey, enabled = !reopening) { close(); controller.selectSubtitle(track) })
                 }
                 // Teletext subtitles are on a page of their own, which a recording doesn't always mark.
                 if (controller.canChooseTeletextPage) {
-                    add(PanelItem("Teletext page", value = controller.teletextPage?.toString() ?: "Automatic", opens = true, gapBefore = true) { openPage("teletext") })
+                    add(PanelItem(t("Teletext page"), value = controller.teletextPage?.toString() ?: t("Automatic"), opens = true, gapBefore = true) { openPage("teletext") })
                 }
                 // Burned into the picture, they can't be moved: the server draws them where they fall.
                 if (!info.subtitleBurnedIn) {
-                    add(PanelItem("Timing", value = PlaybackController.delayLabel(info.subtitleDelaySeconds ?: 0.0), opens = true, gapBefore = size == info.subtitles.size + 1) { openPage("timing") })
+                    add(PanelItem(t("Timing"), value = PlaybackController.delayLabel(info.subtitleDelaySeconds ?: 0.0), opens = true, gapBefore = size == info.subtitles.size + 1) { openPage("timing") })
                 }
-                add(PanelItem("Size", value = controller.subtitleSize.label, opens = true, gapBefore = size == info.subtitles.size + 1) { openPage("size") })
-                add(PanelItem("Position", value = controller.subtitlePosition.label, opens = true) { openPage("position") })
+                add(PanelItem(t("Size"), value = controller.subtitleSize.label, opens = true, gapBefore = size == info.subtitles.size + 1) { openPage("size") })
+                add(PanelItem(t("Position"), value = controller.subtitlePosition.label, opens = true) { openPage("position") })
                 if (controller.canSearchSubtitles) {
-                    add(PanelItem("Search for subtitles…", gapBefore = true) { close(); controller.searchSubtitles() })
+                    add(PanelItem(t("Search for subtitles…"), gapBefore = true) { close(); controller.searchSubtitles() })
                     val resyncable = controller.resyncableSubtitle
                     when {
-                        controller.isResyncing -> add(PanelItem("Re-syncing…", enabled = false) {})
-                        resyncable != null -> add(PanelItem("Re-sync to audio") { close(); controller.resyncSubtitles(resyncable) })
+                        controller.isResyncing -> add(PanelItem(t("Re-syncing…"), enabled = false) {})
+                        resyncable != null -> add(PanelItem(t("Re-sync to audio")) { close(); controller.resyncSubtitles(resyncable) })
                     }
                 }
             }
@@ -274,7 +281,7 @@ private fun PanelRow(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.size(16.dp)) { if (checked) Icon(Icons.Filled.Check, contentDescription = "Chosen", modifier = Modifier.size(16.dp)) }
+            Box(Modifier.size(16.dp)) { if (checked) Icon(Icons.Filled.Check, contentDescription = t("Chosen"), modifier = Modifier.size(16.dp)) }
             Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             value?.let { Text(it, fontSize = 13.sp, maxLines = 1, modifier = Modifier.alpha(0.7f)) }
             if (opens) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(16.dp).alpha(0.6f))

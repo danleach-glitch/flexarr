@@ -18,8 +18,9 @@ struct SearchView: View {
     @State private var outsideMusic: [MusicExternal] = []
     /// Whether music requests are on for this profile, and Lidarr answering; nil until asked.
     @State private var musicStatus: MusicRequestStatus?
+    /// The library's results are in, but Seerr's or the music search's aren't yet.
+    @State private var lookingFurther = false
 
-    private var looksForMusic: Bool { musicStatus?.configured == true }
     /// Lidarr isn't answering: music still shows, its requests wait.
     private var musicPaused: Bool { musicStatus?.configured == true && musicStatus?.reachable == false }
 
@@ -28,11 +29,12 @@ struct SearchView: View {
             VStack(alignment: .leading, spacing: 24) {
                 if let results {
                     if results.isEmpty && outside.isEmpty && outsideMusic.isEmpty {
-                        StatusView(state: .empty("Nothing matches \u{201C}\(query)\u{201D}."))
+                        // Nothing in the library yet: say so only once the searches beyond it have answered too.
+                        StatusView(state: lookingFurther ? .loading : .empty(t("Nothing matches “{search}”.", ["search": query])))
                             .frame(height: 240)
                     }
                     if !results.films.isEmpty {
-                        section("Movies and shows") {
+                        section(t(Words.moviesAndShows)) {
                             ForEach(results.films) { item in
                                 PosterCard(item: item, width: Layout.posterWidth(sizeClass)) {
                                     model.recordSearch(query: query, item: item)
@@ -42,7 +44,7 @@ struct SearchView: View {
                     }
                     // Music you have: artists, then albums (the server lists artists among the titles).
                     if !results.artists.isEmpty {
-                        section("Artists") {
+                        section(t(Words.artists)) {
                             ForEach(results.artists) { item in
                                 ArtistCard(item: item, width: Layout.posterWidth(sizeClass))
                                     .simultaneousGesture(TapGesture().onEnded { model.recordSearch(query: query, item: item) })
@@ -50,7 +52,7 @@ struct SearchView: View {
                         }
                     }
                     if let albums = results.albums, !albums.isEmpty {
-                        section("Albums") {
+                        section(t(Words.albums)) {
                             ForEach(albums) { item in
                                 AlbumCard(item: item, width: Layout.posterWidth(sizeClass), showsArtist: true)
                                     .simultaneousGesture(TapGesture().onEnded { model.recordSearch(query: query, item: item) })
@@ -58,7 +60,7 @@ struct SearchView: View {
                         }
                     }
                     if let books = results.books, !books.isEmpty {
-                        section("Audiobooks") {
+                        section(t(Words.audiobooks)) {
                             ForEach(books) { item in
                                 BookCard(item: item, width: Layout.posterWidth(sizeClass) * 1.15) {
                                     model.recordSearch(query: query, item: item)
@@ -67,7 +69,7 @@ struct SearchView: View {
                         }
                     }
                     if let series = results.bookSeries, !series.isEmpty {
-                        section("Series") {
+                        section(t(Words.series)) {
                             ForEach(series) { found in
                                 Button {
                                     model.recordSearch(query: query)
@@ -75,7 +77,7 @@ struct SearchView: View {
                                 } label: {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(found.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color.screen)
-                                        Text(found.bookCount == 1 ? "1 book" : "\(found.bookCount) books").font(.caption).foregroundStyle(Color.usher)
+                                        Text(t("{count, plural, one {# book} other {# books}}", ["count": found.bookCount])).font(.caption).foregroundStyle(Color.usher)
                                     }
                                     .lineLimit(1)
                                     .padding(.horizontal, 16)
@@ -87,7 +89,7 @@ struct SearchView: View {
                         }
                     }
                     if !results.episodes.isEmpty {
-                        section("Episodes") {
+                        section(t("Episodes")) {
                             ForEach(results.episodes) { item in
                                 WideCard(item: item, width: Layout.wideWidth(sizeClass)) {
                                     model.recordSearch(query: query, item: item)
@@ -97,7 +99,7 @@ struct SearchView: View {
                         }
                     }
                     if !outside.isEmpty || !outsideMusic.isEmpty {
-                        section("Not in your library") {
+                        section(t(Words.notInYourLibrary)) {
                             ForEach(outside) { title in
                                 OutsideTitleCard(title: title, width: Layout.posterWidth(sizeClass))
                             }
@@ -115,10 +117,10 @@ struct SearchView: View {
                         }
                     }
                     if !results.people.isEmpty {
-                        section("People") {
+                        section(t("People")) {
                             ForEach(results.people) { person in
                                 PersonCard(id: person.id, name: person.name,
-                                           detail: person.credits == 1 ? "1 title" : "\(person.credits) titles", image: person.image) {
+                                           detail: t("{count, plural, one {# title} other {# titles}}", ["count": person.credits]), image: person.image) {
                                     model.recordSearch(query: query)
                                 }
                             }
@@ -130,7 +132,7 @@ struct SearchView: View {
                 } else if query.isEmpty && !recents.isEmpty {
                     recentSections
                 } else {
-                    StatusView(state: .empty("Find movies, shows, episodes and people in your libraries."))
+                    StatusView(state: .empty(t("Find movies, shows, episodes and people in your libraries.")))
                         .frame(height: 240)
                 }
             }
@@ -138,9 +140,9 @@ struct SearchView: View {
         }
         .scrollDismissesKeyboard(.immediately)
         .background(RoomBackground(ambient: nil))
-        .navigationTitle("Search")
+        .navigationTitle(t(Words.search))
         // Always showing: left to itself, iOS tucks the field away until the page is pulled down.
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Movies, shows, episodes and people")
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: t("Movies, shows, episodes and people"))
         // Opening Search is for typing: the field's ready with the keyboard up.
         .searchFocused($typing)
         // Pressing Search keeps the words as a recent search, as picking a result does: shown at once, without waiting
@@ -168,7 +170,7 @@ struct SearchView: View {
     @ViewBuilder private var recentSections: some View {
         if !recents.queries.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                SectionHeading(title: "Recent searches", actionTitle: "Clear") { clearRecents() }
+                SectionHeading(title: t("Recent searches"), actionTitle: t("Clear")) { clearRecents() }
                 VStack(spacing: 0) {
                     ForEach(recents.queries, id: \.self) { words in
                         recentQuery(words)
@@ -180,7 +182,7 @@ struct SearchView: View {
         if !recents.items.isEmpty {
             // Clear sits on the first heading shown.
             let clear: (() -> Void)? = recents.queries.isEmpty ? { clearRecents() } : nil
-            section("Recently opened", clear: clear) {
+            section(t("Recently opened"), clear: clear) {
                 ForEach(recents.items) { item in
                     PosterCard(item: item, width: Layout.posterWidth(sizeClass)) {
                         model.recordSearch(query: nil, item: item)
@@ -211,17 +213,17 @@ struct SearchView: View {
                     .frame(width: 32, height: 32)
                     .contentShape(Rectangle())
             }
-            .accessibilityLabel("Remove \(words)")
+            .accessibilityLabel(t("Remove {search}", ["search": words]))
         }
         .buttonStyle(.plain)
         .contextMenu {
-            Button(role: .destructive) { forget(words) } label: { Label("Remove", systemImage: "xmark") }
+            Button(role: .destructive) { forget(words) } label: { Label(t("Remove"), systemImage: "xmark") }
         }
     }
 
     private func section(_ title: String, clear: (() -> Void)? = nil, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeading(title: title, actionTitle: "Clear", action: clear)
+            SectionHeading(title: title, actionTitle: t("Clear"), action: clear)
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) { content() }
                     .padding(.horizontal, Layout.edge)
@@ -250,24 +252,39 @@ struct SearchView: View {
             // Asked once, before the first search that needs it.
             looksOutside = (try? await client.requestStatus())?.configured == true
         }
-        if musicStatus == nil {
-            musicStatus = (try? await client.musicRequestStatus()) ?? .off
-        }
         do {
             async let beyond: [ExternalTitle] = looksOutside == true ? (try? await client.searchEverything(text)) ?? [] : []
-            async let music: MusicSearchResults = looksForMusic ? (try? await client.searchMusic(text)) ?? .empty : .empty
+            async let music = searchMusic(client, text)
             let found = try await client.search(text)
-            let more = await beyond
-            let moreMusic = await music
+            // The library's results show straight away; what's found beyond it joins them as it comes.
             guard text == query.trimmingCharacters(in: .whitespaces) else { return }
             results = found
+            outside = []
+            outsideMusic = []
+            error = nil
+            lookingFurther = true
+            let more = await beyond
+            guard text == query.trimmingCharacters(in: .whitespaces) else { return }
             // What the library has is already above.
             outside = more.filter { $0.libraryItemId == nil && $0.availability != .available }
+            let (status, moreMusic) = await music
+            guard text == query.trimmingCharacters(in: .whitespaces) else { return }
+            musicStatus = status
             outsideMusic = (moreMusic.artists + moreMusic.albums).filter { $0.libraryItemId == nil && $0.availability != .available }
-            error = nil
+            lookingFurther = false
         } catch {
             self.error = ConnectionError(error).message
+            lookingFurther = false
         }
+    }
+
+    /// Whether music can be asked for, then the music found when it can, beside the library search so a slow Lidarr
+    /// holds up only the music. Asked each search: the model keeps an answer for a minute, and not one that never came,
+    /// so a blip doesn't hide outside music for the rest of the visit.
+    private func searchMusic(_ client: FlexarrClient, _ text: String) async -> (MusicRequestStatus, MusicSearchResults) {
+        let status = await model.musicRequestStatus()
+        guard status.configured else { return (status, .empty) }
+        return (status, (try? await client.searchMusic(text)) ?? .empty)
     }
 
     /// Servers before 0.56 keep no recent searches, and one that can't be reached shows none: nothing to say either way.
@@ -307,9 +324,9 @@ struct PersonView: View {
     private func countLine(_ person: Person) -> String {
         let count = unique(person.credits).count
         if !person.credits.isEmpty, person.credits.allSatisfy({ $0.item.kind == .audiobook }) {
-            return count == 1 ? "1 book" : "\(count) books"
+            return t("{count, plural, one {# book} other {# books}}", ["count": count])
         }
-        return count == 1 ? "1 title in your library" : "\(count) titles in your library"
+        return t("{count, plural, one {# title in your library} other {# titles in your library}}", ["count": count])
     }
 
     private var columns: [GridItem] {
@@ -423,7 +440,7 @@ struct OutsideTitleCard: View {
                     Text(title.title)
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(Color.screen.opacity(0.9))
-                    Text([title.isShow ? "Show" : "Movie", title.year.map(String.init), state == .requested ? TitleWords.requested : nil]
+                    Text([title.isShow ? t("Show") : t("Movie"), title.year.map(String.init), state == .requested ? TitleWords.requested : nil]
                         .compactMap { $0 }.joined(separator: ", "))
                         .font(.caption)
                         .foregroundStyle(Color.usher)
@@ -440,7 +457,7 @@ struct OutsideTitleCard: View {
                 Button {
                     Task { if await model.setOnWatchlist(WatchlistKey(title), !isOn) != nil { onList = !isOn } }
                 } label: {
-                    Label(isOn ? "Remove from watchlist" : "Add to watchlist", systemImage: isOn ? Symbol.onWatchlist : Symbol.watchlist)
+                    Label(isOn ? t(Words.removeFromWatchlist) : t(Words.addToWatchlist), systemImage: isOn ? Symbol.onWatchlist : Symbol.watchlist)
                 }
             }
             if state == .requestable {

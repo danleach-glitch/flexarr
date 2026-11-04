@@ -129,23 +129,41 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var trail: [ItemSummary] = []
     /// The profile's auto-play and skip choices, from the session.
     @ObservationIgnored private var preferences = PlaybackPreferences.standard
+    @ObservationIgnored private var preferencesSave: Task<Void, Never>?
     /// Intros and recaps already skipped by themselves, so seeking back to watch one isn't overruled.
     @ObservationIgnored private var autoSkipped: Set<String> = []
-    /// The episode is over (it ended, or its credits started with Skip credits on): counting down to the next
-    /// (`countdown` seconds left), or waiting to be asked with auto-play off (nil).
+    /// Counting down to the next episode (`countdown` seconds left; docs/next-episode-timing.md). The countdown
+    /// follows the picture, which plays on under it; only when the file ended before it began does `countdownTask` run
+    /// it on the clock instead. With auto-play off and nothing counting, `countdown` is nil.
     @ObservationIgnored private var isFinishing = false
     @ObservationIgnored private var countdown: Int?
     @ObservationIgnored private var countdownTask: Task<Void, Never>?
     /// Cancel was chosen: no more offers of the next episode for this one.
     @ObservationIgnored private var nextCancelled = false
+    /// A seek or start landed past where the countdown would have ended without counting down: this episode plays on
+    /// and counts down over its last seconds instead (`NextEpisodeTiming.playingOn`).
+    @ObservationIgnored private var playingOn = false
     /// The next episode's session, started during the credits so it opens at once, and the request for it.
-    @ObservationIgnored private var prepared: (request: PlaybackRequest, info: PlaybackInfo)?
+    @ObservationIgnored private var prepared: (request: PlaybackRequest, info: PlaybackInfo, at: Date)?
     @ObservationIgnored private var preparing: Task<Void, Never>?
+    /// A title got ready ahead of Play from its page, or a focused card on the TV (docs/fast-start.md), and the one on
+    /// its way: Play takes it over when it asks for exactly that stream.
+    @ObservationIgnored private var warm: PreparedStream?
+    @ObservationIgnored private var warming: (request: PlaybackRequest, task: Task<PreparedStream?, Never>)?
+    /// The engine holds the warm-up's opening bytes (or the next episode's): let go with it.
+    @ObservationIgnored private var warmPrewarmed = false
+    @ObservationIgnored private var nextPrewarmed = false
+    /// The title last closed, and when: its page coming back into view isn't a reason to get it ready again.
+    @ObservationIgnored private var lastClosed: (itemId: String, at: Date)?
+    /// When this title's first picture came, to note a stall soon after (see StartTiming).
+    @ObservationIgnored private var firstPicture: (at: Date, position: Double, playbackId: String?)?
+    /// This title's start, timed until its first picture (see StartTiming).
+    @ObservationIgnored private var timing: StartTiming?
     /// A re-sync of the file's subtitles being followed: which title and file, and the polling.
     @ObservationIgnored private var subtitleSync: (itemId: String, fileId: String, task: Task<Void, Never>)?
-    private static let countdownSeconds = 5
+    private static let countdownSeconds = Int(NextEpisodeTiming.countdownSeconds)
     private static let reportInterval: TimeInterval = 10
-    private static let takenOverMessage = "Someone started watching on another screen, so this one had to stop."
+    private static var takenOverMessage: String { t("Someone started watching on another screen, so this one had to stop.") }
 
     // MARK: Start
 
@@ -165,6 +183,7 @@ final class PlaybackController: NSObject {
         viewerSubtitleKey = subtitleKey.map { .some($0) }
         var request = request(for: itemId, startAt: startAt)
         if let subtitleKey { request.subtitleKey = subtitleKey }
+        timing = StartTiming(.video)
         start(request)
     }
 
@@ -172,6 +191,7 @@ final class PlaybackController: NSObject {
     func playOffline(_ info: PlaybackInfo) {
         guard !isStarting else { return }
         onWillStart?()
+        timing = nil
         shuffling = false
         origin = (nil, info.item.id)
         lastEnding = nil
@@ -181,7 +201,7 @@ final class PlaybackController: NSObject {
         do {
             try present(info)
         } catch {
-            show(.other, message: "This download couldn't be played. Delete it and download it again.", retry: nil)
+            show(.other, message: t("This download couldn't be played. Delete it and download it again."), retry: nil)
         }
     }
 
@@ -198,9 +218,15 @@ final class PlaybackController: NSObject {
         Task {
             defer { isStarting = false }
             do {
-                let info = try await client.startPlayback(request)
+                // Got ready on its page a moment ago: no wait for the server.
+                let ready = request.replacesSessionId == nil ? await takeReady(request) : nil
+                if ready == nil { dropReady() }
+                let info: PlaybackInfo
+                if let ready { info = ready } else { info = try await client.startPlayback(request) }
+                timing?.answered(info, warmed: ready != nil)
                 try present(info)
             } catch {
+                timing = nil
                 log.error("Couldn't start playback of \(request.itemId)", error: error)
                 show(error, retry: request)
             }
@@ -232,9 +258,10 @@ final class PlaybackController: NSObject {
         errorMessage = message
     }
 
-    private func request(for itemId: String, startAt: Double?) -> PlaybackRequest {
-        var request = PlaybackRequest(itemId: itemId, profile: Self.deviceProfile, startPositionSeconds: startAt, shuffle: shuffling ? true : nil)
+    private func request(for itemId: String, startAt: Double?, shuffle: Bool? = nil) -> PlaybackRequest {
+        var request = PlaybackRequest(itemId: itemId, profile: Self.deviceProfile, startPositionSeconds: startAt, shuffle: (shuffle ?? shuffling) ? true : nil)
         request.sound = SoundSettings.current.requested(at: Date())
+        request.measuredBitrate = LinkSpeed.shared.current()
         #if canImport(AetherEngine)
         if Self.usesEngine, engineSuppressedItem != itemId {
             request.profile = Self.engineProfile
@@ -288,6 +315,77 @@ final class PlaybackController: NSObject {
         return AVPlayer.availableHDRModes.contains(.dolbyVision)
     }
 
+    // MARK: Getting ready ahead of Play
+
+    /// Gets `itemId` ready as Play would start it (from the server's resume point), so Play opens it at once: the
+    /// session, and for a file the engine plays itself, its opening bytes. Only with nothing playing here; anything
+    /// else got ready is let go. A busy server says no, and Play starts the usual way.
+    /// `prewarmBytes`: also fetch a played-as-it-is file's opening bytes (from a detail page; not for every card a
+    /// remote passes over, which would download the start of each).
+    func getReady(itemId: String, client: FlexarrClient, prewarmBytes: Bool) {
+        guard info == nil, screen == nil, !isStarting else { return }
+        if let lastClosed, lastClosed.itemId == itemId, Date().timeIntervalSince(lastClosed.at) < 60 { return }
+        self.client = client
+        let owner = client.profileToken
+        let wanted = request(for: itemId, startAt: nil, shuffle: false)
+        if let warm, warm.serves(wanted, owner: owner) { return }
+        if let warming, PreparedStream.same(warming.request, wanted) { return }
+        dropReady()
+        var asking = wanted
+        asking.prepare = true
+        let task = Task { [weak self] () -> PreparedStream? in
+            guard let ready = try? await client.startPlayback(asking) else { return nil }
+            guard let self, let warming = self.warming, PreparedStream.same(warming.request, wanted) else {
+                try? await client.stopPlayback(sessionId: ready.sessionId)
+                return nil
+            }
+            let stream = PreparedStream(request: wanted, info: ready, owner: owner)
+            self.warm = stream
+            self.warming = nil
+            // No title: browsing isn't watching.
+            log.info("Got ready ahead of Play", ["playbackId": ready.playbackId])
+            #if canImport(AetherEngine)
+            // The same URL the engine will open, with no headers, as it opens it: anything else isn't adopted.
+            if prewarmBytes, Self.usesEngine, ready.method == .directPlay, let url = client.url(for: ready.url) {
+                self.warmPrewarmed = true
+                _ = await AetherEngine.prewarm(url: url)
+            }
+            #endif
+            return stream
+        }
+        warming = (wanted, task)
+    }
+
+    /// Lets what was got ready go (best effort); with `itemId`, only if it's that title's.
+    func dropReady(itemId: String? = nil) {
+        if let itemId, (warm?.request.itemId ?? warming?.request.itemId) != itemId { return }
+        warming?.task.cancel()
+        warming = nil
+        #if canImport(AetherEngine)
+        if warmPrewarmed, preparing == nil, prepared == nil { AetherEngine.discardPrewarmedSources() }
+        #endif
+        warmPrewarmed = false
+        guard let warm, let client else { self.warm = nil; return }
+        self.warm = nil
+        Task { try? await client.stopPlayback(sessionId: warm.info.sessionId) }
+    }
+
+    /// The warm-up for exactly `wanted`, taken over (waiting for it if it's on its way), or nil.
+    private func takeReady(_ wanted: PlaybackRequest) async -> PlaybackInfo? {
+        let owner = client?.profileToken
+        if let warm, warm.serves(wanted, owner: owner) {
+            self.warm = nil
+            warmPrewarmed = false // the engine adopts what it holds
+            return warm.info
+        }
+        guard let warming, PreparedStream.same(warming.request, wanted) else { return nil }
+        let stream = await warming.task.value
+        guard let stream, stream.owner == owner, warm?.info.sessionId == stream.info.sessionId else { return nil }
+        warm = nil
+        warmPrewarmed = false
+        return stream.info
+    }
+
     // MARK: The screen and its transport
 
     /// Puts the player screen up (if it isn't already) with a transport for `info`, and attaches the session.
@@ -311,6 +409,8 @@ final class PlaybackController: NSObject {
         // Never the session id, which is the stream URLs' only credential: the playback id stands for it.
         log.info("Playing \(info.item.title): \(info.method.rawValue) from \(Int(info.startPositionSeconds))s",
                  ["playbackId": info.playbackId, "reasons": info.reasons.isEmpty ? nil : info.reasons.joined(separator: "; ")])
+        // The same title opened again (another audio track, a recovered stream): Cancel and the countdown carry over.
+        let sameTitle = self.info?.item.id == info.item.id
         self.info = info
         if soundObserver == nil {
             soundObserver = NotificationCenter.default.addObserver(forName: SoundSettings.changed, object: nil, queue: .main) { [weak self] _ in
@@ -322,8 +422,11 @@ final class PlaybackController: NSObject {
         prompt = .none
         preferences = info.preferences ?? .standard
         autoSkipped = []
-        nextCancelled = false
-        endFinishing()
+        if !sameTitle {
+            nextCancelled = false
+            playingOn = false
+            endFinishing()
+        }
         lastReport = Date()
         // A new session on the server knows nothing yet: its first report tells remotes the tracks and sound.
         reportedTracks = nil
@@ -409,22 +512,35 @@ final class PlaybackController: NSObject {
     /// The profile's subtitle size, changed while watching: drawn at once, and saved for every device.
     func setSubtitleSize(_ size: SubtitleSize) {
         preferences.subtitleSize = size
-        savePreferences()
+        savePreferences { $0.subtitleSize = size }
     }
 
     /// Where the profile's subtitles sit, changed while watching: drawn at once, and saved for every device.
     func setSubtitlePlacement(_ placement: SubtitlePlacement) {
         preferences.subtitlePosition = placement.position
         preferences.subtitlesInBlackBars = placement.inBlackBars
-        savePreferences()
+        savePreferences {
+            $0.subtitlePosition = placement.position
+            $0.subtitlesInBlackBars = placement.inBlackBars
+        }
     }
 
-    private func savePreferences() {
-        if let client {
-            var saved = preferences
-            // Left out, so a switch flipped on another device since playback started isn't turned back.
+    /// Saves one change to the profile's preferences: applied to them as the server has them now, so auto-play and the
+    /// skip switches, changed on another device since playback began, aren't turned back. One save at a time, in order.
+    private func savePreferences(_ change: @escaping @Sendable (inout PlaybackPreferences) -> Void) {
+        guard let client else { return }
+        let previous = preferencesSave
+        preferencesSave = Task {
+            await previous?.value
+            guard var saved = try? await client.playbackPreferences() else { return }
+            change(&saved)
+            // Left out: the server keeps its own.
             saved.listeningInContinue = nil
-            Task { try? await client.setPlaybackPreferences(saved) }
+            do {
+                try await client.setPlaybackPreferences(saved)
+            } catch {
+                log.warning("Couldn't save the subtitle settings", error: error)
+            }
         }
     }
 
@@ -567,7 +683,7 @@ final class PlaybackController: NSObject {
                 self?.endSubtitleSync(failure: error.localizedDescription)
                 return
             }
-            self?.screen?.flash("Re-syncing subtitles…")
+            self?.screen?.flash(t("Re-syncing subtitles…"))
             var misses = 0
             // A film's re-sync takes a minute or more; given up on after half an hour.
             for _ in 0..<600 {
@@ -588,14 +704,14 @@ final class PlaybackController: NSObject {
                     self?.endSubtitleSync(doneWith: status.key ?? key)
                     return
                 case .failed:
-                    self?.endSubtitleSync(failure: status.error ?? "The subtitles couldn't be re-synced.")
+                    self?.endSubtitleSync(failure: status.error ?? t("The subtitles couldn't be re-synced."))
                     return
                 case .idle:
-                    self?.endSubtitleSync(failure: "The re-sync stopped before it finished.")
+                    self?.endSubtitleSync(failure: t("The re-sync stopped before it finished."))
                     return
                 }
             }
-            self?.endSubtitleSync(failure: "The re-sync is taking too long. Try again later.")
+            self?.endSubtitleSync(failure: t("The re-sync is taking too long. Try again later."))
         }
         subtitleSync = (itemId, fileId, task)
         updateSubtitleSearch()
@@ -608,7 +724,7 @@ final class PlaybackController: NSObject {
         updateSubtitleSearch()
         guard let current = info, current.item.id == sync.itemId, current.fileId == sync.fileId, !isRecovering else { return }
         log.info("Subtitles re-synced", ["playbackId": current.playbackId])
-        screen?.flash("Subtitles re-synced")
+        screen?.flash(t("Subtitles re-synced"))
         viewerSubtitleKey = .some(key)
         reopen(reopenRequest(current), replacing: current)
     }
@@ -619,8 +735,8 @@ final class PlaybackController: NSObject {
         updateSubtitleSearch()
         log.warning("Subtitles weren't re-synced: \(message)", ["playbackId": info?.playbackId])
         guard let current = info, current.item.id == sync.itemId, let screen, screen.presentedViewController == nil else { return }
-        let alert = UIAlertController(title: "Couldn't re-sync subtitles", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: t("Couldn't re-sync subtitles"), message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: t("OK"), style: .default))
         screen.present(alert, animated: true)
     }
 
@@ -637,9 +753,10 @@ final class PlaybackController: NSObject {
     }
 
     private func tick(_ seconds: Double) {
-        guard let info, seconds.isFinite, hasPlayed else { return }
+        // Moving on to the next episode: this one's last ticks mustn't start its countdown again.
+        guard let info, seconds.isFinite, hasPlayed, !isAdvancing else { return }
         lastPosition = seconds
-        let next = info.prompt(at: seconds)
+        let next = info.prompt(at: seconds, preferences: preferences)
         // Skip intros and recaps by themselves when the profile asks, once each.
         if case .skip(let type, let end) = next, type == .intro ? preferences.skipIntros : preferences.skipRecaps,
            autoSkipped.insert("\(type.rawValue)@\(end)").inserted {
@@ -649,17 +766,26 @@ final class PlaybackController: NSObject {
         }
         // The sleep timer stops this episode at its end (or has run out): it doesn't go on to the next by itself.
         let sleepHolds = screen?.sleepHoldsEpisode == true
-        // Skip credits: the episode is over as soon as they start. With auto-play off, that closes the player.
-        if preferences.skipCredits, info.next != nil, !nextCancelled, !isFinishing, !sleepHolds,
-           let credits = info.markers.first(where: { $0.type == .credits }), seconds >= credits.start {
-            transport?.pause()
-            report(paused: true, ended: true)
-            if preferences.autoPlayNext {
-                beginFinishing()
-            } else {
+        // The sleep timer took the episode over mid-countdown: it stops here instead.
+        if sleepHolds, isFinishing, countdownTask == nil { endFinishing() }
+        if var timing = info.nextEpisodeTiming(preferences), !nextCancelled, !sleepHolds, countdownTask == nil {
+            // Skip credits with auto-play off: the episode is over as the credits start, which closes the player.
+            if let close = timing.closeAt, seconds >= close {
                 log.info("Credits started with auto-play off: closing", ["playbackId": info.playbackId])
+                report(paused: true, ended: true)
                 dismissPlayer()
                 return
+            }
+            // Landed past the countdown's end without counting (a seek into the credits, a resume): play on to the end.
+            if let from = timing.countdownFrom, let at = timing.nextAt {
+                if seconds < from { playingOn = false } else if seconds >= at, !isFinishing { playingOn = true }
+            }
+            if playingOn { timing = timing.playingOn(duration: info.durationSeconds) }
+            // The countdown, following the picture: pausing holds it, and at 0 the next episode plays.
+            if let left = timing.countdown(at: seconds) {
+                if !isFinishing { beginFinishing(following: true) }
+                if countdown != left { countdown = left; updatePrompt() }
+                if left == 0 { advance(); return }
             }
         }
         if next != prompt {
@@ -667,7 +793,7 @@ final class PlaybackController: NSObject {
             prompt = next
             updatePrompt()
             reportForRemotes()
-            // The credits started: get the next episode ready. Back out of them: let it go.
+            // Next Episode showed: get it ready. Back out before it: let it go.
             if next == .nextEpisode { if !sleepHolds { prepareNext() } } else if !isFinishing { dropPrepared() }
         }
         if Date().timeIntervalSince(lastReport) >= Self.reportInterval, transport?.phase == .playing {
@@ -682,10 +808,26 @@ final class PlaybackController: NSObject {
             // Reported as soon as it's under way, so a remote on another device picks it up at once.
             let first = !hasPlayed
             if first { applyStartingRate(info) }
+            if first, let started = timing, started.isAnswered {
+                started.report(to: log, server: client?.baseURL)
+                firstPicture = (Date(), position, info.playbackId)
+                timing = nil
+            }
             hasPlayed = true
             if reportedPaused || first { report(paused: false) }
         case .paused:
             if hasPlayed { report(paused: true) }
+        case .buffering:
+            // A stall soon after the first picture: its own entry beside the start's. Not a seek (Skip intro, say),
+            // which moves the place well past where playing alone would have got to.
+            if let first = firstPicture {
+                firstPicture = nil
+                let after = Date().timeIntervalSince(first.at)
+                if after < StartTiming.earlyStall, abs(position - first.position - after) < 3 {
+                    log.measured("Playback \(first.playbackId ?? "unknown") stalled soon after starting",
+                                 ["afterMs": String(Int(after * 1000)), "remote": String(StartTiming.looksRemote(client?.baseURL)), "playbackId": first.playbackId])
+                }
+            }
         case .ended:
             itemEnded()
         case .failed(let reason):
@@ -796,7 +938,8 @@ final class PlaybackController: NSObject {
         if info?.isOffline == true {
             return dismissPlayer { self.show(.other, message: reason, retry: nil) }
         }
-        guard !isRecovering, let client, let current = info, let screen else { return }
+        // Moving on stops this stream: its failing then is expected, not a reason to open it again.
+        guard !isRecovering, !isAdvancing, let client, let current = info, let screen else { return }
         let failed = current.sessionId
         let retry = reopenRequest(current)
         guard Date().timeIntervalSince(lastRecovery) > 60 else {
@@ -901,10 +1044,11 @@ final class PlaybackController: NSObject {
                 return
             }
             log.info("Next episode ready: \(ready.item.title)", ["playbackId": ready.playbackId])
-            prepared = (request, ready)
+            prepared = (request, ready, Date())
             #if canImport(AetherEngine)
             // The same URL the engine will open, with no headers, as it opens it: anything else isn't adopted.
             if Self.usesEngine, ready.method == .directPlay, let url = client.url(for: ready.url) {
+                nextPrewarmed = true
                 let report = await AetherEngine.prewarm(url: url)
                 log.debug("Next episode warmed: \(report.retainedBytes) bytes\(report.declined.map { " (\($0))" } ?? "")", ["playbackId": ready.playbackId])
             }
@@ -917,20 +1061,26 @@ final class PlaybackController: NSObject {
         preparing?.cancel()
         preparing = nil
         #if canImport(AetherEngine)
-        AetherEngine.discardPrewarmedSources()
+        // Only what the next episode warmed: a page's warm-up, just taken over, may be what the engine is opening.
+        if nextPrewarmed { AetherEngine.discardPrewarmedSources() }
+        nextPrewarmed = false
         #endif
         guard let prepared, let client else { self.prepared = nil; return }
         self.prepared = nil
         Task { try? await client.stopPlayback(sessionId: prepared.info.sessionId) }
     }
 
-    /// The episode is over (with auto-play on): count down to the next one.
-    private func beginFinishing() {
+    /// Count down to the next episode (with auto-play on): `following` the picture as it plays on, or on the clock
+    /// over the last frame when the file ended before the countdown began.
+    private func beginFinishing(following: Bool = false) {
         guard info?.next != nil, !isFinishing else { return }
         isFinishing = true
         prepareNext()
         countdownTask?.cancel()
-        if preferences.autoPlayNext {
+        countdownTask = nil
+        if following {
+            countdown = Self.countdownSeconds
+        } else if preferences.autoPlayNext {
             countdown = Self.countdownSeconds
             countdownTask = Task { [weak self] in
                 while let self, let left = self.countdown, left > 0 {
@@ -955,32 +1105,36 @@ final class PlaybackController: NSObject {
         updatePrompt()
     }
 
-    /// Not now: stop counting, and if the credits were skipped, let them play.
+    /// Not now: stop counting and play on; the player closes at the end unless Next Episode is chosen.
     private func cancelNext() {
         nextCancelled = true
         dropPrepared()
         let ended = transport?.phase == .ended
         endFinishing()
-        if !ended { transport?.play() }
+        // Over already: nothing left to play on to.
+        if ended { dismissPlayer() }
     }
 
     /// "Next episode in 4" (on shuffle too: the next one just happens to be random).
     private var nextTitle: String {
-        countdown.map { "Next episode in \($0)" } ?? "Next episode"
+        countdown.map { t(Words.nextEpisodeIn, ["seconds": $0]) } ?? t("Next episode")
     }
 
     private func updatePrompt() {
+        var symbol = "forward.fill"
         let title: String? = if isFinishing {
             nextTitle
         } else {
             switch prompt {
             case .none: nil
-            case .skip(let type, _): type == .recap ? "Skip recap" : "Skip intro"
+            case .skip(let type, _): type == .recap ? t(Words.skipRecap) : t(Words.skipIntro)
             // Not over the sleep timer's question, or for an episode it's stopping at the end of.
             case .nextEpisode: screen?.sleepHoldsEpisode == true ? nil : nextTitle
             }
         }
-        screen?.setPrompt(title, countingDown: isFinishing && countdown != nil)
+        if !isFinishing, case .skip = prompt { symbol = "forward.end.fill" }
+        // After Cancel the button stays, but Select pauses as usual rather than pressing it.
+        screen?.setPrompt(title, symbol: symbol, countingDown: isFinishing && countdown != nil, takesFocus: !nextCancelled)
     }
 
     private func promptTapped() {
@@ -1007,7 +1161,10 @@ final class PlaybackController: NSObject {
             screen.sleepAtEndOfEpisode()
             return
         }
-        if info?.next != nil, !nextCancelled, preferences.autoPlayNext {
+        // Counting down as it played: the countdown was all but done.
+        if isFinishing, countdownTask == nil, !nextCancelled {
+            advance()
+        } else if info?.next != nil, !nextCancelled, preferences.autoPlayNext {
             beginFinishing()
         } else {
             dismissPlayer()
@@ -1061,11 +1218,17 @@ final class PlaybackController: NSObject {
         guard !isAdvancing, let client else { return }
         log.info("Moving on to \(target.title)", ["playbackId": current.playbackId])
         isAdvancing = true
+        // Moving on from Next Episode (or its countdown) finishes this one, however short it is.
+        let finishedIt = isPastCredits(current) || isFinishing || prompt == .nextEpisode
+        // The old picture stops now rather than playing on while the next one opens, and the pill goes as it is.
+        transport?.pause()
+        prompt = .none
         endFinishing()
-        report(paused: false, ended: leavingTrail && isPastCredits(current))
-        if recordsHistory, isPastCredits(current) { onWatchedToEnd?(false) }
+        report(paused: false, ended: leavingTrail && finishedIt)
+        if recordsHistory, finishedIt { onWatchedToEnd?(false) }
         let finished = current.sessionId
         carriedRate = nil
+        timing = StartTiming(.video)
         Task {
             defer { isAdvancing = false }
             try? await client.stopPlayback(sessionId: finished)
@@ -1073,13 +1236,17 @@ final class PlaybackController: NSObject {
                 let request = nextRequest(target, after: current)
                 viewerSubtitleKey = request.subtitleKey == "off" ? .some(nil) : nil
                 let info: PlaybackInfo
-                if let ready = prepared, ready.info.item.id == target.id, ready.request.subtitleKey == request.subtitleKey {
+                // Not after half an hour on the up-next card: the server may have let it go by then.
+                if let ready = prepared, ready.info.item.id == target.id, ready.request.subtitleKey == request.subtitleKey,
+                   Date().timeIntervalSince(ready.at) < PreparedStream.nextEpisodeMaxAge {
                     prepared = nil
                     log.info("Using the next episode got ready during the credits")
                     info = ready.info
+                    timing?.answered(info, warmed: true)
                 } else {
                     dropPrepared()
                     info = try await client.startPlayback(request)
+                    timing?.answered(info, warmed: false)
                 }
                 guard self.info?.sessionId == finished, let screen else { // Closed meanwhile.
                     try? await client.stopPlayback(sessionId: info.sessionId)
@@ -1171,6 +1338,8 @@ final class PlaybackController: NSObject {
 
     /// `recording`: a real stop, so a downloaded file's position is kept (not when one session replaces another).
     private func stop(reportingTo client: FlexarrClient?, recording: Bool = false) {
+        if let info { lastClosed = (info.item.id, Date()) }
+        firstPicture = nil
         let watchedToEnd = recording && recordsHistory && info.map(isPastCredits) == true
         if recording, let info, let origin {
             // Watched as the server counts it, so the page moves on exactly when the server has it as watched.
@@ -1226,12 +1395,12 @@ final class PlaybackController: NSObject {
             let channels: String = switch track.channels {
             case 8: "7.1"
             case 6: "5.1"
-            case 2: "stereo"
+            case 2: t("stereo")
             default: ""
             }
             return [codec, channels].filter { !$0.isEmpty }.joined(separator: " ")
         }
-        let parts = [info.item.resolution, sound, info.isOffline ? "Downloaded" : info.method == .directPlay ? "Original" : nil].compactMap { $0 }.filter { !$0.isEmpty }
+        let parts = [info.item.resolution, sound, info.isOffline ? t("Downloaded") : info.method == .directPlay ? t("Original") : nil].compactMap { $0 }.filter { !$0.isEmpty }
         return parts.isEmpty ? nil : parts.joined(separator: "   ")
     }
 
@@ -1295,8 +1464,10 @@ extension PlaybackController: PlayerScreenDelegate {
     func playerScreen(_ screen: PlayerViewController, didSeekTo seconds: Double) {
         lastPosition = seconds
         reportForRemotes(at: seconds)
-        if isFinishing, seconds < (info?.durationSeconds ?? 0) - 1 {
-            // Scrubbed back out of the end: not finishing after all.
+        let timing = info.flatMap { info in info.nextEpisodeTiming(preferences).map { playingOn ? $0.playingOn(duration: info.durationSeconds) : $0 } }
+        let from = countdownTask == nil ? timing?.countdownFrom : nil
+        if isFinishing, seconds < from ?? (info?.durationSeconds ?? 0) - 1 {
+            // Scrubbed back before the countdown (or out of the end): not finishing after all.
             nextCancelled = false
             endFinishing()
         }
@@ -1367,6 +1538,7 @@ extension PlaybackController: PlayerScreenDelegate {
     }
 
     func playerScreenSleepChanged(_ screen: PlayerViewController) {
+        if screen.sleepHoldsEpisode, isFinishing, countdownTask == nil { endFinishing() }
         updatePrompt()
     }
 
@@ -1376,26 +1548,5 @@ extension PlaybackController: PlayerScreenDelegate {
 
     func playerScreen(_ screen: PlayerViewController, resyncSubtitle key: String) {
         resyncSubtitles(key: key)
-    }
-}
-
-/// A little time from iOS to finish something after the app leaves the screen. Ended when the work is done, or by
-/// iOS when the time runs out.
-@MainActor
-private final class BackgroundTime {
-    private var id = UIBackgroundTaskIdentifier.invalid
-
-    init(named name: String) {
-        id = UIApplication.shared.beginBackgroundTask(withName: name) { [weak self] in
-            MainActor.assumeIsolated { self?.end() }
-        }
-    }
-
-    nonisolated func end() {
-        Task { @MainActor in
-            guard self.id != .invalid else { return }
-            UIApplication.shared.endBackgroundTask(self.id)
-            self.id = .invalid
-        }
     }
 }

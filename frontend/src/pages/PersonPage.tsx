@@ -8,16 +8,17 @@ import { Overview } from '../components/Overview'
 import { PersonEditor } from '../components/PersonEditor'
 import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
+import { t, tk } from '../i18n'
 
 const roleLabel: Record<CreditRole, string> = {
-  Actor: 'Acting',
-  Director: 'Directing',
-  Writer: 'Writing',
-  Creator: 'Creating',
-  Producer: 'Producing',
-  Author: 'Books',
-  Narrator: 'Narrated',
-  Translator: 'Translated',
+  Actor: tk('Acting'),
+  Director: tk('Directing'),
+  Writer: tk('Writing'),
+  Creator: tk('Creating'),
+  Producer: tk('Producing'),
+  Author: tk('Books'),
+  Narrator: tk('Narrated'),
+  Translator: tk('Translated'),
 }
 
 /** Books have square covers. */
@@ -37,8 +38,6 @@ export function PersonPage() {
     .filter((g) => g.credits.length > 0)
   const books = data.credits.length > 0 && data.credits.every((c) => bookRoles.has(c.role))
   const count = data.credits.length
-  const one = books ? 'One book' : 'One title'
-  const many = `${count} ${books ? 'books' : 'titles'}`
   // Fixing a photo or biography is for authors, narrators and translators: book sources know them, and an actor's TMDB
   // photo would stop updating once saved. The main profile, locked here, gives the PIN first.
   const canEdit = (me?.isAdmin === true || me?.canUnlock === true) && data.credits.some((c) => bookRoles.has(c.role))
@@ -55,10 +54,12 @@ export function PersonPage() {
         </div>
         <div>
           <h1>{data.name}</h1>
-          <p className="muted">{count === 1 ? `${one} in your library` : `${many} in your library`}</p>
+          <p className="muted">{books
+              ? t('{count, plural, one {One book in your library} other {# books in your library}}', { count })
+              : t('{count, plural, one {One title in your library} other {# titles in your library}}', { count })}</p>
           {canEdit && (
             <button className="button quiet person-edit" onClick={() => void edit()}>
-              Edit
+              {t('Edit')}
             </button>
           )}
           {data.biography && (
@@ -70,12 +71,12 @@ export function PersonPage() {
       </header>
       {byRole.map((group) => (
         <section key={group.label} className="person-section">
-          {byRole.length > 1 && <h2>{group.label}</h2>}
+          {byRole.length > 1 && <h2>{t(group.label)}</h2>}
           <div className={bookRoles.has(group.role) ? 'poster-grid square' : 'poster-grid'}>
             {group.credits.map((c) => (
               <div key={c.item.id + group.label}>
                 <PosterCard item={c.item} />
-                {c.character && <p className="as-character muted">as {c.character}</p>}
+                {c.character && <p className="as-character muted">{t('as {character}', { character: c.character })}</p>}
               </div>
             ))}
           </div>

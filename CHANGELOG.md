@@ -4,7 +4,130 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Android
+- Counts read properly for one of something: "1 track", "1 season" and "1 episode" where some said "1 tracks" or "1 songs".
+- Dates, times, numbers and file sizes follow your phone's or TV's own way of writing them everywhere.
+
+### iPhone and Apple TV
+- Counts read properly for one of something: "1 track", "1 season" and "1 episode" where some said "1 tracks".
+- Dates, times, numbers and file sizes follow your device's own way of writing them everywhere, including the live TV guide and recordings.
+
+### Web
+- Counts read properly for one of something: "1 track", "1 season" and "1 channel" where some said "1 tracks".
+- Dates and numbers follow your browser's own way of writing them everywhere, including the live TV guide and recordings.
+
+### Website
+- flexarr.io/why is now linked from every page: how Flexarr compares with Plex, Jellyfin and Emby and with the Infuse, Plezy, Swiftfin and Rivulet apps, brought up to 0.60.0 with music requests, scores, fixing matches, what a show is missing and audiobooks.
+
+## 0.60.0 · 3 November 2026
+
 ### Playback
+- The picture no longer pauses when **Next Episode** counts down. The episode keeps playing under a 10-second countdown, on every app and the web. With **Skip credits** on, the countdown starts just before the credits, so the next episode begins as they do. With it off, the credits play in full and the next episode follows straight on.
+- For shows with no credits found, **Next Episode** appears a minute before the end.
+- Pausing holds the countdown. The **✕** beside **Next Episode** lets the episode play to the end, then the player closes. On a TV, Back does the same.
+- The countdown keeps still as it counts, rather than changing width with each number.
+- Skipping ahead into the credits plays them on, rather than jumping to the next episode.
+
+### iPhone and Android
+- A film's or show's page fits its buttons on one row, like an episode's: Trailer and Watchlist before you start, Start over and Watched once you have, with the rest in More. Watched keeps its name and fills its tick, like Download.
+
+### Android
+- The More button now shows the same three dots in a row everywhere (Podcasts, Downloads, Recordings and music downloads), and Download shows the same circled arrow as the rest of the app.
+- Connecting a game controller or keyboard while something plays no longer restarts the film or channel.
+- Google Play's update prompt no longer comes back after you turn the phone or change the font size or dark mode.
+- Notifications with artwork always show, even when the picture is slow to arrive.
+- A TV left on the connect screen stops asking to connect while Flexarr is in the background.
+- Download notifications open Downloads when tapped, have a Stop download button, and your first download asks to show them, so you can see progress.
+- Albums play without a gap between tracks: the next track is got ready a few seconds before the current one ends, so music also no longer stalls between tracks with the screen off.
+- After Flexarr has been closed, your headset's play button and Android's recent media controls pick up your last audiobook or podcast episode where you left off.
+- If your Flexarr server is older than 0.50.0, the phone and TV apps now say "Update your Flexarr server" when you try to connect, and show the same message after you sign in.
+
+### Apple TV
+- Resting or rolling your thumb on the remote's clickpad no longer moves your place in a film: the timeline only moves once you clearly swipe. Clicking to play from pause just plays, slow swipes move a few seconds at a time and fast ones cover the whole film, and clicking after a swipe jumps there and plays.
+
+### iPhone and Apple TV
+- Long-press menus on posters use the same icons as a title's page, and Mark as watched and Mark as unwatched no longer look the same.
+- Downloads no longer freeze at a percentage after the app is swiped away mid-download: they carry on from where they got to.
+- Your place in music, podcasts and audiobooks is saved even when you pause from the lock screen or take your AirPods out.
+- Changing subtitle size or position while watching no longer turns back autoplay or skip settings you changed on another device.
+- The podcast and audiobook widget clears when you sign out or switch profiles, so it no longer shows the last person's episode.
+- If your Flexarr server is older than 0.50.0, the app now says "Update your Flexarr server" when you try to connect, and shows the same message after you sign in.
+
+### Mac app
+- The Live TV recordings folder, the backups folder and the server side of a path mapping are now chosen in macOS's folder window, so they're folders the Mac app can actually use.
+- A library folder on a USB drive or NAS that wasn't mounted when the app started is no longer forgotten: it opens as soon as the drive mounts.
+- The Mac app announces the server on your network itself, so the Flexarr apps can find it.
+- Bringing Plex profile pictures over now says it can't be done in the Mac app, instead of saying Plex isn't signed in.
+
+### Live TV
+- Settings now refuses a recordings folder Flexarr can't write to and says why, instead of saving it and letting every recording fail later. Its folder can also be picked by browsing.
+- Leaving a channel while it's still starting now lets the provider's stream go, so the next channel isn't refused. The channel list loads logos as you scroll and shows the channel's initials when a logo fails.
+- Stopping a recording just after the server restarts now stops it and saves what was recorded.
+- Live TV and films starting at the same moment can no longer go over the server's limit on playback at once.
+
+### Web
+- Settings › Backups lets you browse for the backups folder as well as typing it.
+- If Update now or Delete backup fails, the dialog now says why, instead of just re-enabling its buttons.
+- The search palette and Now Playing keep keyboard focus inside them. In the search palette, Enter on a Play or Remove button does what the button says, and the highlighted result scrolls into view as you arrow through it.
+- Film and show titles and summaries are easier to read over bright backdrops.
+- On a phone, a library's views (like All movies) stay on one line, genres scroll in a single row so the posters come sooner, and switches in Settings stay at the end of their row.
+- A browser that's been signed out while open (the API key changed, or Sign out every other browser was used) now goes back to the sign-in form instead of showing "API key required" on every page.
+- An audiobook's place saved in the browser, and the music queue, now belong to the profile that made them, so another profile on the same computer no longer starts at someone else's place or finds their queue after Switch profile.
+- Closing the tab partway through a podcast episode now saves where you got to.
+- When the browser can't play a file directly after all and Flexarr converts it instead, the audio track and subtitles you chose stay selected.
+- On touch screens, the seek bar no longer gets stuck mid-drag when the drag turns into a scroll.
+- The web app opens faster: pages people visit less often (Podcasts, Discover, Collections, playlists and others) load when they're opened, and going Back while something plays no longer reloads everything.
+
+### Security
+- The setup guide hides Radarr, Sonarr and Lidarr API keys as you type them, like Settings › Connections does, and a kids profile no longer briefly opens adult-only pages before going Home.
+- On Android, away from home, your sign-in goes to your server's home address only after it has shown it's your server, so another network using the same address never receives it.
+- On Android, a server found on your network is reached only at its home-network address, never at an address somewhere else that it advertises.
+- Downloading a backup or exporting settings now asks for the admin PIN, as showing the API key does: both files hold every key.
+- Switching "Ask for the API key" to "Only away from home" now asks for the admin PIN.
+- Playback events for Home Assistant no longer include anything that could be used to open someone else's stream.
+- A phone on a profile with an age limit no longer sees the title or artwork of a film past that limit playing on another screen.
+- The assistant's "what's playing" tool tells family guests nothing about the household's screens.
+- Podcast artwork can no longer make the server fetch from your home network.
+- Guessing the admin PIN from many addresses now runs out of tries for the day; signed-in admins still get in.
+- In Docker, Settings warns that "Only away from home" can let visitors from the internet in.
+
+### Playback
+- A title got ready ahead of Play now builds its full run-ahead once you press Play, so skipping an intro or jumping ahead soon after starting no longer stalls while the server catches up.
+- Looking at a title page no longer keeps the server converting that title for minutes, so browsing doesn't fill the server's playback slots.
+- The first moments of an Apple TV stream no longer sometimes fail with "The segment couldn't be converted".
+- When the hardware encoder fails after a jump in a film, Apple players now restart the stream cleanly instead of playing a picture that doesn't match.
+
+### Downloads
+- A download the hardware encoder can't convert is now converted again in software, instead of failing with "Converting this file didn't work."
+- A download whose conversion hits an unexpected error now says it failed, instead of staying at "Preparing 0%" until the server restarts.
+
+### Home
+- The big slides at the top of Home show a different set of films and shows each day, drawn from your whole library instead of the same few every time.
+- Films you've watched and shows you've finished stay off those slides while there's something you haven't seen, and the genre rows change daily too.
+
+### Library
+- The server's cache no longer grows without limit: it now tidies away old scrubbing previews, subtitles and channel logos, and anything left by a crash.
+- If Sonarr or Radarr is down or restarting during a metadata refresh, films and shows stay linked to it. They no longer come unlinked for a week, which had let deleting them bypass Sonarr or Radarr.
+- Removing a folder from a library now removes everything that came from it, artists and videos straight in the folder included, so adding that folder to another library scans cleanly.
+- A folder the scan can't read for a moment (a permissions glitch, a share having trouble) no longer counts as deleted, so its titles and their playlist entries aren't removed a day later.
+- If one of several Radarrs can't be reached, franchise collections still sync from the others.
+
+### Music
+- When Lidarr upgrades a track (say MP3 to FLAC) or renames it, the track keeps its place in playlists and its play history.
+
+### Podcasts
+- One podcast feed that keeps failing no longer stops the others from refreshing.
+
+### Trakt
+- A Trakt history import and the regular Trakt sync no longer run at the same time for a profile, so imported plays aren't delayed and the import no longer fails when they overlap.
+
+## 0.59.0 · 3 November 2026
+
+### Playback
+- Movies, episodes and audiobooks start sooner, especially away from home: a title gets ready while its page is open (on the Apple TV and Android TV, while **Play** or a **Continue watching** card is selected).
+- Away from home, a movie, show or album too big for your connection is converted to fit, so it plays instead of buffering. **Settings › Streaming › Away from home** set to **Original quality** turns this off; at home nothing changes.
+- An audiobook in a format some devices can't play is converted before you press **Play**, so it starts without a wait.
+- **Settings › Overview** shows what's being got ready ahead of **Play** as well as what's playing.
 - After you finish an episode, the page you played it from moves on, in every app: a show's Play offers the next episode, and an episode's page shows the next one.
 - On the web, closing the player goes back to the page you pressed Play on, as in the apps.
 - On the web with **Skip credits** on, moving on to the next episode no longer marks it watched and jumps straight past it to the one after, and nothing plays while the next-episode countdown runs.
@@ -31,26 +154,30 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A series page lists the books of it that Audible has and you don't, under **Not in your library**, with their number in the series.
 
 ### Movies and shows
+- On the web, the main profile can **Edit…** a movie's or show's details from its **⋯**: its title, how it sorts, original title, year, description, genres and studio or network. Edits are locked so refreshes keep them, and **Back to automatic** hands them back. **Fix match** to a different title replaces them, and says so first.
 - A show's page lists what you don't have, under **Not in your library**, in every app: seasons you have none of, with **Request** to ask Seerr for just that season, and the episodes missing from seasons you have, which the main profile can **Search** for with Sonarr. **Coming up** lists the next episodes with the day each airs, and a season that's short says so on its tab (**8 of 10**). Kids profiles don't see it.
 - On the web, movie, show, season and episode cards have a play button when you point at them, as albums and books do. A show or season plays its next episode.
 - Movie and show pages show their **IMDb** and **Rotten Tomatoes** scores beside each one's logo, with the tomato for Certified Fresh, Fresh or Rotten, in every app. The Home hero and Discover's title pages show them too. Kids profiles don't see scores.
-- Movies get both scores from Radarr. With Seerr connected, shows get their Rotten Tomatoes score too, and the tomato says when a title is Certified Fresh. A title without an IMDb score, as most shows are, keeps the score it had beside the tomato.
+- Movies get both scores from Radarr, and their Rotten Tomatoes score from Seerr when it's connected. With Seerr, shows get their Rotten Tomatoes score too, and the tomato says when a title is Certified Fresh. A title without an IMDb score, as most shows are, keeps the score it had beside the tomato.
+- To fetch the scores, the first library scan after updating refreshes every movie and show once, so it takes longer than usual on a big library, and the apps load each poster and backdrop again.
 - Discover's title pages show IMDb and Rotten Tomatoes in place of the four scores they had (TMDB, IMDb, critics and audience). TMDB's score stays when there's no IMDb score.
 - On Android TV, kids profiles no longer see a score on a title's page, the Home hero or an artist's page.
-- Requesting a movie or show works the way requesting music does, in every app. **Requested** is a button now: press it to take the request back. It asks first, and it's for the whole household: Seerr forgets the request, Radarr or Sonarr stop looking for it and cancel its download, and one with nothing downloaded yet leaves them. Nothing on disk is deleted. On a show's page, a requested season can be taken back on its own. Family guests can ask for a title but not take one back.
+- Requesting a movie or show works the way requesting music does, in every app. **Requested** is a button now: press it to take the request back. It asks first, and it's for the whole household: Seerr forgets the request, Radarr or Sonarr stop looking for it and cancel its download, and one with nothing downloaded yet leaves them. Nothing on disk is deleted, and a title added straight to Radarr or Sonarr, which nobody requested, is left alone. On a show's page, a requested season can be taken back on its own. Family guests can ask for a title but not take one back.
 - Request buttons are greyed while Seerr isn't answering, and a request Seerr can't take says **Can't request**, with why.
 - On iPhone and Android, **Not in your library** results in Search can be unrequested from their press-and-hold menu.
-- On the web, Movies and TV libraries have **Requested**: every movie or show asked for through Seerr that's on its way to that library, with **Downloading** and how far, **Importing**, **Searching** or when it's out. **Unrequest** takes one back.
+- On the web, Movies and TV libraries have **Requested**: every movie or show asked for through Seerr that's on its way to that library, with **Downloading** and how far, **Importing**, **Searching** or when it's out. **Unrequest** takes one back. While something downloads, the page keeps its progress up to date.
 
 ### Search
 - Search lists movies, shows, artists and albums you don't have under **Not in your library** on the web, the Apple TV and Android TV too, as on the phones. A movie or show opens its own page in every app, with **Request** and **Watchlist** (on the phones it used to open a menu).
-- On iPhone, iPad, Android phones and the Apple TV, search lists the artists and albums you have under **Artists** and **Albums**, rather than artists among the movies and shows. The Apple TV's search finds audiobooks too.
+- On iPhone, iPad, Android phones, the Apple TV and Android TV, search lists the artists and albums you have under **Artists** and **Albums**, rather than artists among the movies and shows. The Apple TV's search finds audiobooks too.
 - On the web, a genre found by search opens that genre in its own library: a music genre's albums, a books genre's page, or the movies or shows of that genre. A genre in more than one library is listed once for each.
 
 ### Music
+- On the web, the main profile can **Fix match…** an album or artist from its **⋯**, choosing from what Lidarr has or from Deezer (no Lidarr needed), and pick which cover to use. Nothing changes in Lidarr, and refreshes keep the choice. **Edit…** on an album changes its title, year, type and genres.
+- **Library health** checks music too: albums without a cover (with **Fix match**), the same album twice, albums with a track twice, and one artist under two spellings. **Merge** makes two copies of an album, or an artist's spellings, one in Flexarr, and new tracks land in the one kept. Merging an artist's spellings also merges an album both of them had, unless both copies have the same tracks: those stay under **Duplicate albums**. No files are moved or deleted. Albums count towards the health score.
 - On Android and Android TV, albums and artists in Home's rows look as they do in the music library (square covers, round artists), and pressing and holding one no longer offers *Mark as watched*.
 - A music library's page now works like Movies and TV on the web, iPhone, iPad, Apple TV, Android and Android TV. A picture across the top starts with the album you played last, and **Resume** carries on from the next track. Then come artists you play, with **Play** and **Radio**, and the newest albums.
-- **Artists**, **Albums** and **Genres** sit beside **Browse** at the top. Albums lists every album, sorted A to Z, by date added or by year. Each genre opens its albums, and **Play** or **Shuffle** plays up to 200 of its tracks.
+- **Artists**, **Albums** and **Genres** sit beside **Browse** at the top. Albums lists every album, sorted A to Z, by date added or by year. On the web, a genre whose artists have no artwork shows a few of its album covers. Each genre opens its albums, and **Play** or **Shuffle** plays up to 200 of its tracks.
 - Browse ends with **Your artists**, and **See all** opens every artist. **See all** on **New albums** opens Albums, newest first.
 - On Apple TV, **Settings › Libraries** chooses which of the four views music opens on, and the Top Shelf shows the albums you played last.
 - Sorting a library reads the same in every app: **A–Z**, **Recently added**, **Year** and **Rating**.
@@ -63,19 +190,26 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - With more than one music library, each profile's **New music goes to** chooses where its requests land. An admin can turn music requests off under Lidarr in **Settings › Connections**.
 - An artist you follow joins your library's **Artists** straight away, before any of their music arrives, and fills in as albums come.
 - **Following** and **Requested** are buttons now, with an icon (labelled on the web). Press one to stop following an artist (Lidarr stops looking for their new albums) or to unrequest an album (Lidarr stops wanting it and cancels its download). Each asks first, and it's for the whole household (family guests can ask for music but not take it back).
-- On the web, a music library has **Requested**: every album Lidarr is waiting for with that library's artists, including new releases by artists you follow, with **Downloading** and how far, **Importing**, **Searching** or when it's out. **Unrequest** takes one back.
+- On the web, a music library has **Requested**: every album Lidarr is waiting for with that library's artists, including new releases by artists you follow, with **Downloading** and how far, **Importing**, **Searching** or when it's out. **Unrequest** takes one back. While something downloads, the page keeps its progress up to date.
 - On the web, the main profile can delete an album or an artist from its **⋯** menu. With Lidarr, Lidarr deletes the files; a deleted album stays requestable without downloading again.
 - Without Lidarr, Discover › Music, Follow and Request aren't shown. With Lidarr connected but not answering, they're greyed.
 - Music libraries without Lidarr get their **Genres** from the files' genre tags, as new albums are scanned.
 - An artist's page from outside your library opens sooner, with the usual spinner while it loads. Artist and album pages put their buttons in the same order in every app.
 - On the web, **Playlists** is one of a music library's views, beside **Genres**, with **Requested** last. With no playlists yet, **New playlist** waits in the middle of the page.
 - On the web, **Add to playlist** is smaller: pick a playlist, or name a new one on a single line.
-- On the web, **Fans also like** (and every artist card) says **Following** for an artist in your library that Lidarr follows, and offers **Follow** for one it doesn't.
+- On the web, iPhone, iPad and the Apple TV, **Fans also like** (and every artist card) says **Following** for an artist in your library that Lidarr follows, and offers **Follow** for one it doesn't.
 - In the apps, press and hold an album, artist, track or playlist for **Play**, **Shuffle**, **Play next**, **Add to queue** and **Go to artist** (and **Download** on phones). Tracks in an album or playlist have the same menu, and album and artist pages have a **⋯** with **Play next** and **Add to queue**.
 - On iPhone, iPad and Android phones, **Add to playlist** adds a track, album or artist to one of your playlists, or starts a new one with it.
 - On the web, the player bar along the bottom only shows while something is playing.
 - On the web, a music library's **Artists** and **Albums** no longer have a row of genre buttons: **Genres** does that. Library pages no longer have **Scan for changes**: it's in **Settings › Libraries**.
 - In **Settings › Connections**, adding Lidarr (or Sonarr or Radarr) says whether Flexarr's webhook got added to it, so new music shows up as soon as it's imported. **Webhooks** has an **Add to** button for each connected app, to add it later or after making a new secret.
+
+### Look and feel
+- On the Apple TV, the Flexarr name at the foot of the menu shows in full beside the version, rather than cut short.
+
+### Android
+- Flexarr on **Android TV and Google TV**: the Android app now has its TV layout in every build, ready for Google Play. It's laid out like the Apple TV app: Home, your libraries, search, live TV and music, all with the remote.
+- The Android app offers **Restart to update** once Google Play has downloaded a newer version, on phones and TVs.
 
 ## 0.58.0 · 2 November 2026
 

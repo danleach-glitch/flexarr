@@ -1,5 +1,6 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.t
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +46,7 @@ import kotlin.coroutines.resumeWithException
 sealed class FlexarrException(message: String) : Exception(message) {
     /** The server rejected the sign-in (or one is required and none was sent). */
     class Unauthorized : FlexarrException(
-        "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Security on the web.",
+        t("The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Security on the web."),
     )
 
     /**
@@ -53,29 +54,29 @@ sealed class FlexarrException(message: String) : Exception(message) {
      * [guestRemoved]: a 403 saying this is a family guest's device its host removed (servers from 0.57).
      */
     class Http(val status: Int, message: String?, val detail: String? = null, val guestRemoved: Boolean = false) :
-        FlexarrException(message ?: "The server answered with an error (HTTP $status).")
+        FlexarrException(message ?: t("The server answered with an error (HTTP {status}).", "status" to status.toString()))
 
     /**
      * This takes the admin PIN (leaving a kids profile, locking or releasing a device), which wasn't given or
      * wasn't right. The message is the server's.
      */
-    class ParentPinNeeded(message: String?) : FlexarrException(message ?: "Enter the admin PIN.")
+    class ParentPinNeeded(message: String?) : FlexarrException(message ?: t("Enter the admin PIN."))
 
     /** The admin PIN was right but the chosen profile's own PIN wasn't. The message is the server's. */
-    class OwnPinWrong(message: String?) : FlexarrException(message ?: "That PIN isn’t right.")
+    class OwnPinWrong(message: String?) : FlexarrException(message ?: t("That PIN isn’t right."))
 
     /** This device is locked to kids profiles, so only they can be chosen. */
-    class KidsLocked(message: String?) : FlexarrException(message ?: "Child lock is on for this device.")
+    class KidsLocked(message: String?) : FlexarrException(message ?: t("Child lock is on for this device."))
 
     /** A live channel can't be watched: every stream is recording, [recording] among them. */
     class RecordingInTheWayException(val recording: RecordingInTheWay) : FlexarrException(recording.message)
 
     /** The response was not what a Flexarr server sends (for example an HTML page). */
-    class UnexpectedResponse : FlexarrException("That address answered, but not like a Flexarr server. Check the host name and port.")
+    class UnexpectedResponse : FlexarrException(t("That address answered, but not like a Flexarr server. Check the host name and port."))
 
-    class InvalidAddress : FlexarrException("That doesn't look like a server address. Try something like http://192.168.1.20:8383.")
+    class InvalidAddress : FlexarrException(t("That doesn't look like a server address. Try something like {example}.", "example" to "http://192.168.1.20:8383"))
 
-    class Unreachable(cause: IOException) : FlexarrException("Couldn't reach the server. Make sure Flexarr is running and this device is on the same network.") {
+    class Unreachable(cause: IOException) : FlexarrException(t("Couldn't reach the server. Make sure Flexarr is running and this device is on the same network.")) {
         init {
             initCause(cause)
         }
@@ -110,6 +111,16 @@ class FlexarrClient(
     // System
 
     suspend fun systemStatus(): SystemStatus = get("system/status")
+
+    /**
+     * A small request (the server's health check) so the connection is up before anything that matters asks: coming
+     * back to the app, the first real request (Play) doesn't pay for setting it up. Best effort.
+     */
+    suspend fun warmConnection() {
+        withContext(Dispatchers.IO) {
+            runCatching { http.newCall(Request.Builder().url(baseUrl.newBuilder().addPathSegment("health").build()).build()).execute().close() }
+        }
+    }
 
     // Libraries and items
 
@@ -290,6 +301,21 @@ class FlexarrClient(
     /** How this client signed in, which profile it acts for, and whether it may manage the server. */
     suspend fun me(): SignInInfo = get("me")
 
+    /** The languages this server offers, English first. Empty from servers before 0.61 (which answer 404). */
+    suspend fun languages(): List<io.github.flexarr.core.i18n.LanguageInfo> =
+        runCatching { get<io.github.flexarr.core.i18n.LanguageList>("languages").languages }.getOrElse {
+            if (it is FlexarrException.Http && it.status == 404) emptyList() else throw it
+        }
+
+    /** A language's strings for the Android apps. */
+    suspend fun languagePack(code: String): io.github.flexarr.core.i18n.LanguagePack =
+        get("languages/$code", mapOf("scope" to "android"))
+
+    /** The signed-in profile's language: a code from [languages], or null to follow each device. */
+    suspend fun setLanguage(code: String?) {
+        send("PUT", "me/language", body = json.encodeToString(LanguageChoice(code)))
+    }
+
     /**
      * Unlocks managing the server on this sign-in for a while, with the admin PIN. A wrong one is a 403 saying
      * so; too many, 429 saying how long to wait; and 409 when the main profile has no PIN yet.
@@ -368,6 +394,8 @@ class FlexarrClient(
 
     /** This device's sign-in, who's watching and what it is, on any request to the server. */
     internal fun Request.Builder.signIn(): Request.Builder = apply {
+        // The server answers in the language shown here (the profile's own choice wins over it, server side).
+        header("Accept-Language", io.github.flexarr.core.i18n.Localization.code)
         apiKey?.takeIf { it.isNotEmpty() }?.let { header("X-Api-Key", it) }
         profileToken?.takeIf { it.isNotEmpty() }?.let { header("X-Flexarr-Profile", it) }
         deviceType?.let { header("X-Flexarr-Device", it) }
@@ -488,8 +516,23 @@ class FlexarrClient(
         http: OkHttpClient,
     ): Response {
         val primary = addresses.current
+        var alternate = addresses.alternate(primary)
+        // Home is a private address another network may use too: the sign-in goes there only once it's shown it's this
+        // server, on this network. Until then, away it is.
+        if (primary == addresses.home && !homeTrusted(http)) {
+            val remote = alternate ?: throw ConnectException("Something else answers at the server's home address on this network.")
+            val response = http.newCall(request(method, path, query, body, remote)).await()
+            addresses.reached(remote)
+            return response
+        }
+        // Away, home is asked about separately (checkHomeIfDue) rather than sent the sign-in on a hunch.
+        if (alternate == addresses.home && !addresses.homeTrustedNow) alternate = null
         val first = request(method, path, query, body, primary)
-        val alternate = addresses.alternate(primary) ?: return http.newCall(first).await()
+        if (alternate == null) {
+            val response = http.newCall(first).await()
+            checkHomeIfDue(http)
+            return response
+        }
         val second = request(method, path, query, body, alternate)
         val (response, reached) = if (method == "GET" && racesAlternate) {
             race(http, first to primary, second to alternate)
@@ -545,14 +588,42 @@ class FlexarrClient(
         }
     }
 
-    /** While away, sees every few minutes whether home answers again, and goes back to it when it does. */
+    /**
+     * While away, sees every few minutes whether home answers again, and goes back to it when it does. Asked without the
+     * sign-in: whatever answers at home on this network has to show it's this server ([verifyHome]) before it's sent.
+     */
     private fun checkHomeIfDue(http: OkHttpClient) {
         if (!addresses.shouldCheckHome()) return
-        val probe = request("GET", "system/status", emptyMap(), null, addresses.home)
-        val quick = http.newBuilder().callTimeout(5, TimeUnit.SECONDS).build()
         background.launch {
-            runCatching { quick.newCall(probe).await().use { if (it.code == 200) addresses.reached(addresses.home) } }
+            if (verifyHome(http)) {
+                addresses.homeVerified()
+                addresses.reached(addresses.home)
+            }
         }
+    }
+
+    /** Whether home may be sent the sign-in on this network, asking it ([verifyHome]) when that isn't known yet. */
+    private suspend fun homeTrusted(http: OkHttpClient): Boolean = addresses.checkHome { verifyHome(http) }
+
+    /**
+     * Whether this server answers at home on the network in use, asked without the sign-in: with its id
+     * ([ServerAddresses.serverId]) when that's known, otherwise answering like a Flexarr server (as [isReachable]).
+     */
+    private suspend fun verifyHome(http: OkHttpClient): Boolean {
+        val quick = http.newBuilder().followRedirects(false).followSslRedirects(false)
+            .callTimeout(ServerAddresses.HOME_PROBE_MS, TimeUnit.MILLISECONDS).build()
+        val expected = addresses.serverId
+        return withTimeoutOrNull(ServerAddresses.HOME_PROBE_MS) {
+            runCatching {
+                if (expected != null) {
+                    serverIdAt(addresses.home, quick) == expected
+                } else {
+                    val probe = Request.Builder().url(addresses.home.newBuilder().addPathSegments("api/v1/system/status").build())
+                        .header("Accept", "application/json").build()
+                    quick.newCall(probe).await().use { it.code in setOf(200, 401) && it.header("Content-Type")?.contains("text/html") != true }
+                }
+            }.getOrDefault(false)
+        } ?: false
     }
 
     /** The answer's text, for callers in this module that read it themselves (an empty answer meaning none). */
@@ -777,3 +848,6 @@ private suspend fun Call.await(): Response = suspendCancellableCoroutine { conti
     })
     continuation.invokeOnCancellation { runCatching { cancel() } }
 }
+
+@kotlinx.serialization.Serializable
+internal data class LanguageChoice(val language: String?)

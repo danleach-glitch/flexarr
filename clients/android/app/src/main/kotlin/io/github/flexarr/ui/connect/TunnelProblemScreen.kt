@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.connect
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,9 +35,9 @@ import io.github.flexarr.ui.theme.Flexarr
 internal fun tunnelProblemWords(model: AppModel): Pair<String, String> {
     val owner = model.credentials?.guest?.ownerName?.ifEmpty { null }
     return if (owner != null) {
-        "Can’t reach $owner’s Flexarr" to "Check this device’s internet, or that $owner’s server is on."
+        t("Can’t reach {owner}’s Flexarr", "owner" to owner) to t("Check this device’s internet, or that {owner}’s server is on.", "owner" to owner)
     } else {
-        "Can’t reach this Flexarr" to "Check this device’s internet, or that its server is on."
+        t("Can’t reach this Flexarr") to t("Check this device’s internet, or that its server is on.")
     }
 }
 
@@ -57,9 +59,9 @@ fun TunnelProblemScreen(model: AppModel) {
                 horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                ActionButton("Try again", onClick = model::retryGuestTunnel, prominent = true)
-                if (model.downloads.downloads.isNotEmpty()) ActionButton("Downloads", onClick = model::browseOfflineAsGuest)
-                ActionButton("Leave", onClick = { confirmLeave = true }, ambient = Flexarr.danger)
+                ActionButton(t("Try again"), onClick = model::retryGuestTunnel, prominent = true)
+                if (model.downloads.downloads.isNotEmpty()) ActionButton(t(Words.downloads), onClick = model::browseOfflineAsGuest)
+                ActionButton(t("Leave"), onClick = { confirmLeave = true }, ambient = Flexarr.danger)
             }
         }
     }

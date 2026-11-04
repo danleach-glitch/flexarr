@@ -16,10 +16,10 @@ extension Availability {
     var label: String? {
         switch self {
         case .none: nil
-        case .requested: "Requested"
-        case .partlyAvailable: "Partly in your library"
-        case .available: "In your library"
-        case .unknown: "Not available"
+        case .requested: t(Words.requested)
+        case .partlyAvailable: t(Words.partlyInYourLibrary)
+        case .available: t(Words.inYourLibrary)
+        case .unknown: t("Not available")
         }
     }
 }
@@ -71,11 +71,11 @@ enum ServerVersion {
 enum AudioChannels {
     static func label(_ count: Int) -> String {
         switch count {
-        case 1: "Mono"
-        case 2: "Stereo"
+        case 1: t("Mono")
+        case 2: t("Stereo")
         case 6: "5.1"
         case 8: "7.1"
-        default: "\(count) ch"
+        default: t("{count} ch", ["count": count])
         }
     }
 }

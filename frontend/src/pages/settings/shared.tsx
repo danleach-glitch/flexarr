@@ -3,8 +3,9 @@ import { Link } from 'react-router'
 import { AsyncButton } from '../../components/AsyncButton'
 import { ChevronLeft, ChevronRight, External } from '../../components/icons'
 import { appLink } from '../../lib/apps'
+import { t } from '../../i18n'
 
-export function SaveBar({ saved, error, busy, label = 'Save changes' }: { saved?: string; error?: string; busy?: boolean; label?: string }) {
+export function SaveBar({ saved, error, busy, label }: { saved?: string; error?: string; busy?: boolean; label?: string }) {
   return (
     <div className="form-actions">
       {error && (
@@ -18,7 +19,7 @@ export function SaveBar({ saved, error, busy, label = 'Save changes' }: { saved?
         </span>
       )}
       <AsyncButton type="submit" className="button" busy={busy}>
-        {label}
+        {label ?? t('Save changes')}
       </AsyncButton>
     </div>
   )
@@ -29,7 +30,7 @@ export function OpenApp({ baseUrl, name, host }: { baseUrl: string; name: string
   const href = appLink(baseUrl, host || window.location.hostname)
   return (
     href && (
-      <a className="open-app" href={href} target="_blank" rel="noreferrer" aria-label={`Open ${name}`} data-tip={`Open ${name}`}>
+      <a className="open-app" href={href} target="_blank" rel="noreferrer" aria-label={t('Open {name}', { name })} data-tip={t('Open {name}', { name })}>
         <External />
       </a>
     )

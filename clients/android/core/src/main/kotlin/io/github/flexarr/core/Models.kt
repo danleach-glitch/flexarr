@@ -1,5 +1,8 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.tk
 import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
@@ -143,11 +146,14 @@ data class Paged<T>(
 )
 
 /** Sort orders accepted by `GET /libraries/{id}/items`; `raw` is the query value (none for title). */
-enum class LibrarySort(val raw: String, val label: String) {
-    Title("", "A–Z"),
-    Added("added", "Recently added"),
-    Year("year", "Year"),
-    Rating("rating", "Rating"),
+enum class LibrarySort(val raw: String, private val english: String) {
+    Title("", tk(Words.sortAToZ)),
+    Added("added", tk(Words.recentlyAdded)),
+    Year("year", tk(Words.year)),
+    Rating("rating", tk(Words.rating)),
+    ;
+
+    val label: String get() = t(english)
 }
 
 // Items
@@ -215,8 +221,11 @@ data class ItemSummary(
 
 /** Rotten Tomatoes' tomato for a critics' score. [Unknown] (a newer server's) is read from the score instead. */
 @Serializable(with = RottenTomatoesState.Serializer::class)
-enum class RottenTomatoesState(override val raw: String, val words: String) : ForwardCompatibleEnum {
-    Fresh("Fresh", "Fresh"), Rotten("Rotten", "Rotten"), CertifiedFresh("CertifiedFresh", "Certified Fresh"), Unknown("", "Rotten Tomatoes");
+enum class RottenTomatoesState(override val raw: String, private val english: String) : ForwardCompatibleEnum {
+    Fresh("Fresh", tk("Fresh")), Rotten("Rotten", tk("Rotten")), CertifiedFresh("CertifiedFresh", tk("Certified Fresh")), Unknown("", "Rotten Tomatoes");
+
+    /** Its tomato in words, in the language shown (Rotten Tomatoes' own name for [Unknown]). */
+    val words: String get() = if (this == Unknown) english else t(english)
 
     object Serializer : ForwardCompatibleEnumSerializer<RottenTomatoesState>("RottenTomatoesState", entries, Unknown)
 }
@@ -448,11 +457,11 @@ fun UpcomingItem.dayLabel(now: java.time.ZonedDateTime = java.time.ZonedDateTime
     val at = date.atZone(now.zone)
     val days = java.time.temporal.ChronoUnit.DAYS.between(now.toLocalDate(), at.toLocalDate())
     return when {
-        days == 0L -> if (at.hour >= 17) "Tonight" else "Today"
-        days == 1L -> "Tomorrow"
-        days == -1L -> "Yesterday"
-        days in 2..6 -> at.format(java.time.format.DateTimeFormatter.ofPattern("EEEE"))
-        else -> at.format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM"))
+        days == 0L -> if (at.hour >= 17) t("Tonight") else t("Today")
+        days == 1L -> t("Tomorrow")
+        days == -1L -> t("Yesterday")
+        days in 2..6 -> at.format(java.time.format.DateTimeFormatter.ofPattern("EEEE", io.github.flexarr.core.i18n.Localization.locale))
+        else -> at.format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM", io.github.flexarr.core.i18n.Localization.locale))
     }
 }
 
@@ -536,10 +545,12 @@ data class PlaybackRequest(
     val subtitleKey: String? = null,
     /** Convert it even though the device says it can play the file (it turned out it couldn't). */
     val forceTranscode: Boolean? = null,
-    /** Getting the next episode ready during the credits: conversion starts now, and it never ends another screen. */
+    /** Getting a title ready before Play (the next episode, a page being looked at): it never ends another screen. */
     val prepare: Boolean? = null,
     /** A name for this device, for a book's "Jump to … from {device}?" elsewhere. Servers before 0.58 ignore it. */
     val deviceName: String? = null,
+    /** How fast media reaches this device lately, in bits per second (docs/fast-start.md). Servers before 0.59 ignore it. */
+    val measuredBitrate: Long? = null,
 )
 
 @Serializable
@@ -684,9 +695,11 @@ enum class ContinueListening(val raw: String) {
 }
 
 @Serializable(with = SubtitleSize.Serializer::class)
-enum class SubtitleSize(override val raw: String, val label: String, val percent: Int) : ForwardCompatibleEnum {
-    Small("Small", "Small", 80), Standard("Standard", "Standard", 100), Large("Large", "Large", 125),
-    ExtraLarge("ExtraLarge", "Extra large", 150), Unknown("", "Standard", 100);
+enum class SubtitleSize(override val raw: String, private val english: String, val percent: Int) : ForwardCompatibleEnum {
+    Small("Small", tk("Small"), 80), Standard("Standard", tk("Standard"), 100), Large("Large", tk("Large"), 125),
+    ExtraLarge("ExtraLarge", tk("Extra large"), 150), Unknown("", tk("Standard"), 100);
+
+    val label: String get() = t(english)
 
     object Serializer : ForwardCompatibleEnumSerializer<SubtitleSize>("SubtitleSize", entries, Unknown)
 
@@ -696,8 +709,10 @@ enum class SubtitleSize(override val raw: String, val label: String, val percent
 }
 
 @Serializable(with = SubtitlePosition.Serializer::class)
-enum class SubtitlePosition(override val raw: String, val label: String) : ForwardCompatibleEnum {
-    Bottom("Bottom", "Bottom"), Raised("Raised", "Raised"), Higher("Higher", "Higher"), Top("Top", "Top"), Unknown("", "Bottom");
+enum class SubtitlePosition(override val raw: String, private val english: String) : ForwardCompatibleEnum {
+    Bottom("Bottom", tk("Bottom")), Raised("Raised", tk("Raised")), Higher("Higher", tk("Higher")), Top("Top", tk("Top")), Unknown("", tk("Bottom"));
+
+    val label: String get() = t(english)
 
     /**
      * How far above the picture's foot the bottom of a subtitle sits, as a share of the picture's height (as the web
@@ -790,6 +805,8 @@ data class SignInInfo(
     val kidsLock: Boolean = false,
     /** A family guest's device: it stays on its invite's profile and has no household devices. Absent from servers before 0.57. */
     val isGuest: Boolean = false,
+    /** The profile's chosen language (a BCP 47 code); null follows the device. Absent from servers before 0.61. */
+    val language: String? = null,
 ) {
     /** The main profile, unlocked or not: it's asked to let devices in (allowing takes its PIN while locked). */
     val isMainProfile: Boolean get() = isAdmin || canUnlock

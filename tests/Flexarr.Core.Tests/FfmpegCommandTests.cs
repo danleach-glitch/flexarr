@@ -13,10 +13,11 @@ public class FfmpegCommandTests
         var args = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 10, "/out", Settings(HardwareAcceleration.VideoToolbox)));
 
         Assert.Contains("-hwaccel videotoolbox -hwaccel_output_format videotoolbox_vld", args, StringComparison.Ordinal);
-        Assert.Contains("-ss 60 -protocol_whitelist file -i /in.mkv", args, StringComparison.Ordinal);
+        // Segment 10: after three 2-second opening segments, seven of 6 seconds.
+        Assert.Contains("-ss 48 -protocol_whitelist file -i /in.mkv", args, StringComparison.Ordinal);
         Assert.Contains("scale_vt=w=1920:h=1080:color_matrix=bt709:color_primaries=bt709:color_transfer=bt709", args, StringComparison.Ordinal);
         Assert.Contains("-c:v h264_videotoolbox", args, StringComparison.Ordinal);
-        Assert.Contains("-output_ts_offset 60", args, StringComparison.Ordinal);
+        Assert.Contains("-output_ts_offset 48", args, StringComparison.Ordinal);
         Assert.Contains("-start_number 10", args, StringComparison.Ordinal);
         Assert.Contains("-force_key_frames expr:gte(t,n_forced*6)", args, StringComparison.Ordinal);
         Assert.Contains("-c:a aac -ac 2", args, StringComparison.Ordinal);
@@ -163,11 +164,70 @@ public class FfmpegCommandTests
     }
 
     [Fact]
+    public void FromTheStart_AConvertedVideoOpensWithShortSegments_ThenEvenOnes()
+    {
+        var args = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 0, "/out", Settings(HardwareAcceleration.VideoToolbox)));
+        Assert.Contains("-force_key_frames expr:if(lt(n_forced,3),gte(t,n_forced*2),gte(t,6+(n_forced-3)*6))", args, StringComparison.Ordinal);
+        Assert.Contains("-hls_time 2 ", args, StringComparison.Ordinal);
+
+        // Within the opening, ffmpeg starts again from the beginning.
+        var second = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 2, "/out", Settings(HardwareAcceleration.VideoToolbox)));
+        Assert.Contains("-ss 0 ", second, StringComparison.Ordinal);
+        Assert.Contains("-start_number 0 ", second, StringComparison.Ordinal);
+
+        // After it, segments are even, from a 6-second boundary.
+        var later = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 3, "/out", Settings(HardwareAcceleration.VideoToolbox)));
+        Assert.Contains("-ss 6 ", later, StringComparison.Ordinal);
+        Assert.Contains("-hls_time 6 ", later, StringComparison.Ordinal);
+        Assert.Contains("-force_key_frames expr:gte(t,n_forced*6)", later, StringComparison.Ordinal);
+
+        // Encoders that may add keyframes of their own (Quick Sync, VA-API) keep even segments throughout.
+        var qsv = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 0, "/out", Settings(HardwareAcceleration.Qsv)));
+        Assert.Contains("-hls_time 6 ", qsv, StringComparison.Ordinal);
+        Assert.Contains("-force_key_frames expr:gte(t,n_forced*6)", qsv, StringComparison.Ordinal);
+
+        // Got ready ahead of Play: a short burst.
+        var warming = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 0, "/out", Settings(HardwareAcceleration.VideoToolbox), burstSeconds: FfmpegCommand.WarmingRunAheadSeconds));
+        Assert.Contains("-readrate_initial_burst 30 ", warming, StringComparison.Ordinal);
+
+        // Music (no picture) is cut on its sound and stays even.
+        var music = string.Join(' ', FfmpegCommand.Hls("/in.flac", Plan with { VideoStreamIndex = -1 }, 0, "/out", Settings(HardwareAcceleration.None)));
+        Assert.Contains("-hls_time 6 ", music, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(1.9, 0)]
+    [InlineData(2, 1)]
+    [InlineData(5.9, 2)]
+    [InlineData(6, 3)]
+    [InlineData(11.9, 3)]
+    [InlineData(12, 4)]
+    [InlineData(395, 67)]
+    public void OpeningSegments_LineUpWithWhereTheyStart(double seconds, int segment)
+    {
+        Assert.Equal(segment, FfmpegCommand.SegmentAtSeconds(seconds, opening: true));
+        Assert.True(FfmpegCommand.SegmentStartSeconds(segment, opening: true) <= seconds);
+        Assert.True(FfmpegCommand.SegmentStartSeconds(segment + 1, opening: true) > seconds);
+    }
+
+    [Fact]
+    public void APlaylistWithAnOpening_ListsShortSegmentsFirst_AndAddsUpToTheLength()
+    {
+        var playlist = FfmpegCommand.MediaPlaylist(20, opening: true);
+        var lengths = playlist.Split('\n').Where(l => l.StartsWith("#EXTINF:", StringComparison.Ordinal))
+            .Select(l => double.Parse(l[8..^1], System.Globalization.CultureInfo.InvariantCulture)).ToList();
+        Assert.Equal([2, 2, 2, 6, 6, 2], lengths);
+        Assert.Equal(6, FfmpegCommand.SegmentCount(20, opening: true));
+        Assert.Equal(2, FfmpegCommand.SegmentCount(3.5, opening: true));
+    }
+
+    [Fact]
     public void SoundOutOfSync_ComesFromTheFileAgain_ReadFromTheDelayBeforeThePicture()
     {
-        // Later: the sound that goes with the picture at 60 s is the file's at 59.5 s.
+        // Later: the sound that goes with the picture at 48 s (segment 10) is the file's at 47.5 s.
         var later = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { AudioDelaySeconds = 0.5 }, 10, "/out", Settings(HardwareAcceleration.None)));
-        Assert.Contains("-itsoffset 0 -readrate 1.0 -readrate_initial_burst 180 -ss 59.5 -protocol_whitelist file -i /in.mkv", later, StringComparison.Ordinal);
+        Assert.Contains("-itsoffset 0 -readrate 1.0 -readrate_initial_burst 180 -ss 47.5 -protocol_whitelist file -i /in.mkv", later, StringComparison.Ordinal);
         Assert.Contains("-map 1:1", later, StringComparison.Ordinal);
         Assert.DoesNotContain("-map 0:1", later, StringComparison.Ordinal);
 

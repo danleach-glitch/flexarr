@@ -1,0 +1,20 @@
+{
+  "about": "Test cases for nextEpisodeTiming (docs/next-episode-timing.md). FlexarrKit, Android core and the web all test against this file, so the three can't drift. credits is the credits marker's start (null for none); expect null means no button before the end. Fields left out of expect are absent (nil/null/undefined).",
+  "cases": [
+    { "name": "Skip credits, auto-play: from 8s before to 2s into the credits", "credits": 2800, "duration": 2900, "skipCredits": true, "autoPlayNext": true, "expect": { "showAt": 2792, "countdownFrom": 2792, "nextAt": 2802 } },
+    { "name": "Credits played, auto-play: the countdown over the last 10s", "credits": 2800, "duration": 2900, "skipCredits": false, "autoPlayNext": true, "expect": { "showAt": 2800, "countdownFrom": 2890, "nextAt": 2900 } },
+    { "name": "Skip credits, no auto-play: closes as the credits start", "credits": 2800, "duration": 2900, "skipCredits": true, "autoPlayNext": false, "expect": { "showAt": 2800, "closeAt": 2800 } },
+    { "name": "Credits played, no auto-play: the button only", "credits": 2800, "duration": 2900, "skipCredits": false, "autoPlayNext": false, "expect": { "showAt": 2800 } },
+    { "name": "No credits, auto-play: a minute before the end", "credits": null, "duration": 2900, "skipCredits": false, "autoPlayNext": true, "expect": { "showAt": 2840, "countdownFrom": 2890, "nextAt": 2900 } },
+    { "name": "No credits, Skip credits changes nothing", "credits": null, "duration": 2900, "skipCredits": true, "autoPlayNext": true, "expect": { "showAt": 2840, "countdownFrom": 2890, "nextAt": 2900 } },
+    { "name": "No credits, no auto-play", "credits": null, "duration": 2900, "skipCredits": false, "autoPlayNext": false, "expect": { "showAt": 2840 } },
+    { "name": "No credits, Skip credits, no auto-play", "credits": null, "duration": 2900, "skipCredits": true, "autoPlayNext": false, "expect": { "showAt": 2840 } },
+    { "name": "Credits in the first 8s: a shorter countdown, still 2s in", "credits": 3, "duration": 60, "skipCredits": true, "autoPlayNext": true, "expect": { "showAt": 0, "countdownFrom": 0, "nextAt": 5 } },
+    { "name": "Credits in the last 10s: the full countdown, and the button with it", "credits": 2895, "duration": 2900, "skipCredits": false, "autoPlayNext": true, "expect": { "showAt": 2890, "countdownFrom": 2890, "nextAt": 2900 } },
+    { "name": "Skip credits right at the end: never past the end", "credits": 2899, "duration": 2900, "skipCredits": true, "autoPlayNext": true, "expect": { "showAt": 2891, "countdownFrom": 2891, "nextAt": 2900 } },
+    { "name": "No credits, 2 minutes: no button before the end", "credits": null, "duration": 120, "skipCredits": false, "autoPlayNext": true, "expect": null },
+    { "name": "No credits, just over 2 minutes", "credits": null, "duration": 121, "skipCredits": false, "autoPlayNext": true, "expect": { "showAt": 61, "countdownFrom": 111, "nextAt": 121 } },
+    { "name": "Unknown length with credits: nothing", "credits": 30, "duration": 0, "skipCredits": false, "autoPlayNext": true, "expect": null },
+    { "name": "Unknown length, Skip credits: nothing", "credits": 30, "duration": 0, "skipCredits": true, "autoPlayNext": false, "expect": null }
+  ]
+}

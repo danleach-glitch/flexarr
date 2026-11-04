@@ -1,5 +1,7 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -21,15 +23,23 @@ object UpcomingDays {
             get() {
                 if (items.size < 2) return first.cardDetail
                 val sameSeason = items.all { it.seasonNumber == first.seasonNumber }
-                return if (sameSeason) "${first.code}–E${items.last().episodeNumber ?: 0}, ${items.size} episodes" else "${items.size} episodes"
+                return if (sameSeason) {
+                    t(
+                        "S{season}E{episode}–E{last}, {count, plural, one {# episode} other {# episodes}}",
+                        "season" to (first.seasonNumber ?: 0).toString(), "episode" to (first.episodeNumber ?: 0).toString(),
+                        "last" to (items.last().episodeNumber ?: 0).toString(), "count" to items.size,
+                    )
+                } else {
+                    t("{count, plural, one {# episode} other {# episodes}}", "count" to items.size)
+                }
             }
 
         /** Ready to watch, or how far its download has got; null otherwise. */
         val status: String?
             get() {
                 if (items.size < 2) return first.status
-                if (items.all { it.available == true }) return "Ready to watch"
-                return if (items.any { it.download != null }) "Downloading" else null
+                if (items.all { it.available == true }) return t("Ready to watch")
+                return if (items.any { it.download != null }) t("Downloading") else null
             }
 
         /** Opening it does something: it's in the library, or there's an overview to read. */
@@ -55,20 +65,20 @@ object UpcomingDays {
 
     /** A day's heading: "Today", "Tomorrow", "Yesterday", otherwise "Fri 7 Nov". */
     fun heading(day: LocalDate, today: LocalDate = LocalDate.now()): String = when (ChronoUnit.DAYS.between(today, day)) {
-        0L -> "Today"
-        1L -> "Tomorrow"
-        -1L -> "Yesterday"
-        else -> day.format(DateTimeFormatter.ofPattern("EEE d MMM"))
+        0L -> t("Today")
+        1L -> t("Tomorrow")
+        -1L -> t("Yesterday")
+        else -> day.format(DateTimeFormatter.ofPattern("EEE d MMM", io.github.flexarr.core.i18n.Localization.locale))
     }
 }
 
 /** "S1E3", with no zero padding. */
-val UpcomingItem.code: String get() = "S${seasonNumber ?: 0}E${episodeNumber ?: 0}"
+val UpcomingItem.code: String get() = t(Words.seasonEpisodeShort, "season" to (seasonNumber ?: 0).toString(), "episode" to (episodeNumber ?: 0).toString())
 
 /** Ready to watch, or how far its download has got; null otherwise. */
 val UpcomingItem.status: String?
     get() = when {
-        available == true -> "Ready to watch"
-        download != null -> "Downloading ${Math.round(download.progress * 100)}%"
+        available == true -> t("Ready to watch")
+        download != null -> t("Downloading {percent}%", "percent" to Math.round(download.progress * 100))
         else -> null
     }

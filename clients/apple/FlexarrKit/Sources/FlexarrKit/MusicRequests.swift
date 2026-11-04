@@ -39,10 +39,13 @@ public struct MusicExternal: Codable, Sendable, Hashable, Identifiable {
     public var recordType: String? = nil
     /// An album's MusicBrainz release group, when Lidarr listed it.
     public var musicBrainzId: String? = nil
+    /// An artist Lidarr watches for new releases, even one already in the library (whose `availability` says
+    /// available). Nil for albums. Absent from servers before 0.59.
+    public var followed: Bool? = nil
 
     public init(kind: String, deezerId: Int, title: String, artist: String? = nil, artistDeezerId: Int? = nil, year: Int? = nil,
                 image: String? = nil, availability: Availability = .none, libraryItemId: String? = nil,
-                recordType: String? = nil, musicBrainzId: String? = nil) {
+                recordType: String? = nil, musicBrainzId: String? = nil, followed: Bool? = nil) {
         self.kind = kind
         self.deezerId = deezerId
         self.title = title
@@ -54,6 +57,7 @@ public struct MusicExternal: Codable, Sendable, Hashable, Identifiable {
         self.libraryItemId = libraryItemId
         self.recordType = recordType
         self.musicBrainzId = musicBrainzId
+        self.followed = followed
     }
 
     public var isArtist: Bool { kind == "artist" }
@@ -100,8 +104,8 @@ extension Array where Element == MusicExternal {
         let albums = filter { $0.recordType == nil || $0.recordType == "album" }
         let short = filter { $0.recordType == "ep" || $0.recordType == "single" }
         let compilations = filter { $0.recordType == "compile" }
-        return [MusicShelf(title: "Albums", items: albums), MusicShelf(title: "EPs and singles", items: short),
-                MusicShelf(title: "Compilations", items: compilations)].filter { !$0.items.isEmpty }
+        return [MusicShelf(title: t(Words.albums), items: albums), MusicShelf(title: t("EPs and singles"), items: short),
+                MusicShelf(title: t("Compilations"), items: compilations)].filter { !$0.items.isEmpty }
     }
 }
 

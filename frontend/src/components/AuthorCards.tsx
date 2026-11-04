@@ -2,6 +2,7 @@ import { useId } from 'react'
 import { Link } from 'react-router'
 import type { BookAuthor } from '../api/client'
 import { Artwork } from './Artwork'
+import { t, Words } from '../i18n'
 
 /**
  * A book's authors, a card each: round photo, name and the start of the biography, opening their page. Nothing when
@@ -11,7 +12,7 @@ import { Artwork } from './Artwork'
 export function AuthorCards({ authors }: { authors: BookAuthor[] | undefined }) {
   if (!authors?.some((a) => a.image || a.biography)) return null
   return (
-    <ul className="author-cards" aria-label={authors.length === 1 ? 'Author' : 'Authors'}>
+    <ul className="author-cards" aria-label={authors.length === 1 ? t(Words.author) : t('Authors')}>
       {authors.map((a) => (
         <AuthorCard key={a.id} author={a} />
       ))}

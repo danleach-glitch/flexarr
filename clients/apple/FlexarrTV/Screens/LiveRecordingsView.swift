@@ -24,20 +24,22 @@ struct LiveRecordingsView: View {
         }
     }
 
-    private static let day: DateFormatter = {
+    /// Made each time, so it follows a change of language.
+    private static var day: DateFormatter {
         let formatter = DateFormatter()
+        formatter.locale = Localization.locale
         formatter.setLocalizedDateFormatFromTemplate("EEE d MMM HH:mm")
         return formatter
-    }()
+    }
 
     var body: some View {
         Group {
             if let recordings {
                 ScrollView(.vertical) {
                     LazyVStack(alignment: .leading, spacing: 10) {
-                        heading("Coming up")
+                        heading(t("Coming up"))
                         if recordings.upcoming.isEmpty {
-                            Text("Nothing set to record. In the guide, press and hold a programme and choose Record, or Record series.")
+                            Text(t("Nothing set to record. In the guide, press and hold a programme and choose Record, or Record series."))
                                 .font(.system(size: 26)).foregroundStyle(Color.usher)
                         }
                         ForEach(recordings.upcoming) { recording in
@@ -45,14 +47,14 @@ struct LiveRecordingsView: View {
                                 .buttonStyle(RecordingRowStyle())
                         }
                         if !recordings.series.isEmpty {
-                            heading("Series").padding(.top, 24)
+                            heading(t(Words.series)).padding(.top, 24)
                             ForEach(recordings.series) { series in
                                 Button { confirming = .series(series) } label: { seriesRow(series) }
                                     .buttonStyle(RecordingRowStyle())
                             }
                         }
                         if !recordings.recent.isEmpty {
-                            heading("Recorded").padding(.top, 24)
+                            heading(t("Recorded")).padding(.top, 24)
                             ForEach(recordings.recent) { recording in
                                 Button {
                                     if let item = recording.itemId { Task { await model.playFromIntent(itemId: item) } }
@@ -81,19 +83,19 @@ struct LiveRecordingsView: View {
         .alert(title, isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }), presenting: confirming) { confirm in
             switch confirm {
             case .recording(let recording):
-                Button(recording.isRecordingNow ? "Stop recording" : "Don't record", role: .destructive) {
+                Button(recording.isRecordingNow ? t("Stop recording") : t("Don't record"), role: .destructive) {
                     act { try await $0.removeRecording(recording.id) }
                 }
             case .series(let series):
-                Button("Stop recording the series", role: .destructive) { act { try await $0.removeSeries(series.id) } }
+                Button(t("Stop recording the series"), role: .destructive) { act { try await $0.removeSeries(series.id) } }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(t(Words.cancel), role: .cancel) {}
         } message: { confirm in
             switch confirm {
             case .recording(let recording):
-                Text(recording.isRecordingNow ? "What's recorded so far is kept." : "\(recording.channelName), \(Self.day.string(from: recording.start))")
+                Text(recording.isRecordingNow ? t("What's recorded so far is kept.") : "\(recording.channelName), \(Self.day.string(from: recording.start))")
             case .series(let series):
-                Text("Its scheduled showings come off the list. What it's recorded stays.")
+                Text(t("Its scheduled showings come off the list. What it's recorded stays."))
             }
         }
     }
@@ -119,7 +121,7 @@ struct LiveRecordingsView: View {
                 Text(recording.title).font(.system(size: 27, weight: .semibold)).lineLimit(1)
                 Text(detail(recording)).font(.system(size: 21)).opacity(0.7).lineLimit(1)
                 if recording.clashes {
-                    Text("Won't record: every stream is wanted by recordings scheduled before it.")
+                    Text(t("Won't record: every stream is wanted by recordings scheduled before it."))
                         .font(.system(size: 21)).foregroundStyle(Color.danger)
                 } else if let reason = recording.reason, recording.state != "scheduled" {
                     Text(reason).font(.system(size: 21)).opacity(0.7).lineLimit(1)
@@ -134,8 +136,7 @@ struct LiveRecordingsView: View {
     private func seriesRow(_ series: RecordingSeries) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(series.title).font(.system(size: 27, weight: .semibold)).lineLimit(1)
-            Text("\(series.channelName.map { "On \($0)" } ?? "On any channel"), \(series.upcoming) coming up, \(series.recorded) recorded"
-                 + (series.newOnly ? ", new episodes only" : ""))
+            Text(seriesCaption(series))
                 .font(.system(size: 21)).opacity(0.7).lineLimit(1)
         }
         .padding(.horizontal, 22)
@@ -143,9 +144,19 @@ struct LiveRecordingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private func seriesCaption(_ series: RecordingSeries) -> String {
+        let channel = series.channelName.map { t("On {channel}", ["channel": $0]) } ?? t("On any channel")
+        let values: [String: Any] = ["channel": channel, "upcoming": series.upcoming, "recorded": series.recorded]
+        return series.newOnly
+            ? t("{channel}, {upcoming} coming up, {recorded} recorded, new episodes only", values)
+            : t("{channel}, {upcoming} coming up, {recorded} recorded", values)
+    }
+
     private func detail(_ recording: Recording) -> String {
         var parts: [String] = []
-        if let season = recording.season, let episode = recording.episode { parts.append("S\(season)E\(episode)") }
+        if let season = recording.season, let episode = recording.episode {
+            parts.append(t(Words.seasonEpisodeShort, ["season": season, "episode": episode]))
+        }
         if let subtitle = recording.subtitle { parts.append(subtitle) }
         parts.append(recording.channelName)
         parts.append(Self.day.string(from: recording.start))

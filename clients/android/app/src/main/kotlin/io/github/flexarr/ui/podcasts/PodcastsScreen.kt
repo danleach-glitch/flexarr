@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.podcasts
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -100,11 +103,11 @@ fun PodcastsScreen(model: AppModel) {
     val glow = (loader.state as? Load.Loaded)?.value?.podcasts?.firstOrNull()?.let { glowColor(it.accentColor) }
     RoomBackground(ambient = glow, intensity = 0.18f) {
         Column(Modifier.fillMaxSize()) {
-            PageTitle("Podcasts", onBack = navigator::back) {
-                if (available && browses) IconButton(onClick = navigator::openPodcastBrowse) { Icon(Icons.Filled.Search, contentDescription = "Browse", tint = Flexarr.screen) }
+            PageTitle(t(Words.podcasts), onBack = navigator::back) {
+                if (available && browses) IconButton(onClick = navigator::openPodcastBrowse) { Icon(Icons.Filled.Search, contentDescription = t(Words.browse), tint = Flexarr.screen) }
             }
             if (!available) {
-                StatusView("Podcasts aren’t available on this profile.", empty = true)
+                StatusView(t("Podcasts aren’t available on this profile."), empty = true)
                 return@Column
             }
             Loaded(loader) { home ->
@@ -113,15 +116,15 @@ fun PodcastsScreen(model: AppModel) {
                         if (home.isEmpty) {
                             item {
                                 Column(Modifier.fillMaxWidth().padding(horizontal = Edge).padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                    Text(if (browses) "Follow a show and its new episodes come here." else "No podcasts yet.", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, textAlign = TextAlign.Center)
-                                    if (browses) ActionButton("Browse podcasts", onClick = navigator::openPodcastBrowse, icon = Icons.Filled.Search, prominent = true)
+                                    Text(if (browses) t("Follow a show and its new episodes come here.") else t("No podcasts yet."), fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, textAlign = TextAlign.Center)
+                                    if (browses) ActionButton(t("Browse podcasts"), onClick = navigator::openPodcastBrowse, icon = Icons.Filled.Search, prominent = true)
                                 }
                             }
                         }
                         if (home.podcasts.isNotEmpty()) {
                             item(key = "shows") {
                                 Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    SectionHeading("Your podcasts")
+                                    SectionHeading(t("Your podcasts"))
                                     LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
                                         // Artwork alone, the most recently updated first (as the server lists them).
                                         items(home.podcasts, key = { it.id }) { show ->
@@ -133,7 +136,7 @@ fun PodcastsScreen(model: AppModel) {
                         }
                         // Up Next, the same on every device: Play next moves one to the top, and its menu takes one off.
                         if (model.upNext.isNotEmpty()) {
-                            item(key = "upnext-heading") { SectionHeading("Up next", Modifier.padding(top = 20.dp)) }
+                            item(key = "upnext-heading") { SectionHeading(t(Words.upNext), Modifier.padding(top = 20.dp)) }
                             items(model.upNext, key = { "upnext-${it.id}" }) { episode ->
                                 EpisodeListRow {
                                     PodcastEpisodeRow(model, episode, showsPodcast = true, compact = true, setPlayed = { setEpisodePlayed(model, episode, it) }, removeFromUpNext = { model.removeFromUpNext(episode.id) })
@@ -141,7 +144,7 @@ fun PodcastsScreen(model: AppModel) {
                             }
                         }
                         if (home.listening.isNotEmpty()) {
-                            item(key = "listening-heading") { SectionHeading("Continue listening", Modifier.padding(top = 20.dp)) }
+                            item(key = "listening-heading") { SectionHeading(t("Continue listening"), Modifier.padding(top = 20.dp)) }
                             items(home.listening, key = { "listening-${it.id}" }) { episode ->
                                 EpisodeListRow { PodcastEpisodeRow(model, episode, showsPodcast = true, setPlayed = { setEpisodePlayed(model, episode, it) }) }
                             }
@@ -149,7 +152,7 @@ fun PodcastsScreen(model: AppModel) {
                         val listening = home.listening.map { it.id }.toSet()
                         val unplayed = home.newEpisodes.filter { !it.isPlayed && it.id !in listening }.take(15)
                         if (unplayed.isNotEmpty()) {
-                            item(key = "new-heading") { SectionHeading("New episodes", Modifier.padding(top = 20.dp)) }
+                            item(key = "new-heading") { SectionHeading(t("New episodes"), Modifier.padding(top = 20.dp)) }
                             items(unplayed, key = { "new-${it.id}" }) { episode ->
                                 EpisodeListRow { PodcastEpisodeRow(model, episode, showsPodcast = true, compact = true, setPlayed = { setEpisodePlayed(model, episode, it) }) }
                             }
@@ -229,23 +232,23 @@ fun PodcastBrowseScreen(model: AppModel) {
 
     RoomBackground(ambient = null) {
         Column(Modifier.fillMaxSize()) {
-            PageTitle("Browse", onBack = navigator::back)
-            SearchField(text, onChange = { text = it }, placeholder = "Shows, or a feed’s address", modifier = Modifier.padding(horizontal = Edge).padding(bottom = 12.dp), onSearch = {})
+            PageTitle(t(Words.browse), onBack = navigator::back)
+            SearchField(text, onChange = { text = it }, placeholder = t("Shows, or a feed’s address"), modifier = Modifier.padding(horizontal = Edge).padding(bottom = 12.dp), onSearch = {})
             when {
                 feed != null -> Box(Modifier.padding(horizontal = Edge)) {
-                    ActionButton(if (addingFeed) "Adding…" else "Add this feed", onClick = {
+                    ActionButton(if (addingFeed) t("Adding…") else t("Add this feed"), onClick = {
                         addingFeed = true
                         open { client.addPodcast(feedUrl = feed) }
                     }, icon = Icons.Filled.Add, prominent = true, enabled = !addingFeed)
                 }
                 results != null -> {
                     val found = results.orEmpty()
-                    if (found.isEmpty()) StatusView("No shows found for “${text.trim()}”.", empty = true, modifier = Modifier.height(240.dp))
+                    if (found.isEmpty()) StatusView(t("No shows found for “{query}”.", "query" to text.trim()), empty = true, modifier = Modifier.height(240.dp))
                     else DirectoryGrid(found, adding) { show -> adding = show.iTunesId; open { client.addPodcast(iTunesId = show.iTunesId) } }
                 }
                 else -> Column {
                     LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 16.dp)) {
-                        item { PillButton("Top shows", genre == null, { genre = null }) }
+                        item { PillButton(t("Top shows"), genre == null, { genre = null }) }
                         items(genres, key = { it.id }) { PillButton(it.name, genre == it.id, { genre = it.id }) }
                     }
                     Loaded(top) { shows -> DirectoryGrid(shows, adding) { show -> adding = show.iTunesId; open { client.addPodcast(iTunesId = show.iTunesId) } } }
@@ -256,8 +259,8 @@ fun PodcastBrowseScreen(model: AppModel) {
     error?.let { message ->
         AlertDialog(
             onDismissRequest = { error = null },
-            confirmButton = { TextButton(onClick = { error = null }) { Text("OK") } },
-            title = { Text("Couldn’t add this") },
+            confirmButton = { TextButton(onClick = { error = null }) { Text(t("OK")) } },
+            title = { Text(t("Couldn’t add this")) },
             text = { Text(message) },
             containerColor = Flexarr.seat,
         )

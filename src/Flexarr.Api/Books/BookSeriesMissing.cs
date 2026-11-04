@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Flexarr.Api.Endpoints;
+using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Metadata.Books;
@@ -30,6 +31,12 @@ public static class BookSeriesMissing
             if (series is null || !await db.Libraries.AnyAsync(l => l.Id == series.LibraryId && l.Type == Core.Libraries.LibraryType.Audiobooks, ct))
             {
                 return Results.NotFound();
+            }
+
+            // Profiles with an age limit see only what's rated, and Audible's listing isn't.
+            if (db.IsLimited())
+            {
+                return Results.Ok(new BookSeriesMissingDto([], false));
             }
 
             // Every book of the library counts as had, those hidden from this profile too: they aren't missing.

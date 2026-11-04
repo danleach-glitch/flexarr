@@ -24,6 +24,9 @@ public sealed class FakeTrakt : HttpMessageHandler
 
     public ConcurrentQueue<(string Key, string Query, string Body, string? Token)> Requests { get; } = new();
 
+    /// <summary>Awaited, with the request's "METHOD /path", before it's answered.</summary>
+    public Func<string, Task>? Before { get; set; }
+
     public FakeTrakt()
     {
         Set("GET /api/trakt", """{"clientId":"flexarr-id"}""");
@@ -70,6 +73,11 @@ public sealed class FakeTrakt : HttpMessageHandler
         {
             var grant = body.Contains("device_token", StringComparison.Ordinal) ? "device" : body.Contains("refresh_token", StringComparison.Ordinal) ? "refresh" : "revoke";
             key = $"RELAY {grant}";
+        }
+
+        if (Before is { } before)
+        {
+            await before(key);
         }
 
         if (!Answers.TryGetValue(key, out var queue) || !queue.TryPeek(out var answer))
