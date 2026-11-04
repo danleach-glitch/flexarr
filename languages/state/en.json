@@ -12,10 +12,14 @@
   "(opens in a new tab)": "w",
   "+ Add device": "w",
   "+15 min": "w",
+<<<<<<< HEAD
   "+{amount} s": "a",
   "+{minutes} min": "a",
   "+{seconds} s": "a",
   ", ": "a",
+=======
+  "+{minutes} min": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   ", main profile": "w",
   "10 Mbps": "w",
   "10 to 20 hours": "a",
@@ -27,15 +31,23 @@
   "5 to 10 hours": "a",
   "A Cloudflare Tunnel runs on this server, but it doesn’t route to Flexarr.": "w",
   "A DVR folder on the drive your TV library is on": "w",
+<<<<<<< HEAD
   "A PIN is 4 to 8 digits.": "as",
+=======
+  "A PIN is 4 to 8 digits.": "ns",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "A PIN is 4 to 8 digits. Try again.": "a",
   "A Sonarr or Radarr": "s",
   "A TV, phone or tablet waiting for you to let it in": "n",
   "A backup from {date}, made by Flexarr {version}: {profiles, plural, one {# profile} other {# profiles}}, {libraries, plural, one {# library} other {# libraries}} and {titles, plural, one {# title} other {# titles}}.": "w",
   "A backup or settings file from this server or another Flexarr.": "w",
   "A book needs a title.": "w",
+<<<<<<< HEAD
   "A book with a speed of its own keeps it.": "a",
   "A book with a speed of its own keeps it. Smart rewind starts a little earlier after a pause.": "a",
+=======
+  "A book with a speed of its own keeps it. Smart rewind starts a little earlier after a pause.": "an",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "A browser": "w",
   "A click on the left or right of the remote's touch surface.": "a",
   "A description of up to 20,000 characters.": "s",
@@ -50,17 +62,28 @@
   "A kids profile has the standard Home.": "s",
   "A kids profile has the standard menu.": "s",
   "A kids profile needs an age limit.": "s",
+<<<<<<< HEAD
   "A library opens on every title, A to Z, with sorting, genres and a letter rail to jump through it.": "a",
   "A library opens on its genres, each with a picture from its titles. Home videos open on Browse.": "a",
   "A library opens on its highlights: what you're watching in it, the latest, the best not yet watched and its biggest genres.": "a",
+=======
+  "A library opens on every title, A to Z, with sorting, genres and a letter rail to jump through it.": "n",
+  "A library opens on its highlights: what you’re watching in it, the latest, the best not yet watched and its biggest genres.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "A library's type can't be changed.": "s",
   "A movie needs a title.": "w",
+  "A movie or TV library opens on its genres, each with a picture from one of its titles. Home videos open on Browse.": "n",
   "A new code": "an",
   "A path in the update holds a control, line-separator or text-direction character.": "s",
   "A path in the webhook holds a control, line-separator or text-direction character.": "s",
   "A place in the book, and a note of up to 2,000 characters.": "s",
+  "A press of left or right on the remote.": "n",
   "A re-sync of this video is already running.": "s",
+<<<<<<< HEAD
   "A recording needed the stream.": "wa",
+=======
+  "A recording needed the stream.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "A restore is already under way.": "s",
   "A reverse proxy on this computer must send {header} (in nginx, {nginx}), or everyone through it looks like this computer and gets in. To be safe, set {setting} in config.json: requests from this computer that don’t say who they’re for then count as the internet (a browser on this computer will need the key too).": "w",
   "A scan has found something different since this was shown, so nothing was confirmed. Check the new numbers and confirm again if they're right.": "s",
@@ -71,16 +94,24 @@
   "A watchlist holds up to {max} titles. Take some off first.": "s",
   "A year such as 1999.": "ws",
   "A year such as 2016.": "ws",
+<<<<<<< HEAD
   "API key": "wa",
+=======
+  "API key": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "API key or read access token": "w",
   "API key required": "w",
   "API key, hidden": "w",
-  "About": "wa",
+  "About": "wan",
   "About Flexarr Server": "a",
+<<<<<<< HEAD
   "Abridged": "wa",
+=======
+  "Abridged": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Access": "w",
   "Access controls": "w",
-  "Account": "wa",
+  "Account": "wan",
   "Acting": "w",
   "Action": "a",
 <<<<<<< HEAD
@@ -115,10 +146,17 @@
   "Add another narrator": "w",
   "Add another {app}": "w",
   "Add at least one folder.": "s",
+  "Add bookmark": "n",
   "Add everyone who watches": "w",
+<<<<<<< HEAD
   "Add files to your library folder, or connect Sonarr or Radarr in Flexarr on the web.": "a",
   "Add files to your library folder, or connect Sonarr or Radarr.": "w",
   "Add files to your library folders, or connect Sonarr or Radarr in Flexarr on the web.": "a",
+=======
+  "Add files to your library folder, or connect Sonarr or Radarr in Flexarr on the web.": "n",
+  "Add files to your library folder, or connect Sonarr or Radarr.": "w",
+  "Add files to your library folders, or connect Sonarr or Radarr in Flexarr on the web.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Add files to your library folders, or connect Sonarr or Radarr.": "w",
   "Add library": "w",
   "Add new guest": "w",
@@ -126,17 +164,21 @@
   "Add profile": "w",
   "Add someone: their name": "w",
   "Add something to my ${applicationName} watchlist": "a",
-  "Add this feed": "a",
+  "Add this feed": "an",
   "Add this podcast": "w",
   "Add to": "w",
+<<<<<<< HEAD
   "Add to Favourites": "a",
+=======
+  "Add to Favourites": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Add to Up Next": "w",
-  "Add to Up next": "a",
+  "Add to Up next": "an",
   "Add to collection…": "w",
   "Add to favourites": "w",
   "Add to my watchlist in ${applicationName}": "a",
   "Add to playlist": "wans",
-  "Add to playlist…": "wa",
+  "Add to playlist…": "wan",
   "Add to queue": "wans",
   "Add to watchlist": "wans",
   "Add to {name}": "w",
@@ -151,13 +193,22 @@
   "Added in the last": "w",
   "Added to {name}": "w",
   "Added to {name}.": "w",
+<<<<<<< HEAD
   "Added to {playlist}.": "a",
   "Added {title} to Up next.": "a",
+=======
+  "Added to {playlist}.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Added {title} to your watchlist": "w",
   "Added {title} to your watchlist.": "a",
   "Adding guests waits for Tailscale setup, below.": "w",
   "Adding your podcasts…": "w",
+<<<<<<< HEAD
   "Address": "wa",
+=======
+  "Adding…": "n",
+  "Address": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Adds to {app}": "w",
 <<<<<<< HEAD
   "Admin PIN": "w",
@@ -169,16 +220,22 @@
   "Age limit": "w",
   "AirPlay": "w",
   "Airs": "s",
+<<<<<<< HEAD
   "Airs today": "a",
   "Airs {date}": "a",
   "Airs {day}": "w",
   "Album": "wa",
+=======
+  "Airs {day}": "wn",
+  "Album": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Albums": "wans",
   "Albums twice": "w",
   "Albums with the same track more than once, usually two copies in one folder. Remove the spare in Lidarr or the Finder.": "w",
   "Albums without a cover": "w",
-  "All": "wa",
+  "All": "wan",
   "All areas": "w",
+<<<<<<< HEAD
   "All books": "wa",
   "All channels": "wa",
   "All clear: {list}.": "w",
@@ -192,14 +249,34 @@
   "All {count}": "a",
   "All {count} episodes of {podcast} will be marked as played.": "a",
   "Allow": "wa",
+=======
+  "All books": "wn",
+  "All channels": "wn",
+  "All clear: {list}.": "w",
+  "All finished": "w",
+  "All folders": "wn",
+  "All genres": "an",
+  "All movies": "wn",
+  "All podcasts": "w",
+  "All shows": "wn",
+  "All titles": "n",
+  "All {count} chapters": "n",
+  "All {count} episodes of {show} will be marked as played.": "n",
+  "Allow": "wan",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Allow for kids": "w",
   "Allow it if its screen shows {code}.": "s",
+  "Allow one only if its screen shows the same code.": "n",
   "Allow or block the whole title: its seasons and episodes follow it.": "s",
   "Allow {name}": "w",
   "Allowing it takes the admin PIN.": "a",
   "Already finished": "w",
   "Already in {name}.": "w",
+<<<<<<< HEAD
   "Already in {playlist}.": "a",
+=======
+  "Already in {playlist}.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Already watched": "w",
   "Also in {names}.": "w",
   "Also limited to one person’s movies and shows (from the suggestion this came from).": "w",
@@ -211,10 +288,17 @@
   "An artist needs its deezerId or artistId.": "s",
   "An invite can only be used by the app that joined with it.": "s",
   "An update is already being installed.": "s",
+  "An update is ready": "n",
   "Android TV, Google TV and Fire TV": "w",
+<<<<<<< HEAD
   "Android phone": "was",
   "Android phone and tablet": "w",
   "Android tablet": "was",
+=======
+  "Android phone": "wns",
+  "Android phone and tablet": "w",
+  "Android tablet": "wns",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Another podcast import is still running. Try again when it's finished.": "s",
   "Any": "w",
 <<<<<<< HEAD
@@ -223,8 +307,12 @@
   "Any artist or album": "n",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Any genre": "w",
+<<<<<<< HEAD
   "Any length": "a",
   "Any movie or show": "a",
+=======
+  "Any movie or show": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Any new podcasts in ${applicationName}": "a",
   "Any time": "w",
   "Any web browser": "w",
@@ -240,7 +328,11 @@
   "Apps & Integrations": "w",
   "Apps and browsers": "s",
   "Area": "w",
+<<<<<<< HEAD
   "Artist": "wa",
+=======
+  "Artist": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Artist and album": "w",
   "Artists": "wans",
   "Artists under two names": "w",
@@ -249,12 +341,19 @@
   "Artwork comes from Radarr and Sonarr. Connect them in Settings › Connections to fill it in.": "w",
   "As": "a",
   "As Dispatcharr says": "w",
+<<<<<<< HEAD
   "As it is": "a",
   "As the file is": "a",
   "Ask ${applicationName} to ${action}": "a",
   "Ask for it": "w",
   "Ask the server how it is now.": "a",
   "Ask who's watching": "a",
+=======
+  "As the file is": "n",
+  "Ask ${applicationName} to ${action}": "a",
+  "Ask for it": "w",
+  "Ask the server how it is now.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Ask whoever runs this Flexarr to connect Dispatcharr in Settings › Connections.": "w",
   "Ask whoever set up Flexarr for the key, or connect from home.": "w",
   "Asked for before the server’s settings change, and to let a child off a kids profile.": "w",
@@ -271,14 +370,18 @@
   "At": "an",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "At half past three. The last {keep, number} are kept, and a copy is always made before an upgrade changes the database.": "w",
+<<<<<<< HEAD
   "At home": "a",
+=======
+  "At home": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "At most": "w",
   "At the end of this chapter": "w",
   "At the same path on this server": "w",
   "At {position} of {duration}": "w",
   "Audible has no chapters for this book.": "s",
   "Audible store": "w",
-  "Audio": "wa",
+  "Audio": "wan",
   "Audio and subtitles": "a",
 <<<<<<< HEAD
   "Audio sync": "wa",
@@ -293,6 +396,7 @@
   "Author": "wans",
   "Author {name}: clear": "w",
   "Author: clear": "w",
+<<<<<<< HEAD
   "Authors": "was",
   "Auto": "wa",
   "Auto plays every channel the browser can.": "w",
@@ -301,12 +405,23 @@
   "Auto-play, skipping intros and credits, subtitle size, and how this Apple TV plays files.": "a",
   "Automatic": "a",
   "Automatic (720p)": "a",
+=======
+  "Authors": "wns",
+  "Auto": "wn",
+  "Auto plays every channel the browser can.": "w",
+  "Auto plays every channel what’s connected takes.": "n",
+  "Auto-play the next episode": "wans",
+  "Auto-play, skipping intros and credits, subtitle size, and how far the remote skips.": "n",
+  "Automatic": "an",
+  "Automatic (720p)": "an",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Automatic (recommended)": "w",
   "Automatic backups": "w",
-  "Automatic downloads": "wa",
-  "Automatic downloads on Wi-Fi only": "a",
+  "Automatic downloads": "wan",
+  "Automatic downloads on Wi-Fi only": "an",
   "Automatic lowers the quality only when the connection can’t keep up.": "w",
   "Automatic updates": "w",
+<<<<<<< HEAD
   "Away": "a",
   "Away from home": "wa",
   "Away from home, this Apple TV reaches the server over Tailscale, which needs to be connected on it.": "a",
@@ -324,6 +439,24 @@
   "Back up now": "w",
   "Back {count, plural, one {# second} other {# seconds}}": "a",
   "Back {seconds} seconds": "wa",
+=======
+  "Away": "n",
+  "Away from home": "wn",
+  "Away from home, this TV reaches the server over Tailscale, which needs to be connected on it.": "n",
+  "Away from home, this phone reaches the server over Tailscale, which needs to be connected on it.": "n",
+  "Away, over Tailscale": "n",
+  "A–Z": "wans",
+  "Back": "wan",
+  "Back 10 seconds": "wa",
+  "Back 15 seconds": "n",
+  "Back to Live TV": "w",
+  "Back to automatic": "w",
+  "Back to live": "n",
+  "Back to the mosaic cover": "w",
+  "Back up every night": "w",
+  "Back up now": "w",
+  "Back {seconds} seconds": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Background work": "w",
   "Backup & restore": "w",
   "Backups": "w",
@@ -347,10 +480,17 @@
   "Best": "w",
   "Best copy is SD": "w",
   "Best for this device": "w",
+<<<<<<< HEAD
   "Best match": "a",
   "Best rated": "w",
   "Between 4 and 5 in the morning, once nothing is playing or recording. A busy night waits for the next.": "w",
   "Between Home and Search": "a",
+=======
+  "Best match": "n",
+  "Best rated": "w",
+  "Between 4 and 5 in the morning, once nothing is playing or recording. A busy night waits for the next.": "w",
+  "Between Home and Search": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Biographies can be up to {max} characters.": "s",
   "Biography": "w",
   "Bitrate is above the quality limit": "s",
@@ -360,6 +500,7 @@
   "Book": "wa",
   "Book progress": "a",
   "Book series": "w",
+<<<<<<< HEAD
   "Book {number}": "wa",
   "Book {number} of {count}": "wa",
   "Book {number}, {year}": "a",
@@ -370,12 +511,24 @@
   "Bookmarks in {chapter}": "w",
   "Books": "wa",
   "Books and podcasts in Continue watching": "wa",
+=======
+  "Book {number}": "wn",
+  "Book {number} of {count}": "wn",
+  "Bookmark": "w",
+  "Bookmark {time}": "n",
+  "Bookmarked {time}": "w",
+  "Bookmarks": "wn",
+  "Bookmarks in {chapter}": "w",
+  "Books": "wn",
+  "Books and podcasts in Continue watching": "wan",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Books appear here as the scan finds them.": "w",
 <<<<<<< HEAD
   "Bottom": "wa",
   "Bring across": "wa",
 =======
   "Books are on your phone.": "n",
+<<<<<<< HEAD
   "Bottom": "w",
   "Bring across": "w",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
@@ -384,21 +537,36 @@
   "Bring your Trakt history across": "wa",
   "Bringing in the channels and guide…": "w",
   "Bringing your history across…": "wa",
+=======
+  "Bottom": "wn",
+  "Bring across": "wn",
+  "Bring history over": "w",
+  "Bring over from Plex": "w",
+  "Bring your Trakt history across": "wn",
+  "Bringing in the channels and guide…": "w",
+  "Bringing your history across…": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Broadcasts drift, so recordings start a little early and run on.": "w",
   "Brought over {count, plural, one {# title} other {# titles}}: {watched, number} watched and {inProgress, number} to resume.": "w",
   "Browse": "wans",
-  "Browse podcasts": "wa",
+  "Browse podcasts": "wan",
   "Browsers and TVs signed in below keep working, unless you sign them out too. Anything you gave the old key itself (Sonarr or Radarr’s Emby connection, scripts, an older TV app) will need the new one.": "w",
   "Browsers and TVs signed in below keep working.": "w",
   "Browse…": "w",
   "Built in, for everyone. Who follows what is up to each profile.": "w",
   "Business": "s",
   "By": "w",
+<<<<<<< HEAD
   "By name": "a",
+=======
+  "By invite": "n",
+  "By name": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Can't reach the server ({message}). Check that Flexarr is running, then reload.": "w",
   "Canada": "w",
   "Cancel": "wans",
   "Cancel the invite for {name}": "w",
+<<<<<<< HEAD
   "Cancel timer": "a",
   "Cancels the request": "a",
   "Can’t be reached, or the API key isn’t right": "w",
@@ -418,6 +586,26 @@
   "Cast and crew": "wans",
   "Categories": "w",
   "Certified Fresh": "wa",
+=======
+  "Cancel timer": "n",
+  "Can’t be reached, or the API key isn’t right": "w",
+  "Can’t be read: {reason}": "w",
+  "Can’t find it?": "w",
+  "Can’t get a code just now.": "n",
+  "Can’t reach this Flexarr": "n",
+  "Can’t reach your server since its address changed. Remove it and add it again.": "w",
+  "Can’t reach {name}’s Flexarr. Check this device’s internet.": "n",
+  "Can’t reach {owner}’s Flexarr": "n",
+  "Can’t request": "wn",
+  "Can’t see your server? Check it’s on the same Wi-Fi, or {link}.": "n",
+  "Can’t see your server? Check the Apple TV is on the same Wi-Fi as it, or enter an address.": "a",
+  "Can’t see your server? Check this TV is on the same network as it, or enter an address.": "n",
+  "Caps every stream, at home too.": "w",
+  "Cast": "wn",
+  "Cast and crew": "wans",
+  "Categories": "w",
+  "Certified Fresh": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Change": "w",
   "Change PIN": "w",
   "Change the Trakt app? Everyone who connected to Trakt will need to connect again.": "w",
@@ -427,6 +615,7 @@
   "Channels": "wan",
   "Channels at once": "w",
   "Channels for kids": "w",
+<<<<<<< HEAD
   "Chapter": "wa",
   "Chapter progress": "a",
   "Chapter {number}": "w",
@@ -437,20 +626,39 @@
   "Chapters and notes": "w",
   "Charts and search": "w",
   "Check again": "wa",
+=======
+  "Chapter": "wn",
+  "Chapter {number}": "w",
+  "Chapter {number} start": "w",
+  "Chapter {number} title": "w",
+  "Chapters": "wn",
+  "Chapters and bookmarks": "w",
+  "Chapters and notes": "w",
+  "Charts and search": "w",
+  "Check again": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Check for updates": "w",
   "Check its screen shows": "an",
   "Check its screen shows {code}.": "w",
   "Check libraries": "w",
   "Check these matches": "w",
+<<<<<<< HEAD
   "Check this device’s internet, or that its server is on.": "a",
   "Check this device’s internet, or that {owner}’s server is on.": "a",
   "Checked {time}.": "w",
   "Checking": "a",
+=======
+  "Check this device’s internet, or that its server is on.": "n",
+  "Check this device’s internet, or that {owner}’s server is on.": "n",
+  "Checked {time}.": "w",
+  "Checking": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Checking Tailscale…": "w",
   "Checking files: {checked, number} of {total, number}": "w",
   "Checking how to delete it…": "w",
   "Checking your libraries": "w",
   "Checking your library…": "w",
+<<<<<<< HEAD
 <<<<<<< HEAD
   "Checking…": "wa",
   "Child lock": "wa",
@@ -460,6 +668,11 @@
   "Child lock": "wan",
   "Child lock is on for this device.": "s",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
+=======
+  "Checking…": "wn",
+  "Child lock": "wan",
+  "Child lock is on for this device.": "ns",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Child lock is on for this device. Turn it off first.": "s",
   "Child lock needs a browser or device that's signed in.": "s",
   "Child lock on": "w",
@@ -478,7 +691,11 @@
   "Choose an admin PIN": "w",
   "Choose an admin PIN first: it's what keeps children in their profiles.": "s",
   "Choose an admin PIN from a browser or device you signed in, or with the API key.": "s",
+<<<<<<< HEAD
   "Choose an admin PIN in Flexarr in a browser first.": "a",
+=======
+  "Choose an admin PIN in Flexarr in a browser first.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Choose another": "w",
   "Choose another…": "w",
   "Choose folder": "w",
@@ -499,12 +716,21 @@
   "Chosen lists show in Collections, just for you.": "wa",
 =======
   "Chosen": "n",
+<<<<<<< HEAD
   "Chosen lists show in Collections, just for you.": "w",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Christmas": "s",
   "Clear": "wan",
   "Clear filters": "a",
   "Click **Set up Flexarr**.": "a",
+=======
+  "Chosen lists show in Collections, just for you.": "wn",
+  "Christmas": "s",
+  "Clear": "wan",
+  "Clear filters": "an",
+  "Clear recent searches": "n",
+  "Click {button}.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Client ID": "w",
   "Client secret": "w",
   "Close": "wan",
@@ -513,7 +739,7 @@
   "Close queue": "w",
   "Closed captions": "a",
   "Code": "w",
-  "Code ": "n",
+  "Code {code}": "n",
   "Collapse sidebar": "w",
   "Collection": "w",
   "Collection: {name}": "s",
@@ -523,25 +749,42 @@
   "Colours look like #a9c2ec.": "s",
   "Combine libraries of the same kind": "w",
   "Comedy": "s",
-  "Coming": "wa",
+  "Coming": "wan",
   "Coming soon": "wans",
+<<<<<<< HEAD
   "Coming soon ({count} downloading)": "wa",
   "Coming to cinemas": "s",
   "Coming up": "wa",
   "Compilation": "w",
   "Compilations": "wa",
   "Completely free": "a",
+=======
+  "Coming soon ({count} downloading)": "wn",
+  "Coming to cinemas": "s",
+  "Coming up": "wan",
+  "Compilation": "wn",
+  "Compilations": "wn",
+  "Completely free": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Confirm PIN": "w",
   "Confirm new PIN": "wa",
   "Confirm removal": "w",
   "Confirm that you want to {action}.": "s",
+<<<<<<< HEAD
   "Connect": "wa",
   "Connect Seerr under Settings › Connections on the web to find new movies and shows here and request them.": "a",
   "Connect Sonarr or Radarr": "w",
   "Connect Sonarr, Radarr or Lidarr": "w",
   "Connect Trakt": "wa",
+=======
+  "Connect": "wan",
+  "Connect Seerr under Settings › Connections on the web to find new movies and shows here and request them.": "n",
+  "Connect Sonarr or Radarr": "w",
+  "Connect Sonarr, Radarr or Lidarr": "w",
+  "Connect Trakt": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Connect a TV or phone": "w",
-  "Connect a device": "w",
+  "Connect a device": "wn",
   "Connect this Apple TV": "a",
 <<<<<<< HEAD
   "Connect this {device}": "a",
@@ -551,28 +794,41 @@
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Connect to Trakt first.": "s",
   "Connect to this server at its own address.": "s",
+  "Connect to your server to play this book.": "n",
   "Connect your apps": "w",
+<<<<<<< HEAD
   "Connect {account} again": "a",
+=======
+  "Connect {account} again": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Connect {app}": "w",
   "Connect {name}": "w",
   "Connect {name} again": "w",
   "Connect {name}?": "w",
+<<<<<<< HEAD
   "Connect “{device}”?": "a",
+=======
+  "Connect “{device}”?": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Connect “{name}”?": "w",
-  "Connected": "wa",
-  "Connected by invite": "a",
+  "Connected": "wan",
+  "Connected by invite": "an",
   "Connected, version {version}": "w",
   "Connected. Add its webhook in Settings › Connections.": "w",
   "Connected. It’ll be ready in a moment.": "n",
   "Connected. Setting up instant updates…": "w",
   "Connected: {count, plural, one {# channel} other {# channels}}": "w",
-  "Connecting": "a",
+  "Connecting": "an",
   "Connecting from outside your home? Use an API key": "an",
   "Connecting…": "w",
+<<<<<<< HEAD
   "Connecting… ({problem})": "a",
   "Connection": "a",
+=======
+  "Connection": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Connections": "w",
-  "Continue": "wa",
+  "Continue": "wan",
   "Continue listening": "wans",
   "Continue listening (when kept apart)": "s",
   "Continue listening in ${applicationName}": "a",
@@ -596,7 +852,7 @@
   "Copy": "w",
   "Copy Address": "a",
   "Copy code": "w",
-  "Copy code and open Trakt": "a",
+  "Copy code and open Trakt": "an",
   "Copy {what}": "w",
   "Couldn't add this": "a",
   "Couldn't change notifications": "a",
@@ -618,7 +874,11 @@
   "Couldn't reach TMDB from the server.": "s",
   "Couldn't reach Tailscale ({error}).": "s",
   "Couldn't reach the notification relay.": "s",
+<<<<<<< HEAD
   "Couldn't reach the server, at home or over Tailscale. Make sure Flexarr is running, and that Tailscale is connected on this device.": "a",
+=======
+  "Couldn't reach the server. Make sure Flexarr is running and this device is on the same network.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Couldn't request this": "a",
   "Couldn't save the API key to the Keychain (error {status}).": "a",
   "Couldn't send a test notification": "a",
@@ -628,12 +888,21 @@
   "Couldn’t add it to {name}.": "w",
   "Couldn’t add the webhook.": "w",
   "Couldn’t add this": "n",
+  "Couldn’t add this to the queue": "n",
+  "Couldn’t add this to your watchlist": "n",
+  "Couldn’t allow it": "n",
+  "Couldn’t allow “{name}”": "n",
+  "Couldn’t change notifications": "n",
   "Couldn’t check how to delete it: {reason}": "w",
   "Couldn’t confirm it": "w",
   "Couldn’t connect ({reason}).": "a",
   "Couldn’t copy": "w",
   "Couldn’t delete it": "w",
+  "Couldn’t delete this": "n",
+  "Couldn’t download": "n",
   "Couldn’t download this": "n",
+  "Couldn’t download this.": "n",
+  "Couldn’t follow this artist": "n",
   "Couldn’t keep this match": "w",
   "Couldn’t list the backups: {message}": "w",
   "Couldn’t load the channels: {error}": "w",
@@ -642,22 +911,54 @@
   "Couldn’t load the settings: {message}": "w",
   "Couldn’t load updates: {message}": "w",
   "Couldn’t load your Trakt lists": "w",
+  "Couldn’t load your playlists.": "n",
   "Couldn’t load {letter}.": "w",
+  "Couldn’t mark the show as watched": "n",
+  "Couldn’t mark this as finished": "n",
+  "Couldn’t mark this as unread": "n",
+  "Couldn’t mark this as unwatched": "n",
+  "Couldn’t mark this as watched": "n",
+  "Couldn’t open the trailer": "n",
+  "Couldn’t play this": "n",
+  "Couldn’t play this album": "n",
+  "Couldn’t play this artist": "n",
+  "Couldn’t play this genre": "n",
+  "Couldn’t play this mix": "n",
   "Couldn’t reach Trakt.": "s",
+<<<<<<< HEAD
   "Couldn’t reach the server in time.": "a",
   "Couldn’t reach the server.": "wa",
+=======
+  "Couldn’t reach the server.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Couldn’t reach {app}.": "w",
   "Couldn’t refresh the Trakt sign-in.": "s",
+  "Couldn’t refresh your watchlist": "n",
+  "Couldn’t remove this from Continue watching": "n",
+  "Couldn’t remove this from your watchlist": "n",
+  "Couldn’t request this": "n",
+  "Couldn’t request this album": "n",
+  "Couldn’t save the order. {reason}": "n",
+  "Couldn’t search for season {season}": "n",
+  "Couldn’t send a test notification": "n",
   "Couldn’t set the PIN": "a",
   "Couldn’t sign in.": "w",
+  "Couldn’t start this radio": "n",
+  "Couldn’t stop following this artist": "n",
   "Couldn’t switch profile.": "w",
   "Couldn’t take the PIN off.": "w",
   "Couldn’t turn on notifications": "n",
+  "Couldn’t unrequest this": "n",
+  "Couldn’t unrequest this album": "n",
   "Cover": "w",
-  "Create": "wa",
+  "Create": "wan",
   "Create an OAuth client": "w",
   "Create collection": "w",
+<<<<<<< HEAD
   "Created by": "wa",
+=======
+  "Created by": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Creating": "w",
   "Creator": "a",
   "Credits": "w",
@@ -680,14 +981,23 @@
   "Delete all downloads?": "an",
   "Delete book": "an",
   "Delete playlist": "w",
+<<<<<<< HEAD
   "Delete the bookmark at {time}": "a",
+=======
+  "Delete the bookmark at {time}": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Delete the recording of {title}?": "w",
   "Delete this backup?": "w",
   "Delete this copy": "w",
   "Delete {name}?": "w",
   "Delete {name}? The titles stay in your library.": "w",
+<<<<<<< HEAD
   "Delete {title}?": "a",
   "Delete…": "wa",
+=======
+  "Delete {title}?": "n",
+  "Delete…": "wan",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Description": "w",
   "Description (optional)": "w",
   "Details": "wans",
@@ -697,11 +1007,12 @@
   "Device": "a",
   "Device connected": "w",
   "Device language": "wan",
+  "Devices asking to connect": "n",
   "Devices at home get in as the main profile, and a PIN doesn’t keep them out. Choose “Always” if that matters.": "w",
-  "Devices waiting to connect": "a",
+  "Devices waiting to connect": "an",
   "Diagnostics are limited to 5 MB.": "s",
   "Diagnostics from apps": "w",
-  "Dialogue boost": "wa",
+  "Dialogue boost": "wan",
   "Dialogue boost makes voices easier to follow; night mode quietens loud scenes. While either is on, or the speakers are set, surround plays as PCM rather than passed through, and Atmos without its height.": "a",
   "Dialogue boost {level}": "a",
   "Dialogue boost's high.": "a",
@@ -709,12 +1020,21 @@
   "Dialogue boost's medium.": "a",
   "Dialogue boost's off.": "a",
   "Digital release": "s",
+<<<<<<< HEAD
   "Direct": "wa",
   "Directed by": "wa",
   "Directed by {name}": "s",
   "Directing": "w",
   "Director": "a",
   "Disc {number}": "wa",
+=======
+  "Direct": "w",
+  "Directed by": "wn",
+  "Directed by {name}": "s",
+  "Directing": "w",
+  "Disc {disc}": "n",
+  "Disc {number}": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Discard changes": "w",
   "Disconnect": "wan",
   "Disconnect Bazarr? Searching for subtitles from the player goes with it.": "w",
@@ -723,9 +1043,15 @@
   "Disconnect Seerr? Discover and requests go with it.": "w",
   "Disconnect TMDB": "w",
   "Disconnect TMDB? Its key is forgotten, and movies already filled in keep their details.": "w",
+<<<<<<< HEAD
   "Disconnect Trakt?": "a",
   "Disconnect Trakt? What you’ve watched stays as it is, here and on Trakt.": "w",
   "Disconnect this Apple TV from the server. You'll need to connect it again to watch.": "a",
+=======
+  "Disconnect Trakt?": "n",
+  "Disconnect Trakt? What you’ve watched stays as it is, here and on Trakt.": "w",
+  "Disconnect this TV from the server. You’ll need to connect it again to watch.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Disconnect {name}": "w",
   "Disconnect {name}? Its titles stay in your libraries.": "w",
   "Discover": "wans",
@@ -740,20 +1066,27 @@
   "Done": "wans",
   "Done.": "a",
   "Don’t add {library}": "w",
-  "Don’t allow": "w",
+  "Don’t allow": "wn",
   "Don’t allow {name}": "w",
-  "Don’t record": "w",
+  "Don’t record": "wn",
   "Download": "wans",
   "Download diagnostics": "w",
+<<<<<<< HEAD
   "Download movies, episodes, albums, playlists and podcasts to watch and listen with no connection. Look for the download button on a title’s page.": "a",
   "Download new episodes": "wa",
+=======
+  "Download movies, episodes, albums, playlists and podcast episodes to watch and listen with no connection. Look for Download on a title’s page.": "n",
+  "Download new episodes": "wan",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Download progress": "w",
   "Download the next book in a series": "a",
-  "Download the next episode": "a",
+  "Download the next episode": "an",
+  "Download the next in a series": "n",
   "Download this backup": "w",
   "Downloaded": "an",
   "Downloaded, waiting to be imported": "w",
   "Downloaded, waiting to import": "w",
+<<<<<<< HEAD
   "Downloading": "wa",
   "Downloading now": "w",
   "Downloading {percent}%": "wa",
@@ -766,6 +1099,20 @@
   "Drag posters to reorder.": "w",
   "EP": "w",
   "EPs and singles": "wa",
+=======
+  "Downloading": "wn",
+  "Downloading now": "w",
+  "Downloading {percent}%": "wn",
+  "Downloading {what}": "w",
+  "Downloading, {percent}%": "wn",
+  "Downloading…": "wn",
+  "Downloads": "wans",
+  "Downloads this phone starts by itself, like the next episode or new podcast episodes, use mobile data too, but never while Data Saver is on.": "n",
+  "Downloads this phone starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never come while Data Saver is on. Ones you start yourself use mobile data too.": "n",
+  "Drag posters to reorder.": "w",
+  "EP": "wn",
+  "EPs and singles": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Each chapter needs a title and its own start in the book.": "s",
   "Each guest watches as a profile of their own, and can’t switch to another. Each device joins with a code that works once.": "w",
   "Each list takes up to {rows} rows, each with an id of up to {length} characters.": "s",
@@ -773,9 +1120,15 @@
   "Each morning, what's airing today": "a",
 =======
   "Each morning, what's airing today": "n",
+<<<<<<< HEAD
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Each profile connects its own Trakt account in its Settings. To use your own Trakt app instead of Flexarr’s, give its details.": "w",
   "Each profile connects its own account.": "wa",
+=======
+  "Each morning, what’s airing today": "n",
+  "Each profile connects its own Trakt account in its Settings. To use your own Trakt app instead of Flexarr’s, give its details.": "w",
+  "Each profile connects its own account.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Each will need to sign in or connect again.": "w",
   "Edit": "wa",
   "Edit Dispatcharr": "w",
@@ -795,14 +1148,22 @@
   "Empty files": "w",
   "Empty for the default.": "w",
   "Empty for the default: {folder}.": "w",
+<<<<<<< HEAD
   "End of chapter": "a",
   "End of episode": "a",
   "Ends the episode as the credits start.": "wans",
   "Ends {time}": "wa",
+=======
+  "End of chapter": "n",
+  "End of episode": "n",
+  "Ends the episode as the credits start.": "wans",
+  "Ends {time}": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Enter Dispatcharr's address, a user name and its password.": "s",
   "Enter Dispatcharr's http or https address and a user name.": "s",
-  "Enter an address instead": "a",
+  "Enter an address instead": "an",
   "Enter an http or https address and the API key.": "s",
+<<<<<<< HEAD
   "Enter its address": "a",
 <<<<<<< HEAD
   "Enter the PIN": "wa",
@@ -825,11 +1186,30 @@
   "Episode {number}": "wa",
   "Episodes": "wa",
   "Episodes are deleted a day after you finish them, and podcast episodes once they’re played.": "a",
+=======
+  "Enter its address": "an",
+  "Enter the PIN": "w",
+  "Enter the admin PIN": "wn",
+  "Enter the admin PIN to allow it.": "n",
+  "Enter the admin PIN to {action}.": "s",
+  "Enter the admin PIN.": "wn",
+  "Enter the current admin PIN, or the server's API key (it's in config.json in the server's data folder).": "s",
+  "Enter the folder’s full path.": "s",
+  "Enter this code at {link}.": "wn",
+  "Enter {name}’s PIN": "wn",
+  "Episode Notes": "n",
+  "Episode notes": "w",
+  "Episode {episode}": "w",
+  "Episode {number}": "wn",
+  "Episodes": "wan",
+  "Episodes are deleted a day after you finish them, and podcast episodes once they’re played.": "an",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Episodes folder": "w",
   "Episodes to keep": "w",
   "Episodes wait here on their way to phones, and each is deleted once the phone has it.": "w",
   "Episodes you start watching are analysed first. The rest happens while the server is idle.": "w",
   "Error": "w",
+<<<<<<< HEAD
   "Error reports": "wa",
   "Every album, A to Z.": "a",
   "Every artist, A to Z.": "a",
@@ -838,24 +1218,33 @@
   "Every device on your network will get in as the main profile, without the key.": "w",
   "Every series, A to Z.": "a",
   "Every stream is recording.": "a",
+=======
+  "Error reports": "wn",
+  "Every device on your network will get in as the main profile, without the key.": "w",
+  "Every stream is recording.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Everyone": "w",
   "Everyone gets their own Continue watching and history.": "w",
   "Everyone gets their own Continue watching, history and Up next. A PIN keeps a profile private.": "w",
   "Everyone in the house": "w",
-  "Everything": "wa",
+  "Everything": "wan",
   "Everything Flexarr can’t rebuild from your media: profiles, watch history, playlists, collections, settings and sign-ins.": "w",
   "Everything added in the last 30 days.": "s",
   "Everything downloaded to this phone goes. What you watched offline is sent to the server first.": "n",
   "Everything on this server goes back to how it was on {date}: profiles, what’s been watched, settings, keys and sign-ins. Anything since is lost, though a copy of the server as it is now is kept first. Flexarr restarts to finish, and anyone watching is stopped.": "w",
   "Exit full screen": "w",
   "Expand sidebar": "w",
-  "Explicit": "wa",
+  "Explicit": "wan",
   "Export": "w",
   "Export settings": "w",
   "Export…": "w",
+<<<<<<< HEAD
   "Extra large": "wa",
   "E{episode}": "a",
   "E{episode}–E{end}": "a",
+=======
+  "Extra large": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "FFmpeg": "w",
   "Fades the next track in as the current one ends.": "w",
   "Failed: {reason}": "w",
@@ -885,7 +1274,7 @@
   "Fewer": "a",
 =======
   "Favourite": "wn",
-  "Favourites": "w",
+  "Favourites": "wn",
   "Featured": "w",
   "Featured titles": "w",
   "Fewer": "n",
@@ -905,13 +1294,18 @@
   "Find a better copy": "w",
   "Find a channel": "w",
   "Find and re-sync subtitles from the player.": "w",
+<<<<<<< HEAD
   "Find movies, shows, episodes and people in your libraries.": "a",
   "Find my server": "a",
+=======
+  "Find movies, shows, episodes and people in your libraries.": "n",
+  "Find my server": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Find shows in {browse}, or bring the ones you follow in another app: export them from it as OPML (Pocket Casts, Overcast and most others can), then use Import.": "w",
   "Fine for kids, rated or not": "w",
   "Finish": "w",
   "Finish setting up": "w",
-  "Finished": "was",
+  "Finished": "wans",
   "Finished. Click to mark as unread": "w",
   "Finished: mark {name} as unread": "w",
   "Fix match": "w",
@@ -921,7 +1315,13 @@
   "Flexarr Server": "a",
   "Flexarr can use the folders you choose on the Mac it runs on, and everything inside them.": "w",
   "Flexarr can't reach the Live TV source.": "s",
+<<<<<<< HEAD
   "Flexarr can’t find that title.": "wa",
+=======
+  "Flexarr can’t find that album.": "n",
+  "Flexarr can’t find that artist.": "n",
+  "Flexarr can’t find that title.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Flexarr can’t find them in this folder:": "w",
   "Flexarr can’t reach Tailscale from inside Docker. Run it outside Docker on a computer with Tailscale, or behind an HTTPS reverse proxy. See {guide}.": "w",
   "Flexarr can’t read the backups folder: {message}": "s",
@@ -931,21 +1331,34 @@
   "Flexarr checks once a day.": "w",
   "Flexarr couldn't check this device just now. Try again in a moment.": "s",
   "Flexarr couldn’t keep a copy of the server as it is now, so nothing was restored: {message}": "s",
+<<<<<<< HEAD
   "Flexarr deletes it from the library: there are no files on disk. You can't undo this.": "a",
   "Flexarr deletes {count, plural, =0 {it from the library: there are no files on disk.} one {its file from disk:} other {its # files from disk:}}": "w",
   "Flexarr downloads the update, then restarts to install it, which takes a minute or two. If the new version doesn’t start, the one you have now is put back.": "w",
   "Flexarr for Apple TV {version}": "a",
   "Flexarr for {device} {version}": "a",
+=======
+  "Flexarr deletes it from the library: there are no files on disk. You can’t undo this.": "n",
+  "Flexarr deletes {count, plural, =0 {it from the library: there are no files on disk.} one {its file from disk:} other {its # files from disk:}}": "w",
+  "Flexarr downloads the update, then restarts to install it, which takes a minute or two. If the new version doesn’t start, the one you have now is put back.": "w",
+  "Flexarr for Android TV {version}": "n",
+  "Flexarr for Android {version}": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Flexarr gets artwork, details and new downloads from Sonarr, Radarr and Lidarr.": "w",
   "Flexarr has a new admin PIN": "a",
   "Flexarr hides them now and removes them a day later. Watch history is kept for 30 days in case they come back. No files are touched. If the drive is just disconnected, reconnect it instead.": "w",
   "Flexarr home": "w",
   "Flexarr is busy playing on other screens, so this wasn't got ready ahead of time.": "s",
   "Flexarr is busy playing on other screens. Try again when one of them finishes.": "s",
+<<<<<<< HEAD
   "Flexarr is reading the files in {libraries} ({done} of {total}). Your {kinds} appear here as they’re recognised.": "a",
   "Flexarr is reading the files in {libraries}. Your {kinds} appear here as they’re recognised.": "a",
   "Flexarr is reading the files in {names} ({done} of {total}). Your {wanted} appear here as they’re recognised.": "w",
   "Flexarr is reading the files in {names}. Your {wanted} appear here as they’re recognised.": "w",
+=======
+  "Flexarr is reading the files in {names} ({done} of {total}). Your {wanted} appear here as they’re recognised.": "wn",
+  "Flexarr is reading the files in {names}. Your {wanted} appear here as they’re recognised.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Flexarr is reading your files.": "w",
   "Flexarr is reading {read} of {total} files.": "w",
   "Flexarr is restarting to install the update. This page reloads when it’s back.": "w",
@@ -960,8 +1373,11 @@
   "Flexarr isn't open on {device}. {title} will play as {profile} when you open it in the next two minutes.": "a",
   "Flexarr isn't open on {device}. {title} will play when you open it in the next two minutes.": "a",
   "Flexarr isn't open on {name}.": "s",
+  "Flexarr isn’t open": "n",
+  "Flexarr isn’t open on {device}. {title} plays there if it’s opened in the next two minutes.": "n",
   "Flexarr looks for your Flexarr server on your home network so you can connect without typing an address, then streams from it. For example, it finds the server on your Mac and plays your movies, shows and music from it.": "a",
   "Flexarr looks for your Flexarr server on your home network so you can connect without typing an address, then streams from it. For example, it finds the server on your Mac and plays your movies, shows, music and podcasts from it.": "a",
+<<<<<<< HEAD
   "Flexarr opens as whoever watched last on this Apple TV.": "a",
   "Flexarr opens on Who's watching? each time it starts, so everyone's history stays their own. Profiles with a PIN ask for it every time.": "a",
   "Flexarr picks the closest one": "a",
@@ -972,10 +1388,21 @@
   "Flexarr syncs every few minutes by itself.": "a",
   "Flexarr takes {title}’s details from {source}, and nothing is added anywhere.": "w",
   "Flexarr waits, so you can leave this.": "wa",
+=======
+  "Flexarr picks the closest one": "n",
+  "Flexarr plays the movies, shows and music you keep at home, on this phone, wherever you are.": "n",
+  "Flexarr runs in Docker here, and a container can’t replace itself. To update, get the new image and recreate the container. With Docker Compose, in the folder with your {file}:": "w",
+  "Flexarr said no ({status}). Try Restart Server, then again.": "a",
+  "Flexarr stopped: {reason}": "a",
+  "Flexarr syncs every few minutes by itself.": "n",
+  "Flexarr takes {title}’s details from {source}, and nothing is added anywhere.": "w",
+  "Flexarr waits, so you can leave this.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Flexarr {version} is available": "w",
   "Flexarr's relay answered {status}. Try again in a minute.": "s",
   "Flexarr's relay was slow to answer. If their screen asks to join, that's it; if not, try again.": "s",
   "Flexarr’s Trakt app": "w",
+  "Flexarr’s relay answered with an error (HTTP {status}).": "n",
   "Folder": "w",
   "Folders": "w",
   "Folders it leaves empty go too. You can’t undo this.": "w",
@@ -984,31 +1411,50 @@
   "Folders: {folders}": "a",
   "Follow": "wans",
   "Follow a podcast to see its new episodes here": "w",
+<<<<<<< HEAD
   "Follow a show and its new episodes come here, and to this {device} on Wi-Fi.": "a",
+=======
+  "Follow a show and its new episodes come here.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Follow {title}": "w",
   "Following": "wans",
   "Following {title}": "w",
-  "For": "a",
+  "Following…": "n",
+  "For": "an",
   "For everyone": "w",
   "For everyone, on every device.": "w",
+<<<<<<< HEAD
   "For this profile on every device.": "a",
+=======
+  "For this profile on every device.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "For whoever set it up: the key is in config.json in the server’s data folder. Opening Flexarr through Tailscale signs you in without it.": "w",
   "For you, from Trakt": "s",
   "Forgot PIN?": "wan",
   "Forgotten it?": "w",
   "Forgotten it? Reset it from Flexarr in a browser.": "an",
   "Forgotten it? {button}": "w",
-  "Forward 10 seconds": "wa",
+  "Forward 10 seconds": "wan",
+  "Forward 30 seconds": "n",
   "Forward UDP port {port} on your router to this server. Then update the policy with the snippet in setup.": "w",
+<<<<<<< HEAD
   "Forward {count, plural, one {# second} other {# seconds}}": "a",
   "Forward {seconds} seconds": "wa",
+=======
+  "Forward {seconds} seconds": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Found Plex at {folder}": "w",
   "Found on your network": "w",
   "France": "w",
   "Franchises": "w",
   "Free from {site} by registering an app for personal use.": "w",
+<<<<<<< HEAD
   "Fresh": "wa",
   "From": "wa",
+=======
+  "Fresh": "wn",
+  "From": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "From Trakt": "w",
   "From a file": "w",
   "From the beginning": "a",
@@ -1027,6 +1473,7 @@
   "Germany": "w",
   "Get Tailscale": "w",
   "Get a new copy": "w",
+<<<<<<< HEAD
   "Get notifications for {profile} instead": "a",
   "Get started": "w",
   "Get the app and open it at home. When it asks to connect, choose Allow here.": "w",
@@ -1035,6 +1482,15 @@
   "Getting ready on the server": "a",
   "Getting ready to play": "w",
   "Getting ready, {percent}%": "a",
+=======
+  "Get notifications for {name} instead": "n",
+  "Get started": "w",
+  "Get the app and open it at home. When it asks to connect, choose Allow here.": "w",
+  "Getting ready": "n",
+  "Getting ready on the server": "n",
+  "Getting ready to play": "w",
+  "Getting ready, {percent}%": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Give a library title, or a TMDB id with \"movie\" or \"tv\".": "s",
   "Give it a name.": "s",
   "Give the album's musicBrainzId or deezerId.": "s",
@@ -1048,17 +1504,24 @@
   "Go back": "wa",
   "Go to **Settings**, then **Security**, then **Connect a device**.": "a",
   "Go to Book": "a",
-  "Go to Downloads": "a",
+  "Go to Downloads": "an",
   "Go to Home": "w",
   "Go to Podcast": "a",
   "Go to artist": "wans",
+<<<<<<< HEAD
   "Go to book": "a",
   "Go to details": "a",
   "Go to episode": "a",
   "Go to movie": "a",
   "Go to podcast": "w",
+=======
+  "Go to book": "an",
+  "Go to details": "n",
+  "Go to episode": "n",
+  "Go to podcast": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Go to show": "wans",
-  "Go to {settings}, then {security}, then {connect}.": "w",
+  "Go to {settings}, then {security}, then {connect}.": "wn",
   "Go to {time}": "w",
   "Go to {title}": "w",
   "Government": "s",
@@ -1085,6 +1548,7 @@
   "Health & Fitness": "s",
   "Health check": "w",
   "Health score": "w",
+<<<<<<< HEAD
   "Hear when something new is ready. This {device} gets them for one profile.": "a",
   "Heard": "w",
   "Hide": "w",
@@ -1095,39 +1559,75 @@
   "High": "wa",
   "High (1080p)": "a",
   "Higher": "wa",
+=======
+  "Hear when something new is ready. This phone gets them for one profile.": "n",
+  "Heard": "w",
+  "Hide": "w",
+  "Hide bar": "a",
+  "Hide chapters": "n",
+  "Hide controls": "n",
+  "Hide lyrics": "n",
+  "Hide notes": "n",
+  "Hide the API key": "w",
+  "Hide {name}? It won’t come back with the next sync.": "w",
+  "High": "wn",
+  "High (1080p)": "n",
+  "Higher": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Highly rated movies, not yet watched": "s",
   "Highly rated, never watched": "s",
   "Highly rated, not yet started": "s",
   "Highly rated, not yet watched": "s",
   "History": "s",
 <<<<<<< HEAD
+<<<<<<< HEAD
   "History brought across": "wa",
 =======
   "History brought across": "w",
+=======
+  "History brought across": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Hold the channels you watch most to keep them first.": "n",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Hold to move faster": "w",
   "Home": "wans",
   "Home & browse": "w",
   "Home Videos": "w",
+<<<<<<< HEAD
   "Home is always first, and Discover, Search and Settings last.": "a",
   "Home is always first, and Discover, Search and Settings last. Your other devices list your libraries in this order too.": "a",
+=======
+  "Home is always first, and Discover, Search and Settings last. Your other devices list your libraries in this order too.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Home network": "w",
   "Home network only. Remote access is off": "w",
   "Home screen": "a",
   "Home videos": "w",
   "Horror for the season, best first.": "s",
+<<<<<<< HEAD
   "How big subtitles are. Subtitles that run early or late can be moved from the player's subtitles menu.": "a",
   "How far a click on the left or right of the remote moves movies and shows.": "a",
+=======
+  "How big subtitles are. Subtitles that run early or late can be moved from the player’s Subtitles menu.": "n",
+  "How far a press of left or right on the remote moves while something plays.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "How it works": "w",
   "How to get a key": "w",
   "How to set it up": "w",
   "How to update": "w",
+<<<<<<< HEAD
   "IMDb {score} out of 10": "wa",
   "Ideas from what’s in your library. Adding one makes a smart collection that keeps itself up to date.": "w",
   "Identical": "w",
   "If Flexarr sits behind a reverse proxy in Docker or on another computer, add that proxy to {setting} in config.json, or visitors through it are treated as the internet and asked for the key.": "w",
   "If you like this": "wa",
+=======
+  "IMDb {score} out of 10": "wn",
+  "Ideas from what’s in your library. Adding one makes a smart collection that keeps itself up to date.": "w",
+  "Identical": "w",
+  "If Flexarr sits behind a reverse proxy in Docker or on another computer, add that proxy to {setting} in config.json, or visitors through it are treated as the internet and asked for the key.": "w",
+  "If you like this": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "If your image’s tag names a version (like {tag}), change it first. On Synology or Unraid, update the container the way the platform does. To update automatically, a tool like Watchtower can do it.": "w",
   "Ignore": "w",
   "Import": "w",
@@ -1137,12 +1637,22 @@
   "In Dispatcharr, add a user for Flexarr at Streamer level with a long random XC password, and use that password as the key here. It can only list and play the channels Dispatcharr gives that user.": "w",
   "In Docker, visitors from the internet can look like they’re at home too.": "w",
   "In cinemas": "s",
+<<<<<<< HEAD
   "In movies wider than the TV, subtitles go in the black bar below the picture rather than over it.": "a",
   "In movies wider than the screen, subtitles go in the black bar below the picture rather than over it.": "w",
   "In progress": "wa",
   "In sync": "w",
   "In the black bars": "wa",
   "In time": "wa",
+=======
+  "In movies wider than the TV, subtitles go in the black bar below the picture rather than over it.": "n",
+  "In movies wider than the screen, subtitles go in the black bar below the picture rather than over it.": "w",
+  "In progress": "wn",
+  "In sync": "w",
+  "In the black bars": "wn",
+  "In this": "n",
+  "In time": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "In your library": "wans",
   "In {app}": "w",
   "In {app}, under Settings › General": "w",
@@ -1167,12 +1677,17 @@
   "It answered with HTTP {status}.": "s",
   "It can’t reach Flexarr any more. Joining again takes a new code.": "w",
   "It didn't answer within 8 seconds.": "s",
+  "It may have expired; the device shows a new code.": "n",
   "It should arrive in a moment.": "n",
   "It signs in to Flexarr like any other device. You can sign it out later in Settings › Security.": "w",
   "It signs in within a couple of seconds. You can put this away.": "w",
   "It takes just 2 minutes.": "w",
+<<<<<<< HEAD
   "It takes {name}’s PIN off.": "wa",
   "It takes {profile}’s PIN off.": "a",
+=======
+  "It takes {name}’s PIN off.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "It uses the languages and subtitle sites set up in Bazarr, for titles Sonarr and Radarr manage. A title with no languages profile gets Bazarr’s first one, so Bazarr may then fetch subtitles for it on its own schedule too.": "w",
   "It will need the API key to sign in again. Signed in {date}, last used {time}.": "w",
   "It will need to connect again. Connected {date}, last used {time}.": "w",
@@ -1186,16 +1701,21 @@
   "Its new episodes stop coming to this phone. Episodes already downloaded stay until you delete them.": "n",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Its scheduled showings come off the list. What it's recorded stays.": "a",
+  "Its scheduled showings come off the list. What it’s recorded stays.": "n",
   "Its {folder} folder isn’t at that path on this server.": "w",
+  "It’ll be ready in a moment.": "n",
   "It’s asking {where}.": "w",
+  "It’s connected": "n",
   "It’s in config.json in the server’s data folder: ~/.flexarr/data on a Mac, /config with Docker.": "w",
   "It’s in the Flexarr menu at the top of your screen.": "w",
   "It’s in the file setup-code.txt, in the .flexarr/data folder in your home folder.": "w",
   "It’s taking a while, which a big library’s first start after an update can. If it doesn’t come back, the log of the update is in {file} on the server.": "w",
   "It’s taking a while. If nothing starts Flexarr again by itself on this machine, start it again, and the backup is put in place as it starts.": "w",
+  "It’s {asking}.": "n",
   "I’ll set it up myself": "w",
   "Japan": "w",
   "Join": "an",
+<<<<<<< HEAD
   "Join someone’s Flexarr": "wa",
 <<<<<<< HEAD
   "Join {owner}’s Flexarr": "a",
@@ -1219,22 +1739,51 @@
   "Jumps past a show's opening titles by itself. Off, a Skip intro button shows instead.": "a",
   "Jumps past the opening titles by itself.": "w",
   "Jumps past the “Previously on” at the start of an episode.": "a",
+=======
+  "Join someone’s Flexarr": "wan",
+  "Join {owner}’s Flexarr?": "n",
+  "Joining again takes a new code.": "an",
+  "Joining again takes a new code. Downloads are deleted.": "an",
+  "Joining {owner}’s Flexarr…": "n",
+  "Jump": "wn",
+  "Jump to letter": "w",
+  "Jump to live": "w",
+  "Jump to {time} from {device}?": "wn",
+  "Jump to {time}?": "w",
+  "Jump to…": "w",
+  "Jumps past a show’s opening titles by itself. Off, a Skip intro button shows instead.": "n",
+  "Jumps past the opening titles by itself.": "w",
+  "Jumps past the “Previously on” at the start of an episode.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Jumps past “Previously on…” by itself.": "w",
   "Just for you": "w",
   "Just me": "w",
+  "Just now": "n",
   "Just you": "w",
   "Keep": "w",
   "Keep 1 to 50 episodes, at a speed from 0.5× to 4×; skips are 10, 15, 30, 45 or 60 seconds.": "s",
+<<<<<<< HEAD
   "Keep following": "wa",
+=======
+  "Keep following": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Keep for (days)": "w",
   "Keep free on the drive": "w",
   "Keep it": "wan",
   "Keep signed in": "w",
+<<<<<<< HEAD
   "Keep the newest {count}": "a",
   "Keep them": "w",
   "Keep this one": "w",
   "Keep what this profile watches, and its watchlist, in step with Trakt.": "a",
   "Keep what you watch, your place and your watchlist in step with Trakt.": "wa",
+=======
+  "Keep the newest {count}": "n",
+  "Keep them": "w",
+  "Keep this one": "w",
+  "Keep what this profile watches, and its watchlist, in step with Trakt.": "n",
+  "Keep what you watch, your place and your watchlist in step with Trakt.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Keeping this match…": "w",
   "Keeps playing on {device}": "a",
   "Kept for this show.": "w",
@@ -1246,6 +1795,7 @@
   "Kids & Family": "s",
   "Kids profile": "w",
   "Kids profile, up to {rating}": "w",
+<<<<<<< HEAD
   "Kind": "wa",
   "LIVE": "a",
   "Language": "wan",
@@ -1256,6 +1806,17 @@
   "Last profile": "a",
   "Last watched": "a",
   "Latest episode": "a",
+=======
+  "Kind": "wan",
+  "Language": "wan",
+  "Large": "wn",
+  "Largest size (MB)": "w",
+  "Last checked {time}: {total, plural, one {# file} other {# files}}, no problems.": "w",
+  "Last checked {time}: {total, plural, one {# file} other {# files}}, {problems, number} with problems.": "w",
+  "Last watched": "n",
+  "Later": "n",
+  "Latest episode": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Latest release: {version}": "w",
   "Latest unwatched": "s",
   "Latest unwatched home videos, from every home video library": "s",
@@ -1267,10 +1828,16 @@
   "Leave {owner}’s Flexarr?": "a",
 =======
   "Leave": "an",
+<<<<<<< HEAD
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
+=======
+  "Leave this Flexarr?": "n",
+  "Leave {owner}’s Flexarr?": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Leisure": "s",
   "Length": "wans",
   "Less": "w",
+  "Less than a minute left": "n",
   "Let devices at home in without the key": "w",
   "Let them in": "w",
   "Let’s get your movies, shows and music ready to watch.": "w",
@@ -1280,9 +1847,13 @@
   "Libraries and server settings, without profiles or history. Handy for setting up another server.": "w",
   "Libraries this profile sees": "w",
   "Libraries {name} sees": "w",
+<<<<<<< HEAD
   "Library": "a",
+=======
+  "Library": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Library health": "w",
-  "Library order": "a",
+  "Library order": "an",
   "Library scans": "s",
   "Lidarr can't find this album.": "s",
   "Lidarr can't find {name}.": "s",
@@ -1290,7 +1861,11 @@
   "Lidarr deletes the album’s files from disk.": "w",
   "Lidarr deletes the artist and all their files from disk.": "w",
   "Lidarr isn't answering. Try again later.": "s",
+<<<<<<< HEAD
   "Lidarr isn’t answering.": "wa",
+=======
+  "Lidarr isn’t answering.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Lidarr or Deezer didn't answer in time. Try again in a minute.": "s",
   "Lidarr turned that down.": "s",
   "Lidarr turned the request down. It may have it already.": "s",
@@ -1298,11 +1873,16 @@
   "Light in the cover’s colours moves with the music behind Now Playing.": "w",
   "Like artists you play": "s",
   "Limit each stream to": "w",
+<<<<<<< HEAD
   "List": "a",
+=======
+  "List": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "List the libraries by id.": "s",
+  "Listen to this on your phone or the web.": "n",
   "Listening": "w",
-  "Lists": "wa",
-  "Live": "w",
+  "Lists": "wan",
+  "Live": "wn",
   "Live TV": "wans",
   "Live TV (your favourite channels)": "s",
   "Live TV disconnected": "w",
@@ -1335,6 +1915,7 @@
   "Looking for Plex…": "w",
   "Looking for changes…": "w",
   "Looking for your folders…": "w",
+<<<<<<< HEAD
   "Looking through your library": "wa",
   "Looking through your library…": "w",
   "Looks at every file: whether it’s still on disk, not empty, and readable.": "w",
@@ -1344,6 +1925,14 @@
   "Lyrics": "wa",
 =======
   "Low": "w",
+=======
+  "Looking through your library": "wn",
+  "Looking through your library…": "w",
+  "Looks at every file: whether it’s still on disk, not empty, and readable.": "w",
+  "Lossless surround": "a",
+  "Lost the connection to the server. Make sure this phone is online and Flexarr is running, then try again.": "n",
+  "Low": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Lyrics": "wan",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Lyrics for {title}": "w",
@@ -1353,7 +1942,11 @@
   "Made for you (music mixes)": "s",
   "Made from the artists you play": "s",
   "Made {name} with it.": "w",
+<<<<<<< HEAD
   "Made {playlist} with it.": "a",
+=======
+  "Made {playlist} with it.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Main": "w",
   "Main profile": "w",
   "Main profile, manages the server": "w",
@@ -1362,8 +1955,12 @@
   "Make a new key": "w",
   "Make a new secret": "w",
   "Make a new webhook secret?": "w",
+<<<<<<< HEAD
   "Make sure Flexarr is open on it, then try again.": "a",
   "Makes voices easier to follow under music and effects.": "wa",
+=======
+  "Makes voices easier to follow under music and effects.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Manage profiles": "w",
   "Mapping saved": "w",
   "Mark all as played": "wan",
@@ -1373,7 +1970,7 @@
   "Mark as Finished": "a",
   "Mark as finished": "wans",
   "Mark as played": "wans",
-  "Mark as unplayed": "wa",
+  "Mark as unplayed": "wan",
   "Mark as unread": "wans",
   "Mark as unwatched": "wans",
   "Mark as watched": "wans",
@@ -1385,13 +1982,22 @@
   "Mark show as watched": "w",
   "Mark {name} as finished": "w",
   "Mark {name} as watched": "w",
+<<<<<<< HEAD
   "Mark {show} as watched": "a",
+=======
+  "Mark {show} as watched": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Match automatically again": "w",
   "Matched by title": "w",
   "Matches your file": "wan",
   "Media folders": "w",
+<<<<<<< HEAD
   "Medium": "wa",
   "Medium (720p)": "a",
+=======
+  "Medium": "wn",
+  "Medium (720p)": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Menu": "w",
   "Merge": "w",
   "Merge these albums?": "w",
@@ -1400,43 +2006,75 @@
   "Minimum level": "w",
   "Missing artwork": "w",
   "Missing from disk": "w",
+<<<<<<< HEAD
   "Mono": "wa",
   "Month": "w",
   "More": "wan",
   "More actions": "wa",
   "More by the author": "wa",
   "More by {name}": "wa",
+=======
+  "Mono": "wn",
+  "Month": "w",
+  "More": "wan",
+  "More actions": "wa",
+  "More by the author": "wn",
+  "More by {name}": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "More couldn’t be loaded.": "w",
-  "More for {title}": "w",
+  "More for {title}": "wn",
   "More from artists you play": "s",
   "More from the narrator": "a",
   "More in the guide": "w",
+<<<<<<< HEAD
   "More in the series": "wa",
+=======
+  "More in the series": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "More in {name}": "w",
-  "More info": "wa",
+  "More in {series}": "n",
+  "More info": "wan",
   "More like this": "wans",
+<<<<<<< HEAD
   "More read by {name}": "a",
+=======
+  "More read by the narrator": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "More than one file for the same movie or episode. Removing spares frees {size}; the best copy, and the one Sonarr or Radarr use, always stay.": "w",
   "Most played": "s",
   "Most played (music)": "s",
   "Most popular": "w",
+<<<<<<< HEAD
   "Move up or down": "a",
+=======
+  "Move down": "n",
+  "Move up": "n",
+  "Move up or down": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Move {name} down": "w",
   "Move {name} up": "w",
   "Move {title} down": "w",
   "Move {title} up": "w",
+<<<<<<< HEAD
   "Movie": "wa",
+=======
+  "Movie": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Movie details without Radarr": "w",
   "Movie libraries": "w",
   "Movie or show": "a",
   "Movie series": "w",
   "Movie, show or podcast": "a",
   "Movies": "wans",
-  "Movies and episodes": "a",
+  "Movies and episodes": "an",
   "Movies and shows": "wans",
   "Movies and specials with Christmas in them.": "s",
   "Movies rated 7.5 or more that you haven't seen.": "s",
+<<<<<<< HEAD
   "Movies, shows, episodes and people": "a",
+=======
+  "Movies, shows, episodes and people": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Movies, shows, music, books, people, genres": "w",
   "Movies, shows, podcast episodes, recordings and requests as they arrive": "n",
   "Music": "wans",
@@ -1452,7 +2090,11 @@
   "Name for {name}": "w",
   "Name is required.": "s",
   "Name it, then press Create": "w",
+<<<<<<< HEAD
   "Name your first playlist": "wa",
+=======
+  "Name your first playlist": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Name your playlist": "w",
   "Narrated": "w",
   "Narrator": "a",
@@ -1463,29 +2105,50 @@
   "Needs an admin PIN first.": "w",
   "Needs attention in {app}": "w",
   "Needs attention: open {app}": "w",
+<<<<<<< HEAD
   "Network": "wa",
   "Never sent:": "w",
   "New": "wa",
+=======
+  "Network": "wn",
+  "Never sent:": "w",
+  "New": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "New PIN": "wa",
   "New albums": "as",
   "New audiobooks": "s",
   "New books have arrived.": "w",
+<<<<<<< HEAD
   "New code": "a",
   "New collection": "w",
   "New episode": "s",
   "New episode · {episode} · {title}": "s",
   "New episodes": "wa",
   "New episodes can come as notifications.": "a",
+=======
+  "New code": "n",
+  "New collection": "w",
+  "New episode": "s",
+  "New episode · {episode} · {title}": "s",
+  "New episodes": "wn",
+  "New episodes can come as notifications.": "an",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "New episodes only": "w",
   "New every day, from what you play.": "w",
   "New film: {title}": "s",
   "New from your artists": "s",
   "New from {artist}": "s",
+  "New in your library": "n",
   "New key made. The old one stopped working.": "w",
   "New movies go to": "w",
   "New music goes to": "w",
+<<<<<<< HEAD
   "New playlist": "wa",
   "New podcasts": "was",
+=======
+  "New playlist": "wn",
+  "New podcasts": "wns",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "New profile": "w",
   "New secret made. Add it to each app below (or give them these new addresses): until then they can’t start scans.": "w",
   "New show: {title}": "s",
@@ -1496,6 +2159,7 @@
   "New to Flexarr?": "an",
   "New: {show}": "s",
   "Newest": "w",
+<<<<<<< HEAD
   "Newest first": "wa",
   "Newest releases": "s",
   "Newest shows": "s",
@@ -1516,10 +2180,33 @@
   "Night mode ${state} in ${applicationName}": "a",
   "Night mode ends": "w",
   "Night mode from": "a",
+=======
+  "Newest first": "wn",
+  "Newest releases": "s",
+  "Newest shows": "s",
+  "News": "s",
+  "Next": "wan",
+  "Next channel": "wn",
+  "Next chapter": "wan",
+  "Next episode": "wan",
+  "Next episode in {seconds}": "wans",
+  "Next episode: {code} {title}": "w",
+  "Next in series": "wns",
+  "Next in series (audiobooks)": "s",
+  "Next track": "w",
+  "Next up": "w",
+  "Next: {time} {title}": "wn",
+  "Next: {title}": "wn",
+  "Night mode": "wan",
+  "Night mode ${state} in ${applicationName}": "a",
+  "Night mode ends": "w",
+  "Night mode from": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Night mode hours": "w",
   "Night mode on": "a",
   "Night mode on a schedule": "a",
   "Night mode starts": "w",
+<<<<<<< HEAD
   "Night mode until": "a",
   "Night mode's already on, on its schedule.": "a",
   "Night mode's off, and comes on at {time} as scheduled.": "a",
@@ -1527,6 +2214,9 @@
   "Night mode's off. That replaces its schedule.": "a",
   "Night mode's on.": "a",
   "Night mode's on. That replaces its schedule.": "a",
+=======
+  "Night mode until": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Nightly": "w",
   "No": "w",
   "No Apple TV to play on": "a",
@@ -1534,6 +2224,7 @@
   "No Settings. Leaving takes the admin PIN.": "w",
   "No Tailscale OAuth client is set up.": "s",
   "No albums yet": "w",
+<<<<<<< HEAD
   "No albums yet.": "a",
   "No artists here yet.": "w",
   "No authors here yet.": "w",
@@ -1545,6 +2236,16 @@
   "No channels by that name": "w",
   "No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr's user.": "a",
   "No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.": "w",
+=======
+  "No albums yet.": "n",
+  "No artists here yet.": "wn",
+  "No authors here yet.": "wn",
+  "No backups yet.": "w",
+  "No books match.": "wan",
+  "No books yet.": "wn",
+  "No channels by that name": "w",
+  "No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "No chapter here": "w",
   "No collections of yours yet. Start one below.": "w",
   "No collections yet. Make one, or pick one from {suggested}.": "w",
@@ -1558,41 +2259,62 @@
   "No devices are waiting. When one asks to connect, it shows here.": "w",
   "No episodes match “{query}”.": "w",
 <<<<<<< HEAD
+<<<<<<< HEAD
   "No episodes yet.": "wa",
   "No favourites yet": "a",
 =======
   "No episodes yet.": "w",
+=======
+  "No episodes yet.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "No favourites yet": "an",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "No favourites yet: star channels in On now, and the guide can show just them.": "w",
   "No feed to add": "w",
   "No folder chosen": "w",
+<<<<<<< HEAD
   "No genres here yet. They come with each book's details once a scan has found them.": "a",
   "No genres here yet. They come with each book’s details once a scan has found them.": "w",
   "No genres here yet. They come with each title's details once a scan has found them.": "a",
   "No genres here yet. They come with each title’s details once a scan has found them.": "w",
+=======
+  "No genres here yet. They come with each album’s details once a scan has found them.": "n",
+  "No genres here yet. They come with each book’s details once a scan has found them.": "wn",
+  "No genres here yet. They come with each title’s details once a scan has found them.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "No guests yet.": "w",
   "No libraries yet. Add one to start.": "w",
   "No limit": "w",
   "No listings": "wan",
   "No narrators here yet.": "w",
   "No new recording starts when there’s less than this.": "w",
+  "No other screens are signed in. Connect Flexarr on a TV or another phone, then it’s listed here.": "n",
   "No photos found.": "w",
   "No playlists yet. Make one, or add a track to a new one from its ⋯ menu.": "w",
   "No podcasts yet": "w",
+<<<<<<< HEAD
   "No podcasts yet.": "a",
+=======
+  "No podcasts yet.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "No poster or details": "w",
   "No profile is called {names}; add one and run this again.": "w",
   "No profiles matched a Plex user’s name.": "w",
   "No scans running.": "w",
+<<<<<<< HEAD
   "No series here yet.": "w",
   "No series yet.": "a",
   "No shows found for “{search}”.": "a",
+=======
+  "No series here yet.": "wn",
+  "No shows found for “{query}”.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "No subfolders": "w",
   "No subtitles found": "an",
   "No subtitles found.": "w",
   "No subtitles were found for this.": "s",
   "No suggestions right now. They change as your library grows and through the year.": "w",
+<<<<<<< HEAD
   "No tracks yet.": "a",
   "No {genre} albums here.": "a",
   "No {genre} artists here.": "a",
@@ -1601,17 +2323,31 @@
   "None": "wa",
   "None are here yet": "w",
   "None are here yet.": "a",
+=======
+  "No tracks yet.": "n",
+  "No {genre} albums here.": "n",
+  "No {genre} artists here.": "n",
+  "No {genre} titles here.": "n",
+  "Nobody’s watching anything.": "w",
+  "None": "wn",
+  "None are here yet": "w",
+  "None are here yet.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "None chosen": "w",
   "None embedded": "w",
   "None of your music libraries is one of Lidarr's root folders, so what it downloads wouldn't show here.": "s",
   "None yet.": "w",
+<<<<<<< HEAD
   "Normal": "wa",
+=======
+  "Normal": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Normalise volume": "w",
   "Not allowed": "wan",
   "Not at that path here, and no titles say where it is. Choose the folder it is on this server.": "w",
   "Not at that path here, but {titles} in both {count, plural, one {is} other {are}} in {folder}": "w",
   "Not at that path here. Perhaps {folder}, which has the same name": "w",
-  "Not available": "wa",
+  "Not available": "wan",
   "Not available in Docker": "w",
   "Not checked yet": "w",
   "Not connected, {purpose}": "w",
@@ -1622,9 +2358,13 @@
   "Not installed on the server": "w",
   "Not installed on this server yet. It’s free for personal use.": "w",
 <<<<<<< HEAD
+<<<<<<< HEAD
   "Not listed?": "a",
   "Not now": "wa",
 =======
+=======
+  "Not listed? {link}.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Not now": "wan",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Not on disk. It may have been deleted or moved, or its drive isn't connected.": "s",
@@ -1633,14 +2373,20 @@
   "Not over AirPlay": "a",
   "Not recorded: {reason}": "w",
   "Not set up": "w",
+<<<<<<< HEAD
   "Not started": "wa",
   "Not synced yet": "wa",
+=======
+  "Not started": "wn",
+  "Not synced yet": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Not yet": "w",
 <<<<<<< HEAD
   "Note": "a",
   "Notes": "wa",
 =======
   "Note": "an",
+<<<<<<< HEAD
   "Notes": "w",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Nothing answered at that address.": "s",
@@ -1649,11 +2395,21 @@
   "Nothing found for “{query}”.": "wa",
   "Nothing found for “{query}”. If you have the show's feed address, paste it here instead.": "w",
   "Nothing found for “{query}”. Try a different spelling, or the original title.": "wa",
+=======
+  "Notes": "wn",
+  "Nothing answered at that address.": "s",
+  "Nothing connected yet. Add Sonarr, Radarr or Lidarr for artwork and details.": "w",
+  "Nothing downloaded.": "n",
+  "Nothing found for “{query}”.": "wn",
+  "Nothing found for “{query}”. If you have the show's feed address, paste it here instead.": "w",
+  "Nothing found for “{query}”. Try a different spelling, or the original title.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Nothing found in {name}. Is its drive connected?": "w",
   "Nothing found. Try fewer words, or the artist alone.": "w",
   "Nothing found. Try fewer words, or the author.": "w",
   "Nothing found. Try the title as it was first released, or add the year.": "w",
   "Nothing has signed in with its own token yet. Browsers on your home network or Tailscale may not need to.": "w",
+<<<<<<< HEAD
   "Nothing here for {name} yet": "w",
   "Nothing here for {profile} yet": "a",
   "Nothing here yet": "wa",
@@ -1672,10 +2428,27 @@
   "Nothing is playing on {device}.": "a",
   "Nothing is playing.": "a",
   "Nothing is scheduled. Monitored shows and movies appear here as their dates get close.": "a",
+=======
+  "Nothing here for {name} yet": "wn",
+  "Nothing here yet": "wa",
+  "Nothing here yet.": "wn",
+  "Nothing in Up next": "an",
+  "Nothing in it yet. Add titles from their ⋯ menu or their page: Add to collection.": "w",
+  "Nothing in it yet. Add tracks, albums or artists from their ⋯ menu: Add to playlist.": "w",
+  "Nothing in that season is missing.": "s",
+  "Nothing in this library yet.": "n",
+  "Nothing in this playlist yet.": "n",
+  "Nothing in your library matches “{query}”.": "w",
+  "Nothing in {name} matches “{query}”.": "w",
+  "Nothing is marked unwatched, on either side.": "wn",
+  "Nothing is playing.": "n",
+  "Nothing is scheduled. Monitored shows and movies appear here as their dates get close.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Nothing is scheduled. Monitored shows and movies will appear here as their dates approach.": "w",
   "Nothing logged matches that.": "w",
   "Nothing logged.": "w",
   "Nothing matches its rules yet.": "w",
+<<<<<<< HEAD
   "Nothing matches “{query}”.": "a",
   "Nothing matches “{search}”.": "a",
   "Nothing new. You're up to date.": "a",
@@ -1683,6 +2456,13 @@
   "Nothing on its way.": "w",
   "Nothing on this list is here yet.": "w",
   "Nothing on your watchlist matches.": "wa",
+=======
+  "Nothing matches “{query}”.": "n",
+  "Nothing next. “Play next” or “Add to queue” on a track puts it here.": "w",
+  "Nothing on its way.": "w",
+  "Nothing on this list is here yet.": "w",
+  "Nothing on your watchlist matches.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Nothing recorded yet.": "w",
   "Nothing scheduled": "w",
   "Nothing set to record. Choose a programme in the Guide and Record it, or its series.": "w",
@@ -1690,20 +2470,32 @@
   "Nothing set to record. In the Guide, tap a programme and choose Record, or Record series.": "a",
   "Nothing set to record. In the guide, press and hold a programme and choose Record, or Record series.": "an",
   "Nothing to carry on with": "a",
+  "Nothing to carry on with. What you start watching shows up here.": "n",
+  "Nothing to carry on with. What you’re listening to shows up here.": "n",
   "Nothing to suggest yet.": "w",
+<<<<<<< HEAD
   "Nothing to watch yet": "wa",
+=======
+  "Nothing to watch yet": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Nothing was imported.": "w",
   "Nothing was removed.": "w",
-  "Notifications": "was",
+  "Notifications": "wans",
+  "Notifications are off for Flexarr in Android's settings. Allow them there first.": "n",
   "Notifications are off for Flexarr in the Settings app. Allow them there first.": "a",
   "Notifications are on": "s",
   "Notifications are turned off on this server.": "s",
-  "Now Playing": "a",
+  "Now Playing": "an",
   "Now playing": "wans",
+<<<<<<< HEAD
   "Now playing on your phone": "a",
   "Now playing on {device}": "a",
   "Now playing: {title}": "a",
   "Now playing: {title} by {artist}": "a",
+=======
+  "Now playing: {title}": "n",
+  "Now playing: {title} by {artist}": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Now scanning…": "w",
   "Now showing {episode}, {title}": "w",
   "Now showing {title}": "a",
@@ -1712,7 +2504,7 @@
   "Numbers and symbols": "wa",
   "Numbers and symbols couldn’t be loaded.": "w",
   "OK": "an",
-  "Off": "wa",
+  "Off": "wan",
   "Off by default. When on, errors from this server and its apps (not your logs) go to Sentry so bugs can be fixed sooner.": "w",
   "Off, the server sends a stream instead of the file itself. Downloads and remote viewing are unaffected.": "a",
   "Off. Connected as {name}": "w",
@@ -1722,30 +2514,54 @@
   "Oldest first": "wa",
 =======
   "Offline": "wan",
+<<<<<<< HEAD
   "Oldest first": "w",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "On": "wa",
+=======
+  "Oldest first": "wn",
+  "On": "wan",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "On Home": "w",
-  "On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted.": "a",
+  "On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted.": "an",
   "On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted. Notifications for new episodes are in each phone’s Settings.": "w",
   "On a phone signed in to Flexarr, tap **Allow** when it asks. Check it shows this code:": "a",
+<<<<<<< HEAD
   "On a schedule": "wa",
   "On any channel": "wa",
+=======
+  "On a phone signed in to Flexarr, tap {allow} when it asks — check it shows this code:": "n",
+  "On a phone signed in to Flexarr, tap {allow} when it asks. Check it shows this code:": "n",
+  "On a schedule": "wn",
+  "On any channel": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "On disc": "s",
-  "On its way": "wa",
+  "On its way": "wan",
   "On now": "w",
   "On or off": "a",
+<<<<<<< HEAD
   "On the same Wi-Fi, this {device} finds your server by itself. When it asks to find devices on your network, tap Allow. Then approve the code it shows and you’re in.": "a",
+=======
+  "On the same Wi-Fi, this phone finds your server by itself. Then approve the code it shows and you’re in.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "On the web.": "w",
   "On their phone, tablet or TV, they open Flexarr and choose {join}": "w",
   "On this server at {folder}": "w",
   "On time": "w",
   "On today": "s",
+<<<<<<< HEAD
   "On watchlist": "w",
   "On your computer, open **{address}** in a web browser.": "a",
   "On your computer, open {address} in a web browser.": "w",
   "On {channel}": "wa",
   "On {service}": "wa",
+=======
+  "On watchlist": "wn",
+  "On watchlist. Remove from watchlist": "n",
+  "On your computer, open {address} in a web browser.": "wn",
+  "On {channel}": "wn",
+  "On {service}": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "On. Your devices switch to it by themselves.": "w",
   "On: Flexarr is available on your tailnet": "w",
   "One Latest unwatched row for all your movie libraries and one for all your TV ones. A title in more than one library shows once.": "w",
@@ -1769,14 +2585,22 @@
   "Only the main profile can make collections for the whole household.": "s",
   "Only tracks, albums and artists can go in a playlist.": "s",
   "Only what this server’s FFmpeg supports is listed.": "w",
-  "Open": "w",
+  "Open": "wn",
   "Open Flexarr": "a",
+<<<<<<< HEAD
   "Open Flexarr and connect it to your server first.": "a",
   "Open Flexarr in a browser and add a library in Settings › Libraries.": "a",
+=======
+  "Open Flexarr in a browser and add a library in Settings › Libraries.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Open Flexarr on the TV, iPhone or iPad and enter the code it shows. A TV also shows a QR code to scan with your phone.": "w",
   "Open Flexarr on your Apple TV, then try again.": "a",
   "Open Flexarr on your iPhone to sign in.": "a",
   "Open Flexarr on {name} first, so it can say whether it plays audiobooks.": "s",
+  "Open Flexarr to allow it with the admin PIN.": "n",
+  "Open Flexarr to allow it.": "n",
+  "Open Flexarr to choose who’s watching": "n",
+  "Open Flexarr to connect it to your server.": "n",
   "Open Now Playing": "w",
 <<<<<<< HEAD
   "Open Settings": "a",
@@ -1796,25 +2620,39 @@
 =======
   "Open Settings": "an",
   "Open in {app}": "w",
-  "Open {name}": "w",
+  "Open on": "n",
+  "Open on {view}": "n",
+  "Open {name}": "wn",
+  "Open, as {profile}": "n",
   "Opening…": "w",
   "Opens Flexarr Server when you log in to this Mac, so the server is back after a restart.": "w",
+  "Optional": "n",
+  "Or on a computer, open {address} and type in the code.": "n",
+  "Or on a computer, open {page} and type the code.": "n",
   "Or scan with a phone that’s signed in to Flexarr.": "an",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Orange": "w",
   "Order": "wan",
-  "Original": "wa",
+  "Original": "wan",
   "Original file": "w",
   "Original keeps the full picture and sound but takes the most space. Albums, playlists and podcasts always come as their files are.": "a",
   "Original quality": "w",
   "Original title": "w",
   "Original video, converted sound{surround, select, yes {, Dolby surround} other {}}": "s",
   "Original{surround, select, yes {, Dolby surround} other {}}": "s",
+<<<<<<< HEAD
   "Other": "wa",
   "Other channels": "w",
   "Other profiles": "w",
   "Out {date}": "wa",
   "Over 20 hours": "a",
+=======
+  "Other": "wn",
+  "Other channels": "w",
+  "Other profiles": "w",
+  "Out {date}": "wn",
+  "Over 20h": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Overview": "w",
   "PIN": "wan",
   "PIN (required)": "w",
@@ -1824,31 +2662,45 @@
   "Passphrase (optional)": "w",
   "Passphrase again": "w",
   "Paste its ID and secret": "w",
-  "Paste or type your API key": "a",
+  "Paste or type your API key": "an",
   "Paste the client's secret too.": "s",
   "Paste this into your tailnet policy": "w",
-  "Paste your API key": "a",
+  "Paste your API key": "an",
   "Paste your TMDB API key or read access token.": "s",
   "Path in the app": "w",
   "Path mappings": "w",
   "Path mappings: {count, number}": "w",
   "Path on this server": "w",
+<<<<<<< HEAD
   "Pause": "wa",
   "Pause Flexarr": "a",
+=======
+  "Pause": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Pause {title}": "w",
+  "Paused": "n",
   "Paused at {percent}%": "w",
   "Paused at {position} of {duration}": "w",
 <<<<<<< HEAD
   "Paused by the sleep timer": "a",
 =======
   "Paused by the sleep timer": "n",
+<<<<<<< HEAD
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
+=======
+  "Paused: {title}": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Pauses the audiobook playing when its chapter ends.": "a",
   "Pauses, resumes or stops what Flexarr is playing, skips the intro, moves on to the next episode, or skips back or forward, here or on another device.": "a",
   "Pausing at the end of the chapter.": "a",
   "Pausing in {seconds} s": "w",
+<<<<<<< HEAD
   "Pausing in {time}": "a",
   "People": "wa",
+=======
+  "Pausing in {time}": "n",
+  "People": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "People on your tailnet with the Tailscale app and their own account. Choose the profile each one gets when they open Flexarr in a browser, or Not allowed to turn them away.": "w",
   "People with their own Tailscale": "w",
   "Photo": "w",
@@ -1858,7 +2710,7 @@
   "Pick up where I left off in ${applicationName}": "a",
   "Picks up the book or podcast episode you listened to last.": "a",
   "Picks up the movie or episode you were in the middle of most recently.": "a",
-  "Picture in picture": "w",
+  "Picture in picture": "wn",
   "Picture-based subtitles can only be burned into the video.": "s",
   "Picture-based subtitles have to be burned in": "s",
   "Pictures can be up to 15 MB.": "s",
@@ -1874,6 +2726,8 @@
   "Play a podcast's latest episode": "a",
   "Play a video": "a",
   "Play files directly": "a",
+  "Play from here": "n",
+  "Play from {chapter}": "n",
   "Play latest": "w",
   "Play next": "wans",
   "Play next episode": "w",
@@ -1899,12 +2753,20 @@
   "Play the sound earlier": "w",
   "Play the sound later": "w",
   "Play {code}": "w",
+<<<<<<< HEAD
   "Play {episode}": "wa",
   "Play {title}": "wa",
   "Play {title} now": "w",
   "Playback": "was",
   "Playback couldn't pick up where it left off.": "a",
   "Played": "wa",
+=======
+  "Play {episode}": "wn",
+  "Play {title}": "wn",
+  "Play {title} now": "w",
+  "Playback": "wns",
+  "Played": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Players can't decode {codec} {profile} video": "s",
 <<<<<<< HEAD
   "Playing": "wa",
@@ -1913,12 +2775,17 @@
   "Playing": "wan",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Playing somewhere else": "s",
+<<<<<<< HEAD
   "Playing the next {title} as {profile}.": "a",
   "Playing the next {title}.": "a",
   "Playing {title} as {profile}.": "a",
   "Playing {title} on {device} as {profile}.": "a",
   "Playing {title} on {device}.": "a",
   "Playing {title}.": "a",
+=======
+  "Playing {title}": "n",
+  "Playing {title} on {device}.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Playlist name": "w",
   "Playlists": "w",
   "Plays": "a",
@@ -1932,12 +2799,21 @@
   "Plex wasn't found in the usual places. Where is com.plexapp.plugins.library.db?": "w",
   "Podcast": "a",
   "Podcasts": "wans",
+<<<<<<< HEAD
   "Podcasts & audiobooks": "wa",
+=======
+  "Podcasts & audiobooks": "w",
+  "Podcasts and audiobooks": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Podcasts are built in: their folder is in Settings › Libraries.": "s",
   "Podcasts aren't available on this profile": "w",
   "Podcasts aren't available on this profile.": "s",
   "Podcasts aren't ready yet": "w",
+<<<<<<< HEAD
   "Podcasts aren’t available on this profile.": "a",
+=======
+  "Podcasts aren’t available on this profile.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Podcasts can't be removed.": "s",
   "Podcasts views": "w",
   "Point Flexarr at the folders where your movies and shows live, and they'll appear here with artwork.": "w",
@@ -1951,18 +2827,29 @@
   "Position": "wan",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Preparing subtitles. They’ll appear in a moment.": "w",
+<<<<<<< HEAD
   "Press up or down to move {name}, then select to put it down.": "a",
   "Previous": "wa",
   "Previous channel": "wa",
   "Previous chapter": "wa",
+=======
+  "Press OK to pick up {name}, then press up or down to move it.": "n",
+  "Press up or down to move {name}, then press OK to put it down.": "n",
+  "Previous": "wan",
+  "Previous channel": "wn",
+  "Previous chapter": "wan",
+  "Previous episode": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Previous track": "w",
+  "Privacy policy": "n",
   "Private address": "w",
   "Produced by": "w",
   "Producer": "a",
   "Producing": "w",
-  "Profile": "wa",
+  "Profile": "wan",
   "Profile for {name}": "w",
   "Profile pictures": "w",
+<<<<<<< HEAD
 <<<<<<< HEAD
   "Profile: {name}": "wa",
   "Profiles": "wa",
@@ -1970,6 +2857,9 @@
   "Pull down to refresh.": "a",
 =======
   "Profile: {name}": "w",
+=======
+  "Profile: {name}": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Profiles": "w",
   "Pull down to refresh.": "an",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
@@ -1989,19 +2879,30 @@
   "Queued": "w",
   "Queued to download": "w",
   "Queued: intros and credits for this season will be re-detected shortly": "w",
+<<<<<<< HEAD
   "Quietens loud scenes and lifts quiet ones.": "wa",
+=======
+  "Quietens loud scenes and lifts quiet ones.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Quit Flexarr": "a",
   "REC": "wan",
   "Radarr deletes the movie’s files from disk and stops tracking it.": "w",
   "Radio": "wans",
   "Raise subtitles clear of a TV’s edge or text in the picture. Styled subtitles keep their own places.": "w",
+<<<<<<< HEAD
   "Raise subtitles clear of text in the picture or the edge of the TV. Styled subtitles keep the places they were made for.": "a",
   "Raised": "wa",
   "Rate Flexarr": "a",
+=======
+  "Raise subtitles clear of text in the picture or the edge of the TV. Styled subtitles keep the places they were made for.": "n",
+  "Raised": "wn",
+  "Rate Flexarr": "an",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Rated": "w",
   "Rated at least": "w",
   "Rating": "wans",
   "Re-detect intros and credits for this season": "w",
+<<<<<<< HEAD
   "Re-sync to audio": "wa",
   "Re-syncing subtitles…": "a",
   "Re-syncing the subtitles to the audio. This takes a minute or so.": "w",
@@ -2013,17 +2914,32 @@
   "Read by {narrator}": "wa",
   "Read this code to the person who invited you": "a",
 =======
+=======
+  "Re-sync to audio": "wn",
+  "Re-syncing subtitles…": "n",
+  "Re-syncing the subtitles to the audio. This takes a minute or so.": "w",
+  "Re-syncing…": "wn",
+  "Read by": "wan",
+  "Read by the narrator": "w",
+  "Read by {names}": "w",
+  "Read by {name}": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Read by {narrator}": "w",
   "Read this code to the person who invited you": "an",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Reading new files: {done} of {total}": "w",
   "Reading your files": "w",
+<<<<<<< HEAD
   "Ready first": "wa",
+=======
+  "Ready first": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Ready from your watchlist": "ns",
   "Ready to turn on.": "w",
   "Ready to watch": "wan",
   "Ready to watch.": "s",
   "Recap": "w",
+<<<<<<< HEAD
   "Recent searches": "wa",
   "Recently added": "wans",
   "Recently listened": "wans",
@@ -2035,6 +2951,19 @@
   "Record series": "wa",
   "Record {title}": "a",
   "Recorded": "wa",
+=======
+  "Recent searches": "wn",
+  "Recently added": "wans",
+  "Recently listened": "wans",
+  "Recently opened": "wn",
+  "Recently played": "s",
+  "Recently played (music)": "s",
+  "Reconnecting…": "w",
+  "Record": "wn",
+  "Record series": "wn",
+  "Record {title}": "n",
+  "Recorded": "wan",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Recorded: {title}": "s",
   "Recording": "an",
   "Recording now": "wan",
@@ -2042,6 +2971,7 @@
   "Recording {title}.": "s",
   "Recordings": "wan",
   "Recordings and live viewing share what your IPTV login allows. Watching and recording the same channel counts once.": "w",
+  "Recordings aren’t available on this profile.": "n",
   "Recordings folder": "w",
   "Recordings go to {folder}": "w",
   "Recordings is the name of Live TV's recordings. Choose another.": "s",
@@ -2052,7 +2982,11 @@
   "Refresh channels and guide": "w",
   "Refreshing artwork and details from Sonarr and Radarr. This takes a few minutes.": "w",
   "Release calendar": "w",
+<<<<<<< HEAD
   "Release date": "wa",
+=======
+  "Release date": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Release not named": "w",
   "Released": "as",
   "Religion & Spirituality": "s",
@@ -2060,8 +2994,12 @@
   "Remote access": "w",
   "Remote access is on, over Tailscale": "w",
   "Removal confirmed, scanning": "w",
+<<<<<<< HEAD
   "Remove": "wa",
   "Remove Download": "a",
+=======
+  "Remove": "wan",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Remove all spare copies ({size})": "w",
   "Remove books once finished": "a",
   "Remove chapter {number}": "w",
@@ -2070,9 +3008,14 @@
   "Remove from Favourites": "a",
 =======
   "Remove download": "an",
+<<<<<<< HEAD
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
+=======
+  "Remove finished books": "n",
+  "Remove from Favourites": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Remove from Flexarr": "w",
-  "Remove from Up next": "a",
+  "Remove from Up next": "an",
   "Remove from favourites": "w",
   "Remove from playlist": "w",
   "Remove from watchlist": "wans",
@@ -2088,7 +3031,11 @@
   "Remove {name} from favourites": "w",
   "Remove {name}?": "w",
   "Remove {name}’s profile? Their watch history goes with it.": "w",
+<<<<<<< HEAD
   "Remove {search}": "a",
+=======
+  "Remove {search}": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Remove {title} from recent searches": "w",
   "Remove {title} from the playlist": "w",
   "Remove {title} from the queue": "w",
@@ -2100,24 +3047,41 @@
   "Rename": "w",
   "Rename playlist": "w",
   "Rename {name}": "w",
-  "Repeat": "a",
+  "Repeat": "an",
+  "Repeat all": "n",
+  "Repeat one": "n",
   "Replace the key": "w",
   "Request": "wans",
   "Request album": "wans",
   "Request album {title}": "w",
+<<<<<<< HEAD
   "Request anything to add it to your library.": "wa",
   "Request what this profile adds to the watchlist": "w",
   "Request what {name} adds to the watchlist": "w",
   "Request {name}": "w",
   "Request {season}": "a",
+=======
+  "Request anything to add it to your library.": "wn",
+  "Request what this profile adds to the watchlist": "w",
+  "Request what {name} adds to the watchlist": "w",
+  "Request {name}": "w",
+  "Request {season}": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Requested": "wans",
   "Requested {season}": "a",
   "Requested {title}": "w",
+<<<<<<< HEAD
   "Requested, {season}": "a",
   "Requesting…": "a",
   "Requests": "wa",
   "Requests need a Seerr server. Add one under Settings › Connections.": "s",
   "Reset": "a",
+=======
+  "Requesting…": "n",
+  "Requests": "wn",
+  "Requests need a Seerr server. Add one under Settings › Connections.": "s",
+  "Reset": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Reset Admin PIN": "a",
   "Reset Admin PIN…": "a",
   "Reset sync": "w",
@@ -2125,6 +3089,7 @@
   "Resolution is above {height}p": "s",
   "Restart Flexarr to set them up.": "w",
   "Restart Server": "a",
+  "Restart to update": "n",
   "Restarting interrupts what’s going on now:": "w",
   "Restore": "w",
   "Restore and restart": "w",
@@ -2133,7 +3098,11 @@
   "Restore…": "w",
   "Restoring": "w",
   "Results": "w",
+<<<<<<< HEAD
   "Resume": "wa",
+=======
+  "Resume": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Resume from {time}": "wans",
   "Resume listening": "a",
   "Resume listening in ${applicationName}": "a",
@@ -2150,13 +3119,23 @@
   "Rewind": "w",
   "Rewind up to": "w",
   "Rewinding and recording are in {page}.": "w",
+<<<<<<< HEAD
   "Rotten": "wa",
   "Rotten Tomatoes {score}%, {state}": "wa",
+=======
+  "Rotten": "wn",
+  "Rotten Tomatoes {score}%, {state}": "w",
+  "Rotten Tomatoes {score}%, {tomato}": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Rotten Tomatoes: {state}": "w",
   "Rules": "w",
   "Run health check": "w",
   "Run on": "w",
+<<<<<<< HEAD
   "Running on": "wa",
+=======
+  "Running on": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Save": "wa",
   "Save ${title} for later in ${applicationName}": "a",
   "Save ${title} in ${applicationName}": "a",
@@ -2178,7 +3157,11 @@
   "Scan for new and changed files": "w",
   "Scanning": "w",
   "Scans are keeping these folders’ titles, in case a drive or share is having trouble. Titles you deleted on purpose stay listed until you confirm it.": "w",
+<<<<<<< HEAD
   "Scheduled": "wa",
+=======
+  "Scheduled": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Science": "s",
   "Score {score}": "w",
   "Score {score}. Every movie and episode is in good shape.": "w",
@@ -2194,12 +3177,20 @@
   "Search for": "a",
   "Search for any artist or album": "w",
   "Search for any movie or show": "w",
+<<<<<<< HEAD
   "Search for season {season}'s missing episodes": "a",
   "Search for season {season}’s missing episodes": "w",
+=======
+  "Search for season {season}’s missing episodes": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Search for subtitles": "an",
-  "Search for subtitles…": "wa",
+  "Search for subtitles…": "wan",
   "Search for {name}": "w",
+<<<<<<< HEAD
   "Search for {season}": "a",
+=======
+  "Search for {season}": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Search podcasts": "w",
   "Search podcasts, or paste a feed's address": "w",
   "Search started": "w",
@@ -2208,19 +3199,29 @@
   "Search your library": "w",
   "Search {name}": "w",
   "Search {source}": "w",
-  "Searching": "wa",
+  "Searching": "wan",
   "Searching…": "wan",
   "Searching… This can take a minute.": "w",
+<<<<<<< HEAD
   "Season {number}": "wa",
   "Season {season}": "ws",
   "Season {season} · {count, plural, one {# episode} other {# episodes}}": "s",
   "Season {season}, Episode {episode}": "wans",
   "Season {season}, Episodes {episode}–{last}": "w",
   "Season {season}: {count, plural, one {# episode} other {# episodes}}": "wa",
+=======
+  "Season {number}": "w",
+  "Season {season}": "wns",
+  "Season {season} · {count, plural, one {# episode} other {# episodes}}": "s",
+  "Season {season}, Episode {episode}": "wans",
+  "Season {season}, Episodes {episode}–{last}": "w",
+  "Season {season}: {count, plural, one {# episode} other {# episodes}}": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Seasons": "w",
   "Seasons {list} and {last}": "w",
   "Seconds": "a",
   "Secret": "w",
+<<<<<<< HEAD
   "Security": "w",
 <<<<<<< HEAD
   "See all": "a",
@@ -2228,12 +3229,22 @@
   "See all artists": "a",
   "See all coming soon": "a",
 =======
+=======
+  "Security": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "See all": "an",
+  "See all albums": "n",
   "See all artists": "an",
   "See all coming soon": "n",
+<<<<<<< HEAD
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "See what changes": "w",
   "See what changes first.": "wa",
+=======
+  "See all of {title}": "n",
+  "See what changes": "w",
+  "See what changes first.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Seek": "w",
   "Seek bar covers": "w",
   "Seerr didn't accept the request ({status}). It may already be requested.": "s",
@@ -2242,18 +3253,27 @@
   "Seerr didn't answer. Try again in a moment.": "s",
   "Seerr didn't say where it can add requests ({status}).": "s",
   "Seerr isn't answering. Try again later.": "s",
+<<<<<<< HEAD
   "Seerr isn’t answering, so there’s nothing new to request just now.": "a",
   "Seerr isn’t answering.": "wa",
   "Select to pick up {name}, then press up or down to move it.": "a",
   "Send": "a",
   "Send between 1 and {maxBatch} entries.": "s",
   "Send diagnostics": "a",
+=======
+  "Seerr isn’t answering, so there’s nothing new to request just now.": "n",
+  "Seerr isn’t answering.": "wn",
+  "Send": "n",
+  "Send between 1 and {maxBatch} entries.": "s",
+  "Send diagnostics": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Send error reports to Flexarr’s developer": "w",
-  "Send it": "a",
+  "Send it": "an",
   "Send test notification": "an",
   "Send the API key to sign in.": "s",
   "Send the activity's push token (hex) and environment (production or sandbox).": "s",
   "Send the home, movies and shows rows.": "s",
+<<<<<<< HEAD
   "Send the log now, with the note.": "a",
   "Send this Apple TV's recent log to your server, to look into a problem.": "a",
   "Send this {device}'s recent log to your server, to look into a problem.": "a",
@@ -2269,6 +3289,22 @@
   "Series {season}, episode {episode}": "wa",
   "Server": "wa",
   "Server address": "a",
+=======
+  "Send the log now, with the note.": "n",
+  "Send this TV’s recent log to your server, to look into a problem.": "n",
+  "Send this phone’s recent log to your server, to look into a problem.": "n",
+  "Sending…": "n",
+  "Sends what this TV has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)": "n",
+  "Sends what this phone has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)": "n",
+  "Sent to your server ({id}). Mention that if you ask for help.": "n",
+  "Sent:": "w",
+  "Separate from the main profile’s own PIN, which is in {page}.": "w",
+  "Series": "wans",
+  "Series {season}": "wn",
+  "Series {season}, episode {episode}": "wn",
+  "Server": "wn",
+  "Server address": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Server keys": "w",
   "Server status": "w",
 <<<<<<< HEAD
@@ -2278,14 +3314,18 @@
   "Servers on your network": "an",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Set PIN": "a",
+<<<<<<< HEAD
   "Set on your server, in Settings › Logs on the web. When on, crashes and errors go to Sentry, the error tracker Flexarr uses: what went wrong and where in the code, the app version, the OS and device model, and a random id. Never titles, file names, what you watch, names, addresses or keys.": "a",
+=======
+  "Set on your server, in Settings › Logs on the web. When on, crashes and errors go to Sentry, the error tracker Flexarr uses: what went wrong and where in the code, the app version, the Android version and device model, and a random id. Never titles, file names, what you watch, names, addresses or keys.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Set the admin PIN": "w",
   "Set to record": "wan",
   "Set up Dispatcharr": "w",
-  "Set up Flexarr": "w",
+  "Set up Flexarr": "wn",
   "Set up Live TV": "w",
-  "Set up a server": "a",
-  "Set up at flexarr.io": "a",
+  "Set up a server": "an",
+  "Set up at flexarr.io": "an",
   "Set up in the Tailscale app": "w",
   "Set up later": "w",
 <<<<<<< HEAD
@@ -2308,17 +3348,19 @@
   "Setup Code: {code}": "a",
   "Setup code": "w",
   "Share Podcast": "a",
-  "Share podcast": "w",
+  "Share podcast": "wn",
   "Shift": "w",
   "Shift all by": "w",
   "Shift by up to ten minutes either way.": "s",
-  "Show": "wa",
+  "Show": "wan",
   "Show Logs": "a",
-  "Show a new code": "a",
+  "Show a new code": "an",
+  "Show and sort": "n",
+  "Show controls": "n",
   "Show each": "w",
   "Show in the sidebar": "w",
   "Show later": "w",
-  "Show more": "w",
+  "Show more": "wn",
   "Show more ({count, number} left)": "w",
   "Show more episodes": "w",
   "Show notes": "a",
@@ -2328,9 +3370,12 @@
   "Show subtitles earlier": "w",
   "Show subtitles later": "w",
   "Show the API key": "w",
+  "Show the chapter": "n",
   "Show the chapters": "w",
   "Show the cover": "w",
+  "Show the episode": "n",
   "Show the key": "w",
+  "Show the whole book": "n",
   "Show {count} more": "w",
   "Showing the chapter": "a",
   "Showing the whole book": "a",
@@ -2355,11 +3400,15 @@
   "Shuffle a show": "a",
   "Shuffle a show in ${applicationName}": "a",
   "Shuffle episodes of ${title} in ${applicationName}": "a",
+<<<<<<< HEAD
   "Shuffling {title} as {profile}.": "a",
   "Shuffling {title} on {device} as {profile}.": "a",
   "Shuffling {title} on {device}.": "a",
   "Shuffling {title}.": "a",
   "Sidebar": "a",
+=======
+  "Sidebar": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Sign in": "w",
   "Sign in as {name}": "w",
   "Sign out": "wan",
@@ -2368,7 +3417,11 @@
   "Sign out all {count, plural, one {# sign-in} other {# sign-ins}} of {name}?": "w",
   "Sign out every other browser and TV": "w",
   "Sign out every other browser and TV?": "w",
+<<<<<<< HEAD
   "Sign out in Settings first, then open the invite again.": "a",
+=======
+  "Sign out in Settings first, then open the invite again.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Sign out of this browser": "w",
   "Sign out of this browser?": "w",
   "Sign out of this browser? Signing in again takes the API key.": "w",
@@ -2376,33 +3429,49 @@
   "Sign out {name}": "w",
   "Sign out {name}?": "w",
   "Signed in recently. If you don’t recognise it, sign it out.": "w",
+<<<<<<< HEAD
   "Signed out": "wa",
+=======
+  "Signed out": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Signed out {count, plural, one {# browser or TV} other {# browsers and TVs}}.": "w",
   "Signed out {count, plural, one {# sign-in} other {# sign-ins}} of {name}.": "w",
   "Signed out {name}.": "w",
   "Signed-in browsers and TVs": "w",
   "Signs in a new browser, or sets up an app. Browsers and TVs get a sign-in of their own once connected, so they don’t keep it.": "w",
-  "Single": "w",
+  "Single": "wn",
   "Siri plays on": "a",
-  "Size": "a",
+  "Size": "an",
   "Skip": "wan",
-  "Skip back": "wa",
-  "Skip back and forward": "a",
+  "Skip back": "wan",
+  "Skip back and forward": "an",
   "Skip credits": "wans",
-  "Skip forward": "wa",
+  "Skip forward": "wan",
   "Skip intro": "wans",
+<<<<<<< HEAD
   "Skip intros": "wa",
   "Skip recap": "wans",
   "Skip recaps": "wa",
+=======
+  "Skip intros": "wn",
+  "Skip recap": "wans",
+  "Skip recaps": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Skip to content": "w",
   "Skipped the intro": "w",
   "Skipped the recap": "w",
   "Sleep at the end of the chapter": "a",
   "Sleep in 1 to 600 minutes, or at the end of the chapter.": "s",
+<<<<<<< HEAD
   "Sleep timer": "wa",
   "Sleep timer ({minutes} min left)": "a",
   "Sleep timer on": "a",
   "Sleep timer, {minutes} min left": "w",
+=======
+  "Sleep timer": "wan",
+  "Sleep timer on": "n",
+  "Sleep timer, {minutes} min left": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Slow relay": "w",
 <<<<<<< HEAD
   "Slower": "a",
@@ -2411,10 +3480,15 @@
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Slower ({speed})": "w",
   "Slower, better quality": "w",
+<<<<<<< HEAD
   "Small": "wa",
   "Small (480p)": "a",
+=======
+  "Small": "wn",
+  "Small (480p)": "an",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Smart collection": "w",
-  "Smart rewind": "wa",
+  "Smart rewind": "wan",
   "Smart, {count, plural, one {# title} other {# titles}}": "w",
   "Smart: titles matching rules, kept up to date": "w",
   "So new downloads show up straight away. {addTo} puts it in the app, or add a Webhook there under Settings › Connect. In Docker on this computer, use {dockerHost} for {host}.": "w",
@@ -2422,15 +3496,25 @@
   "Software speed": "w",
   "Some books have gone.": "w",
   "Some titles have gone.": "w",
+<<<<<<< HEAD
   "Some tracks weren't downloaded. Try again.": "a",
   "Someone": "as",
+=======
+  "Some tracks weren’t downloaded. Try again.": "n",
+  "Someone": "ns",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Someone on another profile started watching on another screen, so this one had to stop.": "s",
   "Someone started watching on another screen, so this one had to stop.": "was",
   "Someone used your invite. Not expected? Remove the device in Settings › Remote access.": "s",
   "Someone's guessing your PIN": "s",
+  "Something new is ready.": "n",
   "Something private": "s",
   "Something went wrong showing this page.": "w",
+<<<<<<< HEAD
   "Something went wrong.": "a",
+=======
+  "Something went wrong.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Sonarr and Radarr don’t manage these, so their details came from searching for the folder’s name, which can find the wrong one: an older show with the same name, or a remake. Fixing a match adds the title to Sonarr or Radarr. Ignore one that’s right and it stays as it is.": "w",
   "Sonarr can't add this show: TheTVDB doesn't list it. It may be part of another show.": "s",
   "Sonarr deletes the files of every episode from disk and stops tracking the show.": "w",
@@ -2450,32 +3534,53 @@
 =======
   "Sort by": "wan",
   "Sort by name": "n",
+<<<<<<< HEAD
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Sound": "a",
   "Sound earlier": "a",
   "Sound in this browser": "w",
   "Sound later": "a",
+=======
+  "Sound": "an",
+  "Sound earlier": "n",
+  "Sound in this browser": "w",
+  "Sound later": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Soundtrack": "w",
   "Source": "w",
-  "Space used": "a",
+  "Space used": "an",
   "Spain": "w",
   "Spare": "w",
   "Spare copies": "w",
   "Spare copies, unreadable files, movies only in SD and wrong matches.": "w",
+<<<<<<< HEAD
   "Speakers": "wa",
   "Speakers {speakers}": "a",
   "Special": "a",
+=======
+  "Speakers": "wan",
+  "Special": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Specials": "w",
   "Specials · {count, plural, one {# episode} other {# episodes}}": "s",
   "Specials, Episode {episode}": "w",
   "Specials, Episodes {episode}–{last}": "w",
+<<<<<<< HEAD
   "Speed": "wa",
   "Speed, {speed}": "wa",
+=======
+  "Speed": "wan",
+  "Speed, {speed}": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Speed: {speed}": "w",
   "Speeds go from 0.5× to 3.5×; skips are 10, 15, 30, 45 or 60 seconds.": "s",
   "Speeds go from a quarter to four times.": "s",
   "Sports": "s",
+<<<<<<< HEAD
   "Standard": "wa",
+=======
+  "Standard": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Star the channels you watch most to keep them first.": "w",
   "Starring {name}: {count, plural, one {# title} other {# titles}}.": "s",
   "Start early": "w",
@@ -2483,18 +3588,28 @@
   "Start over?": "wan",
   "Start watching now": "w",
   "Start when you log in": "w",
+<<<<<<< HEAD
   "Starting": "a",
   "Status": "wa",
+=======
+  "Status": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Stay here": "w",
   "Stay with the last profile": "a",
   "Step {number} of {total}": "w",
+<<<<<<< HEAD
   "Stereo": "wa",
   "Still connecting": "a",
+=======
+  "Stereo": "wn",
+  "Still connecting": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Still unreadable": "w",
 <<<<<<< HEAD
   "Still watching?": "wa",
 =======
   "Still watching?": "wn",
+<<<<<<< HEAD
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Stop": "a",
   "Stop Download": "a",
@@ -2502,6 +3617,13 @@
   "Stop and close": "wan",
   "Stop blocking for kids": "w",
   "Stop download": "a",
+=======
+  "Stop": "an",
+  "Stop allowing for kids": "w",
+  "Stop and close": "wan",
+  "Stop blocking for kids": "w",
+  "Stop download": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Stop following": "wans",
   "Stop following this artist?": "w",
 <<<<<<< HEAD
@@ -2509,6 +3631,7 @@
   "Stop following {artist}?": "a",
 =======
   "Stop following this show?": "an",
+<<<<<<< HEAD
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Stop following {name}?": "w",
   "Stop on {device}": "a",
@@ -2520,9 +3643,18 @@
   "Stop syncing this profile with Trakt.": "a",
   "Stop the recording": "wa",
 =======
+=======
+  "Stop following {name}?": "wn",
+  "Stop recording": "wn",
+  "Stop recording the series": "wan",
+  "Stop series": "an",
+  "Stop showing {name}? It stays on Trakt.": "w",
+  "Stop syncing this profile with Trakt.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Stop the recording": "wn",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Stop the series": "w",
+<<<<<<< HEAD
   "Stop this download?": "a",
   "Stop watching {owner}’s Flexarr here. Joining again takes a new code.": "a",
   "Stopped": "a",
@@ -2532,34 +3664,56 @@
   "Storage": "a",
   "Streaming": "w",
   "Studio": "wa",
+=======
+  "Stop this download?": "n",
+  "Stop watching this Flexarr here. Joining again takes a new code.": "n",
+  "Stop watching {owner}’s Flexarr here. Joining again takes a new code.": "n",
+  "Stopped": "a",
+  "Storage": "an",
+  "Streaming": "w",
+  "Studio": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Subtitle": "w",
-  "Subtitle position": "wa",
-  "Subtitle size": "wa",
+  "Subtitle position": "wan",
+  "Subtitle size": "wan",
   "Subtitles": "wans",
   "Subtitles are on.": "a",
   "Subtitles can be found for movies and episodes.": "s",
   "Subtitles can be moved up to a minute either way.": "s",
   "Subtitles for {title}": "w",
+<<<<<<< HEAD
   "Subtitles in the black bars": "wa",
   "Subtitles off": "a",
   "Subtitles off.": "a",
   "Subtitles on.": "a",
   "Subtitles re-synced": "a",
+=======
+  "Subtitles in the black bars": "wan",
+  "Subtitles re-synced": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Subtitles that run early or late can be moved from the player’s subtitles menu.": "w",
   "Subtitles {track}": "a",
   "Suggested": "w",
   "Sunday movies": "w",
   "Swipe right on the channels you watch most to keep them first.": "a",
   "Switch": "an",
+<<<<<<< HEAD
   "Switch profile": "w",
   "Switch to another profile. Each has its own Continue watching, watch history and playback settings.": "a",
   "Switch to the main profile": "w",
   "Switch to the main profile to allow it.": "a",
   "Switch to the main profile to turn it away.": "a",
+=======
+  "Switch profile": "wn",
+  "Switch to another profile. Each has its own Continue watching, watch history and playback settings.": "n",
+  "Switch to the main profile": "w",
+  "Switch to the main profile to allow it.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Switch to {name}": "w",
   "Switches between the chapter and the whole book": "a",
   "Switches to another TV": "a",
   "Switching off stops it at once, on every app.": "w",
+<<<<<<< HEAD
   "Sync now": "wa",
   "Synced {time}": "w",
   "Synced {when}": "a",
@@ -2570,6 +3724,17 @@
   "S{season}E{episode}–E{end}": "a",
   "S{season}E{episode}–E{end}, {count, plural, one {# episode} other {# episodes}}": "a",
   "S{season}E{episode}–E{last}": "w",
+=======
+  "Sync now": "wn",
+  "Synced just now": "n",
+  "Synced yesterday": "n",
+  "Synced {time}": "w",
+  "Syncing…": "n",
+  "S{season} E{episode}": "ws",
+  "S{season}E{episode}": "wans",
+  "S{season}E{episode}–E{last}": "wn",
+  "S{season}E{episode}–E{last}, {count, plural, one {# episode} other {# episodes}}": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "TBA": "s",
   "TMDB accepted the key.": "w",
   "TMDB didn't accept that key. Copy it again from themoviedb.org › Settings › API.": "s",
@@ -2608,14 +3773,22 @@
   "Tailscale's answer couldn't be read. Is something between this server and Tailscale?": "s",
   "Tailscale's command line didn't answer as expected ({said}). On a Mac, install it from the Tailscale app: Settings › Install CLI.": "s",
   "Tailscale’s Machines": "w",
+<<<<<<< HEAD
   "Take the PIN off in Settings › Profiles on the web.": "a",
+=======
+  "Take the PIN off in Settings › Profiles on the web.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Take the PIN off in Settings › Profiles, signed in as the main profile.": "w",
   "Take {title} out of Up Next": "w",
   "Teal": "w",
   "Technology": "s",
+<<<<<<< HEAD
   "Teletext page": "a",
+=======
+  "Teletext page": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Tell Flexarr your name": "w",
-  "Tell me about": "a",
+  "Tell me about": "an",
   "Ten TVs have been connected in the last hour, which is as many as Flexarr allows. Try again in {when}.": "s",
   "Test": "w",
 <<<<<<< HEAD
@@ -2625,38 +3798,69 @@
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Testing…": "w",
   "That Flexarr profile doesn't exist.": "s",
+<<<<<<< HEAD
   "That PIN isn't right.": "as",
   "That PIN isn’t right.": "a",
   "That Plex server has no watch history to bring over.": "w",
   "That Trakt account is connected to another profile.": "wa",
   "That address answered, but not like a Flexarr server. Check the host name and port.": "a",
   "That change couldn't be saved on the server, so it's been put back.": "a",
+=======
+  "That PIN isn't right.": "s",
+  "That PIN isn’t right.": "n",
+  "That Plex server has no watch history to bring over.": "w",
+  "That Trakt account is connected to another profile.": "wn",
+  "That address answered, but not like a Flexarr server. Check the host name and port.": "n",
+  "That change couldn’t be saved on the server, so it’s been put back.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "That code has been used. Check the one on their screen now.": "s",
+  "That code has run out. The device shows a new one; open Flexarr to allow it.": "n",
+  "That code is taken.": "n",
   "That code isn't waiting to connect. It may have expired; the TV shows a new one.": "s",
   "That code isn’t showing on any device. Codes change every 10 minutes: check the one on their screen now.": "s",
   "That collection isn’t here any more.": "w",
   "That couldn't be added. Try again.": "s",
+  "That couldn’t be done. Try again in a moment.": "n",
   "That cover can't be used. Choose another.": "s",
+<<<<<<< HEAD
   "That device has stopped waiting.": "a",
+=======
+  "That device isn’t waiting any more. If it shows a new code, it asks again.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "That didn't save. Try again.": "wa",
   "That didn't work. Try again.": "w",
 <<<<<<< HEAD
   "That didn’t work. Try again.": "wa",
 =======
   "That didn’t save. Try again.": "n",
+<<<<<<< HEAD
   "That didn’t work. Try again.": "w",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "That doesn't look like a Sonarr, Radarr or Lidarr server.": "s",
   "That doesn't look like a Trakt client ID.": "s",
   "That doesn't look like a server address. Try something like http://192.168.1.20:8383.": "a",
   "That doesn’t look like a server address. Try one like http://192.168.1.20:8383.": "a",
+=======
+  "That didn’t work.": "n",
+  "That didn’t work. Try again.": "wn",
+  "That doesn't look like a Sonarr, Radarr or Lidarr server.": "s",
+  "That doesn't look like a Trakt client ID.": "s",
+  "That doesn't look like a server address. Try something like {example}.": "n",
+  "That doesn’t look like a server address. Try one like http://192.168.1.20:8383.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "That download link has expired. Download the backup again.": "s",
   "That file is no longer here. Choose it again.": "s",
   "That file isn't OPML.": "s",
   "That file isn't OPML: it isn't valid XML.": "s",
   "That file isn't a picture Flexarr can read. Try a JPEG or PNG.": "s",
+<<<<<<< HEAD
   "That invite has run out or been used.": "a",
+=======
+  "That invite couldn’t be opened. Ask for another.": "n",
+  "That invite has run out or been used.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "That invite isn't valid.": "s",
+  "That invite isn’t complete. Ask for the link again.": "n",
   "That isn't Plex's database. Give the full path to the file named {file}.": "s",
   "That isn't a language code.": "s",
   "That isn't a web address.": "s",
@@ -2672,10 +3876,16 @@
   "That isn’t a TV library.": "s",
   "That isn’t a movie library.": "s",
   "That isn’t a music library.": "s",
+<<<<<<< HEAD
   "That isn’t the admin PIN.": "a",
   "That isn’t the right key.": "w",
   "That isn’t {name}’s PIN.": "wa",
   "That isn’t {profile}’s PIN.": "a",
+=======
+  "That isn’t the admin PIN.": "n",
+  "That isn’t the right key.": "w",
+  "That isn’t {name}’s PIN.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "That library is hidden from this profile.": "s",
   "That match can't be found any more. Search again.": "s",
   "That match isn't one Flexarr can use. Search again.": "s",
@@ -2693,6 +3903,7 @@
   "That’s a whole drive or home folder. Choose the folder your {kind} are in.": "w",
   "The API key and webhook secret. Apps and Sonarr or Radarr set up with the old server’s keep working; anything using this server’s current key needs the new one.": "w",
   "The API key was rejected.": "s",
+  "The Chromecast couldn’t play this.": "n",
   "The Dispatcharr source and the DVR’s settings.": "w",
   "The Flexarr app on {deviceName} can't do that yet: update it.": "s",
   "The Flexarr app on {name} can't do that yet: update it.": "s",
@@ -2712,8 +3923,12 @@
   "The admin PIN, for the server’s settings, is separate: it’s in {page}.": "w",
   "The admin PIN, the API key and signed-in devices": "w",
   "The admin PIN, the API key, and the browsers and TVs signed in.": "w",
+<<<<<<< HEAD
   "The album you played last, then your rows.": "a",
   "The app plays from your own Flexarr server, on a computer in your home: a Mac, a NAS or anything with Docker. The server is completely free, and setting it up takes less than a minute.": "a",
+=======
+  "The app plays from your own Flexarr server, on a computer in your home: a Mac, a NAS or anything with Docker. The server is completely free, and setting it up takes less than a minute.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "The apps Flexarr gets your titles from, and the ones that add requests, subtitles and Live TV.": "w",
   "The backup couldn’t be made: {message}": "s",
   "The backups folder {folder} isn’t there. Is its drive connected?": "s",
@@ -2733,7 +3948,11 @@
   "The channel stopped sending. Try again, or pick another channel.": "wa",
   "The channel was stopped": "s",
   "The chosen audio track isn't the file's first": "s",
+<<<<<<< HEAD
   "The code ran out. Try again.": "wa",
+=======
+  "The code ran out. Try again.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "The country for charts.": "w",
   "The cover has to be an album's or a track's.": "s",
   "The database in this backup can’t be read.": "s",
@@ -2743,10 +3962,18 @@
   "The default, on the drive your TV library is on.": "w",
   "The details you edited are replaced by {title}’s.": "w",
   "The device is connected": "w",
+<<<<<<< HEAD
   "The download stopped. Try again.": "a",
   "The feed couldn't be checked last time: {error}": "w",
   "The feed couldn't be read.": "s",
   "The feed couldn’t be checked last time: {error}": "a",
+=======
+  "The download stopped. Try again.": "n",
+  "The download was stopped. Try again.": "n",
+  "The feed couldn't be checked last time: {error}": "w",
+  "The feed couldn't be read.": "s",
+  "The feed couldn’t be checked last time: {reason}": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "The feed is too big to be a podcast.": "s",
   "The feed isn't there any more.": "s",
   "The feed redirected too many times.": "s",
@@ -2761,6 +3988,7 @@
   "The folder isn't there. Reconnect its drive, or take the folder out of the library in Settings.": "s",
   "The folder isn’t there. Is its drive or share connected?": "w",
   "The import is already running.": "s",
+  "The invite couldn’t be opened.": "n",
   "The language Flexarr is in for this profile, on every device.": "a",
   "The library a movie is added to when you request it.": "w",
   "The library a show is added to when you request it.": "w",
@@ -2777,17 +4005,28 @@
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "The movies and episodes you’re part way through, to carry on with": "n",
   "The next episode starts after a 10-second countdown.": "wans",
+<<<<<<< HEAD
   "The next episode starts after a 10-second countdown. Subtitles that run early or late can be moved on Apple TV or the web. In the black bars puts subtitles below the picture of movies wider than the screen.": "a",
   "The order of your libraries and Live TV in the sidebar, between Home and Discover.": "a",
   "The other screen will stop if you watch here.": "wa",
+=======
+  "The next episode starts after a 10-second countdown. Subtitles that run early or late can be moved on Apple TV or the web. In the black bars puts subtitles below the picture of movies wider than the screen.": "an",
+  "The order of your libraries and Live TV in the sidebar, between Home and Discover.": "n",
+  "The other screen will stop if you watch here.": "w",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "The passphrases don’t match.": "w",
   "The podcast couldn't be added": "s",
   "The podcast episode you’re on, to carry on with": "n",
   "The podcast episodes waiting in Up next": "n",
   "The podcast episodes waiting in Up next.": "a",
   "The provider isn't sending this channel at the moment. Try again later.": "s",
+<<<<<<< HEAD
   "The re-sync is taking too long. Try again later.": "a",
   "The re-sync stopped before it finished.": "a",
+=======
+  "The re-sync is taking too long. Try again later.": "n",
+  "The re-sync stopped before it finished.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "The relay answered {status}.": "s",
   "The request didn’t go through.": "w",
   "The request was cancelled.": "a",
@@ -2796,17 +4035,30 @@
   "The same release more than once. Merge makes them one album; the files stay where they are.": "w",
   "The search didn’t go through.": "w",
   "The segment couldn't be converted.": "s",
+<<<<<<< HEAD
   "The server answered with an error (HTTP {status}).": "a",
   "The server couldn't get this ready.": "a",
   "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against the API key in Settings on the web. Over Tailscale, your Tailscale account needs linking in Settings › Remote access.": "a",
+=======
+  "The server answered with an error (HTTP {status}).": "n",
+  "The server couldn’t get this ready.": "n",
+  "The server didn’t accept this device’s sign-in.": "n",
+  "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Security on the web.": "n",
+  "The server doesn’t have this download any more. Download it again.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "The server has no webhook secret yet. Restart it and try again.": "s",
   "The server is busy": "s",
   "The server isn't answering at that address. Make sure Flexarr is running and the port is right (usually 8383).": "a",
   "The server needs an admin PIN before its settings can be unlocked.": "s",
+<<<<<<< HEAD
   "The server refused the invite.": "a",
   "The server sends a stream instead of the file itself, converting what this Apple TV can't play.": "a",
   "The server sent a response that couldn't be read.": "a",
   "The server this Apple TV uses: its address, how it's reached and what it's running.": "a",
+=======
+  "The server stopped sending this. It may have restarted: try again in a moment.": "n",
+  "The server this TV uses: its address, how it’s reached and what it’s running.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "The server took too long to answer.": "w",
   "The server took too long to answer. Is it on the same network as this {device}?": "a",
   "The server's address couldn't be read.": "a",
@@ -2817,18 +4069,25 @@
   "The settings in this backup can’t be used: {problem}": "s",
   "The settings in this backup can’t be used: {settings}": "s",
   "The sidebar here and the apps’ menus. Drag a library to move it.": "w",
+  "The size Download starts with; a title’s page offers the others too. Original keeps the full picture and sound but takes the most space. Podcasts always come as their files are.": "n",
   "The sound can be moved up to two seconds either way.": "s",
   "The sound couldn’t be moved just now": "w",
+  "The sound couldn’t be played on this phone.": "n",
   "The sound is moved {direction, select, later {later} other {earlier}} to match the picture": "s",
   "The speed is between 0.5 and 2 (3.5 for an audiobook).": "s",
   "The stream couldn't be opened.": "a",
   "The stream stopped, and Flexarr is now busy playing on other screens. Try again when one of them finishes.": "s",
   "The stream stopped. The server may have had trouble converting this file.": "w",
+<<<<<<< HEAD
   "The subtitles couldn't be re-synced.": "a",
   "The subtitles couldn’t be re-synced.": "w",
+=======
+  "The subtitles couldn’t be re-synced.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "The sync didn’t finish. Flexarr tries again shortly.": "s",
   "The tailnet policy doesn't confine guests to Flexarr yet.": "s",
   "The tracks stay in your library.": "w",
+  "The tunnel didn't start": "n",
   "The two PINs don’t match. Type the same one in both.": "wa",
   "The user’s XC password in Dispatcharr": "w",
   "The version this server runs, and new releases. Updating keeps your settings, profiles and history.": "w",
@@ -2842,6 +4101,7 @@
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "There are no unplayed episodes.": "w",
   "There isn’t room for a backup in {folder}: it needs about {megabytes} MB free.": "s",
+  "There isn’t room for this on the phone. Delete something and try again.": "n",
   "There isn’t room on the server for this file.": "s",
   "There isn’t room to unpack this backup: it needs {megabytes} MB and 1 GB to spare.": "s",
   "There's no area called “{key}”.": "s",
@@ -2852,6 +4112,7 @@
   "There's no such channel.": "s",
   "There's no title with that id.": "s",
   "There's nothing at this address.": "w",
+  "There's nothing in it today.": "n",
   "There’s already a profile called {name}.": "w",
   "There’s no such page in Settings.": "w",
   "These settings can’t be used here: {problem}": "s",
@@ -2872,15 +4133,25 @@
   "This Mac is on your tailnet": "w",
   "This OAuth client can do more than Flexarr needs (it can see your devices). Make one with only Auth Keys (write) and Policy File (read).": "s",
   "This OAuth client can do more than Flexarr needs ({scopes}). Make one with only Auth Keys (write) and Policy File (read).": "s",
+  "This TV": "n",
+  "This TV will need to connect again to use the server.": "n",
   "This backup is from a newer Flexarr ({version}). Update this server, then restore it.": "s",
   "This backup is from another Flexarr server. Restoring it brings that server’s keys and the browsers and devices signed in to it, so only restore one you made yourself. This machine’s paths (ffmpeg, the cache) are kept as they are.": "w",
+  "This book can’t be cast yet.": "n",
   "This book can’t be shown by this version of the app.": "w",
+  "This book couldn’t be played.": "n",
   "This book file couldn't be converted.": "s",
   "This book has no Audible id. Fix match to find it on Audible first.": "s",
   "This browser": "w",
   "This browser’s own. Every device has its own.": "w",
   "This browser’s own. The player’s audio menu changes them too.": "w",
+  "This build of Flexarr was made without Google’s notification service, so it can’t get notifications. Versions from Google Play can.": "n",
+  "This came in a form the phone couldn’t read.": "n",
+  "This channel came in a form the phone couldn’t read.": "n",
+  "This channel couldn’t be played.": "n",
   "This clashes with recordings already on the list: every stream is wanted then, so it won’t record unless one of them is taken off.": "w",
+  "This couldn’t be cast.": "n",
+  "This couldn’t be played.": "n",
   "This deletes the spare files from disk, freeing {size}. For each title the best copy, and the one Sonarr or Radarr use, are kept. You can’t undo this.": "w",
   "This device can't decode {codec} audio": "s",
   "This device can't decode {codec} video": "s",
@@ -2889,14 +4160,24 @@
   "This device has sent diagnostics {maxUploadsPerHour} times this hour. Try again later.": "s",
   "This device was removed from the server.": "a",
   "This device was removed from the server. Ask its owner for a new invite.": "s",
+  "This device was signed out.": "n",
+  "This device was signed out. Its downloads are kept, and catch up when it connects to this server again.": "n",
   "This device will need to connect again to use the server, and its downloads will be deleted.": "n",
   "This didn’t come from your home network. Check its screen shows {code}.": "w",
   "This display doesn't show Dolby Vision": "s",
   "This display doesn't support HDR": "s",
   "This display isn't showing {range} right now": "s",
+<<<<<<< HEAD
   "This download couldn't be played. Delete it and download it again.": "a",
   "This download ran out on the server. Download it again.": "a",
   "This download was removed.": "a",
+=======
+  "This download couldn’t be played. Delete it and download it again.": "n",
+  "This download isn’t on the phone any more.": "n",
+  "This download ran out on the server. Download it again.": "n",
+  "This download was removed.": "n",
+  "This episode couldn’t be played.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "This episode has no notes.": "w",
   "This episode is no longer here.": "w",
   "This file couldn't be played.": "w",
@@ -2912,7 +4193,11 @@
   "This file’s protection isn’t one Flexarr knows.": "s",
   "This folder isn't being held.": "s",
   "This has no file to find subtitles for.": "s",
+<<<<<<< HEAD
   "This has no subtitles.": "a",
+=======
+  "This invite didn’t work. Ask {name} for a new one.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "This invite has been used, cancelled or has expired. Ask for a new one.": "s",
   "This invite led to a different server than it named. Ask for a new one.": "a",
   "This is how Flexarr will tell you something new is ready.": "s",
@@ -2921,8 +4206,12 @@
   "This isn’t a Flexarr backup, or it’s damaged.": "s",
   "This isn’t a Flexarr backup.": "s",
   "This isn’t a passphrase-protected Flexarr file.": "s",
+  "This library isn’t here any more.": "n",
   "This library no longer exists.": "w",
   "This machine’s paths": "w",
+  "This phone": "n",
+  "This phone couldn’t decode the picture or the sound.": "n",
+  "This phone isn’t getting notifications from this server, so you won’t hear when something new is ready.": "n",
   "This podcast is no longer here.": "w",
   "This product uses the TMDB API but is not endorsed or certified by TMDB.": "w",
   "This profile can't add movies.": "s",
@@ -2933,7 +4222,11 @@
   "This profile’s own, in every app. A book with a speed of its own keeps it.": "w",
   "This profile’s own, on every device.": "wan",
   "This profile’s own, on every device. The player’s menus change them too.": "w",
+<<<<<<< HEAD
   "This profile’s own. The web, the Apple TV and Android list your libraries in this order too.": "a",
+=======
+  "This profile’s own. The web, the Apple TV and iPhone list your libraries in this order too.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "This release has no Mac build to install, so update with the install script, from the Mac you installed from:": "w",
   "This release on GitHub": "w",
   "This request came from another website, so Flexarr didn't act on it.": "s",
@@ -2944,17 +4237,26 @@
   "This server": "w",
   "This server can't install updates itself.": "s",
   "This server can’t edit chapters yet.": "w",
+<<<<<<< HEAD
   "This server doesn't take diagnostics yet. Update Flexarr on it, then try again.": "a",
+=======
+  "This server can’t play books yet.": "n",
+  "This server doesn’t take diagnostics yet. Update Flexarr on it, then try again.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "This server is already set up. Sign in with a code from a device that's signed in.": "s",
   "This server wasn’t installed in a way Flexarr can update by itself. Update it the way it was installed.": "w",
   "This server’s region": "w",
   "This server’s region ({region})": "w",
   "This title isn't managed by Sonarr or Radarr, so there's nothing to search with.": "s",
 <<<<<<< HEAD
+<<<<<<< HEAD
   "This track couldn't be played.": "a",
   "This track isn't part of an album.": "a",
   "This trailer can’t be played.": "w",
 =======
+=======
+  "This track couldn’t be played.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "This trailer can’t be played.": "wn",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "This won’t record: recordings scheduled before it want every stream then.": "w",
@@ -2970,15 +4272,26 @@
   "Through a relay (slower)": "a",
   "Through the server’s relay": "a",
   "Through your relay": "w",
+<<<<<<< HEAD
   "Timing": "wa",
   "Title": "wa",
   "Title or description mentions": "w",
   "Titles": "w",
   "Titles I choose": "w",
   "Titles appear here as the scan finds them.": "wa",
+=======
+  "Timing": "wn",
+  "Title": "wan",
+  "Title or description mentions": "w",
+  "Titles": "w",
+  "Titles I choose": "w",
+  "Titles appear here as the scan finds them.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Titles rated above it, and unrated ones, are hidden.": "w",
   "Titles that aren't in the library need a Seerr server. Add one under Settings › Connections.": "s",
+  "To cast this, update Flexarr on the server to 0.55 or later.": "n",
   "To update, open the App Store on the Mac running Flexarr Server and choose {updates}. A new version can take a day or two to reach the App Store after it’s released.": "w",
+<<<<<<< HEAD
   "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this {device} picks the address up by itself.": "a",
   "To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This Apple TV picks the address up by itself.": "a",
   "To year": "w",
@@ -2986,6 +4299,14 @@
   "Today's mixes have changed. Try again.": "a",
   "Tomorrow": "wa",
   "Tonight": "wa",
+=======
+  "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this phone picks the address up by itself.": "n",
+  "To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This TV picks the address up by itself.": "n",
+  "To year": "w",
+  "Today": "wn",
+  "Tomorrow": "wn",
+  "Tonight": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Too many Live Activities.": "s",
   "Too many devices are waiting to connect. Try again in a few minutes.": "s",
   "Too many wrong PINs. Try again in a minute.": "w",
@@ -2993,7 +4314,11 @@
   "Too many wrong PINs. Try again in {count, plural, one {# second} other {# seconds}}.": "w",
   "Too many wrong PINs. Try again in {when}.": "s",
   "Tools": "w",
+<<<<<<< HEAD
   "Top": "wa",
+=======
+  "Top": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Top 10": "s",
   "Top 10 movies": "s",
   "Top 10 movies in your library": "s",
@@ -3005,7 +4330,11 @@
   "Top albums": "s",
   "Top podcasts": "w",
   "Top podcasts in {genre}": "w",
+<<<<<<< HEAD
   "Top shows": "a",
+=======
+  "Top shows": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Tracks": "w",
   "Tracks in {name}": "w",
   "Tracks twice": "w",
@@ -3016,6 +4345,7 @@
   "Trakt can’t be reached just now. Try again.": "s",
   "Trakt didn’t accept the sign-in.": "s",
   "Trakt has locked this account.": "s",
+<<<<<<< HEAD
   "Trakt has {films, plural, one {# movie} other {# movies}} and {episodes, plural, one {# episode} other {# episodes}}": "w",
   "Trakt has {movies, plural, one {# movie} other {# movies}} and {episodes, plural, one {# episode} other {# episodes}}": "a",
   "Trakt is having problems.": "s",
@@ -3030,6 +4360,21 @@
   "Trakt’s answer didn’t make sense.": "s",
   "Trakt’s watchlist is full": "w",
   "Trakt’s watchlist is full. New titles stay on Flexarr’s list.": "a",
+=======
+  "Trakt has {films, plural, one {# movie} other {# movies}} and {episodes, plural, one {# episode} other {# episodes}}": "wn",
+  "Trakt is having problems.": "s",
+  "Trakt isn’t available on this server.": "wns",
+  "Trakt isn’t set up on this server.": "s",
+  "Trakt list": "w",
+  "Trakt refused this app.": "s",
+  "Trakt said no.": "wn",
+  "Trakt sent back an empty sign-in.": "s",
+  "Trakt sent nothing back.": "s",
+  "Trakt signed Flexarr out.": "wn",
+  "Trakt’s answer didn’t make sense.": "s",
+  "Trakt’s watchlist is full": "w",
+  "Trakt’s watchlist is full. New titles stay on Flexarr’s list.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Translated": "w",
   "Translated by": "w",
   "Translator": "a",
@@ -3043,12 +4388,16 @@
   "Try saying": "a",
   "Turn ${state} night mode in ${applicationName}": "a",
   "Turn off": "w",
+<<<<<<< HEAD
   "Turn off child lock": "wa",
+=======
+  "Turn off child lock": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Turn off child lock on {name}": "w",
   "Turn off subtitles": "a",
   "Turn off timer": "w",
   "Turn on": "w",
-  "Turn on Notifications to be asked when Flexarr isn't open.": "a",
+  "Turn on Notifications to be asked when Flexarr isn't open.": "an",
   "Turn on child lock": "w",
   "Turn on notifications": "an",
   "Turn on subtitles": "a",
@@ -3058,17 +4407,27 @@
   "Two chapters start at the same time.": "w",
   "Type": "w",
 <<<<<<< HEAD
+<<<<<<< HEAD
   "Type in the setup code from the server's log, then click **Set up Flexarr**.": "a",
   "Type in this code:": "wa",
 =======
+=======
+  "Type in the setup code from the server’s log, then click {button}.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Type in this code:": "wan",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Type the 8 letters and numbers their device shows.": "s",
   "Type the code their device shows": "w",
   "Typed": "w",
+<<<<<<< HEAD
   "Unabridged only": "a",
   "Under 5 hours": "a",
   "Under a minute": "a",
+=======
+  "Unabridged only": "an",
+  "Under 5h": "n",
+  "Under a minute": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Undo": "a",
   "Undo stop": "a",
   "Unfavourite": "a",
@@ -3080,26 +4439,35 @@
   "Unlock": "w",
   "Unlock settings": "w",
   "Unmute": "w",
-  "Unplayed": "wa",
+  "Unplayed": "wan",
   "Unplayed ({count})": "w",
-  "Unread": "a",
+  "Unread": "an",
   "Unrequest": "wans",
   "Unrequest this album?": "w",
   "Unrequest this movie?": "w",
   "Unrequest this show?": "w",
   "Unrequest {album}?": "a",
   "Unrequest {name}": "w",
-  "Unrequest {name}?": "w",
+  "Unrequest {name}?": "wn",
+  "Unrequest {season}": "n",
   "Unrequest {title}": "w",
+<<<<<<< HEAD
   "Until": "a",
   "Up a folder": "w",
   "Up next": "wans",
   "Up since": "a",
+=======
+  "Until": "n",
+  "Up a folder": "w",
+  "Up next": "wans",
+  "Up since": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Up to": "w",
   "Up to 2,000 characters.": "s",
   "Up to 20 authors, narrators, series and genres, each up to 200 characters.": "s",
   "Up to 20 genres, and a studio or network, each up to 200 characters.": "s",
   "Up to 20 genres, each up to 200 characters.": "s",
+<<<<<<< HEAD
   "Up to date": "wa",
   "Up to {rating}": "w",
   "Upcoming": "a",
@@ -3107,6 +4475,15 @@
   "Update anyway": "w",
   "Update now": "w",
   "Update the server to undo this.": "wa",
+=======
+  "Up to date": "wn",
+  "Up to {rating}": "w",
+  "Upcoming": "n",
+  "Update Flexarr to join.": "n",
+  "Update anyway": "w",
+  "Update now": "w",
+  "Update the server to undo this.": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Update to Flexarr {version}?": "w",
   "Update your Flexarr server": "wans",
   "Updated by deploying": "w",
@@ -3150,17 +4527,26 @@
   "VA-API (Intel and AMD on Linux)": "w",
   "VA-API device": "w",
   "Verbose": "w",
+<<<<<<< HEAD
   "Version": "wa",
   "Video": "wa",
   "View": "w",
   "Visualiser": "w",
   "Volume": "w",
   "Waiting for Wi-Fi": "a",
+=======
+  "Version": "wn",
+  "Video": "wn",
+  "View": "w",
+  "Visualiser": "w",
+  "Volume": "w",
+  "Waiting for Wi-Fi": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Waiting for the Mac…": "w",
   "Waiting for their device": "w",
   "Waiting for their device to join…": "w",
   "Waiting to connect": "w",
-  "Waiting to send": "a",
+  "Waiting to send": "an",
   "Warning": "w",
   "Watch": "an",
   "Watch ${title} in ${applicationName}": "a",
@@ -3168,22 +4554,32 @@
   "Watch again from {episode}": "w",
   "Watch away from home": "w",
   "Watch away from home, and let family watch from theirs.": "w",
-  "Watch here instead": "wa",
+  "Watch here instead": "wan",
   "Watch history, where you stopped, and profile pictures.": "w",
   "Watch now": "w",
   "Watch on all your devices": "w",
+<<<<<<< HEAD
   "Watch {channel}": "a",
   "Watch {channel} now": "a",
+=======
+  "Watch {channel}": "n",
+  "Watch {channel} now": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Watch {name}": "w",
   "Watched": "wan",
   "Watched. Click to mark unwatched": "w",
+  "Watched. Mark as unwatched": "n",
   "Watched: mark {name} as unwatched": "w",
   "Watching": "w",
-  "Watching as": "a",
+  "Watching as": "an",
   "Watching as {name}": "w",
   "Watching as {profile}. Not expected? Remove it in Settings › Remote access.": "s",
   "Watching channels from Dispatcharr, and recording them.": "w",
+<<<<<<< HEAD
   "Watching now": "wa",
+=======
+  "Watching now": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Watchlist": "wans",
   "Web requests": "s",
   "Webhooks": "w",
@@ -3195,6 +4591,7 @@
   "What exactly is sent": "w",
   "What goes in it": "w",
 <<<<<<< HEAD
+<<<<<<< HEAD
   "What happened and roughly when, so it's easy to find in the log.": "a",
   "What happened, and roughly when? (optional)": "a",
 =======
@@ -3205,6 +4602,12 @@
   "What would you like to add?": "a",
   "What would you like to watch?": "a",
   "What you’ve watched stays as it is, here and on Trakt.": "a",
+=======
+  "What happened and roughly when, so it’s easy to find in the log.": "n",
+  "What happened, and roughly when? (optional)": "an",
+  "What happened?": "an",
+  "What you’ve watched stays as it is, here and on Trakt.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "What's new in my ${applicationName} podcasts": "a",
   "What's new in my podcasts": "a",
   "What's new in my podcasts in ${applicationName}": "a",
@@ -3212,17 +4615,26 @@
   "What's on your watchlist and ready to watch.": "a",
   "What's recorded so far is kept.": "a",
   "What’s new": "w",
+  "What’s recorded so far is kept.": "n",
   "What’s sent, and what never is": "w",
   "What’s your name?": "w",
+<<<<<<< HEAD
   "When Flexarr opens": "a",
   "When something you requested is ready": "a",
+=======
+  "When something you requested is ready": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "When to ask for the API key, and trusted proxies. Asks for the admin PIN.": "w",
   "Where each app’s folders are on this server. Flexarr works it out when it can.": "w",
   "Where is {app}’s {folder} on this server?": "w",
   "Where this profile’s requests go": "w",
   "Where {name}’s requests go": "w",
   "Wherever Seerr adds them": "w",
+<<<<<<< HEAD
   "Whether Flexarr asks who's watching each time it opens on this Apple TV.": "a",
+=======
+  "Whether a library opens on its highlights (Browse), on every title, A to Z, or on its genres.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Which album is this? The one you choose stays matched, and nothing changes in Lidarr.": "w",
   "Which artist is this? The one you choose stays matched, and nothing changes in Lidarr.": "w",
   "Which book is this?": "w",
@@ -3257,6 +4669,7 @@
   "Written by": "w",
   "Year": "wans",
   "Yellow": "w",
+<<<<<<< HEAD
   "Yesterday": "wa",
   "You": "w",
 <<<<<<< HEAD
@@ -3264,6 +4677,12 @@
   "You no longer have access to {owner}’s Flexarr.": "a",
   "You turned this away. Allow it if it's yours.": "a",
 =======
+=======
+  "Yesterday": "wn",
+  "You": "w",
+  "You no longer have access to this Flexarr.": "n",
+  "You no longer have access to {name}’s Flexarr.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "You turned this away. Allow it if it's yours.": "an",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "You turned this away. Allow it if it’s yours.": "w",
@@ -3279,6 +4698,7 @@
   "Your connection is slower than this file needs": "s",
   "Your downloads still play.": "an",
   "Your entertainment, on every screen.": "wan",
+<<<<<<< HEAD
   "Your history": "wa",
   "Your library by genre": "wa",
   "Your library is empty": "wa",
@@ -3290,15 +4710,34 @@
   "Your playlists": "as",
   "Your podcasts": "wa",
   "Your profile": "wa",
+=======
+  "Your history": "wan",
+  "Your library by genre": "wn",
+  "Your library is empty": "wn",
+  "Your name": "w",
+  "Your own": "n",
+  "Your own Trakt app": "w",
+  "Your own mixes. Add tracks, albums or whole artists from their ⋯ menu.": "w",
+  "Your own, smart ones that keep themselves up to date, and the movie series you have.": "w",
+  "Your playlists": "ns",
+  "Your podcasts": "wn",
+  "Your profile": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Your profile is the one that runs Flexarr.": "w",
-  "Your profile, on every device": "a",
+  "Your profile, on every device": "an",
   "Your request is ready": "s",
+<<<<<<< HEAD
   "Your server has notifications turned off, so none will arrive. They can be turned on in its configuration.": "a",
   "Your settings couldn't be loaded.": "a",
+=======
+  "Your server has notifications turned off, so none will arrive. They can be turned on in its configuration.": "an",
+  "Your settings couldn’t be loaded.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "Yours": "w",
   "You’ll get a code to approve, like a server found on your Wi-Fi.": "an",
   "You’ll get a code to approve, like a server found on your network.": "an",
   "You’ll need the API key to sign in here again.": "w",
+<<<<<<< HEAD
   "You’ll watch as {profile}.": "a",
   "You’re all set": "w",
   "You’re at {time}.": "w",
@@ -3311,15 +4750,25 @@
   "a minute": "s",
   "a setting has a null character in it.": "s",
   "about {size}": "a",
+=======
+  "You’ll watch as {profile}.": "n",
+  "You’re all set": "w",
+  "You’re at {time}.": "wn",
+  "You’re offline": "an",
+  "You’re up to date.": "n",
+  "a minute": "s",
+  "a setting has a null character in it.": "s",
+  "about {size}": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "album-type::Live": "w",
   "albums": "a",
   "all in good shape": "w",
   "all of them": "w",
   "already here": "w",
-  "ambient": "n",
   "and {count} more": "ws",
   "artists": "a",
   "as {character}": "w",
+<<<<<<< HEAD
 <<<<<<< HEAD
   "audiobooks": "wa",
 =======
@@ -3327,22 +4776,27 @@
   "backdrop": "n",
   "bar room": "n",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
+=======
+  "asking from outside your home network": "n",
+  "asking from your home network": "n",
+  "asking from your home network ({address})": "n",
+  "asking from {address}, outside your home network": "n",
+  "asking over Tailscale": "n",
+  "asking over Tailscale ({address})": "n",
+  "audiobooks": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "by {name}": "w",
-  "caption": "n",
-  "chapter": "n",
-  "connect": "n",
   "connect Radarr or Sonarr": "w",
-  "cover": "n",
-  "details": "n",
-  "dot": "n",
   "download a backup": "s",
   "e.g. Christmas": "w",
+  "enter its address": "n",
   "esc": "w",
   "every file opened cleanly": "w",
   "every movie has an HD copy": "w",
   "every title has a single copy": "w",
   "export the settings": "s",
   "ffmpeg, the cache and backups folders. Usually wrong on another machine, and it asks for the admin PIN.": "w",
+<<<<<<< HEAD
 <<<<<<< HEAD
   "flexarr": "a",
   "forced": "a",
@@ -3357,6 +4811,13 @@
   "help": "n",
   "home videos": "w",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
+=======
+  "flexarr": "a",
+  "from the internet": "w",
+  "from your home network": "w",
+  "home network": "n",
+  "home videos": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "http://192.168.1.20:8383": "a",
   "iPhone and iPad": "w",
   "in {app}": "w",
@@ -3366,40 +4827,55 @@
   "last used {time}": "w",
   "last used {when}": "w",
   "let devices at home in without the key": "s",
-  "line": "n",
-  "list": "n",
   "live-tv::Recording": "s",
   "macOS needs your OK first: on the Mac, open System Settings › General › Login Items and turn on Flexarr Server.": "w",
+<<<<<<< HEAD
   "mono": "a",
   "movies": "wa",
   "music": "wa",
+=======
+  "movies": "wn",
+  "music": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "never": "w",
+  "new episodes only": "n",
   "not synced yet": "w",
-  "offline": "n",
+  "outside your home network": "n",
   "over Tailscale": "w",
   "plex.tv didn't answer ({status}). Try again in a moment.": "s",
+<<<<<<< HEAD
 <<<<<<< HEAD
   "podcasts": "wa",
 =======
   "podcasts": "w",
   "profiles": "n",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
+=======
+  "podcasts": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "restore a backup": "s",
   "scanned {time}": "w",
-  "scrubber": "n",
   "seconds": "w",
   "see the API key": "s",
   "showing the newest {count, number}": "w",
+<<<<<<< HEAD
 <<<<<<< HEAD
   "shows": "wa",
   "stereo": "a",
 =======
   "shows": "w",
+=======
+  "shows": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "sleep dim": "n",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "subscription ends {date}": "w",
   "synced {time}": "w",
+<<<<<<< HEAD
   "that channel": "wa",
+=======
+  "that channel": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "the API key": "w",
   "the TV": "a",
   "the address": "w",
@@ -3409,22 +4885,30 @@
   "the policy": "w",
   "the {app} address": "w",
 <<<<<<< HEAD
+<<<<<<< HEAD
   "titles": "a",
 =======
   "title": "n",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
+=======
+  "titles": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "titles, file names or paths, what you watch, profile or device names, addresses (IP, server, network), keys or passwords. These are removed on your server or device before anything leaves it.": "w",
   "tv-show::Show": "w",
   "unknown": "w",
   "use the server keys or paths from this file": "s",
   "watched": "w",
-  "welcome": "n",
   "what went wrong and where in the code; Flexarr version; OS and device model; a random id for this server.": "w",
   "{added, plural, one {Followed # show} other {Followed # shows}}{already, plural, =0 {} other {, # already followed}}{failed, plural, =0 {} other {, # couldn't be read}}.": "w",
+<<<<<<< HEAD
   "{album}, {artist}": "a",
   "{amount} s": "a",
   "{amount}s earlier": "a",
   "{amount}s later": "a",
+=======
+  "{amount}s earlier": "n",
+  "{amount}s later": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "{apps} can’t be reached": "w",
   "{apps} connected": "w",
   "{app} already has {title} (in {path}). Flexarr takes its details from there.": "w",
@@ -3434,12 +4918,18 @@
   "{authors} and {count} more": "a",
   "{browser} on {system}": "w",
   "{channels} channels": "w",
+<<<<<<< HEAD
   "{channel}, {programme}, {time}, set to record": "a",
   "{channel}, {upcoming} coming up, {recorded} recorded": "a",
   "{channel}, {upcoming} coming up, {recorded} recorded, new episodes only": "a",
   "{channel}, {upcoming} coming up, {recorded} recorded, new only": "a",
   "{chapter}, at {time}": "a",
   "{code} {title}": "a",
+=======
+  "{channel}, {programme}, {time}": "n",
+  "{channel}, {programme}, {time}, set to record": "n",
+  "{chapter}, at {time}": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "{colour}, shown behind the picture while it loads": "w",
   "{count, number} are here": "w",
   "{count, number} are here, {fresh, number} not yet watched in Flexarr": "w",
@@ -3449,17 +4939,26 @@
   "{count, number} waiting to send": "w",
   "{count, number} will show as watched if they arrive": "w",
   "{count, number} you'd watched more recently in Flexarr were left as they were.": "w",
+<<<<<<< HEAD
   "{count, plural, one {# album} other {# albums}}": "wa",
   "{count, plural, one {# artist} other {# artists}}": "wa",
   "{count, plural, one {# author} other {# authors}}": "a",
   "{count, plural, one {# book} other {# books}}": "wa",
+=======
+  "{count, plural, one {# album} other {# albums}}": "wn",
+  "{count, plural, one {# artist} other {# artists}}": "wn",
+  "{count, plural, one {# book in your library} other {# books in your library}}": "n",
+  "{count, plural, one {# book} other {# books}}": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "{count, plural, one {# browser or TV was signed out.} other {# browsers and TVs were signed out.}}": "w",
   "{count, plural, one {# browser or TV will need to sign in or connect again.} other {# browsers and TVs will need to sign in or connect again.}} This browser stays signed in.": "w",
   "{count, plural, one {# chapter} other {# chapters}}": "w",
   "{count, plural, one {# connection} other {# connections}} at a time": "w",
   "{count, plural, one {# copy} other {# copies}}, {size} spare": "w",
   "{count, plural, one {# copy} other {# copies}}: {names}": "w",
+  "{count, plural, one {# day ago} other {# days ago}}": "n",
   "{count, plural, one {# device is locked to this profile. Unlock it in Settings › Devices first.} other {# devices are locked to this profile. Unlock them in Settings › Devices first.}}": "s",
+<<<<<<< HEAD
   "{count, plural, one {# episode} other {# episodes}}": "wa",
   "{count, plural, one {# episode} other {# episodes}} across {seasons, plural, one {# season} other {# seasons}}": "s",
   "{count, plural, one {# episode} other {# episodes}}, {year}": "w",
@@ -3470,6 +4969,20 @@
   "{count, plural, one {# library} other {# libraries}}": "w",
   "{count, plural, one {# minute} other {# minutes}}": "was",
   "{count, plural, one {# movie} other {# movies}}": "wa",
+=======
+  "{count, plural, one {# episode} other {# episodes}}": "wn",
+  "{count, plural, one {# episode} other {# episodes}} across {seasons, plural, one {# season} other {# seasons}}": "s",
+  "{count, plural, one {# episode} other {# episodes}}, {year}": "w",
+  "{count, plural, one {# file Plex knows about isn't in your Flexarr libraries.} other {# files Plex knows about aren't in your Flexarr libraries.}}": "w",
+  "{count, plural, one {# folder} other {# folders}}": "wn",
+  "{count, plural, one {# hour ago} other {# hours ago}}": "n",
+  "{count, plural, one {# hour} other {# hours}}": "w",
+  "{count, plural, one {# invite is already waiting. Cancel it first.} other {# invites are already waiting. Cancel some first.}}": "s",
+  "{count, plural, one {# library} other {# libraries}}": "w",
+  "{count, plural, one {# minute ago} other {# minutes ago}}": "n",
+  "{count, plural, one {# minute} other {# minutes}}": "wns",
+  "{count, plural, one {# movie} other {# movies}}": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "{count, plural, one {# needs} other {# need}} Radarr or Sonarr connected in Settings › Connections to fill it in. The rest aren’t found there: fix the match to choose the right title, or rename the folder to “Title (Year)”.": "w",
   "{count, plural, one {# new album} other {# new albums}}": "s",
   "{count, plural, one {# new episode from {show}} other {# new episodes from {show}}}": "s",
@@ -3477,6 +4990,7 @@
   "{count, plural, one {# new thing to watch} other {# new things to watch}}": "s",
   "{count, plural, one {# of its folders isn’t at that path on this server.} other {# of its folders aren’t at those paths on this server.}}": "w",
   "{count, plural, one {# of their movies and shows in your library.} other {# of their movies and shows in your library.}}": "s",
+<<<<<<< HEAD
   "{count, plural, one {# play from Flexarr goes to Trakt.} other {# plays from Flexarr go to Trakt.}}": "a",
   "{count, plural, one {# play from Flexarr goes to Trakt} other {# plays from Flexarr go to Trakt}}": "w",
   "{count, plural, one {# podcast} other {# podcasts}}": "w",
@@ -3494,11 +5008,36 @@
   "{count, plural, one {# track, {length}} other {# tracks, {length}}}": "w",
   "{count, plural, one {# track} other {# tracks}}": "wa",
   "{count, plural, one {# video} other {# videos}}": "wa",
+=======
+  "{count, plural, one {# play from Flexarr goes to Trakt.} other {# plays from Flexarr go to Trakt.}}": "n",
+  "{count, plural, one {# play from Flexarr goes to Trakt} other {# plays from Flexarr go to Trakt}}": "w",
+  "{count, plural, one {# podcast} other {# podcasts}}": "w",
+  "{count, plural, one {# season} other {# seasons}}": "wn",
+  "{count, plural, one {# second} other {# seconds}}": "wns",
+  "{count, plural, one {# show} other {# shows}}": "wn",
+  "{count, plural, one {# sign-in} other {# sign-ins}}": "w",
+  "{count, plural, one {# song} other {# songs}}": "n",
+  "{count, plural, one {# title in your library} other {# titles in your library}}": "wn",
+  "{count, plural, one {# title needs} other {# titles need}} a look": "w",
+  "{count, plural, one {# title ready to watch.} other {# titles ready to watch.}}": "w",
+  "{count, plural, one {# title} other {# titles}}": "wn",
+  "{count, plural, one {# title} other {# titles}}, best rated first": "n",
+  "{count, plural, one {# track twice} other {# tracks twice}}": "w",
+  "{count, plural, one {# track, {length}} other {# tracks, {length}}}": "w",
+  "{count, plural, one {# track} other {# tracks}}": "wn",
+  "{count, plural, one {# video} other {# videos}}": "wn",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "{count, plural, one {# {genre} album} other {# {genre} albums}}": "w",
   "{count, plural, one {# {genre} movie from the {decade}s, best first.} other {# {genre} movies from the {decade}s, best first.}}": "s",
   "{count, plural, one {All # unplayed episode of {title} will be marked as played.} other {All # unplayed episodes of {title} will be marked as played.}}": "w",
+  "{count, plural, one {Back # second} other {Back # seconds}}": "n",
   "{count, plural, one {Find it} other {Find them}}": "w",
+<<<<<<< HEAD
   "{count, plural, one {Flexarr deletes its file from disk. Folders it leaves empty go too. You can't undo this.} other {Flexarr deletes its # files from disk. Folders it leaves empty go too. You can't undo this.}}": "a",
+=======
+  "{count, plural, one {Flexarr deletes its file from disk.} other {Flexarr deletes its # files from disk.}} Folders it leaves empty go too. You can’t undo this.": "n",
+  "{count, plural, one {Forward # second} other {Forward # seconds}}": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "{count, plural, one {One book in your library} other {# books in your library}}": "w",
   "{count, plural, one {One new episode: {episodes}.} other {# new episodes: {episodes}.}}": "a",
   "{count, plural, one {One title in your library} other {# titles in your library}}": "w",
@@ -3506,6 +5045,9 @@
   "{count, plural, one {Remove # spare copy?} other {Remove # spare copies?}}": "w",
   "{count, plural, one {Someone is watching Live TV.} other {# people are watching Live TV.}}": "s",
   "{count, plural, one {Something is playing.} other {# things are playing.}}": "s",
+  "{count, plural, one {Synced # day ago} other {Synced # days ago}}": "n",
+  "{count, plural, one {Synced # hour ago} other {Synced # hours ago}}": "n",
+  "{count, plural, one {Synced # minute ago} other {Synced # minutes ago}}": "n",
   "{count, plural, one {The new library is being scanned.} other {The # new libraries are being scanned.}}": "w",
   "{count, plural, one {one channel at a time} other {# channels at a time}}": "w",
   "{count, plural, one {{n} folder on hold} other {{n} folders on hold}}": "w",
@@ -3517,6 +5059,7 @@
   "{count} albums twice": "w",
   "{count} albums with tracks twice": "w",
   "{count} albums without a cover": "w",
+<<<<<<< HEAD
   "{count} already in your library. Request anything else to add it.": "a",
   "{count} artists under two names": "w",
   "{count} ch": "a",
@@ -3535,6 +5078,28 @@
   "{count} versions on disk": "w",
   "{count} watched": "w",
   "{count} will show as watched if they arrive.": "a",
+=======
+  "{count} already in your library. Request anything else to add it.": "n",
+  "{count} are here, {new} not yet watched in Flexarr.": "n",
+  "{count} are here.": "n",
+  "{count} artists under two names": "w",
+  "{count} ch": "n",
+  "{count} coming up": "wn",
+  "{count} finished": "wn",
+  "{count} here": "n",
+  "{count} matching": "w",
+  "{count} min": "w",
+  "{count} missing or empty files": "w",
+  "{count} new": "n",
+  "{count} not in your library": "w",
+  "{count} only in SD": "w",
+  "{count} recorded": "wn",
+  "{count} unplayed": "wn",
+  "{count} unreadable": "w",
+  "{count} versions on disk": "w",
+  "{count} watched": "w",
+  "{count} will show as watched if they arrive.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "{count} with spare copies": "w",
   "{count} without artwork": "w",
   "{count} without artwork ({connect} to fill in {needs})": "w",
@@ -3554,9 +5119,12 @@
   "{device}. {line}": "w",
   "{device}: {time}": "a",
   "{done} of {total}": "w",
+  "{done} of {total} finished": "n",
   "{duration} left": "w",
   "{end, select, episode {At the end of this episode} movie {At the end of this movie} film {At the end of this film} chapter {At the end of this chapter} other {At the end of this {end}}}": "w",
   "{end, select, episode {Sleep timer, at the end of this episode} movie {Sleep timer, at the end of this movie} film {Sleep timer, at the end of this film} chapter {Sleep timer, at the end of this chapter} other {Sleep timer, at the end of this {end}}}": "w",
+  "{failure}.": "n",
+  "{failure}. {reason}": "n",
   "{filter}: clear": "w",
   "{fine, number} of {count, number} for profiles with an age limit.": "w",
   "{finished} of {count, plural, one {# book} other {# books}}": "a",
@@ -3572,6 +5140,7 @@
   "{folder} overlaps a folder in another library.": "s",
   "{have} of {aired}": "wa",
   "{have} of {count, plural, one {# episode} other {# episodes}}": "w",
+<<<<<<< HEAD
   "{here} are here, {new} not yet watched in Flexarr.": "a",
   "{here} are here.": "a",
   "{here} of {count, plural, one {# track} other {# tracks}}": "a",
@@ -3580,6 +5149,15 @@
   "{hours}h": "a",
   "{hours}h {minutes}m": "wa",
   "{hours}h {minutes}m left": "a",
+=======
+  "{have} of {count}": "n",
+  "{here} of {total, plural, one {# track} other {# tracks}}": "n",
+  "{hours} h ago": "w",
+  "{hours} h left": "w",
+  "{hours}h": "n",
+  "{hours}h {minutes}m": "wn",
+  "{hours}h {minutes}m left": "an",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "{kind, select, Device {Connected between {start} and {end}} other {Signed in between {start} and {end}}}": "w",
   "{kind, select, Device {Connected {date}} other {Signed in {date}}}": "w",
   "{kind, select, Device {{name}, connected {date}} other {{name}, signed in {date}}}": "w",
@@ -3597,8 +5175,10 @@
   "{kind} doesn't manage {title}, so Flexarr can't tell which copy it uses. Remove the spare in the Finder.": "s",
   "{kind} wouldn't add it: {message}": "s",
   "{kind} · Allow it if its screen shows {code}.": "s",
+  "{kind}, {asking}": "n",
   "{kind}, {date}.": "w",
   "{label} (forced)": "s",
+<<<<<<< HEAD
   "{language} subtitles saved": "a",
   "{language} subtitles saved. Choose them from the subtitles menu while it plays.": "w",
   "{letter} couldn’t be loaded.": "w",
@@ -3614,10 +5194,23 @@
   "{movies, plural, one {# movie} other {# movies}}": "a",
   "{movies, plural, one {# movie} other {# movies}} and {episodes, plural, one {# episode} other {# episodes}}": "a",
   "{movies, plural, one {# movie} other {# movies}} and {shows, plural, one {# show} other {# shows}}": "a",
+=======
+  "{language} subtitles saved": "n",
+  "{language} subtitles saved. Choose them from the subtitles menu while it plays.": "w",
+  "{letter} couldn’t be loaded.": "w",
+  "{list} and {last}": "wn",
+  "{minutes} min ago": "w",
+  "{minutes} min left": "w",
+  "{minutes}m": "wn",
+  "{minutes}m left": "an",
+  "{missing, number} of its {count, plural, one {# file} other {# files}} went at once. If that’s a clear-out, it goes through by itself after a day of scans finding the same.": "w",
+  "{more, plural, =0 {{title} is in the library.} other {{title} and # more are in the library.}}": "s",
+  "{movies, plural, one {# movie} other {# movies}} and {shows, plural, one {# show} other {# shows}}": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "{movies, plural, other {# movies}} and {shows, plural, other {# shows}}": "w",
   "{music, select, yes {All {count, number} movies, episodes and albums are in good shape.} other {All {count, number} movies and episodes are in good shape.}}": "w",
   "{music, select, yes {{fine, number} of {count, number} movies, episodes and albums have no problems.} other {{fine, number} of {count, number} movies and episodes have no problems.}}": "w",
-  "{names} and {count} more": "w",
+  "{names} and {count} more": "wn",
   "{names} and {last}": "w",
   "{names} {count, plural, one {is} other {are}} recording, using every stream there is. Watch {channel}, or stop the recording.": "s",
   "{names}{more, plural, =0 {} other { and # more}}": "s",
@@ -3635,7 +5228,11 @@
   "{name} didn't delete it ({status}). Nothing was removed from Flexarr.": "s",
   "{name} didn't say which copy it uses ({status}), so nothing was deleted.": "s",
   "{name} didn't take the search ({status}).": "s",
+<<<<<<< HEAD
   "{name} first": "a",
+=======
+  "{name} first": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "{name} folder": "w",
   "{name} has no Webhook connection to add.": "s",
   "{name} has no folders.": "s",
@@ -3649,17 +5246,23 @@
   "{name} views": "w",
   "{name}'s folder for this artist doesn't hold their albums here, so it may be another artist's. Check Fix match, then try again. Nothing was deleted.": "s",
   "{name}, now {title}": "w",
+<<<<<<< HEAD
   "{name}, on every device": "a",
+=======
+  "{name}, on every device": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "{name}, this browser": "w",
   "{name}: fine for kids, rated or not": "w",
   "{name}: {folder} isn’t on this server.": "s",
   "{name}: {folder} overlaps a folder in another library.": "s",
   "{name}: {watched, number} watched, {inProgress, number} in progress": "w",
   "{name}: “{baseUrl}” isn't a valid http or https address.": "s",
+  "{name}’s Flexarr isn’t taking guests just now.": "n",
   "{name}’s address “{address}” isn’t an http or https address.": "s",
   "{name}’s libraries": "w",
   "{name}’s own, in every app. A book with a speed of its own keeps it.": "w",
   "{name}’s own, on every device. The player’s menus change them too.": "w",
+  "{name}’s own. The web, the Apple TV and iPhone list your libraries in this order too.": "n",
   "{name}’s profile": "w",
   "{name}’s {device}": "w",
   "{newOnly, select, yes {Every showing of {title} on any channel (new episodes only) is recorded.} other {Every showing of {title} on any channel is recorded.}}": "w",
@@ -3667,24 +5270,40 @@
   "{noun, select, movie {Flexarr doesn't know this movie's folder, so it can't add it to {kind}.} other {Flexarr doesn't know this show's folder, so it can't add it to {kind}.}}": "s",
   "{noun, select, movie {{name} already uses this folder for {title}. Remove that movie in {name} (keep its files), then fix the match again.} other {{name} already uses this folder for {title}. Remove that show in {name} (keep its files), then fix the match again.}}": "s",
   "{number} {name}, now {title}": "w",
+  "{option} (showing)": "n",
+  "{option} (sorted)": "n",
   "{os}, since {time}": "w",
   "{outside} isn't inside the library's folders, so Flexarr won't delete it. Nothing was deleted.": "s",
+<<<<<<< HEAD
   "{owner}, {count, plural, one {# title} other {# titles}}": "a",
   "{owner}’s Flexarr": "a",
   "{owner}’s Flexarr isn’t taking guests just now.": "a",
   "{percent}%": "wa",
+=======
+  "{owner}’s Flexarr": "n",
+  "{percent}%": "w",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "{percent}% listened": "w",
   "{percent}% watched": "w",
   "{percent}%, {left}": "w",
   "{place} ({address})": "w",
+<<<<<<< HEAD
   "{position} of {duration}": "a",
   "{profile}’s own. The web, the Apple TV and Android list your libraries in this order too.": "a",
+=======
+  "{position} of {duration}": "n",
+  "{position} of {length}": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "{range}, {episodes}": "w",
   "{received} of {total}. Flexarr restarts to install it once it’s downloaded.": "w",
   "{received}. Flexarr restarts to install it once it’s downloaded.": "w",
   "{score}%": "a",
   "{score}% match": "w",
+<<<<<<< HEAD
   "{seconds} seconds": "a",
+=======
+  "{seconds} seconds": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "{seconds}s earlier": "w",
   "{seconds}s later": "w",
   "{service} isn't answering. Try again later.": "s",
@@ -3696,6 +5315,7 @@
   "{show}, season {season} episode {episode}": "a",
   "{show}, {title}": "a",
   "{size} free": "w",
+<<<<<<< HEAD
   "{size} on this {device}.": "a",
   "{size} used on this {device}.": "a",
   "{speed}×": "a",
@@ -3709,6 +5329,19 @@
   "{time} of {duration}": "w",
   "{title} by {artist} is in the library.": "s",
   "{title} clashes with recordings already on the list: every stream is wanted then, so it won't record unless one of them comes off.": "a",
+=======
+  "{size} on this phone.": "n",
+  "{size} used on this phone.": "n",
+  "{start} to {end}": "w",
+  "{start} to {end}, on a schedule": "w",
+  "{time} at {speed}": "n",
+  "{time} behind live": "wn",
+  "{time} left": "wn",
+  "{time} left at {speed}": "w",
+  "{time} of {duration}": "w",
+  "{title} by {artist} is in the library.": "s",
+  "{title} clashes with recordings already on the list: every stream is wanted then, so it won’t record unless one of them comes off.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "{title} downloading": "w",
   "{title} has nothing to play.": "a",
   "{title} is about to record.": "s",
@@ -3716,8 +5349,13 @@
   "{title} is ready to watch.": "s",
   "{title} isn't matched to anything yet. Use Fix match to choose what it is.": "s",
   "{title} on {channel}": "s",
+<<<<<<< HEAD
   "{title} trailer": "wa",
   "{title} will be recorded. Recordings, at the top, lists what's set.": "a",
+=======
+  "{title} trailer": "wn",
+  "{title} will be recorded. Recordings, at the top, lists what’s set.": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "{title}, by {artist}": "w",
   "{title}, from {show}": "a",
   "{title}, in your library": "w",
@@ -3731,13 +5369,19 @@
   "{value} {unit}": "w",
   "{watched} of {count} watched": "w",
   "{when} from {address}": "w",
+<<<<<<< HEAD
   "{when} {date}": "a",
+=======
+  "{where}, {upcoming} coming up, {recorded} recorded": "n",
+  "{where}, {upcoming} coming up, {recorded} recorded, new only": "n",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
   "{who} got the admin PIN or your profile's PIN wrong too many times and has to wait. If it wasn't you, change them on the web, in Settings.": "s",
   "{zone, select, Local {You’re connected from your home network as {login}.} Tailnet {You’re connected from Tailscale as {login}.} other {You’re connected from the internet as {login}.}}": "w",
   "{zone, select, Local {You’re connected from your home network.} Tailnet {You’re connected from Tailscale.} other {You’re connected from the internet.}}": "w",
   "“Only away from home” lets devices on your own network in without it.": "w",
   "“{baseUrl}” isn't a valid http or https address.": "s",
-  "“{name}” is connected": "w",
+  "“{device}” is connected. It’ll be ready in a moment.": "n",
+  "“{name}” is connected": "wn",
   "“{name}” is connected. It signs in within a couple of seconds.": "w",
   "“{phrase}”": "a",
   "“{range}” is far too wide a range to trust as a proxy.": "s",

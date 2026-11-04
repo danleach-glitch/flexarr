@@ -123,11 +123,11 @@ fun PlaybackSettingsScreen(model: AppModel) {
             }
             item {
                 Group(header = t("Sound")) {
-                    Picker(t("Dialogue boost"), SoundSettings.DialogueBoost.entries, sound.dialogueBoost, { it.name }) { boost ->
+                    Picker(t("Dialogue boost"), SoundSettings.DialogueBoost.entries, sound.dialogueBoost, { it.label }) { boost ->
                         SoundSettings.update(context) { it.copy(dialogueBoost = boost) }
                     }
                     Divider()
-                    Picker(t("Night mode"), SoundSettings.NightMode.entries, sound.nightMode, { if (it == SoundSettings.NightMode.Scheduled) t("On a schedule") else it.name }) { mode ->
+                    Picker(t("Night mode"), SoundSettings.NightMode.entries, sound.nightMode, { if (it == SoundSettings.NightMode.Scheduled) t("On a schedule") else it.label }) { mode ->
                         SoundSettings.update(context) { it.copy(nightMode = mode) }
                     }
                     if (sound.nightMode == SoundSettings.NightMode.Scheduled) {

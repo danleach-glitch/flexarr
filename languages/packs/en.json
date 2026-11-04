@@ -11,10 +11,14 @@
  "(opens in a new tab)": "(opens in a new tab)",
  "+ Add device": "+ Add device",
  "+15 min": "+15 min",
+<<<<<<< HEAD
  "+{amount} s": "+{amount} s",
  "+{minutes} min": "+{minutes} min",
  "+{seconds} s": "+{seconds} s",
  ", ": ", ",
+=======
+ "+{minutes} min": "+{minutes} min",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  ", main profile": ", main profile",
  "10 Mbps": "10 Mbps",
  "10 to 20 hours": "10 to 20 hours",
@@ -50,14 +54,20 @@
  "A kids profile has the standard menu.": "A kids profile has the standard menu.",
  "A kids profile needs an age limit.": "A kids profile needs an age limit.",
  "A library opens on every title, A to Z, with sorting, genres and a letter rail to jump through it.": "A library opens on every title, A to Z, with sorting, genres and a letter rail to jump through it.",
+<<<<<<< HEAD
  "A library opens on its genres, each with a picture from its titles. Home videos open on Browse.": "A library opens on its genres, each with a picture from its titles. Home videos open on Browse.",
  "A library opens on its highlights: what you're watching in it, the latest, the best not yet watched and its biggest genres.": "A library opens on its highlights: what you're watching in it, the latest, the best not yet watched and its biggest genres.",
+=======
+ "A library opens on its highlights: what you’re watching in it, the latest, the best not yet watched and its biggest genres.": "A library opens on its highlights: what you’re watching in it, the latest, the best not yet watched and its biggest genres.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "A library's type can't be changed.": "A library's type can't be changed.",
  "A movie needs a title.": "A movie needs a title.",
+ "A movie or TV library opens on its genres, each with a picture from one of its titles. Home videos open on Browse.": "A movie or TV library opens on its genres, each with a picture from one of its titles. Home videos open on Browse.",
  "A new code": "A new code",
  "A path in the update holds a control, line-separator or text-direction character.": "A path in the update holds a control, line-separator or text-direction character.",
  "A path in the webhook holds a control, line-separator or text-direction character.": "A path in the webhook holds a control, line-separator or text-direction character.",
  "A place in the book, and a note of up to 2,000 characters.": "A place in the book, and a note of up to 2,000 characters.",
+ "A press of left or right on the remote.": "A press of left or right on the remote.",
  "A re-sync of this video is already running.": "A re-sync of this video is already running.",
  "A recording needed the stream.": "A recording needed the stream.",
  "A restore is already under way.": "A restore is already under way.",
@@ -110,6 +120,7 @@
  "Add another narrator": "Add another narrator",
  "Add another {app}": "Add another {app}",
  "Add at least one folder.": "Add at least one folder.",
+ "Add bookmark": "Add bookmark",
  "Add everyone who watches": "Add everyone who watches",
  "Add files to your library folder, or connect Sonarr or Radarr in Flexarr on the web.": "Add files to your library folder, or connect Sonarr or Radarr in Flexarr on the web.",
  "Add files to your library folder, or connect Sonarr or Radarr.": "Add files to your library folder, or connect Sonarr or Radarr.",
@@ -147,11 +158,15 @@
  "Added to {name}": "Added to {name}",
  "Added to {name}.": "Added to {name}.",
  "Added to {playlist}.": "Added to {playlist}.",
+<<<<<<< HEAD
  "Added {title} to Up next.": "Added {title} to Up next.",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Added {title} to your watchlist": "Added {title} to your watchlist",
  "Added {title} to your watchlist.": "Added {title} to your watchlist.",
  "Adding guests waits for Tailscale setup, below.": "Adding guests waits for Tailscale setup, below.",
  "Adding your podcasts…": "Adding your podcasts…",
+ "Adding…": "Adding…",
  "Address": "Address",
  "Adds to {app}": "Adds to {app}",
  "Admin PIN": "Admin PIN",
@@ -179,11 +194,17 @@
  "All podcasts": "All podcasts",
  "All shows": "All shows",
  "All titles": "All titles",
+<<<<<<< HEAD
  "All {count}": "All {count}",
  "All {count} episodes of {podcast} will be marked as played.": "All {count} episodes of {podcast} will be marked as played.",
+=======
+ "All {count} chapters": "All {count} chapters",
+ "All {count} episodes of {show} will be marked as played.": "All {count} episodes of {show} will be marked as played.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Allow": "Allow",
  "Allow for kids": "Allow for kids",
  "Allow it if its screen shows {code}.": "Allow it if its screen shows {code}.",
+ "Allow one only if its screen shows the same code.": "Allow one only if its screen shows the same code.",
  "Allow or block the whole title: its seasons and episodes follow it.": "Allow or block the whole title: its seasons and episodes follow it.",
  "Allow {name}": "Allow {name}",
  "Allowing it takes the admin PIN.": "Allowing it takes the admin PIN.",
@@ -201,6 +222,7 @@
  "An artist needs its deezerId or artistId.": "An artist needs its deezerId or artistId.",
  "An invite can only be used by the app that joined with it.": "An invite can only be used by the app that joined with it.",
  "An update is already being installed.": "An update is already being installed.",
+ "An update is ready": "An update is ready",
  "Android TV, Google TV and Fire TV": "Android TV, Google TV and Fire TV",
  "Android phone": "Android phone",
  "Android phone and tablet": "Android phone and tablet",
@@ -209,7 +231,10 @@
  "Any": "Any",
  "Any artist or album": "Any artist or album",
  "Any genre": "Any genre",
+<<<<<<< HEAD
  "Any length": "Any length",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Any movie or show": "Any movie or show",
  "Any new podcasts in ${applicationName}": "Any new podcasts in ${applicationName}",
  "Any time": "Any time",
@@ -235,12 +260,18 @@
  "Artwork comes from Radarr and Sonarr. Connect them in Settings › Connections to fill it in.": "Artwork comes from Radarr and Sonarr. Connect them in Settings › Connections to fill it in.",
  "As": "As",
  "As Dispatcharr says": "As Dispatcharr says",
+<<<<<<< HEAD
  "As it is": "As it is",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "As the file is": "As the file is",
  "Ask ${applicationName} to ${action}": "Ask ${applicationName} to ${action}",
  "Ask for it": "Ask for it",
  "Ask the server how it is now.": "Ask the server how it is now.",
+<<<<<<< HEAD
  "Ask who's watching": "Ask who's watching",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Ask whoever runs this Flexarr to connect Dispatcharr in Settings › Connections.": "Ask whoever runs this Flexarr to connect Dispatcharr in Settings › Connections.",
  "Ask whoever set up Flexarr for the key, or connect from home.": "Ask whoever set up Flexarr for the key, or connect from home.",
  "Asked for before the server’s settings change, and to let a child off a kids profile.": "Asked for before the server’s settings change, and to let a child off a kids profile.",
@@ -274,9 +305,15 @@
  "Authors": "Authors",
  "Auto": "Auto",
  "Auto plays every channel the browser can.": "Auto plays every channel the browser can.",
+<<<<<<< HEAD
  "Auto plays every channel what's connected takes.": "Auto plays every channel what's connected takes.",
  "Auto-play the next episode": "Auto-play the next episode",
  "Auto-play, skipping intros and credits, subtitle size, and how this Apple TV plays files.": "Auto-play, skipping intros and credits, subtitle size, and how this Apple TV plays files.",
+=======
+ "Auto plays every channel what’s connected takes.": "Auto plays every channel what’s connected takes.",
+ "Auto-play the next episode": "Auto-play the next episode",
+ "Auto-play, skipping intros and credits, subtitle size, and how far the remote skips.": "Auto-play, skipping intros and credits, subtitle size, and how far the remote skips.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Automatic": "Automatic",
  "Automatic (720p)": "Automatic (720p)",
  "Automatic (recommended)": "Automatic (recommended)",
@@ -287,13 +324,22 @@
  "Automatic updates": "Automatic updates",
  "Away": "Away",
  "Away from home": "Away from home",
+<<<<<<< HEAD
  "Away from home, this Apple TV reaches the server over Tailscale, which needs to be connected on it.": "Away from home, this Apple TV reaches the server over Tailscale, which needs to be connected on it.",
  "Away from home, this {device} reaches the server over Tailscale, which needs to be connected on it.": "Away from home, this {device} reaches the server over Tailscale, which needs to be connected on it.",
+=======
+ "Away from home, this TV reaches the server over Tailscale, which needs to be connected on it.": "Away from home, this TV reaches the server over Tailscale, which needs to be connected on it.",
+ "Away from home, this phone reaches the server over Tailscale, which needs to be connected on it.": "Away from home, this phone reaches the server over Tailscale, which needs to be connected on it.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Away, over Tailscale": "Away, over Tailscale",
  "A–Z": "A–Z",
  "Back": "Back",
  "Back 10 seconds": "Back 10 seconds",
+<<<<<<< HEAD
  "Back online": "Back online",
+=======
+ "Back 15 seconds": "Back 15 seconds",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Back to Live TV": "Back to Live TV",
  "Back to automatic": "Back to automatic",
  "Back to live": "Back to live",
@@ -342,7 +388,11 @@
  "Book {number} of {count}": "Book {number} of {count}",
  "Book {number}, {year}": "Book {number}, {year}",
  "Bookmark": "Bookmark",
+<<<<<<< HEAD
  "Bookmark not added": "Bookmark not added",
+=======
+ "Bookmark {time}": "Bookmark {time}",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Bookmarked {time}": "Bookmarked {time}",
  "Bookmarks": "Bookmarks",
  "Bookmarks in {chapter}": "Bookmarks in {chapter}",
@@ -367,23 +417,37 @@
  "Built in, for everyone. Who follows what is up to each profile.": "Built in, for everyone. Who follows what is up to each profile.",
  "Business": "Business",
  "By": "By",
+<<<<<<< HEAD
+=======
+ "By invite": "By invite",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "By name": "By name",
  "Can't reach the server ({message}). Check that Flexarr is running, then reload.": "Can't reach the server ({message}). Check that Flexarr is running, then reload.",
  "Canada": "Canada",
  "Cancel": "Cancel",
  "Cancel the invite for {name}": "Cancel the invite for {name}",
  "Cancel timer": "Cancel timer",
+<<<<<<< HEAD
  "Cancels the request": "Cancels the request",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Can’t be reached, or the API key isn’t right": "Can’t be reached, or the API key isn’t right",
  "Can’t be read: {reason}": "Can’t be read: {reason}",
  "Can’t find it?": "Can’t find it?",
  "Can’t get a code just now.": "Can’t get a code just now.",
  "Can’t reach this Flexarr": "Can’t reach this Flexarr",
  "Can’t reach your server since its address changed. Remove it and add it again.": "Can’t reach your server since its address changed. Remove it and add it again.",
+<<<<<<< HEAD
  "Can’t reach {owner}’s Flexarr": "Can’t reach {owner}’s Flexarr",
  "Can’t reach {owner}’s Flexarr. Check this device’s internet.": "Can’t reach {owner}’s Flexarr. Check this device’s internet.",
  "Can’t request": "Can’t request",
  "Can’t see your server?": "Can’t see your server?",
+=======
+ "Can’t reach {name}’s Flexarr. Check this device’s internet.": "Can’t reach {name}’s Flexarr. Check this device’s internet.",
+ "Can’t reach {owner}’s Flexarr": "Can’t reach {owner}’s Flexarr",
+ "Can’t request": "Can’t request",
+ "Can’t see your server? Check it’s on the same Wi-Fi, or {link}.": "Can’t see your server? Check it’s on the same Wi-Fi, or {link}.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Can’t see your server? Check the Apple TV is on the same Wi-Fi as it, or enter an address.": "Can’t see your server? Check the Apple TV is on the same Wi-Fi as it, or enter an address.",
  "Can’t see your server? Check this TV is on the same network as it, or enter an address.": "Can’t see your server? Check this TV is on the same network as it, or enter an address.",
  "Caps every stream, at home too.": "Caps every stream, at home too.",
@@ -467,7 +531,12 @@
  "Christmas": "Christmas",
  "Clear": "Clear",
  "Clear filters": "Clear filters",
+<<<<<<< HEAD
  "Click **Set up Flexarr**.": "Click **Set up Flexarr**.",
+=======
+ "Clear recent searches": "Clear recent searches",
+ "Click {button}.": "Click {button}.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Client ID": "Client ID",
  "Client secret": "Client secret",
  "Close": "Close",
@@ -476,7 +545,7 @@
  "Close queue": "Close queue",
  "Closed captions": "Closed captions",
  "Code": "Code",
- "Code ": "Code ",
+ "Code {code}": "Code {code}",
  "Collapse sidebar": "Collapse sidebar",
  "Collection": "Collection",
  "Collection: {name}": "Collection: {name}",
@@ -514,6 +583,7 @@
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
  "Connect to Trakt first.": "Connect to Trakt first.",
  "Connect to this server at its own address.": "Connect to this server at its own address.",
+ "Connect to your server to play this book.": "Connect to your server to play this book.",
  "Connect your apps": "Connect your apps",
  "Connect {account} again": "Connect {account} again",
  "Connect {app}": "Connect {app}",
@@ -532,7 +602,10 @@
  "Connecting": "Connecting",
  "Connecting from outside your home? Use an API key": "Connecting from outside your home? Use an API key",
  "Connecting…": "Connecting…",
+<<<<<<< HEAD
  "Connecting… ({problem})": "Connecting… ({problem})",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Connection": "Connection",
  "Connections": "Connections",
  "Continue": "Continue",
@@ -581,7 +654,11 @@
  "Couldn't reach TMDB from the server.": "Couldn't reach TMDB from the server.",
  "Couldn't reach Tailscale ({error}).": "Couldn't reach Tailscale ({error}).",
  "Couldn't reach the notification relay.": "Couldn't reach the notification relay.",
+<<<<<<< HEAD
  "Couldn't reach the server, at home or over Tailscale. Make sure Flexarr is running, and that Tailscale is connected on this device.": "Couldn't reach the server, at home or over Tailscale. Make sure Flexarr is running, and that Tailscale is connected on this device.",
+=======
+ "Couldn't reach the server. Make sure Flexarr is running and this device is on the same network.": "Couldn't reach the server. Make sure Flexarr is running and this device is on the same network.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Couldn't request this": "Couldn't request this",
  "Couldn't save the API key to the Keychain (error {status}).": "Couldn't save the API key to the Keychain (error {status}).",
  "Couldn't send a test notification": "Couldn't send a test notification",
@@ -591,12 +668,21 @@
  "Couldn’t add it to {name}.": "Couldn’t add it to {name}.",
  "Couldn’t add the webhook.": "Couldn’t add the webhook.",
  "Couldn’t add this": "Couldn’t add this",
+ "Couldn’t add this to the queue": "Couldn’t add this to the queue",
+ "Couldn’t add this to your watchlist": "Couldn’t add this to your watchlist",
+ "Couldn’t allow it": "Couldn’t allow it",
+ "Couldn’t allow “{name}”": "Couldn’t allow “{name}”",
+ "Couldn’t change notifications": "Couldn’t change notifications",
  "Couldn’t check how to delete it: {reason}": "Couldn’t check how to delete it: {reason}",
  "Couldn’t confirm it": "Couldn’t confirm it",
  "Couldn’t connect ({reason}).": "Couldn’t connect ({reason}).",
  "Couldn’t copy": "Couldn’t copy",
  "Couldn’t delete it": "Couldn’t delete it",
+ "Couldn’t delete this": "Couldn’t delete this",
+ "Couldn’t download": "Couldn’t download",
  "Couldn’t download this": "Couldn’t download this",
+ "Couldn’t download this.": "Couldn’t download this.",
+ "Couldn’t follow this artist": "Couldn’t follow this artist",
  "Couldn’t keep this match": "Couldn’t keep this match",
  "Couldn’t list the backups: {message}": "Couldn’t list the backups: {message}",
  "Couldn’t load the channels: {error}": "Couldn’t load the channels: {error}",
@@ -605,17 +691,41 @@
  "Couldn’t load the settings: {message}": "Couldn’t load the settings: {message}",
  "Couldn’t load updates: {message}": "Couldn’t load updates: {message}",
  "Couldn’t load your Trakt lists": "Couldn’t load your Trakt lists",
+ "Couldn’t load your playlists.": "Couldn’t load your playlists.",
  "Couldn’t load {letter}.": "Couldn’t load {letter}.",
+ "Couldn’t mark the show as watched": "Couldn’t mark the show as watched",
+ "Couldn’t mark this as finished": "Couldn’t mark this as finished",
+ "Couldn’t mark this as unread": "Couldn’t mark this as unread",
+ "Couldn’t mark this as unwatched": "Couldn’t mark this as unwatched",
+ "Couldn’t mark this as watched": "Couldn’t mark this as watched",
+ "Couldn’t open the trailer": "Couldn’t open the trailer",
+ "Couldn’t play this": "Couldn’t play this",
+ "Couldn’t play this album": "Couldn’t play this album",
+ "Couldn’t play this artist": "Couldn’t play this artist",
+ "Couldn’t play this genre": "Couldn’t play this genre",
+ "Couldn’t play this mix": "Couldn’t play this mix",
  "Couldn’t reach Trakt.": "Couldn’t reach Trakt.",
  "Couldn’t reach the server in time.": "Couldn’t reach the server in time.",
  "Couldn’t reach the server.": "Couldn’t reach the server.",
  "Couldn’t reach {app}.": "Couldn’t reach {app}.",
  "Couldn’t refresh the Trakt sign-in.": "Couldn’t refresh the Trakt sign-in.",
+ "Couldn’t refresh your watchlist": "Couldn’t refresh your watchlist",
+ "Couldn’t remove this from Continue watching": "Couldn’t remove this from Continue watching",
+ "Couldn’t remove this from your watchlist": "Couldn’t remove this from your watchlist",
+ "Couldn’t request this": "Couldn’t request this",
+ "Couldn’t request this album": "Couldn’t request this album",
+ "Couldn’t save the order. {reason}": "Couldn’t save the order. {reason}",
+ "Couldn’t search for season {season}": "Couldn’t search for season {season}",
+ "Couldn’t send a test notification": "Couldn’t send a test notification",
  "Couldn’t set the PIN": "Couldn’t set the PIN",
  "Couldn’t sign in.": "Couldn’t sign in.",
+ "Couldn’t start this radio": "Couldn’t start this radio",
+ "Couldn’t stop following this artist": "Couldn’t stop following this artist",
  "Couldn’t switch profile.": "Couldn’t switch profile.",
  "Couldn’t take the PIN off.": "Couldn’t take the PIN off.",
  "Couldn’t turn on notifications": "Couldn’t turn on notifications",
+ "Couldn’t unrequest this": "Couldn’t unrequest this",
+ "Couldn’t unrequest this album": "Couldn’t unrequest this album",
  "Cover": "Cover",
  "Create": "Create",
  "Create an OAuth client": "Create an OAuth client",
@@ -660,6 +770,7 @@
  "Device": "Device",
  "Device connected": "Device connected",
  "Device language": "Device language",
+ "Devices asking to connect": "Devices asking to connect",
  "Devices at home get in as the main profile, and a PIN doesn’t keep them out. Choose “Always” if that matters.": "Devices at home get in as the main profile, and a PIN doesn’t keep them out. Choose “Always” if that matters.",
  "Devices waiting to connect": "Devices waiting to connect",
  "Diagnostics are limited to 5 MB.": "Diagnostics are limited to 5 MB.",
@@ -676,7 +787,11 @@
  "Directed by": "Directed by",
  "Directed by {name}": "Directed by {name}",
  "Directing": "Directing",
+<<<<<<< HEAD
  "Director": "Director",
+=======
+ "Disc {disc}": "Disc {disc}",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Disc {number}": "Disc {number}",
  "Discard changes": "Discard changes",
  "Disconnect": "Disconnect",
@@ -688,7 +803,11 @@
  "Disconnect TMDB? Its key is forgotten, and movies already filled in keep their details.": "Disconnect TMDB? Its key is forgotten, and movies already filled in keep their details.",
  "Disconnect Trakt?": "Disconnect Trakt?",
  "Disconnect Trakt? What you’ve watched stays as it is, here and on Trakt.": "Disconnect Trakt? What you’ve watched stays as it is, here and on Trakt.",
+<<<<<<< HEAD
  "Disconnect this Apple TV from the server. You'll need to connect it again to watch.": "Disconnect this Apple TV from the server. You'll need to connect it again to watch.",
+=======
+ "Disconnect this TV from the server. You’ll need to connect it again to watch.": "Disconnect this TV from the server. You’ll need to connect it again to watch.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Disconnect {name}": "Disconnect {name}",
  "Disconnect {name}? Its titles stay in your libraries.": "Disconnect {name}? Its titles stay in your libraries.",
  "Discover": "Discover",
@@ -708,11 +827,16 @@
  "Don’t record": "Don’t record",
  "Download": "Download",
  "Download diagnostics": "Download diagnostics",
+<<<<<<< HEAD
  "Download movies, episodes, albums, playlists and podcasts to watch and listen with no connection. Look for the download button on a title’s page.": "Download movies, episodes, albums, playlists and podcasts to watch and listen with no connection. Look for the download button on a title’s page.",
+=======
+ "Download movies, episodes, albums, playlists and podcast episodes to watch and listen with no connection. Look for Download on a title’s page.": "Download movies, episodes, albums, playlists and podcast episodes to watch and listen with no connection. Look for Download on a title’s page.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Download new episodes": "Download new episodes",
  "Download progress": "Download progress",
  "Download the next book in a series": "Download the next book in a series",
  "Download the next episode": "Download the next episode",
+ "Download the next in a series": "Download the next in a series",
  "Download this backup": "Download this backup",
  "Downloaded": "Downloaded",
  "Downloaded, waiting to be imported": "Downloaded, waiting to be imported",
@@ -724,8 +848,13 @@
  "Downloading, {percent}%": "Downloading, {percent}%",
  "Downloading…": "Downloading…",
  "Downloads": "Downloads",
+<<<<<<< HEAD
  "Downloads this {device} starts by itself, like the next episode or new podcast episodes, use mobile data too, but never Low Data Mode.": "Downloads this {device} starts by itself, like the next episode or new podcast episodes, use mobile data too, but never Low Data Mode.",
  "Downloads this {device} starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never use Low Data Mode. Ones you start yourself use mobile data too.": "Downloads this {device} starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never use Low Data Mode. Ones you start yourself use mobile data too.",
+=======
+ "Downloads this phone starts by itself, like the next episode or new podcast episodes, use mobile data too, but never while Data Saver is on.": "Downloads this phone starts by itself, like the next episode or new podcast episodes, use mobile data too, but never while Data Saver is on.",
+ "Downloads this phone starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never come while Data Saver is on. Ones you start yourself use mobile data too.": "Downloads this phone starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never come while Data Saver is on. Ones you start yourself use mobile data too.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Drag posters to reorder.": "Drag posters to reorder.",
  "EP": "EP",
  "EPs and singles": "EPs and singles",
@@ -733,6 +862,7 @@
  "Each guest watches as a profile of their own, and can’t switch to another. Each device joins with a code that works once.": "Each guest watches as a profile of their own, and can’t switch to another. Each device joins with a code that works once.",
  "Each list takes up to {rows} rows, each with an id of up to {length} characters.": "Each list takes up to {rows} rows, each with an id of up to {length} characters.",
  "Each morning, what's airing today": "Each morning, what's airing today",
+ "Each morning, what’s airing today": "Each morning, what’s airing today",
  "Each profile connects its own Trakt account in its Settings. To use your own Trakt app instead of Flexarr’s, give its details.": "Each profile connects its own Trakt account in its Settings. To use your own Trakt app instead of Flexarr’s, give its details.",
  "Each profile connects its own account.": "Each profile connects its own account.",
  "Each will need to sign in or connect again.": "Each will need to sign in or connect again.",
@@ -765,6 +895,7 @@
  "Enter its address": "Enter its address",
  "Enter the PIN": "Enter the PIN",
  "Enter the admin PIN": "Enter the admin PIN",
+ "Enter the admin PIN to allow it.": "Enter the admin PIN to allow it.",
  "Enter the admin PIN to {action}.": "Enter the admin PIN to {action}.",
  "Enter the admin PIN.": "Enter the admin PIN.",
  "Enter the current admin PIN, or the server's API key (it's in config.json in the server's data folder).": "Enter the current admin PIN, or the server's API key (it's in config.json in the server's data folder).",
@@ -772,7 +903,10 @@
  "Enter this code at {address}.": "Enter this code at {address}.",
  "Enter this code at {link}.": "Enter this code at {link}.",
  "Enter {name}’s PIN": "Enter {name}’s PIN",
+<<<<<<< HEAD
  "Enter {profile}’s PIN": "Enter {profile}’s PIN",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Episode Notes": "Episode Notes",
  "Episode notes": "Episode notes",
  "Episode {episode}": "Episode {episode}",
@@ -790,7 +924,10 @@
  "Every author, A to Z.": "Every author, A to Z.",
  "Every book, A to Z, with sorting, filters and a letter rail.": "Every book, A to Z, with sorting, filters and a letter rail.",
  "Every device on your network will get in as the main profile, without the key.": "Every device on your network will get in as the main profile, without the key.",
+<<<<<<< HEAD
  "Every series, A to Z.": "Every series, A to Z.",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Every stream is recording.": "Every stream is recording.",
  "Everyone": "Everyone",
  "Everyone gets their own Continue watching and history.": "Everyone gets their own Continue watching and history.",
@@ -863,6 +1000,8 @@
  "Flexarr Server": "Flexarr Server",
  "Flexarr can use the folders you choose on the Mac it runs on, and everything inside them.": "Flexarr can use the folders you choose on the Mac it runs on, and everything inside them.",
  "Flexarr can't reach the Live TV source.": "Flexarr can't reach the Live TV source.",
+ "Flexarr can’t find that album.": "Flexarr can’t find that album.",
+ "Flexarr can’t find that artist.": "Flexarr can’t find that artist.",
  "Flexarr can’t find that title.": "Flexarr can’t find that title.",
  "Flexarr can’t find them in this folder:": "Flexarr can’t find them in this folder:",
  "Flexarr can’t reach Tailscale from inside Docker. Run it outside Docker on a computer with Tailscale, or behind an HTTPS reverse proxy. See {guide}.": "Flexarr can’t reach Tailscale from inside Docker. Run it outside Docker on a computer with Tailscale, or behind an HTTPS reverse proxy. See {guide}.",
@@ -873,11 +1012,19 @@
  "Flexarr checks once a day.": "Flexarr checks once a day.",
  "Flexarr couldn't check this device just now. Try again in a moment.": "Flexarr couldn't check this device just now. Try again in a moment.",
  "Flexarr couldn’t keep a copy of the server as it is now, so nothing was restored: {message}": "Flexarr couldn’t keep a copy of the server as it is now, so nothing was restored: {message}",
+<<<<<<< HEAD
  "Flexarr deletes it from the library: there are no files on disk. You can't undo this.": "Flexarr deletes it from the library: there are no files on disk. You can't undo this.",
  "Flexarr deletes {count, plural, =0 {it from the library: there are no files on disk.} one {its file from disk:} other {its # files from disk:}}": "Flexarr deletes {count, plural, =0 {it from the library: there are no files on disk.} one {its file from disk:} other {its # files from disk:}}",
  "Flexarr downloads the update, then restarts to install it, which takes a minute or two. If the new version doesn’t start, the one you have now is put back.": "Flexarr downloads the update, then restarts to install it, which takes a minute or two. If the new version doesn’t start, the one you have now is put back.",
  "Flexarr for Apple TV {version}": "Flexarr for Apple TV {version}",
  "Flexarr for {device} {version}": "Flexarr for {device} {version}",
+=======
+ "Flexarr deletes it from the library: there are no files on disk. You can’t undo this.": "Flexarr deletes it from the library: there are no files on disk. You can’t undo this.",
+ "Flexarr deletes {count, plural, =0 {it from the library: there are no files on disk.} one {its file from disk:} other {its # files from disk:}}": "Flexarr deletes {count, plural, =0 {it from the library: there are no files on disk.} one {its file from disk:} other {its # files from disk:}}",
+ "Flexarr downloads the update, then restarts to install it, which takes a minute or two. If the new version doesn’t start, the one you have now is put back.": "Flexarr downloads the update, then restarts to install it, which takes a minute or two. If the new version doesn’t start, the one you have now is put back.",
+ "Flexarr for Android TV {version}": "Flexarr for Android TV {version}",
+ "Flexarr for Android {version}": "Flexarr for Android {version}",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Flexarr gets artwork, details and new downloads from Sonarr, Radarr and Lidarr.": "Flexarr gets artwork, details and new downloads from Sonarr, Radarr and Lidarr.",
  "Flexarr has a new admin PIN": "Flexarr has a new admin PIN",
  "Flexarr hides them now and removes them a day later. Watch history is kept for 30 days in case they come back. No files are touched. If the drive is just disconnected, reconnect it instead.": "Flexarr hides them now and removes them a day later. Watch history is kept for 30 days in case they come back. No files are touched. If the drive is just disconnected, reconnect it instead.",
@@ -902,12 +1049,19 @@
  "Flexarr isn't open on {device}. {title} will play as {profile} when you open it in the next two minutes.": "Flexarr isn't open on {device}. {title} will play as {profile} when you open it in the next two minutes.",
  "Flexarr isn't open on {device}. {title} will play when you open it in the next two minutes.": "Flexarr isn't open on {device}. {title} will play when you open it in the next two minutes.",
  "Flexarr isn't open on {name}.": "Flexarr isn't open on {name}.",
+ "Flexarr isn’t open": "Flexarr isn’t open",
+ "Flexarr isn’t open on {device}. {title} plays there if it’s opened in the next two minutes.": "Flexarr isn’t open on {device}. {title} plays there if it’s opened in the next two minutes.",
  "Flexarr looks for your Flexarr server on your home network so you can connect without typing an address, then streams from it. For example, it finds the server on your Mac and plays your movies, shows and music from it.": "Flexarr looks for your Flexarr server on your home network so you can connect without typing an address, then streams from it. For example, it finds the server on your Mac and plays your movies, shows and music from it.",
  "Flexarr looks for your Flexarr server on your home network so you can connect without typing an address, then streams from it. For example, it finds the server on your Mac and plays your movies, shows, music and podcasts from it.": "Flexarr looks for your Flexarr server on your home network so you can connect without typing an address, then streams from it. For example, it finds the server on your Mac and plays your movies, shows, music and podcasts from it.",
+<<<<<<< HEAD
  "Flexarr opens as whoever watched last on this Apple TV.": "Flexarr opens as whoever watched last on this Apple TV.",
  "Flexarr opens on Who's watching? each time it starts, so everyone's history stays their own. Profiles with a PIN ask for it every time.": "Flexarr opens on Who's watching? each time it starts, so everyone's history stays their own. Profiles with a PIN ask for it every time.",
  "Flexarr picks the closest one": "Flexarr picks the closest one",
  "Flexarr plays the movies, shows and music you keep at home, on this {device}, wherever you are.": "Flexarr plays the movies, shows and music you keep at home, on this {device}, wherever you are.",
+=======
+ "Flexarr picks the closest one": "Flexarr picks the closest one",
+ "Flexarr plays the movies, shows and music you keep at home, on this phone, wherever you are.": "Flexarr plays the movies, shows and music you keep at home, on this phone, wherever you are.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Flexarr runs in Docker here, and a container can’t replace itself. To update, get the new image and recreate the container. With Docker Compose, in the folder with your {file}:": "Flexarr runs in Docker here, and a container can’t replace itself. To update, get the new image and recreate the container. With Docker Compose, in the folder with your {file}:",
  "Flexarr said no ({status}). Try Restart Server, then again.": "Flexarr said no ({status}). Try Restart Server, then again.",
  "Flexarr stopped: {reason}": "Flexarr stopped: {reason}",
@@ -918,6 +1072,7 @@
  "Flexarr's relay answered {status}. Try again in a minute.": "Flexarr's relay answered {status}. Try again in a minute.",
  "Flexarr's relay was slow to answer. If their screen asks to join, that's it; if not, try again.": "Flexarr's relay was slow to answer. If their screen asks to join, that's it; if not, try again.",
  "Flexarr’s Trakt app": "Flexarr’s Trakt app",
+ "Flexarr’s relay answered with an error (HTTP {status}).": "Flexarr’s relay answered with an error (HTTP {status}).",
  "Folder": "Folder",
  "Folders": "Folders",
  "Folders it leaves empty go too. You can’t undo this.": "Folders it leaves empty go too. You can’t undo this.",
@@ -926,10 +1081,15 @@
  "Folders: {folders}": "Folders: {folders}",
  "Follow": "Follow",
  "Follow a podcast to see its new episodes here": "Follow a podcast to see its new episodes here",
+<<<<<<< HEAD
  "Follow a show and its new episodes come here, and to this {device} on Wi-Fi.": "Follow a show and its new episodes come here, and to this {device} on Wi-Fi.",
+=======
+ "Follow a show and its new episodes come here.": "Follow a show and its new episodes come here.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Follow {title}": "Follow {title}",
  "Following": "Following",
  "Following {title}": "Following {title}",
+ "Following…": "Following…",
  "For": "For",
  "For everyone": "For everyone",
  "For everyone, on every device.": "For everyone, on every device.",
@@ -941,6 +1101,7 @@
  "Forgotten it? Reset it from Flexarr in a browser.": "Forgotten it? Reset it from Flexarr in a browser.",
  "Forgotten it? {button}": "Forgotten it? {button}",
  "Forward 10 seconds": "Forward 10 seconds",
+ "Forward 30 seconds": "Forward 30 seconds",
  "Forward UDP port {port} on your router to this server. Then update the policy with the snippet in setup.": "Forward UDP port {port} on your router to this server. Then update the policy with the snippet in setup.",
  "Forward {count, plural, one {# second} other {# seconds}}": "Forward {count, plural, one {# second} other {# seconds}}",
  "Forward {seconds} seconds": "Forward {seconds} seconds",
@@ -969,10 +1130,16 @@
  "Germany": "Germany",
  "Get Tailscale": "Get Tailscale",
  "Get a new copy": "Get a new copy",
+<<<<<<< HEAD
  "Get notifications for {profile} instead": "Get notifications for {profile} instead",
  "Get started": "Get started",
  "Get the app and open it at home. When it asks to connect, choose Allow here.": "Get the app and open it at home. When it asks to connect, choose Allow here.",
  "Getting a code": "Getting a code",
+=======
+ "Get notifications for {name} instead": "Get notifications for {name} instead",
+ "Get started": "Get started",
+ "Get the app and open it at home. When it asks to connect, choose Allow here.": "Get the app and open it at home. When it asks to connect, choose Allow here.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Getting ready": "Getting ready",
  "Getting ready on the server": "Getting ready on the server",
  "Getting ready to play": "Getting ready to play",
@@ -997,7 +1164,10 @@
  "Go to book": "Go to book",
  "Go to details": "Go to details",
  "Go to episode": "Go to episode",
+<<<<<<< HEAD
  "Go to movie": "Go to movie",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Go to podcast": "Go to podcast",
  "Go to show": "Go to show",
  "Go to {settings}, then {security}, then {connect}.": "Go to {settings}, then {security}, then {connect}.",
@@ -1023,10 +1193,20 @@
  "Health & Fitness": "Health & Fitness",
  "Health check": "Health check",
  "Health score": "Health score",
+<<<<<<< HEAD
  "Hear when something new is ready. This {device} gets them for one profile.": "Hear when something new is ready. This {device} gets them for one profile.",
  "Heard": "Heard",
  "Hide": "Hide",
  "Hide bar": "Hide bar",
+=======
+ "Hear when something new is ready. This phone gets them for one profile.": "Hear when something new is ready. This phone gets them for one profile.",
+ "Heard": "Heard",
+ "Hide": "Hide",
+ "Hide bar": "Hide bar",
+ "Hide chapters": "Hide chapters",
+ "Hide controls": "Hide controls",
+ "Hide lyrics": "Hide lyrics",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Hide notes": "Hide notes",
  "Hide the API key": "Hide the API key",
  "Hide {name}? It won’t come back with the next sync.": "Hide {name}? It won’t come back with the next sync.",
@@ -1044,15 +1224,23 @@
  "Home": "Home",
  "Home & browse": "Home & browse",
  "Home Videos": "Home Videos",
+<<<<<<< HEAD
  "Home is always first, and Discover, Search and Settings last.": "Home is always first, and Discover, Search and Settings last.",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Home is always first, and Discover, Search and Settings last. Your other devices list your libraries in this order too.": "Home is always first, and Discover, Search and Settings last. Your other devices list your libraries in this order too.",
  "Home network": "Home network",
  "Home network only. Remote access is off": "Home network only. Remote access is off",
  "Home screen": "Home screen",
  "Home videos": "Home videos",
  "Horror for the season, best first.": "Horror for the season, best first.",
+<<<<<<< HEAD
  "How big subtitles are. Subtitles that run early or late can be moved from the player's subtitles menu.": "How big subtitles are. Subtitles that run early or late can be moved from the player's subtitles menu.",
  "How far a click on the left or right of the remote moves movies and shows.": "How far a click on the left or right of the remote moves movies and shows.",
+=======
+ "How big subtitles are. Subtitles that run early or late can be moved from the player’s Subtitles menu.": "How big subtitles are. Subtitles that run early or late can be moved from the player’s Subtitles menu.",
+ "How far a press of left or right on the remote moves while something plays.": "How far a press of left or right on the remote moves while something plays.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "How it works": "How it works",
  "How to get a key": "How to get a key",
  "How to set it up": "How to set it up",
@@ -1076,6 +1264,7 @@
  "In progress": "In progress",
  "In sync": "In sync",
  "In the black bars": "In the black bars",
+ "In this": "In this",
  "In time": "In time",
  "In your library": "In your library",
  "In {app}": "In {app}",
@@ -1101,6 +1290,7 @@
  "It answered with HTTP {status}.": "It answered with HTTP {status}.",
  "It can’t reach Flexarr any more. Joining again takes a new code.": "It can’t reach Flexarr any more. Joining again takes a new code.",
  "It didn't answer within 8 seconds.": "It didn't answer within 8 seconds.",
+ "It may have expired; the device shows a new code.": "It may have expired; the device shows a new code.",
  "It should arrive in a moment.": "It should arrive in a moment.",
  "It signs in to Flexarr like any other device. You can sign it out later in Settings › Security.": "It signs in to Flexarr like any other device. You can sign it out later in Settings › Security.",
  "It signs in within a couple of seconds. You can put this away.": "It signs in within a couple of seconds. You can put this away.",
@@ -1120,18 +1310,25 @@
  "Its new episodes stop coming to this phone. Episodes already downloaded stay until you delete them.": "Its new episodes stop coming to this phone. Episodes already downloaded stay until you delete them.",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
  "Its scheduled showings come off the list. What it's recorded stays.": "Its scheduled showings come off the list. What it's recorded stays.",
+ "Its scheduled showings come off the list. What it’s recorded stays.": "Its scheduled showings come off the list. What it’s recorded stays.",
  "Its {folder} folder isn’t at that path on this server.": "Its {folder} folder isn’t at that path on this server.",
+ "It’ll be ready in a moment.": "It’ll be ready in a moment.",
  "It’s asking {where}.": "It’s asking {where}.",
+ "It’s connected": "It’s connected",
  "It’s in config.json in the server’s data folder: ~/.flexarr/data on a Mac, /config with Docker.": "It’s in config.json in the server’s data folder: ~/.flexarr/data on a Mac, /config with Docker.",
  "It’s in the Flexarr menu at the top of your screen.": "It’s in the Flexarr menu at the top of your screen.",
  "It’s in the file setup-code.txt, in the .flexarr/data folder in your home folder.": "It’s in the file setup-code.txt, in the .flexarr/data folder in your home folder.",
  "It’s taking a while, which a big library’s first start after an update can. If it doesn’t come back, the log of the update is in {file} on the server.": "It’s taking a while, which a big library’s first start after an update can. If it doesn’t come back, the log of the update is in {file} on the server.",
  "It’s taking a while. If nothing starts Flexarr again by itself on this machine, start it again, and the backup is put in place as it starts.": "It’s taking a while. If nothing starts Flexarr again by itself on this machine, start it again, and the backup is put in place as it starts.",
+ "It’s {asking}.": "It’s {asking}.",
  "I’ll set it up myself": "I’ll set it up myself",
  "Japan": "Japan",
  "Join": "Join",
  "Join someone’s Flexarr": "Join someone’s Flexarr",
+<<<<<<< HEAD
  "Join {owner}’s Flexarr": "Join {owner}’s Flexarr",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Join {owner}’s Flexarr?": "Join {owner}’s Flexarr?",
  "Joining again takes a new code.": "Joining again takes a new code.",
  "Joining again takes a new code. Downloads are deleted.": "Joining again takes a new code. Downloads are deleted.",
@@ -1144,12 +1341,17 @@
  "Jump to {time} from {device}?": "Jump to {time} from {device}?",
  "Jump to {time}?": "Jump to {time}?",
  "Jump to…": "Jump to…",
+<<<<<<< HEAD
  "Jumps past a show's opening titles by itself. Off, a Skip intro button shows instead.": "Jumps past a show's opening titles by itself. Off, a Skip intro button shows instead.",
+=======
+ "Jumps past a show’s opening titles by itself. Off, a Skip intro button shows instead.": "Jumps past a show’s opening titles by itself. Off, a Skip intro button shows instead.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Jumps past the opening titles by itself.": "Jumps past the opening titles by itself.",
  "Jumps past the “Previously on” at the start of an episode.": "Jumps past the “Previously on” at the start of an episode.",
  "Jumps past “Previously on…” by itself.": "Jumps past “Previously on…” by itself.",
  "Just for you": "Just for you",
  "Just me": "Just me",
+ "Just now": "Just now",
  "Just you": "Just you",
  "Keep": "Keep",
  "Keep 1 to 50 episodes, at a speed from 0.5× to 4×; skips are 10, 15, 30, 45 or 60 seconds.": "Keep 1 to 50 episodes, at a speed from 0.5× to 4×; skips are 10, 15, 30, 45 or 60 seconds.",
@@ -1181,8 +1383,13 @@
  "Largest size (MB)": "Largest size (MB)",
  "Last checked {time}: {total, plural, one {# file} other {# files}}, no problems.": "Last checked {time}: {total, plural, one {# file} other {# files}}, no problems.",
  "Last checked {time}: {total, plural, one {# file} other {# files}}, {problems, number} with problems.": "Last checked {time}: {total, plural, one {# file} other {# files}}, {problems, number} with problems.",
+<<<<<<< HEAD
  "Last profile": "Last profile",
  "Last watched": "Last watched",
+=======
+ "Last watched": "Last watched",
+ "Later": "Later",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Latest episode": "Latest episode",
  "Latest release: {version}": "Latest release: {version}",
  "Latest unwatched": "Latest unwatched",
@@ -1191,10 +1398,15 @@
  "Latest unwatched movies, from every movie library": "Latest unwatched movies, from every movie library",
  "Latest unwatched shows, from every TV library": "Latest unwatched shows, from every TV library",
  "Leave": "Leave",
+<<<<<<< HEAD
+=======
+ "Leave this Flexarr?": "Leave this Flexarr?",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Leave {owner}’s Flexarr?": "Leave {owner}’s Flexarr?",
  "Leisure": "Leisure",
  "Length": "Length",
  "Less": "Less",
+ "Less than a minute left": "Less than a minute left",
  "Let devices at home in without the key": "Let devices at home in without the key",
  "Let them in": "Let them in",
  "Let’s get your movies, shows and music ready to watch.": "Let’s get your movies, shows and music ready to watch.",
@@ -1224,6 +1436,7 @@
  "Limit each stream to": "Limit each stream to",
  "List": "List",
  "List the libraries by id.": "List the libraries by id.",
+ "Listen to this on your phone or the web.": "Listen to this on your phone or the web.",
  "Listening": "Listening",
  "Lists": "Lists",
  "Live": "Live",
@@ -1263,6 +1476,7 @@
  "Looking through your library…": "Looking through your library…",
  "Looks at every file: whether it’s still on disk, not empty, and readable.": "Looks at every file: whether it’s still on disk, not empty, and readable.",
  "Lossless surround": "Lossless surround",
+ "Lost the connection to the server. Make sure this phone is online and Flexarr is running, then try again.": "Lost the connection to the server. Make sure this phone is online and Flexarr is running, then try again.",
  "Low": "Low",
  "Lyrics": "Lyrics",
  "Lyrics for {title}": "Lyrics for {title}",
@@ -1332,13 +1546,23 @@
  "More in the guide": "More in the guide",
  "More in the series": "More in the series",
  "More in {name}": "More in {name}",
+ "More in {series}": "More in {series}",
  "More info": "More info",
  "More like this": "More like this",
+<<<<<<< HEAD
  "More read by {name}": "More read by {name}",
+=======
+ "More read by the narrator": "More read by the narrator",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "More than one file for the same movie or episode. Removing spares frees {size}; the best copy, and the one Sonarr or Radarr use, always stay.": "More than one file for the same movie or episode. Removing spares frees {size}; the best copy, and the one Sonarr or Radarr use, always stay.",
  "Most played": "Most played",
  "Most played (music)": "Most played (music)",
  "Most popular": "Most popular",
+<<<<<<< HEAD
+=======
+ "Move down": "Move down",
+ "Move up": "Move up",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Move up or down": "Move up or down",
  "Move {name} down": "Move {name} down",
  "Move {name} up": "Move {name} up",
@@ -1400,6 +1624,7 @@
  "New film: {title}": "New film: {title}",
  "New from your artists": "New from your artists",
  "New from {artist}": "New from {artist}",
+ "New in your library": "New in your library",
  "New key made. The old one stopped working.": "New key made. The old one stopped working.",
  "New movies go to": "New movies go to",
  "New music goes to": "New music goes to",
@@ -1440,12 +1665,15 @@
  "Night mode on a schedule": "Night mode on a schedule",
  "Night mode starts": "Night mode starts",
  "Night mode until": "Night mode until",
+<<<<<<< HEAD
  "Night mode's already on, on its schedule.": "Night mode's already on, on its schedule.",
  "Night mode's off, and comes on at {time} as scheduled.": "Night mode's off, and comes on at {time} as scheduled.",
  "Night mode's off.": "Night mode's off.",
  "Night mode's off. That replaces its schedule.": "Night mode's off. That replaces its schedule.",
  "Night mode's on.": "Night mode's on.",
  "Night mode's on. That replaces its schedule.": "Night mode's on. That replaces its schedule.",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Nightly": "Nightly",
  "No": "No",
  "No Apple TV to play on": "No Apple TV to play on",
@@ -1481,7 +1709,11 @@
  "No favourites yet: star channels in On now, and the guide can show just them.": "No favourites yet: star channels in On now, and the guide can show just them.",
  "No feed to add": "No feed to add",
  "No folder chosen": "No folder chosen",
+<<<<<<< HEAD
  "No genres here yet. They come with each book's details once a scan has found them.": "No genres here yet. They come with each book's details once a scan has found them.",
+=======
+ "No genres here yet. They come with each album’s details once a scan has found them.": "No genres here yet. They come with each album’s details once a scan has found them.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "No genres here yet. They come with each book’s details once a scan has found them.": "No genres here yet. They come with each book’s details once a scan has found them.",
  "No genres here yet. They come with each title's details once a scan has found them.": "No genres here yet. They come with each title's details once a scan has found them.",
  "No genres here yet. They come with each title’s details once a scan has found them.": "No genres here yet. They come with each title’s details once a scan has found them.",
@@ -1491,6 +1723,7 @@
  "No listings": "No listings",
  "No narrators here yet.": "No narrators here yet.",
  "No new recording starts when there’s less than this.": "No new recording starts when there’s less than this.",
+ "No other screens are signed in. Connect Flexarr on a TV or another phone, then it’s listed here.": "No other screens are signed in. Connect Flexarr on a TV or another phone, then it’s listed here.",
  "No photos found.": "No photos found.",
  "No playlists yet. Make one, or add a track to a new one from its ⋯ menu.": "No playlists yet. Make one, or add a track to a new one from its ⋯ menu.",
  "No podcasts yet": "No podcasts yet",
@@ -1500,8 +1733,12 @@
  "No profiles matched a Plex user’s name.": "No profiles matched a Plex user’s name.",
  "No scans running.": "No scans running.",
  "No series here yet.": "No series here yet.",
+<<<<<<< HEAD
  "No series yet.": "No series yet.",
  "No shows found for “{search}”.": "No shows found for “{search}”.",
+=======
+ "No shows found for “{query}”.": "No shows found for “{query}”.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "No subfolders": "No subfolders",
  "No subtitles found": "No subtitles found",
  "No subtitles found.": "No subtitles found.",
@@ -1535,7 +1772,11 @@
  "Not in your library": "Not in your library",
  "Not installed on the server": "Not installed on the server",
  "Not installed on this server yet. It’s free for personal use.": "Not installed on this server yet. It’s free for personal use.",
+<<<<<<< HEAD
  "Not listed?": "Not listed?",
+=======
+ "Not listed? {link}.": "Not listed? {link}.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Not now": "Not now",
  "Not on disk. It may have been deleted or moved, or its drive isn't connected.": "Not on disk. It may have been deleted or moved, or its drive isn't connected.",
  "Not on kids profiles.": "Not on kids profiles.",
@@ -1569,12 +1810,18 @@
  "Nothing in that season is missing.": "Nothing in that season is missing.",
  "Nothing in this library yet.": "Nothing in this library yet.",
  "Nothing in this playlist yet.": "Nothing in this playlist yet.",
+<<<<<<< HEAD
  "Nothing in your library is called {term}.": "Nothing in your library is called {term}.",
  "Nothing in your library matches “{query}”.": "Nothing in your library matches “{query}”.",
  "Nothing in {name} matches “{query}”.": "Nothing in {name} matches “{query}”.",
  "Nothing is marked unwatched, on either side.": "Nothing is marked unwatched, on either side.",
  "Nothing is playing here.": "Nothing is playing here.",
  "Nothing is playing on {device}.": "Nothing is playing on {device}.",
+=======
+ "Nothing in your library matches “{query}”.": "Nothing in your library matches “{query}”.",
+ "Nothing in {name} matches “{query}”.": "Nothing in {name} matches “{query}”.",
+ "Nothing is marked unwatched, on either side.": "Nothing is marked unwatched, on either side.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Nothing is playing.": "Nothing is playing.",
  "Nothing is scheduled. Monitored shows and movies appear here as their dates get close.": "Nothing is scheduled. Monitored shows and movies appear here as their dates get close.",
  "Nothing is scheduled. Monitored shows and movies will appear here as their dates approach.": "Nothing is scheduled. Monitored shows and movies will appear here as their dates approach.",
@@ -1582,8 +1829,11 @@
  "Nothing logged.": "Nothing logged.",
  "Nothing matches its rules yet.": "Nothing matches its rules yet.",
  "Nothing matches “{query}”.": "Nothing matches “{query}”.",
+<<<<<<< HEAD
  "Nothing matches “{search}”.": "Nothing matches “{search}”.",
  "Nothing new. You're up to date.": "Nothing new. You're up to date.",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Nothing next. “Play next” or “Add to queue” on a track puts it here.": "Nothing next. “Play next” or “Add to queue” on a track puts it here.",
  "Nothing on its way.": "Nothing on its way.",
  "Nothing on this list is here yet.": "Nothing on this list is here yet.",
@@ -1595,18 +1845,24 @@
  "Nothing set to record. In the Guide, tap a programme and choose Record, or Record series.": "Nothing set to record. In the Guide, tap a programme and choose Record, or Record series.",
  "Nothing set to record. In the guide, press and hold a programme and choose Record, or Record series.": "Nothing set to record. In the guide, press and hold a programme and choose Record, or Record series.",
  "Nothing to carry on with": "Nothing to carry on with",
+ "Nothing to carry on with. What you start watching shows up here.": "Nothing to carry on with. What you start watching shows up here.",
+ "Nothing to carry on with. What you’re listening to shows up here.": "Nothing to carry on with. What you’re listening to shows up here.",
  "Nothing to suggest yet.": "Nothing to suggest yet.",
  "Nothing to watch yet": "Nothing to watch yet",
  "Nothing was imported.": "Nothing was imported.",
  "Nothing was removed.": "Nothing was removed.",
  "Notifications": "Notifications",
+ "Notifications are off for Flexarr in Android's settings. Allow them there first.": "Notifications are off for Flexarr in Android's settings. Allow them there first.",
  "Notifications are off for Flexarr in the Settings app. Allow them there first.": "Notifications are off for Flexarr in the Settings app. Allow them there first.",
  "Notifications are on": "Notifications are on",
  "Notifications are turned off on this server.": "Notifications are turned off on this server.",
  "Now Playing": "Now Playing",
  "Now playing": "Now playing",
+<<<<<<< HEAD
  "Now playing on your phone": "Now playing on your phone",
  "Now playing on {device}": "Now playing on {device}",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Now playing: {title}": "Now playing: {title}",
  "Now playing: {title} by {artist}": "Now playing: {title} by {artist}",
  "Now scanning…": "Now scanning…",
@@ -1629,20 +1885,30 @@
  "On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted.": "On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted.",
  "On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted. Notifications for new episodes are in each phone’s Settings.": "On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted. Notifications for new episodes are in each phone’s Settings.",
  "On a phone signed in to Flexarr, tap **Allow** when it asks. Check it shows this code:": "On a phone signed in to Flexarr, tap **Allow** when it asks. Check it shows this code:",
+ "On a phone signed in to Flexarr, tap {allow} when it asks — check it shows this code:": "On a phone signed in to Flexarr, tap {allow} when it asks — check it shows this code:",
+ "On a phone signed in to Flexarr, tap {allow} when it asks. Check it shows this code:": "On a phone signed in to Flexarr, tap {allow} when it asks. Check it shows this code:",
  "On a schedule": "On a schedule",
  "On any channel": "On any channel",
  "On disc": "On disc",
  "On its way": "On its way",
  "On now": "On now",
  "On or off": "On or off",
+<<<<<<< HEAD
  "On the same Wi-Fi, this {device} finds your server by itself. When it asks to find devices on your network, tap Allow. Then approve the code it shows and you’re in.": "On the same Wi-Fi, this {device} finds your server by itself. When it asks to find devices on your network, tap Allow. Then approve the code it shows and you’re in.",
+=======
+ "On the same Wi-Fi, this phone finds your server by itself. Then approve the code it shows and you’re in.": "On the same Wi-Fi, this phone finds your server by itself. Then approve the code it shows and you’re in.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "On the web.": "On the web.",
  "On their phone, tablet or TV, they open Flexarr and choose {join}": "On their phone, tablet or TV, they open Flexarr and choose {join}",
  "On this server at {folder}": "On this server at {folder}",
  "On time": "On time",
  "On today": "On today",
  "On watchlist": "On watchlist",
+<<<<<<< HEAD
  "On your computer, open **{address}** in a web browser.": "On your computer, open **{address}** in a web browser.",
+=======
+ "On watchlist. Remove from watchlist": "On watchlist. Remove from watchlist",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "On your computer, open {address} in a web browser.": "On your computer, open {address} in a web browser.",
  "On {channel}": "On {channel}",
  "On {service}": "On {service}",
@@ -1671,19 +1937,32 @@
  "Only what this server’s FFmpeg supports is listed.": "Only what this server’s FFmpeg supports is listed.",
  "Open": "Open",
  "Open Flexarr": "Open Flexarr",
+<<<<<<< HEAD
  "Open Flexarr and connect it to your server first.": "Open Flexarr and connect it to your server first.",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Open Flexarr in a browser and add a library in Settings › Libraries.": "Open Flexarr in a browser and add a library in Settings › Libraries.",
  "Open Flexarr on the TV, iPhone or iPad and enter the code it shows. A TV also shows a QR code to scan with your phone.": "Open Flexarr on the TV, iPhone or iPad and enter the code it shows. A TV also shows a QR code to scan with your phone.",
  "Open Flexarr on your Apple TV, then try again.": "Open Flexarr on your Apple TV, then try again.",
  "Open Flexarr on your iPhone to sign in.": "Open Flexarr on your iPhone to sign in.",
  "Open Flexarr on {name} first, so it can say whether it plays audiobooks.": "Open Flexarr on {name} first, so it can say whether it plays audiobooks.",
+ "Open Flexarr to allow it with the admin PIN.": "Open Flexarr to allow it with the admin PIN.",
+ "Open Flexarr to allow it.": "Open Flexarr to allow it.",
+ "Open Flexarr to choose who’s watching": "Open Flexarr to choose who’s watching",
+ "Open Flexarr to connect it to your server.": "Open Flexarr to connect it to your server.",
  "Open Now Playing": "Open Now Playing",
  "Open Settings": "Open Settings",
  "Open in {app}": "Open in {app}",
+<<<<<<< HEAD
+=======
+ "Open on": "Open on",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Open on {view}": "Open on {view}",
  "Open {name}": "Open {name}",
+ "Open, as {profile}": "Open, as {profile}",
  "Opening…": "Opening…",
  "Opens Flexarr Server when you log in to this Mac, so the server is back after a restart.": "Opens Flexarr Server when you log in to this Mac, so the server is back after a restart.",
+<<<<<<< HEAD
  "Opens the book": "Opens the book",
  "Opens the podcast": "Opens the podcast",
  "Opens the remote": "Opens the remote",
@@ -1691,6 +1970,11 @@
  "Opens their page": "Opens their page",
  "Optional": "Optional",
  "Or on a computer, open **{address}** and type in the code.": "Or on a computer, open **{address}** and type in the code.",
+=======
+ "Optional": "Optional",
+ "Or on a computer, open {address} and type in the code.": "Or on a computer, open {address} and type in the code.",
+ "Or on a computer, open {page} and type the code.": "Or on a computer, open {page} and type the code.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Or scan with a phone that’s signed in to Flexarr.": "Or scan with a phone that’s signed in to Flexarr.",
  "Orange": "Orange",
  "Order": "Order",
@@ -1705,7 +1989,11 @@
  "Other channels": "Other channels",
  "Other profiles": "Other profiles",
  "Out {date}": "Out {date}",
+<<<<<<< HEAD
  "Over 20 hours": "Over 20 hours",
+=======
+ "Over 20h": "Over 20h",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Overview": "Overview",
  "PIN": "PIN",
  "PIN (required)": "PIN (required)",
@@ -1727,9 +2015,11 @@
  "Pause": "Pause",
  "Pause Flexarr": "Pause Flexarr",
  "Pause {title}": "Pause {title}",
+ "Paused": "Paused",
  "Paused at {percent}%": "Paused at {percent}%",
  "Paused at {position} of {duration}": "Paused at {position} of {duration}",
  "Paused by the sleep timer": "Paused by the sleep timer",
+ "Paused: {title}": "Paused: {title}",
  "Pauses the audiobook playing when its chapter ends.": "Pauses the audiobook playing when its chapter ends.",
  "Pauses, resumes or stops what Flexarr is playing, skips the intro, moves on to the next episode, or skips back or forward, here or on another device.": "Pauses, resumes or stops what Flexarr is playing, skips the intro, moves on to the next episode, or skips back or forward, here or on another device.",
  "Pausing at the end of the chapter.": "Pausing at the end of the chapter.",
@@ -1761,6 +2051,8 @@
  "Play a podcast's latest episode": "Play a podcast's latest episode",
  "Play a video": "Play a video",
  "Play files directly": "Play files directly",
+ "Play from here": "Play from here",
+ "Play from {chapter}": "Play from {chapter}",
  "Play latest": "Play latest",
  "Play next": "Play next",
  "Play next episode": "Play next episode",
@@ -1796,12 +2088,17 @@
  "Playing": "Playing",
  "Playing on {device}: {title}": "Playing on {device}: {title}",
  "Playing somewhere else": "Playing somewhere else",
+<<<<<<< HEAD
  "Playing the next {title} as {profile}.": "Playing the next {title} as {profile}.",
  "Playing the next {title}.": "Playing the next {title}.",
  "Playing {title} as {profile}.": "Playing {title} as {profile}.",
  "Playing {title} on {device} as {profile}.": "Playing {title} on {device} as {profile}.",
  "Playing {title} on {device}.": "Playing {title} on {device}.",
  "Playing {title}.": "Playing {title}.",
+=======
+ "Playing {title}": "Playing {title}",
+ "Playing {title} on {device}.": "Playing {title} on {device}.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Playlist name": "Playlist name",
  "Playlists": "Playlists",
  "Plays": "Plays",
@@ -1816,6 +2113,7 @@
  "Podcast": "Podcast",
  "Podcasts": "Podcasts",
  "Podcasts & audiobooks": "Podcasts & audiobooks",
+ "Podcasts and audiobooks": "Podcasts and audiobooks",
  "Podcasts are built in: their folder is in Settings › Libraries.": "Podcasts are built in: their folder is in Settings › Libraries.",
  "Podcasts aren't available on this profile": "Podcasts aren't available on this profile",
  "Podcasts aren't available on this profile.": "Podcasts aren't available on this profile.",
@@ -1830,11 +2128,18 @@
  "Position": "Position",
  "Posters": "Posters",
  "Preparing subtitles. They’ll appear in a moment.": "Preparing subtitles. They’ll appear in a moment.",
+<<<<<<< HEAD
  "Press up or down to move {name}, then select to put it down.": "Press up or down to move {name}, then select to put it down.",
+=======
+ "Press OK to pick up {name}, then press up or down to move it.": "Press OK to pick up {name}, then press up or down to move it.",
+ "Press up or down to move {name}, then press OK to put it down.": "Press up or down to move {name}, then press OK to put it down.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Previous": "Previous",
  "Previous channel": "Previous channel",
  "Previous chapter": "Previous chapter",
+ "Previous episode": "Previous episode",
  "Previous track": "Previous track",
+ "Privacy policy": "Privacy policy",
  "Private address": "Private address",
  "Produced by": "Produced by",
  "Producer": "Producer",
@@ -1882,6 +2187,7 @@
  "Read by": "Read by",
  "Read by the narrator": "Read by the narrator",
  "Read by {names}": "Read by {names}",
+ "Read by {name}": "Read by {name}",
  "Read by {narrator}": "Read by {narrator}",
  "Read this code to the person who invited you": "Read this code to the person who invited you",
  "Reading new files: {done} of {total}": "Reading new files: {done} of {total}",
@@ -1910,6 +2216,7 @@
  "Recording {title}.": "Recording {title}.",
  "Recordings": "Recordings",
  "Recordings and live viewing share what your IPTV login allows. Watching and recording the same channel counts once.": "Recordings and live viewing share what your IPTV login allows. Watching and recording the same channel counts once.",
+ "Recordings aren’t available on this profile.": "Recordings aren’t available on this profile.",
  "Recordings folder": "Recordings folder",
  "Recordings go to {folder}": "Recordings go to {folder}",
  "Recordings is the name of Live TV's recordings. Choose another.": "Recordings is the name of Live TV's recordings. Choose another.",
@@ -1934,6 +2241,10 @@
  "Remove books once finished": "Remove books once finished",
  "Remove chapter {number}": "Remove chapter {number}",
  "Remove download": "Remove download",
+<<<<<<< HEAD
+=======
+ "Remove finished books": "Remove finished books",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Remove from Favourites": "Remove from Favourites",
  "Remove from Flexarr": "Remove from Flexarr",
  "Remove from Up next": "Remove from Up next",
@@ -1965,6 +2276,8 @@
  "Rename playlist": "Rename playlist",
  "Rename {name}": "Rename {name}",
  "Repeat": "Repeat",
+ "Repeat all": "Repeat all",
+ "Repeat one": "Repeat one",
  "Replace the key": "Replace the key",
  "Request": "Request",
  "Request album": "Request album",
@@ -1977,7 +2290,10 @@
  "Requested": "Requested",
  "Requested {season}": "Requested {season}",
  "Requested {title}": "Requested {title}",
+<<<<<<< HEAD
  "Requested, {season}": "Requested, {season}",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Requesting…": "Requesting…",
  "Requests": "Requests",
  "Requests need a Seerr server. Add one under Settings › Connections.": "Requests need a Seerr server. Add one under Settings › Connections.",
@@ -1989,6 +2305,7 @@
  "Resolution is above {height}p": "Resolution is above {height}p",
  "Restart Flexarr to set them up.": "Restart Flexarr to set them up.",
  "Restart Server": "Restart Server",
+ "Restart to update": "Restart to update",
  "Restarting interrupts what’s going on now:": "Restarting interrupts what’s going on now:",
  "Restore": "Restore",
  "Restore and restart": "Restore and restart",
@@ -2016,6 +2333,7 @@
  "Rewinding and recording are in {page}.": "Rewinding and recording are in {page}.",
  "Rotten": "Rotten",
  "Rotten Tomatoes {score}%, {state}": "Rotten Tomatoes {score}%, {state}",
+ "Rotten Tomatoes {score}%, {tomato}": "Rotten Tomatoes {score}%, {tomato}",
  "Rotten Tomatoes: {state}": "Rotten Tomatoes: {state}",
  "Rules": "Rules",
  "Run health check": "Run health check",
@@ -2090,6 +2408,7 @@
  "See all albums": "See all albums",
  "See all artists": "See all artists",
  "See all coming soon": "See all coming soon",
+ "See all of {title}": "See all of {title}",
  "See what changes": "See what changes",
  "See what changes first.": "See what changes first.",
  "Seek": "Seek",
@@ -2102,7 +2421,10 @@
  "Seerr isn't answering. Try again later.": "Seerr isn't answering. Try again later.",
  "Seerr isn’t answering, so there’s nothing new to request just now.": "Seerr isn’t answering, so there’s nothing new to request just now.",
  "Seerr isn’t answering.": "Seerr isn’t answering.",
+<<<<<<< HEAD
  "Select to pick up {name}, then press up or down to move it.": "Select to pick up {name}, then press up or down to move it.",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Send": "Send",
  "Send between 1 and {maxBatch} entries.": "Send between 1 and {maxBatch} entries.",
  "Send diagnostics": "Send diagnostics",
@@ -2113,6 +2435,7 @@
  "Send the activity's push token (hex) and environment (production or sandbox).": "Send the activity's push token (hex) and environment (production or sandbox).",
  "Send the home, movies and shows rows.": "Send the home, movies and shows rows.",
  "Send the log now, with the note.": "Send the log now, with the note.",
+<<<<<<< HEAD
  "Send this Apple TV's recent log to your server, to look into a problem.": "Send this Apple TV's recent log to your server, to look into a problem.",
  "Send this {device}'s recent log to your server, to look into a problem.": "Send this {device}'s recent log to your server, to look into a problem.",
  "Sending…": "Sending…",
@@ -2120,6 +2443,14 @@
  "Sends what this {device} has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)": "Sends what this {device} has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)",
  "Sent to your server ({id}). Mention that if you ask for help.": "Sent to your server ({id}). Mention that if you ask for help.",
  "Sent to {device}.": "Sent to {device}.",
+=======
+ "Send this TV’s recent log to your server, to look into a problem.": "Send this TV’s recent log to your server, to look into a problem.",
+ "Send this phone’s recent log to your server, to look into a problem.": "Send this phone’s recent log to your server, to look into a problem.",
+ "Sending…": "Sending…",
+ "Sends what this TV has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)": "Sends what this TV has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)",
+ "Sends what this phone has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)": "Sends what this phone has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)",
+ "Sent to your server ({id}). Mention that if you ask for help.": "Sent to your server ({id}). Mention that if you ask for help.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Sent:": "Sent:",
  "Separate from the main profile’s own PIN, which is in {page}.": "Separate from the main profile’s own PIN, which is in {page}.",
  "Series": "Series",
@@ -2132,7 +2463,11 @@
  "Server streams": "Server streams",
  "Servers on your network": "Servers on your network",
  "Set PIN": "Set PIN",
+<<<<<<< HEAD
  "Set on your server, in Settings › Logs on the web. When on, crashes and errors go to Sentry, the error tracker Flexarr uses: what went wrong and where in the code, the app version, the OS and device model, and a random id. Never titles, file names, what you watch, names, addresses or keys.": "Set on your server, in Settings › Logs on the web. When on, crashes and errors go to Sentry, the error tracker Flexarr uses: what went wrong and where in the code, the app version, the OS and device model, and a random id. Never titles, file names, what you watch, names, addresses or keys.",
+=======
+ "Set on your server, in Settings › Logs on the web. When on, crashes and errors go to Sentry, the error tracker Flexarr uses: what went wrong and where in the code, the app version, the Android version and device model, and a random id. Never titles, file names, what you watch, names, addresses or keys.": "Set on your server, in Settings › Logs on the web. When on, crashes and errors go to Sentry, the error tracker Flexarr uses: what went wrong and where in the code, the app version, the Android version and device model, and a random id. Never titles, file names, what you watch, names, addresses or keys.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Set the admin PIN": "Set the admin PIN",
  "Set to record": "Set to record",
  "Set up Dispatcharr": "Set up Dispatcharr",
@@ -2164,6 +2499,8 @@
  "Show": "Show",
  "Show Logs": "Show Logs",
  "Show a new code": "Show a new code",
+ "Show and sort": "Show and sort",
+ "Show controls": "Show controls",
  "Show each": "Show each",
  "Show in the sidebar": "Show in the sidebar",
  "Show later": "Show later",
@@ -2177,9 +2514,12 @@
  "Show subtitles earlier": "Show subtitles earlier",
  "Show subtitles later": "Show subtitles later",
  "Show the API key": "Show the API key",
+ "Show the chapter": "Show the chapter",
  "Show the chapters": "Show the chapters",
  "Show the cover": "Show the cover",
+ "Show the episode": "Show the episode",
  "Show the key": "Show the key",
+ "Show the whole book": "Show the whole book",
  "Show {count} more": "Show {count} more",
  "Showing the chapter": "Showing the chapter",
  "Showing the whole book": "Showing the whole book",
@@ -2203,10 +2543,13 @@
  "Shuffle a show": "Shuffle a show",
  "Shuffle a show in ${applicationName}": "Shuffle a show in ${applicationName}",
  "Shuffle episodes of ${title} in ${applicationName}": "Shuffle episodes of ${title} in ${applicationName}",
+<<<<<<< HEAD
  "Shuffling {title} as {profile}.": "Shuffling {title} as {profile}.",
  "Shuffling {title} on {device} as {profile}.": "Shuffling {title} on {device} as {profile}.",
  "Shuffling {title} on {device}.": "Shuffling {title} on {device}.",
  "Shuffling {title}.": "Shuffling {title}.",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Sidebar": "Sidebar",
  "Sign in": "Sign in",
  "Sign in as {name}": "Sign in as {name}",
@@ -2248,7 +2591,10 @@
  "Sleep at the end of the chapter": "Sleep at the end of the chapter",
  "Sleep in 1 to 600 minutes, or at the end of the chapter.": "Sleep in 1 to 600 minutes, or at the end of the chapter.",
  "Sleep timer": "Sleep timer",
+<<<<<<< HEAD
  "Sleep timer ({minutes} min left)": "Sleep timer ({minutes} min left)",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Sleep timer on": "Sleep timer on",
  "Sleep timer, {minutes} min left": "Sleep timer, {minutes} min left",
  "Slow relay": "Slow relay",
@@ -2266,12 +2612,17 @@
  "Software speed": "Software speed",
  "Some books have gone.": "Some books have gone.",
  "Some titles have gone.": "Some titles have gone.",
+<<<<<<< HEAD
  "Some tracks weren't downloaded. Try again.": "Some tracks weren't downloaded. Try again.",
+=======
+ "Some tracks weren’t downloaded. Try again.": "Some tracks weren’t downloaded. Try again.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Someone": "Someone",
  "Someone on another profile started watching on another screen, so this one had to stop.": "Someone on another profile started watching on another screen, so this one had to stop.",
  "Someone started watching on another screen, so this one had to stop.": "Someone started watching on another screen, so this one had to stop.",
  "Someone used your invite. Not expected? Remove the device in Settings › Remote access.": "Someone used your invite. Not expected? Remove the device in Settings › Remote access.",
  "Someone's guessing your PIN": "Someone's guessing your PIN",
+ "Something new is ready.": "Something new is ready.",
  "Something private": "Something private",
  "Something went wrong showing this page.": "Something went wrong showing this page.",
  "Something went wrong.": "Something went wrong.",
@@ -2306,7 +2657,10 @@
  "Spare copies": "Spare copies",
  "Spare copies, unreadable files, movies only in SD and wrong matches.": "Spare copies, unreadable files, movies only in SD and wrong matches.",
  "Speakers": "Speakers",
+<<<<<<< HEAD
  "Speakers {speakers}": "Speakers {speakers}",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Special": "Special",
  "Specials": "Specials",
  "Specials · {count, plural, one {# episode} other {# episodes}}": "Specials · {count, plural, one {# episode} other {# episodes}}",
@@ -2355,6 +2709,10 @@
  "Stop the recording": "Stop the recording",
  "Stop the series": "Stop the series",
  "Stop this download?": "Stop this download?",
+<<<<<<< HEAD
+=======
+ "Stop watching this Flexarr here. Joining again takes a new code.": "Stop watching this Flexarr here. Joining again takes a new code.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Stop watching {owner}’s Flexarr here. Joining again takes a new code.": "Stop watching {owner}’s Flexarr here. Joining again takes a new code.",
  "Stopped": "Stopped",
  "Stopped for another screen": "Stopped for another screen",
@@ -2372,9 +2730,12 @@
  "Subtitles can be moved up to a minute either way.": "Subtitles can be moved up to a minute either way.",
  "Subtitles for {title}": "Subtitles for {title}",
  "Subtitles in the black bars": "Subtitles in the black bars",
+<<<<<<< HEAD
  "Subtitles off": "Subtitles off",
  "Subtitles off.": "Subtitles off.",
  "Subtitles on.": "Subtitles on.",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Subtitles re-synced": "Subtitles re-synced",
  "Subtitles that run early or late can be moved from the player’s subtitles menu.": "Subtitles that run early or late can be moved from the player’s subtitles menu.",
  "Subtitles {track}": "Subtitles {track}",
@@ -2386,21 +2747,31 @@
  "Switch to another profile. Each has its own Continue watching, watch history and playback settings.": "Switch to another profile. Each has its own Continue watching, watch history and playback settings.",
  "Switch to the main profile": "Switch to the main profile",
  "Switch to the main profile to allow it.": "Switch to the main profile to allow it.",
+<<<<<<< HEAD
  "Switch to the main profile to turn it away.": "Switch to the main profile to turn it away.",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Switch to {name}": "Switch to {name}",
  "Switches between the chapter and the whole book": "Switches between the chapter and the whole book",
  "Switches to another TV": "Switches to another TV",
  "Switching off stops it at once, on every app.": "Switching off stops it at once, on every app.",
  "Sync now": "Sync now",
+ "Synced just now": "Synced just now",
+ "Synced yesterday": "Synced yesterday",
  "Synced {time}": "Synced {time}",
+<<<<<<< HEAD
  "Synced {when}": "Synced {when}",
  "Syncing…": "Syncing…",
  "S{season}": "S{season}",
+=======
+ "Syncing…": "Syncing…",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "S{season} E{episode}": "S{season} E{episode}",
  "S{season}E{episode}": "S{season}E{episode}",
  "S{season}E{episode}–E{end}": "S{season}E{episode}–E{end}",
  "S{season}E{episode}–E{end}, {count, plural, one {# episode} other {# episodes}}": "S{season}E{episode}–E{end}, {count, plural, one {# episode} other {# episodes}}",
  "S{season}E{episode}–E{last}": "S{season}E{episode}–E{last}",
+ "S{season}E{episode}–E{last}, {count, plural, one {# episode} other {# episodes}}": "S{season}E{episode}–E{last}, {count, plural, one {# episode} other {# episodes}}",
  "TBA": "TBA",
  "TMDB accepted the key.": "TMDB accepted the key.",
  "TMDB didn't accept that key. Copy it again from themoviedb.org › Settings › API.": "TMDB didn't accept that key. Copy it again from themoviedb.org › Settings › API.",
@@ -2461,29 +2832,50 @@
  "That Plex server has no watch history to bring over.": "That Plex server has no watch history to bring over.",
  "That Trakt account is connected to another profile.": "That Trakt account is connected to another profile.",
  "That address answered, but not like a Flexarr server. Check the host name and port.": "That address answered, but not like a Flexarr server. Check the host name and port.",
+<<<<<<< HEAD
  "That change couldn't be saved on the server, so it's been put back.": "That change couldn't be saved on the server, so it's been put back.",
+=======
+ "That change couldn’t be saved on the server, so it’s been put back.": "That change couldn’t be saved on the server, so it’s been put back.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "That code has been used. Check the one on their screen now.": "That code has been used. Check the one on their screen now.",
+ "That code has run out. The device shows a new one; open Flexarr to allow it.": "That code has run out. The device shows a new one; open Flexarr to allow it.",
+ "That code is taken.": "That code is taken.",
  "That code isn't waiting to connect. It may have expired; the TV shows a new one.": "That code isn't waiting to connect. It may have expired; the TV shows a new one.",
  "That code isn’t showing on any device. Codes change every 10 minutes: check the one on their screen now.": "That code isn’t showing on any device. Codes change every 10 minutes: check the one on their screen now.",
  "That collection isn’t here any more.": "That collection isn’t here any more.",
  "That couldn't be added. Try again.": "That couldn't be added. Try again.",
+ "That couldn’t be done. Try again in a moment.": "That couldn’t be done. Try again in a moment.",
  "That cover can't be used. Choose another.": "That cover can't be used. Choose another.",
+<<<<<<< HEAD
  "That device has stopped waiting.": "That device has stopped waiting.",
+=======
+ "That device isn’t waiting any more. If it shows a new code, it asks again.": "That device isn’t waiting any more. If it shows a new code, it asks again.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "That didn't save. Try again.": "That didn't save. Try again.",
  "That didn't work. Try again.": "That didn't work. Try again.",
  "That didn’t save. Try again.": "That didn’t save. Try again.",
+ "That didn’t work.": "That didn’t work.",
  "That didn’t work. Try again.": "That didn’t work. Try again.",
  "That doesn't look like a Sonarr, Radarr or Lidarr server.": "That doesn't look like a Sonarr, Radarr or Lidarr server.",
  "That doesn't look like a Trakt client ID.": "That doesn't look like a Trakt client ID.",
+<<<<<<< HEAD
  "That doesn't look like a server address. Try something like http://192.168.1.20:8383.": "That doesn't look like a server address. Try something like http://192.168.1.20:8383.",
+=======
+ "That doesn't look like a server address. Try something like {example}.": "That doesn't look like a server address. Try something like {example}.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "That doesn’t look like a server address. Try one like http://192.168.1.20:8383.": "That doesn’t look like a server address. Try one like http://192.168.1.20:8383.",
  "That download link has expired. Download the backup again.": "That download link has expired. Download the backup again.",
  "That file is no longer here. Choose it again.": "That file is no longer here. Choose it again.",
  "That file isn't OPML.": "That file isn't OPML.",
  "That file isn't OPML: it isn't valid XML.": "That file isn't OPML: it isn't valid XML.",
  "That file isn't a picture Flexarr can read. Try a JPEG or PNG.": "That file isn't a picture Flexarr can read. Try a JPEG or PNG.",
+<<<<<<< HEAD
+=======
+ "That invite couldn’t be opened. Ask for another.": "That invite couldn’t be opened. Ask for another.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "That invite has run out or been used.": "That invite has run out or been used.",
  "That invite isn't valid.": "That invite isn't valid.",
+ "That invite isn’t complete. Ask for the link again.": "That invite isn’t complete. Ask for the link again.",
  "That isn't Plex's database. Give the full path to the file named {file}.": "That isn't Plex's database. Give the full path to the file named {file}.",
  "That isn't a language code.": "That isn't a language code.",
  "That isn't a web address.": "That isn't a web address.",
@@ -2520,6 +2912,7 @@
  "That’s a whole drive or home folder. Choose the folder your {kind} are in.": "That’s a whole drive or home folder. Choose the folder your {kind} are in.",
  "The API key and webhook secret. Apps and Sonarr or Radarr set up with the old server’s keep working; anything using this server’s current key needs the new one.": "The API key and webhook secret. Apps and Sonarr or Radarr set up with the old server’s keep working; anything using this server’s current key needs the new one.",
  "The API key was rejected.": "The API key was rejected.",
+ "The Chromecast couldn’t play this.": "The Chromecast couldn’t play this.",
  "The Dispatcharr source and the DVR’s settings.": "The Dispatcharr source and the DVR’s settings.",
  "The Flexarr app on {deviceName} can't do that yet: update it.": "The Flexarr app on {deviceName} can't do that yet: update it.",
  "The Flexarr app on {name} can't do that yet: update it.": "The Flexarr app on {name} can't do that yet: update it.",
@@ -2539,7 +2932,10 @@
  "The admin PIN, for the server’s settings, is separate: it’s in {page}.": "The admin PIN, for the server’s settings, is separate: it’s in {page}.",
  "The admin PIN, the API key and signed-in devices": "The admin PIN, the API key and signed-in devices",
  "The admin PIN, the API key, and the browsers and TVs signed in.": "The admin PIN, the API key, and the browsers and TVs signed in.",
+<<<<<<< HEAD
  "The album you played last, then your rows.": "The album you played last, then your rows.",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "The app plays from your own Flexarr server, on a computer in your home: a Mac, a NAS or anything with Docker. The server is completely free, and setting it up takes less than a minute.": "The app plays from your own Flexarr server, on a computer in your home: a Mac, a NAS or anything with Docker. The server is completely free, and setting it up takes less than a minute.",
  "The apps Flexarr gets your titles from, and the ones that add requests, subtitles and Live TV.": "The apps Flexarr gets your titles from, and the ones that add requests, subtitles and Live TV.",
  "The backup couldn’t be made: {message}": "The backup couldn’t be made: {message}",
@@ -2571,9 +2967,16 @@
  "The details you edited are replaced by {title}’s.": "The details you edited are replaced by {title}’s.",
  "The device is connected": "The device is connected",
  "The download stopped. Try again.": "The download stopped. Try again.",
+<<<<<<< HEAD
  "The feed couldn't be checked last time: {error}": "The feed couldn't be checked last time: {error}",
  "The feed couldn't be read.": "The feed couldn't be read.",
  "The feed couldn’t be checked last time: {error}": "The feed couldn’t be checked last time: {error}",
+=======
+ "The download was stopped. Try again.": "The download was stopped. Try again.",
+ "The feed couldn't be checked last time: {error}": "The feed couldn't be checked last time: {error}",
+ "The feed couldn't be read.": "The feed couldn't be read.",
+ "The feed couldn’t be checked last time: {reason}": "The feed couldn’t be checked last time: {reason}",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "The feed is too big to be a podcast.": "The feed is too big to be a podcast.",
  "The feed isn't there any more.": "The feed isn't there any more.",
  "The feed redirected too many times.": "The feed redirected too many times.",
@@ -2588,6 +2991,7 @@
  "The folder isn't there. Reconnect its drive, or take the folder out of the library in Settings.": "The folder isn't there. Reconnect its drive, or take the folder out of the library in Settings.",
  "The folder isn’t there. Is its drive or share connected?": "The folder isn’t there. Is its drive or share connected?",
  "The import is already running.": "The import is already running.",
+ "The invite couldn’t be opened.": "The invite couldn’t be opened.",
  "The language Flexarr is in for this profile, on every device.": "The language Flexarr is in for this profile, on every device.",
  "The library a movie is added to when you request it.": "The library a movie is added to when you request it.",
  "The library a show is added to when you request it.": "The library a show is added to when you request it.",
@@ -2624,16 +3028,28 @@
  "The search didn’t go through.": "The search didn’t go through.",
  "The segment couldn't be converted.": "The segment couldn't be converted.",
  "The server answered with an error (HTTP {status}).": "The server answered with an error (HTTP {status}).",
+<<<<<<< HEAD
  "The server couldn't get this ready.": "The server couldn't get this ready.",
  "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against the API key in Settings on the web. Over Tailscale, your Tailscale account needs linking in Settings › Remote access.": "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against the API key in Settings on the web. Over Tailscale, your Tailscale account needs linking in Settings › Remote access.",
+=======
+ "The server couldn’t get this ready.": "The server couldn’t get this ready.",
+ "The server didn’t accept this device’s sign-in.": "The server didn’t accept this device’s sign-in.",
+ "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Security on the web.": "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Security on the web.",
+ "The server doesn’t have this download any more. Download it again.": "The server doesn’t have this download any more. Download it again.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "The server has no webhook secret yet. Restart it and try again.": "The server has no webhook secret yet. Restart it and try again.",
  "The server is busy": "The server is busy",
  "The server isn't answering at that address. Make sure Flexarr is running and the port is right (usually 8383).": "The server isn't answering at that address. Make sure Flexarr is running and the port is right (usually 8383).",
  "The server needs an admin PIN before its settings can be unlocked.": "The server needs an admin PIN before its settings can be unlocked.",
+<<<<<<< HEAD
  "The server refused the invite.": "The server refused the invite.",
  "The server sends a stream instead of the file itself, converting what this Apple TV can't play.": "The server sends a stream instead of the file itself, converting what this Apple TV can't play.",
  "The server sent a response that couldn't be read.": "The server sent a response that couldn't be read.",
  "The server this Apple TV uses: its address, how it's reached and what it's running.": "The server this Apple TV uses: its address, how it's reached and what it's running.",
+=======
+ "The server stopped sending this. It may have restarted: try again in a moment.": "The server stopped sending this. It may have restarted: try again in a moment.",
+ "The server this TV uses: its address, how it’s reached and what it’s running.": "The server this TV uses: its address, how it’s reached and what it’s running.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "The server took too long to answer.": "The server took too long to answer.",
  "The server took too long to answer. Is it on the same network as this {device}?": "The server took too long to answer. Is it on the same network as this {device}?",
  "The server's address couldn't be read.": "The server's address couldn't be read.",
@@ -2644,8 +3060,10 @@
  "The settings in this backup can’t be used: {problem}": "The settings in this backup can’t be used: {problem}",
  "The settings in this backup can’t be used: {settings}": "The settings in this backup can’t be used: {settings}",
  "The sidebar here and the apps’ menus. Drag a library to move it.": "The sidebar here and the apps’ menus. Drag a library to move it.",
+ "The size Download starts with; a title’s page offers the others too. Original keeps the full picture and sound but takes the most space. Podcasts always come as their files are.": "The size Download starts with; a title’s page offers the others too. Original keeps the full picture and sound but takes the most space. Podcasts always come as their files are.",
  "The sound can be moved up to two seconds either way.": "The sound can be moved up to two seconds either way.",
  "The sound couldn’t be moved just now": "The sound couldn’t be moved just now",
+ "The sound couldn’t be played on this phone.": "The sound couldn’t be played on this phone.",
  "The sound is moved {direction, select, later {later} other {earlier}} to match the picture": "The sound is moved {direction, select, later {later} other {earlier}} to match the picture",
  "The speed is between 0.5 and 2 (3.5 for an audiobook).": "The speed is between 0.5 and 2 (3.5 for an audiobook).",
  "The stream couldn't be opened.": "The stream couldn't be opened.",
@@ -2656,6 +3074,7 @@
  "The sync didn’t finish. Flexarr tries again shortly.": "The sync didn’t finish. Flexarr tries again shortly.",
  "The tailnet policy doesn't confine guests to Flexarr yet.": "The tailnet policy doesn't confine guests to Flexarr yet.",
  "The tracks stay in your library.": "The tracks stay in your library.",
+ "The tunnel didn't start": "The tunnel didn't start",
  "The two PINs don’t match. Type the same one in both.": "The two PINs don’t match. Type the same one in both.",
  "The user’s XC password in Dispatcharr": "The user’s XC password in Dispatcharr",
  "The version this server runs, and new releases. Updating keeps your settings, profiles and history.": "The version this server runs, and new releases. Updating keeps your settings, profiles and history.",
@@ -2665,6 +3084,7 @@
  "Then connect": "Then connect",
  "There are no unplayed episodes.": "There are no unplayed episodes.",
  "There isn’t room for a backup in {folder}: it needs about {megabytes} MB free.": "There isn’t room for a backup in {folder}: it needs about {megabytes} MB free.",
+ "There isn’t room for this on the phone. Delete something and try again.": "There isn’t room for this on the phone. Delete something and try again.",
  "There isn’t room on the server for this file.": "There isn’t room on the server for this file.",
  "There isn’t room to unpack this backup: it needs {megabytes} MB and 1 GB to spare.": "There isn’t room to unpack this backup: it needs {megabytes} MB and 1 GB to spare.",
  "There's no area called “{key}”.": "There's no area called “{key}”.",
@@ -2675,6 +3095,7 @@
  "There's no such channel.": "There's no such channel.",
  "There's no title with that id.": "There's no title with that id.",
  "There's nothing at this address.": "There's nothing at this address.",
+ "There's nothing in it today.": "There's nothing in it today.",
  "There’s already a profile called {name}.": "There’s already a profile called {name}.",
  "There’s no such page in Settings.": "There’s no such page in Settings.",
  "These settings can’t be used here: {problem}": "These settings can’t be used here: {problem}",
@@ -2690,15 +3111,25 @@
  "This Mac is on your tailnet": "This Mac is on your tailnet",
  "This OAuth client can do more than Flexarr needs (it can see your devices). Make one with only Auth Keys (write) and Policy File (read).": "This OAuth client can do more than Flexarr needs (it can see your devices). Make one with only Auth Keys (write) and Policy File (read).",
  "This OAuth client can do more than Flexarr needs ({scopes}). Make one with only Auth Keys (write) and Policy File (read).": "This OAuth client can do more than Flexarr needs ({scopes}). Make one with only Auth Keys (write) and Policy File (read).",
+ "This TV": "This TV",
+ "This TV will need to connect again to use the server.": "This TV will need to connect again to use the server.",
  "This backup is from a newer Flexarr ({version}). Update this server, then restore it.": "This backup is from a newer Flexarr ({version}). Update this server, then restore it.",
  "This backup is from another Flexarr server. Restoring it brings that server’s keys and the browsers and devices signed in to it, so only restore one you made yourself. This machine’s paths (ffmpeg, the cache) are kept as they are.": "This backup is from another Flexarr server. Restoring it brings that server’s keys and the browsers and devices signed in to it, so only restore one you made yourself. This machine’s paths (ffmpeg, the cache) are kept as they are.",
+ "This book can’t be cast yet.": "This book can’t be cast yet.",
  "This book can’t be shown by this version of the app.": "This book can’t be shown by this version of the app.",
+ "This book couldn’t be played.": "This book couldn’t be played.",
  "This book file couldn't be converted.": "This book file couldn't be converted.",
  "This book has no Audible id. Fix match to find it on Audible first.": "This book has no Audible id. Fix match to find it on Audible first.",
  "This browser": "This browser",
  "This browser’s own. Every device has its own.": "This browser’s own. Every device has its own.",
  "This browser’s own. The player’s audio menu changes them too.": "This browser’s own. The player’s audio menu changes them too.",
+ "This build of Flexarr was made without Google’s notification service, so it can’t get notifications. Versions from Google Play can.": "This build of Flexarr was made without Google’s notification service, so it can’t get notifications. Versions from Google Play can.",
+ "This came in a form the phone couldn’t read.": "This came in a form the phone couldn’t read.",
+ "This channel came in a form the phone couldn’t read.": "This channel came in a form the phone couldn’t read.",
+ "This channel couldn’t be played.": "This channel couldn’t be played.",
  "This clashes with recordings already on the list: every stream is wanted then, so it won’t record unless one of them is taken off.": "This clashes with recordings already on the list: every stream is wanted then, so it won’t record unless one of them is taken off.",
+ "This couldn’t be cast.": "This couldn’t be cast.",
+ "This couldn’t be played.": "This couldn’t be played.",
  "This deletes the spare files from disk, freeing {size}. For each title the best copy, and the one Sonarr or Radarr use, are kept. You can’t undo this.": "This deletes the spare files from disk, freeing {size}. For each title the best copy, and the one Sonarr or Radarr use, are kept. You can’t undo this.",
  "This device can't decode {codec} audio": "This device can't decode {codec} audio",
  "This device can't decode {codec} video": "This device can't decode {codec} video",
@@ -2707,14 +3138,24 @@
  "This device has sent diagnostics {maxUploadsPerHour} times this hour. Try again later.": "This device has sent diagnostics {maxUploadsPerHour} times this hour. Try again later.",
  "This device was removed from the server.": "This device was removed from the server.",
  "This device was removed from the server. Ask its owner for a new invite.": "This device was removed from the server. Ask its owner for a new invite.",
+ "This device was signed out.": "This device was signed out.",
+ "This device was signed out. Its downloads are kept, and catch up when it connects to this server again.": "This device was signed out. Its downloads are kept, and catch up when it connects to this server again.",
  "This device will need to connect again to use the server, and its downloads will be deleted.": "This device will need to connect again to use the server, and its downloads will be deleted.",
  "This didn’t come from your home network. Check its screen shows {code}.": "This didn’t come from your home network. Check its screen shows {code}.",
  "This display doesn't show Dolby Vision": "This display doesn't show Dolby Vision",
  "This display doesn't support HDR": "This display doesn't support HDR",
  "This display isn't showing {range} right now": "This display isn't showing {range} right now",
+<<<<<<< HEAD
  "This download couldn't be played. Delete it and download it again.": "This download couldn't be played. Delete it and download it again.",
  "This download ran out on the server. Download it again.": "This download ran out on the server. Download it again.",
  "This download was removed.": "This download was removed.",
+=======
+ "This download couldn’t be played. Delete it and download it again.": "This download couldn’t be played. Delete it and download it again.",
+ "This download isn’t on the phone any more.": "This download isn’t on the phone any more.",
+ "This download ran out on the server. Download it again.": "This download ran out on the server. Download it again.",
+ "This download was removed.": "This download was removed.",
+ "This episode couldn’t be played.": "This episode couldn’t be played.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "This episode has no notes.": "This episode has no notes.",
  "This episode is no longer here.": "This episode is no longer here.",
  "This file couldn't be played.": "This file couldn't be played.",
@@ -2730,7 +3171,11 @@
  "This file’s protection isn’t one Flexarr knows.": "This file’s protection isn’t one Flexarr knows.",
  "This folder isn't being held.": "This folder isn't being held.",
  "This has no file to find subtitles for.": "This has no file to find subtitles for.",
+<<<<<<< HEAD
  "This has no subtitles.": "This has no subtitles.",
+=======
+ "This invite didn’t work. Ask {name} for a new one.": "This invite didn’t work. Ask {name} for a new one.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "This invite has been used, cancelled or has expired. Ask for a new one.": "This invite has been used, cancelled or has expired. Ask for a new one.",
  "This invite led to a different server than it named. Ask for a new one.": "This invite led to a different server than it named. Ask for a new one.",
  "This is how Flexarr will tell you something new is ready.": "This is how Flexarr will tell you something new is ready.",
@@ -2739,8 +3184,12 @@
  "This isn’t a Flexarr backup, or it’s damaged.": "This isn’t a Flexarr backup, or it’s damaged.",
  "This isn’t a Flexarr backup.": "This isn’t a Flexarr backup.",
  "This isn’t a passphrase-protected Flexarr file.": "This isn’t a passphrase-protected Flexarr file.",
+ "This library isn’t here any more.": "This library isn’t here any more.",
  "This library no longer exists.": "This library no longer exists.",
  "This machine’s paths": "This machine’s paths",
+ "This phone": "This phone",
+ "This phone couldn’t decode the picture or the sound.": "This phone couldn’t decode the picture or the sound.",
+ "This phone isn’t getting notifications from this server, so you won’t hear when something new is ready.": "This phone isn’t getting notifications from this server, so you won’t hear when something new is ready.",
  "This podcast is no longer here.": "This podcast is no longer here.",
  "This product uses the TMDB API but is not endorsed or certified by TMDB.": "This product uses the TMDB API but is not endorsed or certified by TMDB.",
  "This profile can't add movies.": "This profile can't add movies.",
@@ -2751,7 +3200,11 @@
  "This profile’s own, in every app. A book with a speed of its own keeps it.": "This profile’s own, in every app. A book with a speed of its own keeps it.",
  "This profile’s own, on every device.": "This profile’s own, on every device.",
  "This profile’s own, on every device. The player’s menus change them too.": "This profile’s own, on every device. The player’s menus change them too.",
+<<<<<<< HEAD
  "This profile’s own. The web, the Apple TV and Android list your libraries in this order too.": "This profile’s own. The web, the Apple TV and Android list your libraries in this order too.",
+=======
+ "This profile’s own. The web, the Apple TV and iPhone list your libraries in this order too.": "This profile’s own. The web, the Apple TV and iPhone list your libraries in this order too.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "This release has no Mac build to install, so update with the install script, from the Mac you installed from:": "This release has no Mac build to install, so update with the install script, from the Mac you installed from:",
  "This release on GitHub": "This release on GitHub",
  "This request came from another website, so Flexarr didn't act on it.": "This request came from another website, so Flexarr didn't act on it.",
@@ -2762,14 +3215,23 @@
  "This server": "This server",
  "This server can't install updates itself.": "This server can't install updates itself.",
  "This server can’t edit chapters yet.": "This server can’t edit chapters yet.",
+<<<<<<< HEAD
  "This server doesn't take diagnostics yet. Update Flexarr on it, then try again.": "This server doesn't take diagnostics yet. Update Flexarr on it, then try again.",
+=======
+ "This server can’t play books yet.": "This server can’t play books yet.",
+ "This server doesn’t take diagnostics yet. Update Flexarr on it, then try again.": "This server doesn’t take diagnostics yet. Update Flexarr on it, then try again.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "This server is already set up. Sign in with a code from a device that's signed in.": "This server is already set up. Sign in with a code from a device that's signed in.",
  "This server wasn’t installed in a way Flexarr can update by itself. Update it the way it was installed.": "This server wasn’t installed in a way Flexarr can update by itself. Update it the way it was installed.",
  "This server’s region": "This server’s region",
  "This server’s region ({region})": "This server’s region ({region})",
  "This title isn't managed by Sonarr or Radarr, so there's nothing to search with.": "This title isn't managed by Sonarr or Radarr, so there's nothing to search with.",
+<<<<<<< HEAD
  "This track couldn't be played.": "This track couldn't be played.",
  "This track isn't part of an album.": "This track isn't part of an album.",
+=======
+ "This track couldn’t be played.": "This track couldn’t be played.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "This trailer can’t be played.": "This trailer can’t be played.",
  "This won’t record: recordings scheduled before it want every stream then.": "This won’t record: recordings scheduled before it want every stream then.",
  "This year ({year})": "This year ({year})",
@@ -2792,9 +3254,15 @@
  "Titles appear here as the scan finds them.": "Titles appear here as the scan finds them.",
  "Titles rated above it, and unrated ones, are hidden.": "Titles rated above it, and unrated ones, are hidden.",
  "Titles that aren't in the library need a Seerr server. Add one under Settings › Connections.": "Titles that aren't in the library need a Seerr server. Add one under Settings › Connections.",
+ "To cast this, update Flexarr on the server to 0.55 or later.": "To cast this, update Flexarr on the server to 0.55 or later.",
  "To update, open the App Store on the Mac running Flexarr Server and choose {updates}. A new version can take a day or two to reach the App Store after it’s released.": "To update, open the App Store on the Mac running Flexarr Server and choose {updates}. A new version can take a day or two to reach the App Store after it’s released.",
+<<<<<<< HEAD
  "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this {device} picks the address up by itself.": "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this {device} picks the address up by itself.",
  "To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This Apple TV picks the address up by itself.": "To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This Apple TV picks the address up by itself.",
+=======
+ "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this phone picks the address up by itself.": "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this phone picks the address up by itself.",
+ "To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This TV picks the address up by itself.": "To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This TV picks the address up by itself.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "To year": "To year",
  "Today": "Today",
  "Today's mixes have changed. Try again.": "Today's mixes have changed. Try again.",
@@ -2871,13 +3339,21 @@
  "Turns subtitles on (in your language where there are some) or off for what's playing, here or on another device.": "Turns subtitles on (in your language where there are some) or off for what's playing, here or on another device.",
  "Two chapters start at the same time.": "Two chapters start at the same time.",
  "Type": "Type",
+<<<<<<< HEAD
  "Type in the setup code from the server's log, then click **Set up Flexarr**.": "Type in the setup code from the server's log, then click **Set up Flexarr**.",
+=======
+ "Type in the setup code from the server’s log, then click {button}.": "Type in the setup code from the server’s log, then click {button}.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Type in this code:": "Type in this code:",
  "Type the 8 letters and numbers their device shows.": "Type the 8 letters and numbers their device shows.",
  "Type the code their device shows": "Type the code their device shows",
  "Typed": "Typed",
  "Unabridged only": "Unabridged only",
+<<<<<<< HEAD
  "Under 5 hours": "Under 5 hours",
+=======
+ "Under 5h": "Under 5h",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Under a minute": "Under a minute",
  "Undo": "Undo",
  "Undo stop": "Undo stop",
@@ -2900,6 +3376,7 @@
  "Unrequest {album}?": "Unrequest {album}?",
  "Unrequest {name}": "Unrequest {name}",
  "Unrequest {name}?": "Unrequest {name}?",
+ "Unrequest {season}": "Unrequest {season}",
  "Unrequest {title}": "Unrequest {title}",
  "Until": "Until",
  "Up a folder": "Up a folder",
@@ -2987,6 +3464,7 @@
  "Watch {name}": "Watch {name}",
  "Watched": "Watched",
  "Watched. Click to mark unwatched": "Watched. Click to mark unwatched",
+ "Watched. Mark as unwatched": "Watched. Mark as unwatched",
  "Watched: mark {name} as unwatched": "Watched: mark {name} as unwatched",
  "Watching": "Watching",
  "Watching as": "Watching as",
@@ -3004,12 +3482,18 @@
  "What each library opens on: its highlights (Browse), everything, or its genres. Music has its own.": "What each library opens on: its highlights (Browse), everything, or its genres. Music has its own.",
  "What exactly is sent": "What exactly is sent",
  "What goes in it": "What goes in it",
+<<<<<<< HEAD
  "What happened and roughly when, so it's easy to find in the log.": "What happened and roughly when, so it's easy to find in the log.",
  "What happened, and roughly when? (optional)": "What happened, and roughly when? (optional)",
  "What happened?": "What happened?",
  "What the Apple TV's Top Shelf shows when Flexarr is in the top row.": "What the Apple TV's Top Shelf shows when Flexarr is in the top row.",
  "What would you like to add?": "What would you like to add?",
  "What would you like to watch?": "What would you like to watch?",
+=======
+ "What happened and roughly when, so it’s easy to find in the log.": "What happened and roughly when, so it’s easy to find in the log.",
+ "What happened, and roughly when? (optional)": "What happened, and roughly when? (optional)",
+ "What happened?": "What happened?",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "What you’ve watched stays as it is, here and on Trakt.": "What you’ve watched stays as it is, here and on Trakt.",
  "What's new in my ${applicationName} podcasts": "What's new in my ${applicationName} podcasts",
  "What's new in my podcasts": "What's new in my podcasts",
@@ -3018,9 +3502,13 @@
  "What's on your watchlist and ready to watch.": "What's on your watchlist and ready to watch.",
  "What's recorded so far is kept.": "What's recorded so far is kept.",
  "What’s new": "What’s new",
+ "What’s recorded so far is kept.": "What’s recorded so far is kept.",
  "What’s sent, and what never is": "What’s sent, and what never is",
  "What’s your name?": "What’s your name?",
+<<<<<<< HEAD
  "When Flexarr opens": "When Flexarr opens",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "When something you requested is ready": "When something you requested is ready",
  "When to ask for the API key, and trusted proxies. Asks for the admin PIN.": "When to ask for the API key, and trusted proxies. Asks for the admin PIN.",
  "Where each app’s folders are on this server. Flexarr works it out when it can.": "Where each app’s folders are on this server. Flexarr works it out when it can.",
@@ -3028,7 +3516,11 @@
  "Where this profile’s requests go": "Where this profile’s requests go",
  "Where {name}’s requests go": "Where {name}’s requests go",
  "Wherever Seerr adds them": "Wherever Seerr adds them",
+<<<<<<< HEAD
  "Whether Flexarr asks who's watching each time it opens on this Apple TV.": "Whether Flexarr asks who's watching each time it opens on this Apple TV.",
+=======
+ "Whether a library opens on its highlights (Browse), on every title, A to Z, or on its genres.": "Whether a library opens on its highlights (Browse), on every title, A to Z, or on its genres.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Which album is this? The one you choose stays matched, and nothing changes in Lidarr.": "Which album is this? The one you choose stays matched, and nothing changes in Lidarr.",
  "Which artist is this? The one you choose stays matched, and nothing changes in Lidarr.": "Which artist is this? The one you choose stays matched, and nothing changes in Lidarr.",
  "Which book is this?": "Which book is this?",
@@ -3058,7 +3550,11 @@
  "Yesterday": "Yesterday",
  "You": "You",
  "You no longer have access to this Flexarr.": "You no longer have access to this Flexarr.",
+<<<<<<< HEAD
  "You no longer have access to {owner}’s Flexarr.": "You no longer have access to {owner}’s Flexarr.",
+=======
+ "You no longer have access to {name}’s Flexarr.": "You no longer have access to {name}’s Flexarr.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "You turned this away. Allow it if it's yours.": "You turned this away. Allow it if it's yours.",
  "You turned this away. Allow it if it’s yours.": "You turned this away. Allow it if it’s yours.",
  "You're at {time}.": "You're at {time}.",
@@ -3088,7 +3584,11 @@
  "Your profile, on every device": "Your profile, on every device",
  "Your request is ready": "Your request is ready",
  "Your server has notifications turned off, so none will arrive. They can be turned on in its configuration.": "Your server has notifications turned off, so none will arrive. They can be turned on in its configuration.",
+<<<<<<< HEAD
  "Your settings couldn't be loaded.": "Your settings couldn't be loaded.",
+=======
+ "Your settings couldn’t be loaded.": "Your settings couldn’t be loaded.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "Yours": "Yours",
  "You’ll get a code to approve, like a server found on your Wi-Fi.": "You’ll get a code to approve, like a server found on your Wi-Fi.",
  "You’ll get a code to approve, like a server found on your network.": "You’ll get a code to approve, like a server found on your network.",
@@ -3106,23 +3606,21 @@
  "all in good shape": "all in good shape",
  "all of them": "all of them",
  "already here": "already here",
- "ambient": "ambient",
  "and {count} more": "and {count} more",
  "artists": "artists",
  "as {character}": "as {character}",
+ "asking from outside your home network": "asking from outside your home network",
+ "asking from your home network": "asking from your home network",
+ "asking from your home network ({address})": "asking from your home network ({address})",
+ "asking from {address}, outside your home network": "asking from {address}, outside your home network",
+ "asking over Tailscale": "asking over Tailscale",
+ "asking over Tailscale ({address})": "asking over Tailscale ({address})",
  "audiobooks": "audiobooks",
- "backdrop": "backdrop",
- "bar room": "bar room",
  "by {name}": "by {name}",
- "caption": "caption",
- "chapter": "chapter",
- "connect": "connect",
  "connect Radarr or Sonarr": "connect Radarr or Sonarr",
- "cover": "cover",
- "details": "details",
- "dot": "dot",
  "download a backup": "download a backup",
  "e.g. Christmas": "e.g. Christmas",
+ "enter its address": "enter its address",
  "esc": "esc",
  "every file opened cleanly": "every file opened cleanly",
  "every movie has an HD copy": "every movie has an HD copy",
@@ -3134,10 +3632,14 @@
  "from the internet": "from the internet",
  "from your home network": "from your home network",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "home network": "home network",
 =======
  "help": "help",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
+=======
+ "home network": "home network",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "home videos": "home videos",
  "http://192.168.1.20:8383": "http://192.168.1.20:8383",
  "iPhone and iPad": "iPhone and iPad",
@@ -3148,23 +3650,20 @@
  "last used {time}": "last used {time}",
  "last used {when}": "last used {when}",
  "let devices at home in without the key": "let devices at home in without the key",
- "line": "line",
- "list": "list",
  "live-tv::Recording": "Recording",
  "macOS needs your OK first: on the Mac, open System Settings › General › Login Items and turn on Flexarr Server.": "macOS needs your OK first: on the Mac, open System Settings › General › Login Items and turn on Flexarr Server.",
  "mono": "mono",
  "movies": "movies",
  "music": "music",
  "never": "never",
+ "new episodes only": "new episodes only",
  "not synced yet": "not synced yet",
- "offline": "offline",
+ "outside your home network": "outside your home network",
  "over Tailscale": "over Tailscale",
  "plex.tv didn't answer ({status}). Try again in a moment.": "plex.tv didn't answer ({status}). Try again in a moment.",
  "podcasts": "podcasts",
- "profiles": "profiles",
  "restore a backup": "restore a backup",
  "scanned {time}": "scanned {time}",
- "scrubber": "scrubber",
  "seconds": "seconds",
  "see the API key": "see the API key",
  "showing the newest {count, number}": "showing the newest {count, number}",
@@ -3186,20 +3685,26 @@
  "the policy": "the policy",
  "the {app} address": "the {app} address",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "titles": "titles",
 =======
  "title": "title",
 >>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
+=======
+ "titles": "titles",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "titles, file names or paths, what you watch, profile or device names, addresses (IP, server, network), keys or passwords. These are removed on your server or device before anything leaves it.": "titles, file names or paths, what you watch, profile or device names, addresses (IP, server, network), keys or passwords. These are removed on your server or device before anything leaves it.",
  "tv-show::Show": "Show",
  "unknown": "unknown",
  "use the server keys or paths from this file": "use the server keys or paths from this file",
  "watched": "watched",
- "welcome": "welcome",
  "what went wrong and where in the code; Flexarr version; OS and device model; a random id for this server.": "what went wrong and where in the code; Flexarr version; OS and device model; a random id for this server.",
  "{added, plural, one {Followed # show} other {Followed # shows}}{already, plural, =0 {} other {, # already followed}}{failed, plural, =0 {} other {, # couldn't be read}}.": "{added, plural, one {Followed # show} other {Followed # shows}}{already, plural, =0 {} other {, # already followed}}{failed, plural, =0 {} other {, # couldn't be read}}.",
+<<<<<<< HEAD
  "{album}, {artist}": "{album}, {artist}",
  "{amount} s": "{amount} s",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "{amount}s earlier": "{amount}s earlier",
  "{amount}s later": "{amount}s later",
  "{apps} can’t be reached": "{apps} can’t be reached",
@@ -3211,12 +3716,18 @@
  "{authors} and {count} more": "{authors} and {count} more",
  "{browser} on {system}": "{browser} on {system}",
  "{channels} channels": "{channels} channels",
+<<<<<<< HEAD
  "{channel}, {programme}, {time}, set to record": "{channel}, {programme}, {time}, set to record",
  "{channel}, {upcoming} coming up, {recorded} recorded": "{channel}, {upcoming} coming up, {recorded} recorded",
  "{channel}, {upcoming} coming up, {recorded} recorded, new episodes only": "{channel}, {upcoming} coming up, {recorded} recorded, new episodes only",
  "{channel}, {upcoming} coming up, {recorded} recorded, new only": "{channel}, {upcoming} coming up, {recorded} recorded, new only",
  "{chapter}, at {time}": "{chapter}, at {time}",
  "{code} {title}": "{code} {title}",
+=======
+ "{channel}, {programme}, {time}": "{channel}, {programme}, {time}",
+ "{channel}, {programme}, {time}, set to record": "{channel}, {programme}, {time}, set to record",
+ "{chapter}, at {time}": "{chapter}, at {time}",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "{colour}, shown behind the picture while it loads": "{colour}, shown behind the picture while it loads",
  "{count, number} are here": "{count, number} are here",
  "{count, number} are here, {fresh, number} not yet watched in Flexarr": "{count, number} are here, {fresh, number} not yet watched in Flexarr",
@@ -3228,7 +3739,11 @@
  "{count, number} you'd watched more recently in Flexarr were left as they were.": "{count, number} you'd watched more recently in Flexarr were left as they were.",
  "{count, plural, one {# album} other {# albums}}": "{count, plural, one {# album} other {# albums}}",
  "{count, plural, one {# artist} other {# artists}}": "{count, plural, one {# artist} other {# artists}}",
+<<<<<<< HEAD
  "{count, plural, one {# author} other {# authors}}": "{count, plural, one {# author} other {# authors}}",
+=======
+ "{count, plural, one {# book in your library} other {# books in your library}}": "{count, plural, one {# book in your library} other {# books in your library}}",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "{count, plural, one {# book} other {# books}}": "{count, plural, one {# book} other {# books}}",
  "{count, plural, one {# browser or TV was signed out.} other {# browsers and TVs were signed out.}}": "{count, plural, one {# browser or TV was signed out.} other {# browsers and TVs were signed out.}}",
  "{count, plural, one {# browser or TV will need to sign in or connect again.} other {# browsers and TVs will need to sign in or connect again.}} This browser stays signed in.": "{count, plural, one {# browser or TV will need to sign in or connect again.} other {# browsers and TVs will need to sign in or connect again.}} This browser stays signed in.",
@@ -3236,15 +3751,18 @@
  "{count, plural, one {# connection} other {# connections}} at a time": "{count, plural, one {# connection} other {# connections}} at a time",
  "{count, plural, one {# copy} other {# copies}}, {size} spare": "{count, plural, one {# copy} other {# copies}}, {size} spare",
  "{count, plural, one {# copy} other {# copies}}: {names}": "{count, plural, one {# copy} other {# copies}}: {names}",
+ "{count, plural, one {# day ago} other {# days ago}}": "{count, plural, one {# day ago} other {# days ago}}",
  "{count, plural, one {# device is locked to this profile. Unlock it in Settings › Devices first.} other {# devices are locked to this profile. Unlock them in Settings › Devices first.}}": "{count, plural, one {# device is locked to this profile. Unlock it in Settings › Devices first.} other {# devices are locked to this profile. Unlock them in Settings › Devices first.}}",
  "{count, plural, one {# episode} other {# episodes}}": "{count, plural, one {# episode} other {# episodes}}",
  "{count, plural, one {# episode} other {# episodes}} across {seasons, plural, one {# season} other {# seasons}}": "{count, plural, one {# episode} other {# episodes}} across {seasons, plural, one {# season} other {# seasons}}",
  "{count, plural, one {# episode} other {# episodes}}, {year}": "{count, plural, one {# episode} other {# episodes}}, {year}",
  "{count, plural, one {# file Plex knows about isn't in your Flexarr libraries.} other {# files Plex knows about aren't in your Flexarr libraries.}}": "{count, plural, one {# file Plex knows about isn't in your Flexarr libraries.} other {# files Plex knows about aren't in your Flexarr libraries.}}",
  "{count, plural, one {# folder} other {# folders}}": "{count, plural, one {# folder} other {# folders}}",
+ "{count, plural, one {# hour ago} other {# hours ago}}": "{count, plural, one {# hour ago} other {# hours ago}}",
  "{count, plural, one {# hour} other {# hours}}": "{count, plural, one {# hour} other {# hours}}",
  "{count, plural, one {# invite is already waiting. Cancel it first.} other {# invites are already waiting. Cancel some first.}}": "{count, plural, one {# invite is already waiting. Cancel it first.} other {# invites are already waiting. Cancel some first.}}",
  "{count, plural, one {# library} other {# libraries}}": "{count, plural, one {# library} other {# libraries}}",
+ "{count, plural, one {# minute ago} other {# minutes ago}}": "{count, plural, one {# minute ago} other {# minutes ago}}",
  "{count, plural, one {# minute} other {# minutes}}": "{count, plural, one {# minute} other {# minutes}}",
  "{count, plural, one {# movie} other {# movies}}": "{count, plural, one {# movie} other {# movies}}",
  "{count, plural, one {# needs} other {# need}} Radarr or Sonarr connected in Settings › Connections to fill it in. The rest aren’t found there: fix the match to choose the right title, or rename the folder to “Title (Year)”.": "{count, plural, one {# needs} other {# need}} Radarr or Sonarr connected in Settings › Connections to fill it in. The rest aren’t found there: fix the match to choose the right title, or rename the folder to “Title (Year)”.",
@@ -3262,6 +3780,7 @@
  "{count, plural, one {# series} other {# series}}": "{count, plural, one {# series} other {# series}}",
  "{count, plural, one {# show} other {# shows}}": "{count, plural, one {# show} other {# shows}}",
  "{count, plural, one {# sign-in} other {# sign-ins}}": "{count, plural, one {# sign-in} other {# sign-ins}}",
+ "{count, plural, one {# song} other {# songs}}": "{count, plural, one {# song} other {# songs}}",
  "{count, plural, one {# title in your library} other {# titles in your library}}": "{count, plural, one {# title in your library} other {# titles in your library}}",
  "{count, plural, one {# title needs} other {# titles need}} a look": "{count, plural, one {# title needs} other {# titles need}} a look",
  "{count, plural, one {# title ready to watch.} other {# titles ready to watch.}}": "{count, plural, one {# title ready to watch.} other {# titles ready to watch.}}",
@@ -3274,8 +3793,14 @@
  "{count, plural, one {# {genre} album} other {# {genre} albums}}": "{count, plural, one {# {genre} album} other {# {genre} albums}}",
  "{count, plural, one {# {genre} movie from the {decade}s, best first.} other {# {genre} movies from the {decade}s, best first.}}": "{count, plural, one {# {genre} movie from the {decade}s, best first.} other {# {genre} movies from the {decade}s, best first.}}",
  "{count, plural, one {All # unplayed episode of {title} will be marked as played.} other {All # unplayed episodes of {title} will be marked as played.}}": "{count, plural, one {All # unplayed episode of {title} will be marked as played.} other {All # unplayed episodes of {title} will be marked as played.}}",
+ "{count, plural, one {Back # second} other {Back # seconds}}": "{count, plural, one {Back # second} other {Back # seconds}}",
  "{count, plural, one {Find it} other {Find them}}": "{count, plural, one {Find it} other {Find them}}",
+<<<<<<< HEAD
  "{count, plural, one {Flexarr deletes its file from disk. Folders it leaves empty go too. You can't undo this.} other {Flexarr deletes its # files from disk. Folders it leaves empty go too. You can't undo this.}}": "{count, plural, one {Flexarr deletes its file from disk. Folders it leaves empty go too. You can't undo this.} other {Flexarr deletes its # files from disk. Folders it leaves empty go too. You can't undo this.}}",
+=======
+ "{count, plural, one {Flexarr deletes its file from disk.} other {Flexarr deletes its # files from disk.}} Folders it leaves empty go too. You can’t undo this.": "{count, plural, one {Flexarr deletes its file from disk.} other {Flexarr deletes its # files from disk.}} Folders it leaves empty go too. You can’t undo this.",
+ "{count, plural, one {Forward # second} other {Forward # seconds}}": "{count, plural, one {Forward # second} other {Forward # seconds}}",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "{count, plural, one {One book in your library} other {# books in your library}}": "{count, plural, one {One book in your library} other {# books in your library}}",
  "{count, plural, one {One new episode: {episodes}.} other {# new episodes: {episodes}.}}": "{count, plural, one {One new episode: {episodes}.} other {# new episodes: {episodes}.}}",
  "{count, plural, one {One title in your library} other {# titles in your library}}": "{count, plural, one {One title in your library} other {# titles in your library}}",
@@ -3283,6 +3808,9 @@
  "{count, plural, one {Remove # spare copy?} other {Remove # spare copies?}}": "{count, plural, one {Remove # spare copy?} other {Remove # spare copies?}}",
  "{count, plural, one {Someone is watching Live TV.} other {# people are watching Live TV.}}": "{count, plural, one {Someone is watching Live TV.} other {# people are watching Live TV.}}",
  "{count, plural, one {Something is playing.} other {# things are playing.}}": "{count, plural, one {Something is playing.} other {# things are playing.}}",
+ "{count, plural, one {Synced # day ago} other {Synced # days ago}}": "{count, plural, one {Synced # day ago} other {Synced # days ago}}",
+ "{count, plural, one {Synced # hour ago} other {Synced # hours ago}}": "{count, plural, one {Synced # hour ago} other {Synced # hours ago}}",
+ "{count, plural, one {Synced # minute ago} other {Synced # minutes ago}}": "{count, plural, one {Synced # minute ago} other {Synced # minutes ago}}",
  "{count, plural, one {The new library is being scanned.} other {The # new libraries are being scanned.}}": "{count, plural, one {The new library is being scanned.} other {The # new libraries are being scanned.}}",
  "{count, plural, one {one channel at a time} other {# channels at a time}}": "{count, plural, one {one channel at a time} other {# channels at a time}}",
  "{count, plural, one {{n} folder on hold} other {{n} folders on hold}}": "{count, plural, one {{n} folder on hold} other {{n} folders on hold}}",
@@ -3295,6 +3823,11 @@
  "{count} albums with tracks twice": "{count} albums with tracks twice",
  "{count} albums without a cover": "{count} albums without a cover",
  "{count} already in your library. Request anything else to add it.": "{count} already in your library. Request anything else to add it.",
+<<<<<<< HEAD
+=======
+ "{count} are here, {new} not yet watched in Flexarr.": "{count} are here, {new} not yet watched in Flexarr.",
+ "{count} are here.": "{count} are here.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "{count} artists under two names": "{count} artists under two names",
  "{count} ch": "{count} ch",
  "{count} coming up": "{count} coming up",
@@ -3331,9 +3864,12 @@
  "{device}. {line}": "{device}. {line}",
  "{device}: {time}": "{device}: {time}",
  "{done} of {total}": "{done} of {total}",
+ "{done} of {total} finished": "{done} of {total} finished",
  "{duration} left": "{duration} left",
  "{end, select, episode {At the end of this episode} movie {At the end of this movie} film {At the end of this film} chapter {At the end of this chapter} other {At the end of this {end}}}": "{end, select, episode {At the end of this episode} movie {At the end of this movie} film {At the end of this film} chapter {At the end of this chapter} other {At the end of this {end}}}",
  "{end, select, episode {Sleep timer, at the end of this episode} movie {Sleep timer, at the end of this movie} film {Sleep timer, at the end of this film} chapter {Sleep timer, at the end of this chapter} other {Sleep timer, at the end of this {end}}}": "{end, select, episode {Sleep timer, at the end of this episode} movie {Sleep timer, at the end of this movie} film {Sleep timer, at the end of this film} chapter {Sleep timer, at the end of this chapter} other {Sleep timer, at the end of this {end}}}",
+ "{failure}.": "{failure}.",
+ "{failure}. {reason}": "{failure}. {reason}",
  "{filter}: clear": "{filter}: clear",
  "{fine, number} of {count, number} for profiles with an age limit.": "{fine, number} of {count, number} for profiles with an age limit.",
  "{finished} of {count, plural, one {# book} other {# books}}": "{finished} of {count, plural, one {# book} other {# books}}",
@@ -3349,9 +3885,14 @@
  "{folder} overlaps a folder in another library.": "{folder} overlaps a folder in another library.",
  "{have} of {aired}": "{have} of {aired}",
  "{have} of {count, plural, one {# episode} other {# episodes}}": "{have} of {count, plural, one {# episode} other {# episodes}}",
+<<<<<<< HEAD
  "{here} are here, {new} not yet watched in Flexarr.": "{here} are here, {new} not yet watched in Flexarr.",
  "{here} are here.": "{here} are here.",
  "{here} of {count, plural, one {# track} other {# tracks}}": "{here} of {count, plural, one {# track} other {# tracks}}",
+=======
+ "{have} of {count}": "{have} of {count}",
+ "{here} of {total, plural, one {# track} other {# tracks}}": "{here} of {total, plural, one {# track} other {# tracks}}",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "{hours} h ago": "{hours} h ago",
  "{hours} h left": "{hours} h left",
  "{hours}h": "{hours}h",
@@ -3374,6 +3915,7 @@
  "{kind} doesn't manage {title}, so Flexarr can't tell which copy it uses. Remove the spare in the Finder.": "{kind} doesn't manage {title}, so Flexarr can't tell which copy it uses. Remove the spare in the Finder.",
  "{kind} wouldn't add it: {message}": "{kind} wouldn't add it: {message}",
  "{kind} · Allow it if its screen shows {code}.": "{kind} · Allow it if its screen shows {code}.",
+ "{kind}, {asking}": "{kind}, {asking}",
  "{kind}, {date}.": "{kind}, {date}.",
  "{label} (forced)": "{label} (forced)",
  "{language} subtitles saved": "{language} subtitles saved",
@@ -3388,8 +3930,11 @@
  "{minutes}m left": "{minutes}m left",
  "{missing, number} of its {count, plural, one {# file} other {# files}} went at once. If that’s a clear-out, it goes through by itself after a day of scans finding the same.": "{missing, number} of its {count, plural, one {# file} other {# files}} went at once. If that’s a clear-out, it goes through by itself after a day of scans finding the same.",
  "{more, plural, =0 {{title} is in the library.} other {{title} and # more are in the library.}}": "{more, plural, =0 {{title} is in the library.} other {{title} and # more are in the library.}}",
+<<<<<<< HEAD
  "{movies, plural, one {# movie} other {# movies}}": "{movies, plural, one {# movie} other {# movies}}",
  "{movies, plural, one {# movie} other {# movies}} and {episodes, plural, one {# episode} other {# episodes}}": "{movies, plural, one {# movie} other {# movies}} and {episodes, plural, one {# episode} other {# episodes}}",
+=======
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "{movies, plural, one {# movie} other {# movies}} and {shows, plural, one {# show} other {# shows}}": "{movies, plural, one {# movie} other {# movies}} and {shows, plural, one {# show} other {# shows}}",
  "{movies, plural, other {# movies}} and {shows, plural, other {# shows}}": "{movies, plural, other {# movies}} and {shows, plural, other {# shows}}",
  "{music, select, yes {All {count, number} movies, episodes and albums are in good shape.} other {All {count, number} movies and episodes are in good shape.}}": "{music, select, yes {All {count, number} movies, episodes and albums are in good shape.} other {All {count, number} movies and episodes are in good shape.}}",
@@ -3433,10 +3978,12 @@
  "{name}: {folder} overlaps a folder in another library.": "{name}: {folder} overlaps a folder in another library.",
  "{name}: {watched, number} watched, {inProgress, number} in progress": "{name}: {watched, number} watched, {inProgress, number} in progress",
  "{name}: “{baseUrl}” isn't a valid http or https address.": "{name}: “{baseUrl}” isn't a valid http or https address.",
+ "{name}’s Flexarr isn’t taking guests just now.": "{name}’s Flexarr isn’t taking guests just now.",
  "{name}’s address “{address}” isn’t an http or https address.": "{name}’s address “{address}” isn’t an http or https address.",
  "{name}’s libraries": "{name}’s libraries",
  "{name}’s own, in every app. A book with a speed of its own keeps it.": "{name}’s own, in every app. A book with a speed of its own keeps it.",
  "{name}’s own, on every device. The player’s menus change them too.": "{name}’s own, on every device. The player’s menus change them too.",
+ "{name}’s own. The web, the Apple TV and iPhone list your libraries in this order too.": "{name}’s own. The web, the Apple TV and iPhone list your libraries in this order too.",
  "{name}’s profile": "{name}’s profile",
  "{name}’s {device}": "{name}’s {device}",
  "{newOnly, select, yes {Every showing of {title} on any channel (new episodes only) is recorded.} other {Every showing of {title} on any channel is recorded.}}": "{newOnly, select, yes {Every showing of {title} on any channel (new episodes only) is recorded.} other {Every showing of {title} on any channel is recorded.}}",
@@ -3444,18 +3991,28 @@
  "{noun, select, movie {Flexarr doesn't know this movie's folder, so it can't add it to {kind}.} other {Flexarr doesn't know this show's folder, so it can't add it to {kind}.}}": "{noun, select, movie {Flexarr doesn't know this movie's folder, so it can't add it to {kind}.} other {Flexarr doesn't know this show's folder, so it can't add it to {kind}.}}",
  "{noun, select, movie {{name} already uses this folder for {title}. Remove that movie in {name} (keep its files), then fix the match again.} other {{name} already uses this folder for {title}. Remove that show in {name} (keep its files), then fix the match again.}}": "{noun, select, movie {{name} already uses this folder for {title}. Remove that movie in {name} (keep its files), then fix the match again.} other {{name} already uses this folder for {title}. Remove that show in {name} (keep its files), then fix the match again.}}",
  "{number} {name}, now {title}": "{number} {name}, now {title}",
+ "{option} (showing)": "{option} (showing)",
+ "{option} (sorted)": "{option} (sorted)",
  "{os}, since {time}": "{os}, since {time}",
  "{outside} isn't inside the library's folders, so Flexarr won't delete it. Nothing was deleted.": "{outside} isn't inside the library's folders, so Flexarr won't delete it. Nothing was deleted.",
+<<<<<<< HEAD
  "{owner}, {count, plural, one {# title} other {# titles}}": "{owner}, {count, plural, one {# title} other {# titles}}",
  "{owner}’s Flexarr": "{owner}’s Flexarr",
  "{owner}’s Flexarr isn’t taking guests just now.": "{owner}’s Flexarr isn’t taking guests just now.",
+=======
+ "{owner}’s Flexarr": "{owner}’s Flexarr",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "{percent}%": "{percent}%",
  "{percent}% listened": "{percent}% listened",
  "{percent}% watched": "{percent}% watched",
  "{percent}%, {left}": "{percent}%, {left}",
  "{place} ({address})": "{place} ({address})",
  "{position} of {duration}": "{position} of {duration}",
+<<<<<<< HEAD
  "{profile}’s own. The web, the Apple TV and Android list your libraries in this order too.": "{profile}’s own. The web, the Apple TV and Android list your libraries in this order too.",
+=======
+ "{position} of {length}": "{position} of {length}",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "{range}, {episodes}": "{range}, {episodes}",
  "{received} of {total}. Flexarr restarts to install it once it’s downloaded.": "{received} of {total}. Flexarr restarts to install it once it’s downloaded.",
  "{received}. Flexarr restarts to install it once it’s downloaded.": "{received}. Flexarr restarts to install it once it’s downloaded.",
@@ -3473,19 +4030,30 @@
  "{show}, season {season} episode {episode}": "{show}, season {season} episode {episode}",
  "{show}, {title}": "{show}, {title}",
  "{size} free": "{size} free",
+<<<<<<< HEAD
  "{size} on this {device}.": "{size} on this {device}.",
  "{size} used on this {device}.": "{size} used on this {device}.",
  "{speed}×": "{speed}×",
  "{start} to {end}": "{start} to {end}",
  "{start} to {end}, on a schedule": "{start} to {end}, on a schedule",
  "{summary}. {details} Nothing is marked unwatched, on either side.": "{summary}. {details} Nothing is marked unwatched, on either side.",
+=======
+ "{size} on this phone.": "{size} on this phone.",
+ "{size} used on this phone.": "{size} used on this phone.",
+ "{start} to {end}": "{start} to {end}",
+ "{start} to {end}, on a schedule": "{start} to {end}, on a schedule",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "{time} at {speed}": "{time} at {speed}",
  "{time} behind live": "{time} behind live",
  "{time} left": "{time} left",
  "{time} left at {speed}": "{time} left at {speed}",
  "{time} of {duration}": "{time} of {duration}",
  "{title} by {artist} is in the library.": "{title} by {artist} is in the library.",
+<<<<<<< HEAD
  "{title} clashes with recordings already on the list: every stream is wanted then, so it won't record unless one of them comes off.": "{title} clashes with recordings already on the list: every stream is wanted then, so it won't record unless one of them comes off.",
+=======
+ "{title} clashes with recordings already on the list: every stream is wanted then, so it won’t record unless one of them comes off.": "{title} clashes with recordings already on the list: every stream is wanted then, so it won’t record unless one of them comes off.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "{title} downloading": "{title} downloading",
  "{title} has nothing to play.": "{title} has nothing to play.",
  "{title} is about to record.": "{title} is about to record.",
@@ -3494,7 +4062,11 @@
  "{title} isn't matched to anything yet. Use Fix match to choose what it is.": "{title} isn't matched to anything yet. Use Fix match to choose what it is.",
  "{title} on {channel}": "{title} on {channel}",
  "{title} trailer": "{title} trailer",
+<<<<<<< HEAD
  "{title} will be recorded. Recordings, at the top, lists what's set.": "{title} will be recorded. Recordings, at the top, lists what's set.",
+=======
+ "{title} will be recorded. Recordings, at the top, lists what’s set.": "{title} will be recorded. Recordings, at the top, lists what’s set.",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "{title}, by {artist}": "{title}, by {artist}",
  "{title}, from {show}": "{title}, from {show}",
  "{title}, in your library": "{title}, in your library",
@@ -3508,12 +4080,18 @@
  "{value} {unit}": "{value} {unit}",
  "{watched} of {count} watched": "{watched} of {count} watched",
  "{when} from {address}": "{when} from {address}",
+<<<<<<< HEAD
  "{when} {date}": "{when} {date}",
+=======
+ "{where}, {upcoming} coming up, {recorded} recorded": "{where}, {upcoming} coming up, {recorded} recorded",
+ "{where}, {upcoming} coming up, {recorded} recorded, new only": "{where}, {upcoming} coming up, {recorded} recorded, new only",
+>>>>>>> 30e11040 (Languages: the phone's sound choices show their translated names)
  "{who} got the admin PIN or your profile's PIN wrong too many times and has to wait. If it wasn't you, change them on the web, in Settings.": "{who} got the admin PIN or your profile's PIN wrong too many times and has to wait. If it wasn't you, change them on the web, in Settings.",
  "{zone, select, Local {You’re connected from your home network as {login}.} Tailnet {You’re connected from Tailscale as {login}.} other {You’re connected from the internet as {login}.}}": "{zone, select, Local {You’re connected from your home network as {login}.} Tailnet {You’re connected from Tailscale as {login}.} other {You’re connected from the internet as {login}.}}",
  "{zone, select, Local {You’re connected from your home network.} Tailnet {You’re connected from Tailscale.} other {You’re connected from the internet.}}": "{zone, select, Local {You’re connected from your home network.} Tailnet {You’re connected from Tailscale.} other {You’re connected from the internet.}}",
  "“Only away from home” lets devices on your own network in without it.": "“Only away from home” lets devices on your own network in without it.",
  "“{baseUrl}” isn't a valid http or https address.": "“{baseUrl}” isn't a valid http or https address.",
+ "“{device}” is connected. It’ll be ready in a moment.": "“{device}” is connected. It’ll be ready in a moment.",
  "“{name}” is connected": "“{name}” is connected",
  "“{name}” is connected. It signs in within a couple of seconds.": "“{name}” is connected. It signs in within a couple of seconds.",
  "“{phrase}”": "“{phrase}”",
