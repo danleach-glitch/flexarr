@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import androidx.compose.material.icons.filled.Language
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -48,7 +49,7 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.Tokens
 
 /** Settings' pages, opened from the first and from each other; Back goes to the one before. */
-internal enum class TvSettingsPageId { Main, Playback, Libraries, Sidebar, Trakt, Server, Diagnostics }
+internal enum class TvSettingsPageId { Main, Playback, Libraries, Sidebar, Language, Trakt, Server, Diagnostics }
 
 /**
  * Settings, as the Apple TV's SettingsView: a short list of pages, each row saying how it's set now, the details a
@@ -82,6 +83,7 @@ fun TvSettingsScreen(model: AppModel, onSwitchProfile: () -> Unit) {
         TvSettingsPageId.Playback -> TvPlaybackSettings(model)
         TvSettingsPageId.Libraries -> TvLibrarySettings()
         TvSettingsPageId.Sidebar -> TvSidebarSettings(model, libraries)
+        TvSettingsPageId.Language -> TvLanguageSettings(model)
         TvSettingsPageId.Trakt -> TvTraktSettings(model)
         TvSettingsPageId.Server -> TvServerSettings(model, libraries, returningFrom, onDiagnostics = { open(TvSettingsPageId.Diagnostics) })
         TvSettingsPageId.Diagnostics -> TvDiagnosticsSettings(model)
@@ -146,6 +148,16 @@ private fun MainPage(
                 icon = Icons.Filled.VideoLibrary, value = "Open on ${TvLibraryOpening.saved(context).label}", accessory = TvSettingAccessory.Chevron,
                 help = "Whether a library opens on its highlights (Browse), on every title, A to Z, or on its genres.",
             )
+        }
+        // Once the server offers more than English (from 0.61).
+        if (model.languages.size > 1) {
+            item {
+                TvSettingsRow(
+                    io.github.flexarr.core.i18n.t("Language"), onClick = { open(TvSettingsPageId.Language) }, modifier = Modifier.focusFor(TvSettingsPageId.Language),
+                    icon = Icons.Filled.Language, value = io.github.flexarr.ui.settings.languageValue(model), accessory = TvSettingAccessory.Chevron,
+                    help = io.github.flexarr.core.i18n.t("The language Flexarr is in for this profile, on every device."),
+                )
+            }
         }
         if (sidebarFirst != null) {
             item {

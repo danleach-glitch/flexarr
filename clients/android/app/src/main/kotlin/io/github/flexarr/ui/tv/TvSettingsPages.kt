@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import androidx.compose.material.icons.filled.Language
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -332,6 +333,49 @@ private fun skipIcon(seconds: Int): ImageVector = when (seconds) {
 }
 
 /** What a film or TV library's tab opens on, for every library on this TV. As the Apple TV's LibrarySettingsView. */
+@Composable
+internal fun TvLanguageSettings(model: AppModel) {
+    val focus = remember { FocusRequester() }
+    TakeFocus(focus)
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    fun choose(code: String?) {
+        if (saving) return
+        saving = true
+        error = null
+        model.scope.launch {
+            try {
+                model.setLanguage(code)
+            } catch (e: io.github.flexarr.core.FlexarrException) {
+                error = e.message
+            } finally {
+                saving = false
+            }
+        }
+    }
+
+    TvSettingsPage(io.github.flexarr.core.i18n.t("Language"), summary = error ?: io.github.flexarr.core.i18n.t("This profile’s own, on every device.")) {
+        item {
+            TvSettingsRow(
+                io.github.flexarr.core.i18n.t("Device language"), onClick = { choose(null) },
+                modifier = if (model.profileLanguage == null) Modifier.focusRequester(focus) else Modifier,
+                icon = Icons.Filled.Language,
+                accessory = if (model.profileLanguage == null) TvSettingAccessory.Checkmark else TvSettingAccessory.None,
+            )
+        }
+        model.languages.forEach { language ->
+            item {
+                TvSettingsRow(
+                    language.name, onClick = { choose(language.code) },
+                    modifier = if (model.profileLanguage == language.code) Modifier.focusRequester(focus) else Modifier,
+                    accessory = if (model.profileLanguage == language.code) TvSettingAccessory.Checkmark else TvSettingAccessory.None,
+                )
+            }
+        }
+    }
+}
+
 @Composable
 internal fun TvLibrarySettings() {
     val context = LocalContext.current
