@@ -58,7 +58,9 @@ enum DiagnosticsHeader {
             "\(device.systemName) \(device.systemVersion) on \(hardwareModel)",
             "Sent \(Date().formatted(.iso8601))",
         ]
-        if let host = model.credentials?.address.host() { lines.append("Server: \(host)") }
+        if let host = model.credentials?.address.host() {
+            lines.append(model.serverName.map { "Server: \($0) (\(host))" } ?? "Server: \(host)")
+        }
         if let away = model.client?.addresses.isAway, model.credentials?.remoteAddress != nil {
             lines.append("Connected: \(away ? "away, over Tailscale" : "at home")")
         }
