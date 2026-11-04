@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.music
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.background
@@ -433,9 +434,9 @@ private fun MusicGrid(
 private fun SortMenu(sorts: List<LibrarySort>, sort: LibrarySort, onSort: (LibrarySort) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }) { Icon(Icons.Filled.FilterList, contentDescription = "Sort", tint = Flexarr.screen) }
+        IconButton(onClick = { open = true }) { Icon(Icons.Filled.FilterList, contentDescription = t("Sort"), tint = Flexarr.screen) }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            Text("Sort by", fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+            Text(t("Sort by"), fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
             sorts.forEach { option ->
                 DropdownMenuItem(
                     text = { Text(option.label, fontWeight = if (option == sort) FontWeight.Bold else FontWeight.Normal) },

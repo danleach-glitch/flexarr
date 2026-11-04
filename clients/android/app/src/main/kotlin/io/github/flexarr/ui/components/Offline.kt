@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.components
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,9 +54,9 @@ fun OfflineScreen(model: AppModel, title: String, onDownloads: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(Icons.Filled.WifiOff, contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(40.dp))
-            Text("You’re offline", fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.semantics { heading() })
+            Text(t("You’re offline"), fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.semantics { heading() })
             if (model.hasDownloads) {
-                Text("Your downloads still play.", color = Flexarr.usher, textAlign = TextAlign.Center)
+                Text(t("Your downloads still play."), color = Flexarr.usher, textAlign = TextAlign.Center)
                 ActionButton("Go to Downloads", onClick = onDownloads, prominent = true, modifier = Modifier.padding(top = 8.dp))
             }
         }
@@ -76,7 +77,7 @@ fun OfflineBar() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Filled.WifiOff, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(16.dp))
-            Text("Offline", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
+            Text(t("Offline"), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
         }
     }
 }

@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -174,9 +177,9 @@ fun TraktSettingsScreen(model: AppModel) {
                 TextButton(onClick = {
                     confirmDisconnect = false
                     trakt.run(TraktSpot.Account) { it.disconnectTrakt() }
-                }) { Text("Disconnect", color = Flexarr.danger) }
+                }) { Text(t("Disconnect"), color = Flexarr.danger) }
             },
-            dismissButton = { TextButton(onClick = { confirmDisconnect = false }) { Text("Cancel", color = Flexarr.screen) } },
+            dismissButton = { TextButton(onClick = { confirmDisconnect = false }) { Text(t(Words.cancel), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }

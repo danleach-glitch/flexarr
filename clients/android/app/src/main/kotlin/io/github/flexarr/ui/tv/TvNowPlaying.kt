@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -259,7 +262,7 @@ private fun UpNext(music: MusicPlayer, modifier: Modifier) {
     val next = music.upNext
     if (next.isEmpty()) return
     Column(modifier.widthIn(max = 450.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Up next", style = marquee(16).copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(start = 15.dp, bottom = 3.dp))
+        Text(t(Words.upNext), style = marquee(16).copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(start = 15.dp, bottom = 3.dp))
         LazyColumn(contentPadding = PaddingValues(bottom = 30.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             itemsIndexed(next, key = { offset, track -> "${music.index + 1 + offset}-${track.id}" }) { offset, track ->
                 TvTrackRow(track, number = offset + 1, isCurrent = false, isPlaying = false, onClick = { music.skipTo(music.index + 1 + offset) }, modifier = Modifier.fillMaxWidth())
@@ -311,7 +314,7 @@ private fun TvLyrics(lyrics: Lyrics, position: () -> Double, onSeek: (Double) ->
         if (hasFocus) runCatching { following.requestFocus() }
     }
     LazyColumn(
-        modifier.fillMaxSize().onFocusChanged { hasFocus = it.hasFocus }.semantics { contentDescription = "Lyrics" },
+        modifier.fillMaxSize().onFocusChanged { hasFocus = it.hasFocus }.semantics { contentDescription = t("Lyrics") },
         state = list,
         contentPadding = PaddingValues(vertical = 150.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp),
@@ -322,7 +325,7 @@ private fun TvLyrics(lyrics: Lyrics, position: () -> Double, onSeek: (Double) ->
                 index == active -> 1f
                 else -> 0.4f
             }
-            val alpha by animateFloatAsState(target, tween(250), label = "line")
+            val alpha by animateFloatAsState(target, tween(250), label = t("line"))
             val time = line.time
             Surface(
                 onClick = { if (lyrics.synced && time != null) onSeek(time) },

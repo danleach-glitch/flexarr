@@ -1,5 +1,6 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -154,7 +155,7 @@ private fun Choice(label: String, checked: Boolean, enabled: Boolean = true, onC
         text = { Text(label, color = Flexarr.screen) },
         onClick = onClick,
         enabled = enabled,
-        leadingIcon = { Box(Modifier.size(20.dp)) { if (checked) Icon(Icons.Filled.Check, contentDescription = "Chosen", tint = Flexarr.screen, modifier = Modifier.size(20.dp)) } },
+        leadingIcon = { Box(Modifier.size(20.dp)) { if (checked) Icon(Icons.Filled.Check, contentDescription = t("Chosen"), tint = Flexarr.screen, modifier = Modifier.size(20.dp)) } },
     )
 }
 
@@ -190,7 +191,7 @@ private fun Back(title: String, onClick: () -> Unit) {
     DropdownMenuItem(
         text = { Text(title, fontWeight = FontWeight.SemiBold, color = Flexarr.screen) },
         onClick = onClick,
-        leadingIcon = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Back", tint = Flexarr.screen) },
+        leadingIcon = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = t("Back"), tint = Flexarr.screen) },
     )
     Divider()
 }
@@ -242,7 +243,7 @@ private fun MenuScope.AudioMenu(controller: PlaybackController, close: () -> Uni
         DropdownMenuItem(
             text = {
                 Column {
-                    Text("Audio sync", color = Flexarr.screen)
+                    Text(t("Audio sync"), color = Flexarr.screen)
                     Text(if (sync == 0.0) "As the file is" else PlaybackController.syncLabel(sync), fontSize = 13.sp, color = Flexarr.usher)
                 }
             },
@@ -383,7 +384,7 @@ internal fun AudioSyncPanel(controller: PlaybackController, onDone: () -> Unit, 
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("Audio sync", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.7f))
+        Text(t("Audio sync"), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.7f))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             // The latest value, not this composition's: a hold jumps several times before it recomposes.
             HoldGlassIcon(Icons.Filled.Remove, "Sound earlier") { step -> controller.audioSync?.let { controller.setAudioDelay(it - step) } }
@@ -418,7 +419,7 @@ internal fun SleepPrompt(sleep: VideoSleep) {
             VideoSleep.Phase.Asleep -> 0.7f
         },
         tween(if (phase == VideoSleep.Phase.Asking) 3_000 else 600),
-        label = "sleep dim",
+        label = t("sleep dim"),
     )
     if (dim > 0f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dim)))
     AnimatedVisibility(phase != VideoSleep.Phase.Off, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
@@ -432,10 +433,10 @@ internal fun SleepPrompt(sleep: VideoSleep) {
             contentAlignment = Alignment.Center,
         ) {
             if (phase == VideoSleep.Phase.Asleep) {
-                Text("Paused by the sleep timer", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.alpha(0.6f))
+                Text(t("Paused by the sleep timer"), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.alpha(0.6f))
             } else {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Still watching?", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(t("Still watching?"), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     Text(sleep.detail, fontSize = 15.sp, fontWeight = FontWeight.Medium, style = io.github.flexarr.ui.podcasts.Tabular, color = Color.White.copy(alpha = 0.75f), modifier = Modifier.padding(top = 8.dp))
                     Row(Modifier.padding(top = 22.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Pill("Cancel timer", filled = false) { sleep.set(null) }

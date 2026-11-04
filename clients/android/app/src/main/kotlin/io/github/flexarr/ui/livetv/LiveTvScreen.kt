@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.livetv
 
+import io.github.flexarr.core.i18n.t
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -181,7 +182,7 @@ fun LiveTvScreen(model: AppModel) {
         Column {
             PageTitle("Live TV", onBack = { navigator.back() }) {
                 if (all.isNotEmpty()) {
-                    if (records) IconButton(onClick = navigator::openRecordings) { Icon(Icons.Filled.RadioButtonChecked, contentDescription = "Recordings", tint = Flexarr.screen) }
+                    if (records) IconButton(onClick = navigator::openRecordings) { Icon(Icons.Filled.RadioButtonChecked, contentDescription = t("Recordings"), tint = Flexarr.screen) }
                     IconButton(onClick = {
                         showsGuide = !showsGuide
                         context.settings.edit().putBoolean(GUIDE_KEY, showsGuide).apply()
@@ -215,7 +216,7 @@ fun LiveTvScreen(model: AppModel) {
                                     item {
                                         Row(Modifier.padding(horizontal = Edge, vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                             Icon(Icons.Outlined.StarOutline, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(16.dp))
-                                            Text("Hold the channels you watch most to keep them first.", fontSize = 13.sp, color = Flexarr.usher)
+                                            Text(t("Hold the channels you watch most to keep them first."), fontSize = 13.sp, color = Flexarr.usher)
                                         }
                                     }
                                 }
@@ -229,9 +230,9 @@ fun LiveTvScreen(model: AppModel) {
     notice?.let { message ->
         AlertDialog(
             onDismissRequest = { notice = null },
-            title = { Text("Recording") },
+            title = { Text(t("Recording")) },
             text = { Text(message) },
-            confirmButton = { TextButton(onClick = { notice = null }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { notice = null }) { Text(t("OK")) } },
             containerColor = Flexarr.seat,
         )
     }
@@ -290,7 +291,7 @@ private fun ChannelRow(channel: LiveChannel, starting: Boolean, onWatch: () -> U
         ) {
             Box {
                 ChannelLogo(channel, 104.dp, starting)
-                if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = LiveStar, modifier = Modifier.align(Alignment.TopEnd).padding(5.dp).size(10.dp))
+                if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = t("Favourite"), tint = LiveStar, modifier = Modifier.align(Alignment.TopEnd).padding(5.dp).size(10.dp))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -313,7 +314,7 @@ private fun ChannelRow(channel: LiveChannel, starting: Boolean, onWatch: () -> U
             }
         }
         DropdownMenu(menu, onDismissRequest = { menu = false }, containerColor = Flexarr.seat) {
-            DropdownMenuItem(text = { Text("Watch") }, onClick = { menu = false; onWatch() })
+            DropdownMenuItem(text = { Text(t("Watch")) }, onClick = { menu = false; onWatch() })
             if (onRecord != null) listOfNotNull(channel.now, channel.next).forEach { programme ->
                 DropdownMenuItem(text = { Text("Record ${programme.title}") }, onClick = { menu = false; onRecord(programme) })
             }
@@ -327,14 +328,14 @@ private fun ChannelRow(channel: LiveChannel, starting: Boolean, onWatch: () -> U
 internal fun RecordMark(recordingNow: Boolean) {
     if (recordingNow) {
         Text(
-            "REC",
+            t("REC"),
             fontSize = 10.sp,
             fontWeight = FontWeight.Black,
             color = Color.White,
-            modifier = Modifier.clip(CircleShape).background(RecordRed).padding(horizontal = 5.dp, vertical = 1.dp).semantics { contentDescription = "Recording now" },
+            modifier = Modifier.clip(CircleShape).background(RecordRed).padding(horizontal = 5.dp, vertical = 1.dp).semantics { contentDescription = t("Recording now") },
         )
     } else {
-        Box(Modifier.size(9.dp).clip(CircleShape).background(RecordRed).semantics { contentDescription = "Set to record" })
+        Box(Modifier.size(9.dp).clip(CircleShape).background(RecordRed).semantics { contentDescription = t("Set to record") })
     }
 }
 
@@ -434,7 +435,7 @@ private fun LiveGuideView(
                     val programmes = byChannel[channel.id]?.programmes.orEmpty().filter { it.end > windowStart && it.start < windowEnd }
                     Box(Modifier.height(rowHeight).width(width + Edge)) {
                         Box(Modifier.height(rowHeight).width(width)) {
-                            if (programmes.isEmpty()) Text("No listings", fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp))
+                            if (programmes.isEmpty()) Text(t("No listings"), fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp))
                             // Laid end to end, with a gap wherever the listings have one.
                             Row(Modifier.fillMaxHeight()) {
                                 var at = windowStart
@@ -454,7 +455,7 @@ private fun LiveGuideView(
                                         modifier = Modifier.width(slot).fillMaxHeight().padding(end = 3.dp),
                                         onTap = { if (onNow) navigator.watch(channel, order) else details = programme to channel },
                                         menu = { close ->
-                                            if (onNow) DropdownMenuItem(text = { Text("Watch") }, onClick = { close(); navigator.watch(channel, order) })
+                                            if (onNow) DropdownMenuItem(text = { Text(t("Watch")) }, onClick = { close(); navigator.watch(channel, order) })
                                             if (records && programme.end > now) {
                                                 DropdownMenuItem(text = { Text(recordLabel(programme)) }, onClick = { close(); act { toggleRecording(client, programme, channel.id) } })
                                                 DropdownMenuItem(text = { Text(seriesLabel(programme)) }, onClick = { close(); act { toggleSeries(client, programme, channel.id); null } })
@@ -491,7 +492,7 @@ private fun LiveGuideView(
                         TextButton(onClick = { details = null; act { toggleRecording(client, programme, channel.id) } }) { Text(recordLabel(programme)) }
                         TextButton(onClick = { details = null; act { toggleSeries(client, programme, channel.id); null } }) { Text(seriesLabel(programme)) }
                     }
-                    TextButton(onClick = { details = null }) { Text("Close") }
+                    TextButton(onClick = { details = null }) { Text(t("Close")) }
                 }
             },
             containerColor = Flexarr.seat,

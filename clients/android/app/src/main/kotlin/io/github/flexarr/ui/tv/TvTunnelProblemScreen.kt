@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -64,7 +65,7 @@ fun TvTunnelProblemScreen(model: AppModel) {
         Dialog(onDismissRequest = { confirmLeave = false }) {
             Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(owner?.let { "Leave $it’s Flexarr?" } ?: "Leave this Flexarr?", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("Joining again takes a new code.", fontSize = 14.sp, color = Flexarr.usher)
+                Text(t("Joining again takes a new code."), fontSize = 14.sp, color = Flexarr.usher)
                 // As the Apple TV: Cancel first, and where focus starts; Leave after it.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     TvActionButton("Cancel", onClick = { confirmLeave = false }, prominent = true, modifier = Modifier.focusRequester(cancel))

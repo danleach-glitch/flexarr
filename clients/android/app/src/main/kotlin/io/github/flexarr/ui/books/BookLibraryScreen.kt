@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.books
 
+import io.github.flexarr.core.i18n.t
 import android.os.Build
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
@@ -467,7 +468,7 @@ private fun SortAndFilterMenu(query: BookQuery, fixedGenre: Boolean, onChange: (
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
-            Icon(Icons.Filled.FilterList, contentDescription = "Sort and filter", tint = if (query.narrowed(fixedGenre)) Flexarr.silver else Flexarr.screen)
+            Icon(Icons.Filled.FilterList, contentDescription = t("Sort and filter"), tint = if (query.narrowed(fixedGenre)) Flexarr.silver else Flexarr.screen)
         }
         DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
             MenuHeading("Sort by")
@@ -510,7 +511,7 @@ internal fun Choice(label: String, checked: Boolean, onClick: () -> Unit) {
     DropdownMenuItem(
         text = { Text(label, color = Flexarr.screen) },
         onClick = onClick,
-        leadingIcon = { Box(Modifier.size(20.dp)) { if (checked) Icon(Icons.Filled.Check, contentDescription = "Chosen", tint = Flexarr.screen) } },
+        leadingIcon = { Box(Modifier.size(20.dp)) { if (checked) Icon(Icons.Filled.Check, contentDescription = t("Chosen"), tint = Flexarr.screen) } },
     )
 }
 

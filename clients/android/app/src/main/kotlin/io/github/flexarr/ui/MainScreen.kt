@@ -1,5 +1,6 @@
 package io.github.flexarr.ui
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -346,14 +347,14 @@ fun MainScreen(model: AppModel) {
                     .then(if (offline) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier),
             ) {
                 composable(Tab.Home.route) {
-                    Crossfade(model.serverUnreachable, label = "offline") { if (it) OfflineScreen(model, "Home") { select(Tab.Downloads) } else HomeScreen(model) }
+                    Crossfade(model.serverUnreachable, label = t("offline")) { if (it) OfflineScreen(model, "Home") { select(Tab.Downloads) } else HomeScreen(model) }
                 }
                 composable(Tab.Libraries.route) {
-                    Crossfade(model.serverUnreachable, label = "offline") { if (it) OfflineScreen(model, "Libraries") { select(Tab.Downloads) } else LibrariesScreen(model) }
+                    Crossfade(model.serverUnreachable, label = t("offline")) { if (it) OfflineScreen(model, "Libraries") { select(Tab.Downloads) } else LibrariesScreen(model) }
                 }
                 composable(Tab.Downloads.route) { DownloadsScreen(model) }
                 composable(Tab.Search.route) {
-                    Crossfade(model.serverUnreachable, label = "offline") { if (it) OfflineScreen(model, "Search") { select(Tab.Downloads) } else SearchScreen(model) }
+                    Crossfade(model.serverUnreachable, label = t("offline")) { if (it) OfflineScreen(model, "Search") { select(Tab.Downloads) } else SearchScreen(model) }
                 }
                 composable(Tab.Settings.route) {
                     SettingsScreen(

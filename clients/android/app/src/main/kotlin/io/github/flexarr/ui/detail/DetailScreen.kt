@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.detail
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import io.github.flexarr.ui.GetsReadyAfterAMoment
 
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -288,7 +291,7 @@ fun DetailScreen(model: AppModel, id: String) {
         IconButton(
             onClick = { navigator.back() },
             modifier = Modifier.statusBarsPadding().padding(8.dp).clip(CircleShape).background(Flexarr.room.copy(alpha = 0.55f)),
-        ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Flexarr.screen) }
+        ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = t("Back"), tint = Flexarr.screen) }
     }
     }
 }
@@ -428,10 +431,10 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                                 when (entry) {
                                     is DetailActions.MenuItem.Moved -> when (entry.button) {
                                         DetailActions.Button.SHUFFLE -> if (item.childCount > 0) {
-                                            DropdownMenuItem(text = { Text("Shuffle") }, onClick = { more = false; navigator.shuffle(item) })
+                                            DropdownMenuItem(text = { Text(t(Words.shuffle)) }, onClick = { more = false; navigator.shuffle(item) })
                                         }
                                         DetailActions.Button.TRAILER ->
-                                            DropdownMenuItem(text = { Text("Trailer") }, onClick = { more = false; showingTrailer = true })
+                                            DropdownMenuItem(text = { Text(t(Words.trailer)) }, onClick = { more = false; showingTrailer = true })
                                         DetailActions.Button.WATCHED ->
                                             DropdownMenuItem(
                                                 text = { Text(if (watched) "Mark as unwatched" else "Mark as watched") },
@@ -446,14 +449,14 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                                         else -> Unit
                                     }
                                     DetailActions.MenuItem.Subtitles -> file?.let { found ->
-                                        DropdownMenuItem(text = { Text("Search for subtitles") }, onClick = { more = false; searchingSubtitlesFor = found.id })
+                                        DropdownMenuItem(text = { Text(t("Search for subtitles")) }, onClick = { more = false; searchingSubtitlesFor = found.id })
                                     }
                                     DetailActions.MenuItem.GoToShow -> series?.let { show ->
-                                        DropdownMenuItem(text = { Text("Go to show") }, onClick = { more = false; navigator.openItem(show.id) })
+                                        DropdownMenuItem(text = { Text(t(Words.goToShow)) }, onClick = { more = false; navigator.openItem(show.id) })
                                     }
                                 }
                             }
-                            if (playsOn) DropdownMenuItem(text = { Text("Play on another screen") }, onClick = { more = false; choosingScreen = true })
+                            if (playsOn) DropdownMenuItem(text = { Text(t("Play on another screen")) }, onClick = { more = false; choosingScreen = true })
                         }
                     }
                 }
@@ -477,7 +480,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
     savedSubtitles?.let { message ->
         AlertDialog(
             onDismissRequest = { savedSubtitles = null },
-            confirmButton = { TextButton(onClick = { savedSubtitles = null }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { savedSubtitles = null }) { Text(t("OK")) } },
             text = { Text(message) },
             containerColor = Flexarr.seat,
         )

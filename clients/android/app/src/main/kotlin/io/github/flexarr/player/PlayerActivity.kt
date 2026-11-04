@@ -1,5 +1,6 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.core.i18n.t
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -529,7 +530,7 @@ private fun Timeline(controller: PlaybackController, onInteract: () -> Unit, mod
                 valueRange = 0f..duration.toFloat(),
                 colors = SliderDefaults.colors(thumbColor = Flexarr.screen, activeTrackColor = Flexarr.screen, inactiveTrackColor = Flexarr.screen.copy(alpha = 0.3f)),
                 modifier = Modifier.fillMaxWidth().semantics {
-                    contentDescription = "Position"
+                    contentDescription = t("Position")
                     stateDescription = "${Format.timestamp(shown)} of ${Format.timestamp(controller.duration)}"
                 },
             )

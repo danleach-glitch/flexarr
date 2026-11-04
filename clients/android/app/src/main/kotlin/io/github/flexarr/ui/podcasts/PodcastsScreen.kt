@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.podcasts
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -101,7 +104,7 @@ fun PodcastsScreen(model: AppModel) {
     RoomBackground(ambient = glow, intensity = 0.18f) {
         Column(Modifier.fillMaxSize()) {
             PageTitle("Podcasts", onBack = navigator::back) {
-                if (available && browses) IconButton(onClick = navigator::openPodcastBrowse) { Icon(Icons.Filled.Search, contentDescription = "Browse", tint = Flexarr.screen) }
+                if (available && browses) IconButton(onClick = navigator::openPodcastBrowse) { Icon(Icons.Filled.Search, contentDescription = t(Words.browse), tint = Flexarr.screen) }
             }
             if (!available) {
                 StatusView("Podcasts aren’t available on this profile.", empty = true)
@@ -230,7 +233,7 @@ fun PodcastBrowseScreen(model: AppModel) {
     RoomBackground(ambient = null) {
         Column(Modifier.fillMaxSize()) {
             PageTitle("Browse", onBack = navigator::back)
-            SearchField(text, onChange = { text = it }, placeholder = "Shows, or a feed’s address", modifier = Modifier.padding(horizontal = Edge).padding(bottom = 12.dp), onSearch = {})
+            SearchField(text, onChange = { text = it }, placeholder = t("Shows, or a feed’s address"), modifier = Modifier.padding(horizontal = Edge).padding(bottom = 12.dp), onSearch = {})
             when {
                 feed != null -> Box(Modifier.padding(horizontal = Edge)) {
                     ActionButton(if (addingFeed) "Adding…" else "Add this feed", onClick = {
@@ -256,8 +259,8 @@ fun PodcastBrowseScreen(model: AppModel) {
     error?.let { message ->
         AlertDialog(
             onDismissRequest = { error = null },
-            confirmButton = { TextButton(onClick = { error = null }) { Text("OK") } },
-            title = { Text("Couldn’t add this") },
+            confirmButton = { TextButton(onClick = { error = null }) { Text(t("OK")) } },
+            title = { Text(t("Couldn’t add this")) },
             text = { Text(message) },
             containerColor = Flexarr.seat,
         )

@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.profiles
 
+import io.github.flexarr.core.i18n.t
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
@@ -202,11 +203,11 @@ fun ProfilePicker(
         }
     }
 
-    AnimatedContent(PickerStep(asking, parent, locking, forgetting), label = "profiles") { (pinFor, parentFor, lockStep, forgot) ->
+    AnimatedContent(PickerStep(asking, parent, locking, forgetting), label = t("profiles")) { (pinFor, parentFor, lockStep, forgot) ->
         if (forgot != null) {
             PinEntry(
                 profile = null,
-                title = "Enter the admin PIN",
+                title = t("Enter the admin PIN"),
                 note = "It takes ${forgot.name}’s PIN off.",
                 model = model,
                 error = error,
@@ -217,7 +218,7 @@ fun ProfilePicker(
         } else if (lockStep != null) {
             PinEntry(
                 profile = null,
-                title = "Enter the admin PIN",
+                title = t("Enter the admin PIN"),
                 model = model,
                 error = error,
                 onEdit = { error = null },
@@ -249,7 +250,7 @@ fun ProfilePicker(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(32.dp),
             ) {
-                Text("Who’s watching?", style = marquee(40), modifier = Modifier.padding(top = if (marksCurrent) 28.dp else 80.dp))
+                Text(t("Who’s watching?"), style = marquee(40), modifier = Modifier.padding(top = if (marksCurrent) 28.dp else 80.dp))
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(110.dp),
                     horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -405,7 +406,7 @@ private fun PinEntry(
             textStyle = TextStyle(fontSize = 22.sp, color = Flexarr.screen, textAlign = TextAlign.Center),
             cursorBrush = SolidColor(Flexarr.screen),
             modifier = Modifier.width(220.dp).clip(RoundedCornerShape(Tokens.radiusControl)).background(Flexarr.seat).padding(vertical = 12.dp).focusRequester(focus)
-                .semantics { contentDescription = "PIN" },
+                .semantics { contentDescription = t("PIN") },
         )
         Text(
             error ?: if (checking) "Checking" else " ",
@@ -420,7 +421,7 @@ private fun PinEntry(
             ActionButton("Cancel", onClick = onCancel)
             ActionButton("Continue", onClick = ::submit, prominent = true, enabled = pin.length >= 4 && !checking)
         }
-        onForgot?.let { TextButton(onClick = it) { Text("Forgot PIN?", fontSize = 15.sp, color = Flexarr.usher) } }
+        onForgot?.let { TextButton(onClick = it) { Text(t("Forgot PIN?"), fontSize = 15.sp, color = Flexarr.usher) } }
     }
 }
 

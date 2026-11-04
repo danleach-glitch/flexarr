@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.pairing
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.verticalScroll
@@ -153,13 +154,13 @@ fun MainPinField(
             cursorBrush = SolidColor(Flexarr.screen),
             decorationBox = { field ->
                 Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusControl)).background(fieldColor).padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    if (pin.isEmpty()) Text("Admin PIN", fontSize = 17.sp, color = Flexarr.usher)
+                    if (pin.isEmpty()) Text(t("Admin PIN"), fontSize = 17.sp, color = Flexarr.usher)
                     field()
                 }
             },
-            modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Admin PIN" },
+            modifier = Modifier.fillMaxWidth().semantics { contentDescription = t("Admin PIN") },
         )
-        Text("Forgotten it? Reset it from Flexarr in a browser.", fontSize = 13.sp, color = Flexarr.usher)
+        Text(t("Forgotten it? Reset it from Flexarr in a browser."), fontSize = 13.sp, color = Flexarr.usher)
     }
 }
 
@@ -261,7 +262,7 @@ private fun PairingSheet(model: AppModel, client: FlexarrClient, device: Waiting
                 }
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Check its screen shows", fontSize = 17.sp, color = Flexarr.screen)
+                Text(t("Check its screen shows"), fontSize = 17.sp, color = Flexarr.screen)
                 Text(
                     device.code,
                     fontSize = 44.sp,
@@ -279,7 +280,7 @@ private fun PairingSheet(model: AppModel, client: FlexarrClient, device: Waiting
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(22.dp))
-                    Text("Connected. It’ll be ready in a moment.", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
+                    Text(t("Connected. It’ll be ready in a moment."), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
                 }
                 is Answer.Failed -> Text(
                     now.message,

@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.components
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.layout.FlowRow
 
 import androidx.compose.foundation.text.TextAutoSize
@@ -211,7 +212,7 @@ fun SectionHeading(title: String, modifier: Modifier = Modifier, onSeeAll: (() -
         Text(title, style = marquee(26).copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f).semantics { heading() }, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (onSeeAll != null) {
             Text(
-                "See all",
+                t("See all"),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Flexarr.usher,
@@ -230,7 +231,7 @@ fun SectionHeading(title: String, modifier: Modifier = Modifier, onSeeAll: (() -
 fun PageTitle(title: String, onBack: (() -> Unit)? = null, trailing: @Composable () -> Unit = {}) {
     Column(Modifier.fillMaxWidth().statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Flexarr.screen) }
+            if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = t("Back"), tint = Flexarr.screen) }
             Box(Modifier.weight(1f))
             trailing()
         }
@@ -263,7 +264,7 @@ fun ProgressBar(value: Double, modifier: Modifier = Modifier, tint: Color = Flex
 @Composable
 fun WatchedBadge(modifier: Modifier = Modifier) {
     Box(modifier.size(20.dp).clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.92f)), contentAlignment = Alignment.Center) {
-        Icon(Icons.Filled.Check, contentDescription = "Watched", tint = Flexarr.room, modifier = Modifier.size(13.dp))
+        Icon(Icons.Filled.Check, contentDescription = t("Watched"), tint = Flexarr.room, modifier = Modifier.size(13.dp))
     }
 }
 
@@ -313,7 +314,7 @@ fun StatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Bool
             // Offline, a failure is just that: the Offline bar says the rest, and the screen loads again once it's back.
             LocalOffline.current -> {
                 Icon(Icons.Filled.WifiOff, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(40.dp))
-                Text("You’re offline", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen)
+                Text(t("You’re offline"), fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen)
             }
             else -> {
                 Icon(Icons.Filled.WifiOff, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(40.dp))

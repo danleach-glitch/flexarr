@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -313,7 +316,7 @@ internal fun TvRequestableAlbum(model: AppModel, item: MusicExternal, focus: Foc
                 enabled = enabled,
                 onClick = press,
                 modifier = Modifier.remembered("album/${item.id}/request"),
-                description = "Request album".takeIf { state == MusicRequestState.CanRequest && ask.failure == null },
+                description = t(Words.requestAlbum).takeIf { state == MusicRequestState.CanRequest && ask.failure == null },
             )
         }
         ask.failure?.takeIf { state == MusicRequestState.CanRequest || state == MusicRequestState.Requested }?.let { TvMusicFailure(it) }

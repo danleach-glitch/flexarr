@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.downloads
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -197,7 +200,7 @@ private fun BookDownloadRow(model: AppModel, book: io.github.flexarr.core.LocalB
                     LinearProgressIndicator(progress = { progress.toFloat() }, color = Flexarr.silver, trackColor = Flexarr.aisle, modifier = Modifier.fillMaxWidth().padding(end = 4.dp))
                 }
                 else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.go, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Filled.ArrowCircleDown, contentDescription = t("Downloaded"), tint = Flexarr.go, modifier = Modifier.size(14.dp))
                     caption(listOfNotNull(Format.bytes(book.estimatedBytes), if (book.finishedAtMillis != null) "Finished" else null).joinToString("   "))
                 }
             }
@@ -206,7 +209,7 @@ private fun BookDownloadRow(model: AppModel, book: io.github.flexarr.core.LocalB
             IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = "More for ${book.item.title}", tint = Flexarr.usher) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
                 if (book.phase == LocalPhase.Failed) {
-                    DropdownMenuItem(text = { Text("Try again") }, onClick = { menu = false; navigator.downloadBook(book.item) })
+                    DropdownMenuItem(text = { Text(t("Try again")) }, onClick = { menu = false; navigator.downloadBook(book.item) })
                 }
                 DropdownMenuItem(
                     text = { Text(if (book.isDownloaded) "Remove download" else "Stop download", color = Flexarr.danger) },
@@ -267,7 +270,7 @@ private fun DownloadListRow(
             IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = "More for $title", tint = Flexarr.usher) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
                 if (download.phase == LocalPhase.Failed) {
-                    DropdownMenuItem(text = { Text("Try again") }, onClick = {
+                    DropdownMenuItem(text = { Text(t("Try again")) }, onClick = {
                         menu = false
                         model.scope.launch { runCatching { store.download(download.item.id, download.quality, automatic = false) } }
                     })
@@ -295,7 +298,7 @@ private fun DownloadStatusLine(model: AppModel, download: LocalDownload, doneLin
         }
         download.phase == LocalPhase.Failed -> Text(download.failure ?: "Couldn’t download this.", fontSize = 12.sp, color = Flexarr.danger)
         else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.go, modifier = Modifier.size(14.dp))
+            Icon(Icons.Filled.ArrowCircleDown, contentDescription = t("Downloaded"), tint = Flexarr.go, modifier = Modifier.size(14.dp))
             caption(doneLine.joinToString("   "))
         }
     }
@@ -421,23 +424,23 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
                     Text(if (download.isDownloaded) "Remove download" else "Stop download", color = Flexarr.danger)
                 }
             },
-            dismissButton = { TextButton(onClick = { removing = false }) { Text("Cancel", color = Flexarr.screen) } },
+            dismissButton = { TextButton(onClick = { removing = false }) { Text(t(Words.cancel), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }
     problem?.let { message ->
         AlertDialog(
             onDismissRequest = { problem = null },
-            title = { Text("Couldn’t download this") },
+            title = { Text(t("Couldn’t download this")) },
             text = { Text(message) },
             confirmButton = {
                 TextButton(onClick = {
                     problem = null
                     download?.let { store.delete(it.id) }
                     start()
-                }) { Text("Try again", color = Flexarr.screen) }
+                }) { Text(t("Try again"), color = Flexarr.screen) }
             },
-            dismissButton = { TextButton(onClick = { problem = null }) { Text("Cancel", color = Flexarr.screen) } },
+            dismissButton = { TextButton(onClick = { problem = null }) { Text(t(Words.cancel), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }
@@ -475,23 +478,23 @@ fun EpisodeDownloadButton(model: AppModel, episodeId: String, title: String) {
                     Text(if (download.isDownloaded) "Remove download" else "Stop download", color = Flexarr.danger)
                 }
             },
-            dismissButton = { TextButton(onClick = { removing = false }) { Text("Cancel", color = Flexarr.screen) } },
+            dismissButton = { TextButton(onClick = { removing = false }) { Text(t(Words.cancel), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }
     problem?.let { message ->
         AlertDialog(
             onDismissRequest = { problem = null },
-            title = { Text("Couldn’t download this") },
+            title = { Text(t("Couldn’t download this")) },
             text = { Text(message) },
             confirmButton = {
                 TextButton(onClick = {
                     problem = null
                     download?.let { store.delete(it.id) }
                     model.scope.launch { runCatching { store.downloadEpisode(episodeId) } }
-                }) { Text("Try again", color = Flexarr.screen) }
+                }) { Text(t("Try again"), color = Flexarr.screen) }
             },
-            dismissButton = { TextButton(onClick = { problem = null }) { Text("Cancel", color = Flexarr.screen) } },
+            dismissButton = { TextButton(onClick = { problem = null }) { Text(t(Words.cancel), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }

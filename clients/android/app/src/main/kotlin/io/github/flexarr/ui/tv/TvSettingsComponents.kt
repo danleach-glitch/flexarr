@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -84,7 +85,7 @@ internal fun TvSettingsPage(title: String, summary: String?, rows: LazyListScope
         Row(Modifier.fillMaxSize().padding(start = TvLayout.Edge + 10.dp, end = TvLayout.Edge, top = 30.dp)) {
             Column(Modifier.width(280.dp), verticalArrangement = Arrangement.spacedBy(17.dp)) {
                 Text(title, fontSize = 29.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
-                Crossfade(focusedHelp ?: summary?.let { TvSettingHelp(null, it) }, animationSpec = tween(200), label = "help") { help ->
+                Crossfade(focusedHelp ?: summary?.let { TvSettingHelp(null, it) }, animationSpec = tween(200), label = t("help")) { help ->
                     SettingHelpPanel(help)
                 }
             }
@@ -195,7 +196,7 @@ internal fun TvSettingsRow(
             when (accessory) {
                 TvSettingAccessory.None -> {}
                 TvSettingAccessory.Chevron -> Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(16.dp).alpha(0.55f))
-                TvSettingAccessory.Checkmark -> Icon(Icons.Filled.Check, contentDescription = "Chosen", modifier = Modifier.size(15.dp))
+                TvSettingAccessory.Checkmark -> Icon(Icons.Filled.Check, contentDescription = t("Chosen"), modifier = Modifier.size(15.dp))
                 TvSettingAccessory.Handle -> Icon(Icons.Filled.DragHandle, contentDescription = null, modifier = Modifier.size(15.dp).alpha(0.55f))
                 TvSettingAccessory.Moving -> Icon(Icons.Filled.SwapVert, contentDescription = null, modifier = Modifier.size(15.dp))
                 TvSettingAccessory.SwitchOn, TvSettingAccessory.SwitchOff -> Switch(

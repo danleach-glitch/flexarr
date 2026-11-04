@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.flow.first
@@ -120,9 +121,9 @@ fun TvConnectScreen(model: AppModel) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     BrandMark(66.dp)
-                    Text("flexarr", style = marquee(75))
+                    Text(t("flexarr"), style = marquee(75))
                 }
-                Text("Your entertainment, on every screen.", fontSize = 18.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
+                Text(t("Your entertainment, on every screen."), fontSize = 18.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                 model.signedOutNotice?.let {
                     Text(it, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp))
                 }
@@ -160,14 +161,14 @@ private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> U
     val firstServer = browser.servers.firstOrNull()?.address
     LaunchedEffect(firstServer) { runCatching { if (firstServer != null) first.requestFocus() else if (BuildConfig.GUEST_INVITES) guest.requestFocus() else manual.requestFocus() } }
     Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
-        Text("Servers on your network", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
+        Text(t("Servers on your network"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
         if (browser.servers.isEmpty()) {
             Row(Modifier.padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Flexarr.usher)
-                Text("Looking for Flexarr…", fontSize = 14.sp, color = Flexarr.usher)
+                Text(t("Looking for Flexarr…"), fontSize = 14.sp, color = Flexarr.usher)
             }
             if (lookingAWhile) {
-                Text("Can’t see your server? Check this TV is on the same network as it, or enter an address.", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(t("Can’t see your server? Check this TV is on the same network as it, or enter an address."), fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
         } else {
             browser.servers.forEachIndexed { index, server ->
@@ -258,13 +259,13 @@ private fun GuestCode(model: AppModel, onBack: () -> Unit) {
             TvActionButton(if (guest.badInvite) "New code" else "Try again", onClick = { attempt++ }, prominent = true, modifier = Modifier.focusRequester(retry))
         } else {
             // Not once codes have stopped: there's none to read.
-            if (!guest.stopped) Text("Read this code to the person who invited you", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            if (!guest.stopped) Text(t("Read this code to the person who invited you"), fontSize = 20.sp, fontWeight = FontWeight.Bold)
             val shown = code
             if (shown != null) {
                 Text(shown.display, fontSize = 56.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp, modifier = Modifier.semantics { contentDescription = shown.spoken })
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Flexarr.usher)
-                    Text("They type it into Settings › Remote access in Flexarr.", fontSize = 13.sp, color = Flexarr.usher)
+                    Text(t("They type it into Settings › Remote access in Flexarr."), fontSize = 13.sp, color = Flexarr.usher)
                 }
             } else if (guest.stopped) {
                 TvActionButton("Show a new code", onClick = { attempt++ }, prominent = true, modifier = Modifier.focusRequester(newCode))
@@ -296,15 +297,15 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
         val code = session.code
         if (session.declined) {
             Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text("Not allowed", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text("The main profile turned this TV away. If that was a mistake, try again and allow it this time.", fontSize = 14.sp, color = Flexarr.usher)
+                Text(t("Not allowed"), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(t("The main profile turned this TV away. If that was a mistake, try again and allow it this time."), fontSize = 14.sp, color = Flexarr.usher)
             }
         } else if (code != null) {
             // The phone's steps, word for word: a phone signed in as the main profile is asked to allow it, and the web
             // app does it without one. A new server has nobody to allow it yet, so setting it up in a browser comes
             // first; the QR code only helps a phone that's signed in already, so it's small, underneath.
             Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
-                Text("Connect this TV", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(t("Connect this TV"), fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 if (session.needsSetup) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         NumberedStep(1) {
@@ -352,14 +353,14 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Flexarr.usher)
-                    Text("This screen moves on by itself once it’s allowed.", fontSize = 12.sp, color = Flexarr.usher)
+                    Text(t("This screen moves on by itself once it’s allowed."), fontSize = 12.sp, color = Flexarr.usher)
                 }
             }
             if (!session.needsSetup) {
                 session.link(server)?.let { link ->
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                         QrCode(link, Modifier.size(70.dp))
-                        Text("Or scan with a phone that’s signed in to Flexarr.", fontSize = 12.sp, color = Flexarr.usher)
+                        Text(t("Or scan with a phone that’s signed in to Flexarr."), fontSize = 12.sp, color = Flexarr.usher)
                     }
                 }
             }
@@ -380,7 +381,7 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.bold(text: String) 
 private fun Code(code: String, renewed: Boolean) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(code, fontSize = 44.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp)
-        if (renewed) Text("A new code", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver)
+        if (renewed) Text(t("A new code"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver)
     }
 }
 
@@ -400,7 +401,7 @@ private fun NumberedStep(number: Int, text: androidx.compose.ui.text.AnnotatedSt
 internal fun QrCode(text: String, modifier: Modifier = Modifier) {
     val bitmap = remember(text) { qrBitmap(text) }
     Box(modifier.background(Color.White, RoundedCornerShape(Tokens.radiusPanel)).padding(9.dp)) {
-        Image(bitmap, contentDescription = "QR code", filterQuality = FilterQuality.None, modifier = Modifier.fillMaxSize())
+        Image(bitmap, contentDescription = t("QR code"), filterQuality = FilterQuality.None, modifier = Modifier.fillMaxSize())
     }
 }
 
@@ -492,7 +493,7 @@ private fun ManualConnect(model: AppModel, onPair: (DiscoveredServer) -> Unit, o
                 )
             }
         } else {
-            Text("You’ll get a code to approve, like a server found on your network.", fontSize = 12.sp, color = Flexarr.usher)
+            Text(t("You’ll get a code to approve, like a server found on your network."), fontSize = 12.sp, color = Flexarr.usher)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TvActionButton(

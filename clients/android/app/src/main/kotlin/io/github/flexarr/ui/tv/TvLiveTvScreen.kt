@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
 import android.text.format.DateFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -303,9 +304,9 @@ private fun NoFavourites() {
     Column(Modifier.widthIn(max = 450.dp).padding(top = 30.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.StarOutline, contentDescription = null, modifier = Modifier.size(17.dp))
-            Text("No favourites yet", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Text(t("No favourites yet"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
         }
-        Text("In All channels, press and hold a programme and choose Add to Favourites. Favourites come first here, on Home, and when changing channel.", fontSize = 13.sp, color = Flexarr.usher)
+        Text(t("In All channels, press and hold a programme and choose Add to Favourites. Favourites come first here, on Home, and when changing channel."), fontSize = 13.sp, color = Flexarr.usher)
     }
 }
 
@@ -530,7 +531,7 @@ private fun ChannelLabel(channel: LiveChannel, client: FlexarrClient) {
             client.imageUrl(channel.logoUrl, 160)?.let { url ->
                 AsyncImage(url, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().background(Flexarr.room))
             }
-            if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = StarColor, modifier = Modifier.size(8.dp).align(Alignment.TopEnd).offset(x = 5.dp, y = (-3).dp))
+            if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = t("Favourite"), tint = StarColor, modifier = Modifier.size(8.dp).align(Alignment.TopEnd).offset(x = 5.dp, y = (-3).dp))
         }
     }
 }
@@ -594,7 +595,7 @@ private fun NoListingsCell(onClick: () -> Unit, modifier: Modifier) {
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.01f),
     ) {
         Box(Modifier.fillMaxSize().padding(start = 10.dp), contentAlignment = Alignment.CenterStart) {
-            Text("No listings", fontSize = 12.sp)
+            Text(t("No listings"), fontSize = 12.sp)
         }
     }
 }
@@ -701,7 +702,7 @@ private fun TvLiveRecordings(model: AppModel, onChanged: () -> Unit, onUpcoming:
         loaded != null -> LazyColumn(verticalArrangement = Arrangement.spacedBy(5.dp), contentPadding = PaddingValues(top = 6.dp, bottom = 30.dp, end = TvLayout.Edge)) {
             item { Heading("Coming up") }
             if (loaded.upcoming.isEmpty()) {
-                item { Text("Nothing set to record. In the guide, press and hold a programme and choose Record, or Record series.", fontSize = 13.sp, color = Flexarr.usher) }
+                item { Text(t("Nothing set to record. In the guide, press and hold a programme and choose Record, or Record series."), fontSize = 13.sp, color = Flexarr.usher) }
             }
             items(loaded.upcoming, key = { "u" + it.id }) { recording ->
                 RecordingRow(recording.title, detail(recording), recordingNow = recording.isRecordingNow, warning = when {

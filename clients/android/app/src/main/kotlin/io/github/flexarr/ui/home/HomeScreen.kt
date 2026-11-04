@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.home
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -178,7 +179,7 @@ fun HomeScreen(model: AppModel) {
     val ambient = animateColorAsState(
         featured?.getOrNull(featuredIndex % featured.size.coerceAtLeast(1))?.let { glowColor(it.accentColor) } ?: Flexarr.room,
         tween(800),
-        label = "ambient",
+        label = t("ambient"),
     )
 
     RoomBackground(ambient = { ambient.value }, intensity = 0.28f) {
@@ -493,7 +494,7 @@ private fun EmptyHome(message: EmptyHomeMessage) {
                 message.folders.forEach { Text(it, fontSize = 13.sp, fontFamily = FontFamily.Monospace, color = Flexarr.screen) }
             }
         }
-        Text("Pull down to refresh.", fontSize = 13.sp, color = Flexarr.usher, fontWeight = FontWeight.Normal)
+        Text(t("Pull down to refresh."), fontSize = 13.sp, color = Flexarr.usher, fontWeight = FontWeight.Normal)
     }
 }
 

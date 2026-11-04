@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.detail
 
+import io.github.flexarr.core.i18n.t
 import android.annotation.SuppressLint
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -40,7 +41,7 @@ fun TrailerSheet(videoId: String, title: String, onClose: () -> Unit) {
             Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.padding(bottom = 12.dp))
             val id = youTubeId(videoId)
             if (id == null) {
-                Text("This trailer can’t be played.", fontSize = 15.sp, color = Flexarr.usher)
+                Text(t("This trailer can’t be played."), fontSize = 15.sp, color = Flexarr.usher)
             } else {
                 TrailerPlayer(id, Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Color.Black))
             }

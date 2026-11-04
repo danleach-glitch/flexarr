@@ -24,6 +24,11 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
+        // The language shown last, before anything draws, for the app and its widgets and notifications alike; its
+        // dates and numbers in this device's own variant (docs/languages.md).
+        io.github.flexarr.core.i18n.Localization.cacheDir = filesDir
+        io.github.flexarr.core.i18n.Localization.deviceLanguages = android.os.LocaleList.getDefault().toLanguageTags().split(',')
+        io.github.flexarr.core.i18n.Localization.startWithLastShown()
         FlexarrClient.deviceType = deviceType()
         LogHub.start(this)
         // Read once (decrypting it takes a moment) for both.

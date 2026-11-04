@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.livetv
 
+import io.github.flexarr.core.i18n.t
 import android.text.format.Formatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -113,7 +114,7 @@ fun LiveRecordingsScreen(model: AppModel) {
                         section("Coming up") {
                             if (loaded.upcoming.isEmpty()) {
                                 Text(
-                                    "Nothing set to record. In the Guide, hold a programme and choose Record, or Record series.",
+                                    t("Nothing set to record. In the Guide, hold a programme and choose Record, or Record series."),
                                     fontSize = 13.sp,
                                     color = Flexarr.usher,
                                     modifier = Modifier.padding(16.dp),
@@ -182,7 +183,7 @@ private fun RecordingRow(recording: Recording, action: String, onOpen: (() -> Un
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (recording.isRecordingNow) Box(Modifier.size(9.dp).clip(CircleShape).background(RecordRed).semantics { contentDescription = "Recording now" })
+        if (recording.isRecordingNow) Box(Modifier.size(9.dp).clip(CircleShape).background(RecordRed).semantics { contentDescription = t("Recording now") })
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(recording.title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
             val parts = buildList {
@@ -194,7 +195,7 @@ private fun RecordingRow(recording: Recording, action: String, onOpen: (() -> Un
             }
             Text(parts.joinToString("   "), fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
             when {
-                recording.clashes -> Text("Won’t record: every stream is wanted by recordings scheduled before it.", fontSize = 12.sp, color = Flexarr.danger)
+                recording.clashes -> Text(t("Won’t record: every stream is wanted by recordings scheduled before it."), fontSize = 12.sp, color = Flexarr.danger)
                 recording.reason != null && recording.state != "scheduled" -> Text(recording.reason!!, fontSize = 12.sp, color = Flexarr.usher)
             }
         }
@@ -207,7 +208,7 @@ private fun RecordingRow(recording: Recording, action: String, onOpen: (() -> Un
 private fun RowMenu(label: String, onClick: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }) { Icon(FlexarrIcons.more, contentDescription = "More", tint = Flexarr.usher) }
+        IconButton(onClick = { open = true }) { Icon(FlexarrIcons.more, contentDescription = t("More"), tint = Flexarr.usher) }
         DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
             DropdownMenuItem(text = { Text(label, color = Flexarr.danger) }, onClick = { open = false; onClick() })
         }

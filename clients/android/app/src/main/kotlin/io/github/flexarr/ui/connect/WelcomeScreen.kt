@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.connect
 
+import io.github.flexarr.core.i18n.t
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -85,7 +86,7 @@ fun WelcomeScreen(onDone: () -> Unit) {
         Column(Modifier.fillMaxSize().safeDrawingPadding(), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Skip",
+                    t("Skip"),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Flexarr.usher,
@@ -96,19 +97,19 @@ fun WelcomeScreen(onDone: () -> Unit) {
                 when (page) {
                     0 -> WelcomePage(
                         art = { BrandMark(96.dp) },
-                        title = "Your entertainment, on every screen.",
+                        title = t("Your entertainment, on every screen."),
                         message = "Flexarr plays the movies, shows and music you keep at home, on this phone, wherever you are.",
                     )
                     1 -> WelcomePage(
                         art = { Symbol(Icons.Filled.Dns) },
-                        title = "Set up your free server",
+                        title = t("Set up your free server"),
                         message = "The app plays from your own Flexarr server, on a computer in your home: a Mac, a NAS or anything with Docker. The server is completely free, and setting it up takes less than a minute.",
                     ) {
                         ActionButton("Set up at flexarr.io", onClick = { uri.openUri(INSTALL_URL) }, icon = Icons.Filled.Language)
                     }
                     else -> WelcomePage(
                         art = { Symbol(Icons.Filled.Wifi) },
-                        title = "Then connect",
+                        title = t("Then connect"),
                         message = "On the same Wi-Fi, this phone finds your server by itself. Then approve the code it shows and you’re in.",
                     )
                 }

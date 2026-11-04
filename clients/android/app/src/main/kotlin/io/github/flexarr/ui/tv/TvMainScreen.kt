@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
@@ -151,7 +152,7 @@ fun TvMainScreen(model: AppModel) {
     var sidebarOpen by remember { mutableStateOf(false) }
     // The Now Playing bar's room at the foot, so the last row isn't under it.
     var barShown by remember { mutableStateOf(false) }
-    val barRoom by animateDpAsState(if (barShown) NOW_PLAYING_BAR_ROOM else 0.dp, label = "bar room")
+    val barRoom by animateDpAsState(if (barShown) NOW_PLAYING_BAR_ROOM else 0.dp, label = t("bar room"))
     var choosingProfile by remember { mutableStateOf(false) }
     // Now Playing over everything, as Play or Shuffle opens it (the Music app's way): Back closes it, back to where
     // it was pressed.
@@ -490,7 +491,7 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
             // The logo and the app's version, quietly at the foot.
             Row(Modifier.padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 BrandMark(13.dp)
-                Text("flexarr", style = marquee(11, Flexarr.screen.copy(alpha = 0.8f)))
+                Text(t("flexarr"), style = marquee(11, Flexarr.screen.copy(alpha = 0.8f)))
                 Text(BuildConfig.VERSION_NAME, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher.copy(alpha = 0.7f), modifier = Modifier.padding(start = 6.dp))
             }
         }

@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.podcasts
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -185,13 +188,13 @@ fun PodcastScreen(model: AppModel, id: String) {
             PageTitle("", onBack = navigator::back) {
                 if (show != null) {
                     Box {
-                        IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = "More", tint = Flexarr.screen) }
+                        IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = t("More"), tint = Flexarr.screen) }
                         DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                            Text("Order", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                            Text(t("Order"), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                             listOf("Newest first" to false, "Oldest first" to true).forEach { (label, oldest) ->
                                 DropdownMenuItem(
                                     text = { Text(label) },
-                                    leadingIcon = { Box(Modifier.width(20.dp)) { if (oldestFirst == oldest) Icon(Icons.Filled.Check, contentDescription = "Chosen") } },
+                                    leadingIcon = { Box(Modifier.width(20.dp)) { if (oldestFirst == oldest) Icon(Icons.Filled.Check, contentDescription = t("Chosen")) } },
                                     onClick = {
                                         menu = false
                                         if (oldest != oldestFirst) {
@@ -202,7 +205,7 @@ fun PodcastScreen(model: AppModel, id: String) {
                                 )
                             }
                             HorizontalDivider(color = Flexarr.aisle)
-                            DropdownMenuItem(text = { Text("Mark all as played") }, enabled = show.unplayedCount > 0, onClick = { menu = false; markingAllPlayed = true })
+                            DropdownMenuItem(text = { Text(t("Mark all as played")) }, enabled = show.unplayedCount > 0, onClick = { menu = false; markingAllPlayed = true })
                         }
                     }
                 }
@@ -244,7 +247,7 @@ fun PodcastScreen(model: AppModel, id: String) {
     if (markingAllPlayed && show != null) {
         AlertDialog(
             onDismissRequest = { markingAllPlayed = false },
-            title = { Text("Mark all as played?") },
+            title = { Text(t("Mark all as played?")) },
             text = { Text("All ${Format.count(show.episodeCount)} episodes of ${show.title} will be marked as played.") },
             confirmButton = {
                 TextButton(onClick = {
@@ -253,19 +256,19 @@ fun PodcastScreen(model: AppModel, id: String) {
                         runCatching { client.setWatched(id, true) }.onSuccess { model.downloads.markedPlayed(id) }
                         model.watchStateChanged()
                     }
-                }) { Text("Mark as played") }
+                }) { Text(t(Words.markAsPlayed)) }
             },
-            dismissButton = { TextButton(onClick = { markingAllPlayed = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { markingAllPlayed = false }) { Text(t(Words.cancel)) } },
             containerColor = Flexarr.seat,
         )
     }
     if (unfollowing) {
         AlertDialog(
             onDismissRequest = { unfollowing = false },
-            title = { Text("Stop following this show?") },
-            text = { Text("Its new episodes stop coming to this phone. Episodes already downloaded stay until you delete them.") },
-            confirmButton = { TextButton(onClick = { unfollowing = false; follow(false) }) { Text("Stop following", color = Flexarr.danger) } },
-            dismissButton = { TextButton(onClick = { unfollowing = false }) { Text("Cancel") } },
+            title = { Text(t("Stop following this show?")) },
+            text = { Text(t("Its new episodes stop coming to this phone. Episodes already downloaded stay until you delete them.")) },
+            confirmButton = { TextButton(onClick = { unfollowing = false; follow(false) }) { Text(t(Words.stopFollowing), color = Flexarr.danger) } },
+            dismissButton = { TextButton(onClick = { unfollowing = false }) { Text(t(Words.cancel)) } },
             containerColor = Flexarr.seat,
         )
     }

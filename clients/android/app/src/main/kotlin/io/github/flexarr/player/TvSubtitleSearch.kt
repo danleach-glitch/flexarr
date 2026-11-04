@@ -1,5 +1,6 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.core.i18n.t
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -109,7 +110,7 @@ internal fun TvSubtitleSearch(
         modifier.fillMaxHeight().width(380.dp).padding(20.dp).glass(RoundedCornerShape(Tokens.radiusPanel)).padding(vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("Search for subtitles", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.padding(horizontal = 20.dp))
+        Text(t("Search for subtitles"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.padding(horizontal = 20.dp))
         downloadError?.let { Text(it, fontSize = 13.sp, color = Flexarr.danger, modifier = Modifier.padding(horizontal = 20.dp)) }
         LazyColumn(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             item {
@@ -160,7 +161,7 @@ private fun ResultRow(title: String, detail: String, provider: String?, matchesF
                         provider?.let { Text(it, fontSize = 12.sp, color = quiet, maxLines = 1) }
                         if (matchesFile) {
                             Icon(Icons.Filled.Verified, contentDescription = null, modifier = Modifier.size(12.dp))
-                            Text("Matches your file", fontSize = 12.sp, maxLines = 1)
+                            Text(t("Matches your file"), fontSize = 12.sp, maxLines = 1)
                         }
                     }
                 }

@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.music
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -136,10 +139,10 @@ fun AddToPlaylistSheet(client: FlexarrClient, item: PlaylistAddition, onClose: (
         Column(Modifier.navigationBarsPadding().imePadding()) {
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Add to playlist", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
+                    Text(t(Words.addToPlaylist), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
                     Text(item.title, fontSize = 13.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = "Close", tint = Flexarr.screen) }
+                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = t("Close"), tint = Flexarr.screen) }
             }
             loadError?.let { Text(it, fontSize = 13.sp, color = Flexarr.danger, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
             val list = playlists

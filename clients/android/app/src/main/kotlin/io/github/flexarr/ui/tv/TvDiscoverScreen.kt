@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -521,7 +524,7 @@ private fun MusicBrowse(
                         }
                     }
                     item(key = "note") {
-                        Text("Data from Deezer", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, modifier = Modifier.padding(start = TvLayout.Edge, top = 10.dp))
+                        Text(t("Data from Deezer"), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, modifier = Modifier.padding(start = TvLayout.Edge, top = 10.dp))
                     }
                 }
             }
@@ -563,7 +566,7 @@ private fun MusicSearchScreen(client: FlexarrClient) {
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = SwitchTop, bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
             item(key = "field") {
-                SearchField(query, { query = it }, Modifier.padding(horizontal = TvLayout.Edge).focusMemory(focus, "field"), placeholder = "Any artist or album")
+                SearchField(query, { query = it }, Modifier.padding(horizontal = TvLayout.Edge).focusMemory(focus, "field"), placeholder = t("Any artist or album"))
             }
             val found = results
             when {
@@ -693,7 +696,7 @@ internal val Availability.label: String?
 @Composable
 private fun LibraryBadge(modifier: Modifier = Modifier) {
     Box(modifier.size(18.dp).background(Flexarr.go, CircleShape), contentAlignment = Alignment.Center) {
-        Icon(FlexarrIcons.play, contentDescription = "In your library", tint = Flexarr.room, modifier = Modifier.size(13.dp).offset(x = 0.5.dp))
+        Icon(FlexarrIcons.play, contentDescription = t(Words.inYourLibrary), tint = Flexarr.room, modifier = Modifier.size(13.dp).offset(x = 0.5.dp))
     }
 }
 

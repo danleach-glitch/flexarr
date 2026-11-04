@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -75,7 +78,7 @@ fun TvWatchlistScreen(model: AppModel) {
                     verticalArrangement = Arrangement.spacedBy(26.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    item(key = "title", span = { GridItemSpan(maxLineSpan) }) { Text("Watchlist", style = marquee(32)) }
+                    item(key = "title", span = { GridItemSpan(maxLineSpan) }) { Text(t(Words.watchlist), style = marquee(32)) }
                     if (state.value.isEmpty()) {
                         item(key = "empty", span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.size(880.dp, 250.dp)) { TvStatusView("Nothing here yet.", empty = true) } }
                     } else {

@@ -1,5 +1,6 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.core.i18n.t
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -386,7 +387,7 @@ private fun TvAudioSync(controller: PlaybackController, onDone: () -> Unit, modi
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Audio sync", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.7f))
+        Text(t("Audio sync"), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.7f))
         Column(
             Modifier.focusRequester(value).focusable(interactionSource = source)
                 .border(2.dp, if (focused) Flexarr.screen else Color.Transparent, RoundedCornerShape(Tokens.radiusPanel))

@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -84,7 +85,7 @@ fun TvOfflineScreen(model: AppModel) {
         Dialog(onDismissRequest = { confirmSignOut = false }) {
             Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(14.dp)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(if (owner != null) "Leave $owner’s Flexarr?" else "Sign out of this server?", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                if (owner != null) Text("Joining again takes a new code.", fontSize = 14.sp, color = Flexarr.usher)
+                if (owner != null) Text(t("Joining again takes a new code."), fontSize = 14.sp, color = Flexarr.usher)
                 // As the Apple TV: Cancel first, and where focus starts.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     TvActionButton("Cancel", onClick = { confirmSignOut = false }, prominent = true, modifier = Modifier.focusRequester(cancel))

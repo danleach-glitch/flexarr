@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -69,7 +72,7 @@ fun TvComingSoonScreen(model: AppModel) {
                 val days = state.value
                 val first = remember { FocusRequester() }
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 28.dp, bottom = 45.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    item(key = "title") { Text("Coming soon", style = marquee(32), modifier = Modifier.padding(start = TvLayout.Edge, bottom = 8.dp)) }
+                    item(key = "title") { Text(t(Words.comingSoon), style = marquee(32), modifier = Modifier.padding(start = TvLayout.Edge, bottom = 8.dp)) }
                     if (days.isEmpty()) {
                         item(key = "empty") {
                             Box(Modifier.size(960.dp, 250.dp)) { TvStatusView("Nothing is scheduled. Monitored shows and movies appear here as their dates get close.", empty = true) }
@@ -145,7 +148,7 @@ internal fun TvSeeAllCard(onClick: () -> Unit) {
     TvArtworkButton(
         ambient = Flexarr.silver,
         onClick = onClick,
-        contentDescription = "See all coming soon",
+        contentDescription = t("See all coming soon"),
         artwork = {
             Column(
                 Modifier.size(width, TvLayout.WideWidth * 9f / 16f).background(Flexarr.seat),
@@ -153,7 +156,7 @@ internal fun TvSeeAllCard(onClick: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Icon(FlexarrIcons.comingSoon, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(27.dp))
-                Text("See all", fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
+                Text(t("See all"), fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
             }
         },
     )

@@ -1,5 +1,6 @@
 package io.github.flexarr.notifications
 
+import io.github.flexarr.core.i18n.t
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -58,7 +59,7 @@ class FlexarrMessagingService : FirebaseMessagingService() {
         val sealed = message.data["e"] ?: return
         val key = applicationContext.appModel.notifications.savedKey()
         val payload = key?.let { runCatching { PushPayload.open(sealed, it) }.onFailure { e -> log.warning("Couldn't open a notification", e) }.getOrNull() }
-        show(this, payload ?: PushPayload(title = "Flexarr", body = "Something new is ready."))
+        show(this, payload ?: PushPayload(title = t("Flexarr"), body = "Something new is ready."))
     }
 
     companion object {
@@ -70,13 +71,13 @@ class FlexarrMessagingService : FirebaseMessagingService() {
         fun createChannels(context: Context) {
             val manager = context.getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(NotificationChannel(CHANNEL, "New in your library", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "Movies, shows, podcast episodes, recordings and requests as they arrive"
+                description = t("Movies, shows, podcast episodes, recordings and requests as they arrive")
             })
             manager.createNotificationChannel(NotificationChannel(UPCOMING_CHANNEL, "Upcoming", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "Each morning, what's airing today"
+                description = t("Each morning, what's airing today")
             })
             manager.createNotificationChannel(NotificationChannel(DEVICES_CHANNEL, "Devices asking to connect", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "A TV, phone or tablet waiting for you to let it in"
+                description = t("A TV, phone or tablet waiting for you to let it in")
             })
         }
 

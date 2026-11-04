@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.library
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -469,10 +470,10 @@ private fun SortAndFilter(sort: LibrarySort, onSort: (LibrarySort) -> Unit, genr
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
-            Icon(Icons.Filled.FilterList, contentDescription = "Sort and filter", tint = if (genre == null) Flexarr.screen else Flexarr.silver)
+            Icon(Icons.Filled.FilterList, contentDescription = t("Sort and filter"), tint = if (genre == null) Flexarr.screen else Flexarr.silver)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            Text("Sort by", fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+            Text(t("Sort by"), fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
             LibrarySort.entries.forEach { option ->
                 DropdownMenuItem(
                     text = { Text(option.label, fontWeight = if (option == sort) FontWeight.Bold else FontWeight.Normal) },
@@ -485,7 +486,7 @@ private fun SortAndFilter(sort: LibrarySort, onSort: (LibrarySort) -> Unit, genr
             }
             if (genres.isNotEmpty()) {
                 HorizontalDivider(color = Flexarr.aisle)
-                Text("Genre", fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                Text(t("Genre"), fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
                 val choices = listOf<GenreCount?>(null) + genres
                 choices.forEach { choice ->
                     val selected = choice?.name == genre

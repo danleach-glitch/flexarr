@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import android.view.KeyEvent
@@ -127,7 +130,7 @@ fun TvProfilePicker(model: AppModel, marksCurrent: Boolean = false, onDone: () -
             })) { pin -> choose(pinFor, pin) }
         } else {
             Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically)) {
-                Text("Who’s watching?", style = marquee(38).copy(fontWeight = FontWeight.ExtraBold))
+                Text(t("Who’s watching?"), style = marquee(38).copy(fontWeight = FontWeight.ExtraBold))
                 Row(horizontalArrangement = Arrangement.spacedBy(40.dp)) {
                     model.profiles.forEach { profile ->
                         val caption = when {
@@ -257,7 +260,7 @@ private fun PinPad(
                     row.forEach { key ->
                         val modifier = Modifier.width(65.dp).then(if (key == "1") Modifier.focusRequester(first) else Modifier)
                         when (key) {
-                            "delete" -> TvActionButton(null, onClick = { press(key) }, icon = Icons.AutoMirrored.Filled.Backspace, contentDescription = "Delete", modifier = modifier)
+                            "delete" -> TvActionButton(null, onClick = { press(key) }, icon = Icons.AutoMirrored.Filled.Backspace, contentDescription = t(Words.delete), modifier = modifier)
                             "ok" -> TvActionButton("OK", onClick = { press(key) }, prominent = true, modifier = modifier)
                             else -> TvActionButton(key, onClick = { press(key) }, modifier = modifier)
                         }

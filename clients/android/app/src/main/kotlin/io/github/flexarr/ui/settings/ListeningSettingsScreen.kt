@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -197,7 +198,7 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
             }
             if (saveFailed) item {
                 Text(
-                    "That didn’t save. Try again.",
+                    t("That didn’t save. Try again."),
                     fontSize = 15.sp,
                     color = Flexarr.danger,
                     modifier = Modifier.padding(horizontal = Edge).semantics { liveRegion = LiveRegionMode.Polite },

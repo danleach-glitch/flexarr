@@ -34,10 +34,8 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
-        // The language shown last, before anything draws; its dates and numbers in this device's own variant.
-        io.github.flexarr.core.i18n.Localization.cacheDir = filesDir
+        // The device's languages may have changed while the app was away (FlexarrApplication set them at launch).
         io.github.flexarr.core.i18n.Localization.deviceLanguages = android.os.LocaleList.getDefault().toLanguageTags().split(',')
-        io.github.flexarr.core.i18n.Localization.startWithLastShown()
         // Upright on a phone; a tablet turns either way, as an iPad does (and a TV is a TV).
         requestedOrientation = if (isTelevision || resources.configuration.smallestScreenWidthDp >= 600) {
             ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED

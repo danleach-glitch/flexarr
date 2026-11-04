@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -24,10 +25,10 @@ internal fun Stepper(label: String, value: Int, range: IntRange, enabled: Boolea
         val canLower = enabled && value > range.first
         val canRaise = enabled && value < range.last
         IconButton(onClick = { onChange(value - 1) }, enabled = canLower) {
-            Icon(Icons.Filled.Remove, contentDescription = "Fewer", tint = if (canLower) Flexarr.screen else Flexarr.aisle)
+            Icon(Icons.Filled.Remove, contentDescription = t("Fewer"), tint = if (canLower) Flexarr.screen else Flexarr.aisle)
         }
         IconButton(onClick = { onChange(value + 1) }, enabled = canRaise) {
-            Icon(Icons.Filled.Add, contentDescription = "More", tint = if (canRaise) Flexarr.screen else Flexarr.aisle)
+            Icon(Icons.Filled.Add, contentDescription = t("More"), tint = if (canRaise) Flexarr.screen else Flexarr.aisle)
         }
     }
 }

@@ -1,5 +1,8 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -120,7 +123,7 @@ internal fun PromptPill(title: String, countingDown: Boolean, held: Boolean, onT
         }
         if (countingDown) {
             Box(
-                Modifier.fillMaxHeight().pressable(onCancel).semantics { contentDescription = "Cancel" }.padding(vertical = 8.dp)
+                Modifier.fillMaxHeight().pressable(onCancel).semantics { contentDescription = t(Words.cancel) }.padding(vertical = 8.dp)
                     .clip(xShape).background(restingFill).padding(start = 11.dp, end = 14.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -163,7 +166,7 @@ internal fun TvPromptPill(title: String, countingDown: Boolean, held: Boolean, o
             PromptLabel(title, held, tint, 14.5.sp)
         }
         if (countingDown) {
-            TvPromptHalf(onCancel, xShape, Modifier.semantics { contentDescription = "Cancel" }, start = 10.dp, end = 13.dp) { tint ->
+            TvPromptHalf(onCancel, xShape, Modifier.semantics { contentDescription = t(Words.cancel) }, start = 10.dp, end = 13.dp) { tint ->
                 Icon(Icons.Filled.Close, contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
             }
         }

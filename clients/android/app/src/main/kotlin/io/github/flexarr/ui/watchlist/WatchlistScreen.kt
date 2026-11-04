@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.watchlist
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -187,7 +190,7 @@ private fun EntryCard(model: AppModel, entry: WatchlistEntry) {
                 if (canRequest) {
                     // 28 to see, 48 to touch: the reserved space around it takes the taps too.
                     Text(
-                        "Request",
+                        t(Words.request),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Flexarr.screen,
@@ -216,7 +219,7 @@ private fun FilterMenu(
     val filtered = filter != WatchlistFilter.Everything || kind != WatchlistKind.All
     Box {
         IconButton(onClick = { open = true }) {
-            Icon(Icons.Filled.FilterList, contentDescription = "Filter", tint = if (filtered) Flexarr.silver else Flexarr.screen)
+            Icon(Icons.Filled.FilterList, contentDescription = t("Filter"), tint = if (filtered) Flexarr.silver else Flexarr.screen)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             MenuHeading("Show")

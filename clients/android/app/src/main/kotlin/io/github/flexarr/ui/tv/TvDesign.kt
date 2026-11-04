@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
@@ -207,7 +208,7 @@ fun TvArtworkButton(
 ) {
     val source = remember { MutableInteractionSource() }
     val focused by source.collectIsFocusedAsState()
-    val drop by animateDpAsState(if (focused) 7.dp else 0.dp, spring(dampingRatio = 0.8f, stiffness = 500f), label = "caption")
+    val drop by animateDpAsState(if (focused) 7.dp else 0.dp, spring(dampingRatio = 0.8f, stiffness = 500f), label = t("caption"))
     Column(modifier, verticalArrangement = Arrangement.spacedBy(9.dp)) {
         Surface(
             onClick = onClick,

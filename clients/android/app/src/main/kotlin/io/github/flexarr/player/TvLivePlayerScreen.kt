@@ -1,5 +1,6 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.core.i18n.t
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -232,7 +233,7 @@ internal fun TvLivePlayerScreen(controller: LiveTvController, onClose: () -> Uni
         Dialog(onDismissRequest = controller::dismissRecordingChoice) {
             TvTheme {
                 Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Recording", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(t("Recording"), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     Text(recording.message, fontSize = 13.sp, color = Flexarr.usher)
                     TvActionButton("Watch ${recording.channelName}", onClick = controller::watchRecorded, prominent = true, modifier = Modifier.fillMaxWidth().focusRequester(watch))
                     TvActionButton("Stop the recording", onClick = controller::stopRecordingAndWatch, modifier = Modifier.fillMaxWidth())
@@ -341,7 +342,7 @@ private fun ChannelPanel(controller: LiveTvController, onPick: (LiveChannel) -> 
     }
     Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0.4f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.75f)))) {
         Column(Modifier.align(Alignment.CenterEnd).width(380.dp).fillMaxHeight().background(Flexarr.room.copy(alpha = 0.92f)).padding(start = 18.dp, end = 18.dp, top = 28.dp)) {
-            Text("Channels", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
+            Text(t("Channels"), fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
             LazyColumn(state = list, verticalArrangement = Arrangement.spacedBy(4.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                 items(listed, key = { it.id }) { channel ->
                     val isCurrent = channel.id == current
@@ -368,7 +369,7 @@ private fun ChannelPanel(controller: LiveTvController, onPick: (LiveChannel) -> 
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Text(channel.now?.displayTitle ?: "No listings", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                                    if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = LiveStar, modifier = Modifier.size(9.dp))
+                                    if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = t("Favourite"), tint = LiveStar, modifier = Modifier.size(9.dp))
                                 }
                                 Text(channel.name, fontSize = 10.sp, maxLines = 1)
                                 channel.now?.let { TvProgressBar(it.progress().toDouble(), Modifier.width(70.dp), tint = Flexarr.silver) }
@@ -391,7 +392,7 @@ private fun GuideOverlay(controller: LiveTvController, onWatch: (LiveChannel) ->
     LaunchedEffect(version, hours) { runCatching { TvGuideCache.guide(controller.client, hours, controller.profileId, fresh = version > 0) }.onSuccess { guide = it } }
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.8f))) {
         Column(Modifier.padding(start = TvLayout.Edge, top = 25.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Guide", style = marquee(28))
+            Text(t("Guide"), style = marquee(28))
             TvLiveGuideGrid(
                 controller.client,
                 controller.channels,

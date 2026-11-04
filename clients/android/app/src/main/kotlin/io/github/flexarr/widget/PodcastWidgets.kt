@@ -1,5 +1,8 @@
 package io.github.flexarr.widget
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -383,7 +386,7 @@ class UpNextWidget : GlanceAppWidget() {
             GlanceModifier.fillMaxSize().background(PodcastWidgets.ROOM).cornerRadius(20.dp).padding(12.dp)
                 .clickable(episodes.firstOrNull()?.let { PodcastWidgets.play(context, it.entry.id) } ?: actionStartActivity(AppLink.Home.intent(context))),
         ) {
-            Text("Up next", style = TextStyle(color = PodcastWidgets.USHER, fontSize = 12.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+            Text(t(Words.upNext), style = TextStyle(color = PodcastWidgets.USHER, fontSize = 12.sp, fontWeight = FontWeight.Bold), maxLines = 1)
             Spacer(GlanceModifier.height(8.dp))
             when {
                 state == PodcastWidgets.State.SignedOut -> Note("Open Flexarr to connect it to your server.")

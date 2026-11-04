@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.playon
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -89,8 +92,8 @@ fun PlayOnSheet(client: FlexarrClient, item: ItemSummary, onClose: () -> Unit) {
 
     ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room) {
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Play on", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f))
-            TextButton(onClick = onClose) { Text("Done", color = Flexarr.screen, fontWeight = FontWeight.SemiBold) }
+            Text(t("Play on"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f))
+            TextButton(onClick = onClose) { Text(t(Words.done), color = Flexarr.screen, fontWeight = FontWeight.SemiBold) }
         }
         LazyColumn(Modifier.navigationBarsPadding(), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) {
             outcome?.let { message ->

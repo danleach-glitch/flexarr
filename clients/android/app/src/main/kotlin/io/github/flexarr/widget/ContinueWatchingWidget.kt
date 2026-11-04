@@ -1,5 +1,8 @@
 package io.github.flexarr.widget
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -132,7 +135,7 @@ class ContinueWatchingWidget : GlanceAppWidget() {
             GlanceModifier.fillMaxSize().background(ROOM).cornerRadius(20.dp).padding(12.dp)
                 .clickable(actionStartActivity(AppLink.Home.intent(context))),
         ) {
-            Text("Continue watching", style = TextStyle(color = SCREEN, fontSize = 14.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+            Text(t(Words.continueWatching), style = TextStyle(color = SCREEN, fontSize = 14.sp, fontWeight = FontWeight.Bold), maxLines = 1)
             Spacer(GlanceModifier.height(8.dp))
             when (state) {
                 State.SignedOut -> Note("Open Flexarr to connect it to your server.")

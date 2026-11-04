@@ -1,5 +1,8 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -312,13 +315,13 @@ private fun LivePlayerScreen(controller: LiveTvController, onClose: () -> Unit, 
     controller.recordingInTheWay?.let { (recording, _) ->
         AlertDialog(
             onDismissRequest = controller::dismissRecordingChoice,
-            title = { Text("Recording") },
+            title = { Text(t("Recording")) },
             text = { Text(recording.message) },
             confirmButton = { TextButton(onClick = controller::watchRecorded) { Text("Watch ${recording.channelName}") } },
             dismissButton = {
                 Row {
-                    TextButton(onClick = controller::stopRecordingAndWatch) { Text("Stop the recording", color = Flexarr.danger) }
-                    TextButton(onClick = controller::dismissRecordingChoice) { Text("Cancel") }
+                    TextButton(onClick = controller::stopRecordingAndWatch) { Text(t("Stop the recording"), color = Flexarr.danger) }
+                    TextButton(onClick = controller::dismissRecordingChoice) { Text(t(Words.cancel)) }
                 }
             },
             containerColor = Flexarr.seat,
@@ -391,7 +394,7 @@ private fun LiveTimeline(controller: LiveTvController, onInteract: () -> Unit, m
             valueRange = 0f..duration.toFloat(),
             colors = SliderDefaults.colors(thumbColor = Flexarr.screen, activeTrackColor = Flexarr.screen, inactiveTrackColor = Flexarr.screen.copy(alpha = 0.3f)),
             modifier = Modifier.weight(1f).semantics {
-                contentDescription = "Position"
+                contentDescription = t("Position")
                 stateDescription = if (!controller.isBehind && !scrubbing) "Live" else "${Format.timestamp((duration - shown).coerceAtLeast(0.0))} behind live"
             },
         )
@@ -428,8 +431,8 @@ private fun ChannelPicker(controller: LiveTvController, onPick: (LiveChannel) ->
     }
     ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room) {
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Channels", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f))
-            TextButton(onClick = onClose) { Text("Done", color = Flexarr.screen, fontWeight = FontWeight.SemiBold) }
+            Text(t("Channels"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f))
+            TextButton(onClick = onClose) { Text(t(Words.done), color = Flexarr.screen, fontWeight = FontWeight.SemiBold) }
         }
         LazyColumn(state = list, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
             if (previous != null) {
@@ -462,7 +465,7 @@ private fun PickerRow(controller: LiveTvController, channel: LiveChannel, curren
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(channel.now?.displayTitle ?: "No listings", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = LiveStar, modifier = Modifier.size(12.dp))
+                if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = t("Favourite"), tint = LiveStar, modifier = Modifier.size(12.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(channel.name, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1)

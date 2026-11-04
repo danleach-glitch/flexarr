@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.core.i18n.t
 import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -93,7 +94,7 @@ fun DiagnosticsSettingsScreen(model: AppModel) {
                         cursorBrush = SolidColor(Flexarr.screen),
                         modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(horizontal = 16.dp, vertical = 12.dp),
                         decorationBox = { field ->
-                            if (note.isEmpty()) Text("What happened, and roughly when? (optional)", fontSize = 17.sp, color = Flexarr.usher.copy(alpha = 0.6f))
+                            if (note.isEmpty()) Text(t("What happened, and roughly when? (optional)"), fontSize = 17.sp, color = Flexarr.usher.copy(alpha = 0.6f))
                             field()
                         },
                     )

@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.podcasts
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -135,7 +138,7 @@ fun DirectoryCard(show: DirectoryPodcast, isAdding: Boolean, onClick: () -> Unit
                 }
             }
             if (show.subscribed) {
-                Icon(Icons.Filled.CheckCircle, contentDescription = "Following", tint = Flexarr.screen, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(22.dp))
+                Icon(Icons.Filled.CheckCircle, contentDescription = t(Words.following), tint = Flexarr.screen, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(22.dp))
             }
         }
         Text(show.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 2, overflow = TextOverflow.Ellipsis)

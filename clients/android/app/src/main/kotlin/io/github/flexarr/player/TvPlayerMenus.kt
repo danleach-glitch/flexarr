@@ -1,5 +1,6 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.core.i18n.t
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -274,7 +275,7 @@ private fun PanelRow(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.size(16.dp)) { if (checked) Icon(Icons.Filled.Check, contentDescription = "Chosen", modifier = Modifier.size(16.dp)) }
+            Box(Modifier.size(16.dp)) { if (checked) Icon(Icons.Filled.Check, contentDescription = t("Chosen"), modifier = Modifier.size(16.dp)) }
             Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             value?.let { Text(it, fontSize = 13.sp, maxLines = 1, modifier = Modifier.alpha(0.7f)) }
             if (opens) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(16.dp).alpha(0.6f))

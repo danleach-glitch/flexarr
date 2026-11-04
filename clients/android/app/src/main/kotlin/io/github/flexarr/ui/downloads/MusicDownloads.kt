@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.downloads
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -172,17 +175,17 @@ fun MusicDownloadButton(model: AppModel, source: MusicDownloadSource) {
                     Text(if (here) "Remove download" else "Stop download", color = Flexarr.danger)
                 }
             },
-            dismissButton = { TextButton(onClick = { removing = false }) { Text("Cancel", color = Flexarr.screen) } },
+            dismissButton = { TextButton(onClick = { removing = false }) { Text(t(Words.cancel), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }
     problem?.let { message ->
         AlertDialog(
             onDismissRequest = { problem = null },
-            title = { Text("Couldn’t download this") },
+            title = { Text(t("Couldn’t download this")) },
             text = { Text(message) },
-            confirmButton = { TextButton(onClick = { problem = null; start() }) { Text("Try again", color = Flexarr.screen) } },
-            dismissButton = { TextButton(onClick = { problem = null }) { Text("Cancel", color = Flexarr.screen) } },
+            confirmButton = { TextButton(onClick = { problem = null; start() }) { Text(t("Try again"), color = Flexarr.screen) } },
+            dismissButton = { TextButton(onClick = { problem = null }) { Text(t(Words.cancel), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }
@@ -213,7 +216,7 @@ private fun collectionDescription(status: CollectionStatus?): String = when (sta
 /** A small filled green arrow that marks something downloaded (a track, an album). */
 @Composable
 fun DownloadedMark(modifier: Modifier = Modifier, size: Dp = 14.dp) {
-    Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.go, modifier = modifier.size(size))
+    Icon(Icons.Filled.ArrowCircleDown, contentDescription = t("Downloaded"), tint = Flexarr.go, modifier = modifier.size(size))
 }
 
 /**
@@ -370,11 +373,11 @@ fun OfflineCollectionScreen(model: AppModel, collectionId: String, onBack: () ->
         }
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             IconButton(onClick = onBack, modifier = Modifier.clip(CircleShape).background(Flexarr.room.copy(alpha = 0.55f))) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Flexarr.screen)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = t("Back"), tint = Flexarr.screen)
             }
             if (collection != null) {
                 IconButton(onClick = { removing = true }, modifier = Modifier.clip(CircleShape).background(Flexarr.room.copy(alpha = 0.55f))) {
-                    Icon(FlexarrIcons.delete, contentDescription = "Remove download", tint = Flexarr.screen)
+                    Icon(FlexarrIcons.delete, contentDescription = t("Remove download"), tint = Flexarr.screen)
                 }
             }
         }
@@ -382,16 +385,16 @@ fun OfflineCollectionScreen(model: AppModel, collectionId: String, onBack: () ->
     if (removing && collection != null) {
         AlertDialog(
             onDismissRequest = { removing = false },
-            title = { Text("Remove this download?") },
+            title = { Text(t("Remove this download?")) },
             text = { Text("${Format.bytes(store.bytesUsed(collection))} on this phone.") },
             confirmButton = {
                 TextButton(onClick = {
                     removing = false
                     store.removeCollection(collection.id)
                     onBack()
-                }) { Text("Remove download", color = Flexarr.danger) }
+                }) { Text(t("Remove download"), color = Flexarr.danger) }
             },
-            dismissButton = { TextButton(onClick = { removing = false }) { Text("Cancel", color = Flexarr.screen) } },
+            dismissButton = { TextButton(onClick = { removing = false }) { Text(t(Words.cancel), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }

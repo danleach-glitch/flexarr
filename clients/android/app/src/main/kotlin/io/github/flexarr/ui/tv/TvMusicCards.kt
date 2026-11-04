@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -174,14 +175,14 @@ fun TvArtistCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Mo
 @Composable
 fun TvArtistsSeeAllCard(onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 110.dp) {
     Column(modifier.width(size + 15.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, shape = CircleShape, contentDescription = "See all artists", artwork = {
+        TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, shape = CircleShape, contentDescription = t("See all artists"), artwork = {
             Column(
                 Modifier.size(size).clip(CircleShape),
                 verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Icon(Icons.Outlined.GridView, contentDescription = null, tint = Flexarr.screen.copy(alpha = 0.85f), modifier = Modifier.size(22.dp))
-                Text("See all", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f))
+                Text(t("See all"), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f))
             }
         })
     }

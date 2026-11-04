@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.music
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -423,7 +426,7 @@ private fun MusicRequestChip(model: AppModel, item: MusicExternal, state: MusicR
             )
             .semantics {
                 if (on) selected = true
-                if (state == MusicRequestState.CanRequest) contentDescription = "Request album"
+                if (state == MusicRequestState.CanRequest) contentDescription = t(Words.requestAlbum)
             },
         contentAlignment = Alignment.CenterStart,
     ) {

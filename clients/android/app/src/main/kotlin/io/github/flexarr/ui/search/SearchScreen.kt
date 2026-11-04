@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.search
 
+import io.github.flexarr.core.i18n.t
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -562,7 +563,7 @@ private fun RecentHeading(title: String, onClear: (() -> Unit)?) {
         SectionHeading(title, Modifier.weight(1f))
         if (onClear != null) {
             Text(
-                "Clear",
+                t("Clear"),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Flexarr.usher,
@@ -614,7 +615,7 @@ fun SearchField(
         if (query.isNotEmpty()) {
             Icon(
                 Icons.Filled.Cancel,
-                contentDescription = "Clear",
+                contentDescription = t("Clear"),
                 tint = Flexarr.usher,
                 modifier = Modifier.size(20.dp).clickable(role = Role.Button, onClickLabel = "Clear") { onChange("") },
             )

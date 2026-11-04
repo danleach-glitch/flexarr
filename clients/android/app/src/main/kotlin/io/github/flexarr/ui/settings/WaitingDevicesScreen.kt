@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -164,7 +165,7 @@ fun WaitingDevicesSection(model: AppModel, header: String? = "Devices waiting to
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.usher)
                 }
                 waiting.isEmpty() -> Text(
-                    "No devices are waiting. When one asks to connect, it shows here and your phone asks you.",
+                    t("No devices are waiting. When one asks to connect, it shows here and your phone asks you."),
                     fontSize = 15.sp,
                     color = Flexarr.usher,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
@@ -194,7 +195,7 @@ private fun WaitingDeviceRow(device: WaitingDevice, sending: Boolean, enabled: B
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(device.deviceName, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(device.shortSummary, fontSize = 13.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (!device.asks) Text("You turned this away. Allow it if it's yours.", fontSize = 13.sp, color = Flexarr.usher)
+                if (!device.asks) Text(t("You turned this away. Allow it if it's yours."), fontSize = 13.sp, color = Flexarr.usher)
                 Text(
                     buildAnnotatedString {
                         append("Code ")
@@ -203,7 +204,7 @@ private fun WaitingDeviceRow(device: WaitingDevice, sending: Boolean, enabled: B
                     fontSize = 15.sp,
                     color = Flexarr.usher,
                     // Read a character at a time, as it's checked against the screen.
-                    modifier = Modifier.semantics { contentDescription = "Code " + device.code.toList().joinToString(" ") },
+                    modifier = Modifier.semantics { contentDescription = t("Code ") + device.code.toList().joinToString(" ") },
                 )
             }
             if (sending) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.screen)

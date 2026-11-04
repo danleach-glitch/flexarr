@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.music
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -205,7 +206,7 @@ internal fun BackButton() {
     IconButton(
         onClick = { navigator.back() },
         modifier = Modifier.statusBarsPadding().padding(8.dp).clip(CircleShape).background(Flexarr.room.copy(alpha = 0.55f)),
-    ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Flexarr.screen) }
+    ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = t("Back"), tint = Flexarr.screen) }
 }
 
 /** An artist: their picture and name, Play and Shuffle for everything they have, and their albums newest first. */

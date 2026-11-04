@@ -1,5 +1,6 @@
 package io.github.flexarr.cast
 
+import io.github.flexarr.core.i18n.t
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -135,7 +136,7 @@ fun CastingScreen(casting: Casting, skipSeconds: Int, onClose: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.Filled.PhoneAndroid, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(18.dp))
-                Text("Play on this phone", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
+                Text(t("Play on this phone"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
             }
         }
 
@@ -205,7 +206,7 @@ private fun CastTimeline(casting: Casting, modifier: Modifier) {
             valueRange = 0f..duration.toFloat(),
             colors = SliderDefaults.colors(thumbColor = Flexarr.screen, activeTrackColor = Flexarr.screen, inactiveTrackColor = Flexarr.screen.copy(alpha = 0.3f)),
             modifier = Modifier.fillMaxWidth().semantics {
-                contentDescription = "Position"
+                contentDescription = t("Position")
                 stateDescription = "${Format.timestamp(shown)} of ${Format.timestamp(casting.duration)}"
             },
         )

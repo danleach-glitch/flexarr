@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.connect
 
+import io.github.flexarr.core.i18n.t
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.flow.first
@@ -134,14 +135,14 @@ fun ConnectScreen(model: AppModel) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     BrandMark(56.dp)
-                    Text("flexarr", style = marquee(64))
+                    Text(t("flexarr"), style = marquee(64))
                 }
-                Text("Your entertainment, on every screen.", fontSize = 20.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
+                Text(t("Your entertainment, on every screen."), fontSize = 20.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                 model.signedOutNotice?.let {
                     Text(it, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.padding(top = 8.dp))
                 }
             }
-            AnimatedContent(step, label = "connect") { current ->
+            AnimatedContent(step, label = t("connect")) { current ->
                 when (current) {
                     Step.Choose -> ChooseServer(
                         browser,
@@ -179,11 +180,11 @@ private fun ChooseServer(
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // In the order people come: their own server at home, an invite to someone else's, typing an address, and
         // only then setting up a server of their own.
-        Text("Servers on your network", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
+        Text(t("Servers on your network"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
         if (browser.servers.isEmpty()) {
             Row(Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.usher)
-                Text("Looking for Flexarr…", color = Flexarr.usher)
+                Text(t("Looking for Flexarr…"), color = Flexarr.usher)
             }
         } else {
             browser.servers.forEach { server ->
@@ -249,8 +250,8 @@ private fun NewToFlexarr(modifier: Modifier = Modifier) {
                 Icon(Icons.Filled.Dns, contentDescription = null, tint = Flexarr.silver)
             }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("New to Flexarr?", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
-                Text("Set up your own server at home on Mac, Docker or a NAS.", fontSize = 15.sp, color = Flexarr.usher)
+                Text(t("New to Flexarr?"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
+                Text(t("Set up your own server at home on Mac, Docker or a NAS."), fontSize = 15.sp, color = Flexarr.usher)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -297,16 +298,16 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
         val shown = session.code
         if (declined) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Not allowed", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
+                Text(t("Not allowed"), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
                 Text(
-                    "The main profile turned this phone away. If that was a mistake, try again and allow it this time.",
+                    t("The main profile turned this phone away. If that was a mistake, try again and allow it this time."),
                     fontSize = 17.sp,
                     color = Flexarr.usher,
                 )
             }
             ActionButton("Try again", onClick = { attempt++ }, prominent = true, modifier = Modifier.fillMaxWidth())
         } else if (shown != null) {
-            Text("Connect this device", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
+            Text(t("Connect this device"), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
             if (needsSetup) {
                 // Short steps for someone who's never done this. A new server has nobody to approve the code yet, so
                 // setting it up comes first.
@@ -337,7 +338,7 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                             append(".")
                         })
                     }
-                    NumberedStep(4) { Text("Type in this code:") }
+                    NumberedStep(4) { Text(t("Type in this code:")) }
                 }
             } else {
                 // A phone signed in as the main profile is asked to allow it; a computer is the way round.
@@ -353,11 +354,11 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(shown, fontSize = 52.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp, color = Flexarr.screen)
-                if (renewed) Text("A new code", fontSize = 15.sp, color = Flexarr.usher)
+                if (renewed) Text(t("A new code"), fontSize = 15.sp, color = Flexarr.usher)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Flexarr.usher)
-                Text("This screen moves on by itself once you have.", fontSize = 13.sp, color = Flexarr.usher)
+                Text(t("This screen moves on by itself once you have."), fontSize = 13.sp, color = Flexarr.usher)
             }
             if (!needsSetup) {
                 Text(
@@ -376,11 +377,11 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
         }
         error?.let { ErrorNote(it) }
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Back", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.pressable(onBack).minimumInteractiveComponentSize())
+            Text(t("Back"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.pressable(onBack).minimumInteractiveComponentSize())
             // Only works if the browser on this phone is signed in already, so it stays out of the way.
             if (shown != null && !needsSetup) {
                 Text(
-                    "Approve in the browser instead",
+                    t("Approve in the browser instead"),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Flexarr.silver,
@@ -483,7 +484,7 @@ private fun ManualConnect(model: AppModel, onPair: (DiscoveredServer) -> Unit, o
                 )
             }
         } else {
-            Text("You’ll get a code to approve, like a server found on your Wi-Fi.", fontSize = 13.sp, color = Flexarr.usher)
+            Text(t("You’ll get a code to approve, like a server found on your Wi-Fi."), fontSize = 13.sp, color = Flexarr.usher)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ActionButton(
@@ -498,7 +499,7 @@ private fun ManualConnect(model: AppModel, onPair: (DiscoveredServer) -> Unit, o
         error?.let { ErrorNote(it) }
         if (!usesKey) {
             Text(
-                "Connecting from outside your home? Use an API key",
+                t("Connecting from outside your home? Use an API key"),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Flexarr.silver,
@@ -586,7 +587,7 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
             ActionButton(if (guest.badInvite) "New code" else "Try again", onClick = { attempt++ }, prominent = true)
         } else {
             // Not once codes have stopped: there's none to give.
-            if (!guest.stopped) Text("Give this code to the person who invited you", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
+            if (!guest.stopped) Text(t("Give this code to the person who invited you"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
             val shown = guest.code
             if (shown != null) {
                 Text(shown.display, fontSize = 44.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp, color = Flexarr.screen,
@@ -596,7 +597,7 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
                         .putExtra(android.content.Intent.EXTRA_TEXT, shown.display)
                     context.startActivity(android.content.Intent.createChooser(send, null))
                 })
-                Text("They type it into Settings › Remote access in Flexarr. Keep this screen open.", fontSize = 13.sp, color = Flexarr.usher)
+                Text(t("They type it into Settings › Remote access in Flexarr. Keep this screen open."), fontSize = 13.sp, color = Flexarr.usher)
             } else if (guest.stopped) {
                 ActionButton("Show a new code", onClick = { attempt++ }, prominent = true)
             } else if (guest.problem == null) {
@@ -606,7 +607,7 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
         }
         // Not beside Join and Not now: those already say what to do.
         if (!(invite != null && model.inviteFromCode && joinProblem == null && !model.joining)) {
-            Text("Back", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver,
+            Text(t("Back"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver,
                 modifier = Modifier.padding(top = 6.dp).pressable({ if (!model.joining) onBack() }).minimumInteractiveComponentSize())
         }
     }

@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
 import android.app.Activity
 import android.content.Intent
 import android.speech.RecognizerIntent
@@ -240,7 +241,7 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
             item(key = "field") {
                 Row(Modifier.padding(horizontal = TvLayout.Edge), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     SearchField(query, { query = it }, Modifier.weight(1f).focusRequester(field))
-                    if (canListen) TvActionButton(null, onClick = { runCatching { listen.launch(speech) } }, icon = Icons.Filled.Mic, contentDescription = "Search by voice")
+                    if (canListen) TvActionButton(null, onClick = { runCatching { listen.launch(speech) } }, icon = Icons.Filled.Mic, contentDescription = t("Search by voice"))
                 }
             }
             val found = results
@@ -402,7 +403,7 @@ fun TvPersonScreen(model: AppModel, id: String, name: String) {
                     biography?.let { TvBiography(name, it, Modifier.focusRequester(biographyFocus)) }
                     // An author or narrator with nothing to show here: say where their books are rather than leave the page bare.
                     if (person != null && biography == null && titles(person).isEmpty() && person.credits.any { it.role in BookRoles }) {
-                        Text("Books are on your phone.", fontSize = 14.sp, color = Flexarr.usher)
+                        Text(t("Books are on your phone."), fontSize = 14.sp, color = Flexarr.usher)
                     }
                 }
             }

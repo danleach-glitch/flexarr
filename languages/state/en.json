@@ -30,6 +30,7 @@
   "A PIN is 4 to 8 digits.": "as",
   "A PIN is 4 to 8 digits. Try again.": "a",
   "A Sonarr or Radarr": "s",
+  "A TV, phone or tablet waiting for you to let it in": "n",
   "A backup from {date}, made by Flexarr {version}: {profiles, plural, one {# profile} other {# profiles}}, {libraries, plural, one {# library} other {# libraries}} and {titles, plural, one {# title} other {# titles}}.": "w",
   "A backup or settings file from this server or another Flexarr.": "w",
   "A book needs a title.": "w",
@@ -54,7 +55,7 @@
   "A library opens on its highlights: what you're watching in it, the latest, the best not yet watched and its biggest genres.": "a",
   "A library's type can't be changed.": "s",
   "A movie needs a title.": "w",
-  "A new code": "a",
+  "A new code": "an",
   "A path in the update holds a control, line-separator or text-direction character.": "s",
   "A path in the webhook holds a control, line-separator or text-direction character.": "s",
   "A place in the book, and a note of up to 2,000 characters.": "s",
@@ -82,8 +83,12 @@
   "Account": "wa",
   "Acting": "w",
   "Action": "a",
+<<<<<<< HEAD
   "Actor": "a",
   "Add": "wa",
+=======
+  "Add": "wan",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Add ${podcast} to Up Next in ${applicationName}": "a",
   "Add ${podcast} to my Up Next in ${applicationName}": "a",
   "Add ${title} to ${applicationName}": "a",
@@ -154,8 +159,13 @@
   "Adding your podcasts…": "w",
   "Address": "wa",
   "Adds to {app}": "w",
+<<<<<<< HEAD
   "Admin PIN": "w",
   "After a pause, start a little earlier.": "wa",
+=======
+  "Admin PIN": "wn",
+  "After a pause, start a little earlier.": "w",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Age limit": "w",
   "AirPlay": "w",
   "Airs": "s",
@@ -207,7 +217,11 @@
   "Android tablet": "was",
   "Another podcast import is still running. Try again when it's finished.": "s",
   "Any": "w",
+<<<<<<< HEAD
   "Any artist or album": "a",
+=======
+  "Any artist or album": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Any genre": "w",
   "Any length": "a",
   "Any movie or show": "a",
@@ -222,6 +236,7 @@
   "Apple's directory doesn't give a feed for this show, so it can't be added.": "s",
   "Apple's podcast directory isn't answering. Try again in a minute.": "s",
   "Approve in Safari instead": "a",
+  "Approve in the browser instead": "n",
   "Apps & Integrations": "w",
   "Apps and browsers": "s",
   "Area": "w",
@@ -245,12 +260,16 @@
   "Asked for before the server’s settings change, and to let a child off a kids profile.": "w",
   "Asked for when someone switches to {name}.": "w",
   "Asked {where}.": "w",
+<<<<<<< HEAD
   "Asking from your home network": "a",
   "Asking from your home network ({address})": "a",
   "Asking from {address}": "a",
   "Asking over Tailscale": "a",
   "Asking over Tailscale ({address})": "a",
   "At": "a",
+=======
+  "At": "an",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "At half past three. The last {keep, number} are kept, and a copy is always made before an upgrade changes the database.": "w",
   "At home": "a",
   "At most": "w",
@@ -261,7 +280,11 @@
   "Audible store": "w",
   "Audio": "wa",
   "Audio and subtitles": "a",
+<<<<<<< HEAD
   "Audio sync": "wa",
+=======
+  "Audio sync": "wn",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Audiobook": "w",
   "Audiobook details": "w",
   "Audiobooks": "wans",
@@ -290,7 +313,7 @@
   "Away from home, this {device} reaches the server over Tailscale, which needs to be connected on it.": "a",
   "Away, over Tailscale": "a",
   "A–Z": "wans",
-  "Back": "wa",
+  "Back": "wan",
   "Back 10 seconds": "wa",
   "Back online": "a",
   "Back to Live TV": "w",
@@ -348,8 +371,14 @@
   "Books": "wa",
   "Books and podcasts in Continue watching": "wa",
   "Books appear here as the scan finds them.": "w",
+<<<<<<< HEAD
   "Bottom": "wa",
   "Bring across": "wa",
+=======
+  "Books are on your phone.": "n",
+  "Bottom": "w",
+  "Bring across": "w",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Bring history over": "w",
   "Bring over from Plex": "w",
   "Bring your Trakt history across": "wa",
@@ -383,6 +412,7 @@
   "Can’t request": "wa",
   "Can’t see your server?": "a",
   "Can’t see your server? Check the Apple TV is on the same Wi-Fi as it, or enter an address.": "a",
+  "Can’t see your server? Check this TV is on the same network as it, or enter an address.": "n",
   "Caps every stream, at home too.": "w",
   "Cast": "wa",
   "Cast and crew": "wans",
@@ -394,7 +424,7 @@
   "Change the admin PIN": "w",
   "Changing the server takes the admin PIN. It stays unlocked on this browser for 15 minutes after your last change.": "w",
   "Channel groups": "w",
-  "Channels": "wa",
+  "Channels": "wan",
   "Channels at once": "w",
   "Channels for kids": "w",
   "Chapter": "wa",
@@ -408,7 +438,7 @@
   "Charts and search": "w",
   "Check again": "wa",
   "Check for updates": "w",
-  "Check its screen shows": "a",
+  "Check its screen shows": "an",
   "Check its screen shows {code}.": "w",
   "Check libraries": "w",
   "Check these matches": "w",
@@ -421,9 +451,15 @@
   "Checking how to delete it…": "w",
   "Checking your libraries": "w",
   "Checking your library…": "w",
+<<<<<<< HEAD
   "Checking…": "wa",
   "Child lock": "wa",
   "Child lock is on for this device.": "as",
+=======
+  "Checking…": "w",
+  "Child lock": "wan",
+  "Child lock is on for this device.": "s",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Child lock is on for this device. Turn it off first.": "s",
   "Child lock needs a browser or device that's signed in.": "s",
   "Child lock on": "w",
@@ -459,19 +495,25 @@
   "Choose {name} in Who’s watching.": "s",
   "Choose…": "w",
   "Choosing a folder above saves one. Edit them to type a path yourself or remove an old one.": "w",
+<<<<<<< HEAD
   "Chosen lists show in Collections, just for you.": "wa",
+=======
+  "Chosen": "n",
+  "Chosen lists show in Collections, just for you.": "w",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Christmas": "s",
-  "Clear": "wa",
+  "Clear": "wan",
   "Clear filters": "a",
   "Click **Set up Flexarr**.": "a",
   "Client ID": "w",
   "Client secret": "w",
-  "Close": "wa",
+  "Close": "wan",
   "Close Now Playing": "w",
   "Close menu": "w",
   "Close queue": "w",
   "Closed captions": "a",
   "Code": "w",
+  "Code ": "n",
   "Collapse sidebar": "w",
   "Collection": "w",
   "Collection: {name}": "s",
@@ -501,7 +543,12 @@
   "Connect a TV or phone": "w",
   "Connect a device": "w",
   "Connect this Apple TV": "a",
+<<<<<<< HEAD
   "Connect this {device}": "a",
+=======
+  "Connect this TV": "n",
+  "Connect this device": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Connect to Trakt first.": "s",
   "Connect to this server at its own address.": "s",
   "Connect your apps": "w",
@@ -516,10 +563,11 @@
   "Connected by invite": "a",
   "Connected, version {version}": "w",
   "Connected. Add its webhook in Settings › Connections.": "w",
+  "Connected. It’ll be ready in a moment.": "n",
   "Connected. Setting up instant updates…": "w",
   "Connected: {count, plural, one {# channel} other {# channels}}": "w",
   "Connecting": "a",
-  "Connecting from outside your home? Use an API key": "a",
+  "Connecting from outside your home? Use an API key": "an",
   "Connecting…": "w",
   "Connecting… ({problem})": "a",
   "Connection": "a",
@@ -579,11 +627,13 @@
   "Couldn't turn on notifications": "a",
   "Couldn’t add it to {name}.": "w",
   "Couldn’t add the webhook.": "w",
+  "Couldn’t add this": "n",
   "Couldn’t check how to delete it: {reason}": "w",
   "Couldn’t confirm it": "w",
   "Couldn’t connect ({reason}).": "a",
   "Couldn’t copy": "w",
   "Couldn’t delete it": "w",
+  "Couldn’t download this": "n",
   "Couldn’t keep this match": "w",
   "Couldn’t list the backups: {message}": "w",
   "Couldn’t load the channels: {error}": "w",
@@ -602,6 +652,7 @@
   "Couldn’t sign in.": "w",
   "Couldn’t switch profile.": "w",
   "Couldn’t take the PIN off.": "w",
+  "Couldn’t turn on notifications": "n",
   "Cover": "w",
   "Create": "wa",
   "Create an OAuth client": "w",
@@ -615,7 +666,7 @@
   "Current PIN": "w",
   "Current match": "w",
   "Data and cache": "w",
-  "Data from Deezer": "wa",
+  "Data from Deezer": "wan",
   "Debug": "w",
   "Deezer didn't answer. Try again in a minute.": "s",
   "Deezer didn’t answer.": "w",
@@ -624,10 +675,10 @@
   "Default ({level})": "w",
   "Default level": "w",
   "Delete": "wans",
-  "Delete all": "a",
-  "Delete all downloads": "a",
-  "Delete all downloads?": "a",
-  "Delete book": "a",
+  "Delete all": "an",
+  "Delete all downloads": "an",
+  "Delete all downloads?": "an",
+  "Delete book": "an",
   "Delete playlist": "w",
   "Delete the bookmark at {time}": "a",
   "Delete the recording of {title}?": "w",
@@ -665,7 +716,7 @@
   "Director": "a",
   "Disc {number}": "wa",
   "Discard changes": "w",
-  "Disconnect": "wa",
+  "Disconnect": "wan",
   "Disconnect Bazarr? Searching for subtitles from the player goes with it.": "w",
   "Disconnect Dispatcharr": "w",
   "Disconnect Dispatcharr? Live TV, its channels and everyone’s favourites go with it.": "w",
@@ -681,6 +732,7 @@
   "Discover and one-click requests. Overseerr and Jellyseerr work too.": "w",
   "Discover and request artists and albums.": "w",
   "Discover and requests": "w",
+  "Dismiss": "n",
   "Docker Desktop’s port forwarding hides where they come from. Choose “Always” if this server is reachable from the internet.": "w",
   "Docker updates Flexarr from outside, so it tells you about new versions but can’t install them.": "w",
   "Don't allow": "a",
@@ -699,7 +751,7 @@
   "Download the next book in a series": "a",
   "Download the next episode": "a",
   "Download this backup": "w",
-  "Downloaded": "a",
+  "Downloaded": "an",
   "Downloaded, waiting to be imported": "w",
   "Downloaded, waiting to import": "w",
   "Downloading": "wa",
@@ -717,7 +769,11 @@
   "Each chapter needs a title and its own start in the book.": "s",
   "Each guest watches as a profile of their own, and can’t switch to another. Each device joins with a code that works once.": "w",
   "Each list takes up to {rows} rows, each with an id of up to {length} characters.": "s",
+<<<<<<< HEAD
   "Each morning, what's airing today": "a",
+=======
+  "Each morning, what's airing today": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Each profile connects its own Trakt account in its Settings. To use your own Trakt app instead of Flexarr’s, give its details.": "w",
   "Each profile connects its own account.": "wa",
   "Each will need to sign in or connect again.": "w",
@@ -748,8 +804,13 @@
   "Enter an address instead": "a",
   "Enter an http or https address and the API key.": "s",
   "Enter its address": "a",
+<<<<<<< HEAD
   "Enter the PIN": "wa",
   "Enter the admin PIN": "wa",
+=======
+  "Enter the PIN": "w",
+  "Enter the admin PIN": "wn",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Enter the admin PIN to {action}.": "s",
   "Enter the admin PIN.": "wa",
   "Enter the current admin PIN, or the server's API key (it's in config.json in the server's data folder).": "s",
@@ -784,6 +845,7 @@
   "Everything": "wa",
   "Everything Flexarr can’t rebuild from your media: profiles, watch history, playlists, collections, settings and sign-ins.": "w",
   "Everything added in the last 30 days.": "s",
+  "Everything downloaded to this phone goes. What you watched offline is sent to the server first.": "n",
   "Everything on this server goes back to how it was on {date}: profiles, what’s been watched, settings, keys and sign-ins. Anything since is lost, though a copy of the server as it is now is kept first. Flexarr restarts to finish, and anyone watching is stopped.": "w",
   "Exit full screen": "w",
   "Expand sidebar": "w",
@@ -805,17 +867,29 @@
   "Family invites paused": "s",
   "Fans also like": "wans",
   "Fast (recommended)": "w",
+<<<<<<< HEAD
   "Faster": "a",
+=======
+  "Faster": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Faster ({speed})": "w",
   "Faster relay": "w",
   "Faster uses less of the server, at some cost to quality.": "w",
   "Fastest, lowest quality": "w",
   "Fatal": "w",
+<<<<<<< HEAD
   "Favourite": "wa",
   "Favourites": "wa",
   "Featured": "wa",
   "Featured titles": "w",
   "Fewer": "a",
+=======
+  "Favourite": "wn",
+  "Favourites": "w",
+  "Featured": "w",
+  "Featured titles": "w",
+  "Fewer": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Fiction": "s",
   "File": "w",
   "File and stream details": "w",
@@ -825,7 +899,7 @@
   "Files play directly": "a",
   "Files play on this Apple TV as they are, every format with HDR and Dolby Vision. The server only steps in for the few it can't play.": "a",
   "Files that can’t be read": "w",
-  "Filter": "a",
+  "Filter": "an",
   "Filter and sort": "a",
   "Filter by genre": "w",
   "Find a better copy": "w",
@@ -920,9 +994,9 @@
   "For this profile on every device.": "a",
   "For whoever set it up: the key is in config.json in the server’s data folder. Opening Flexarr through Tailscale signs you in without it.": "w",
   "For you, from Trakt": "s",
-  "Forgot PIN?": "wa",
+  "Forgot PIN?": "wan",
   "Forgotten it?": "w",
-  "Forgotten it? Reset it from Flexarr in a browser.": "a",
+  "Forgotten it? Reset it from Flexarr in a browser.": "an",
   "Forgotten it? {button}": "w",
   "Forward 10 seconds": "wa",
   "Forward UDP port {port} on your router to this server. Then update the policy with the snippet in setup.": "w",
@@ -945,7 +1019,7 @@
   "From {title}": "w",
   "Full screen": "w",
   "General": "s",
-  "Genre": "wa",
+  "Genre": "wan",
   "Genre rows (the library's biggest genres)": "s",
   "Genre rows (three, changing daily)": "s",
   "Genre {genre}: clear": "w",
@@ -969,7 +1043,7 @@
   "Give the playlist a name.": "s",
   "Give the podcast's feed address.": "s",
   "Give the profile a name (up to 60 characters).": "s",
-  "Give this code to the person who invited you": "a",
+  "Give this code to the person who invited you": "an",
   "Go": "w",
   "Go back": "wa",
   "Go to **Settings**, then **Security**, then **Connect a device**.": "a",
@@ -999,8 +1073,12 @@
   "Guests join with an invite from the server's owner.": "s",
   "Guests stay on the profile they were invited to.": "s",
   "Guests whose networks can’t connect directly go through this server, not Tailscale’s slow relays.": "w",
+<<<<<<< HEAD
   "Guide": "wa",
   "HLG video can't be shown on this route.": "a",
+=======
+  "Guide": "wan",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Halloween": "s",
   "Hardware acceleration": "w",
   "Hardware acceleration and limits.": "w",
@@ -1022,7 +1100,12 @@
   "Highly rated, not yet started": "s",
   "Highly rated, not yet watched": "s",
   "History": "s",
+<<<<<<< HEAD
   "History brought across": "wa",
+=======
+  "History brought across": "w",
+  "Hold the channels you watch most to keep them first.": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Hold to move faster": "w",
   "Home": "wans",
   "Home & browse": "w",
@@ -1050,7 +1133,7 @@
   "Import": "w",
   "Imported {parts}.": "w",
   "Importing": "w",
-  "In All channels, press and hold a programme and choose Add to Favourites. Favourites come first here, on Home, and when changing channel.": "a",
+  "In All channels, press and hold a programme and choose Add to Favourites. Favourites come first here, on Home, and when changing channel.": "an",
   "In Dispatcharr, add a user for Flexarr at Streamer level with a long random XC password, and use that password as the key here. It can only list and play the channels Dispatcharr gives that user.": "w",
   "In Docker, visitors from the internet can look like they’re at home too.": "w",
   "In cinemas": "s",
@@ -1084,6 +1167,7 @@
   "It answered with HTTP {status}.": "s",
   "It can’t reach Flexarr any more. Joining again takes a new code.": "w",
   "It didn't answer within 8 seconds.": "s",
+  "It should arrive in a moment.": "n",
   "It signs in to Flexarr like any other device. You can sign it out later in Settings › Security.": "w",
   "It signs in within a couple of seconds. You can put this away.": "w",
   "It takes just 2 minutes.": "w",
@@ -1096,7 +1180,11 @@
   "It's already in your library.": "s",
   "It's no longer waiting. It may have expired; the device shows a new code.": "a",
   "Italy": "w",
+<<<<<<< HEAD
   "Its new episodes stop coming to this {device}. Episodes already downloaded stay until you delete them.": "a",
+=======
+  "Its new episodes stop coming to this phone. Episodes already downloaded stay until you delete them.": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Its scheduled showings come off the list. What it's recorded stays.": "a",
   "Its {folder} folder isn’t at that path on this server.": "w",
   "It’s asking {where}.": "w",
@@ -1107,14 +1195,20 @@
   "It’s taking a while. If nothing starts Flexarr again by itself on this machine, start it again, and the backup is put in place as it starts.": "w",
   "I’ll set it up myself": "w",
   "Japan": "w",
-  "Join": "a",
+  "Join": "an",
   "Join someone’s Flexarr": "wa",
+<<<<<<< HEAD
   "Join {owner}’s Flexarr": "a",
   "Join {owner}’s Flexarr?": "a",
   "Joining again takes a new code.": "a",
   "Joining again takes a new code. Downloads are deleted.": "a",
   "Joining {owner}’s Flexarr…": "a",
   "Jump": "wa",
+=======
+  "Joining again takes a new code.": "an",
+  "Joining again takes a new code. Downloads are deleted.": "an",
+  "Jump": "w",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Jump to letter": "w",
   "Jump to live": "w",
   "Jump to {time}": "a",
@@ -1134,7 +1228,7 @@
   "Keep following": "wa",
   "Keep for (days)": "w",
   "Keep free on the drive": "w",
-  "Keep it": "wa",
+  "Keep it": "wan",
   "Keep signed in": "w",
   "Keep the newest {count}": "a",
   "Keep them": "w",
@@ -1168,8 +1262,12 @@
   "Latest unwatched in {library}": "s",
   "Latest unwatched movies, from every movie library": "s",
   "Latest unwatched shows, from every TV library": "s",
+<<<<<<< HEAD
   "Leave": "a",
   "Leave {owner}’s Flexarr?": "a",
+=======
+  "Leave": "an",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Leisure": "s",
   "Length": "wans",
   "Less": "w",
@@ -1233,7 +1331,7 @@
   "Logs": "w",
   "Look there": "w",
   "Looked up online, for the whole server. Details in the files always win.": "w",
-  "Looking for Flexarr…": "a",
+  "Looking for Flexarr…": "an",
   "Looking for Plex…": "w",
   "Looking for changes…": "w",
   "Looking for your folders…": "w",
@@ -1241,8 +1339,13 @@
   "Looking through your library…": "w",
   "Looks at every file: whether it’s still on disk, not empty, and readable.": "w",
   "Lossless surround": "a",
+<<<<<<< HEAD
   "Low": "wa",
   "Lyrics": "wa",
+=======
+  "Low": "w",
+  "Lyrics": "wan",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Lyrics for {title}": "w",
   "Mac App Store apps can’t turn Tailscale on. Install {tailscale} on this Mac and your devices with the same account, and they’ll reach Flexarr at this Mac’s Tailscale address. See {guide}.": "w",
   "Made by hand": "w",
@@ -1263,8 +1366,8 @@
   "Makes voices easier to follow under music and effects.": "wa",
   "Manage profiles": "w",
   "Mapping saved": "w",
-  "Mark all as played": "wa",
-  "Mark all as played?": "wa",
+  "Mark all as played": "wan",
+  "Mark all as played?": "wan",
   "Mark all of the show as watched": "w",
   "Mark all of {show} as watched": "w",
   "Mark as Finished": "a",
@@ -1285,7 +1388,7 @@
   "Mark {show} as watched": "a",
   "Match automatically again": "w",
   "Matched by title": "w",
-  "Matches your file": "wa",
+  "Matches your file": "wan",
   "Media folders": "w",
   "Medium": "wa",
   "Medium (720p)": "a",
@@ -1299,7 +1402,7 @@
   "Missing from disk": "w",
   "Mono": "wa",
   "Month": "w",
-  "More": "wa",
+  "More": "wan",
   "More actions": "wa",
   "More by the author": "wa",
   "More by {name}": "wa",
@@ -1335,6 +1438,7 @@
   "Movies rated 7.5 or more that you haven't seen.": "s",
   "Movies, shows, episodes and people": "a",
   "Movies, shows, music, books, people, genres": "w",
+  "Movies, shows, podcast episodes, recordings and requests as they arrive": "n",
   "Music": "wans",
   "Music in this browser": "w",
   "Music requests": "w",
@@ -1389,7 +1493,7 @@
   "New this month": "s",
   "New titles have arrived.": "w",
   "New titles stay on Flexarr’s list.": "w",
-  "New to Flexarr?": "a",
+  "New to Flexarr?": "an",
   "New: {show}": "s",
   "Newest": "w",
   "Newest first": "wa",
@@ -1450,11 +1554,16 @@
   "No cover beside the files, in them or from Lidarr. Fix the match to choose one.": "w",
   "No device with that id is signed in.": "s",
   "No devices": "w",
-  "No devices are waiting. When one asks to connect, it shows here and your phone asks you.": "a",
+  "No devices are waiting. When one asks to connect, it shows here and your phone asks you.": "an",
   "No devices are waiting. When one asks to connect, it shows here.": "w",
   "No episodes match “{query}”.": "w",
+<<<<<<< HEAD
   "No episodes yet.": "wa",
   "No favourites yet": "a",
+=======
+  "No episodes yet.": "w",
+  "No favourites yet": "an",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "No favourites yet: star channels in On now, and the guide can show just them.": "w",
   "No feed to add": "w",
   "No folder chosen": "w",
@@ -1465,7 +1574,7 @@
   "No guests yet.": "w",
   "No libraries yet. Add one to start.": "w",
   "No limit": "w",
-  "No listings": "wa",
+  "No listings": "wan",
   "No narrators here yet.": "w",
   "No new recording starts when there’s less than this.": "w",
   "No photos found.": "w",
@@ -1480,7 +1589,7 @@
   "No series yet.": "a",
   "No shows found for “{search}”.": "a",
   "No subfolders": "w",
-  "No subtitles found": "a",
+  "No subtitles found": "an",
   "No subtitles found.": "w",
   "No subtitles were found for this.": "s",
   "No suggestions right now. They change as your library grows and through the year.": "w",
@@ -1498,7 +1607,7 @@
   "None yet.": "w",
   "Normal": "wa",
   "Normalise volume": "w",
-  "Not allowed": "wa",
+  "Not allowed": "wan",
   "Not at that path here, and no titles say where it is. Choose the folder it is on this server.": "w",
   "Not at that path here, but {titles} in both {count, plural, one {is} other {are}} in {folder}": "w",
   "Not at that path here. Perhaps {folder}, which has the same name": "w",
@@ -1512,8 +1621,12 @@
   "Not in your library": "wans",
   "Not installed on the server": "w",
   "Not installed on this server yet. It’s free for personal use.": "w",
+<<<<<<< HEAD
   "Not listed?": "a",
   "Not now": "wa",
+=======
+  "Not now": "wan",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Not on disk. It may have been deleted or moved, or its drive isn't connected.": "s",
   "Not on kids profiles.": "a",
   "Not on this server: enter where it is here.": "w",
@@ -1523,8 +1636,13 @@
   "Not started": "wa",
   "Not synced yet": "wa",
   "Not yet": "w",
+<<<<<<< HEAD
   "Note": "a",
   "Notes": "wa",
+=======
+  "Note": "an",
+  "Notes": "w",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Nothing answered at that address.": "s",
   "Nothing connected yet. Add Sonarr, Radarr or Lidarr for artwork and details.": "w",
   "Nothing downloaded.": "a",
@@ -1568,8 +1686,9 @@
   "Nothing recorded yet.": "w",
   "Nothing scheduled": "w",
   "Nothing set to record. Choose a programme in the Guide and Record it, or its series.": "w",
+  "Nothing set to record. In the Guide, hold a programme and choose Record, or Record series.": "n",
   "Nothing set to record. In the Guide, tap a programme and choose Record, or Record series.": "a",
-  "Nothing set to record. In the guide, press and hold a programme and choose Record, or Record series.": "a",
+  "Nothing set to record. In the guide, press and hold a programme and choose Record, or Record series.": "an",
   "Nothing to carry on with": "a",
   "Nothing to suggest yet.": "w",
   "Nothing to watch yet": "wa",
@@ -1592,14 +1711,19 @@
   "Number {rank}: {title}": "w",
   "Numbers and symbols": "wa",
   "Numbers and symbols couldn’t be loaded.": "w",
-  "OK": "a",
+  "OK": "an",
   "Off": "wa",
   "Off by default. When on, errors from this server and its apps (not your logs) go to Sentry so bugs can be fixed sooner.": "w",
   "Off, the server sends a stream instead of the file itself. Downloads and remote viewing are unaffected.": "a",
   "Off. Connected as {name}": "w",
   "Off: convert on the CPU": "w",
+<<<<<<< HEAD
   "Offline": "wa",
   "Oldest first": "wa",
+=======
+  "Offline": "wan",
+  "Oldest first": "w",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "On": "wa",
   "On Home": "w",
   "On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted.": "a",
@@ -1654,6 +1778,7 @@
   "Open Flexarr on your iPhone to sign in.": "a",
   "Open Flexarr on {name} first, so it can say whether it plays audiobooks.": "s",
   "Open Now Playing": "w",
+<<<<<<< HEAD
   "Open Settings": "a",
   "Open in {app}": "wa",
   "Open on {view}": "a",
@@ -1668,8 +1793,16 @@
   "Optional": "a",
   "Or on a computer, open **{address}** and type in the code.": "a",
   "Or scan with a phone that’s signed in to Flexarr.": "a",
+=======
+  "Open Settings": "an",
+  "Open in {app}": "w",
+  "Open {name}": "w",
+  "Opening…": "w",
+  "Opens Flexarr Server when you log in to this Mac, so the server is back after a restart.": "w",
+  "Or scan with a phone that’s signed in to Flexarr.": "an",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Orange": "w",
-  "Order": "wa",
+  "Order": "wan",
   "Original": "wa",
   "Original file": "w",
   "Original keeps the full picture and sound but takes the most space. Albums, playlists and podcasts always come as their files are.": "a",
@@ -1683,7 +1816,7 @@
   "Out {date}": "wa",
   "Over 20 hours": "a",
   "Overview": "w",
-  "PIN": "wa",
+  "PIN": "wan",
   "PIN (required)": "w",
   "PIN changed. Anywhere the old one unlocked settings is locked again.": "w",
   "Partly in your library": "wans",
@@ -1705,7 +1838,11 @@
   "Pause {title}": "w",
   "Paused at {percent}%": "w",
   "Paused at {position} of {duration}": "w",
+<<<<<<< HEAD
   "Paused by the sleep timer": "a",
+=======
+  "Paused by the sleep timer": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Pauses the audiobook playing when its chapter ends.": "a",
   "Pauses, resumes or stops what Flexarr is playing, skips the intro, moves on to the next episode, or skips back or forward, here or on another device.": "a",
   "Pausing at the end of the chapter.": "a",
@@ -1741,7 +1878,13 @@
   "Play next": "wans",
   "Play next episode": "w",
   "Play now": "w",
+<<<<<<< HEAD
   "Play on Apple TV": "a",
+=======
+  "Play on": "n",
+  "Play on another screen": "n",
+  "Play on this phone": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Play something in ${applicationName}": "a",
   "Play the latest ${podcast} in ${applicationName}": "a",
   "Play the latest episode": "a",
@@ -1763,8 +1906,12 @@
   "Playback couldn't pick up where it left off.": "a",
   "Played": "wa",
   "Players can't decode {codec} {profile} video": "s",
+<<<<<<< HEAD
   "Playing": "wa",
   "Playing on {device}: {title}": "a",
+=======
+  "Playing": "wan",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Playing somewhere else": "s",
   "Playing the next {title} as {profile}.": "a",
   "Playing the next {title}.": "a",
@@ -1797,8 +1944,12 @@
   "Policy File": "w",
   "Popular movies": "s",
   "Popular new shows": "s",
+<<<<<<< HEAD
   "Position": "wa",
   "Posters": "a",
+=======
+  "Position": "wan",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Preparing subtitles. They’ll appear in a moment.": "w",
   "Press up or down to move {name}, then select to put it down.": "a",
   "Previous": "wa",
@@ -1812,16 +1963,26 @@
   "Profile": "wa",
   "Profile for {name}": "w",
   "Profile pictures": "w",
+<<<<<<< HEAD
   "Profile: {name}": "wa",
   "Profiles": "wa",
   "Publisher": "a",
   "Pull down to refresh.": "a",
+=======
+  "Profile: {name}": "w",
+  "Profiles": "w",
+  "Pull down to refresh.": "an",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Purple": "w",
   "Push notifications to phones.": "w",
   "Put on ${title} in ${applicationName}": "a",
   "Puts a movie or show on your watchlist, to watch later, whether you have it yet or not.": "a",
   "Puts the next episode of a podcast you follow at the end of Up next.": "a",
+<<<<<<< HEAD
   "QR code for {address}": "a",
+=======
+  "QR code": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Quality": "w",
   "Quality: {quality}": "w",
   "Queue": "w",
@@ -1830,7 +1991,7 @@
   "Queued: intros and credits for this season will be re-detected shortly": "w",
   "Quietens loud scenes and lifts quiet ones.": "wa",
   "Quit Flexarr": "a",
-  "REC": "wa",
+  "REC": "wan",
   "Radarr deletes the movie’s files from disk and stops tracking it.": "w",
   "Radio": "wans",
   "Raise subtitles clear of a TV’s edge or text in the picture. Styled subtitles keep their own places.": "w",
@@ -1848,14 +2009,19 @@
   "Read by": "wa",
   "Read by the narrator": "w",
   "Read by {names}": "w",
+<<<<<<< HEAD
   "Read by {narrator}": "wa",
   "Read this code to the person who invited you": "a",
+=======
+  "Read by {narrator}": "w",
+  "Read this code to the person who invited you": "an",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Reading new files: {done} of {total}": "w",
   "Reading your files": "w",
   "Ready first": "wa",
   "Ready from your watchlist": "ns",
   "Ready to turn on.": "w",
-  "Ready to watch": "wa",
+  "Ready to watch": "wan",
   "Ready to watch.": "s",
   "Recap": "w",
   "Recent searches": "wa",
@@ -1870,11 +2036,11 @@
   "Record {title}": "a",
   "Recorded": "wa",
   "Recorded: {title}": "s",
-  "Recording": "a",
-  "Recording now": "wa",
+  "Recording": "an",
+  "Recording now": "wan",
   "Recording {title} needed the stream. You can watch that channel, or stop the recording.": "s",
   "Recording {title}.": "s",
-  "Recordings": "wa",
+  "Recordings": "wan",
   "Recordings and live viewing share what your IPTV login allows. Watching and recording the same channel counts once.": "w",
   "Recordings folder": "w",
   "Recordings go to {folder}": "w",
@@ -1899,8 +2065,12 @@
   "Remove all spare copies ({size})": "w",
   "Remove books once finished": "a",
   "Remove chapter {number}": "w",
+<<<<<<< HEAD
   "Remove download": "a",
   "Remove from Favourites": "a",
+=======
+  "Remove download": "an",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Remove from Flexarr": "w",
   "Remove from Up next": "a",
   "Remove from favourites": "w",
@@ -1913,7 +2083,7 @@
   "Remove the download?": "a",
   "Remove the mapping for this path": "w",
   "Remove the mapping for {path}": "w",
-  "Remove this download?": "a",
+  "Remove this download?": "an",
   "Remove {name}": "w",
   "Remove {name} from favourites": "w",
   "Remove {name}?": "w",
@@ -2018,6 +2188,7 @@
   "Search": "wans",
   "Search Flexarr": "a",
   "Search again": "w",
+  "Search by voice": "n",
   "Search episodes": "w",
   "Search failed": "w",
   "Search for": "a",
@@ -2025,7 +2196,7 @@
   "Search for any movie or show": "w",
   "Search for season {season}'s missing episodes": "a",
   "Search for season {season}’s missing episodes": "w",
-  "Search for subtitles": "a",
+  "Search for subtitles": "an",
   "Search for subtitles…": "wa",
   "Search for {name}": "w",
   "Search for {season}": "a",
@@ -2038,7 +2209,7 @@
   "Search {name}": "w",
   "Search {source}": "w",
   "Searching": "wa",
-  "Searching…": "wa",
+  "Searching…": "wan",
   "Searching… This can take a minute.": "w",
   "Season {number}": "wa",
   "Season {season}": "ws",
@@ -2051,10 +2222,16 @@
   "Seconds": "a",
   "Secret": "w",
   "Security": "w",
+<<<<<<< HEAD
   "See all": "a",
   "See all albums": "a",
   "See all artists": "a",
   "See all coming soon": "a",
+=======
+  "See all": "an",
+  "See all artists": "an",
+  "See all coming soon": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "See what changes": "w",
   "See what changes first.": "wa",
   "Seek": "w",
@@ -2073,7 +2250,7 @@
   "Send diagnostics": "a",
   "Send error reports to Flexarr’s developer": "w",
   "Send it": "a",
-  "Send test notification": "a",
+  "Send test notification": "an",
   "Send the API key to sign in.": "s",
   "Send the activity's push token (hex) and environment (production or sandbox).": "s",
   "Send the home, movies and shows rows.": "s",
@@ -2094,12 +2271,16 @@
   "Server address": "a",
   "Server keys": "w",
   "Server status": "w",
+<<<<<<< HEAD
   "Server streams": "a",
   "Servers on your network": "a",
+=======
+  "Servers on your network": "an",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Set PIN": "a",
   "Set on your server, in Settings › Logs on the web. When on, crashes and errors go to Sentry, the error tracker Flexarr uses: what went wrong and where in the code, the app version, the OS and device model, and a random id. Never titles, file names, what you watch, names, addresses or keys.": "a",
   "Set the admin PIN": "w",
-  "Set to record": "wa",
+  "Set to record": "wan",
   "Set up Dispatcharr": "w",
   "Set up Flexarr": "w",
   "Set up Live TV": "w",
@@ -2107,8 +2288,13 @@
   "Set up at flexarr.io": "a",
   "Set up in the Tailscale app": "w",
   "Set up later": "w",
+<<<<<<< HEAD
   "Set up your free server": "a",
   "Set up your own server at home on Mac, Docker or a NAS.": "a",
+=======
+  "Set up your free server": "n",
+  "Set up your own server at home on Mac, Docker or a NAS.": "an",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Sets how much voices are lifted over music and effects.": "a",
   "Settings": "wans",
   "Settings are locked": "w",
@@ -2153,12 +2339,16 @@
   "Shows come from TVmaze and need no key.": "w",
   "Shows less": "a",
   "Shows play from the episode you're up to.": "a",
+<<<<<<< HEAD
   "Shows the chapters": "a",
   "Shows the cover": "a",
   "Shows the episode": "a",
   "Shows the whole description": "a",
   "Shows the whole overview": "a",
   "Shows, or a feed’s address": "a",
+=======
+  "Shows, or a feed’s address": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Shuffle": "wans",
   "Shuffle ${title} in ${applicationName}": "a",
   "Shuffle ${title} with ${applicationName}": "a",
@@ -2172,7 +2362,7 @@
   "Sidebar": "a",
   "Sign in": "w",
   "Sign in as {name}": "w",
-  "Sign out": "wa",
+  "Sign out": "wan",
   "Sign out all {count, number}": "w",
   "Sign out all {count, plural, one {# sign-in} other {# sign-ins}} of {name}": "w",
   "Sign out all {count, plural, one {# sign-in} other {# sign-ins}} of {name}?": "w",
@@ -2182,7 +2372,7 @@
   "Sign out of this browser": "w",
   "Sign out of this browser?": "w",
   "Sign out of this browser? Signing in again takes the API key.": "w",
-  "Sign out of this server?": "a",
+  "Sign out of this server?": "an",
   "Sign out {name}": "w",
   "Sign out {name}?": "w",
   "Signed in recently. If you don’t recognise it, sign it out.": "w",
@@ -2195,7 +2385,7 @@
   "Single": "w",
   "Siri plays on": "a",
   "Size": "a",
-  "Skip": "wa",
+  "Skip": "wan",
   "Skip back": "wa",
   "Skip back and forward": "a",
   "Skip credits": "wans",
@@ -2214,7 +2404,11 @@
   "Sleep timer on": "a",
   "Sleep timer, {minutes} min left": "w",
   "Slow relay": "w",
+<<<<<<< HEAD
   "Slower": "a",
+=======
+  "Slower": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Slower ({speed})": "w",
   "Slower, better quality": "w",
   "Small": "wa",
@@ -2247,11 +2441,16 @@
   "Sonarr, Radarr and Lidarr stop starting scans until you give them the new addresses. The secret only lets them start scans.": "w",
   "Sonarr, Radarr, Lidarr, Seerr and path mappings, with their keys.": "w",
   "Sonarr, Radarr, Seerr and Bazarr": "s",
-  "Sort": "a",
-  "Sort and filter": "a",
+  "Sort": "an",
+  "Sort and filter": "an",
   "Sort as": "w",
+<<<<<<< HEAD
   "Sort by": "wa",
   "Sort by {order}": "a",
+=======
+  "Sort by": "wan",
+  "Sort by name": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Sound": "a",
   "Sound earlier": "a",
   "Sound in this browser": "w",
@@ -2281,7 +2480,7 @@
   "Starring {name}: {count, plural, one {# title} other {# titles}}.": "s",
   "Start early": "w",
   "Start over": "wans",
-  "Start over?": "wa",
+  "Start over?": "wan",
   "Start watching now": "w",
   "Start when you log in": "w",
   "Starting": "a",
@@ -2292,25 +2491,37 @@
   "Stereo": "wa",
   "Still connecting": "a",
   "Still unreadable": "w",
+<<<<<<< HEAD
   "Still watching?": "wa",
+=======
+  "Still watching?": "wn",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Stop": "a",
   "Stop Download": "a",
   "Stop allowing for kids": "w",
-  "Stop and close": "wa",
+  "Stop and close": "wan",
   "Stop blocking for kids": "w",
   "Stop download": "a",
   "Stop following": "wans",
   "Stop following this artist?": "w",
+<<<<<<< HEAD
   "Stop following this show?": "a",
   "Stop following {artist}?": "a",
+=======
+  "Stop following this show?": "an",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Stop following {name}?": "w",
   "Stop on {device}": "a",
   "Stop recording": "wa",
   "Stop recording the series": "wa",
   "Stop series": "a",
   "Stop showing {name}? It stays on Trakt.": "w",
+<<<<<<< HEAD
   "Stop syncing this profile with Trakt.": "a",
   "Stop the recording": "wa",
+=======
+  "Stop the recording": "wn",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Stop the series": "w",
   "Stop this download?": "a",
   "Stop watching {owner}’s Flexarr here. Joining again takes a new code.": "a",
@@ -2339,7 +2550,7 @@
   "Suggested": "w",
   "Sunday movies": "w",
   "Swipe right on the channels you watch most to keep them first.": "a",
-  "Switch": "a",
+  "Switch": "an",
   "Switch profile": "w",
   "Switch to another profile. Each has its own Continue watching, watch history and playback settings.": "a",
   "Switch to the main profile": "w",
@@ -2407,7 +2618,11 @@
   "Tell me about": "a",
   "Ten TVs have been connected in the last hour, which is as many as Flexarr allows. Try again in {when}.": "s",
   "Test": "w",
+<<<<<<< HEAD
   "Test notification sent. It should arrive in a moment.": "a",
+=======
+  "Test notification sent": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Testing…": "w",
   "That Flexarr profile doesn't exist.": "s",
   "That PIN isn't right.": "as",
@@ -2425,7 +2640,12 @@
   "That device has stopped waiting.": "a",
   "That didn't save. Try again.": "wa",
   "That didn't work. Try again.": "w",
+<<<<<<< HEAD
   "That didn’t work. Try again.": "wa",
+=======
+  "That didn’t save. Try again.": "n",
+  "That didn’t work. Try again.": "w",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "That doesn't look like a Sonarr, Radarr or Lidarr server.": "s",
   "That doesn't look like a Trakt client ID.": "s",
   "That doesn't look like a server address. Try something like http://192.168.1.20:8383.": "a",
@@ -2549,7 +2769,12 @@
   "The main profile can't be removed.": "s",
   "The main profile can't have an age limit: it manages the server.": "s",
   "The main profile turned this Apple TV away. If that was a mistake, try again and allow it this time.": "a",
+<<<<<<< HEAD
   "The main profile turned this {device} away. If that was a mistake, try again and allow it this time.": "a",
+=======
+  "The main profile turned this TV away. If that was a mistake, try again and allow it this time.": "n",
+  "The main profile turned this phone away. If that was a mistake, try again and allow it this time.": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "The movies and episodes you’re part way through, to carry on with": "n",
   "The next episode starts after a 10-second countdown.": "wans",
   "The next episode starts after a 10-second countdown. Subtitles that run early or late can be moved on Apple TV or the web. In the black bars puts subtitles below the picture of movies wider than the screen.": "a",
@@ -2610,7 +2835,11 @@
   "Their device hasn’t joined yet. Ask them to choose Join, or type the new code it shows.": "w",
   "Their device stopped showing that code. Check the one on their screen now.": "s",
   "Their devices are signed out, and their profile and its watch history go.": "w",
+<<<<<<< HEAD
   "Then connect": "a",
+=======
+  "Then connect": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "There are no unplayed episodes.": "w",
   "There isn’t room for a backup in {folder}: it needs about {megabytes} MB free.": "s",
   "There isn’t room on the server for this file.": "s",
@@ -2631,9 +2860,14 @@
   "These subtitles couldn’t be loaded. Try another track.": "w",
   "They choose Join on their screen.": "w",
   "They get a profile of their own.": "w",
+<<<<<<< HEAD
   "They type it into Settings › Remote access in Flexarr.": "a",
   "They type it into Settings › Remote access in Flexarr. Keep this screen open.": "a",
   "This Apple TV": "a",
+=======
+  "They type it into Settings › Remote access in Flexarr.": "an",
+  "They type it into Settings › Remote access in Flexarr. Keep this screen open.": "an",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "This Apple TV will need to connect again to use the server.": "a",
   "This Mac is on your tailnet": "w",
   "This OAuth client can do more than Flexarr needs (it can see your devices). Make one with only Auth Keys (write) and Policy File (read).": "s",
@@ -2655,6 +2889,7 @@
   "This device has sent diagnostics {maxUploadsPerHour} times this hour. Try again later.": "s",
   "This device was removed from the server.": "a",
   "This device was removed from the server. Ask its owner for a new invite.": "s",
+  "This device will need to connect again to use the server, and its downloads will be deleted.": "n",
   "This didn’t come from your home network. Check its screen shows {code}.": "w",
   "This display doesn't show Dolby Vision": "s",
   "This display doesn't support HDR": "s",
@@ -2704,6 +2939,8 @@
   "This request came from another website, so Flexarr didn't act on it.": "s",
   "This request didn’t come from your home network. Only allow it if your device is showing {code} and you started it just now. If someone sent you this link, choose Don’t allow.": "w",
   "This screen moves on by itself once it's allowed.": "a",
+  "This screen moves on by itself once it’s allowed.": "n",
+  "This screen moves on by itself once you have.": "n",
   "This server": "w",
   "This server can't install updates itself.": "s",
   "This server can’t edit chapters yet.": "w",
@@ -2713,9 +2950,13 @@
   "This server’s region": "w",
   "This server’s region ({region})": "w",
   "This title isn't managed by Sonarr or Radarr, so there's nothing to search with.": "s",
+<<<<<<< HEAD
   "This track couldn't be played.": "a",
   "This track isn't part of an album.": "a",
   "This trailer can’t be played.": "w",
+=======
+  "This trailer can’t be played.": "wn",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "This won’t record: recordings scheduled before it want every stream then.": "w",
   "This year ({year})": "w",
   "This {device}": "a",
@@ -2796,7 +3037,7 @@
   "True Crime": "s",
   "TrueHD, DTS-HD and FLAC go as multichannel PCM over HDMI, for a receiver or eARC soundbar that takes it. Off, they go as Dolby Digital Plus, which anything plays. Until you choose, it's on when the Apple TV is connected to something that takes it.": "a",
   "Trust credentials": "w",
-  "Try again": "wa",
+  "Try again": "wan",
   "Try again in a moment.": "w",
   "Try again {title}": "w",
   "Try saying": "a",
@@ -2809,15 +3050,19 @@
   "Turn on": "w",
   "Turn on Notifications to be asked when Flexarr isn't open.": "a",
   "Turn on child lock": "w",
-  "Turn on notifications": "a",
+  "Turn on notifications": "an",
   "Turn on subtitles": "a",
   "Turn on subtitles …": "a",
   "Turns night mode on or off: loud scenes quieter, quiet ones easier to hear.": "a",
   "Turns subtitles on (in your language where there are some) or off for what's playing, here or on another device.": "a",
   "Two chapters start at the same time.": "w",
   "Type": "w",
+<<<<<<< HEAD
   "Type in the setup code from the server's log, then click **Set up Flexarr**.": "a",
   "Type in this code:": "wa",
+=======
+  "Type in this code:": "wan",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Type the 8 letters and numbers their device shows.": "s",
   "Type the code their device shows": "w",
   "Typed": "w",
@@ -2917,7 +3162,7 @@
   "Waiting to connect": "w",
   "Waiting to send": "a",
   "Warning": "w",
-  "Watch": "a",
+  "Watch": "an",
   "Watch ${title} in ${applicationName}": "a",
   "Watch again": "s",
   "Watch again from {episode}": "w",
@@ -2930,7 +3175,7 @@
   "Watch {channel}": "a",
   "Watch {channel} now": "a",
   "Watch {name}": "w",
-  "Watched": "wa",
+  "Watched": "wan",
   "Watched. Click to mark unwatched": "w",
   "Watched: mark {name} as unwatched": "w",
   "Watching": "w",
@@ -2949,8 +3194,12 @@
   "What each library opens on: its highlights (Browse), everything, or its genres. Music has its own.": "a",
   "What exactly is sent": "w",
   "What goes in it": "w",
+<<<<<<< HEAD
   "What happened and roughly when, so it's easy to find in the log.": "a",
   "What happened, and roughly when? (optional)": "a",
+=======
+  "What happened, and roughly when? (optional)": "an",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "What happened?": "a",
   "What the Apple TV's Top Shelf shows when Flexarr is in the top row.": "a",
   "What would you like to add?": "a",
@@ -2989,6 +3238,7 @@
   "Who it’s for": "w",
   "Whose Apple Podcasts charts and directory Browse shows.": "w",
   "Whose history": "w",
+<<<<<<< HEAD
   "Who’s watching?": "wa",
   "Wide artwork": "a",
   "With two or more libraries, you can put them in order here.": "w",
@@ -2996,15 +3246,26 @@
   "Won't record: every stream is wanted by recordings scheduled before it.": "a",
   "Won’t record: every stream is wanted by recordings scheduled before it.": "w",
   "Writer": "a",
+=======
+  "Who’s watching?": "wan",
+  "With two or more libraries, you can put them in order here.": "w",
+  "Without it the file can’t be opened, by anyone. Flexarr doesn’t keep it.": "w",
+  "Won't record: every stream is wanted by recordings scheduled before it.": "a",
+  "Won’t record: every stream is wanted by recordings scheduled before it.": "wn",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "Writing": "w",
   "Written by": "w",
   "Year": "wans",
   "Yellow": "w",
   "Yesterday": "wa",
   "You": "w",
+<<<<<<< HEAD
   "You no longer have access to this Flexarr.": "a",
   "You no longer have access to {owner}’s Flexarr.": "a",
   "You turned this away. Allow it if it's yours.": "a",
+=======
+  "You turned this away. Allow it if it's yours.": "an",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "You turned this away. Allow it if it’s yours.": "w",
   "You're at {time}.": "a",
   "You're up to date.": "a",
@@ -3016,8 +3277,8 @@
   "Your changes aren’t saved.": "w",
   "Your collections": "w",
   "Your connection is slower than this file needs": "s",
-  "Your downloads still play.": "a",
-  "Your entertainment, on every screen.": "wa",
+  "Your downloads still play.": "an",
+  "Your entertainment, on every screen.": "wan",
   "Your history": "wa",
   "Your library by genre": "wa",
   "Your library is empty": "wa",
@@ -3035,14 +3296,18 @@
   "Your server has notifications turned off, so none will arrive. They can be turned on in its configuration.": "a",
   "Your settings couldn't be loaded.": "a",
   "Yours": "w",
-  "You’ll get a code to approve, like a server found on your Wi-Fi.": "a",
-  "You’ll get a code to approve, like a server found on your network.": "a",
+  "You’ll get a code to approve, like a server found on your Wi-Fi.": "an",
+  "You’ll get a code to approve, like a server found on your network.": "an",
   "You’ll need the API key to sign in here again.": "w",
   "You’ll watch as {profile}.": "a",
   "You’re all set": "w",
   "You’re at {time}.": "w",
+<<<<<<< HEAD
   "You’re offline": "a",
   "You’re up to date.": "a",
+=======
+  "You’re offline": "an",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "a minute": "s",
   "a setting has a null character in it.": "s",
   "about {size}": "a",
@@ -3051,12 +3316,25 @@
   "all in good shape": "w",
   "all of them": "w",
   "already here": "w",
+  "ambient": "n",
   "and {count} more": "ws",
   "artists": "a",
   "as {character}": "w",
+<<<<<<< HEAD
   "audiobooks": "wa",
+=======
+  "audiobooks": "w",
+  "backdrop": "n",
+  "bar room": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "by {name}": "w",
+  "caption": "n",
+  "chapter": "n",
+  "connect": "n",
   "connect Radarr or Sonarr": "w",
+  "cover": "n",
+  "details": "n",
+  "dot": "n",
   "download a backup": "s",
   "e.g. Christmas": "w",
   "esc": "w",
@@ -3065,12 +3343,20 @@
   "every title has a single copy": "w",
   "export the settings": "s",
   "ffmpeg, the cache and backups folders. Usually wrong on another machine, and it asks for the admin PIN.": "w",
+<<<<<<< HEAD
   "flexarr": "a",
   "forced": "a",
   "from the internet": "w",
   "from your home network": "w",
   "home network": "a",
   "home videos": "wa",
+=======
+  "flexarr": "an",
+  "from the internet": "w",
+  "from your home network": "w",
+  "help": "n",
+  "home videos": "w",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "http://192.168.1.20:8383": "a",
   "iPhone and iPad": "w",
   "in {app}": "w",
@@ -3080,6 +3366,8 @@
   "last used {time}": "w",
   "last used {when}": "w",
   "let devices at home in without the key": "s",
+  "line": "n",
+  "list": "n",
   "live-tv::Recording": "s",
   "macOS needs your OK first: on the Mac, open System Settings › General › Login Items and turn on Flexarr Server.": "w",
   "mono": "a",
@@ -3087,16 +3375,28 @@
   "music": "wa",
   "never": "w",
   "not synced yet": "w",
+  "offline": "n",
   "over Tailscale": "w",
   "plex.tv didn't answer ({status}). Try again in a moment.": "s",
+<<<<<<< HEAD
   "podcasts": "wa",
+=======
+  "podcasts": "w",
+  "profiles": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "restore a backup": "s",
   "scanned {time}": "w",
+  "scrubber": "n",
   "seconds": "w",
   "see the API key": "s",
   "showing the newest {count, number}": "w",
+<<<<<<< HEAD
   "shows": "wa",
   "stereo": "a",
+=======
+  "shows": "w",
+  "sleep dim": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "subscription ends {date}": "w",
   "synced {time}": "w",
   "that channel": "wa",
@@ -3108,12 +3408,17 @@
   "the latest {count}": "w",
   "the policy": "w",
   "the {app} address": "w",
+<<<<<<< HEAD
   "titles": "a",
+=======
+  "title": "n",
+>>>>>>> 6721c2fb (Languages: Android's Compose text goes through t(), shared words through Words (wrap.py kotlin, the mechanical part); the language starts with the app)
   "titles, file names or paths, what you watch, profile or device names, addresses (IP, server, network), keys or passwords. These are removed on your server or device before anything leaves it.": "w",
   "tv-show::Show": "w",
   "unknown": "w",
   "use the server keys or paths from this file": "s",
   "watched": "w",
+  "welcome": "n",
   "what went wrong and where in the code; Flexarr version; OS and device model; a random id for this server.": "w",
   "{added, plural, one {Followed # show} other {Followed # shows}}{already, plural, =0 {} other {, # already followed}}{failed, plural, =0 {} other {, # couldn't be read}}.": "w",
   "{album}, {artist}": "a",

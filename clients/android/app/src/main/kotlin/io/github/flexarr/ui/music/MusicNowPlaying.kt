@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.music
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import android.graphics.Bitmap
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -111,7 +114,7 @@ fun MusicNowPlayingBar(model: AppModel) {
     ) {
         Row(Modifier.padding(end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.minimumInteractiveComponentSize().size(width = 36.dp, height = 56.dp).pressable(music::stop), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Close, contentDescription = "Stop and close", tint = Flexarr.usher, modifier = Modifier.size(16.dp))
+                Icon(Icons.Filled.Close, contentDescription = t("Stop and close"), tint = Flexarr.usher, modifier = Modifier.size(16.dp))
             }
             Row(Modifier.weight(1f).pressable({ model.showsMusicPlayer = true }).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 SquareArtwork(track, Modifier.size(44.dp), imageWidth = 185)
@@ -202,7 +205,7 @@ fun MusicNowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                 ) {
                     Grabber(onDismiss)
                     // Smaller while paused, as every music app does.
-                    val scale by animateFloatAsState(if (music.isPlaying) 1f else 0.9f, spring(dampingRatio = 0.8f, stiffness = 300f), label = "cover")
+                    val scale by animateFloatAsState(if (music.isPlaying) 1f else 0.9f, spring(dampingRatio = 0.8f, stiffness = 300f), label = t("cover"))
                     SquareArtwork(
                         track,
                         Modifier.padding(top = 8.dp).widthIn(max = 320.dp).fillMaxWidth().scale(scale).shadow(24.dp, RoundedCornerShape(Tokens.radiusArt)),
@@ -227,7 +230,7 @@ fun MusicNowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
 private fun Grabber(onClose: () -> Unit) {
     Box(
         Modifier.fillMaxWidth().clearAndSetSemantics {
-            contentDescription = "Close"
+            contentDescription = t("Close")
             role = Role.Button
             onClick { onClose(); true }
         },
@@ -336,7 +339,7 @@ private fun UpNext(music: MusicPlayer) {
     val next = music.upNext.take(20)
     if (next.isEmpty()) return
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Up next", style = marquee(22).copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 12.dp).padding(top = 8.dp))
+        Text(t(Words.upNext), style = marquee(22).copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 12.dp).padding(top = 8.dp))
         next.forEachIndexed { offset, track ->
             TrackRow(track, offset + 1, isCurrent = false, isPlaying = false, subtitle = track.artistName) { music.skipTo(music.index + 1 + offset) }
         }
@@ -357,14 +360,14 @@ private fun LyricsView(lyrics: Lyrics, position: Double, onSeek: (Double) -> Uni
         val viewport = list.layoutInfo.viewportSize.height
         list.animateScrollToItem(line, scrollOffset = -(viewport / 2.5f).roundToInt())
     }
-    LazyColumn(modifier.fillMaxWidth().semantics { contentDescription = "Lyrics" }, state = list, contentPadding = PaddingValues(vertical = 120.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(modifier.fillMaxWidth().semantics { contentDescription = t("Lyrics") }, state = list, contentPadding = PaddingValues(vertical = 120.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         itemsIndexed(lyrics.lines) { index, line ->
             val target = when {
                 !lyrics.synced -> 0.9f
                 index == active -> 1f
                 else -> 0.4f
             }
-            val alpha by animateFloatAsState(target, tween(250), label = "line")
+            val alpha by animateFloatAsState(target, tween(250), label = t("line"))
             val time = line.time
             Text(
                 // An empty line between verses keeps its place.

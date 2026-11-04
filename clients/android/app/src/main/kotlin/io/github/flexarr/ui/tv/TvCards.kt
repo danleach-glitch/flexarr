@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -231,7 +232,7 @@ fun TvProgressBar(value: Double, modifier: Modifier = Modifier, tint: Color = Fl
 @Composable
 fun TvWatchedBadge(modifier: Modifier = Modifier) {
     Box(modifier.size(18.dp).background(Flexarr.screen.copy(alpha = 0.92f), CircleShape), contentAlignment = Alignment.Center) {
-        Icon(Icons.Filled.Check, contentDescription = "Watched", tint = Flexarr.room, modifier = Modifier.size(11.dp))
+        Icon(Icons.Filled.Check, contentDescription = t("Watched"), tint = Flexarr.room, modifier = Modifier.size(11.dp))
     }
 }
 

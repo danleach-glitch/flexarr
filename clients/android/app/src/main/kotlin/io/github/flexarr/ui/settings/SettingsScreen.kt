@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.core.i18n.Words
+
 import androidx.compose.material.icons.filled.Language
 import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
@@ -191,7 +193,7 @@ fun SettingsScreen(
                             // Locked to one kids profile, the picker is still the way to unlock. A guest has the one profile.
                             // Choosing someone else takes the server.
                             if (!model.isGuest && !model.serverUnreachable && (model.profiles.size > 1 || model.kidsLock)) {
-                                Text("Switch", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.pressable({ choosingProfile = true }).padding(6.dp))
+                                Text(t("Switch"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.pressable({ choosingProfile = true }).padding(6.dp))
                             }
                         }
                         if (model.canLockToKids && !model.serverUnreachable) {
@@ -202,7 +204,7 @@ fun SettingsScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Icon(Icons.Filled.Lock, contentDescription = null, tint = Flexarr.silver)
-                                Text("Child lock", fontSize = 17.sp, color = Flexarr.silver)
+                                Text(t("Child lock"), fontSize = 17.sp, color = Flexarr.silver)
                             }
                         }
                     }
@@ -217,7 +219,7 @@ fun SettingsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(Icons.Filled.NotificationsActive, contentDescription = null, tint = Flexarr.silver)
-                            Text("Turn on notifications", fontSize = 17.sp, color = Flexarr.silver)
+                            Text(t("Turn on notifications"), fontSize = 17.sp, color = Flexarr.silver)
                         }
                     }
                 }
@@ -303,10 +305,10 @@ fun SettingsScreen(
         } else {
             AlertDialog(
                 onDismissRequest = { confirmSignOut = false },
-                title = { Text("Sign out of this server?") },
-                text = { Text("This device will need to connect again to use the server, and its downloads will be deleted.") },
-                confirmButton = { TextButton(onClick = model::signOut) { Text("Sign out", color = Flexarr.danger) } },
-                dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("Cancel", color = Flexarr.screen) } },
+                title = { Text(t("Sign out of this server?")) },
+                text = { Text(t("This device will need to connect again to use the server, and its downloads will be deleted.")) },
+                confirmButton = { TextButton(onClick = model::signOut) { Text(t("Sign out"), color = Flexarr.danger) } },
+                dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text(t(Words.cancel), color = Flexarr.screen) } },
                 containerColor = Flexarr.seat,
             )
         }
@@ -324,9 +326,9 @@ fun SettingsScreen(
     notificationProblem?.let { problem ->
         AlertDialog(
             onDismissRequest = { notificationProblem = null },
-            title = { Text("Couldn’t turn on notifications") },
+            title = { Text(t("Couldn’t turn on notifications")) },
             text = { Text(problem) },
-            confirmButton = { TextButton(onClick = { notificationProblem = null }) { Text("OK", color = Flexarr.screen) } },
+            confirmButton = { TextButton(onClick = { notificationProblem = null }) { Text(t("OK"), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }
@@ -410,7 +412,7 @@ fun DownloadSettingsScreen(model: AppModel) {
                     if (downloads.downloads.isNotEmpty() || model.bookDownloads.books.isNotEmpty()) {
                         Divider()
                         Text(
-                            "Delete all downloads",
+                            t("Delete all downloads"),
                             fontSize = 17.sp,
                             color = Flexarr.danger,
                             modifier = Modifier.fillMaxWidth().pressable({ confirmDeleteAll = true }).padding(horizontal = 16.dp, vertical = 14.dp),
@@ -424,10 +426,10 @@ fun DownloadSettingsScreen(model: AppModel) {
     if (confirmDeleteAll) {
         AlertDialog(
             onDismissRequest = { confirmDeleteAll = false },
-            title = { Text("Delete all downloads?") },
-            text = { Text("Everything downloaded to this phone goes. What you watched offline is sent to the server first.") },
-            confirmButton = { TextButton(onClick = { confirmDeleteAll = false; downloads.deleteAll() }) { Text("Delete all", color = Flexarr.danger) } },
-            dismissButton = { TextButton(onClick = { confirmDeleteAll = false }) { Text("Cancel", color = Flexarr.screen) } },
+            title = { Text(t("Delete all downloads?")) },
+            text = { Text(t("Everything downloaded to this phone goes. What you watched offline is sent to the server first.")) },
+            confirmButton = { TextButton(onClick = { confirmDeleteAll = false; downloads.deleteAll() }) { Text(t("Delete all"), color = Flexarr.danger) } },
+            dismissButton = { TextButton(onClick = { confirmDeleteAll = false }) { Text(t(Words.cancel), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }
@@ -480,9 +482,9 @@ internal fun LeaveDialog(model: AppModel, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (owner != null) "Leave $owner’s Flexarr?" else "Leave this Flexarr?") },
-        text = { Text("Joining again takes a new code. Downloads are deleted.") },
-        confirmButton = { TextButton(onClick = model::signOut) { Text("Leave", color = Flexarr.danger) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Flexarr.screen) } },
+        text = { Text(t("Joining again takes a new code. Downloads are deleted.")) },
+        confirmButton = { TextButton(onClick = model::signOut) { Text(t("Leave"), color = Flexarr.danger) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(t(Words.cancel), color = Flexarr.screen) } },
         containerColor = Flexarr.seat,
     )
 }
@@ -506,7 +508,7 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
                     Fact("Connected by invite", guest?.ownerName?.ifEmpty { null }?.let { "$it’s Flexarr" }.orEmpty())
                     Divider()
                     Text(
-                        "Leave",
+                        t("Leave"),
                         fontSize = 17.sp,
                         color = Flexarr.danger,
                         modifier = Modifier.fillMaxWidth().pressable({ confirmLeave = true }).padding(horizontal = 16.dp, vertical = 14.dp),
@@ -614,7 +616,7 @@ fun LibraryOrderSettingsScreen(model: AppModel) {
                         item {
                             Group {
                                 Text(
-                                    "Sort by name",
+                                    t("Sort by name"),
                                     fontSize = 17.sp,
                                     color = Flexarr.screen,
                                     modifier = Modifier.fillMaxWidth().pressable({ save(null) }).padding(horizontal = 16.dp, vertical = 14.dp),

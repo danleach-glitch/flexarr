@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.ui.getsReadyOnFocus
 
 import androidx.compose.animation.Crossfade
@@ -130,7 +131,7 @@ internal fun TvHomeRows(home: Home, emptyMessage: EmptyHomeMessage?, takeFocus: 
     val ambient = animateColorAsState(
         featured.getOrNull(featuredIndex % featured.size.coerceAtLeast(1))?.let { glowColor(it.accentColor) } ?: Flexarr.room,
         tween(800),
-        label = "ambient",
+        label = t("ambient"),
     )
     val list = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -221,7 +222,7 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
     }
 
     Box(Modifier.fillMaxWidth().height(450.dp)) {
-        Crossfade(item, animationSpec = tween(600), label = "backdrop") { shown ->
+        Crossfade(item, animationSpec = tween(600), label = t("backdrop")) { shown ->
             Box(Modifier.fillMaxSize().fadeOut(0.55f, 0.95f)) {
                 RemoteImage(shown.artwork.backdrop, tvBackdropWidth(), Modifier.fillMaxWidth().height(540.dp)) {}
                 // A scrim so text stays legible, then the ambient colour bleeding in from the corner.
@@ -230,7 +231,7 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
             }
         }
         Column(Modifier.align(Alignment.BottomStart).padding(start = TvLayout.Edge, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
-            Crossfade(item, animationSpec = tween(600), label = "title") { shown ->
+            Crossfade(item, animationSpec = tween(600), label = t("title")) { shown ->
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (shown.kind == MediaKind.Album) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -289,7 +290,7 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
                 Row(Modifier.padding(top = 3.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     items.indices.forEach { i ->
                         val current = i == index % items.size
-                        val width by animateDpAsState(if (current) 17.dp else 6.dp, label = "dot")
+                        val width by animateDpAsState(if (current) 17.dp else 6.dp, label = t("dot"))
                         Box(Modifier.size(width, 6.dp).background(Flexarr.screen.copy(alpha = if (current) 1f else 0.3f), CircleShape))
                     }
                 }
@@ -358,14 +359,14 @@ private fun HomeRowView(row: HomeRow) {
 @Composable
 internal fun TvSeeAllCard(wide: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, height: Dp? = null) {
     val width = if (wide) TvLayout.WideWidth else TvLayout.PosterWidth
-    TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, modifier = modifier, contentDescription = "See all", artwork = {
+    TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, modifier = modifier, contentDescription = t("See all"), artwork = {
         Column(
             Modifier.size(width, height ?: if (wide) width * 9f / 16f else width * 1.5f),
             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(Icons.Outlined.GridView, contentDescription = null, tint = Flexarr.screen.copy(alpha = 0.85f), modifier = Modifier.size(24.dp))
-            Text("See all", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f))
+            Text(t("See all"), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f))
         }
     })
 }

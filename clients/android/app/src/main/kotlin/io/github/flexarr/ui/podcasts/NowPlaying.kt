@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.podcasts
 
+import io.github.flexarr.core.i18n.t
 import android.content.Intent
 import android.graphics.Bitmap
 import androidx.compose.animation.Crossfade
@@ -154,7 +155,7 @@ fun NowPlayingBar(model: AppModel) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.minimumInteractiveComponentSize().size(width = 36.dp, height = 56.dp).pressable(player::stop), contentAlignment = Alignment.Center) {
-            Icon(Icons.Filled.Close, contentDescription = "Stop and close", tint = Flexarr.usher, modifier = Modifier.size(16.dp))
+            Icon(Icons.Filled.Close, contentDescription = t("Stop and close"), tint = Flexarr.usher, modifier = Modifier.size(16.dp))
         }
         Row(Modifier.weight(1f).pressable({ model.showsNowPlaying = true }).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             PodcastArtwork(episode.artwork.thumb ?: episode.artwork.poster, episode.podcastTitle, episode.accentColor, Modifier.size(44.dp), imageWidth = 185)
@@ -259,12 +260,12 @@ fun NowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                 // The sheet's handle, which TalkBack offers as Close (the drag that closes it isn't there for TalkBack).
                 Box(
                     Modifier.padding(top = 10.dp).size(width = 40.dp, height = 5.dp).clip(CircleShape).background(Flexarr.aisle).clearAndSetSemantics {
-                        contentDescription = "Close"
+                        contentDescription = t("Close")
                         role = Role.Button
                         onClick { onDismiss(); true }
                     },
                 )
-                Crossfade(showingDetails, Modifier.weight(1f), animationSpec = tween(300), label = "details") { details ->
+                Crossfade(showingDetails, Modifier.weight(1f), animationSpec = tween(300), label = t("details")) { details ->
                     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(20.dp)) {
                         if (details) {
                             SmallHeader(episode, Modifier.padding(top = 4.dp)) { showingDetails = false }
@@ -272,7 +273,7 @@ fun NowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                         } else {
                             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                                 // Smaller while paused, as every music app does.
-                                val scale by animateFloatAsState(if (player.isPlaying) 1f else 0.9f, spring(dampingRatio = 0.8f, stiffness = 300f), label = "cover")
+                                val scale by animateFloatAsState(if (player.isPlaying) 1f else 0.9f, spring(dampingRatio = 0.8f, stiffness = 300f), label = t("cover"))
                                 PodcastArtwork(
                                     episode.artwork.poster ?: episode.artwork.thumb, episode.podcastTitle, episode.accentColor,
                                     Modifier.sizeIn(maxWidth = 320.dp, maxHeight = 320.dp).aspectRatio(1f, matchHeightConstraintsFirst = true).scale(scale)
@@ -445,7 +446,7 @@ private fun ChapterStrip(player: PodcastPlayer, chapters: List<PodcastChapter>, 
             val start = chapters[current].startSeconds
             player.seek(if (player.position - start > 3 || current == 0) start else chapters[current - 1].startSeconds)
         }
-        Crossfade(current, Modifier.weight(1f), animationSpec = tween(200), label = "chapter") { index ->
+        Crossfade(current, Modifier.weight(1f), animationSpec = tween(200), label = t("chapter")) { index ->
             Box(Modifier.fillMaxWidth().height(36.dp).pressable(openChapters), contentAlignment = Alignment.Center) {
                 Text(chapters[index ?: 0].title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -475,11 +476,11 @@ private fun Scrubber(player: PodcastPlayer, chapters: List<PodcastChapter>, scru
     val duration = player.duration
     val shown = scrubbing ?: player.position
     val fraction = if (duration > 0) (shown / duration).coerceIn(0.0, 1.0).toFloat() else 0f
-    val thickness by animateDpAsState(if (scrubbing == null) 5.dp else 10.dp, spring(dampingRatio = 0.8f, stiffness = 400f), label = "scrubber")
+    val thickness by animateDpAsState(if (scrubbing == null) 5.dp else 10.dp, spring(dampingRatio = 0.8f, stiffness = 400f), label = t("scrubber"))
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Box(
             Modifier.fillMaxWidth().height(28.dp)
-                .semantics { contentDescription = "Position"; stateDescription = "${Format.timestamp(player.position)} of ${Format.timestamp(duration)}" }
+                .semantics { contentDescription = t("Position"); stateDescription = "${Format.timestamp(player.position)} of ${Format.timestamp(duration)}" }
                 .pointerInput(duration) {
                     if (duration <= 0) return@pointerInput
                     fun at(x: Float) = (x / size.width).coerceIn(0f, 1f) * duration
@@ -652,7 +653,7 @@ private fun Choice(label: String, checked: Boolean, onClick: () -> Unit) {
     DropdownMenuItem(
         text = { Text(label, color = Flexarr.screen) },
         onClick = onClick,
-        leadingIcon = { Box(Modifier.size(20.dp)) { if (checked) Icon(Icons.Filled.Check, contentDescription = "Chosen", tint = Flexarr.screen) } },
+        leadingIcon = { Box(Modifier.size(20.dp)) { if (checked) Icon(Icons.Filled.Check, contentDescription = t("Chosen"), tint = Flexarr.screen) } },
     )
 }
 

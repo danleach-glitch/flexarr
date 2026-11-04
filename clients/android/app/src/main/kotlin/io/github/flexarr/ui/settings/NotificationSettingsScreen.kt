@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.core.i18n.t
 import android.Manifest
 import android.content.Intent
 import android.os.Build
@@ -109,7 +110,7 @@ fun NotificationSettingsScreen(model: AppModel) {
                 item {
                     Group(footer = "Notifications are off for Flexarr in Android's settings. Allow them there first.") {
                         Text(
-                            "Open Settings",
+                            t("Open Settings"),
                             fontSize = 17.sp,
                             color = Flexarr.silver,
                             modifier = Modifier.fillMaxWidth().pressable({
@@ -178,7 +179,7 @@ fun NotificationSettingsScreen(model: AppModel) {
                 item {
                     Group {
                         Text(
-                            "Send test notification",
+                            t("Send test notification"),
                             fontSize = 17.sp,
                             color = Flexarr.silver,
                             modifier = Modifier.fillMaxWidth()
@@ -196,16 +197,16 @@ fun NotificationSettingsScreen(model: AppModel) {
             onDismissRequest = { problem = null },
             title = { Text(title) },
             text = { Text(message) },
-            confirmButton = { TextButton(onClick = { problem = null }) { Text("OK", color = Flexarr.screen) } },
+            confirmButton = { TextButton(onClick = { problem = null }) { Text(t("OK"), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }
     if (testSent) {
         AlertDialog(
             onDismissRequest = { testSent = false },
-            title = { Text("Test notification sent") },
-            text = { Text("It should arrive in a moment.") },
-            confirmButton = { TextButton(onClick = { testSent = false }) { Text("OK", color = Flexarr.screen) } },
+            title = { Text(t("Test notification sent")) },
+            text = { Text(t("It should arrive in a moment.")) },
+            confirmButton = { TextButton(onClick = { testSent = false }) { Text(t("OK"), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }
@@ -218,7 +219,7 @@ private fun HourPicker(hour: Int, onChange: (Int) -> Unit) {
     val format = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(io.github.flexarr.core.i18n.Localization.locale)
     androidx.compose.foundation.layout.Box {
         androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().pressable({ open = true }).padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text("At", fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
+            Text(t("At"), fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
             Text(LocalTime.of(hour, 0).format(format), fontSize = 17.sp, color = Flexarr.usher)
         }
         DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {

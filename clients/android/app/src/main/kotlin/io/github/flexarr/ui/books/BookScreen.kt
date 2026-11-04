@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.books
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import io.github.flexarr.ui.GetsReadyAfterAMoment
 
 import androidx.compose.foundation.background
@@ -279,13 +282,13 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
             if (confirmStartOver) {
                 AlertDialog(
                     onDismissRequest = { confirmStartOver = false },
-                    title = { Text("Start over?") },
+                    title = { Text(t("Start over?")) },
                     text = { Text("You’re at ${Format.timestamp(position)}.") },
                     confirmButton = {
                         TextButton(onClick = {
                             confirmStartOver = false
                             startOver()
-                        }) { Text("Start over", color = Flexarr.screen) }
+                        }) { Text(t(Words.startOver), color = Flexarr.screen) }
                     },
                     dismissButton = {
                         Row {
@@ -294,9 +297,9 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                                 TextButton(onClick = {
                                     confirmStartOver = false
                                     navigator.setBookFinished(item, false)
-                                }) { Text("Mark as unread", color = Flexarr.screen) }
+                                }) { Text(t(Words.markAsUnread), color = Flexarr.screen) }
                             }
-                            TextButton(onClick = { confirmStartOver = false }) { Text("Cancel", color = Flexarr.screen) }
+                            TextButton(onClick = { confirmStartOver = false }) { Text(t(Words.cancel), color = Flexarr.screen) }
                         }
                     },
                     containerColor = Flexarr.seat,
@@ -431,7 +434,7 @@ private fun ChapterRow(chapter: BookChapter, index: Int, current: Int?, finished
     Column(Modifier.fillMaxWidth().pressable(onClick, onClickLabel = "Play from ${chapter.title}").padding(horizontal = 16.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.widthIn(min = 24.dp), contentAlignment = Alignment.CenterStart) {
-                if (playing) Icon(Icons.Filled.GraphicEq, contentDescription = "Playing", tint = Flexarr.silver, modifier = Modifier.size(16.dp))
+                if (playing) Icon(Icons.Filled.GraphicEq, contentDescription = t("Playing"), tint = Flexarr.silver, modifier = Modifier.size(16.dp))
                 else Text("${index + 1}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, style = Tabular)
             }
             Text(
@@ -647,9 +650,9 @@ private fun BookMoreAction(model: AppModel, item: ItemSummary) {
                             }
                         }
                     },
-                ) { Text("Delete book", color = Flexarr.danger) }
+                ) { Text(t("Delete book"), color = Flexarr.danger) }
             },
-            dismissButton = { TextButton(onClick = { plan = null }, enabled = !busy) { Text("Keep it", color = Flexarr.screen) } },
+            dismissButton = { TextButton(onClick = { plan = null }, enabled = !busy) { Text(t("Keep it"), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
         )
     }

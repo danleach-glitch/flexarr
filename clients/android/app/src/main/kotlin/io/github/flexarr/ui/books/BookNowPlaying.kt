@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.books
 
+import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateDpAsState
@@ -122,7 +125,7 @@ fun BookNowPlayingBar(model: AppModel) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.minimumInteractiveComponentSize().size(width = 36.dp, height = 56.dp).pressable(player::stop), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Close, contentDescription = "Stop and close", tint = Flexarr.usher, modifier = Modifier.size(16.dp))
+                Icon(Icons.Filled.Close, contentDescription = t("Stop and close"), tint = Flexarr.usher, modifier = Modifier.size(16.dp))
             }
             Row(Modifier.weight(1f).pressable({ model.showsBookPlayer = true }).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 BookCover(book.artwork.poster, book.title, book.accentColor, Modifier.size(44.dp), imageWidth = 185)
@@ -164,7 +167,7 @@ private fun Offer(text: String, action: String, onAction: () -> Unit, onDismiss:
         Text(text, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         TextButton(onClick = onAction) { Text(action, color = Flexarr.silver, fontWeight = FontWeight.Bold) }
         Box(Modifier.minimumInteractiveComponentSize().size(36.dp).pressable(onDismiss), contentAlignment = Alignment.Center) {
-            Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = Flexarr.usher, modifier = Modifier.size(16.dp))
+            Icon(Icons.Filled.Close, contentDescription = t("Dismiss"), tint = Flexarr.usher, modifier = Modifier.size(16.dp))
         }
     }
 }
@@ -219,18 +222,18 @@ fun BookPlayerSheet(model: AppModel, onDismiss: () -> Unit) {
             ) {
                 Box(
                     Modifier.padding(top = 10.dp).size(width = 40.dp, height = 5.dp).clip(CircleShape).background(Flexarr.aisle).clearAndSetSemantics {
-                        contentDescription = "Close"
+                        contentDescription = t("Close")
                         role = Role.Button
                         onClick { onDismiss(); true }
                     },
                 )
-                Crossfade(showingList, Modifier.weight(1f), animationSpec = tween(300), label = "list") { list ->
+                Crossfade(showingList, Modifier.weight(1f), animationSpec = tween(300), label = t("list")) { list ->
                     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         if (list) {
                             ChaptersAndBookmarks(player, Modifier.weight(1f)) { showingList = false }
                         } else {
                             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                val scale by animateFloatAsState(if (player.isPlaying) 1f else 0.9f, spring(dampingRatio = 0.8f, stiffness = 300f), label = "cover")
+                                val scale by animateFloatAsState(if (player.isPlaying) 1f else 0.9f, spring(dampingRatio = 0.8f, stiffness = 300f), label = t("cover"))
                                 BookCover(
                                     book.artwork.poster, book.title, book.accentColor,
                                     Modifier.sizeIn(maxWidth = 320.dp, maxHeight = 320.dp).aspectRatio(1f, matchHeightConstraintsFirst = true).scale(scale)
@@ -291,7 +294,7 @@ private fun ChapterStrip(player: BookPlayer, chapters: List<BookChapter>, scrubb
     val current = chapters.chapterAt(scrubbing ?: player.position)
     Row(Modifier.fillMaxWidth().clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.08f)).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Step(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous chapter", onClick = player::previousChapter)
-        Crossfade(current, Modifier.weight(1f), animationSpec = tween(200), label = "chapter") { index ->
+        Crossfade(current, Modifier.weight(1f), animationSpec = tween(200), label = t("chapter")) { index ->
             Box(Modifier.fillMaxWidth().height(48.dp).pressable(openList), contentAlignment = Alignment.Center) {
                 Text(chapters[index ?: 0].title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -326,12 +329,12 @@ private fun Scrubber(player: BookPlayer, chapters: List<BookChapter>, scrubbing:
     }
     val length = (span.second - span.first).coerceAtLeast(0.0)
     val fraction = if (length > 0) ((shown - span.first) / length).coerceIn(0.0, 1.0).toFloat() else 0f
-    val thickness by animateDpAsState(if (scrubbing == null) 5.dp else 10.dp, spring(dampingRatio = 0.8f, stiffness = 400f), label = "scrubber")
+    val thickness by animateDpAsState(if (scrubbing == null) 5.dp else 10.dp, spring(dampingRatio = 0.8f, stiffness = 400f), label = t("scrubber"))
     val rate = player.speed.coerceAtLeast(0.5)
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Box(
             Modifier.fillMaxWidth().height(28.dp)
-                .semantics { contentDescription = "Position"; stateDescription = "${Format.timestamp(shown - span.first)} of ${Format.timestamp(length)}" }
+                .semantics { contentDescription = t("Position"); stateDescription = "${Format.timestamp(shown - span.first)} of ${Format.timestamp(length)}" }
                 .pointerInput(span, length) {
                     if (length <= 0) return@pointerInput
                     fun at(x: Float) = span.first + (x / size.width).coerceIn(0f, 1f) * length
@@ -441,11 +444,11 @@ private fun SpeedMenu(player: BookPlayer, modifier: Modifier = Modifier) {
         DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
             Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.minimumInteractiveComponentSize().size(44.dp).pressable({ choose(player.speed - BookSpeed.STEP) }, enabled = player.speed > BookSpeed.MIN), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Remove, contentDescription = "Slower", tint = Flexarr.screen)
+                    Icon(Icons.Filled.Remove, contentDescription = t("Slower"), tint = Flexarr.screen)
                 }
                 Text(label, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, style = Tabular, textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 72.dp))
                 Box(Modifier.minimumInteractiveComponentSize().size(44.dp).pressable({ choose(player.speed + BookSpeed.STEP) }, enabled = player.speed < BookSpeed.MAX), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Add, contentDescription = "Faster", tint = Flexarr.screen)
+                    Icon(Icons.Filled.Add, contentDescription = t("Faster"), tint = Flexarr.screen)
                 }
             }
             HorizontalDivider(color = Flexarr.aisle)
@@ -522,10 +525,10 @@ private fun AddBookmarkDialog(player: BookPlayer, onDone: () -> Unit) {
         onDismissRequest = onDone,
         title = { Text("Bookmark ${Format.timestamp(at)}") },
         text = {
-            OutlinedTextField(note, { if (it.length <= 2000) note = it }, placeholder = { Text("Note") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(note, { if (it.length <= 2000) note = it }, placeholder = { Text(t("Note")) }, modifier = Modifier.fillMaxWidth())
         },
-        confirmButton = { TextButton(onClick = { player.addBookmark(note.takeIf { it.isNotBlank() }); onDone() }) { Text("Add", color = Flexarr.screen) } },
-        dismissButton = { TextButton(onClick = onDone) { Text("Cancel", color = Flexarr.usher) } },
+        confirmButton = { TextButton(onClick = { player.addBookmark(note.takeIf { it.isNotBlank() }); onDone() }) { Text(t("Add"), color = Flexarr.screen) } },
+        dismissButton = { TextButton(onClick = onDone) { Text(t(Words.cancel), color = Flexarr.usher) } },
         containerColor = Flexarr.seat,
     )
 }
