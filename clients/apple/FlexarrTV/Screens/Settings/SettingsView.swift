@@ -48,6 +48,13 @@ struct SettingsView: View {
                             help: "What the Apple TV's Top Shelf shows when Flexarr is in the top row.") {
                 HomeScreenSettingsView()
             }
+            // Once the server offers more than English (from 0.61).
+            if model.languages.count > 1 {
+                SettingsLinkRow(title: t("Language"), symbol: "globe", value: LanguageSettingsView.current(model),
+                                help: t("The language Flexarr is in for this profile, on every device.")) {
+                    LanguageSettingsView()
+                }
+            }
             if model.profiles.count > 1 {
                 SettingsLinkRow(title: "Profiles", symbol: "person.2", value: asksWhoIsWatching ? "Ask who's watching" : "Last profile",
                                 help: "Whether Flexarr asks who's watching each time it opens on this Apple TV.") {

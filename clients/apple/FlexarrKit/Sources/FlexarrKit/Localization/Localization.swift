@@ -70,7 +70,14 @@ public final class Localization: @unchecked Sendable {
         return Locale(identifier: device ?? shown)
     }
 
-    func translate(_ english: String, _ values: [String: Any], ctx: String?) -> String {
+    func translate(_ message: String, _ values: [String: Any], ctx given: String?) -> String {
+        // A shared word can carry its context in its key (music::Play).
+        var english = message, ctx = given
+        if given == nil, let sep = message.range(of: "::"), message[..<sep.lowerBound].allSatisfy({ $0.isLowercase || $0 == "-" }),
+           message.first?.isLowercase == true {
+            ctx = String(message[..<sep.lowerBound])
+            english = String(message[sep.upperBound...])
+        }
         let key = ctx.map { "\($0)::\(english)" } ?? english
         let (current, translation) = lock.withLock { (pack, pack?.messages[key]) }
         if let current, let translation, let parts = parts(current.code, key, translation) {

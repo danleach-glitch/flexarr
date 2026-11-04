@@ -6,8 +6,12 @@ import TVServices
 @main
 struct FlexarrTVApp: App {
     @State private var model: AppModel
+    @State private var language: LanguageState
 
     init() {
+        // The language shown last, before anything draws (tvOS has no App Group: the Top Shelf reads its own copy).
+        Localization.shared.startWithLastShown()
+        _language = State(initialValue: LanguageState())
         Symbol.checkAll()
         ThisDevice.identify()
         // Artwork is fetched constantly while browsing; give it a generous disk cache.
@@ -26,6 +30,10 @@ struct FlexarrTVApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                // A new language redraws everything in it.
+                .id(language.code)
+                .environment(\.locale, language.locale)
+                .environment(\.layoutDirection, language.isRightToLeft ? .rightToLeft : .leftToRight)
                 .environment(model)
                 .preferredColorScheme(.dark)
                 .onOpenURL { model.open(url: $0) }
