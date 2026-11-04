@@ -97,7 +97,7 @@ const data = load();
 
 const external = href => /^https:/.test(href);
 // The server and every player are free, and their pills say so.
-const pill = p => `<span class="pill ${p.status}">${['server', 'player'].includes(p.kind) && p.status === 'available' ? 'Available for free' : statuses[p.status].label}</span>`;
+const pill = p => `<span class="pill ${p.status}">${['server', 'player'].includes(p.kind) && p.status === 'available' ? 'Available. 100% free.' : statuses[p.status].label}</span>`;
 // Links that open a new tab end in an arrow.
 const arrow = '<svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>';
 const button = (l, i) => {
