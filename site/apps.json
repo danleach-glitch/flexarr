@@ -1,5 +1,5 @@
 {
-  "$comment": "Every Flexarr app and platform, shown at flexarr.io/apps (in this order) and served as flexarr.io/apps.json. kind: server | player | integration (the section the page shows it in). Edit this file, then run `make apps`. status: available | beta | coming | development | planned. The first link is the one the table shows, by its short label. Entries with \"release\": \"server\" get the server's version from scripts/release.sh; set the others by hand when a store build goes live.",
+  "$comment": "Every Flexarr app and platform, shown at flexarr.io/apps (in this order) and served as flexarr.io/apps.json. kind: server | player | integration (the section the page shows it in). Edit this file, then run `make apps`. status: available | beta | coming | development | planned. The first link is the card's main button. Entries with \"release\": \"server\" get the server's version from scripts/release.sh; set the others by hand when a store build goes live.",
   "platforms": [
     {
       "id": "server",
@@ -13,7 +13,7 @@
       "runsOn": ["Docker", "Synology", "Unraid", "Linux", "Windows", "Mac"],
       "summary": "Reads your films, TV, music and podcasts, works with Sonarr, Radarr and Lidarr, and streams to every app. The web player is built in: open your server's address in any browser. Free for personal use.",
       "links": [
-        { "label": "Set up your server", "href": "/#setup", "primary": true, "short": "Install" },
+        { "label": "Set up your server", "href": "/#setup", "primary": true },
         { "label": "What's new", "href": "https://github.com/danleach-glitch/flexarr/releases" }
       ]
     },
@@ -27,7 +27,7 @@
       "summary": "Run your server on a Mac, as an app from the Mac App Store: install it in one step, choose your media folders, and it runs from the menu bar, converting video with your Mac's graphics hardware. Free.",
       "note": "Until then, you can build the server for your Mac from source.",
       "links": [
-        { "label": "Install on a Mac today", "href": "/guide/install-macos", "short": "Build from source" }
+        { "label": "Install on a Mac today", "href": "/guide/install-macos" }
       ]
     },
     {
@@ -40,7 +40,7 @@
       "requires": "iOS or iPadOS 18.2 or later",
       "summary": "Downloads for offline, podcasts with widgets and alerts, Siri, Picture in Picture and AirPlay. Free.",
       "links": [
-        { "label": "Download on the App Store", "href": "https://apps.apple.com/app/flexarr/id6826618084", "store": "apple", "short": "App Store" }
+        { "label": "Download on the App Store", "href": "https://apps.apple.com/app/flexarr/id6826618084", "store": "apple" }
       ]
     },
     {
@@ -54,7 +54,7 @@
       "summary": "Your libraries, music and live TV from the sofa, with a player built for HDR and Atmos. Free.",
       "note": "With Apple for review. Can't wait?",
       "links": [
-        { "label": "Install it from Xcode", "href": "/guide/apple-tv-xcode", "short": "Install with Xcode" }
+        { "label": "Install it from Xcode", "href": "/guide/apple-tv-xcode" }
       ]
     },
     {
@@ -67,8 +67,8 @@
       "requires": "A Mac with Apple silicon, macOS 15.2 or later",
       "summary": "Watch on your Mac: your libraries in a window, a full-screen player with Picture in Picture and AirPlay, and downloads for watching away from home. Free. Download it here today; it's coming to the App Store too.",
       "links": [
-        { "label": "Download for Mac", "href": "https://github.com/danleach-glitch/flexarr/releases/latest/download/Flexarr.dmg", "short": "Download" },
-        { "label": "How it connects", "href": "/guide/connect-devices#mac", "short": "Guide" }
+        { "label": "Download for Mac", "href": "https://github.com/danleach-glitch/flexarr/releases/latest/download/Flexarr.dmg" },
+        { "label": "How it connects", "href": "/guide/connect-devices#mac" }
       ]
     },
     {
@@ -81,7 +81,7 @@
       "requires": "Home Assistant with HACS, and Flexarr 0.45.0 or later",
       "summary": "Every Apple TV, iPhone and iPad becomes a media player, so your home can react to what you're watching: lights down when a film starts.",
       "links": [
-        { "label": "Get it on GitHub", "href": "https://github.com/danleach-glitch/flexarr-home-assistant", "short": "HACS" },
+        { "label": "Get it on GitHub", "href": "https://github.com/danleach-glitch/flexarr-home-assistant" },
         { "label": "How to set it up", "href": "/guide/home-assistant" }
       ]
     },

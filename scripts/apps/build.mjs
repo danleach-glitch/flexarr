@@ -15,20 +15,20 @@ const serverVersion = args.includes('--server-version') ? args[args.indexOf('--s
 
 const escape = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-// The status column's icons, in the order the legend lists them.
+// What each status is called on the cards' pills.
 const statuses = {
-  available: { icon: '✅', label: 'Available' },
-  beta: { icon: '🧪', label: 'Beta' },
-  coming: { icon: '🕒', label: 'Coming soon' },
-  development: { icon: '🛠️', label: 'In development' },
-  planned: { icon: '🗓️', label: 'Planned' },
+  available: { label: 'Available' },
+  beta: { label: 'Beta' },
+  coming: { label: 'Coming soon' },
+  development: { label: 'In development' },
+  planned: { label: 'Planned' },
 };
 
 // The page's sections, in order: what runs at home, what you watch on, and what works alongside.
 const kinds = {
-  server: { title: 'The server', group: 'Server', number: 1, intro: 'One per home. It holds your films, TV, music and podcasts and streams them to every screen.' },
-  player: { title: 'The players', group: 'Players', number: 2, intro: 'Watch on as many screens as you like. Each one signs in to your server.' },
-  integration: { title: 'Works with', group: 'Works with', intro: 'Add-ons that bring Flexarr into the rest of your home.' },
+  server: { title: 'The server', number: 1, intro: 'One per home. It holds your films, TV, music and podcasts and streams them to every screen.' },
+  player: { title: 'The players', number: 2, intro: 'Watch on as many screens as you like. Each one signs in to your server.' },
+  integration: { title: 'Works with', intro: 'Add-ons that bring Flexarr into the rest of your home.' },
 };
 
 const stroke = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
@@ -96,36 +96,15 @@ if (serverVersion) {
 const data = load();
 
 const external = href => /^https:/.test(href);
-const arrow = '<svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>';
 const pill = p => `<span class="pill ${p.status}">${statuses[p.status].label}</span>`;
 const button = (l, i) => {
   const kind = l.store || l.primary ? 'button primary' : i === 0 ? 'button quiet' : 'more';
   return `<a class="${kind}" href="${escape(l.href)}"${external(l.href) ? ' target="_blank" rel="noopener"' : ''}>${l.store ? stores[l.store] : ''}${escape(l.label)}</a>`;
 };
 
-// At a glance: one row each, with the first link as the way to get it.
-const get = p => {
-  const l = p.links?.[0];
-  if (!l) return '<span class="none">Not yet</span>';
-  return `<a class="get${l.store || l.primary ? ' ready' : ''}" href="${escape(l.href)}"${external(l.href) ? ' target="_blank" rel="noopener"' : ''}>${l.store ? stores[l.store] : ''}${escape(l.short || l.label)}${external(l.href) ? arrow : ''}</a>`;
-};
-const row = p => `            <tr>
-              <th scope="row"><div class="platform"><span class="row-icon">${icons[p.icon]}</span><div><a href="#${escape(p.id)}">${escape(p.name)}</a>${p.version ? `<span class="sub">${escape(p.version)}</span>` : ''}</div></div></th>
-              <td class="state"><span class="mark" aria-hidden="true">${statuses[p.status].icon}</span><span class="state-label">${statuses[p.status].label}</span></td>
-              <td class="ver">${p.version ? `<span class="version">${escape(p.version)}</span>` : '<span class="none">–</span>'}</td>
-              <td class="go">${get(p)}</td>
-            </tr>`;
 const ready = p => ['available', 'beta'].includes(p.status);
 // Each kind's entries in the order the page shows them: what's out now first, then what's on the way.
 const ofKind = kind => { const all = data.platforms.filter(p => p.kind === kind); return [...all.filter(ready), ...all.filter(p => !ready(p))]; };
-const groups = Object.entries(kinds).filter(([kind]) => ofKind(kind).length).map(([kind, k]) => `            <tr class="group"><th scope="rowgroup" colspan="4"><a href="#${kind}-head">${escape(k.group)}</a></th></tr>
-${ofKind(kind).map(row).join('\n')}`).join('\n');
-const table = `<div class="table"><table>
-          <thead><tr><th scope="col">Platform</th><th scope="col" class="state"><span class="state-label">Status</span></th><th scope="col" class="ver">Version</th><th scope="col" class="go">Get it</th></tr></thead>
-          <tbody>
-${groups}
-          </tbody>
-        </table></div>`;
 
 const card = p => `<article class="card${p.runsOn ? ' wide' : ''}" id="${escape(p.id)}">
             <div class="card-body">
@@ -196,7 +175,7 @@ const html = `<!doctype html>
     .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     .kicker { color: var(--silver); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.8rem; margin: 0 0 14px; }
     section { padding-top: clamp(64px, 9vw, 112px); }
-    section > h2, .section-head h2, .kind-head h2 { font-size: clamp(2.4rem, 6vw, 4rem); }
+    section > h2, .kind-head h2 { font-size: clamp(2.4rem, 6vw, 4rem); }
 
     /* Hero: the headline, then the devices straight on the page. */
     .hero { padding-top: clamp(40px, 7vw, 88px); text-align: center; }
@@ -221,54 +200,6 @@ const html = `<!doctype html>
       .fits .flow svg { width: 20px; height: 20px; }
     }
 
-    /* At a glance */
-    .section-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 16px 32px; }
-    .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 0; list-style: none; color: var(--usher); font-size: 0.92rem; }
-    .table { margin-top: 28px; border: 1px solid var(--aisle); border-radius: 22px; background: linear-gradient(180deg, var(--seat), rgb(37 32 44 / 0.55)); overflow: hidden; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 18px 22px; text-align: left; border-top: 1px solid var(--aisle); vertical-align: middle; }
-    thead th { border-top: 0; padding-block: 16px; color: var(--usher); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-    tbody tr { transition: background 0.15s; }
-    tbody tr.group:hover { background: none; }
-    tr.group th { padding-block: 22px 10px; color: var(--silver); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-    tr.group th a { color: inherit; }
-    tr.group:first-child th { border-top: 0; }
-    tbody tr:hover { background: rgb(242 238 231 / 0.03); }
-    tbody th { font-weight: 700; font-size: 1.05rem; }
-    tbody th a { color: var(--screen); text-decoration: none; }
-    tbody th a:hover { color: var(--silver); }
-    td { color: var(--usher); }
-    .platform { display: flex; align-items: center; gap: 14px; }
-    .row-icon { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; flex: none; background: var(--seat-raised); border: 1px solid var(--aisle); color: var(--screen); }
-    .row-icon svg, .row-icon img { width: 19px; height: 19px; }
-    td.state { white-space: nowrap; }
-    .mark { margin-right: 9px; font-size: 1.05rem; }
-    .version { font-variant-numeric: tabular-nums; color: var(--screen); }
-    .none { color: var(--usher); opacity: 0.6; }
-    .sub { display: none; }
-    th.go, td.go { text-align: right; }
-    .get { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--aisle); color: var(--screen); font-size: 0.92rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
-    .get:hover { border-color: var(--usher); background: var(--seat-raised); }
-    .get.ready { background: var(--screen); border-color: var(--screen); color: var(--room); }
-    .get.ready:hover { background: #fff; }
-    .get svg { width: 15px; height: 15px; flex: none; }
-    .get .arrow { width: 13px; height: 13px; opacity: 0.7; }
-    @media (max-width: 720px) {
-      th, td { padding: 14px 14px; }
-      .ver, .state-label { display: none; }
-      .platform { gap: 10px; }
-      .row-icon { width: 30px; height: 30px; border-radius: 9px; }
-      .row-icon svg, .row-icon img { width: 16px; height: 16px; }
-      td.state { padding-inline: 4px; text-align: center; }
-      .mark { margin: 0; }
-      .sub { display: block; margin-top: 2px; color: var(--usher); font-weight: 400; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
-      td.go { padding-left: 4px; }
-      .get { padding: 6px 11px; font-size: 0.85rem; gap: 5px; }
-      .get .arrow { display: none; }
-    }
-
-    /* On a phone the cards below say it all, so the table goes. */
-    @media (max-width: 640px) { .glance { display: none; } }
 
     /* Cards */
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 20px; margin-top: 32px; }
@@ -284,6 +215,7 @@ const html = `<!doctype html>
     .app-icon svg, .app-icon img { width: 28px; height: 28px; }
     .card h3 { font-size: clamp(2rem, 3.4vw, 2.6rem); }
     .card p { margin: 0; }
+    .version { font-variant-numeric: tabular-nums; color: var(--screen); }
     .version-line { color: var(--usher); font-size: 0.95rem; margin-top: -4px !important; }
     .summary { color: #cfc8d8; }
     .note, .requires { color: var(--usher); font-size: 0.93rem; }
@@ -373,16 +305,6 @@ const html = `<!doctype html>
         <span class="flow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span>
         <a class="step" href="#player-head"><span class="num" aria-hidden="true">2</span><span><strong>Players</strong><small>on every screen you watch on</small></span></a>
       </nav>
-
-      <section class="glance" aria-labelledby="glance">
-        <div class="section-head">
-          <h2 id="glance">At a glance</h2>
-          <ul class="legend">
-${Object.values(statuses).map(s => `            <li><span aria-hidden="true">${s.icon}</span> ${s.label}</li>`).join('\n')}
-          </ul>
-        </div>
-        ${table}
-      </section>
 
 ${sections}
 

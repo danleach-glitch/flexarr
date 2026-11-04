@@ -26,7 +26,7 @@
     .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     .kicker { color: var(--silver); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.8rem; margin: 0 0 14px; }
     section { padding-top: clamp(64px, 9vw, 112px); }
-    section > h2, .section-head h2, .kind-head h2 { font-size: clamp(2.4rem, 6vw, 4rem); }
+    section > h2, .kind-head h2 { font-size: clamp(2.4rem, 6vw, 4rem); }
 
     /* Hero: the headline, then the devices straight on the page. */
     .hero { padding-top: clamp(40px, 7vw, 88px); text-align: center; }
@@ -51,54 +51,6 @@
       .fits .flow svg { width: 20px; height: 20px; }
     }
 
-    /* At a glance */
-    .section-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 16px 32px; }
-    .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 0; list-style: none; color: var(--usher); font-size: 0.92rem; }
-    .table { margin-top: 28px; border: 1px solid var(--aisle); border-radius: 22px; background: linear-gradient(180deg, var(--seat), rgb(37 32 44 / 0.55)); overflow: hidden; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 18px 22px; text-align: left; border-top: 1px solid var(--aisle); vertical-align: middle; }
-    thead th { border-top: 0; padding-block: 16px; color: var(--usher); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-    tbody tr { transition: background 0.15s; }
-    tbody tr.group:hover { background: none; }
-    tr.group th { padding-block: 22px 10px; color: var(--silver); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-    tr.group th a { color: inherit; }
-    tr.group:first-child th { border-top: 0; }
-    tbody tr:hover { background: rgb(242 238 231 / 0.03); }
-    tbody th { font-weight: 700; font-size: 1.05rem; }
-    tbody th a { color: var(--screen); text-decoration: none; }
-    tbody th a:hover { color: var(--silver); }
-    td { color: var(--usher); }
-    .platform { display: flex; align-items: center; gap: 14px; }
-    .row-icon { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; flex: none; background: var(--seat-raised); border: 1px solid var(--aisle); color: var(--screen); }
-    .row-icon svg, .row-icon img { width: 19px; height: 19px; }
-    td.state { white-space: nowrap; }
-    .mark { margin-right: 9px; font-size: 1.05rem; }
-    .version { font-variant-numeric: tabular-nums; color: var(--screen); }
-    .none { color: var(--usher); opacity: 0.6; }
-    .sub { display: none; }
-    th.go, td.go { text-align: right; }
-    .get { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--aisle); color: var(--screen); font-size: 0.92rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
-    .get:hover { border-color: var(--usher); background: var(--seat-raised); }
-    .get.ready { background: var(--screen); border-color: var(--screen); color: var(--room); }
-    .get.ready:hover { background: #fff; }
-    .get svg { width: 15px; height: 15px; flex: none; }
-    .get .arrow { width: 13px; height: 13px; opacity: 0.7; }
-    @media (max-width: 720px) {
-      th, td { padding: 14px 14px; }
-      .ver, .state-label { display: none; }
-      .platform { gap: 10px; }
-      .row-icon { width: 30px; height: 30px; border-radius: 9px; }
-      .row-icon svg, .row-icon img { width: 16px; height: 16px; }
-      td.state { padding-inline: 4px; text-align: center; }
-      .mark { margin: 0; }
-      .sub { display: block; margin-top: 2px; color: var(--usher); font-weight: 400; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
-      td.go { padding-left: 4px; }
-      .get { padding: 6px 11px; font-size: 0.85rem; gap: 5px; }
-      .get .arrow { display: none; }
-    }
-
-    /* On a phone the cards below say it all, so the table goes. */
-    @media (max-width: 640px) { .glance { display: none; } }
 
     /* Cards */
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 20px; margin-top: 32px; }
@@ -114,6 +66,7 @@
     .app-icon svg, .app-icon img { width: 28px; height: 28px; }
     .card h3 { font-size: clamp(2rem, 3.4vw, 2.6rem); }
     .card p { margin: 0; }
+    .version { font-variant-numeric: tabular-nums; color: var(--screen); }
     .version-line { color: var(--usher); font-size: 0.95rem; margin-top: -4px !important; }
     .summary { color: #cfc8d8; }
     .note, .requires { color: var(--usher); font-size: 0.93rem; }
@@ -203,75 +156,6 @@
         <span class="flow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span>
         <a class="step" href="#player-head"><span class="num" aria-hidden="true">2</span><span><strong>Players</strong><small>on every screen you watch on</small></span></a>
       </nav>
-
-      <section class="glance" aria-labelledby="glance">
-        <div class="section-head">
-          <h2 id="glance">At a glance</h2>
-          <ul class="legend">
-            <li><span aria-hidden="true">✅</span> Available</li>
-            <li><span aria-hidden="true">🧪</span> Beta</li>
-            <li><span aria-hidden="true">🕒</span> Coming soon</li>
-            <li><span aria-hidden="true">🛠️</span> In development</li>
-            <li><span aria-hidden="true">🗓️</span> Planned</li>
-          </ul>
-        </div>
-        <div class="table"><table>
-          <thead><tr><th scope="col">Platform</th><th scope="col" class="state"><span class="state-label">Status</span></th><th scope="col" class="ver">Version</th><th scope="col" class="go">Get it</th></tr></thead>
-          <tbody>
-            <tr class="group"><th scope="rowgroup" colspan="4"><a href="#server-head">Server</a></th></tr>
-            <tr>
-              <th scope="row"><div class="platform"><span class="row-icon"><img src="/logo-mark.svg" alt=""></span><div><a href="#server">Server + Web Player</a><span class="sub">0.61.0</span></div></div></th>
-              <td class="state"><span class="mark" aria-hidden="true">✅</span><span class="state-label">Available</span></td>
-              <td class="ver"><span class="version">0.61.0</span></td>
-              <td class="go"><a class="get ready" href="/#setup">Install</a></td>
-            </tr>
-            <tr>
-              <th scope="row"><div class="platform"><span class="row-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg></span><div><a href="#mac">Server for Mac</a></div></div></th>
-              <td class="state"><span class="mark" aria-hidden="true">🛠️</span><span class="state-label">In development</span></td>
-              <td class="ver"><span class="none">–</span></td>
-              <td class="go"><a class="get" href="/guide/install-macos">Build from source</a></td>
-            </tr>
-            <tr class="group"><th scope="rowgroup" colspan="4"><a href="#player-head">Players</a></th></tr>
-            <tr>
-              <th scope="row"><div class="platform"><span class="row-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg></span><div><a href="#iphone">iPhone and iPad</a><span class="sub">0.57.0</span></div></div></th>
-              <td class="state"><span class="mark" aria-hidden="true">✅</span><span class="state-label">Available</span></td>
-              <td class="ver"><span class="version">0.57.0</span></td>
-              <td class="go"><a class="get ready" href="https://apps.apple.com/app/flexarr/id6826618084" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7a4.5 4.5 0 0 0-3.5-1.9c-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8a4.7 4.7 0 0 0-4 2.4c-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4a10 10 0 0 0 1.4-2.8 4.3 4.3 0 0 1-2.6-3.9ZM14 5.4a4.3 4.3 0 0 0 1-3.1 4.4 4.4 0 0 0-2.9 1.5 4.1 4.1 0 0 0-1 3 3.6 3.6 0 0 0 2.9-1.4Z"/></svg>App Store<svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a></td>
-            </tr>
-            <tr>
-              <th scope="row"><div class="platform"><span class="row-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg></span><div><a href="#mac-player">Mac</a><span class="sub">0.61.0</span></div></div></th>
-              <td class="state"><span class="mark" aria-hidden="true">✅</span><span class="state-label">Available</span></td>
-              <td class="ver"><span class="version">0.61.0</span></td>
-              <td class="go"><a class="get" href="https://github.com/danleach-glitch/flexarr/releases/latest/download/Flexarr.dmg" target="_blank" rel="noopener">Download<svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a></td>
-            </tr>
-            <tr>
-              <th scope="row"><div class="platform"><span class="row-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg></span><div><a href="#apple-tv">Apple TV</a><span class="sub">0.57.0</span></div></div></th>
-              <td class="state"><span class="mark" aria-hidden="true">🕒</span><span class="state-label">Coming soon</span></td>
-              <td class="ver"><span class="version">0.57.0</span></td>
-              <td class="go"><a class="get" href="/guide/apple-tv-xcode">Install with Xcode</a></td>
-            </tr>
-            <tr>
-              <th scope="row"><div class="platform"><span class="row-icon"><svg viewBox="0 0 24 24" fill="#3ddc84" aria-hidden="true"><path d="M18.4395 5.5586c-.675 1.1664-1.352 2.3318-2.0274 3.498-.0366-.0155-.0742-.0286-.1113-.043-1.8249-.6957-3.484-.8-4.42-.787-1.8551.0185-3.3544.4643-4.2597.8203-.084-.1494-1.7526-3.021-2.0215-3.4864a1.1451 1.1451 0 0 0-.1406-.1914c-.3312-.364-.9054-.4859-1.379-.203-.475.282-.7136.9361-.3886 1.5019 1.9466 3.3696-.0966-.2158 1.9473 3.3593.0172.031-.4946.2642-1.3926 1.0177C2.8987 12.176.452 14.772 0 18.9902h24c-.119-1.1108-.3686-2.099-.7461-3.0683-.7438-1.9118-1.8435-3.2928-2.7402-4.1836a12.1048 12.1048 0 0 0-2.1309-1.6875c.6594-1.122 1.312-2.2559 1.9649-3.3848.2077-.3615.1886-.7956-.0079-1.1191a1.1001 1.1001 0 0 0-.8515-.5332c-.5225-.0536-.9392.3128-1.0488.5449zm-.0391 8.461c.3944.5926.324 1.3306-.1563 1.6503-.4799.3197-1.188.0985-1.582-.4941-.3944-.5927-.324-1.3307.1563-1.6504.4727-.315 1.1812-.1086 1.582.4941zM7.207 13.5273c.4803.3197.5506 1.0577.1563 1.6504-.394.5926-1.1038.8138-1.584.4941-.48-.3197-.5503-1.0577-.1563-1.6504.4008-.6021 1.1087-.8106 1.584-.4941z"/></svg></span><div><a href="#android">Android phone and tablet</a></div></div></th>
-              <td class="state"><span class="mark" aria-hidden="true">🛠️</span><span class="state-label">In development</span></td>
-              <td class="ver"><span class="none">–</span></td>
-              <td class="go"><span class="none">Not yet</span></td>
-            </tr>
-            <tr>
-              <th scope="row"><div class="platform"><span class="row-icon"><svg viewBox="0 0 24 24" fill="#3ddc84" aria-hidden="true"><path d="M18.4395 5.5586c-.675 1.1664-1.352 2.3318-2.0274 3.498-.0366-.0155-.0742-.0286-.1113-.043-1.8249-.6957-3.484-.8-4.42-.787-1.8551.0185-3.3544.4643-4.2597.8203-.084-.1494-1.7526-3.021-2.0215-3.4864a1.1451 1.1451 0 0 0-.1406-.1914c-.3312-.364-.9054-.4859-1.379-.203-.475.282-.7136.9361-.3886 1.5019 1.9466 3.3696-.0966-.2158 1.9473 3.3593.0172.031-.4946.2642-1.3926 1.0177C2.8987 12.176.452 14.772 0 18.9902h24c-.119-1.1108-.3686-2.099-.7461-3.0683-.7438-1.9118-1.8435-3.2928-2.7402-4.1836a12.1048 12.1048 0 0 0-2.1309-1.6875c.6594-1.122 1.312-2.2559 1.9649-3.3848.2077-.3615.1886-.7956-.0079-1.1191a1.1001 1.1001 0 0 0-.8515-.5332c-.5225-.0536-.9392.3128-1.0488.5449zm-.0391 8.461c.3944.5926.324 1.3306-.1563 1.6503-.4799.3197-1.188.0985-1.582-.4941-.3944-.5927-.324-1.3307.1563-1.6504.4727-.315 1.1812-.1086 1.582.4941zM7.207 13.5273c.4803.3197.5506 1.0577.1563 1.6504-.394.5926-1.1038.8138-1.584.4941-.48-.3197-.5503-1.0577-.1563-1.6504.4008-.6021 1.1087-.8106 1.584-.4941z"/></svg></span><div><a href="#android-tv">Android TV and Google TV</a></div></div></th>
-              <td class="state"><span class="mark" aria-hidden="true">🛠️</span><span class="state-label">In development</span></td>
-              <td class="ver"><span class="none">–</span></td>
-              <td class="go"><span class="none">Not yet</span></td>
-            </tr>
-            <tr class="group"><th scope="rowgroup" colspan="4"><a href="#integration-head">Works with</a></th></tr>
-            <tr>
-              <th scope="row"><div class="platform"><span class="row-icon"><svg viewBox="0 0 24 24" fill="#18bcf2" aria-hidden="true"><path d="M22.939 10.627 13.061.749a1.505 1.505 0 0 0-2.121 0l-9.879 9.878C.478 11.21 0 12.363 0 13.187v9c0 .826.675 1.5 1.5 1.5h9.227l-4.063-4.062a2.034 2.034 0 0 1-.664.113c-1.13 0-2.05-.92-2.05-2.05s.92-2.05 2.05-2.05 2.05.92 2.05 2.05c0 .233-.041.456-.113.665l3.163 3.163V9.928a2.05 2.05 0 0 1-1.15-1.84c0-1.13.92-2.05 2.05-2.05s2.05.92 2.05 2.05a2.05 2.05 0 0 1-1.15 1.84v8.127l3.146-3.146A2.051 2.051 0 0 1 18 12.239c1.13 0 2.05.92 2.05 2.05s-.92 2.05-2.05 2.05c-.25 0-.488-.047-.709-.13L12.9 20.602v3.088h9.6c.825 0 1.5-.675 1.5-1.5v-9c0-.825-.477-1.977-1.061-2.561z"/></svg></span><div><a href="#home-assistant">Home Assistant</a><span class="sub">0.1.1</span></div></div></th>
-              <td class="state"><span class="mark" aria-hidden="true">✅</span><span class="state-label">Available</span></td>
-              <td class="ver"><span class="version">0.1.1</span></td>
-              <td class="go"><a class="get" href="https://github.com/danleach-glitch/flexarr-home-assistant" target="_blank" rel="noopener">HACS<svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a></td>
-            </tr>
-          </tbody>
-        </table></div>
-      </section>
 
       <section class="kind server" aria-labelledby="server-head">
         <div class="kind-head">
