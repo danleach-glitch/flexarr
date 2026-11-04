@@ -8,6 +8,7 @@ const names: Record<DeviceType, string> = {
   AndroidPhone: tk('Android phone'),
   AndroidTablet: tk('Android tablet'),
   AndroidTv: 'Android TV',
+  Mac: 'Mac',
 }
 
 /** "Android phone", when the device's app has said what it is; undefined for nothing, or a kind newer than this page. */
