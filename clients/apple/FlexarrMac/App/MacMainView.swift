@@ -196,6 +196,21 @@ struct MacMainView: View {
         .help(t("Server"))
         .accessibilityElement(children: .combine)
         .accessibilityHint(t("Server"))
+        .overlay(alignment: .trailing) {
+            // A newer copy to download (only the one from flexarr.io asks): over the version.
+            if let newer = MacUpdates.shared.newer {
+                Button { MacUpdates.shared.download() } label: {
+                    Text(t("Update"))
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.room)
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .background(Capsule().fill(Color.silver))
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 14)
+                .help(t("Download Flexarr {version}…", ["version": newer]))
+            }
+        }
     }
 
     @ViewBuilder

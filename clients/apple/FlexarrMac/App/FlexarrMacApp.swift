@@ -28,6 +28,7 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationC
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
         PushNotifications.registerCategories()
+        MacUpdates.shared.start()
         NotificationCenter.default.addObserver(forName: Localization.changed, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { PushNotifications.registerCategories() }
         }

@@ -3,9 +3,11 @@
 #
 #   scripts/release.sh prepare minor|patch|<x.y.z>   check main's CI, bump the version everywhere, commit, tag, push
 #   scripts/release.sh publish v<x.y.z>               wait for that commit's CI, the tag's Docker image and Mac
-#                                                     builds, then publish the GitHub release with the changelog
-#                                                     section as notes and the Mac builds attached, their
-#                                                     SHA256SUMS signed with the update signing key
+#                                                     builds, build the Mac app's Flexarr.dmg here (signed and
+#                                                     notarised: scripts/mac-player-dmg.sh), then publish the GitHub
+#                                                     release with the changelog section as notes and the Mac builds
+#                                                     and Flexarr.dmg attached, SHA256SUMS signed with the update
+#                                                     signing key
 #   scripts/release.sh signing-key                    make that key, once (see UpdateSignature.cs)
 #
 # Run it from a clean checkout of main (the /release skill makes a throwaway worktree for it). Never release a red build:
@@ -109,7 +111,12 @@ publish() {
   # The changelog section for this version, without its heading.
   notes=$(awk -v v="$version" '$0 ~ "^## " v " " {on=1; next} /^## / {if (on) exit} on' CHANGELOG.md)
   [ -n "$notes" ] || die "no CHANGELOG.md section for $version"
-  gh release create "$tag" --title "$version" --notes "$notes" --verify-tag "$builds"/flexarr-*.tar.gz "$builds/SHA256SUMS" "$builds/SHA256SUMS.sig"
+  # The Mac app for downloading (flexarr.io/apps links to the latest release's): built here, from the tag, because
+  # signing goes through Xcode's account on this Mac. Its copies say when this one is out.
+  [ "$(git rev-parse HEAD)" = "$sha" ] || die "HEAD isn't $tag; check it out to build the Mac app's disk image from it"
+  scripts/mac-player-dmg.sh "$version" || die "the Mac app's disk image failed (see above); nothing was published"
+  gh release create "$tag" --title "$version" --notes "$notes" --verify-tag "$builds"/flexarr-*.tar.gz "$builds/SHA256SUMS" "$builds/SHA256SUMS.sig" \
+    build/apple/Flexarr.dmg
   rm -rf "$builds"
   echo "==> Released $version: https://github.com/danleach-glitch/flexarr/releases/tag/$tag"
 }

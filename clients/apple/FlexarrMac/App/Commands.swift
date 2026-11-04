@@ -7,6 +7,12 @@ struct FlexarrCommands: Commands {
     let model: AppModel
 
     var body: some Commands {
+        // The downloaded copy, once a newer one is out (MacUpdates): under About, as Mac apps put their updates.
+        CommandGroup(after: .appInfo) {
+            if let newer = MacUpdates.shared.newer {
+                Button(t("Download Flexarr {version}…", ["version": newer])) { MacUpdates.shared.download() }
+            }
+        }
         CommandGroup(replacing: .appSettings) {
             Button(t("Settings…")) { MacNavigation.shared.selection = .settings }
                 .keyboardShortcut(",")

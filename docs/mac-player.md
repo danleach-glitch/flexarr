@@ -79,6 +79,19 @@ child lock. **Splash:** about a second of the mark and name, fixed in place as i
 5. **Downloads and notifications.**
 6. **Shipping:** icon and privacy manifest, `make mac-player-install` and `make mac-player-upload`, CI, parity tour, design spec, guide, apps page, changelog, store notes.
 
+## Two ways to get it
+
+- **The App Store**, on the iPhone and Apple TV app's listing: `make mac-player-upload TEAM=… BUNDLE_ID=<the iPhone app's>`,
+  with notifications (the `-Store` entitlements). It updates itself. Its macOS version is submitted with the others at a
+  release.
+- **A download from flexarr.io**: `Flexarr.dmg`, attached to every GitHub release by `scripts/release.sh publish`
+  (`scripts/mac-player-dmg.sh`, or `make mac-player-dmg`). Signed with Developer ID through Xcode's account and
+  notarised with the App Store Connect API key, so it opens without a warning. It has no notifications (those need the
+  App Store's profile), and `FlexarrDistribution=direct` in its Info.plist makes it check GitHub's latest release daily
+  (`MacUpdates`): a newer one with the disk image shows *Update* at the foot of the sidebar and *Download Flexarr x.y.z…*
+  under About in the Flexarr menu, both downloading `releases/latest/download/Flexarr.dmg`, the address flexarr.io/apps
+  links to. Both copies share one bundle ID and so one sign-in and one set of downloads; install one or the other.
+
 ## Notes for whoever works on it
 
 - **Listening.** AetherEngine's HLS server (the player's direct play) listens on every interface, for AirPlay, behind a
