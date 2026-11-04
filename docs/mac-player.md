@@ -77,6 +77,15 @@ child lock. **Splash:** about a second of the mark and name, fixed in place as i
 5. **Downloads and notifications.**
 6. **Shipping:** icon and privacy manifest, `make mac-player-install` and `make mac-player-upload`, CI, parity tour, design spec, guide, apps page, changelog, store notes.
 
+## Notes for whoever works on it
+
+- **Listening.** AetherEngine's HLS server (the player's direct play) listens on every interface, for AirPlay, behind a
+  random token per playback; hence the network-server entitlement. The guest tunnel's local proxy (`clients/tunnel`) is
+  on 127.0.0.1, which on a Mac other programs of the same user can reach; the server still asks for the sign-in.
+- **Keychain.** A store build keeps the sign-in in the data-protection Keychain; a home build signed with a
+  development certificate and no provisioning profile can't, and uses the file Keychain. Switching between the two
+  kinds of build signs you out.
+
 ## Risks
 
 - If the iPhone app is offered on Apple silicon Macs as "Designed for iPad" today, the native app replaces it on the same listing. Check before the first upload.

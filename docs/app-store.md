@@ -104,9 +104,11 @@ Privacy are shared. Flexarr Server (below) stays a separate app and listing.
 - It needs the Mac App Distribution and Mac Installer Distribution certificates (Xcode signed in), and is signed with
   `FlexarrMac-Store.entitlements` (notifications and the app group with the extension). `MAC_EXPORT=export` builds the
   package without uploading. Apple silicon only, macOS 15.2 and later.
-- **Review notes** as for the iPhone (the demo server and its API key), plus: "The app needs the network server
-  entitlement only for a loopback HLS server on 127.0.0.1, through which its player hands a file it reads itself to
-  AVPlayer; nothing listens on other interfaces."
+- **Review notes** as for the iPhone (the demo server and its API key), plus: "The app uses the network server
+  entitlement for its player: it reads the video file itself and hands it to AVPlayer through a small HLS server
+  whose addresses carry a random token for each playback. Its player reaches it over the loopback address; the
+  same server is reachable on the local network only so that AirPlay receivers can play the stream. The optional
+  Tailscale connection used by family invites also takes incoming UDP."
 - **Promotional text** gains the Mac; the description says the Mac app needs no server on the same Mac.
 - The screens for the screenshots come from `scripts/parity/mac-shots.sh` (the window must be in front while it runs).
 
