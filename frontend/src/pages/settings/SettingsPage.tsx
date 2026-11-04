@@ -3,6 +3,7 @@ import { Navigate, NavLink, useParams } from 'react-router'
 import { clearApiCache, getMe, getTraktStatus, getUpdates, lockAdmin } from '../../api/client'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
+import { availableLanguages } from '../../i18n'
 import { Antenna, Download, Film, Gauge, Globe, Headphones, History, Info, LayoutGrid, Notes, Padlock, PanelLeft, Shield, PlayCircle, Plug, Restore, Stack, Users } from '../../components/icons'
 import { AboutSection } from './AboutSection'
 import { SecuritySection } from './SecuritySection'
@@ -12,6 +13,7 @@ import { ConnectionsSection, TRAKT_CHANGED } from './ConnectionsSection'
 import { ConnectTvSection } from './ConnectTvSection'
 import { HealthSection } from './HealthSection'
 import { ImportSection } from './ImportSection'
+import { LanguageSection } from './LanguageSection'
 import { LayoutSection } from './LayoutSection'
 import { LibrariesSection } from './LibrariesSection'
 import { LogsSection } from './LogsSection'
@@ -43,6 +45,9 @@ const profilePages: Page[] = [
   { id: 'layout', label: 'Home & browse', icon: LayoutGrid, render: () => <LayoutSection /> },
   { id: 'navigation', label: 'Navigation', icon: PanelLeft, render: () => <NavigationSection /> },
 ]
+
+/** Listed once the server offers a language besides English (from 0.61). */
+const languagePage: Page = { id: 'language', label: 'Language', icon: Globe, render: () => <LanguageSection /> }
 
 /** Listed when the server offers Trakt (from 0.57). */
 const traktPage: Page = { id: 'trakt', label: 'Trakt', icon: History, render: () => <TraktSection /> }
@@ -92,7 +97,12 @@ export function SettingsPage() {
     window.addEventListener(TRAKT_CHANGED, reloadTrakt)
     return () => window.removeEventListener(TRAKT_CHANGED, reloadTrakt)
   }, [reloadTrakt])
-  const ownPages = trakt.data?.available ? [...profilePages, traktPage] : profilePages
+  const languages = useApi(availableLanguages, [])
+  const ownPages = [
+    ...profilePages,
+    ...((languages.data?.length ?? 0) > 1 ? [languagePage] : []),
+    ...(trakt.data?.available ? [traktPage] : []),
+  ]
   // Settings for the server are the main profile's, and changing them takes the admin PIN (given lately on this browser):
   // locked, the server's pages ask for it. Another profile chosen here has only its own pages. Older servers have no
   // /me: everything, as before.
