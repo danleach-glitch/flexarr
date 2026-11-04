@@ -54,6 +54,11 @@ const stores = {
   google: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 3.5v17l14-8.5L5 3.5Z"/></svg>',
 };
 
+// Icons a link can carry before its label (`"icon": "laptop"`).
+const linkIcons = {
+  laptop: stroke('<rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/>'),
+};
+
 function load() {
   const data = JSON.parse(fs.readFileSync(source, 'utf8'));
   const problems = [];
@@ -72,6 +77,7 @@ function load() {
     if (p.release && p.release !== 'server') problems.push(`${at}: "release" can only be "server"`);
     for (const link of p.links ?? []) {
       if (!link.label || !/^(https:\/\/|\/)/.test(link.href ?? '')) problems.push(`${at}: each link needs a label and an https:// or /path href`);
+      if (link.icon && !linkIcons[link.icon]) problems.push(`${at}: a link's icon must be one of ${Object.keys(linkIcons).join(', ')}`);
       if (link.store && !stores[link.store]) problems.push(`${at}: store must be one of ${Object.keys(stores).join(', ')}`);
     }
   }
@@ -102,7 +108,7 @@ const pill = p => `<span class="pill ${p.status}">${['server', 'player'].include
 const arrow = '<svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>';
 const button = (l, i) => {
   const kind = l.store || l.primary ? 'button primary' : i === 0 ? 'button quiet' : 'more';
-  return `<a class="${kind}" href="${escape(l.href)}"${external(l.href) ? ' target="_blank" rel="noopener"' : ''}>${l.store ? stores[l.store] : ''}${escape(l.label)}${external(l.href) ? arrow : ''}</a>`;
+  return `<a class="${kind}" href="${escape(l.href)}"${external(l.href) ? ' target="_blank" rel="noopener"' : ''}>${l.store ? stores[l.store] : l.icon ? linkIcons[l.icon] : ''}${escape(l.label)}${external(l.href) ? arrow : ''}</a>`;
 };
 
 // Out now, coming soon (built, waiting on a store), or on the way (still being made: a lighter, dashed card).
