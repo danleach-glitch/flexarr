@@ -48,7 +48,11 @@ public sealed record SettingsDto(
     bool? AllowMusicRequests = null,
     // The server runs in a container, where Docker's port forwarding can make visitors from the internet look like
     // they're at home, so "only away from home" lets them in (absent from servers before 0.60).
-    bool? InContainer = null);
+    bool? InContainer = null,
+    // What the server is called (Settings › Overview): the name an admin gave it, or null for the machine's name,
+    // which is the default (absent from servers before 0.61).
+    string? ServerName = null,
+    string? DefaultServerName = null);
 
 /// <summary>The admin's own Trakt app, used instead of Flexarr's; the secret is never sent back, only whether there is one.</summary>
 public sealed record TraktAppDto(string ClientId, bool HasSecret);
@@ -98,7 +102,9 @@ public sealed record SettingsUpdate(
     // Letting devices at home in without the key asks again, as showing the key does (see ConfirmKeyAsync): the admin
     // PIN when it has one, otherwise a yes. Absent from web apps before 0.60.
     string? Pin = null,
-    bool? Confirm = null);
+    bool? Confirm = null,
+    // A new name for the server; empty goes back to the machine's name. Absent from web apps before 0.61.
+    string? ServerName = null);
 
 /// <param name="ApiKey">TMDB's API key or read access token; empty to remove it.</param>
 public sealed record TmdbKeyUpdate(string ApiKey);
@@ -153,6 +159,11 @@ public static class SettingsEndpoints
                 return refused;
             }
 
+            if (update.ServerName is { } newName && Configuration.ServerName.Problem(newName) is { } nameProblem)
+            {
+                return Problems.Field(nameProblem, field: "serverName", args: new { max = Configuration.ServerName.MaxLength });
+            }
+
             if (update.LiveTv is { BaseUrl.Length: > 0 } badLive && (WebAddress(badLive.BaseUrl) is null || string.IsNullOrWhiteSpace(badLive.Username)))
             {
                 return Problems.Field("Enter Dispatcharr’s http or https address and a user name.", field: "liveTv");
@@ -196,6 +207,11 @@ public static class SettingsEndpoints
             // (a fixed pause was too short on slower machines, and the reply showed the old settings).
             await ServerConfigStore.UpdateAndWaitAsync(options, current.DataDirectory, config =>
             {
+                if (update.ServerName is { } serverName)
+                {
+                    config["serverName"] = serverName.Trim() is { Length: > 0 } trimmed ? trimmed : null;
+                }
+
                 if (update.Podcasts is { } podcasts)
                 {
                     config["podcasts"] = new JsonObject { ["country"] = Podcasts.PodcastCountries.Known(podcasts.Country) };
@@ -521,7 +537,9 @@ public static class SettingsEndpoints
         mainHasOwnPin,
         o.Trakt.ClientId.Length > 0 ? new TraktAppDto(o.Trakt.ClientId, o.Trakt.ClientSecret.Length > 0) : null,
         o.MusicRequests.Enabled,
-        Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true");
+        Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true",
+        o.ServerName?.Trim() is { Length: > 0 } name ? name : null,
+        ServerName.Default);
 
     /// <summary>
     /// This machine's name on the network ("Dans-Mac-Mini"), which the web app puts in place of localhost in links to

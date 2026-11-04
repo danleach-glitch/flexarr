@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using Flexarr.Core.Localization;
 
 namespace Flexarr.Api.Configuration;
 
@@ -37,10 +38,10 @@ public static class ServerName
         name = name.Trim();
         if (name.Length > MaxLength || Encoding.UTF8.GetByteCount(name) > MaxBytes)
         {
-            return "Keep the name to {max} characters or fewer.";
+            return Loc.Mark("Keep the name to {max} characters or fewer.");
         }
 
-        return name.Any(char.IsControl) ? "The name can’t contain line breaks or tabs." : null;
+        return name.Any(char.IsControl) ? Loc.Mark("The name can’t contain line breaks or tabs.") : null;
     }
 
     /// <summary>
