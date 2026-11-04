@@ -4,6 +4,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Web
+- Counts read properly for one of something: "1 track", "1 season" and "1 channel" where some said "1 tracks".
+- Dates and numbers follow your browser's own way of writing them everywhere, including the live TV guide and recordings.
+
 ### Website
 - flexarr.io/why is now linked from every page: how Flexarr compares with Plex, Jellyfin and Emby and with the Infuse, Plezy, Swiftfin and Rivulet apps, brought up to 0.60.0 with music requests, scores, fixing matches, what a show is missing and audiobooks.
 
