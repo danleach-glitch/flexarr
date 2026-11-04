@@ -52,7 +52,7 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
 
 /// Talks to a Flexarr server's `/api/v1` REST API. Shared by the tvOS, iOS and macOS apps.
 public struct FlexarrClient: Sendable {
-    /// What this device is ("AppleTv", "IPhone" or "IPad"), sent with every request as `X-Flexarr-Device` so the
+    /// What this device is ("AppleTv", "IPhone", "IPad" or "Mac"), sent with every request as `X-Flexarr-Device` so the
     /// server's lists of devices can name and draw it. Set once at launch; nil sends nothing.
     public nonisolated(unsafe) static var deviceType: String?
 
