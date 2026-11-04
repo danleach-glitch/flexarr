@@ -1,3 +1,4 @@
+import FlexarrKit
 import ActivityKit
 import AppIntents
 import SwiftUI
@@ -119,7 +120,7 @@ private struct FlexarrMark: View {
                 bar(x: 14, y: 42, width: 23, color: Color(red: 0.91, green: 0.63, blue: 0.75), tilt: 0, unit: unit)
             }
         }
-        .accessibilityLabel("Flexarr")
+        .accessibilityLabel(t("Flexarr"))
     }
 
     private func bar(x: CGFloat, y: CGFloat, width: CGFloat, color: Color, tilt: Double, unit: CGFloat) -> some View {

@@ -222,6 +222,9 @@ targets:
     platform: iOS
     # Tokens.swift is the design tokens (colours, radii) the app uses, so the widgets match it.
     sources: [Widgets, WidgetShared, Shared/Design/Tokens.swift]
+    # For t(): the widgets show the app's language, from the pack it keeps in the App Group.
+    dependencies:
+      - package: FlexarrKit
     info:
       path: Widgets/Info.plist
       properties:
