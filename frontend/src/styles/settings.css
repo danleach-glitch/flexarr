@@ -137,7 +137,7 @@
   align-items: center;
   gap: 4px;
   width: fit-content;
-  margin-left: -4px;
+  margin-inline-start: -4px;
   color: var(--usher);
   font-weight: 600;
   text-decoration: none;
@@ -186,7 +186,7 @@
 }
 
 .settings-group > legend {
-  float: left;
+  float: inline-start;
   width: 100%;
   margin-bottom: 10px;
   padding: 0;
@@ -368,7 +368,7 @@
   border: 0;
   border-radius: var(--radius-control);
   background: none;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -395,7 +395,7 @@
 
 .form-errors {
   margin: 14px 0 0;
-  padding-left: 20px;
+  padding-inline-start: 20px;
 }
 
 /* A connection's line, with its form opening under it. */
@@ -444,7 +444,7 @@
 
 /* A destructive action kept apart from the rest, at the far start of the row. */
 .form-actions-start {
-  margin-right: auto;
+  margin-inline-end: auto;
 }
 
 .app-logo {
@@ -731,7 +731,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding-right: 12px;
+  padding-inline-end: 12px;
   user-select: all;
 }
 
@@ -816,9 +816,9 @@
   }
 
   .settings-nav-group + .settings-nav-group {
-    padding-left: 10px;
-    margin-left: 8px;
-    border-left: 1px solid var(--aisle);
+    padding-inline-start: 10px;
+    margin-inline-start: 8px;
+    border-inline-start: 1px solid var(--aisle);
   }
 
   .connection-line {
@@ -826,7 +826,7 @@
   }
 
   .connection-actions {
-    margin-left: 22px;
+    margin-inline-start: 22px;
   }
 
   /* A media folder's paths are long: they wrap within their column, beside the dot and logo, not under them. */
@@ -1100,7 +1100,7 @@
 
 .changelog-entry ul {
   margin: 0;
-  padding-left: 1.2em;
+  padding-inline-start: 1.2em;
   color: color-mix(in srgb, var(--screen) 85%, transparent);
 }
 
@@ -1188,7 +1188,7 @@
 }
 
 .health-count {
-  margin-left: 6px;
+  margin-inline-start: 6px;
   padding: 2px 9px;
   border-radius: 999px;
   background: var(--aisle);
@@ -1587,7 +1587,7 @@
 /* Phones: a sign-in's buttons wrap under its name, lined up with it rather than the icon. */
 @media (max-width: 600px) {
   .sign-in-list .sign-in-actions {
-    margin-left: 52px;
+    margin-inline-start: 52px;
   }
 }
 
@@ -1661,11 +1661,11 @@
   color: var(--usher);
 }
 
-/* A value to read, on the right: a version, a folder. */
+/* A value to read, on the inset-inline-end: a version, a folder. */
 .setting-value {
   min-width: 0;
   overflow-wrap: anywhere;
-  text-align: right;
+  text-align: end;
   color: var(--usher);
 }
 
@@ -1760,7 +1760,7 @@
   content: '';
   position: absolute;
   top: 3px;
-  left: 3px;
+  inset-inline-start: 3px;
   width: 16px;
   height: 16px;
   border-radius: 50%;
@@ -1797,7 +1797,7 @@
 }
 
 .library-row-actions .text-button {
-  margin-left: 6px;
+  margin-inline-start: 6px;
   font-size: var(--step--1);
 }
 
@@ -1885,13 +1885,13 @@
 .settings input[type='number'],
 .settings select {
   min-height: 36px;
-  padding-left: 12px;
+  padding-inline-start: 12px;
   border-radius: var(--radius-control);
   font-size: 0.94rem;
 }
 
 .settings select:not([multiple]) {
-  padding-right: 36px;
+  padding-inline-end: 36px;
   background-position: right 12px center;
   background-size: 14px;
 }
@@ -2038,7 +2038,7 @@
 }
 
 .profile-you {
-  margin-left: 8px;
+  margin-inline-start: 8px;
   font-size: 0.7rem;
   vertical-align: 2px;
 }
@@ -2151,7 +2151,7 @@
 }
 
 .profile-name .profile-you {
-  margin-left: 2px;
+  margin-inline-start: 2px;
 }
 
 /* A group of settings inside a connection's form (Dispatcharr's Recordings). */
@@ -2213,8 +2213,8 @@
   display: grid;
   gap: 12px;
   margin: 0 0 12px;
-  padding-left: 14px;
-  border-left: 2px solid var(--aisle);
+  padding-inline-start: 14px;
+  border-inline-start: 2px solid var(--aisle);
 }
 
 .backup-libraries fieldset {
@@ -2241,7 +2241,7 @@
 
 .backup-problems {
   margin: 6px 0 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
 }
 
 /* ---------- Logs: compact monospace lines, newest first ---------- */
@@ -2269,7 +2269,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
+  margin-inline-start: auto;
   font-size: var(--step--1);
   font-weight: 600;
   cursor: pointer;
@@ -2308,7 +2308,7 @@
   background: none;
   color: inherit;
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -2423,7 +2423,7 @@
   }
 
   .log-live {
-    margin-left: 0;
+    margin-inline-start: 0;
   }
 }
 
@@ -2447,7 +2447,7 @@
   color: var(--usher);
   font: inherit;
   font-size: var(--step--1);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -2491,7 +2491,7 @@
   display: inline-block;
   width: 7px;
   height: 7px;
-  margin-left: -3px;
+  margin-inline-start: -3px;
   border-radius: 50%;
   background: var(--silver);
   vertical-align: middle;
@@ -2596,7 +2596,7 @@
   border-radius: var(--radius-control);
   font-size: 0.82rem;
   line-height: 1.5;
-  /* Wrapped rather than cut off at the right: the comments are meant to be read. */
+  /* Wrapped rather than cut off at the inset-inline-end: the comments are meant to be read. */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -2629,7 +2629,7 @@
 
 .guest-check ul {
   margin: 0;
-  padding-left: 1.2em;
+  padding-inline-start: 1.2em;
   font-size: 0.9rem;
 }
 
@@ -2792,7 +2792,7 @@
 }
 
 .guest-new-tag {
-  margin-left: 8px;
+  margin-inline-start: 8px;
   padding: 1px 7px;
   border-radius: 999px;
   background: rgb(127 209 160 / 0.16);
@@ -2927,18 +2927,18 @@
 
 .guest-new-help {
   margin: 0;
-  padding-left: 52px;
+  padding-inline-start: 52px;
   font-size: var(--step--1);
 }
 
 /* Cancel in adding a guest or a device: a quiet link at the right. */
 .guest-cancel {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 /* Remove guest sits beside their name, quiet until hovered. */
 .guest-who .danger-icon {
-  margin-left: -4px;
+  margin-inline-start: -4px;
 }
 
 .guest-no-devices {

@@ -2,7 +2,7 @@
 
 .skip-link {
   position: absolute;
-  left: -9999px;
+  inset-inline-start: -9999px;
   top: 8px;
   z-index: 100;
   padding: 10px 16px;
@@ -12,7 +12,7 @@
 }
 
 .skip-link:focus {
-  left: var(--edge);
+  inset-inline-start: var(--edge);
 }
 
 /* The sidebar: the wordmark, then Home, the libraries and Browse, which scroll on their own when there are many. It
@@ -40,7 +40,7 @@
 }
 
 .shell > .page {
-  margin-left: var(--sidebar-width);
+  margin-inline-start: var(--sidebar-width);
 }
 
 .sidebar-head {
@@ -49,7 +49,7 @@
   justify-content: space-between;
   gap: 4px;
   min-height: 44px;
-  padding-left: 6px;
+  padding-inline-start: 6px;
 }
 
 .sidebar-head .icon-button {
@@ -91,8 +91,8 @@
 .topbar {
   position: fixed;
   top: 0;
-  left: var(--sidebar-width);
-  right: 0;
+  inset-inline-start: var(--sidebar-width);
+  inset-inline-end: 0;
   z-index: 40;
   display: flex;
   align-items: center;
@@ -110,7 +110,7 @@
 }
 
 .topbar-tools {
-  margin-left: auto;
+  margin-inline-start: auto;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -171,7 +171,7 @@
   color: var(--usher);
   font: inherit;
   font-weight: 600;
-  text-align: left;
+  text-align: start;
   text-decoration: none;
   cursor: pointer;
 }
@@ -203,7 +203,7 @@
 .sidebar-link.active::before {
   content: '';
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   top: 10px;
   bottom: 10px;
   width: 3px;
@@ -228,7 +228,7 @@
 }
 
 .sidebar-link .scan-dot {
-  margin-left: auto;
+  margin-inline-start: auto;
   flex: none;
 }
 
@@ -280,7 +280,7 @@
   .rail .sidebar-head {
     flex-direction: column;
     gap: 10px;
-    padding-left: 0;
+    padding-inline-start: 0;
   }
 
   .rail .sidebar-nav {
@@ -318,7 +318,7 @@
   .rail .sidebar-link .scan-dot {
     position: absolute;
     top: 8px;
-    right: 8px;
+    inset-inline-end: 8px;
   }
 }
 
@@ -693,8 +693,8 @@ kbd {
 
 .progress {
   position: absolute;
-  left: 8px;
-  right: 8px;
+  inset-inline-start: 8px;
+  inset-inline-end: 8px;
   bottom: 8px;
   height: 4px;
   border-radius: 2px;
@@ -745,7 +745,7 @@ kbd {
 .unwatched-count {
   position: absolute;
   top: 8px;
-  right: 8px;
+  inset-inline-end: 8px;
   display: grid;
   place-items: center;
   min-width: 26px;
@@ -919,13 +919,13 @@ kbd {
 .top10-rank {
   flex: none;
   width: 46%;
-  margin-right: -14%;
+  margin-inline-end: -14%;
   font-family: var(--display);
   font-size: clamp(7rem, 13vw, 12rem);
   font-weight: 800;
   line-height: 0.74;
   letter-spacing: -0.06em;
-  text-align: right;
+  text-align: end;
   color: var(--room);
   -webkit-text-stroke: 2px color-mix(in srgb, var(--screen) 55%, transparent);
   paint-order: stroke fill;
@@ -1017,7 +1017,7 @@ kbd {
 
 .hero-cover {
   position: absolute;
-  right: calc(var(--edge) + 4vw);
+  inset-inline-end: calc(var(--edge) + 4vw);
   bottom: 14vh;
   width: clamp(200px, 24vw, 360px);
   aspect-ratio: 1;
@@ -1109,7 +1109,7 @@ kbd {
 
 .hero-pager {
   position: absolute;
-  right: var(--edge);
+  inset-inline-end: var(--edge);
   bottom: calc(14vh + 6px);
   display: flex;
   gap: 6px;
@@ -1270,7 +1270,7 @@ kbd {
 .alpha-loading {
   position: absolute;
   top: 50%;
-  right: calc(100% + 8px);
+  inset-inline-end: calc(100% + 8px);
   transform: translateY(-50%);
   padding: 4px 10px;
   border-radius: 999px;
@@ -1287,7 +1287,7 @@ kbd {
 .alpha-failed-at {
   position: absolute;
   top: calc(var(--letter) * 24px + 12px);
-  right: calc(100% + 8px);
+  inset-inline-end: calc(100% + 8px);
   z-index: 2;
   transform: translateY(-50%);
 }
@@ -1688,7 +1688,7 @@ kbd {
   border: 0;
   border-radius: var(--radius-control);
   background: none;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -1772,7 +1772,7 @@ kbd {
 
 .palette-play {
   flex: none;
-  margin-right: 6px;
+  margin-inline-end: 6px;
 }
 
 .palette-thumb img {
@@ -1837,7 +1837,7 @@ kbd {
 
 .profile-menu {
   position: absolute;
-  right: 0;
+  inset-inline-end: 0;
   top: 48px;
   display: flex;
   flex-direction: column;
@@ -1860,7 +1860,7 @@ kbd {
   border: 0;
   border-radius: var(--radius-control);
   background: none;
-  text-align: left;
+  text-align: start;
   text-decoration: none;
   font-weight: 600;
   cursor: pointer;
@@ -2016,7 +2016,7 @@ kbd {
 
 .upcoming-when {
   position: absolute;
-  left: 8px;
+  inset-inline-start: 8px;
   top: 8px;
   padding: 2px 9px;
   border-radius: var(--radius-control);
@@ -2129,11 +2129,11 @@ a.upcoming-row:hover strong {
   }
 
   .shell > .page {
-    margin-left: 0;
+    margin-inline-start: 0;
   }
 
   .topbar {
-    left: 0;
+    inset-inline-start: 0;
     gap: 4px;
     padding: 0 12px 0 4px;
   }
@@ -2154,7 +2154,7 @@ a.upcoming-row:hover strong {
   }
 
   .shell.bare .topbar {
-    padding-left: 12px;
+    padding-inline-start: 12px;
   }
 
   .topbar-tools {
@@ -2328,8 +2328,8 @@ a.upcoming-row:hover strong {
 .hero-top {
   position: absolute;
   top: calc(var(--nav-height) + 32px);
-  left: var(--edge);
-  right: var(--edge);
+  inset-inline-start: var(--edge);
+  inset-inline-end: var(--edge);
   z-index: 2;
   display: flex;
   flex-wrap: wrap;
@@ -2545,7 +2545,7 @@ a.download-attention {
 .card-menu-button {
   position: absolute;
   top: 8px;
-  left: 8px;
+  inset-inline-start: 8px;
   z-index: 2;
   display: grid;
   place-items: center;
@@ -2573,7 +2573,7 @@ a.download-attention {
 /* The play button on an artist's or album's artwork, shown on hover or focus, bottom right like Spotify's. */
 .card-play {
   position: absolute;
-  right: 10px;
+  inset-inline-end: 10px;
   bottom: 10px;
   z-index: 2;
   display: grid;
@@ -2595,7 +2595,7 @@ a.download-attention {
 .card-play svg {
   width: 20px;
   height: 20px;
-  margin-left: 2px;
+  margin-inline-start: 2px;
 }
 
 .card-shell:hover .card-play,
@@ -2634,8 +2634,8 @@ a.download-attention {
 
 /* Top 10's poster sits right of its numeral. */
 .top10-card .card-menu-button {
-  left: auto;
-  right: 8px;
+  inset-inline-start: auto;
+  inset-inline-end: 8px;
 }
 
 /* No hover on touch screens: keep the button visible. */
@@ -2667,7 +2667,7 @@ a.download-attention {
   font: inherit;
   font-size: var(--step--1);
   font-weight: 600;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -2730,7 +2730,7 @@ a.download-attention {
 .watched-toggle {
   position: absolute;
   top: 8px;
-  right: 8px;
+  inset-inline-end: 8px;
   z-index: 2;
   display: grid;
   place-items: center;
@@ -3050,7 +3050,7 @@ a.download-attention {
   background: none;
   color: inherit;
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -3178,7 +3178,7 @@ a.download-attention {
 }
 
 .fix-match-reset {
-  margin-right: auto;
+  margin-inline-end: auto;
 }
 
 @media (max-width: 640px) {
@@ -3254,7 +3254,7 @@ a.download-attention {
 }
 
 .collection-choices .muted {
-  margin-left: auto;
+  margin-inline-start: auto;
   font-weight: 400;
   font-size: var(--step--1);
 }
@@ -3279,7 +3279,7 @@ a.download-attention {
 .profile-choice-crown {
   position: absolute;
   top: -4px;
-  right: -4px;
+  inset-inline-end: -4px;
   display: grid;
   place-items: center;
   width: 32px;
@@ -3386,7 +3386,7 @@ a.download-attention {
   width: 28px;
   height: 28px;
   border: 3px solid var(--usher);
-  border-right-color: transparent;
+  border-inline-end-color: transparent;
   border-radius: 50%;
   animation: busy-spin 0.8s linear infinite;
 }
