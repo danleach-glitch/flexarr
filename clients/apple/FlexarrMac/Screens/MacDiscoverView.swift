@@ -20,7 +20,12 @@ struct MacDiscoverView: View {
     @State private var musicResults = MusicSearchResults.empty
     @State private var searching = false
     @State private var loaded = false
+    @State private var loadedAt: Date?
     @State private var error: String?
+    /// Why a part couldn't load or a search failed: said, with Try again, rather than shown as nothing found.
+    @State private var titlesError: String?
+    @State private var musicError: String?
+    @State private var searchError: String?
 
     private var showing: Mode { offersTitles ? (offersMusic ? mode : .titles) : .music }
     private var words: String { query.trimmingCharacters(in: .whitespaces) }
@@ -53,7 +58,9 @@ struct MacDiscoverView: View {
 
     @ViewBuilder
     private var titleRows: some View {
-        if rows.isEmpty {
+        if rows.isEmpty, let titlesError {
+            StatusView(state: .failed(titlesError) { Task { await reload() } }).frame(height: 400)
+        } else if rows.isEmpty {
             StatusView(state: .empty(t("Nothing to discover right now."))).frame(height: 400)
         }
         ForEach(rows) { row in
@@ -74,6 +81,8 @@ struct MacDiscoverView: View {
     private var musicRows: some View {
         if let music, !music.rows.isEmpty {
             ForEach(music.rows) { ExternalMusicRow(title: $0.title, items: $0.items) }
+        } else if let musicError {
+            StatusView(state: .failed(musicError) { Task { await reload() } }).frame(height: 400)
         } else if music != nil {
             StatusView(state: .empty(t("Nothing to discover right now."))).frame(height: 400)
         } else {
@@ -85,7 +94,9 @@ struct MacDiscoverView: View {
 
     @ViewBuilder
     private var results: some View {
-        if searching && titleResults.isEmpty && musicResults.isEmpty {
+        if let searchError, !searching {
+            StatusView(state: .failed(searchError) { Task { await search() } }).frame(height: 300)
+        } else if searching && titleResults.isEmpty && musicResults.isEmpty {
             StatusView(state: .loading).frame(height: 300)
         } else if showing == .titles {
             if titleResults.isEmpty {
@@ -109,29 +120,60 @@ struct MacDiscoverView: View {
         guard !words.isEmpty, let client = model.client else {
             titleResults = []
             musicResults = .empty
+            searchError = nil
             return
         }
         // A pause in typing before asking.
         guard (try? await Task.sleep(for: .milliseconds(350))) != nil else { return }
         searching = true
         defer { searching = false }
-        if showing == .titles {
-            titleResults = (try? await client.searchEverything(words)) ?? []
-        } else {
-            musicResults = (try? await client.searchMusic(words)) ?? .empty
+        do {
+            if showing == .titles {
+                let found = try await client.searchEverything(words)
+                guard !Task.isCancelled else { return }
+                titleResults = found
+            } else {
+                let found = try await client.searchMusic(words)
+                guard !Task.isCancelled else { return }
+                musicResults = found
+            }
+            searchError = nil
+        } catch {
+            // The next keystroke's search took over: its answer is the one to show.
+            guard !Task.isCancelled, !(error is CancellationError) else { return }
+            searchError = ConnectionError(error).message
         }
     }
 
+    /// Try again: fetches now, however fresh.
+    private func reload() async {
+        loadedAt = nil
+        loaded = false
+        await load()
+    }
+
+    /// Movies and shows and Music, each on its own: one failing doesn't hold the other back. Coming back to the page
+    /// fetches again only once what's shown is old.
     private func load() async {
-        guard let client = model.client else { return }
+        guard let client = model.client, !loaded || Freshness.isStale(loadedAt) else { return }
+        async let titles: [ExternalRow]? = offersTitles ? client.discoverRows().filter { !$0.items.isEmpty } : []
+        async let found: MusicDiscover? = offersMusic ? client.musicDiscover() : nil
         do {
-            if offersTitles { rows = try await client.discoverRows().filter { !$0.items.isEmpty } }
+            rows = try await titles ?? []
             error = nil
+            titlesError = nil
         } catch {
-            if !loaded { self.error = ConnectionError(error).message }
-            return
+            if !loaded, !offersMusic { self.error = ConnectionError(error).message }
+            titlesError = ConnectionError(error).message
+        }
+        do {
+            music = try await found ?? .empty
+            musicError = nil
+        } catch {
+            musicError = ConnectionError(error).message
+            if music == nil { music = .empty }
         }
         loaded = true
-        if offersMusic { music = (try? await client.musicDiscover()) ?? .empty }
+        loadedAt = Date()
     }
 }

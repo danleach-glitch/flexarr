@@ -20,7 +20,9 @@ final class MacNavigation {
     /// Who's watching? is over the window (from the sidebar's profile).
     var choosingProfile = false
     /// Each place keeps its own stack, so going back to it lands where it was.
-    private(set) var routers: [SidebarItem: Router] = [:]
+    /// Not observed: a router is made the first time its place is drawn, and making it mustn't make the sidebar draw
+    /// again. Each router's path is observed itself.
+    @ObservationIgnored private(set) var routers: [SidebarItem: Router] = [:]
 
     func router(for item: SidebarItem) -> Router {
         if let router = routers[item] { return router }
@@ -100,7 +102,6 @@ struct MacMainView: View {
             }
         }
         .onAppear {
-            navigation.reset()
             if model.isOffline, downloads.hasAnything { navigation.selection = .downloads }
         }
         .onChange(of: model.isOffline) { _, offline in
@@ -108,9 +109,12 @@ struct MacMainView: View {
         }
         .task(id: model.isOffline) {
             guard !model.isOffline else { return }
-            discoversTitles = (try? await model.client?.requestStatus())?.configured == true
-            discoversMusic = (try? await model.client?.musicRequestStatus())?.configured == true
+            // The libraries first, then whether Discover has anything, both answers at once.
             await model.loadLibraries()
+            async let titles = model.client?.requestStatus()
+            async let music = model.client?.musicRequestStatus()
+            discoversTitles = (try? await titles)?.configured == true
+            discoversMusic = (try? await music)?.configured == true
             if model.libraries.isEmpty, model.librariesError != nil, !downloads.downloads.isEmpty { navigation.selection = .downloads }
         }
         .sheet(item: Bindable(model).addingToPlaylist) { AddToPlaylistSheet(request: $0).frame(minWidth: 420, minHeight: 480) }

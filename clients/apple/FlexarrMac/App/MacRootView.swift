@@ -103,6 +103,11 @@ struct MacRootView: View {
         .animation(.easeInOut(duration: 0.3), value: welcomed)
         .animation(.easeInOut(duration: 0.3), value: model.needsProfileChoice)
         .task(id: model.credentials?.address) { await model.loadProfiles() }
+        // A new server or profile: every sidebar place starts again at its top, before the new window's first look (a
+        // link opened with it then lands on the fresh Home).
+        .onChange(of: "\(model.credentials?.address.absoluteString ?? "")#\(model.credentials?.profileToken ?? "")") { _, _ in
+            navigation.reset()
+        }
         // Downloads follow the server and profile signed in; signing out deletes them.
         .task(id: "\(model.credentials?.address.absoluteString ?? "")#\(model.currentProfile?.id ?? "")") {
             model.player.offlineLibrary = downloads
@@ -204,7 +209,7 @@ struct MacRootView: View {
             }
         } message: {
             if model.player.problem == .takenOver {
-                Text((model.player.errorMessage ?? "") + "\n\n" + t("The other screen will stop if you watch here."))
+                Text(t("{message}\n\nThe other screen will stop if you watch here.", ["message": model.player.errorMessage ?? ""]))
             } else {
                 Text(model.player.errorMessage ?? "")
             }
