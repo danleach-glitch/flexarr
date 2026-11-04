@@ -58,6 +58,6 @@ public enum SharedSignIn {
         if let group = Bundle.main.object(forInfoDictionaryKey: "FlexarrKeychainGroup") as? String, !group.contains("$(") {
             query[kSecAttrAccessGroup as String] = group
         }
-        return query
+        return KeychainPlacement.placed(query)
     }
 }

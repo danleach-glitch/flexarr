@@ -208,6 +208,6 @@ public enum NotificationKey {
                                     kSecAttrService as String: service,
                                     kSecAttrAccount as String: account]
         if let group { query[kSecAttrAccessGroup as String] = group }
-        return query
+        return KeychainPlacement.placed(query)
     }
 }

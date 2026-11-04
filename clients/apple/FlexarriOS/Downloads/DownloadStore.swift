@@ -1233,11 +1233,11 @@ extension DownloadStore: URLSessionDownloadDelegate {
 /// settings and the keychain, which outlives reinstalling the app.
 private enum DeclinedEpisodes {
     private static let key = "downloads.podcasts.declined"
-    private static var query: [String: Any] { [
+    private static var query: [String: Any] { KeychainPlacement.placed([
         kSecClass as String: kSecClassGenericPassword,
         kSecAttrService as String: "io.github.flexarr.declined-episodes",
         kSecAttrAccount as String: "episodes",
-    ] }
+    ]) }
 
     static func load() -> Set<String> {
         var ids = Set(UserDefaults.standard.stringArray(forKey: key) ?? [])

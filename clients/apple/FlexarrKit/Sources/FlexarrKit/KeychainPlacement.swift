@@ -8,6 +8,32 @@ import Synchronization
 enum KeychainPlacement {
     static var accessible: CFString { kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly }
 
+    /// `query` in the right Keychain. On a Mac that's the data-protection Keychain, the one iOS has, where
+    /// `accessible` and access groups mean what they do on the iPhone; the Mac's older file Keychain would ask the
+    /// user's login password to read an item. A build without a team (ad hoc, `swift test`) isn't allowed in it, and
+    /// keeps the file Keychain.
+    public static func placed(_ query: [String: Any]) -> [String: Any] {
+        #if os(macOS)
+        guard usesDataProtectionKeychain else { return query }
+        var placed = query
+        placed[kSecUseDataProtectionKeychain as String] = true
+        return placed
+        #else
+        return query
+        #endif
+    }
+
+    #if os(macOS)
+    /// Whether this build may use the data-protection Keychain: it needs the app's identifier (a signed build), and
+    /// says "missing entitlement" otherwise.
+    public static let usesDataProtectionKeychain: Bool = {
+        let probe: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                    kSecAttrService as String: "io.github.flexarr.keychain-probe",
+                                    kSecUseDataProtectionKeychain as String: true]
+        return SecItemCopyMatching(probe as CFDictionary, nil) != errSecMissingEntitlement
+    }()
+    #endif
+
     private static let moved = Mutex<Set<String>>([])
 
     /// Items saved before this were kept the old way (they went with backups): moved over once, the first time each
