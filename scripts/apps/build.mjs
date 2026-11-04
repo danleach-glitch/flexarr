@@ -165,8 +165,8 @@ const section = ([kind, k]) => {
 };
 const sections = Object.entries(kinds).map(section).filter(Boolean).join('\n\n');
 
-const title = 'Flexarr apps: Apple TV, iPhone, iPad, web and Android';
-const description = 'Every Flexarr app and platform, with its version and status: what you can download today, what\'s coming soon and what\'s on the way.';
+const title = 'Flexarr server and apps: Apple TV, iPhone, iPad, Mac, web and Android';
+const description = 'The Flexarr server for your home and a player for every screen, each with its version and status: what you can get today, what\'s coming soon and what\'s on the way.';
 
 const html = `<!doctype html>
 <html lang="en">
@@ -364,7 +364,7 @@ const html = `<!doctype html>
       <div class="hero">
         <p class="kicker">Apps</p>
         <h1>Flexarr on every screen.</h1>
-        <p class="lede">One server at home, and an app for every screen in it. Here's what you can get today and what's on the way.</p>
+        <p class="lede">Start with one server at home, then add a player for every screen. Here's what you can get today and what's on the way.</p>
         <picture><source media="(max-width: 640px)" srcset="/shots/screens-m.webp" width="1100" height="902"><img src="/shots/screens.webp" width="2000" height="1206" srcset="/shots/screens-1000.webp 1000w, /shots/screens.webp 2000w" sizes="(min-width: 1260px) 1180px, 92vw" alt="Flexarr in a web browser showing Only Murders in the Building on Home, on an iPad showing Home, and on an iPhone showing Barbie's page." fetchpriority="high"></picture>
       </div>
 
