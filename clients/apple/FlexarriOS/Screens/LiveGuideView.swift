@@ -19,12 +19,13 @@ struct LiveGuideView: View {
     @State private var notice: String?
 
     private static let hours: Double = 6
-    private static let clock: DateFormatter = {
+    /// Made each time, so it follows a change of language.
+    private static var clock: DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = Localization.locale
         formatter.timeStyle = .short
         return formatter
-    }()
+    }
 
     private var perMinute: CGFloat { sizeClass == .regular ? 6 : 4 }
     private var channelWidth: CGFloat { sizeClass == .regular ? 120 : 84 }

@@ -34,12 +34,13 @@ struct LiveGuideGrid: View {
     static let step: TimeInterval = 90 * 60
     private static let channelWidth: CGFloat = 230
     private static let rowHeight: CGFloat = 96
-    private static let clock: DateFormatter = {
+    /// Made each time, so it follows a change of language.
+    private static var clock: DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = Localization.locale
         formatter.timeStyle = .short
         return formatter
-    }()
+    }
 
     var body: some View {
         GeometryReader { geometry in

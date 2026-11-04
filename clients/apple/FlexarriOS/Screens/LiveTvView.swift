@@ -277,12 +277,13 @@ private struct ChannelRow: View {
 
     private var logoWidth: CGFloat { sizeClass == .regular ? 140 : 104 }
 
-    private static let clock: DateFormatter = {
+    /// Made each time, so it follows a change of language.
+    private static var clock: DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = Localization.locale
         formatter.timeStyle = .short
         return formatter
-    }()
+    }
 }
 
 /// A favourite channel on Home: its logo on a dark plate with how far through what's on, and what's on beneath.

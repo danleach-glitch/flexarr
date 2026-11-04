@@ -24,12 +24,13 @@ struct LiveRecordingsView: View {
         }
     }
 
-    private static let day: DateFormatter = {
+    /// Made each time, so it follows a change of language.
+    private static var day: DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = Localization.locale
         formatter.setLocalizedDateFormatFromTemplate("EEE d MMM HH:mm")
         return formatter
-    }()
+    }
 
     var body: some View {
         Group {
