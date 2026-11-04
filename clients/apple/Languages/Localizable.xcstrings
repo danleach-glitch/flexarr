@@ -163,10 +163,25 @@
     "Turns subtitles on (in your language where there are some) or off for what's playing, here or on another device.": {
       "extractionState": "manual"
     },
+    "What would you like to add?": {
+      "extractionState": "manual"
+    },
+    "What would you like to watch?": {
+      "extractionState": "manual"
+    },
     "What's new in my podcasts": {
       "extractionState": "manual"
     },
     "What's new in podcasts": {
+      "extractionState": "manual"
+    },
+    "Which book?": {
+      "extractionState": "manual"
+    },
+    "Which podcast?": {
+      "extractionState": "manual"
+    },
+    "Which show?": {
       "extractionState": "manual"
     }
   },

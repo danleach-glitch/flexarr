@@ -7,6 +7,8 @@ import FlexarrKit
 /// through it is. Selecting one opens it in Flexarr; Play resumes it. With neither, the Home screen's featured titles.
 final class ContentProvider: TVTopShelfContentProvider {
     override func loadTopShelfContent() async -> (any TVTopShelfContent)? {
+        // tvOS gives the Top Shelf no shared container with the app: the Apple TV's own language, from the packs built in.
+        Localization.shared.showDeviceLanguage()
         guard let signIn = SharedSignIn.load() else { return nil }
         let client = FlexarrClient(baseURL: signIn.address, apiKey: signIn.apiKey, profileToken: signIn.profileToken)
         guard let home = try? await client.home() else { return nil }
