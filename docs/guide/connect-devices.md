@@ -22,7 +22,7 @@ Get the app [from the App Store](https://apps.apple.com/app/flexarr/id6826618084
 The first time you open it, three short cards explain what Flexarr is, that it plays from your own Flexarr server at home, and how it finds that server on your Wi-Fi. If you haven't set up a server yet, **Set up at flexarr.io** brings you to this guide. If you have, choose **Skip**, or **Next** through to **Find my server**.
 
 1. When iOS asks whether Flexarr can find devices on your local network, choose **Allow**. Without it, the app can't see your server.
-2. Under **Servers on your network**, choose your server.
+2. Under **Servers on your network**, choose your server. It's listed by its name: the computer's name, unless you've renamed it (see [The server's name](first-setup.md#the-server-s-name)).
 3. The app shows **Connect this iPhone** (or iPad) with a code of six letters and numbers, like `H7KM2P`.
 4. On another phone signed in to Flexarr, tap **Allow** when it asks (see [Allow it from your phone](#allow-it-from-your-phone)). Or, on your computer, open the server's address in a browser, go to **Settings › Security › Connect a device**, type in the code and choose **Continue**.
 5. Check that the code matches the one on your phone, and choose **Allow**.

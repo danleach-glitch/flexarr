@@ -52,7 +52,7 @@ A few things to know:
 
 Next, Flexarr welcomes you with a short setup guide, one card at a time. Choose **Get started**, or **I'll set it up myself** to go straight to Home. Every step after your name can be skipped, and **Set up later** leaves the guide whenever you like:
 
-1. **What's your name?** Type your name and choose a colour for your profile, the one that runs Flexarr.
+1. **What's your name?** Type your name and choose a colour for your profile, the one that runs Flexarr. Below it, **Server name** is what phones and TVs will call the server. It starts as the computer's name; change it to something like "Smith House" if you like (see [The server's name](#the-server-s-name)).
 2. **Connect your apps.** Connect Sonarr, Radarr and Lidarr, if you use them. If Flexarr finds one running nearby, its address is filled in already, and you only paste its API key. Flexarr also adds its own webhook to each app in the background (**Setting up instant updates…**), so new downloads show up straight away (see [Webhooks](connect-arrs.md#webhooks-new-downloads-appear-straight-away)). Connected the wrong one? Choose **Disconnect**. Don't use them? Choose **Skip**.
 3. **Add your libraries.** There's a line each for **Movies**, **TV Shows** and **Music**. A folder from Sonarr, Radarr or Lidarr is filled in already. Otherwise choose **Choose folder**, go to the folder that holds it and choose **Add library**. Then choose **Next**, or **Continue** once they're added. Choose a whole drive or your home folder and it warns you: reading all of it takes hours. The guide adds one library of each kind; more, home videos and (in the next release) audiobooks are in **Settings › Libraries**.
 4. **Who's watching?** Add a profile for each person in the house, or choose **Skip**. Added someone by mistake? Choose the **✕** on their picture. See [Profiles](profiles.md).
@@ -64,6 +64,12 @@ At the end, the guide shows what's set up, says **Checking your libraries** whil
 If you leave part way, Home lists what's left under **Finish setting up**. Each one opens the right page in Settings; **Hide** puts the list away. Everything in the guide is in Settings too, as described below.
 
 You're signed in as the server's **main profile**, the one that can change settings.
+
+## The server's name
+
+Phones and TVs list the server by its name under **Servers on your network**, and show it in their **Settings › Server**. Family guests see it too, and so does the browser tab. A new server is named after the computer it runs on (in Docker, just "Flexarr").
+
+To rename it, go to **Settings › Overview** and choose the pencil beside **Name** under **Server**. Type the new name (up to 40 characters) and choose **Save**. Every app shows the new name the next time it opens. **Use the machine’s name** goes back to the computer's name.
 
 ## Add your libraries
 
