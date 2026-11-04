@@ -24,7 +24,7 @@
       "icon": "apple",
       "status": "development",
       "requires": "A Mac with Apple silicon or Intel",
-      "summary": "The Flexarr server as a Mac app on the Mac App Store: install it in one step, choose your media folders, and it runs from the menu bar, converting video with your Mac's graphics hardware. Free.",
+      "summary": "Run your server on a Mac, as an app from the Mac App Store: install it in one step, choose your media folders, and it runs from the menu bar, converting video with your Mac's graphics hardware. Free.",
       "note": "Until then, you can build the server for your Mac from source.",
       "links": [
         { "label": "Install on a Mac today", "href": "/guide/install-macos", "short": "Build from source" }
@@ -38,7 +38,7 @@
       "status": "available",
       "version": "0.57.0",
       "requires": "iOS or iPadOS 18.2 or later",
-      "summary": "Downloads for offline, podcasts with widgets and alerts, Siri, Picture in Picture and AirPlay.",
+      "summary": "Downloads for offline, podcasts with widgets and alerts, Siri, Picture in Picture and AirPlay. Free.",
       "links": [
         { "label": "Download on the App Store", "href": "https://apps.apple.com/app/flexarr/id6826618084", "store": "apple", "short": "App Store" }
       ]
@@ -51,7 +51,7 @@
       "status": "coming",
       "version": "0.57.0",
       "requires": "tvOS 18.2 or later",
-      "summary": "Your libraries, music and live TV from the sofa, with a player built for HDR and Atmos.",
+      "summary": "Your libraries, music and live TV from the sofa, with a player built for HDR and Atmos. Free.",
       "note": "With Apple for review. Can't wait?",
       "links": [
         { "label": "Install it from Xcode", "href": "/guide/apple-tv-xcode", "short": "Install with Xcode" }
@@ -65,7 +65,7 @@
       "status": "available",
       "version": "0.61.0",
       "requires": "A Mac with Apple silicon, macOS 15.2 or later",
-      "summary": "Your libraries in a Mac window, a full-screen player with Picture in Picture and AirPlay, and downloads for watching away from home. Download it here today; it's coming to the App Store too, on the same page as the iPhone and Apple TV app.",
+      "summary": "Watch on your Mac: your libraries in a window, a full-screen player with Picture in Picture and AirPlay, and downloads for watching away from home. Free. Download it here today; it's coming to the App Store too.",
       "links": [
         { "label": "Download for Mac", "href": "https://github.com/danleach-glitch/flexarr/releases/latest/download/Flexarr.dmg", "short": "Download" },
         { "label": "How it connects", "href": "/guide/connect-devices#mac", "short": "Guide" }
@@ -91,7 +91,7 @@
       "name": "Android phone and tablet",
       "icon": "android",
       "status": "development",
-      "summary": "A native app for Android phones and tablets, with downloads for offline and podcasts.",
+      "summary": "A native app for Android phones and tablets, with downloads for offline and podcasts. Free.",
       "note": "Until then, the web player works in your phone's browser.",
       "links": []
     },
@@ -101,7 +101,7 @@
       "name": "Android TV and Google TV",
       "icon": "android",
       "status": "development",
-      "summary": "Flexarr on the big screen, for TVs and streaming sticks with Google TV or Android TV.",
+      "summary": "Flexarr on the big screen, for TVs and streaming sticks with Google TV or Android TV. Free.",
       "note": "Built on the Android app, and laid out like the Apple TV app.",
       "links": []
     }
