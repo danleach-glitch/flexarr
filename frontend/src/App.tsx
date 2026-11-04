@@ -199,7 +199,9 @@ export default function App() {
   const [state, setState] = useState<ConnectionState>({ kind: 'loading' })
   // A new language redraws everything in it, and nothing cached from the server is in the old one any more.
   const language = useSyncExternalStore(onLanguageChange, () => currentLanguage().code)
-  useEffect(() => clearApiCache(), [language])
+  useEffect(() => {
+    clearApiCache()
+  }, [language])
   const [attempt, setAttempt] = useState(0)
   // Unlocking or locking to kids profiles asks who's watching straight away (see pickProfileWith).
   useEffect(() => {
