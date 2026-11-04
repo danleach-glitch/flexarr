@@ -250,7 +250,17 @@ builder.Services.AddMcpServer(o =>
         + "the episode that device's profile is up to, a podcast's the episode to hear next. add_to_up_next queues podcast episodes. Devices only "
         + "take commands while Flexarr is open on them.";
 })
-    .WithHttpTransport(o => o.Stateless = true)
+    .WithHttpTransport(o =>
+    {
+        o.Stateless = true;
+        // The assistant calls the server what its admin named it.
+        o.ConfigureSessionOptions = (http, mcp, _) =>
+        {
+            var name = ServerName.Of(http.RequestServices.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue);
+            mcp.ServerInfo = new ModelContextProtocol.Protocol.Implementation { Name = "flexarr", Title = name, Version = mcp.ServerInfo?.Version ?? "0.0.0" };
+            return Task.CompletedTask;
+        };
+    })
     // MapMcp sits outside the /api/v1 group, so its tools get the profile's hidden libraries here.
     .WithRequestFilters(f => f.AddCallToolFilter(next => async (request, ct) =>
     {
