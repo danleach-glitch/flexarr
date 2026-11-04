@@ -24,6 +24,13 @@ const statuses = {
   planned: { icon: '🗓️', label: 'Planned' },
 };
 
+// The page's sections, in order: what runs at home, what you watch on, and what works alongside.
+const kinds = {
+  server: { title: 'The server', number: 1, intro: 'One per home. It holds your films, TV, music and podcasts and streams them to every screen.' },
+  player: { title: 'The players', number: 2, intro: 'Watch on as many screens as you like. Each one signs in to your server.' },
+  integration: { title: 'Works with', intro: 'Add-ons that bring Flexarr into the rest of your home.' },
+};
+
 const stroke = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 // Each platform's own mark, in its colours: Apple, Android and Home Assistant from Simple Icons (CC0), and Flexarr's logo.
 const icons = {
@@ -53,10 +60,11 @@ function load() {
   const ids = new Set();
   for (const [i, p] of (data.platforms ?? []).entries()) {
     const at = `platforms[${i}]${p.id ? ` (${p.id})` : ''}`;
-    for (const key of ['id', 'name', 'icon', 'status', 'summary']) if (!p[key]) problems.push(`${at}: needs "${key}"`);
+    for (const key of ['id', 'name', 'kind', 'icon', 'status', 'summary']) if (!p[key]) problems.push(`${at}: needs "${key}"`);
     if (ids.has(p.id)) problems.push(`${at}: id used twice`);
     ids.add(p.id);
     if (p.runsOn && !(Array.isArray(p.runsOn) && p.runsOn.every(r => systems[r]))) problems.push(`${at}: runsOn can list ${Object.keys(systems).join(', ')}`);
+    if (p.kind && !kinds[p.kind]) problems.push(`${at}: kind must be one of ${Object.keys(kinds).join(', ')}`);
     if (p.icon && !icons[p.icon]) problems.push(`${at}: icon must be one of ${Object.keys(icons).join(', ')}`);
     if (p.status && !statuses[p.status]) problems.push(`${at}: status must be one of ${Object.keys(statuses).join(', ')}`);
     if (['available', 'beta', 'coming'].includes(p.status) && !p.version) problems.push(`${at}: a ${p.status} app needs a version`);

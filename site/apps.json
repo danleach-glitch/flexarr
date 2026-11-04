@@ -1,8 +1,9 @@
 {
-  "$comment": "Every Flexarr app and platform, shown at flexarr.io/apps (in this order) and served as flexarr.io/apps.json. Edit this file, then run `make apps`. status: available | beta | coming | development | planned. The first link is the one the table shows, by its short label. Entries with \"release\": \"server\" get the server's version from scripts/release.sh; set the others by hand when a store build goes live.",
+  "$comment": "Every Flexarr app and platform, shown at flexarr.io/apps (in this order) and served as flexarr.io/apps.json. kind: server | player | integration (the section the page shows it in). Edit this file, then run `make apps`. status: available | beta | coming | development | planned. The first link is the one the table shows, by its short label. Entries with \"release\": \"server\" get the server's version from scripts/release.sh; set the others by hand when a store build goes live.",
   "platforms": [
     {
       "id": "server",
+      "kind": "server",
       "name": "Server + Web Player",
       "icon": "flexarr",
       "status": "available",
@@ -18,6 +19,7 @@
     },
     {
       "id": "mac",
+      "kind": "server",
       "name": "Server for Mac",
       "icon": "apple",
       "status": "development",
@@ -30,6 +32,7 @@
     },
     {
       "id": "iphone",
+      "kind": "player",
       "name": "iPhone and iPad",
       "icon": "apple",
       "status": "available",
@@ -42,6 +45,7 @@
     },
     {
       "id": "apple-tv",
+      "kind": "player",
       "name": "Apple TV",
       "icon": "apple",
       "status": "coming",
@@ -55,6 +59,7 @@
     },
     {
       "id": "mac-player",
+      "kind": "player",
       "name": "Mac",
       "icon": "apple",
       "status": "available",
@@ -68,6 +73,7 @@
     },
     {
       "id": "home-assistant",
+      "kind": "integration",
       "name": "Home Assistant",
       "icon": "home-assistant",
       "status": "available",
@@ -81,6 +87,7 @@
     },
     {
       "id": "android",
+      "kind": "player",
       "name": "Android phone and tablet",
       "icon": "android",
       "status": "development",
@@ -90,6 +97,7 @@
     },
     {
       "id": "android-tv",
+      "kind": "player",
       "name": "Android TV and Google TV",
       "icon": "android",
       "status": "development",
