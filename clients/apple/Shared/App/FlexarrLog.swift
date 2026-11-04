@@ -76,6 +76,8 @@ final class LogHub: Sendable {
 
     #if os(tvOS)
     static let platform = "tvos"
+    #elseif os(macOS)
+    static let platform = "macos"
     #else
     static let platform = "ios"
     #endif
