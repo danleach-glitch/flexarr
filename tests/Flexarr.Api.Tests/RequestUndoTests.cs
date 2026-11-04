@@ -329,7 +329,7 @@ public sealed class RequestUndoTests : IAsyncLifetime
         var response = await Client().PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "movie", tmdbId = 7006 });
 
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
-        Assert.Contains("Seerr isn't answering", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Contains("Seerr isn’t answering", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]

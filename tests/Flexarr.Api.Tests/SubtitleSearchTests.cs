@@ -127,7 +127,7 @@ public class SubtitleSearchTests : IClassFixture<FlexarrApiFactory>
         var response = await client.PostAsJsonAsync(new Uri($"/api/v1/items/{film}/subtitles/download", UriKind.Relative), new { });
 
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
-        Assert.Contains("didn't save the subtitles", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Contains("didn’t save the subtitles", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(15)); // not the whole 30-second wait
     }
 

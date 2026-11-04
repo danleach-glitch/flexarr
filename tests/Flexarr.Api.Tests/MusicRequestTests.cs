@@ -346,7 +346,7 @@ public sealed class MusicRequestTests : IAsyncLifetime
         var response = await Client().PostAsJsonAsync(Api("/requests/music"), new { kind = "album", deezerId = 42 });
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        Assert.Equal("Lidarr can't find Nowhere by Nobody.", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("detail").GetString());
+        Assert.Equal("Lidarr can’t find Nowhere by Nobody.", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("detail").GetString());
     }
 
     [Fact]
