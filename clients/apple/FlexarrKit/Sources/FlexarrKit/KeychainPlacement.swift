@@ -36,7 +36,9 @@ public enum KeychainPlacement {
         add[kSecValueData as String] = Data()
         let status = SecItemAdd(add as CFDictionary, nil)
         SecItemDelete(probe as CFDictionary)
-        return status == errSecSuccess || status == errSecDuplicateItem
+        // Only a build that isn't allowed in it (no app identifier) keeps the file Keychain; a passing error mid-probe
+        // mustn't send a signed build's sign-in there for the whole run.
+        return status != errSecMissingEntitlement
     }()
     #endif
 
