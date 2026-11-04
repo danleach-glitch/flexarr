@@ -135,8 +135,31 @@ ${p.runsOn ? `            <div class="runs-on">
             </div>
 ` : ''}          </article>`;
 
-const now = data.platforms.filter(p => ['available', 'beta'].includes(p.status));
-const soon = data.platforms.filter(p => !['available', 'beta'].includes(p.status));
+const ready = p => ['available', 'beta'].includes(p.status);
+// Asking for somewhere new closes the players.
+const ask = `<article class="card ask soon">
+            <div class="card-body">
+              <div><h3>Somewhere else?</h3><p>Tell us where you'd like to watch Flexarr next.</p></div>
+              <div class="links"><a class="button quiet" href="${repo}/discussions/categories/ideas" target="_blank" rel="noopener">Ask on GitHub</a></div>
+            </div>
+          </article>`;
+// One section per kind: what's out now, then the dashed cards for what's on the way.
+const section = ([kind, k]) => {
+  const all = data.platforms.filter(p => p.kind === kind);
+  if (!all.length) return '';
+  const cards = [...all.filter(ready), ...all.filter(p => !ready(p))].map(p => ready(p) ? card(p) : card(p).replace('<article class="card', '<article class="card soon'));
+  if (kind === 'player') cards.push(ask);
+  return `      <section class="kind ${kind}" aria-labelledby="${kind}-head">
+        <div class="kind-head">
+          <h2 id="${kind}-head">${k.number ? `<span class="num" aria-hidden="true">${k.number}</span>` : ''}${escape(k.title)}</h2>
+          <p>${escape(k.intro)}</p>
+        </div>
+        <div class="cards">
+          ${cards.join('\n          ')}
+        </div>
+      </section>`;
+};
+const sections = Object.entries(kinds).map(section).filter(Boolean).join('\n\n');
 
 const title = 'Flexarr apps: Apple TV, iPhone, iPad, web and Android';
 const description = 'Every Flexarr app and platform, with its version and status: what you can download today, what\'s coming soon and what\'s on the way.';
@@ -169,7 +192,7 @@ const html = `<!doctype html>
     .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     .kicker { color: var(--silver); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.8rem; margin: 0 0 14px; }
     section { padding-top: clamp(64px, 9vw, 112px); }
-    section > h2, .section-head h2 { font-size: clamp(2.4rem, 6vw, 4rem); }
+    section > h2, .section-head h2, .kind-head h2 { font-size: clamp(2.4rem, 6vw, 4rem); }
 
     /* Hero: the headline, then the devices straight on the page. */
     .hero { padding-top: clamp(40px, 7vw, 88px); text-align: center; }
@@ -224,7 +247,6 @@ const html = `<!doctype html>
     @media (max-width: 640px) { .glance { display: none; } }
 
     /* Cards */
-    .cards + .cards { margin-top: 20px; }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 20px; margin-top: 32px; }
     .card { position: relative; display: grid; border: 1px solid var(--aisle); border-radius: 24px; overflow: hidden; scroll-margin-top: 100px;
       background: radial-gradient(420px 260px at 0% 0%, rgb(var(--accent) / 0.14), transparent 70%), linear-gradient(180deg, var(--seat), rgb(37 32 44 / 0.4)); }
@@ -273,12 +295,19 @@ const html = `<!doctype html>
       .runs-on li { flex-direction: column; gap: 6px; padding: 12px 6px; font-size: 0.88rem; }
     }
 
+    /* Sections: the server, the players, and what works with them. */
+    .kind-head h2 { display: flex; align-items: center; gap: 18px; }
+    .kind-head .num { width: 0.95em; height: 0.95em; border-radius: 50%; display: inline-grid; place-items: center; flex: none; font-size: 0.8em; background: var(--screen); color: var(--room); }
+    .kind-head p { margin: 14px 0 0; max-width: 620px; color: var(--usher); font-size: clamp(1.05rem, 2.2vw, 1.2rem); }
+    .integration .cards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+    .integration .kind-head h2 { font-size: clamp(2rem, 4.5vw, 3rem); }
+
     /* On the way: lighter, dashed. */
-    .soon .card { background: transparent; border-style: dashed; }
-    .soon .card h3 { font-size: clamp(1.8rem, 3vw, 2.2rem); }
-    .soon .requires { display: none; }
-    .soon .foot { border-top: 1px dashed var(--aisle); padding-top: 16px; margin-top: auto; }
-    .soon .card-body > .summary { margin-bottom: 8px; }
+    .card.soon { background: transparent; border-style: dashed; }
+    .card.soon h3 { font-size: clamp(1.8rem, 3vw, 2.2rem); }
+    .card.soon .requires { display: none; }
+    .card.soon .foot { border-top: 1px dashed var(--aisle); padding-top: 16px; margin-top: auto; }
+    .card.soon .card-body > .summary { margin-bottom: 8px; }
     /* A slim strip across the row, after the cards. */
     .card.ask { grid-column: 1 / -1; }
     .card.ask .card-body { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; padding-block: 24px; }
@@ -325,28 +354,7 @@ ${Object.values(statuses).map(s => `            <li><span aria-hidden="true">${s
         ${table}
       </section>
 
-      <section aria-labelledby="now">
-        <h2 id="now">Available now</h2>
-        <div class="cards">
-          ${now.filter(p => p.runsOn).map(card).join('\n          ')}
-        </div>
-        <div class="cards">
-          ${now.filter(p => !p.runsOn).map(card).join('\n          ')}
-        </div>
-      </section>
-
-      <section class="soon" aria-labelledby="soon">
-        <h2 id="soon">On the way</h2>
-        <div class="cards">
-          ${soon.map(card).join('\n          ')}
-          <article class="card ask">
-            <div class="card-body">
-              <div><h3>Somewhere else?</h3><p>Tell us where you'd like to watch Flexarr next.</p></div>
-              <div class="links"><a class="button quiet" href="${repo}/discussions/categories/ideas" target="_blank" rel="noopener">Ask on GitHub</a></div>
-            </div>
-          </article>
-        </div>
-      </section>
+${sections}
 
       <p class="source">This list is also at <a href="/apps.json">flexarr.io/apps.json</a>, built from <a href="${repo}/blob/main/site/apps.json">site/apps.json</a>.</p>
     </div>
