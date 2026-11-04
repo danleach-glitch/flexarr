@@ -40,6 +40,11 @@ Code never holds a bare English sentence that people read. It calls the lookup, 
   differs between languages. Put the piece in as a value instead, or on the web use `t.rich` to drop in markup:
   `t.rich('Resume {title} from {time}', { title: <b>{title}</b>, time })`.
 - Names people chose (library names, profile names), titles and metadata are never translated.
+- **Shared words** — design.md's vocabulary (Play, Resume from {time}, Start over, Mark as watched, Request, Watchlist…)
+  — live once, in `languages/words.json`, and code uses the generated constant: `t(Words.play)`, `t(Words.resumeFrom,
+  { time })` (C# `Loc.T(Words.Play)`). Typing one of them inline is a `make strings` error, so changing a word there
+  changes it on every platform. `make strings --duplicates` lists English that differs only in case or punctuation
+  (Up Next / Up next), to fold into one string or a shared word.
 
 ### Plurals and choices
 
@@ -169,7 +174,8 @@ newer one lacks come from the older, then from English.
   language of the device that registered.
 - The Language row in each app's settings appears only when a language other than English is available, so with no
   packs nothing changes.
-- Dates, times, numbers and plurals follow the language shown, not the device's own setting.
+- Dates, times, numbers and plurals follow the language shown, in the device's own variant of it where it has one
+  (English on a British device writes 3 Mar 2025; German on an Austrian one, Jänner).
 
 ## Right to left
 

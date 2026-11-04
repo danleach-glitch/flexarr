@@ -105,7 +105,7 @@ Flexarr looks like one product everywhere, and behaves like it belongs on each d
 
 ## Words
 
-The same words on every client and in the guide:
+The same words on every client and in the guide. The ones every client shares are kept once, in `languages/words.json`, and used in code as `Words.x` (see [languages.md](languages.md)): change a word there and `make strings` changes it everywhere.
 
 - **Movies** (never "Films"), **shows**, **episodes**. Library names people chose themselves are theirs.
 - **Play**, **Resume from 32:10**, **Resume S1E3**, **Start over** (never "Play from beginning" or "Play from the start").
