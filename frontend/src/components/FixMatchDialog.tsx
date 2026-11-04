@@ -6,7 +6,7 @@ import { useApi } from '../hooks/useApi'
 import { AsyncButton } from './AsyncButton'
 import { Search } from './icons'
 import { useModal } from '../hooks/useModal'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 interface Props {
   item: { id: string; title: string; kind: string }
@@ -87,7 +87,7 @@ function TitleMatchDialog({ item, onFixed, onClose }: Props) {
         <form className="fix-match-search" onSubmit={search} role="search">
           <input type="search" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={t('Search {source}', { source })} autoFocus disabled={busy} />
           <AsyncButton className="button quiet" type="submit" disabled={busy} busy={results.loading}>
-            <Search /> {t('Search')}
+            <Search /> {t(Words.search)}
           </AsyncButton>
         </form>
 
@@ -149,7 +149,7 @@ function TitleMatchDialog({ item, onFixed, onClose }: Props) {
             </AsyncButton>
           )}
           <button className="button quiet" onClick={onClose} disabled={busy}>
-            {t('Cancel')}
+            {t(Words.cancel)}
           </button>
           <AsyncButton className="button" disabled={!chosen || busy} onClick={() => chosen && run(() => fixMatch(item.id, chosen.id))}>
             {chosen ? (chosen.year ? t('Use {title} ({year})', { title: chosen.title, year: String(chosen.year) }) : t('Use {title}', { title: chosen.title })) : t('Choose one')}
@@ -203,9 +203,9 @@ function BookMatchDialog({ item, onFixed, onClose }: Props) {
         <p className="muted">{t('Which book is this?')}</p>
         <form className="fix-match-search" onSubmit={search} role="search">
           <input type="search" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={t('Title')} placeholder={t('Title')} autoFocus disabled={busy} />
-          <input type="search" value={author} onChange={(e) => setAuthor(e.target.value)} aria-label={t('Author')} placeholder={t('Author')} disabled={busy} />
+          <input type="search" value={author} onChange={(e) => setAuthor(e.target.value)} aria-label={t(Words.author)} placeholder={t(Words.author)} disabled={busy} />
           <AsyncButton className="button quiet" type="submit" disabled={busy} busy={results.loading}>
-            <Search /> {t('Search')}
+            <Search /> {t(Words.search)}
           </AsyncButton>
         </form>
         <div className="fix-match-results" aria-busy={results.loading}>
@@ -244,7 +244,7 @@ function BookMatchDialog({ item, onFixed, onClose }: Props) {
         )}
         <div className="form-actions">
           <button className="button quiet" onClick={onClose} disabled={busy}>
-            {t('Cancel')}
+            {t(Words.cancel)}
           </button>
           <AsyncButton className="button" disabled={!chosen || busy} onClick={() => chosen && use(chosen)}>
             {chosen ? t('Use {title}', { title: chosen.title }) : t('Choose one')}

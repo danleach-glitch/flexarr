@@ -13,7 +13,7 @@ import {
 import { AsyncButton } from '../../components/AsyncButton'
 import { useApi } from '../../hooks/useApi'
 import { SettingsHeader } from './shared'
-import { locale, t } from '../../i18n'
+import { locale, t, Words } from '../../i18n'
 
 const database = 'com.plexapp.plugins.library.db'
 
@@ -61,7 +61,7 @@ export function ImportSection() {
 
   return (
     <section>
-      <SettingsHeader title={t('Bring over from Plex')} back={{ to: '/settings/libraries', label: t('Libraries') }}>
+      <SettingsHeader title={t('Bring over from Plex')} back={{ to: '/settings/libraries', label: t(Words.libraries) }}>
         {t('Copies what you’ve watched, and where you stopped, from Plex. Plex isn’t changed, and it’s safe to run again.')}
       </SettingsHeader>
       <div className="panel">

@@ -19,7 +19,7 @@ import { PODCAST_PREFERENCES_CHANGED } from '../../lib/podcasts'
 import { RowList } from './LayoutSection'
 import { SaveStatus, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
-import { t, tk } from '../../i18n'
+import { t, tk, Words } from '../../i18n'
 
 /** The profile's own: the order of its libraries in the sidebar here and in every app's menu, and what else is in it. */
 export function NavigationSection() {
@@ -91,7 +91,7 @@ export function NavigationSection() {
       <SaveStatus error={error ?? podcastsShown.error} />
       {/* Podcasts alone have no list to sit in: their switch on its own. */}
       {shown.length === 1 && shown[0].type === 'Podcasts' && podcastsShown.on !== undefined && (
-        <SettingsGroup title={t('Podcasts')}>
+        <SettingsGroup title={t(Words.podcasts)}>
           <ToggleRow label={t('Show in the sidebar')} help={t('On the web.')} checked={podcastsShown.on} onChange={(v) => void podcastsShown.change(v)} />
         </SettingsGroup>
       )}
@@ -101,12 +101,12 @@ export function NavigationSection() {
 }
 
 const items: { id: NavigationItem; label: string }[] = [
-  { id: 'watchlist', label: tk('Watchlist') },
-  { id: 'collections', label: tk('Collections') },
+  { id: 'watchlist', label: Words.watchlist },
+  { id: 'collections', label: Words.collections },
   { id: 'playlists', label: tk('Playlists') },
-  { id: 'live-tv', label: tk('Live TV') },
-  { id: 'discover', label: tk('Discover') },
-  { id: 'upcoming', label: tk('Coming soon') },
+  { id: 'live-tv', label: Words.liveTv },
+  { id: 'discover', label: Words.discover },
+  { id: 'upcoming', label: Words.comingSoon },
 ]
 
 /** The rest of the menu, each on or off: the ones this profile has (Playlists with music, Live TV once it's set up). */
@@ -142,7 +142,7 @@ function BrowseItems({ profile, liveTv }: { profile: Profile; liveTv: boolean })
   }
 
   return (
-    <SettingsGroup title={t('Browse')} note={error ? <SaveStatus error={error} /> : undefined}>
+    <SettingsGroup title={t(Words.browse)} note={error ? <SaveStatus error={error} /> : undefined}>
       {items
         .filter((i) => has[i.id])
         .map((i) => (

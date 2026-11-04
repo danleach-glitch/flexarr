@@ -16,7 +16,7 @@ import { prefersNativeHls } from '../lib/profile'
 import { unshaped, useSoundSettings, useSoundShaping } from '../lib/soundSettings'
 import { useSoundChain } from '../hooks/soundChain'
 import { programmeTime, progress } from '../lib/livetv'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 const HIDE_CHROME_MS = 3000
 /** Within this many seconds of the newest segment counts as live (players sit a few segments back). */
@@ -403,7 +403,7 @@ export default function LivePlayerPage() {
           </div>
         </div>
         <div className="player-buttons">
-          <button className="icon-button" onClick={toggle} aria-label={playing ? t('Pause') : t('Play')}>
+          <button className="icon-button" onClick={toggle} aria-label={playing ? t('Pause') : t(Words.play)}>
             {playing ? <icon.pause /> : <icon.play />}
           </button>
           <button className="icon-button" onClick={() => seekTo(window_.time - 10)} aria-label={t('Back 10 seconds')}>

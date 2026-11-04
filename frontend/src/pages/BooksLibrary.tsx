@@ -26,7 +26,7 @@ import { ScanProgress } from '../components/ScanProgress'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
 import { AlphaPicker, AlphaRail, ShowMore, useLibraryGrid } from './libraryGrid'
-import { locale, t, tk } from '../i18n'
+import { locale, t, tk, Words } from '../i18n'
 
 const PAGE_SIZE = 60
 
@@ -34,10 +34,10 @@ type View = 'browse' | 'all' | 'series' | 'authors' | 'genres' | 'narrators' | '
 
 /** The same views, in the same order, as the iPhone and Android apps. */
 const views: { view: View; label: string }[] = [
-  { view: 'browse', label: tk('Browse') },
+  { view: 'browse', label: Words.browse },
   { view: 'all', label: tk('All books') },
-  { view: 'genres', label: tk('Genres') },
-  { view: 'series', label: tk('Series') },
+  { view: 'genres', label: Words.genres },
+  { view: 'series', label: Words.series },
   { view: 'authors', label: tk('Authors') },
 ]
 
@@ -126,9 +126,9 @@ function ShelfRows({ library, data }: { library: Library; data: BookShelves }) {
   const shelves: Record<string, ReactNode> = {
     continue: books(t('Continue listening'), data.continueListening, `${all}&progress=inprogress&sort=listened`),
     next: books(t('Next in series'), data.nextInSeries),
-    recent: books(t('Recently added'), data.recentlyAdded, `${all}&sort=added`),
+    recent: books(t(Words.recentlyAdded), data.recentlyAdded, `${all}&sort=added`),
     series: data.series.length > 0 && (
-      <Row title={t('Series')} link={`/library/${library.id}?view=series`}>
+      <Row title={t(Words.series)} link={`/library/${library.id}?view=series`}>
         {data.series.map((s) => (
           <BookSeriesCard key={s.id} series={s} />
         ))}
@@ -167,7 +167,7 @@ function Genres({ library }: { library: Library }) {
   if (data.length === 0) return <p className="page-message muted">{t('No genres here yet. They come with each book’s details once a scan has found them.')}</p>
   const genres = [...data].sort((a, b) => a.name.localeCompare(b.name, locale()))
   return (
-    <nav className="genre-grid" aria-label={t('Genres')}>
+    <nav className="genre-grid" aria-label={t(Words.genres)}>
       {genres.map((g) => (
         <Link key={g.name} to={`/library/${library.id}?view=genre&genre=${encodeURIComponent(g.name)}`} className="genre-tile book-genre-tile">
           <GenreCovers covers={g.covers} />
@@ -186,7 +186,7 @@ function GenrePage({ library, genre }: { library: Library; genre: string }) {
       <header className="library-header">
         <div className="library-heading">
           <Link className="genre-back" to={`/library/${library.id}?view=genres`}>
-            <ChevronLeft /> {t('Genres')}
+            <ChevronLeft /> {t(Words.genres)}
           </Link>
           <h1 className="library-title">{genre}</h1>
         </div>
@@ -197,13 +197,13 @@ function GenrePage({ library, genre }: { library: Library; genre: string }) {
 }
 
 const sorts: { value: NonNullable<BookFilters['sort']>; label: string }[] = [
-  { value: 'title', label: tk('A–Z') },
-  { value: 'author', label: tk('Author') },
-  { value: 'series', label: tk('Series') },
-  { value: 'added', label: tk('Recently added') },
-  { value: 'released', label: tk('Year') },
-  { value: 'length', label: tk('Length') },
-  { value: 'listened', label: tk('Recently listened') },
+  { value: 'title', label: Words.sortAToZ },
+  { value: 'author', label: Words.author },
+  { value: 'series', label: Words.series },
+  { value: 'added', label: Words.recentlyAdded },
+  { value: 'released', label: Words.year },
+  { value: 'length', label: Words.length },
+  { value: 'listened', label: Words.recentlyListened },
 ]
 
 /**
@@ -274,7 +274,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
           )}
           {filters.author && (
             <button className="chip" aria-pressed="true" onClick={() => set('author', '')} aria-label={authorName ? t('Author {name}: clear', { name: authorName }) : t('Author: clear')}>
-              {authorName ?? t('Author')} ×
+              {authorName ?? t(Words.author)} ×
             </button>
           )}
         </p>

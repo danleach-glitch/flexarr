@@ -6,11 +6,11 @@ import { PageError, PageLoading } from '../components/PageStatus'
 import { Row } from '../components/Row'
 import { useApi } from '../hooks/useApi'
 import { formatClock, formatDuration } from '../lib/format'
-import { t, tk } from '../i18n'
+import { t, tk, Words } from '../i18n'
 
 /** Deezer's kinds of release, shelved as the library's artist page shelves them. */
 const shelves: [string, (t: string | null | undefined) => boolean][] = [
-  [tk('Albums'), (type) => !type || type === 'album'],
+  [Words.albums, (type) => !type || type === 'album'],
   [tk('EPs and singles'), (type) => type === 'ep' || type === 'single'],
   [tk('Compilations'), (type) => type === 'compile'],
 ]
@@ -54,13 +54,13 @@ export function MusicExternalArtistPage() {
         </div>
         <div className="music-header-text">
           <p className="detail-kicker">
-            <Link to="/discover?view=music">{t('Music')}</Link>
+            <Link to="/discover?view=music">{t(Words.music)}</Link>
           </p>
           <h1>{a.name}</h1>
           <div className="detail-actions">
             {a.libraryItemId && (
               <Link className="button" to={`/item/${a.libraryItemId}`}>
-                {t('In your library')}
+                {t(Words.inYourLibrary)}
               </Link>
             )}
             <MusicRequestButton key={String(a.followed)} kind="artist" size="large" request={{ kind: 'artist', deezerId: a.deezerId }} availability={a.followed ? 'Requested' : 'None'} title={a.name} unanswered={a.lidarrAnswered === false} />
@@ -69,7 +69,7 @@ export function MusicExternalArtistPage() {
       </header>
       <MusicShelves albums={a.albums} unanswered={a.lidarrAnswered === false} />
       {a.similar.length > 0 && (
-        <Row title={t('Fans also like')}>
+        <Row title={t(Words.fansAlsoLike)}>
           {a.similar.map((s, i) => (
             <MusicExternalCard key={`${i}-${s.deezerId}`} item={s} unanswered={a.lidarrAnswered === false} />
           ))}
@@ -100,7 +100,7 @@ export function MusicExternalAlbumPage() {
         </div>
         <div className="music-header-text">
           <p className="detail-kicker">
-            <Link to="/discover?view=music">{t('Music')}</Link>
+            <Link to="/discover?view=music">{t(Words.music)}</Link>
           </p>
           <h1>{a.title}</h1>
           <p className="facts">
@@ -119,7 +119,7 @@ export function MusicExternalAlbumPage() {
           <div className="detail-actions">
             {a.libraryItemId ? (
               <Link className="button" to={`/item/${a.libraryItemId}`}>
-                {t('In your library')}
+                {t(Words.inYourLibrary)}
               </Link>
             ) : (
               <MusicRequestButton kind="album" size="large" request={{ kind: 'album', deezerId: a.deezerId }} availability={a.availability} title={a.title} unanswered={a.lidarrAnswered === false} />

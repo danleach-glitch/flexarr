@@ -4,7 +4,7 @@ import { useModal } from '../hooks/useModal'
 import { AsyncButton } from './AsyncButton'
 import { NameList } from './NameList'
 import { automaticSort, withName } from '../lib/names'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /** An album's kinds of release, as its page names them, with a plain album first. */
 const albumTypes = (): [string, string][] => [
@@ -110,7 +110,7 @@ export function DetailsEditor({ detail, onSaved, onClose }: { detail: ItemDetail
               </>
             )}
             <label className="field narrow">
-              <span className="field-label">{t('Year')}</span>
+              <span className="field-label">{t(Words.year)}</span>
               <input type="text" value={year} onChange={(e) => change(setYear)(e.target.value)} disabled={saving} inputMode="numeric" maxLength={4} />
             </label>
             {album ? (
@@ -167,7 +167,7 @@ export function DetailsEditor({ detail, onSaved, onClose }: { detail: ItemDetail
             </AsyncButton>
           )}
           <button type="button" className="button quiet" onClick={onClose} disabled={saving}>
-            {t('Cancel')}
+            {t(Words.cancel)}
           </button>
           <AsyncButton className="button" type="submit" busy={saving}>
             {t('Save')}

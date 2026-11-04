@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from 
 import { imageUrl, type ItemSummary } from '../api/client'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { ChevronDown, ChevronUp, Close, Grip } from './icons'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /**
  * The queue, above the now-playing bar: what's playing and what's to come. Upcoming tracks can be dragged into a new
@@ -106,7 +106,7 @@ export function QueuePanel({ onClose, style }: { onClose: () => void; style?: CS
       <div className="queue-body">
         {current && (
           <>
-            <h3 className="queue-heading">{t('Now playing')}</h3>
+            <h3 className="queue-heading">{t(Words.nowPlaying)}</h3>
             <div className="queue-item now">
               <div className="queue-track">
                 {art(current)}

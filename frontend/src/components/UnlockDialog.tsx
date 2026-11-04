@@ -5,7 +5,7 @@ import { useModal } from '../hooks/useModal'
 import { usePinLockout } from '../hooks/usePinLockout'
 import { errorText } from '../pages/settings/useSettings'
 import { AsyncButton } from './AsyncButton'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /**
  * The admin PIN, asked for when a change it makes (deleting a film, a household collection) is refused only
@@ -70,7 +70,7 @@ function UnlockDialog({ onDone }: { onDone: (unlocked: boolean) => void }) {
             {t('Forgotten it?')}
           </Link>
           <button type="button" className="button quiet" onClick={() => onDone(false)} disabled={busy}>
-            {t('Cancel')}
+            {t(Words.cancel)}
           </button>
           <AsyncButton type="submit" className="button" busy={busy} disabled={lockout.locked}>
             {t('Unlock')}

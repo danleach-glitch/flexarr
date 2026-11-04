@@ -1,5 +1,5 @@
 import type { ItemSummary, LibraryType, MediaFile, VideoRange } from '../api/types'
-import { locale, t } from '../i18n'
+import { locale, t, Words } from '../i18n'
 
 export function formatDuration(seconds: number | null | undefined): string | null {
   if (!seconds) return null
@@ -58,7 +58,7 @@ export function episodeCode(item: EpisodeNumbers): string {
   const episode = item.episodeNumber ?? 0
   return item.episodeNumberEnd
     ? t('S{season}E{episode}–E{last}', { season: String(season), episode: String(episode), last: String(item.episodeNumberEnd) })
-    : t('S{season}E{episode}', { season: String(season), episode: String(episode) })
+    : t(Words.seasonEpisodeShort, { season: String(season), episode: String(episode) })
 }
 
 /** "Season 1, Episode 10" for buttons and headings on a show's pages (dated shows give the date; a home video its name). */
@@ -72,7 +72,7 @@ export function episodeHeading(item: EpisodeNumbers): string {
     return item.episodeNumberEnd ? t('Specials, Episodes {episode}–{last}', { episode, last }) : t('Specials, Episode {episode}', { episode })
   return item.episodeNumberEnd
     ? t('Season {season}, Episodes {episode}–{last}', { season, episode, last })
-    : t('Season {season}, Episode {episode}', { season, episode })
+    : t(Words.seasonEpisodeHeading, { season, episode })
 }
 
 const rangeLabel: Record<VideoRange, string | null> = {
@@ -111,22 +111,22 @@ export function progressOf(item: ItemSummary): number | null {
 /** Each kind of library's name, in the language shown when it's read. */
 export const libraryTypeLabel: Record<LibraryType, string> = {
   get Movies() {
-    return t('Movies')
+    return t(Words.movies)
   },
   get TvShows() {
     return t('TV Shows')
   },
   get Music() {
-    return t('Music')
+    return t(Words.music)
   },
   get Podcasts() {
-    return t('Podcasts')
+    return t(Words.podcasts)
   },
   get HomeVideos() {
     return t('Home Videos')
   },
   get Audiobooks() {
-    return t('Audiobooks')
+    return t(Words.audiobooks)
   },
 }
 

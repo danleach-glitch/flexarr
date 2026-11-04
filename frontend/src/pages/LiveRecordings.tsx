@@ -9,7 +9,7 @@ import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { formatSize } from '../lib/format'
 import { programmeTime } from '../lib/livetv'
-import { locale, t } from '../i18n'
+import { locale, t, Words } from '../i18n'
 
 const day = { format: (d: Date) => d.toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short' }) }
 
@@ -82,7 +82,7 @@ export default function LiveRecordings() {
 
       {data.series.length > 0 && (
         <section>
-          <h2 className="recordings-heading">{t('Series')}</h2>
+          <h2 className="recordings-heading">{t(Words.series)}</h2>
           <ul className="recordings-list">
             {data.series.map((s) => (
               <SeriesRow key={s.id} series={s} act={act} />
@@ -109,11 +109,11 @@ export default function LiveRecordings() {
                 <div className="recording-actions">
                   {r.itemId && (
                     <Link className="button small" to={`/item/${r.itemId}`}>
-                      <icon.play /> {t('Play')}
+                      <icon.play /> {t(Words.play)}
                     </Link>
                   )}
                   <IconButton
-                    label={r.state === 'completed' ? t('Delete') : t('Clear')}
+                    label={r.state === 'completed' ? t(Words.delete) : t('Clear')}
                     icon={r.state === 'completed' ? <icon.delete /> : <Close />}
                     className={r.state === 'completed' ? 'button quiet small icon danger-icon' : undefined}
                     onClick={() => (r.state !== 'completed' || window.confirm(t('Delete the recording of {title}?', { title: r.title }))) && act(() => removeRecording(r.id))}

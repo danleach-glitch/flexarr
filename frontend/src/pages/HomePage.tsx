@@ -13,7 +13,7 @@ import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
 import { showsChecklist } from '../lib/setupGuide'
-import { t, tk } from '../i18n'
+import { t, tk, Words } from '../i18n'
 
 export function HomePage() {
   const { libraries } = useLibraries()
@@ -95,7 +95,7 @@ export function HomePage() {
             <Fragment key={row.id}>{newEpisodes}</Fragment>
           ) : row.style === 'upcoming' ? (
             data.upcoming.length > 0 && (
-              <Row key={row.id} title={data.downloading > 0 ? t('Coming soon ({count} downloading)', { count: data.downloading }) : t('Coming soon')} link="/upcoming" style="wide">
+              <Row key={row.id} title={data.downloading > 0 ? t('Coming soon ({count} downloading)', { count: data.downloading }) : t(Words.comingSoon)} link="/upcoming" style="wide">
                 {data.upcoming.map((item) => (
                   <UpcomingCard key={item.id} item={item} />
                 ))}

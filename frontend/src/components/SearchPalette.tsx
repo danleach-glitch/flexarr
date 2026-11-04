@@ -26,7 +26,7 @@ import { itemLink, libraryGenreLink } from '../lib/links'
 import { musicLink } from '../lib/musicLinks'
 import { Close, History, Search } from './icons'
 import { icon } from './icons.generated'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 interface Result {
   key: string
@@ -50,7 +50,7 @@ interface Result {
 function titleDetail(item: ItemSummary): string {
   if (item.kind === 'Artist') return t('{count, plural, one {# album} other {# albums}}', { count: item.childCount })
   if (item.kind === 'Audiobook') return authorsLine(item) ?? t('Audiobook')
-  return [item.kind === 'Series' ? t('Series') : t('Movie'), year(item)].filter(Boolean).join(', ')
+  return [item.kind === 'Series' ? t(Words.series) : t('Movie'), year(item)].filter(Boolean).join(', ')
 }
 
 function flatten(results: SearchResults): Result[] {
@@ -67,7 +67,7 @@ function flatten(results: SearchResults): Result[] {
     })),
     ...results.albums.map((a) => ({
       key: a.id,
-      group: t('Albums'),
+      group: t(Words.albums),
       title: a.title,
       detail: [a.seriesTitle, a.year].filter(Boolean).join(', '),
       image: imageUrl(a.artwork.poster, 92),
@@ -91,7 +91,7 @@ function flatten(results: SearchResults): Result[] {
     // Audiobooks and their series, apart from films and shows (servers before 0.58 leave them out).
     ...(results.books ?? []).map((b) => ({
       key: b.id,
-      group: t('Audiobooks'),
+      group: t(Words.audiobooks),
       title: b.title,
       detail: authorsLine(b),
       image: imageUrl(b.artwork.poster, 92),
@@ -139,11 +139,11 @@ function genreResults(results: SearchResults): Result[] {
   return results.genres.flatMap((g): Result[] => {
     const here = places.filter((p) => p.name === g)
     if (here.length === 0) {
-      return [{ key: `g-${g}`, group: t('Genres'), title: g, detail: null, image: undefined, href: `/discover?genre=${encodeURIComponent(g)}`, thumb: 'genres', itemId: null }]
+      return [{ key: `g-${g}`, group: t(Words.genres), title: g, detail: null, image: undefined, href: `/discover?genre=${encodeURIComponent(g)}`, thumb: 'genres', itemId: null }]
     }
     return here.map((p) => ({
       key: `g-${g}-${p.libraryId}`,
-      group: t('Genres'),
+      group: t(Words.genres),
       title: g,
       detail: p.library,
       image: undefined,
@@ -158,14 +158,14 @@ function genreResults(results: SearchResults): Result[] {
 /** Films and shows (Seerr's) and artists and albums (Deezer's) that the library doesn't have, opening their own pages. */
 function outsideResults(titles: ExternalTitle[], music: { artists: MusicExternal[]; albums: MusicExternal[] }): Result[] {
   const wanted = <T extends { libraryItemId: string | null; availability: ExternalTitle['availability'] }>(x: T) => x.libraryItemId == null && x.availability !== 'Available'
-  const requested = (x: { availability: ExternalTitle['availability'] }) => (x.availability === 'Requested' ? t('Requested') : null)
-  const outside = t('Not in your library')
+  const requested = (x: { availability: ExternalTitle['availability'] }) => (x.availability === 'Requested' ? t(Words.requested) : null)
+  const outside = t(Words.notInYourLibrary)
   return [
     ...titles.filter(wanted).slice(0, 6).map((title) => ({
       key: `x-${title.mediaType}-${title.tmdbId}`,
       group: outside,
       title: title.title,
-      detail: [title.mediaType === 'tv' ? t('Series') : t('Movie'), title.year, requested(title)].filter(Boolean).join(', '),
+      detail: [title.mediaType === 'tv' ? t(Words.series) : t('Movie'), title.year, requested(title)].filter(Boolean).join(', '),
       image: title.poster ? imageUrl(title.poster, 92) : undefined,
       href: `/discover/${title.mediaType}/${title.tmdbId}`,
       thumb: 'titles',
@@ -373,7 +373,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="palette-backdrop" onMouseDown={onClose}>
-      <div ref={dialog} className="palette" role="dialog" aria-modal="true" aria-label={t('Search')} onMouseDown={(e) => e.stopPropagation()} onKeyDown={onKeyDown}>
+      <div ref={dialog} className="palette" role="dialog" aria-modal="true" aria-label={t(Words.search)} onMouseDown={(e) => e.stopPropagation()} onKeyDown={onKeyDown}>
         <label className="palette-input">
           <Search />
           <input

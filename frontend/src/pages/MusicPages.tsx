@@ -21,7 +21,7 @@ import { shuffled } from '../lib/shuffle'
 import { albumTypeLabel } from '../lib/albums'
 import { DetailsEditor } from '../components/DetailsEditor'
 import { MusicMatchDialog } from '../components/MusicMatchDialog'
-import { t, tk } from '../i18n'
+import { t, tk, Words } from '../i18n'
 
 /**
  * The queue actions for a set of tracks, as a menu offers them, and (given what they belong to: a track, album or
@@ -29,14 +29,14 @@ import { t, tk } from '../i18n'
  */
 export function queueActions(player: AudioPlayer, tracks: () => Promise<ItemSummary[]> | ItemSummary[], item?: PlaylistAddition): MenuAction[] {
   return [
-    { label: t('Play next'), run: async () => player.playNext(await tracks()) },
-    { label: t('Add to queue'), run: async () => player.enqueue(await tracks()) },
+    { label: t(Words.playNext), run: async () => player.playNext(await tracks()) },
+    { label: t(Words.addToQueue), run: async () => player.enqueue(await tracks()) },
     ...(item ? [{ label: t('Add to playlist…'), run: () => openAddToPlaylist({ id: item.id, title: item.title }) }] : []),
   ]
 }
 
 /** The shelves' English names, which key them; said through t(title) where shown. */
-const sectionTitles = [tk('Albums'), tk('EPs and singles'), tk('Live and compilations'), tk('Other')] as const
+const sectionTitles = [Words.albums, tk('EPs and singles'), tk('Live and compilations'), tk('Other')] as const
 type SectionTitle = (typeof sectionTitles)[number]
 
 // Where each kind is shelved. Anything else (plain albums, soundtracks the artist made, albums nobody has typed) is
@@ -178,10 +178,10 @@ export function AlbumPage({ detail, onChange }: { detail: ItemDetail; onChange?:
           </p>
           <div className="detail-actions">
             <button className="button" onClick={() => player.play(tracks, 0, { openNowPlaying: true })} disabled={tracks.length === 0}>
-              <icon.play /> {t('Play')}
+              <icon.play /> {t(Words.play)}
             </button>
             <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0, { openNowPlaying: true })} disabled={tracks.length < 2}>
-              <icon.shuffle /> {t('Shuffle')}
+              <icon.shuffle /> {t(Words.shuffle)}
             </button>
             <MoreButton
               label={t('More for {title}', { title: item.title })}
@@ -230,7 +230,7 @@ export function AlbumPage({ detail, onChange }: { detail: ItemDetail; onChange?:
         <Menu
           label={t('More for {title}', { title: tracks[trackMenu.index].title })}
           at={trackMenu.at}
-          actions={[{ label: t('Play'), run: () => player.play(tracks, trackMenu.index) }, ...queueActions(player, () => [tracks[trackMenu.index]], tracks[trackMenu.index])]}
+          actions={[{ label: t(Words.play), run: () => player.play(tracks, trackMenu.index) }, ...queueActions(player, () => [tracks[trackMenu.index]], tracks[trackMenu.index])]}
           onClose={() => setTrackMenu(null)}
         />
       )}
@@ -314,13 +314,13 @@ export function ArtistPage({ detail, onChange }: { detail: ItemDetail; onChange?
             {!waiting && (
               <>
                 <AsyncButton className="button" onClick={() => playAll(false)} disabled={loading}>
-                  <icon.play /> {t('Play')}
+                  <icon.play /> {t(Words.play)}
                 </AsyncButton>
                 <AsyncButton className="button quiet" onClick={() => playAll(true)} disabled={loading}>
-                  <icon.shuffle /> {t('Shuffle')}
+                  <icon.shuffle /> {t(Words.shuffle)}
                 </AsyncButton>
                 <AsyncButton className="button quiet" onClick={() => startRadio()} disabled={loading}>
-                  <icon.radio /> {t('Radio')}
+                  <icon.radio /> {t(Words.radio)}
                 </AsyncButton>
               </>
             )}
@@ -365,7 +365,7 @@ export function ArtistPage({ detail, onChange }: { detail: ItemDetail; onChange?
       {extras.data && extras.data.missing.length > 0 && (
         <section className="music-section music-missing" aria-labelledby="music-section-missing">
           <h2 id="music-section-missing" className="music-section-title">
-            {t('Not in your library')}
+            {t(Words.notInYourLibrary)}
           </h2>
           <div className="poster-grid music-albums">
             {extras.data.missing.map((a, i) => (
@@ -375,7 +375,7 @@ export function ArtistPage({ detail, onChange }: { detail: ItemDetail; onChange?
         </section>
       )}
       {extras.data && extras.data.similar.length > 0 && (
-        <Row title={t('Fans also like')}>
+        <Row title={t(Words.fansAlsoLike)}>
           {extras.data.similar.map((s, i) => (
             <MusicExternalCard key={`${i}-${s.deezerId}`} item={s} unanswered={extras.data?.lidarrAnswered === false} />
           ))}

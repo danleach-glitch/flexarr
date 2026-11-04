@@ -323,6 +323,16 @@ def wrap_words(src, lang):
         return f"{m.group(1)}(Words.{name}"
 
     out = re.sub(call + "(?:" + lit + ")", swap, src)
+
+    def swap_mark(m):
+        text = m.group(1) if m.group(1) is not None else m.group(2)
+        name = names.get(text.replace("\\'", "'").replace('\\"', '"'))
+        if not name:
+            return m.group(0)
+        return f"Words.{name[:1].upper() + name[1:] if lang == 'cs' else name}"
+
+    mark = {"ts": r"(?<![\w.$])tk\(\s*", "swift": r"(?<![\w.])tk\(\s*", "kotlin": r"(?<![\w.])tk\(\s*", "cs": r"\bLoc\.Mark\(\s*"}[lang]
+    out = re.sub(mark + "(?:" + lit + r")\s*\)", swap_mark, out)
     return out, manual
 
 
@@ -349,7 +359,7 @@ def main(argv):
         files += sorted(q for q in p.rglob("*") if q.suffix in suffixes) if p.is_dir() else [p]
     changed = 0
     for f in files:
-        if re.search(r"\.(test|generated)\.|Tests/|/test/|/Migrations/", f.as_posix()):
+        if re.search(r"\.(test|generated)\.|Tests/|/test/|/Migrations/|/i18n/|/Localization/", f.as_posix()):
             continue
         src = f.read_text(encoding="utf-8")
         out, manual = fn(src)

@@ -31,7 +31,7 @@ import { usePolling } from '../../hooks/usePolling'
 import { appLogos } from '../../lib/apps'
 import { OpenApp, SaveStatus, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText, useSettings } from './useSettings'
-import { locale, t, tk } from '../../i18n'
+import { locale, t, tk, Words } from '../../i18n'
 
 /** Settings › Trakt may have come or gone: the Settings page looks again. */
 export const TRAKT_CHANGED = 'flexarr:trakt'
@@ -43,13 +43,13 @@ const arrKinds = ['Sonarr', 'Radarr', 'Lidarr'] as const
 
 /** What each app adds, said beside it while it isn't connected. */
 const purpose: Record<ArrKind | OtherService, string> = {
-  Sonarr: tk('Shows'),
-  Radarr: tk('Movies'),
-  Lidarr: tk('Music'),
+  Sonarr: Words.shows,
+  Radarr: Words.movies,
+  Lidarr: Words.music,
   seerr: tk('Discover and requests'),
-  bazarr: tk('Subtitles'),
+  bazarr: Words.subtitles,
   tmdb: tk('Movie details without Radarr'),
-  livetv: tk('Live TV'),
+  livetv: Words.liveTv,
   trakt: tk('Trakt'),
 }
 
@@ -454,7 +454,7 @@ function ArrRow({
                 onClose()
               }}
             >
-              {t('Cancel')}
+              {t(Words.cancel)}
             </button>
             <AsyncButton type="submit" className={isNew ? 'button small go' : 'button small'} busy={saving}>
               {isNew ? t('Connect') : t('Save')}
@@ -551,7 +551,7 @@ function ServiceRow({
               </AsyncButton>
             )}
             <button type="button" className="button quiet small" onClick={onClose}>
-              {t('Cancel')}
+              {t(Words.cancel)}
             </button>
             <AsyncButton type="submit" className={service ? 'button small' : 'button small go'} busy={saving}>
               {service ? t('Save') : t('Connect')}
@@ -655,7 +655,7 @@ function TmdbRow({
               {t('Test')}
             </AsyncButton>
             <button type="button" className="button quiet small" onClick={onClose}>
-              {t('Cancel')}
+              {t(Words.cancel)}
             </button>
             <AsyncButton type="submit" className={hasKey ? 'button small' : 'button small go'} busy={saving} disabled={!apiKey.trim()}>
               {hasKey ? t('Save') : t('Connect')}
@@ -719,7 +719,7 @@ function TraktAppRow({
               </AsyncButton>
             )}
             <button type="button" className="button quiet small" onClick={onClose}>
-              {t('Cancel')}
+              {t(Words.cancel)}
             </button>
             <AsyncButton type="submit" className="button small" busy={saving} disabled={!clientId.trim() || (!secret.trim() && !(app?.hasSecret && app.clientId === clientId.trim()))}>
               {t('Save')}
@@ -788,7 +788,7 @@ function DispatcharrRow({
               {t('In Dispatcharr, add a user for Flexarr at Streamer level with a long random XC password, and use that password as the key here. It can only list and play the channels Dispatcharr gives that user.')}
             </p>
             <p>
-              {t.rich('Rewinding and recording are in {page}.', { page: <Link to="/settings/livetv">{t('Live TV')}</Link> })}
+              {t.rich('Rewinding and recording are in {page}.', { page: <Link to="/settings/livetv">{t(Words.liveTv)}</Link> })}
             </p>
           </details>
           <div className="field-row">
@@ -841,7 +841,7 @@ function DispatcharrRow({
               {t('Test')}
             </AsyncButton>
             <button type="button" className="button quiet small" onClick={onClose}>
-              {t('Cancel')}
+              {t(Words.cancel)}
             </button>
             <AsyncButton type="submit" className={liveTv ? 'button small' : 'button small go'} busy={saving}>
               {liveTv ? t('Save') : t('Connect')}
@@ -915,7 +915,7 @@ function MediaFolders({ folders, hasApps, mappings, save }: { folders?: ArrFolde
                 </p>
                 <FolderPicker onPick={(to) => void map(f.path, to).then((ok) => ok && setChoosing(undefined))} />
                 <button type="button" className="text-button" onClick={() => setChoosing(undefined)}>
-                  {t('Cancel')}
+                  {t(Words.cancel)}
                 </button>
               </div>
             )}
@@ -1042,7 +1042,7 @@ function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMapp
                 }}
               />
               <button type="button" className="text-button" onClick={() => setChoosing(undefined)}>
-                {t('Cancel')}
+                {t(Words.cancel)}
               </button>
             </div>
           )}
@@ -1053,7 +1053,7 @@ function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMapp
           {t('Add a mapping')}
         </button>
         <button type="button" className="button quiet small" onClick={() => setEditing(false)}>
-          {t('Cancel')}
+          {t(Words.cancel)}
         </button>
         <AsyncButton className="button small" disabled={!changed} onClick={() => save({ pathMappings: mappings })}>
           {t('Save')}

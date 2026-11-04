@@ -17,7 +17,7 @@ import {
 } from '../../lib/soundSettings'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
-import { t, tk } from '../../i18n'
+import { t, tk, Words } from '../../i18n'
 
 const boostLabel: Record<DialogueBoost, string> = { Off: tk('Off'), Low: tk('Low'), Medium: tk('Medium'), High: tk('High') }
 const nightLabel: Record<NightMode, string> = { Off: tk('Off'), On: tk('On'), Scheduled: tk('On a schedule') }
@@ -34,10 +34,10 @@ function WhileWatching({ name }: { name?: string }) {
 
   type Toggle = 'autoPlayNext' | 'skipIntros' | 'skipRecaps' | 'skipCredits'
   const options: { key: Toggle; label: string; help: string }[] = [
-    { key: 'autoPlayNext', label: t('Auto-play the next episode'), help: t('The next episode starts after a 10-second countdown.') },
+    { key: 'autoPlayNext', label: t(Words.autoPlayNext), help: t(Words.autoPlayNextHelp) },
     { key: 'skipIntros', label: t('Skip intros'), help: t('Jumps past the opening titles by itself.') },
     { key: 'skipRecaps', label: t('Skip recaps'), help: t('Jumps past “Previously on…” by itself.') },
-    { key: 'skipCredits', label: t('Skip credits'), help: t('Ends the episode as the credits start.') },
+    { key: 'skipCredits', label: t(Words.skipCredits), help: t(Words.skipCreditsHelp) },
   ]
 
   async function change(next: PlaybackPreferences) {

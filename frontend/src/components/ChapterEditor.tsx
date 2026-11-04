@@ -4,7 +4,7 @@ import { useModal } from '../hooks/useModal'
 import { clockText, parseClock } from '../lib/books'
 import { AsyncButton } from './AsyncButton'
 import { AudibleLogo, Close, Plus } from './icons'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 interface Draft {
   key: number
@@ -193,7 +193,7 @@ export function ChapterEditor({
         )}
         <div className="form-actions">
           <button className="button quiet" onClick={close} disabled={busy}>
-            {leaving ? t('Discard changes') : t('Done')}
+            {leaving ? t('Discard changes') : t(Words.done)}
           </button>
           <AsyncButton
             className="button"

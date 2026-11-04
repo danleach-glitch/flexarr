@@ -41,12 +41,12 @@ import { useAgeLimits } from '../hooks/sessionContext'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useApi } from '../hooks/useApi'
 import { episodeAsTrack, episodeDate, episodeLength, episodeProgress, looksLikeFeedUrl } from '../lib/podcasts'
-import { locale, t } from '../i18n'
+import { locale, t, Words } from '../i18n'
 
 const PAGE = 50
 
 /** A trailer or bonus episode's kind, as shown beside it. */
-const episodeKind = (type: PodcastEpisode['episodeType']) => (type === 'Trailer' ? t('Trailer') : type === 'Bonus' ? t('Bonus') : type)
+const episodeKind = (type: PodcastEpisode['episodeType']) => (type === 'Trailer' ? t(Words.trailer) : type === 'Bonus' ? t('Bonus') : type)
 
 /** The page's heading, with the switch between what you follow and Apple's directory. */
 function PodcastsHeader({ view, children }: { view: 'yours' | 'browse'; children?: ReactNode }) {
@@ -55,14 +55,14 @@ function PodcastsHeader({ view, children }: { view: 'yours' | 'browse'; children
   return (
     <header className="library-header">
       <div className="library-heading">
-        <h1>{t('Podcasts')}</h1>
+        <h1>{t(Words.podcasts)}</h1>
         <nav className="view-switch" aria-label={t('Podcasts views')}>
           <Link to="/podcasts" aria-current={view === 'yours' ? 'page' : undefined}>
             {t('Your podcasts')}
           </Link>
           {!limited && (
             <Link to="/podcasts/browse" aria-current={view === 'browse' ? 'page' : undefined}>
-              {t('Browse')}
+              {t(Words.browse)}
             </Link>
           )}
         </nav>
@@ -189,7 +189,7 @@ function PodcastsHome() {
           <h2>{t('Follow a podcast to see its new episodes here')}</h2>
           <p className="muted">
             {t.rich('Find shows in {browse}, or bring the ones you follow in another app: export them from it as OPML (Pocket Casts, Overcast and most others can), then use Import.', {
-              browse: <Link to="/podcasts/browse">{t('Browse')}</Link>,
+              browse: <Link to="/podcasts/browse">{t(Words.browse)}</Link>,
             })}
           </p>
           <Link className="button" to="/podcasts/browse">
@@ -199,7 +199,7 @@ function PodcastsHome() {
       )}
 
       {(podcasts.data?.length ?? 0) > 0 && (
-        <Row title={t('Following')} style="poster">
+        <Row title={t(Words.following)} style="poster">
           {podcasts.data!.map((podcast) => (
             <PodcastCard key={podcast.id} podcast={podcast} />
           ))}
@@ -208,7 +208,7 @@ function PodcastsHome() {
 
       {(upNext.data?.length ?? 0) > 0 && (
         <section className="podcast-section">
-          <h2>{t('Up next')}</h2>
+          <h2>{t(Words.upNext)}</h2>
           <UpNextList key={upNext.data!.map((e) => e.id).join()} episodes={upNext.data!} onChanged={changed} />
         </section>
       )}
@@ -308,7 +308,7 @@ function EpisodeRow({
   }
   const actions: MenuAction[] = [
     // Up Next lives on the server, so it's the same on the phone.
-    { label: t('Play next'), run: () => addToUpNext(episode.id, true).then(onChanged) },
+    { label: t(Words.playNext), run: () => addToUpNext(episode.id, true).then(onChanged) },
     { label: t('Add to Up Next'), run: () => addToUpNext(episode.id).then(onChanged) },
     ...(showPodcast ? [{ label: t('Go to {title}', { title: episode.podcastTitle }), run: () => navigate(`/podcasts/${episode.podcastId}`) }] : []),
     // Part way through: forget the place without marking it played, which takes it out of the listening list.
@@ -360,7 +360,7 @@ function EpisodeRow({
               <span style={{ width: `${progress * 100}%` }} />
             </span>
           )}
-          <AsyncButton className={played ? 'icon-button podcast-episode-played on' : 'icon-button podcast-episode-played'} aria-label={played ? t('Mark as unplayed') : t('Mark as played')} aria-pressed={played} onClick={() => mark(!played)}>
+          <AsyncButton className={played ? 'icon-button podcast-episode-played on' : 'icon-button podcast-episode-played'} aria-label={played ? t('Mark as unplayed') : t(Words.markAsPlayed)} aria-pressed={played} onClick={() => mark(!played)}>
             <Check />
           </AsyncButton>
           <button
@@ -570,7 +570,7 @@ function DirectoryCard({ podcast, rank }: { podcast: DirectoryPodcast; rank?: nu
         <div className="card-frame">
           {podcast.artwork ? <img src={imageUrl(podcast.artwork, 342)} alt="" loading="lazy" /> : <Artwork src={null} title={podcast.title} width={342} shape="square" />}
           {rank && <span className="podcast-rank">{rank}</span>}
-          {podcast.subscribed && <span className="podcast-badge following">{t('Following')}</span>}
+          {podcast.subscribed && <span className="podcast-badge following">{t(Words.following)}</span>}
           {state.opening && <span className="podcast-opening">{t('Opening…')}</span>}
         </div>
       </button>
@@ -699,16 +699,16 @@ function PodcastShow() {
           <div className="detail-actions">
             {next && (
               <button className="button" onClick={() => player.play([episodeAsTrack(next)])}>
-                <icon.play /> {episodeProgress(next) !== null ? t('Resume') : sort === 'oldest' ? t('Play') : t('Play latest')}
+                <icon.play /> {episodeProgress(next) !== null ? t('Resume') : sort === 'oldest' ? t(Words.play) : t('Play latest')}
               </button>
             )}
             <AsyncButton className={subscription ? 'button quiet' : 'button'} onClick={follow} busy={busy} aria-pressed={subscription !== null}>
               {subscription ? (
                 <>
-                  <Check /> {t('Following')}
+                  <Check /> {t(Words.following)}
                 </>
               ) : (
-                t('Follow')
+                t(Words.follow)
               )}
             </AsyncButton>
           </div>
@@ -734,7 +734,7 @@ function PodcastShow() {
       {marking && (
         <ConfirmDialog
           title={t('Mark all as played?')}
-          confirmLabel={t('Mark as played')}
+          confirmLabel={t(Words.markAsPlayed)}
           busy={marking === 'busy'}
           error={marking === 'failed' ? t("That didn't work. Try again.") : undefined}
           onConfirm={markAllPlayed}
@@ -831,14 +831,14 @@ function EpisodeDetail() {
           </p>
           <div className="detail-actions">
             <button className="button" onClick={() => (playing ? player.toggle() : player.play([episodeAsTrack(e)]))}>
-              {playing && player.playing ? <icon.pause /> : <icon.play />} {playing && player.playing ? t('Pause') : progress !== null ? t('Resume') : t('Play')}
+              {playing && player.playing ? <icon.pause /> : <icon.play />} {playing && player.playing ? t('Pause') : progress !== null ? t('Resume') : t(Words.play)}
             </button>
             {progress !== null && !playing && (
               <button
                 className="button quiet"
                 onClick={() => player.play([{ ...episodeAsTrack(e), playFrom: 0 }])}
               >
-                {t('Start over')}
+                {t(Words.startOver)}
               </button>
             )}
             {progress !== null && !e.userData.watched && (
@@ -865,7 +865,7 @@ function EpisodeDetail() {
                   <Check /> {t('Played')}
                 </>
               ) : (
-                t('Mark as played')
+                t(Words.markAsPlayed)
               )}
             </AsyncButton>
           </div>

@@ -435,7 +435,7 @@ public static class SettingsTransfer
         .ToArray();
 
     /// <summary>The single services a config can point at, by config.json name.</summary>
-    private static readonly KeyValuePair<string, string>[] Services = [new("seerr", "Seerr"), new("bazarr", "Bazarr"), new("liveTv", Loc.Mark("Live TV"))];
+    private static readonly KeyValuePair<string, string>[] Services = [new("seerr", "Seerr"), new("bazarr", "Bazarr"), new("liveTv", Words.LiveTv)];
 
     /// <summary>The web addresses in a config: each *arr's, Seerr's, Bazarr's and the Live TV source's.</summary>
     private static IEnumerable<(string Name, string Address)> Addresses(JsonObject config)

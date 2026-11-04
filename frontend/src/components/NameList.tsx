@@ -1,6 +1,6 @@
 import { useId, type KeyboardEvent } from 'react'
 import { withName } from '../lib/names'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /**
  * Names as chips, each with a way to remove it, and a box to add one (Enter or Tab adds it; saving adds what's left
@@ -19,7 +19,7 @@ export function NameList({ kind, names, typed, disabled, onType, onChange }: { k
       add()
     }
   }
-  const label = kind === 'genres' ? t('Genres') : kind === 'authors' ? t('Authors') : t('Narrators')
+  const label = kind === 'genres' ? t(Words.genres) : kind === 'authors' ? t('Authors') : t('Narrators')
   const placeholder = names.length
     ? kind === 'genres'
       ? t('Add another genre')

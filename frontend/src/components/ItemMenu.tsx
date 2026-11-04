@@ -11,7 +11,7 @@ import { useWatchlistKeys } from '../hooks/useWatchlistKeys'
 import { showNotice } from '../lib/notice'
 import { announceWatched } from '../hooks/watched'
 import { episodeCode, progressOf } from '../lib/format'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 export interface MenuPoint {
   x: number
@@ -58,30 +58,30 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
     return watchlist.libraryItemIds.includes(item.id)
       ? [
           {
-            label: t('Remove from watchlist'),
+            label: t(Words.removeFromWatchlist),
             // Gone already (it left when it was watched) is what was asked.
             run: () => removeFromWatchlist(key).catch((e: unknown) => (e instanceof ApiError && e.status === 404 ? watchlistChanged() : failed(e))),
           },
         ]
-      : [{ label: t('Add to watchlist'), run: () => addToWatchlist(key).then(() => showNotice(t('Added {title} to your watchlist', { title: item.title })), failed) }]
+      : [{ label: t(Words.addToWatchlist), run: () => addToWatchlist(key).then(() => showNotice(t('Added {title} to your watchlist', { title: item.title })), failed) }]
   }
 
   const actions: MenuAction[] = []
   switch (item.kind) {
     case 'Movie':
-      actions.push({ label: resumable ? t('Resume') : t('Play'), run: go(`/play/${item.id}`) })
-      if (resumable) actions.push({ label: t('Start over'), run: go(`/play/${item.id}?t=0`) })
+      actions.push({ label: resumable ? t('Resume') : t(Words.play), run: go(`/play/${item.id}`) })
+      if (resumable) actions.push({ label: t(Words.startOver), run: go(`/play/${item.id}?t=0`) })
       actions.push('divider')
-      actions.push({ label: item.userData.watched ? t('Mark as unwatched') : t('Mark as watched'), run: mark(item, !item.userData.watched), marks: true })
-      if (started) actions.push({ label: t('Mark as unwatched'), run: mark(item, false), marks: true })
+      actions.push({ label: item.userData.watched ? t(Words.markAsUnwatched) : t(Words.markAsWatched), run: mark(item, !item.userData.watched), marks: true })
+      if (started) actions.push({ label: t(Words.markAsUnwatched), run: mark(item, false), marks: true })
       actions.push(...watchlistAction())
       if (!kids) actions.push({ label: t('Add to collection…'), run: () => openAddToCollection(item) })
       break
     case 'Episode': {
       const code = episodeCode(item)
-      const label = code ? (resumable ? t('Resume {code}', { code }) : t('Play {code}', { code })) : resumable ? t('Resume') : t('Play')
+      const label = code ? (resumable ? t('Resume {code}', { code }) : t('Play {code}', { code })) : resumable ? t('Resume') : t(Words.play)
       actions.push({ label, run: go(`/play/${item.id}`) })
-      if (resumable) actions.push({ label: t('Start over'), run: go(`/play/${item.id}?t=0`) })
+      if (resumable) actions.push({ label: t(Words.startOver), run: go(`/play/${item.id}?t=0`) })
       actions.push('divider', { label: item.userData.watched ? t('Mark episode as unwatched') : t('Mark episode as watched'), run: mark(item, !item.userData.watched), marks: true })
       if (started) actions.push({ label: t('Mark episode as unwatched'), run: mark(item, false), marks: true })
       else if (continueWatching && !item.userData.watched) actions.push({ label: t('Remove'), run: remove })
@@ -94,8 +94,8 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
       break
     }
     case 'Season':
-      actions.push({ label: t('Play'), run: () => (showId ? play({ ...item, id: showId, kind: 'Series' }) : navigate(`/item/${item.id}`)) })
-      actions.push('divider', { label: item.userData.watched ? t('Mark season as unwatched') : t('Mark season as watched'), run: mark(item, !item.userData.watched), marks: true })
+      actions.push({ label: t(Words.play), run: () => (showId ? play({ ...item, id: showId, kind: 'Series' }) : navigate(`/item/${item.id}`)) })
+      actions.push('divider', { label: item.userData.watched ? t('Mark season as unwatched') : t(Words.markSeasonAsWatched), run: mark(item, !item.userData.watched), marks: true })
       break
     case 'Series':
       actions.push({ label: t('Play next episode'), run: () => play(item) }, 'divider')
@@ -106,32 +106,32 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
     case 'Album':
       // The album's tracks are fetched when asked for (the card only has the album).
       actions.push(
-        { label: t('Play'), run: async () => music.play(await getTracks(item.id), 0, { openNowPlaying: true }) },
-        { label: t('Play next'), run: async () => music.playNext(await getTracks(item.id)) },
-        { label: t('Add to queue'), run: async () => music.enqueue(await getTracks(item.id)) },
+        { label: t(Words.play), run: async () => music.play(await getTracks(item.id), 0, { openNowPlaying: true }) },
+        { label: t(Words.playNext), run: async () => music.playNext(await getTracks(item.id)) },
+        { label: t(Words.addToQueue), run: async () => music.enqueue(await getTracks(item.id)) },
         { label: t('Add to playlist…'), run: () => openAddToPlaylist(item) },
       )
       break
     case 'Audiobook': {
       const finished = item.userData.watched
-      actions.push({ label: resumable && !finished ? t('Resume') : t('Play'), run: () => music.play([item]) }, 'divider')
+      actions.push({ label: resumable && !finished ? t('Resume') : t(Words.play), run: () => music.play([item]) }, 'divider')
       const markBook = (to: boolean) => async () => {
         await setBookFinished(item.id, to)
         announceWatched(item)
       }
-      if (!finished) actions.push({ label: t('Mark as finished'), run: markBook(true), marks: true })
+      if (!finished) actions.push({ label: t(Words.markAsFinished), run: markBook(true), marks: true })
       // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again: then
       // Remove (which stops it first) takes it off Continue listening instead, so the two are never offered together.
       const playing = music.current?.id === item.id
-      if ((finished || started) && !playing) actions.push({ label: t('Mark as unread'), run: markBook(false), marks: true })
+      if ((finished || started) && !playing) actions.push({ label: t(Words.markAsUnread), run: markBook(false), marks: true })
       else if (continueWatching && started) actions.push({ label: t('Remove'), run: remove })
       if (!kids) actions.push({ label: t('Add to collection…'), run: () => openAddToCollection(item) })
       break
     }
     case 'PodcastEpisode':
-      actions.push({ label: started ? t('Resume') : t('Play'), run: () => music.play([item]) })
+      actions.push({ label: started ? t('Resume') : t(Words.play), run: () => music.play([item]) })
       // Played takes it out of the row as well; Remove forgets the place without marking it.
-      if (continueWatching) actions.push('divider', { label: t('Mark as played'), run: mark(item, true), marks: true }, { label: t('Remove'), run: remove })
+      if (continueWatching) actions.push('divider', { label: t(Words.markAsPlayed), run: mark(item, true), marks: true }, { label: t('Remove'), run: remove })
       break
   }
 

@@ -4,7 +4,7 @@ import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
 import { episodeCode, formatClock } from '../../lib/format'
 import { SettingLink, SettingsGroup, SettingsHeader } from './shared'
-import { locale, t } from '../../i18n'
+import { locale, t, Words } from '../../i18n'
 
 /** "Sonarr, Radarr and Lidarr" */
 const list = (names: string[]) => new Intl.ListFormat(locale(), { type: 'conjunction' }).format(names)
@@ -66,7 +66,7 @@ export function OverviewSection() {
       <SettingsGroup title={t('Server')}>
         <SettingLink
           to="/settings/libraries"
-          label={t('Libraries')}
+          label={t(Words.libraries)}
           help={libraries ? `${t('{count, plural, one {# library} other {# libraries}}', { count: libraries.length })}\u2003${t('{count, plural, one {# title} other {# titles}}', { count: titles })}` : '…'}
         />
         <SettingLink

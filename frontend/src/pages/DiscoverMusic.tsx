@@ -4,17 +4,17 @@ import { MusicExternalCard } from '../components/MusicExternalCard'
 import { PageError, PageLoading } from '../components/PageStatus'
 import { Row } from '../components/Row'
 import { useApi } from '../hooks/useApi'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /** Discover's two halves: films and shows (through Seerr), and music (through Lidarr). Only shown when music requests are on. */
 export function DiscoverSwitch({ music }: { music: boolean }) {
   return (
-    <nav className="view-switch" aria-label={t('Discover')}>
+    <nav className="view-switch" aria-label={t(Words.discover)}>
       <Link to="/discover" aria-current={music ? undefined : 'page'}>
-        {t('Movies and shows')}
+        {t(Words.moviesAndShows)}
       </Link>
       <Link to="/discover?view=music" aria-current={music ? 'page' : undefined}>
-        {t('Music')}
+        {t(Words.music)}
       </Link>
     </nav>
   )
@@ -38,7 +38,7 @@ export function MusicDiscover() {
               ))}
             </Row>
           ))}
-          {genres.length > 0 && <h2 className="section-title">{t('Genres')}</h2>}
+          {genres.length > 0 && <h2 className="section-title">{t(Words.genres)}</h2>}
         </div>
       )}
       <div className="genre-grid">
@@ -62,7 +62,7 @@ export function MusicGenrePage({ id }: { id: string }) {
       <header className="library-header">
         <div>
           <p className="detail-kicker">
-            <Link to="/discover?view=music">{t('Music')}</Link>
+            <Link to="/discover?view=music">{t(Words.music)}</Link>
           </p>
           <h1>{genre.data?.name ?? t('Genre')}</h1>
         </div>
@@ -95,8 +95,8 @@ export function MusicSearchResults({ query }: { query: string }) {
     <>
       {(
         [
-          ['artists', t('Artists'), artists],
-          ['albums', t('Albums'), albums],
+          ['artists', t(Words.artists), artists],
+          ['albums', t(Words.albums), albums],
         ] as const
       ).map(
         ([key, label, found]) =>

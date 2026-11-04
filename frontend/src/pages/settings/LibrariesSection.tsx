@@ -26,7 +26,7 @@ import { libraryTypeLabel, relativeTime } from '../../lib/format'
 import { BookDetailsGroup } from './BookDetailsGroup'
 import { SaveStatus, SettingLink, SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { errorText } from './useSettings'
-import { t } from '../../i18n'
+import { t, Words } from '../../i18n'
 
 export function LibrariesSection() {
   // The nav's list (which polls during scans) leaves out libraries hidden from this profile; Settings shows them all.
@@ -53,7 +53,7 @@ export function LibrariesSection() {
   return (
     <section>
       <SettingsHeader
-        title={t('Libraries')}
+        title={t(Words.libraries)}
         action={
           !adding && (
             <button className="button small" onClick={() => setAdding(true)}>
@@ -142,7 +142,7 @@ function PodcastLibrary({ library, onMoved }: { library: Library; onMoved: () =>
   }
 
   return (
-    <SettingsGroup title={t('Podcasts')} note={error ? <SaveStatus error={error} /> : t('Built in, for everyone. Who follows what is up to each profile.')}>
+    <SettingsGroup title={t(Words.podcasts)} note={error ? <SaveStatus error={error} /> : t('Built in, for everyone. Who follows what is up to each profile.')}>
       <SettingRow as="div" label={t('Episodes folder')} help={<code className="folder">{library.folders[0]}</code>}>
         {!choosing && (
           <button className="button quiet small" onClick={() => setChoosing(true)}>
@@ -155,7 +155,7 @@ function PodcastLibrary({ library, onMoved }: { library: Library; onMoved: () =>
           <p className="muted">{t('Episodes wait here on their way to phones, and each is deleted once the phone has it.')}</p>
           <FolderPicker onPick={(path) => void move(path)} />
           <button type="button" className="text-button" onClick={() => setChoosing(false)}>
-            {t('Cancel')}
+            {t(Words.cancel)}
           </button>
         </div>
       )}
@@ -301,7 +301,7 @@ function RenameLibraryForm({ library, onDone }: { library: Library; onDone: (ren
       </label>
       <div className="form-actions">
         <button type="button" className="button quiet small" onClick={() => onDone(false)}>
-          {t('Cancel')}
+          {t(Words.cancel)}
         </button>
         <AsyncButton type="submit" className="button small" busy={saving}>
           {t('Save')}
@@ -343,11 +343,11 @@ function AddLibraryForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
         <label>
           {t('Kind')}
           <select value={type} onChange={(e) => setType(e.target.value as LibraryType)}>
-            <option value="Movies">{t('Movies')}</option>
+            <option value="Movies">{t(Words.movies)}</option>
             <option value="TvShows">{t('TV shows')}</option>
-            <option value="Music">{t('Music')}</option>
+            <option value="Music">{t(Words.music)}</option>
             <option value="HomeVideos">{t('Home videos')}</option>
-            <option value="Audiobooks">{t('Audiobooks')}</option>
+            <option value="Audiobooks">{t(Words.audiobooks)}</option>
           </select>
         </label>
         <label>
@@ -368,7 +368,7 @@ function AddLibraryForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
       )}
       <div className="form-actions">
         <button type="button" className="button quiet" onClick={onCancel}>
-          {t('Cancel')}
+          {t(Words.cancel)}
         </button>
         <AsyncButton type="submit" className="button" busy={saving} disabled={!folder}>
           {t('Add library')}

@@ -26,7 +26,7 @@ import { useApi } from '../hooks/useApi'
 import { formatClock, formatDuration } from '../lib/format'
 import { MoreButton, queueActions } from './MusicPages'
 import { shuffled } from '../lib/shuffle'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /**
  * Every playlist of the profile's, most recently changed first, and a way to start another. Inside a music library it
@@ -64,7 +64,7 @@ export function PlaylistsPage({ heading }: { heading?: ReactNode }) {
         {t('Create')}
       </AsyncButton>
       <button className="button quiet" type="button" onClick={() => setCreating(false)}>
-        {t('Cancel')}
+        {t(Words.cancel)}
       </button>
     </form>
   ) : (
@@ -214,7 +214,7 @@ export function PlaylistPage() {
     const entry = entries[index]
     const track = entry.track
     return [
-      { label: t('Play'), run: () => player.play(tracks, index) },
+      { label: t(Words.play), run: () => player.play(tracks, index) },
       ...queueActions(player, () => [track], track),
       'divider' as const,
       ...(track.parentId ? [{ label: t('Use its cover for the playlist'), run: () => act(() => setPlaylistCover(summary.id, track.parentId)) }] : []),
@@ -245,7 +245,7 @@ export function PlaylistPage() {
                 {t('Save')}
               </AsyncButton>
               <button className="button quiet" type="button" onClick={() => setRenaming(false)}>
-                {t('Cancel')}
+                {t(Words.cancel)}
               </button>
             </form>
           ) : (
@@ -257,10 +257,10 @@ export function PlaylistPage() {
           </p>
           <div className="detail-actions">
             <button className="button" onClick={() => player.play(tracks, 0, { openNowPlaying: true })} disabled={tracks.length === 0}>
-              <icon.play /> {t('Play')}
+              <icon.play /> {t(Words.play)}
             </button>
             <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0, { openNowPlaying: true })} disabled={tracks.length < 2}>
-              {t('Shuffle')}
+              {t(Words.shuffle)}
             </button>
             <IconButton
               label={t('Rename')}
@@ -271,7 +271,7 @@ export function PlaylistPage() {
                 setRenaming(true)
               }}
             />
-            <IconButton label={t('Delete')} icon={<icon.delete />} className="button quiet icon danger-icon" onClick={() => setDeleting(true)} />
+            <IconButton label={t(Words.delete)} icon={<icon.delete />} className="button quiet icon danger-icon" onClick={() => setDeleting(true)} />
             <MoreButton
               label={t('More for {title}', { title: summary.name })}
               actions={[...queueActions(player, () => tracks), ...(summary.cover ? [{ label: t('Back to the mosaic cover'), run: () => act(() => setPlaylistCover(summary.id, null)) }] : [])]}

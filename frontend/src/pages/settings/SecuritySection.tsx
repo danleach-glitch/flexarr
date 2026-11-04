@@ -9,7 +9,7 @@ import { useApi } from '../../hooks/useApi'
 import { usePinLockout } from '../../hooks/usePinLockout'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { errorText, useSettings } from './useSettings'
-import { t } from '../../i18n'
+import { t, Words } from '../../i18n'
 
 const digits = (value: string) => value.replace(/\D/g, '').slice(0, 8)
 
@@ -163,7 +163,7 @@ function AdminPinGroup() {
           )}
           <div className="form-actions">
             <button type="button" className="button quiet small" onClick={close}>
-              {t('Cancel')}
+              {t(Words.cancel)}
             </button>
             <AsyncButton type="submit" className="button small" busy={busy} disabled={held}>
               {t('Change PIN')}
@@ -377,7 +377,7 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
             )}
             <div className="form-actions">
               <button type="button" className="button quiet small" onClick={cancel}>
-                {t('Cancel')}
+                {t(Words.cancel)}
               </button>
               <AsyncButton type="submit" className="button small" busy={confirming} aria-describedby={mainHasPin ? undefined : 'key-confirm-help'}>
                 {ask === 'reveal' ? t('Show the key') : ask === 'home' ? t('Let them in') : t('Replace the key')}

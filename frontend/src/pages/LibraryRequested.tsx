@@ -19,7 +19,7 @@ import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { requestedState } from '../lib/requestedState'
 import { undoFailure } from '../lib/musicUndo'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /** How many cards show at first; Show more adds as many again. */
 const PAGE_SIZE = 200
@@ -199,13 +199,13 @@ function RequestedCard({ row, square, offline, service, onGone }: { row: Row; sq
       )}
       <div className="external-card-actions">
         <AsyncButton className="button small quiet" aria-label={t('Unrequest {title}', { title: row.title })} onClick={() => setAsking(true)} disabled={offline} title={offline ? t('{service} isn’t answering.', { service }) : undefined}>
-          {t('Unrequest')}
+          {t(Words.unrequest)}
         </AsyncButton>
       </div>
       {asking && (
         <ConfirmDialog
           title={t('Unrequest {name}?', { name: row.title })}
-          confirmLabel={t('Unrequest')}
+          confirmLabel={t(Words.unrequest)}
           cancelLabel={t('Keep it')}
           danger
           error={error}

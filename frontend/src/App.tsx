@@ -19,7 +19,7 @@ import {
   type Profile,
 } from './api/client'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { currentLanguage, onLanguageChange, settleLanguage, t } from './i18n'
+import { currentLanguage, onLanguageChange, settleLanguage, t, Words } from './i18n'
 import { ProfilePicker } from './components/ProfilePicker'
 import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
@@ -423,7 +423,7 @@ export default function App() {
               <li>
                 <span>
                   {t.rich('Go to {settings}, then {security}, then {connect}.', {
-                    settings: <strong>{t('Settings')}</strong>,
+                    settings: <strong>{t(Words.settings)}</strong>,
                     security: <strong>{t('Security')}</strong>,
                     connect: <strong>{t('Connect a device')}</strong>,
                   })}

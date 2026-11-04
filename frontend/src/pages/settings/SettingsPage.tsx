@@ -3,7 +3,7 @@ import { Navigate, NavLink, useParams } from 'react-router'
 import { clearApiCache, getMe, getTraktStatus, getUpdates, lockAdmin } from '../../api/client'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
-import { availableLanguages, t, tk } from '../../i18n'
+import { availableLanguages, t, tk, Words } from '../../i18n'
 import { Antenna, Download, Film, Gauge, Globe, Headphones, History, Info, LayoutGrid, Notes, Padlock, PanelLeft, Shield, PlayCircle, Plug, Restore, Stack, Users } from '../../components/icons'
 import { AboutSection } from './AboutSection'
 import { SecuritySection } from './SecuritySection'
@@ -55,12 +55,12 @@ const traktPage: Page = { id: 'trakt', label: 'Trakt', icon: History, render: ()
 /** The server's, for the main profile only. */
 const serverPages: Page[] = [
   { id: 'overview', label: tk('Overview'), icon: Gauge, render: () => <OverviewSection /> },
-  { id: 'libraries', label: tk('Libraries'), icon: Stack, render: () => <LibrariesSection /> },
+  { id: 'libraries', label: Words.libraries, icon: Stack, render: () => <LibrariesSection /> },
   { id: 'health', label: tk('Library health'), render: () => <HealthSection />, under: 'libraries' },
   { id: 'import', label: tk('Bring over from Plex'), render: () => <ImportSection />, under: 'libraries' },
   { id: 'profiles', label: tk('Profiles'), icon: Users, render: () => <ProfilesSection /> },
   { id: 'streaming', label: tk('Streaming'), icon: Film, render: () => <StreamingSection /> },
-  { id: 'livetv', label: tk('Live TV'), icon: Antenna, render: () => <LiveTvSection /> },
+  { id: 'livetv', label: Words.liveTv, icon: Antenna, render: () => <LiveTvSection /> },
   { id: 'connections', label: tk('Connections'), icon: Plug, render: () => <ConnectionsSection /> },
   { id: 'remote', label: tk('Remote access'), icon: Globe, render: () => <RemoteAccessSection /> },
   { id: 'security', label: tk('Security'), icon: Shield, render: () => <SecuritySection /> },
@@ -150,8 +150,8 @@ export function SettingsPage() {
   return (
     <div className="settings">
       <aside className="settings-nav">
-        <h1>{t('Settings')}</h1>
-        <nav aria-label={t('Settings')}>
+        <h1>{t(Words.settings)}</h1>
+        <nav aria-label={t(Words.settings)}>
           <div className="settings-nav-group">
             <h2>{profileHeading(name)}</h2>
             {ownPages.map(link)}

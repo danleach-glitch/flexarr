@@ -3,7 +3,7 @@ import { ApiError, downloadSubtitles, searchSubtitles, type SubtitleResult } fro
 import { useApi } from '../hooks/useApi'
 import { useModal } from '../hooks/useModal'
 import { AsyncButton } from './AsyncButton'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 interface Props {
   itemId: string
@@ -48,7 +48,7 @@ export function SubtitleSearchDialog({ itemId, fileId, title, onDownloaded, onCl
           {results.loading && <p className="muted">{t('Searching… This can take a minute.')}</p>}
           {results.error && <p className="error">{message(results.error)}</p>}
           {list?.length === 0 && <p className="muted">{t('No subtitles found.')}</p>}
-          <ul role="listbox" aria-label={t('Subtitles')}>
+          <ul role="listbox" aria-label={t(Words.subtitles)}>
             {list?.map((r) => (
               <li key={r.id}>
                 <button
@@ -85,10 +85,10 @@ export function SubtitleSearchDialog({ itemId, fileId, title, onDownloaded, onCl
             {t('Pick the best for me')}
           </AsyncButton>
           <button className="button quiet" onClick={onClose} disabled={busy}>
-            {t('Cancel')}
+            {t(Words.cancel)}
           </button>
           <AsyncButton className="button" disabled={!chosen || busy} busy={busy && !!chosen} onClick={() => download(chosen)}>
-            {busy ? t('Downloading…') : t('Download')}
+            {busy ? t('Downloading…') : t(Words.download)}
           </AsyncButton>
         </div>
       </div>

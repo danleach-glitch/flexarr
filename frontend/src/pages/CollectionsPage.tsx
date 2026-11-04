@@ -25,7 +25,7 @@ import { RequestButton } from '../components/RequestButton'
 import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { usePlay } from '../hooks/usePlay'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /** All collections: suggestions to add, then yours, the household's and the franchises Radarr knows. */
 export function CollectionsPage() {
@@ -56,7 +56,7 @@ export function CollectionsPage() {
     <div className="collections-page">
       <header className="library-header">
         <div>
-          <h1>{t('Collections')}</h1>
+          <h1>{t(Words.collections)}</h1>
           <p className="muted">{t('Your own, smart ones that keep themselves up to date, and the movie series you have.')}</p>
         </div>
         <button className="button" onClick={() => setCreating(true)}>
@@ -225,7 +225,7 @@ export function CollectionPage() {
         <div className="collection-art">{c.poster ? <img src={imageUrl(c.poster, 500)} alt="" /> : <Collage posters={c.posters} title={c.name} />}</div>
         <div className="collection-text">
           <p className="detail-kicker">
-            <Link to="/collections">{t('Collections')}</Link> <span className="muted">{kindLabel}</span>
+            <Link to="/collections">{t(Words.collections)}</Link> <span className="muted">{kindLabel}</span>
           </p>
           <h1 className="detail-title">{c.name}</h1>
           <p className="facts">
@@ -238,7 +238,7 @@ export function CollectionPage() {
           <div className="detail-actions">
             {next && (
               <AsyncButton className="button" onClick={() => play(next)}>
-                <icon.play /> {next.userData.watched ? t('Play') : t('Play {title}', { title: next.title })}
+                <icon.play /> {next.userData.watched ? t(Words.play) : t('Play {title}', { title: next.title })}
               </AsyncButton>
             )}
             {items.length > 1 && (
@@ -251,7 +251,7 @@ export function CollectionPage() {
                   return play(pick)
                 }}
               >
-                <icon.shuffle /> {t('Shuffle')}
+                <icon.shuffle /> {t(Words.shuffle)}
               </AsyncButton>
             )}
             {c.canEdit && (
@@ -264,7 +264,7 @@ export function CollectionPage() {
             )}
             {c.canEdit && (
               <IconButton
-                label={c.kind === 'Franchise' ? t('Hide') : c.kind === 'TraktList' ? t('Remove') : t('Delete')}
+                label={c.kind === 'Franchise' ? t('Hide') : c.kind === 'TraktList' ? t('Remove') : t(Words.delete)}
                 icon={c.kind === 'Franchise' ? <EyeOff /> : <icon.delete />}
                 className="button quiet icon danger-icon"
                 onClick={() => {
@@ -323,7 +323,7 @@ export function CollectionPage() {
 
       {data.missing.length > 0 && (
         <section className="collections-section">
-          <h2 className="settings-subhead">{t('Not in your library')}</h2>
+          <h2 className="settings-subhead">{t(Words.notInYourLibrary)}</h2>
           <div className="poster-grid">
             {data.missing.map((m) => (
               <div key={m.tmdbId} className="card external-card missing-card">

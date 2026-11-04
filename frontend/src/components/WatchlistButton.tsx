@@ -4,7 +4,7 @@ import { AsyncButton } from './AsyncButton'
 import { Bookmark } from './icons'
 import { showNotice } from '../lib/notice'
 import { useWatchedChanges } from '../hooks/watched'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /**
  * Puts a title on the profile's watchlist, or takes it off. `compact` is the poster card's icon-only button.
@@ -59,7 +59,7 @@ export function WatchlistButton({ titleKey, title, on, compact = false, onReques
         onClick={toggle}
       >
         <Bookmark filled={onList} />
-        {!compact && ` ${onList ? t('On watchlist') : t('Watchlist')}`}
+        {!compact && ` ${onList ? t('On watchlist') : t(Words.watchlist)}`}
       </AsyncButton>
       {!compact && message && (
         <span className="error" role="alert">

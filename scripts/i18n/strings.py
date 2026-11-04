@@ -241,14 +241,19 @@ def build(now=None, write_check=False):
 
 
 def near_duplicates(keys):
-    """Groups of English that differ only in case, punctuation or spacing (Mark as Watched / Mark as watched.),
+    """Groups of English that differ only in case, punctuation or spacing (Up Next / Up next, couldn't / couldn’t),
     the candidates for one string or a shared word. Contexts count: music::Play isn't a duplicate of Play."""
     groups = {}
     for key in keys:
         ctx = key.split("::")[0] if scan.CONTEXT_KEY.match(key) else ""
         norm = re.sub(r"[\s.,!?…:;’'\"“”()–—-]+", " ", scan.english(key)).strip().casefold()
         groups.setdefault((ctx, norm), []).append(key)
-    return [sorted(g) for g in groups.values() if len(g) > 1]
+    def usual(key):
+        # A question or "…" button beside its plain form, or a capital only at the start, is a different use, not a slip.
+        e = re.sub(r"[\s.?…]+$", "", scan.english(key))
+        return e[:1].lower() + e[1:]
+
+    return [sorted(g) for g in groups.values() if len(g) > 1 and len({usual(k) for k in g}) > 1]
 
 
 def stale_files(out):

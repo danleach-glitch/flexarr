@@ -12,7 +12,7 @@ import { icon } from './icons.generated'
 import { NowPlayingView } from './NowPlayingView'
 import { PodcastTools } from './PodcastTools'
 import { QueuePanel } from './QueuePanel'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /**
  * The music bar along the bottom, there while something is queued. The cover opens Now Playing over the whole window;
@@ -62,7 +62,7 @@ export function NowPlaying() {
       {queueOpen && <QueuePanel onClose={closeQueue} style={accent} />}
       {viewOpen && <NowPlayingView onClose={closeView} />}
       {!viewOpen && <BookOffers />}
-      <aside className="now-playing" aria-label={t('Now playing')} style={accent}>
+      <aside className="now-playing" aria-label={t(Words.nowPlaying)} style={accent}>
         <div className="now-playing-track">
           <button
             className="now-playing-cover"
@@ -117,7 +117,7 @@ export function NowPlaying() {
                 <Next style={{ transform: 'scaleX(-1)' }} />
               </button>
             )}
-            <button className="icon-button now-playing-toggle" onClick={player.toggle} aria-label={player.playing ? t('Pause') : t('Play')}>
+            <button className="icon-button now-playing-toggle" onClick={player.toggle} aria-label={player.playing ? t('Pause') : t(Words.play)}>
               {player.playing ? <icon.pause /> : <icon.play />}
             </button>
             {skips ? (

@@ -5,7 +5,7 @@ import { useApi } from '../../hooks/useApi'
 import { SaveStatus, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 import { ContinueWatchingRow } from './ContinueWatchingRow'
-import { t } from '../../i18n'
+import { t, Words } from '../../i18n'
 
 /** The profile's own: which rows Home and each library's Browse show, in every app. */
 export function LayoutSection() {
@@ -55,7 +55,7 @@ export function LayoutSection() {
   return (
     <section>
       <SettingsHeader title={t('Home & browse')}>{t('Which rows Home and each library’s Browse show, in every app. Drag a row to move it.')}</SettingsHeader>
-      <RowList title={t('Home')} rows={layout.home} onChange={(rows) => change('home', rows)}>
+      <RowList title={t(Words.home)} rows={layout.home} onChange={(rows) => change('home', rows)}>
         {(layout.combinable || playback.data?.listeningInContinue !== undefined) && (
           <div className="panel setting-rows">
             {layout.combinable && (
@@ -72,8 +72,8 @@ export function LayoutSection() {
       </RowList>
       <RowList title={t('Movie libraries')} rows={layout.movies} onChange={(rows) => change('movies', rows)} />
       <RowList title={t('TV libraries')} rows={layout.shows} onChange={(rows) => change('shows', rows)} />
-      {layout.music && <RowList title={t('Music')} rows={layout.music} onChange={(rows) => change('music', rows)} />}
-      {layout.audiobooks && <RowList title={t('Audiobooks')} rows={layout.audiobooks} onChange={(rows) => change('audiobooks', rows)} />}
+      {layout.music && <RowList title={t(Words.music)} rows={layout.music} onChange={(rows) => change('music', rows)} />}
+      {layout.audiobooks && <RowList title={t(Words.audiobooks)} rows={layout.audiobooks} onChange={(rows) => change('audiobooks', rows)} />}
       {/* It saves by itself: only a failed save says anything, under the lists so they never move. */}
       <SaveStatus error={status.error} />
     </section>

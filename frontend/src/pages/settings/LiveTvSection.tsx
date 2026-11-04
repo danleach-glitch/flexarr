@@ -7,7 +7,7 @@ import { useSession } from '../../hooks/sessionContext'
 import { errorText } from './useSettings'
 import { SaveStatus, SettingLink, SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { useSettings } from './useSettings'
-import { t } from '../../i18n'
+import { t, Words } from '../../i18n'
 
 /** A select's choices with the saved value among them (set elsewhere, it would otherwise be changed by saving). */
 function withSaved(choices: number[], saved: number | undefined) {
@@ -21,7 +21,7 @@ export function LiveTvSection() {
   const liveTv = settings.liveTv
 
   const header = (
-    <SettingsHeader title={t('Live TV')}>{t('Watching channels from Dispatcharr, and recording them.')}</SettingsHeader>
+    <SettingsHeader title={t(Words.liveTv)}>{t('Watching channels from Dispatcharr, and recording them.')}</SettingsHeader>
   )
   if (!liveTv) {
     return (
@@ -208,7 +208,7 @@ function FolderRow({ saved, inUse, onSave }: { saved: string; inUse: string; onS
         <div className="podcast-folder-picker">
           <FolderPicker onPick={choose} />
           <button type="button" className="text-button" onClick={() => setChoosing(false)}>
-            {t('Cancel')}
+            {t(Words.cancel)}
           </button>
         </div>
       )}

@@ -7,7 +7,7 @@ import { AsyncButton } from './AsyncButton'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DeviceTypeIcon } from './DeviceTypeIcon'
 import { Monitor } from './icons'
-import { locale, t } from '../i18n'
+import { locale, t, Words } from '../i18n'
 
 const threeDays = 3 * 24 * 60 * 60 * 1000
 
@@ -315,7 +315,7 @@ function RenameForm({ signIn, onDone }: { signIn: SignIn; onDone: (renamed: bool
       </label>
       <div className="form-actions">
         <button type="button" className="button quiet small" onClick={() => onDone(false)}>
-          {t('Cancel')}
+          {t(Words.cancel)}
         </button>
         <AsyncButton type="submit" className="button small" busy={saving}>
           {t('Save')}

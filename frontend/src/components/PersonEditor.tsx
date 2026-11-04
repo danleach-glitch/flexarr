@@ -5,7 +5,7 @@ import { useModal } from '../hooks/useModal'
 import { AsyncButton } from './AsyncButton'
 import { safeImageSrc } from '../lib/safeImageSrc'
 import { FilePreview } from './FilePreview'
-import { t, tk } from '../i18n'
+import { t, tk, Words } from '../i18n'
 
 /** Brand names stay as they are; the rest are words, translated where they're shown. */
 const sourceNames: Record<string, { name: string; word?: true }> = {
@@ -219,7 +219,7 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
         )}
         <div className="form-actions">
           <button type="button" className="button quiet" onClick={onClose} disabled={saving}>
-            {t('Cancel')}
+            {t(Words.cancel)}
           </button>
           <AsyncButton className="button" type="submit" busy={saving}>
             {t('Save')}

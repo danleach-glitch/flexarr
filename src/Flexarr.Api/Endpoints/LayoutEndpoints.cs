@@ -294,7 +294,7 @@ public static class LayoutEndpoints
         new("because", Loc.T("Because you watched…"), true),
         new("genres", Loc.T("Genre rows (three, changing daily)"), true),
         new("gems", Loc.T("Highly rated movies, not yet watched"), true),
-        new("upcoming", Loc.T("Coming soon"), true),
+        new("upcoming", Loc.T(Words.ComingSoon), true),
     ];
 
     /// <summary>A Latest unwatched row for each library, or one for each kind where it has more than one to combine.</summary>
@@ -344,17 +344,17 @@ public static class LayoutEndpoints
     [
         new("continue", Loc.T("Continue listening"), true),
         new("next", Loc.T("Next in series"), true),
-        new("recent", Loc.T("Recently added"), true),
-        new("series", Loc.T("Series"), true),
+        new("recent", Loc.T(Words.RecentlyAdded), true),
+        new("series", Loc.T(Words.Series), true),
         new("authors", Loc.T("Authors"), true),
         new("finished", Loc.T("Finished"), true),
     ];
 
     private static List<RowChoiceDto> BrowseRows(bool movies) =>
     [
-        new("continue", Loc.T("Continue watching"), true),
+        new("continue", Loc.T(Words.ContinueWatching), true),
         new("recent", Loc.T("Latest unwatched"), true),
-        new("upcoming", Loc.T("Coming soon"), true),
+        new("upcoming", Loc.T(Words.ComingSoon), true),
         new("top", Loc.T("Top 10"), true),
         new("released", movies ? Loc.T("Newest releases") : Loc.T("Newest shows"), true),
         new("gems", movies ? Loc.T("Highly rated, not yet watched") : Loc.T("Highly rated, not yet started"), true),

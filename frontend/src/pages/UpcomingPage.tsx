@@ -5,7 +5,7 @@ import { useApi } from '../hooks/useApi'
 import { friendlyTimeLeft, timeLabel } from '../lib/dates'
 import { episodeCode } from '../lib/format'
 import { webLink } from '../lib/links'
-import { locale, t } from '../i18n'
+import { locale, t, Words } from '../i18n'
 
 /** Yesterday (for what just arrived) and four weeks ahead. */
 const DAYS = 30
@@ -31,7 +31,7 @@ export function UpcomingPage() {
     <div className="upcoming-page">
       <header className="library-header">
         <div>
-          <h1>{t('Coming soon')}</h1>
+          <h1>{t(Words.comingSoon)}</h1>
           <p className="muted">{t('What Sonarr and Radarr expect over the next few weeks. Anything you don’t have yet opens in Sonarr or Radarr.')}</p>
         </div>
       </header>

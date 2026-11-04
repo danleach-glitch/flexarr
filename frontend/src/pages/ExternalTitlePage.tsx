@@ -15,7 +15,7 @@ import { Overview } from '../components/Overview'
 import { PlainScore } from '../components/Hero'
 import { ScoreChips } from '../components/ScoreChips'
 import { hasScores, scoresOf } from '../lib/scores'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /** A film or show from Discover that isn't in the library: what it is, how it's rated, its trailer, and a request. */
 export function ExternalTitlePage() {
@@ -36,7 +36,7 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
   const facts = [
     title.year?.toString(),
     title.mediaType === 'tv' ? (title.seasons ? t('{count, plural, one {# season} other {# seasons}}', { count: title.seasons }) : null) : title.runtimeMinutes ? formatDuration(title.runtimeMinutes * 60) : null,
-    title.mediaType === 'tv' ? t('Series') : t('Movie'),
+    title.mediaType === 'tv' ? t(Words.series) : t('Movie'),
     title.status && !['Released', 'Ended'].includes(title.status) ? title.status : null,
   ].filter(Boolean)
 
@@ -69,7 +69,7 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
             )}
             {title.trailerYouTubeId && (
               <button className="button quiet" onClick={() => setTrailer(true)}>
-                <Film /> {t('Trailer')}
+                <Film /> {t(Words.trailer)}
               </button>
             )}
           </div>

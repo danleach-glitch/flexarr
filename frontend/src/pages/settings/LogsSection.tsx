@@ -20,7 +20,7 @@ import { formatSize, relativeTime } from '../../lib/format'
 import { configureSentry } from '../../lib/sentry'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
-import { locale, t, tk } from '../../i18n'
+import { locale, t, tk, Words } from '../../i18n'
 
 /** The levels worth choosing between; Verbose and Fatal still show up in the list. */
 const levels: LogLevel[] = ['Debug', 'Information', 'Warning', 'Error']
@@ -237,7 +237,7 @@ function LogViewer({ areaNames }: { areaNames: Record<string, string> }) {
             </option>
           ))}
         </select>
-        <input type="search" className="log-search" placeholder={t('Search')} aria-label={t('Search the log')} value={text} onChange={(e) => setText(e.target.value)} />
+        <input type="search" className="log-search" placeholder={t(Words.search)} aria-label={t('Search the log')} value={text} onChange={(e) => setText(e.target.value)} />
         <label className="log-live">
           <input type="checkbox" role="switch" className="switch" checked={live} onChange={(e) => setLive(e.target.checked)} />
           {t('Live')}
@@ -484,7 +484,7 @@ function DeviceUploads() {
             help={[u.platform, u.profile, u.appVersion && `v${u.appVersion}`, relativeTime(u.uploadedAt), formatSize(u.sizeBytes)].filter(Boolean).join('\u2003')}
           >
             <a className="button quiet small" href={logUploadUrl(u.id)} download>
-              {t('Download')}
+              {t(Words.download)}
             </a>
           </SettingRow>
         ))

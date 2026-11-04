@@ -4,7 +4,7 @@ import { useModal } from '../hooks/useModal'
 import { AsyncButton } from './AsyncButton'
 import { NameList } from './NameList'
 import { withName } from '../lib/names'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /**
  * The main profile's fixes to a book: its title, people, series, genres, description and year, and whether they're
@@ -83,13 +83,13 @@ export function BookEditor({ detail, onSaved, onClose }: { detail: ItemDetail; o
               <input type="text" value={subtitle} onChange={(e) => change(setSubtitle)(e.target.value)} disabled={saving} maxLength={500} />
             </label>
             <label className="field narrow">
-              <span className="field-label">{t('Year')}</span>
+              <span className="field-label">{t(Words.year)}</span>
               <input type="text" value={year} onChange={(e) => change(setYear)(e.target.value)} disabled={saving} inputMode="numeric" maxLength={4} />
             </label>
             <NameList kind="authors" names={authors} typed={typed.authors} disabled={saving} onType={(t) => setTyped({ ...typed, authors: t })} onChange={change(setAuthors)} />
             <NameList kind="narrators" names={narrators} typed={typed.narrators} disabled={saving} onType={(t) => setTyped({ ...typed, narrators: t })} onChange={change(setNarrators)} />
             <label className="field">
-              <span className="field-label">{t('Series')}</span>
+              <span className="field-label">{t(Words.series)}</span>
               <input type="text" value={series} onChange={(e) => change(setSeries)(e.target.value)} disabled={saving} maxLength={200} />
             </label>
             <label className="field narrow">
@@ -126,7 +126,7 @@ export function BookEditor({ detail, onSaved, onClose }: { detail: ItemDetail; o
         )}
         <div className="form-actions">
           <button type="button" className="button quiet" onClick={onClose} disabled={saving}>
-            {t('Cancel')}
+            {t(Words.cancel)}
           </button>
           <AsyncButton className="button" type="submit" busy={saving}>
             {t('Save')}

@@ -37,7 +37,7 @@ import { freeColour, profileColours } from '../lib/profileColours'
 import { tooBroad } from '../lib/setupGuide'
 import { errorText } from './settings/useSettings'
 import '../styles/onboarding.css'
-import { locale, t, tk } from '../i18n'
+import { locale, t, tk, Words } from '../i18n'
 
 /** The steps; the first, the main profile's name, isn't one the server keeps track of. Their words are shown through t(). */
 const steps: { id: SetupStep | 'name'; title: string; lede: string; icon: ReactNode; summary: string }[] = [
@@ -280,7 +280,7 @@ function NameStep({ nav }: { nav: StepNav }) {
 }
 
 const arrKinds: ArrKind[] = ['Sonarr', 'Radarr', 'Lidarr']
-const arrPurpose: Record<ArrKind, string> = { Sonarr: tk('TV shows'), Radarr: tk('Movies'), Lidarr: tk('Music') }
+const arrPurpose: Record<ArrKind, string> = { Sonarr: tk('TV shows'), Radarr: Words.movies, Lidarr: Words.music }
 const usualUrl: Record<ArrKind, string> = { Sonarr: 'http://localhost:8989', Radarr: 'http://localhost:7878', Lidarr: 'http://localhost:8686' }
 
 function AppsStep({ nav }: { nav: StepNav }) {
@@ -429,7 +429,7 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
           )}
           <div className="onboard-form-actions">
             <button type="button" className="button quiet small" onClick={() => props.onOpen(false)}>
-              {t('Cancel')}
+              {t(Words.cancel)}
             </button>
             <AsyncButton type="submit" className="button small" busy={busy}>
               {t('Connect')}
@@ -563,7 +563,7 @@ function LibrariesStep({ nav }: { nav: StepNav }) {
                     }}
                   />
                   <button type="button" className="onboard-back" onClick={() => setPicking(undefined)}>
-                    {t('Cancel')}
+                    {t(Words.cancel)}
                   </button>
                 </div>
               )}
@@ -700,7 +700,7 @@ function DevicesStep({ nav }: { nav: StepNav }) {
                   <span className="visually-hidden"> {t('(opens in a new tab)')}</span>
                 </a>
               ) : (
-                <span className="onboard-soon">{t('Coming soon')}</span>
+                <span className="onboard-soon">{t(Words.comingSoon)}</span>
               )}
             </div>
           </div>

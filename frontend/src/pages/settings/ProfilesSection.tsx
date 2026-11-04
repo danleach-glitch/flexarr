@@ -32,7 +32,7 @@ import { ageLimitText, ratingSteps } from '../../lib/ratings'
 import { requestChoices, requestRows } from '../../lib/requestLibraries'
 import { RequestLibrarySelect } from './RequestLibrarySelect'
 import { SettingsHeader } from './shared'
-import { t } from '../../i18n'
+import { t, Words } from '../../i18n'
 
 export function ProfilesSection() {
   const [version, setVersion] = useState(0)
@@ -284,7 +284,7 @@ function ProfileForm({
                 setConfirmPin('')
               }}
             >
-              {removePin ? t('Keep it') : t('Cancel')}
+              {removePin ? t('Keep it') : t(Words.cancel)}
             </button>
           )}
         </div>
@@ -370,7 +370,7 @@ function ProfileForm({
       )}
       {libraries.length > 1 && (
         <fieldset className="profile-section profile-libraries">
-          <legend className="visually-hidden">{t('Libraries')}</legend>
+          <legend className="visually-hidden">{t(Words.libraries)}</legend>
           <span className="setting-text">
             <strong>{profile ? t('Libraries {name} sees', { name: profile.name }) : t('Libraries this profile sees')}</strong>
             <span className="muted">{t('The rest are hidden everywhere on this profile: Home, search, Discover, Coming soon and requests.')}</span>
@@ -416,7 +416,7 @@ function ProfileForm({
       )}
       {destinations.length > 0 && maxRatingAge === null && !isKids && (
         <fieldset className="profile-section">
-          <legend className="visually-hidden">{t('Watchlist')}</legend>
+          <legend className="visually-hidden">{t(Words.watchlist)}</legend>
           <label className="profile-section-head">
             <span className="setting-text">
               <strong>{profile ? t('Request what {name} adds to the watchlist', { name: profile.name }) : t('Request what this profile adds to the watchlist')}</strong>
@@ -434,7 +434,7 @@ function ProfileForm({
       )}
       <div className="form-actions">
         <button type="button" className="button quiet" onClick={onCancel}>
-          {t('Cancel')}
+          {t(Words.cancel)}
         </button>
         <AsyncButton type="submit" className="button" busy={saving}>
           {profile ? t('Save profile') : t('Add profile')}

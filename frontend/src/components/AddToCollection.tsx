@@ -4,7 +4,7 @@ import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { AsyncButton } from './AsyncButton'
 import { useModal } from '../hooks/useModal'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /** Asks for the Add to collection dialog, from anywhere (a card's menu closes before it opens). */
 const OPEN = 'flexarr:add-to-collection'
@@ -106,7 +106,7 @@ function AddToCollectionDialog({ item, onClose }: { item: { id: string; title: s
         )}
         <div className="form-actions">
           <button className="button quiet" onClick={onClose}>
-            {t('Done')}
+            {t(Words.done)}
           </button>
         </div>
       </div>

@@ -12,7 +12,7 @@ import { useAgeLimits, useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { clock, programmeTime, programmeTitle, progress, tidyGroup } from '../lib/livetv'
-import { locale, t } from '../i18n'
+import { locale, t, Words } from '../i18n'
 
 const LiveRecordings = lazy(() => import('./LiveRecordings'))
 
@@ -38,7 +38,7 @@ export default function LiveTvPage() {
   if (status.data && !status.data.configured) {
     return (
       <div className="livetv-page">
-        <h1 className="livetv-title">{t('Live TV')}</h1>
+        <h1 className="livetv-title">{t(Words.liveTv)}</h1>
         <div className="panel livetv-empty">
           <Antenna />
           <p>{t('Live TV isn’t set up yet.')}</p>
@@ -57,7 +57,7 @@ export default function LiveTvPage() {
   return (
     <div className="livetv-page">
       <header className="livetv-header">
-        <h1 className="livetv-title">{t('Live TV')}</h1>
+        <h1 className="livetv-title">{t(Words.liveTv)}</h1>
         <div className="season-tabs livetv-tabs" role="tablist" aria-label={t('View')}>
           <button role="tab" aria-selected={view === 'now'} className={view === 'now' ? 'season-tab active' : 'season-tab'} onClick={() => setParams({}, { replace: true })}>
             {t('On now')}
@@ -301,7 +301,7 @@ function Guide() {
                     >
                       <strong>
                         {p.recording && <RecordMark programme={p} />}
-                        {p.series && !p.recording && <SeriesDots className="record-dot" aria-label={t('Series')} />}
+                        {p.series && !p.recording && <SeriesDots className="record-dot" aria-label={t(Words.series)} />}
                         {programmeTitle(p)}
                       </strong>
                       <span className="muted">{programmeTime(p)}</span>

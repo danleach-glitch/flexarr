@@ -53,7 +53,7 @@ import { detectProfile, prefersNativeHls } from '../lib/profile'
 import { EARLY_STALL_MS, reportEarlyStall, reportStart, type StartTiming } from '../lib/startTiming'
 import { drop as dropPrepared, getReady, holds as holdsPrepared, take as takePrepared } from '../lib/preparedPlayback'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
-import { t, tk } from '../i18n'
+import { t, tk, Words } from '../i18n'
 
 type Quality = 'auto' | 1080 | 720 | 480
 const qualities: { value: Quality; label: string; bitrate?: number }[] = [
@@ -1399,7 +1399,7 @@ export function PlayerPage() {
 
       {skippable && !showUpNext && !error && (
         <button className="skip-button" onClick={() => seekTo(skippable.end)} autoFocus>
-          {skippable.type === 'Recap' ? t('Skip recap') : t('Skip intro')}
+          {skippable.type === 'Recap' ? t(Words.skipRecap) : t(Words.skipIntro)}
         </button>
       )}
 
@@ -1420,7 +1420,7 @@ export function PlayerPage() {
           </div>
           <div className="up-next-text">
             <span className="muted up-next-count">
-              {counting ? t('Next episode in {seconds}', { seconds: countdown }) : t('Next episode')}
+              {counting ? t(Words.nextEpisodeIn, { seconds: countdown }) : t('Next episode')}
             </span>
             <strong>
               {episodeCode(info.next)} {info.next.title}
@@ -1431,7 +1431,7 @@ export function PlayerPage() {
                 <icon.play /> {t('Play now')}
               </button>
               {counting && (
-                <button className="up-next-cancel" onClick={cancelUpNext} aria-label={t('Cancel')}>
+                <button className="up-next-cancel" onClick={cancelUpNext} aria-label={t(Words.cancel)}>
                   <icon.removeFromRow />
                 </button>
               )}
@@ -1444,7 +1444,7 @@ export function PlayerPage() {
       <footer className="player-controls" ref={controls} hidden={!!error} inert={!!error}>
         <Scrubber time={time} duration={duration} bufferedTo={bufferedTo} markers={info?.markers ?? []} previews={previews} onSeek={seekTo} />
         <div className="player-buttons">
-          <button className="icon-button" onClick={toggle} aria-label={playing ? t('Pause') : t('Play')}>
+          <button className="icon-button" onClick={toggle} aria-label={playing ? t('Pause') : t(Words.play)}>
             {playing ? <icon.pause /> : <icon.play />}
           </button>
           <button className="icon-button" onClick={() => seekBy(-10)} aria-label={t('Back 10 seconds')}>
@@ -1485,13 +1485,13 @@ export function PlayerPage() {
           <span className="player-spacer" />
 
           <div className="menu-anchor">
-            <button className="icon-button" aria-label={t('Subtitles')} aria-expanded={menu === 'subtitles'} onClick={() => setMenu(menu === 'subtitles' ? null : 'subtitles')}>
+            <button className="icon-button" aria-label={t(Words.subtitles)} aria-expanded={menu === 'subtitles'} onClick={() => setMenu(menu === 'subtitles' ? null : 'subtitles')}>
               <Captions />
             </button>
             {menu === 'subtitles' && info && (
               <div className="player-menu" role="menu">
                 <div className="player-menu-column">
-                  <h3>{t('Subtitles')}</h3>
+                  <h3>{t(Words.subtitles)}</h3>
                   <MenuItem selected={!subtitleKey} onClick={() => chooseSubtitle(null)}>
                     {t('Off')}
                   </MenuItem>
@@ -1661,7 +1661,7 @@ export function PlayerPage() {
                 <div className="player-menu-column">
                   <h3>{t('While watching')}</h3>
                   <MenuItem toggle selected={preferences.autoPlayNext} onClick={() => togglePreference('autoPlayNext')}>
-                    {t('Auto-play the next episode')}
+                    {t(Words.autoPlayNext)}
                   </MenuItem>
                   <MenuItem toggle selected={preferences.skipIntros} onClick={() => togglePreference('skipIntros')}>
                     {t('Skip intros')}
@@ -1670,7 +1670,7 @@ export function PlayerPage() {
                     {t('Skip recaps')}
                   </MenuItem>
                   <MenuItem toggle selected={preferences.skipCredits} onClick={() => togglePreference('skipCredits')}>
-                    {t('Skip credits')}
+                    {t(Words.skipCredits)}
                   </MenuItem>
                 </div>
               </div>

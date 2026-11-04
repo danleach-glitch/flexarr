@@ -17,7 +17,7 @@ import {
 import { usePinLockout } from '../hooks/usePinLockout'
 import { AsyncButton } from './AsyncButton'
 import { Crown, Padlock } from './icons'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 export function Avatar({ profile, size = 40 }: { profile: Pick<Profile, 'name' | 'color'> & { image?: string | null }; size?: number }) {
   return (
@@ -281,7 +281,7 @@ export function ProfilePicker({
               </button>
             ))}
             <button type="button" className="pin-delete" onClick={erase}>
-              {t('Delete')}
+              {t(Words.delete)}
             </button>
             <button type="button" disabled={locked} onClick={() => press('0')}>
               0

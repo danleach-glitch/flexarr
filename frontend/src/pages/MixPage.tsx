@@ -11,7 +11,7 @@ import { useApi } from '../hooks/useApi'
 import { formatClock, formatDuration } from '../lib/format'
 import { MoreButton, queueActions } from './MusicPages'
 import { shuffled } from '../lib/shuffle'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /**
  * One "Made for you" mix: its cover mosaic, name and what it's made of, Play and Shuffle, and today's tracks in order.
@@ -56,10 +56,10 @@ export function MixPage() {
           </p>
           <div className="detail-actions">
             <button className="button" onClick={() => player.play(tracks, 0, { openNowPlaying: true })} disabled={tracks.length === 0}>
-              <icon.play /> {t('Play')}
+              <icon.play /> {t(Words.play)}
             </button>
             <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0, { openNowPlaying: true })} disabled={tracks.length < 2}>
-              {t('Shuffle')}
+              {t(Words.shuffle)}
             </button>
             <MoreButton label={t('More for {title}', { title: summary.name })} actions={queueActions(player, () => tracks)} disabled={tracks.length === 0} />
           </div>
@@ -106,7 +106,7 @@ export function MixPage() {
         <Menu
           label={t('More for {title}', { title: tracks[trackMenu.index].title })}
           at={trackMenu.at}
-          actions={[{ label: t('Play'), run: () => player.play(tracks, trackMenu.index) }, ...queueActions(player, () => [tracks[trackMenu.index]], tracks[trackMenu.index])]}
+          actions={[{ label: t(Words.play), run: () => player.play(tracks, trackMenu.index) }, ...queueActions(player, () => [tracks[trackMenu.index]], tracks[trackMenu.index])]}
           onClose={() => setTrackMenu(null)}
         />
       )}

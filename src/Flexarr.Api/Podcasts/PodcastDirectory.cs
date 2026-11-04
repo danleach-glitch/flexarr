@@ -22,7 +22,7 @@ public sealed partial class PodcastDirectory(HttpClient http, IMemoryCache cache
     [
         new(1301, Loc.Mark("Arts")), new(1321, Loc.Mark("Business")), new(1303, Loc.Mark("Comedy")), new(1304, Loc.Mark("Education")), new(1483, Loc.Mark("Fiction")),
         new(1511, Loc.Mark("Government")), new(1512, Loc.Mark("Health & Fitness")), new(1487, Loc.Mark("History")), new(1305, Loc.Mark("Kids & Family")),
-        new(1502, Loc.Mark("Leisure")), new(1310, Loc.Mark("Music")), new(1489, Loc.Mark("News")), new(1314, Loc.Mark("Religion & Spirituality")),
+        new(1502, Loc.Mark("Leisure")), new(1310, Words.Music), new(1489, Loc.Mark("News")), new(1314, Loc.Mark("Religion & Spirituality")),
         new(1533, Loc.Mark("Science")), new(1324, Loc.Mark("Society & Culture")), new(1545, Loc.Mark("Sports")), new(1318, Loc.Mark("Technology")),
         new(1488, Loc.Mark("True Crime")), new(1309, Loc.Mark("TV & Film")),
     ];

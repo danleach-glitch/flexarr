@@ -19,7 +19,7 @@ import { UnlockPrompt } from './UnlockDialog'
 import { Avatar } from './ProfilePicker'
 import { KidsLockMenuItems } from './KidsLock'
 import { SearchPalette } from './SearchPalette'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 const railKey = 'flexarr.sidebarRail'
 
@@ -187,12 +187,12 @@ export function Layout() {
         <div className="topbar-tools">
           <button className="search-trigger" onClick={() => setSearching(true)}>
             <icon.search />
-            <span>{t('Search')}</span>
+            <span>{t(Words.search)}</span>
             <kbd>⌘K</kbd>
           </button>
           {/* Every profile has settings of its own; the server's are the main profile's. */}
           {!kids && (
-            <NavLink to="/settings" className="icon-button" aria-label={t('Settings')}>
+            <NavLink to="/settings" className="icon-button" aria-label={t(Words.settings)}>
               <icon.settings />
             </NavLink>
           )}
@@ -266,21 +266,21 @@ export function Layout() {
           </div>
           {/* Libraries scroll on their own below the wordmark, however many there are. */}
           <nav aria-label={t('Main')} className="sidebar-nav">
-            <NavLink to="/" end className="sidebar-link" title={tip(t('Home'))}>
+            <NavLink to="/" end className="sidebar-link" title={tip(t(Words.home))}>
               <icon.home />
-              <span className="sidebar-label">{t('Home')}</span>
+              <span className="sidebar-label">{t(Words.home)}</span>
             </NavLink>
             {shownLibraries.length > 0 && (
               <>
                 <h2 className="sidebar-heading">
-                  <span className="sidebar-label">{t('Libraries')}</span>
+                  <span className="sidebar-label">{t(Words.libraries)}</span>
                 </h2>
                 {shownLibraries.map((library) => {
                   if (library.type === 'Podcasts')
                     return (
-                      <NavLink key={library.id} to="/podcasts" className="sidebar-link" title={tip(t('Podcasts'))}>
+                      <NavLink key={library.id} to="/podcasts" className="sidebar-link" title={tip(t(Words.podcasts))}>
                         <icon.podcasts />
-                        <span className="sidebar-label">{t('Podcasts')}</span>
+                        <span className="sidebar-label">{t(Words.podcasts)}</span>
                       </NavLink>
                     )
                   const Icon = libraryIcons[library.type] ?? icon.movies
@@ -296,20 +296,20 @@ export function Layout() {
             )}
             {(Object.values(shows).some(Boolean) || liveTvLink) && (
               <h2 className="sidebar-heading">
-                <span className="sidebar-label">{t('Browse')}</span>
+                <span className="sidebar-label">{t(Words.browse)}</span>
               </h2>
             )}
             {/* A child's profile has no watchlist or collections. */}
             {shows.watchlist && (
-              <NavLink to="/watchlist" className="sidebar-link" title={tip(t('Watchlist'))}>
+              <NavLink to="/watchlist" className="sidebar-link" title={tip(t(Words.watchlist))}>
                 <icon.watchlist />
-                <span className="sidebar-label">{t('Watchlist')}</span>
+                <span className="sidebar-label">{t(Words.watchlist)}</span>
               </NavLink>
             )}
             {shows.collections && (
-              <NavLink to="/collections" className="sidebar-link" title={tip(t('Collections'))}>
+              <NavLink to="/collections" className="sidebar-link" title={tip(t(Words.collections))}>
                 <icon.collections />
-                <span className="sidebar-label">{t('Collections')}</span>
+                <span className="sidebar-label">{t(Words.collections)}</span>
               </NavLink>
             )}
             {shows.playlists && (
@@ -319,21 +319,21 @@ export function Layout() {
               </NavLink>
             )}
             {liveTvLink && (
-              <NavLink to="/livetv" className="sidebar-link" title={tip(t('Live TV'))}>
+              <NavLink to="/livetv" className="sidebar-link" title={tip(t(Words.liveTv))}>
                 <icon.liveTv />
-                <span className="sidebar-label">{t('Live TV')}</span>
+                <span className="sidebar-label">{t(Words.liveTv)}</span>
               </NavLink>
             )}
             {shows.discover && (
-              <NavLink to="/discover" className="sidebar-link" title={tip(t('Discover'))}>
+              <NavLink to="/discover" className="sidebar-link" title={tip(t(Words.discover))}>
                 <icon.discover />
-                <span className="sidebar-label">{t('Discover')}</span>
+                <span className="sidebar-label">{t(Words.discover)}</span>
               </NavLink>
             )}
             {shows.upcoming && (
-              <NavLink to="/upcoming" className="sidebar-link" title={tip(t('Coming soon'))}>
+              <NavLink to="/upcoming" className="sidebar-link" title={tip(t(Words.comingSoon))}>
                 <icon.comingSoon />
-                <span className="sidebar-label">{t('Coming soon')}</span>
+                <span className="sidebar-label">{t(Words.comingSoon)}</span>
               </NavLink>
             )}
           </nav>

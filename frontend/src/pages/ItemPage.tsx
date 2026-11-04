@@ -52,7 +52,7 @@ import {
   progressOf,
   pictureLabel,
 } from '../lib/format'
-import { locale, t } from '../i18n'
+import { locale, t, Words } from '../i18n'
 
 export function ItemPage() {
   const { id = '' } = useParams()
@@ -175,12 +175,12 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   }, [warmId])
   const playLabel = (() => {
     if (item.kind === 'Series') {
-      if (!nextUp) return t('Play')
+      if (!nextUp) return t(Words.play)
       const episode = episodeHeading(nextUp)
       if (item.userData.watched) return t('Watch again from {episode}', { episode })
-      return nextUp.userData.positionSeconds > 0 ? t('Resume {episode}', { episode }) : t('Play {episode}', { episode })
+      return nextUp.userData.positionSeconds > 0 ? t(Words.resumeEpisode, { episode }) : t('Play {episode}', { episode })
     }
-    return progress ? t('Resume from {time}', { time: formatClock(item.userData.positionSeconds) }) : t('Play')
+    return progress ? t(Words.resumeFrom, { time: formatClock(item.userData.positionSeconds) }) : t(Words.play)
   })()
 
   return (
@@ -232,22 +232,22 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             )}
             {progress !== null && (
               <button className="button quiet" onClick={() => play(`/play/${item.id}?t=0`)}>
-                <icon.startOver /> {t('Start over')}
+                <icon.startOver /> {t(Words.startOver)}
               </button>
             )}
             {item.kind === 'Series' && item.childCount > 0 && (
               <button className="button quiet" onClick={() => navigate(`/play/${item.id}?shuffle=1`)}>
-                <icon.shuffle /> {t('Shuffle')}
+                <icon.shuffle /> {t(Words.shuffle)}
               </button>
             )}
             {detail.trailerYouTubeId && !kids && (
               <button className="button quiet" onClick={() => setTrailer(true)}>
-                <icon.trailer /> {t('Trailer')}
+                <icon.trailer /> {t(Words.trailer)}
               </button>
             )}
             {!kids && (
               <AsyncButton className="button quiet" aria-pressed={item.userData.watched} onClick={toggleWatched}>
-                {item.userData.watched ? <icon.isWatched /> : <icon.watched />} {item.userData.watched ? t('Watched') : t('Mark as watched')}
+                {item.userData.watched ? <icon.isWatched /> : <icon.watched />} {item.userData.watched ? t('Watched') : t(Words.markAsWatched)}
               </AsyncButton>
             )}
             {detail.onWatchlist != null && !kids && <WatchlistButton titleKey={{ libraryItemId: item.id }} title={item.title} on={detail.onWatchlist} />}
@@ -294,7 +294,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
         {item.kind === 'Series' && gaps.data && <ShowGaps showId={item.id} tmdbId={detail.tmdbId ? Number(detail.tmdbId) : null} gaps={gaps.data} />}
         {detail.credits.length > 0 && <Cast credits={detail.credits} studio={detail.studio} />}
         {similar.data && similar.data.length > 0 && (
-          <Row title={t('More like this')}>
+          <Row title={t(Words.moreLikeThis)}>
             {similar.data.map((s) => (
               <PosterCard key={s.id} item={s} />
             ))}
@@ -383,7 +383,7 @@ function Seasons({ series, counts, onChange }: { series: ItemDetail; counts?: Sh
             onChange()
           }}
         >
-          {selected.userData.watched ? t('Mark season as unwatched') : t('Mark season as watched')}
+          {selected.userData.watched ? t('Mark season as unwatched') : t(Words.markSeasonAsWatched)}
         </AsyncButton>
       </div>
       <ol className="episode-list">
@@ -511,7 +511,7 @@ function FileInfo({ files, itemId, kind }: { files: MediaFile[]; itemId: string;
             <dd>{[file.audioCodec?.toUpperCase(), formatChannels(file.audioChannels)].filter(Boolean).join(', ') || t('None')}</dd>
             <dt>{t('File')}</dt>
             <dd>{[file.container?.toUpperCase(), formatSize(file.size), formatBitrate(file.bitrate)].filter(Boolean).join(', ')}</dd>
-            <dt>{t('Subtitles')}</dt>
+            <dt>{t(Words.subtitles)}</dt>
             <dd>
               {file.streams
                 .filter((s) => s.type === 'Subtitle')

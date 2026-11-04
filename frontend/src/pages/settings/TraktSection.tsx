@@ -23,7 +23,7 @@ import { usePolling } from '../../hooks/usePolling'
 import { relativeTime } from '../../lib/format'
 import { webLink } from '../../lib/links'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
-import { t, tk } from '../../i18n'
+import { t, tk, Words } from '../../i18n'
 
 /** Why a connect ended without connecting. */
 const ended: Record<Exclude<TraktPendingConnect['state'], 'Waiting' | 'Connected'>, string> = {
@@ -118,7 +118,7 @@ function Connect({ status, reload }: { status: TraktStatus; reload: () => void }
           <span className="library-row-actions">
             <CopyButton text={pending.userCode} label={t('Copy code')} />
             <AsyncButton className="button quiet small" onClick={() => act(cancelTraktConnect)}>
-              {t('Cancel')}
+              {t(Words.cancel)}
             </AsyncButton>
           </span>
         </SettingRow>

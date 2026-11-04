@@ -18,7 +18,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, More, Next, Notes, SkipBack, Sk
 import { icon } from './icons.generated'
 import { Menu, type MenuPoint } from './ItemMenu'
 import { PodcastTools } from './PodcastTools'
-import { locale, t } from '../i18n'
+import { locale, t, Words } from '../i18n'
 
 /**
  * Now Playing over the whole window: the cover large, the track's name, where it's got to and the controls, with light
@@ -118,7 +118,7 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
   const style = { '--ambient': track.accentColor ?? `rgb(${r} ${g} ${b})`, '--glow': `rgb(${r} ${g} ${b})` } as CSSProperties
 
   return (
-    <div ref={view} className="np-view" role="dialog" aria-modal="true" aria-label={t('Now playing')} style={style}>
+    <div ref={view} className="np-view" role="dialog" aria-modal="true" aria-label={t(Words.nowPlaying)} style={style}>
       <Aurora colours={colours} analyser={player.analyser} playing={player.playing} still={!visualiser} />
       <div className="np-view-veil" aria-hidden="true" />
       <button ref={closeButton} className="icon-button np-view-close" onClick={onClose} aria-label={t('Close Now Playing')}>
@@ -220,7 +220,7 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
                 <Next style={{ transform: 'scaleX(-1)' }} />
               </button>
             )}
-            <button className="icon-button np-view-toggle" onClick={player.toggle} aria-label={player.playing ? t('Pause') : t('Play')}>
+            <button className="icon-button np-view-toggle" onClick={player.toggle} aria-label={player.playing ? t('Pause') : t(Words.play)}>
               {player.playing ? <icon.pause /> : <icon.play />}
             </button>
             {skips ? (
@@ -289,7 +289,7 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
                   actions={[
                     ...(track.parentId ? [{ label: t('Go to podcast'), run: () => navigate(`/podcasts/${track.parentId}`) }] : []),
                     {
-                      label: t('Mark as played'),
+                      label: t(Words.markAsPlayed),
                       run: async () => {
                         await setWatched(track.id, true)
                         // Played: on to what comes next, as if it had finished.
@@ -306,7 +306,7 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
 
           {upNext && (
             <p className="np-view-next">
-              <span>{t('Up next')}</span> {upNext.title}
+              <span>{t(Words.upNext)}</span> {upNext.title}
               {upNext.trackArtist || upNext.seriesTitle ? `\u2003${upNext.trackArtist ?? upNext.seriesTitle}` : ''}
             </p>
           )}

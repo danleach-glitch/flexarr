@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { imageUrl, type ExternalTitle } from '../api/client'
 import { RequestButton } from './RequestButton'
 import { WatchlistButton } from './WatchlistButton'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /** A title from outside the library: its poster opens it (in Flexarr if you have it), with request and watchlist buttons. */
 export function ExternalCard({ title }: { title: ExternalTitle }) {
@@ -25,7 +25,7 @@ export function ExternalCard({ title }: { title: ExternalTitle }) {
         {poster}
       </Link>
       <span className="card-title">{title.title}</span>
-      <span className="card-subtitle">{[title.mediaType === 'tv' ? t('Series') : t('Movie'), title.year].filter(Boolean).join(', ')}</span>
+      <span className="card-subtitle">{[title.mediaType === 'tv' ? t(Words.series) : t('Movie'), title.year].filter(Boolean).join(', ')}</span>
       <div className="external-card-actions">
         <RequestButton key={requested ? 'requested' : 'asked'} title={requested ? { ...title, availability: 'Requested' } : title} />
         <WatchlistButton

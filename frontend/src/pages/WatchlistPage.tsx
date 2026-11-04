@@ -6,7 +6,7 @@ import { PosterCard } from '../components/Cards'
 import { RequestButton } from '../components/RequestButton'
 import { WatchlistButton } from '../components/WatchlistButton'
 import { useApi } from '../hooks/useApi'
-import { locale, t, tk } from '../i18n'
+import { locale, t, tk, Words } from '../i18n'
 
 const STATUSES: [WatchlistStatus | '', string][] = [
   ['', tk('Everything')],
@@ -70,7 +70,7 @@ export function WatchlistPage() {
   return (
     <div className="watchlist-page">
       <header className="library-header">
-        <h1>{t('Watchlist')}</h1>
+        <h1>{t(Words.watchlist)}</h1>
         {data && data.length > 0 && (
           <>
             <div className="genre-chips" role="group" aria-label={t('Show')}>
@@ -83,9 +83,9 @@ export function WatchlistPage() {
             <div className="watchlist-tools">
               <div className="genre-chips" role="group" aria-label={t('Kind')}>
                 {[
-                  ['', t('Movies and shows')],
-                  ['movie', t('Movies')],
-                  ['tv', t('Shows')],
+                  ['', t(Words.moviesAndShows)],
+                  ['movie', t(Words.movies)],
+                  ['tv', t(Words.shows)],
                 ].map(([value, label]) => (
                   <button key={value} className="chip" aria-pressed={kind === value} onClick={() => setParam('kind', value)}>
                     {label}
@@ -94,7 +94,7 @@ export function WatchlistPage() {
               </div>
               <select aria-label={t('Sort by')} value={sort} onChange={(e) => setParam('sort', e.target.value === 'status' ? '' : e.target.value)}>
                 <option value="status">{t('Ready first')}</option>
-                <option value="added">{t('Recently added')}</option>
+                <option value="added">{t(Words.recentlyAdded)}</option>
                 <option value="release">{t('Release date')}</option>
                 <option value="title">{t('Title')}</option>
               </select>

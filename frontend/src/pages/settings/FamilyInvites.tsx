@@ -33,7 +33,7 @@ import { DeviceTypeIcon } from '../../components/DeviceTypeIcon'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { SettingsGroup, ToggleRow } from './shared'
 import { errorText } from './useSettings'
-import { t } from '../../i18n'
+import { t, Words } from '../../i18n'
 
 const POLICY_URL = 'https://login.tailscale.com/admin/acls/file'
 const CLIENTS_URL = 'https://login.tailscale.com/admin/settings/trust-credentials'
@@ -380,7 +380,7 @@ export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void;
             {t('Continue')}
           </AsyncButton>
           <button type="button" className="text-button guest-cancel" onClick={stopNaming}>
-            {t('Cancel')}
+            {t(Words.cancel)}
           </button>
           </div>
           <span id="guest-new-help" className="field-help guest-new-help">
@@ -471,7 +471,7 @@ export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void;
                     <span className="muted">{t('Invited {time}', { time: relativeTime(w.createdAt) })}</span>
                   </span>
                   <AsyncButton className="button quiet small" aria-label={t('Cancel the invite for {name}', { name: person.name })} onClick={() => cancel(w.id)}>
-                    {t('Cancel')}
+                    {t(Words.cancel)}
                   </AsyncButton>
                 </div>
               ))}
@@ -634,7 +634,7 @@ export function AddDevice({
         )}
         {!arrived && (
           <button type="button" className="text-button guest-cancel" onClick={onClose}>
-            {t('Cancel')}
+            {t(Words.cancel)}
           </button>
         )}
       </div>

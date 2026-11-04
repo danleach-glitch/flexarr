@@ -3,9 +3,9 @@ import { ApiError, imageUrl, searchMissing, type ShowEpisode, type ShowMissing }
 import { airDay } from '../lib/format'
 import { AsyncButton } from './AsyncButton'
 import { RequestButton } from './RequestButton'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
-const code = (e: ShowEpisode) => t('S{season}E{episode}', { season: String(e.seasonNumber), episode: String(e.episodeNumber) })
+const code = (e: ShowEpisode) => t(Words.seasonEpisodeShort, { season: String(e.seasonNumber), episode: String(e.episodeNumber) })
 
 /** Asks Sonarr to look for a season's missing episodes, then says it did. */
 function SearchButton({ showId, season, label }: { showId: string; season: number; label: string }) {
@@ -25,7 +25,7 @@ function SearchButton({ showId, season, label }: { showId: string; season: numbe
         }
       }}
     >
-      {state === 'idle' ? t('Search') : t('Try again')}
+      {state === 'idle' ? t(Words.search) : t('Try again')}
     </AsyncButton>
   )
 }
@@ -57,7 +57,7 @@ export function ShowGaps({ showId, tmdbId, gaps }: { showId: string; tmdbId: num
       )}
       {hasMissing && (
         <section className="show-gaps" aria-labelledby="show-missing">
-          <h2 id="show-missing">{t('Not in your library')}</h2>
+          <h2 id="show-missing">{t(Words.notInYourLibrary)}</h2>
           {gaps.seasons.length > 0 && (
             <div className="poster-grid gap-seasons">
               {gaps.seasons.map((s) => {
@@ -75,7 +75,7 @@ export function ShowGaps({ showId, tmdbId, gaps }: { showId: string; tmdbId: num
                       {gaps.canRequest && tmdbId != null ? (
                         <RequestButton title={{ mediaType: 'tv', tmdbId, availability: s.availability, libraryItemId: null }} seasons={[s.seasonNumber]} label={t('Request {name}', { name })} name={name} />
                       ) : s.availability === 'Requested' ? (
-                        <span className="external-state">{t('Requested')}</span>
+                        <span className="external-state">{t(Words.requested)}</span>
                       ) : gaps.canSearch ? (
                         <SearchButton showId={showId} season={s.seasonNumber} label={t('Search for {name}', { name })} />
                       ) : null}

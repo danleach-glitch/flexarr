@@ -5,7 +5,7 @@ import { undoFailure } from '../lib/musicUndo'
 import { AsyncButton } from './AsyncButton'
 import { ConfirmDialog } from './ConfirmDialog'
 import { icon } from './icons.generated'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /**
  * Request a film or show (or some of a show's seasons) through Seerr, or say where it stands, as music's request
@@ -67,8 +67,8 @@ export function RequestButton({
     }
   }
 
-  if (title.libraryItemId || state === 'Available') return <span className="external-state">{t('In your library')}</span>
-  if (state === 'PartlyAvailable') return <span className="external-state">{t('Partly in your library')}</span>
+  if (title.libraryItemId || state === 'Available') return <span className="external-state">{t(Words.inYourLibrary)}</span>
+  if (state === 'PartlyAvailable') return <span className="external-state">{t(Words.partlyInYourLibrary)}</span>
   const className = size === 'small' ? 'button small quiet' : 'button quiet'
   const offlineNote = offline && size === 'large' && <span className="external-state">{t('Seerr isn’t answering.')}</span>
   if (state === 'Requested') {
@@ -79,16 +79,16 @@ export function RequestButton({
           aria-pressed
           onClick={() => setAsking(true)}
           disabled={offline}
-          title={offline ? t('Seerr isn’t answering.') : t('Unrequest')}
+          title={offline ? t('Seerr isn’t answering.') : t(Words.unrequest)}
           aria-label={label ? (name ? t('Unrequest {name}', { name }) : label) : undefined}
         >
-          <icon.requested aria-hidden /> {t('Requested')}
+          <icon.requested aria-hidden /> {t(Words.requested)}
         </AsyncButton>
         {offlineNote}
         {asking && (
           <ConfirmDialog
             title={what ? t('Unrequest {name}?', { name: what }) : title.mediaType === 'movie' ? t('Unrequest this movie?') : t('Unrequest this show?')}
-            confirmLabel={t('Unrequest')}
+            confirmLabel={t(Words.unrequest)}
             cancelLabel={t('Keep it')}
             danger
             error={undoError}
@@ -123,7 +123,7 @@ export function RequestButton({
         title={offline ? t('Seerr isn’t answering.') : message}
         aria-label={label}
       >
-        <icon.request aria-hidden /> {state === 'failed' ? t('Try again') : t('Request')}
+        <icon.request aria-hidden /> {state === 'failed' ? t('Try again') : t(Words.request)}
       </AsyncButton>
       {offlineNote}
       {size === 'large' && state === 'failed' && message && (

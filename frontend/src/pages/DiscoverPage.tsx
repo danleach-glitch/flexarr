@@ -6,7 +6,7 @@ import { Row } from '../components/Row'
 import { PosterCard } from '../components/Cards'
 import { useApi } from '../hooks/useApi'
 import { DiscoverSwitch, MusicDiscover, MusicGenrePage, MusicSearchResults } from './DiscoverMusic'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 export function DiscoverPage() {
   const [params, setParams] = useSearchParams()
@@ -44,7 +44,7 @@ export function DiscoverPage() {
         <header className="library-header">
           <div>
             <p className="detail-kicker">
-              <Link to="/discover">{t('Discover')}</Link>
+              <Link to="/discover">{t(Words.discover)}</Link>
             </p>
             <h1>{genre}</h1>
             <p className="muted">{items.data ? t('{count, plural, other {# titles, best rated first}}', { count: items.data.total }) : ' '}</p>
@@ -52,8 +52,8 @@ export function DiscoverPage() {
           <div className="genre-chips" role="group" aria-label={t('Show')}>
             {[
               ['', t('Everything')],
-              ['Movie', t('Movies')],
-              ['Series', t('Shows')],
+              ['Movie', t(Words.movies)],
+              ['Series', t(Words.shows)],
             ].map(([value, label]) => (
               <button key={value} className="chip" aria-pressed={kind === value} onClick={() => setParams(value ? { genre, kind: value } : { genre })}>
                 {label}
@@ -78,7 +78,7 @@ export function DiscoverPage() {
 
   const heading = (
     <div className="library-heading">
-      <h1>{t('Discover')}</h1>
+      <h1>{t(Words.discover)}</h1>
       {switcher}
     </div>
   )
@@ -115,8 +115,8 @@ export function DiscoverPage() {
             </p>
             {(
               [
-                ['tv', t('Shows')],
-                ['movie', t('Movies')],
+                ['tv', t(Words.shows)],
+                ['movie', t(Words.movies)],
               ] as const
             ).map(([type, label]) => {
               const found = results.data!.filter((title) => title.mediaType === type)

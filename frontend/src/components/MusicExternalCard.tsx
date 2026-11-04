@@ -7,7 +7,7 @@ import { AsyncButton } from './AsyncButton'
 import { ConfirmDialog } from './ConfirmDialog'
 import { icon } from './icons.generated'
 import { undoFailure } from '../lib/musicUndo'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 type State = MusicExternal['availability'] | 'sending' | 'failed' | 'refused'
 
@@ -77,7 +77,7 @@ export function MusicRequestButton({
   // No Lidarr (or music requests off): nothing to offer.
   if (status.data?.configured === false) return null
   // A library artist can still be followed; a library album has nothing left to ask for.
-  if (kind === 'album' && (libraryItemId || state === 'Available')) return <span className="external-state">{t('In your library')}</span>
+  if (kind === 'album' && (libraryItemId || state === 'Available')) return <span className="external-state">{t(Words.inYourLibrary)}</span>
   const className = size === 'small' ? 'button small quiet' : 'button quiet'
   // A grid of cards is a row of the same words to a screen reader: each says whose it is (a page's own needn't).
   const named = (action: 'following' | 'requested' | 'retry' | 'follow' | 'request') => {
@@ -105,9 +105,9 @@ export function MusicRequestButton({
           aria-label={named(kind === 'artist' ? 'following' : 'requested')}
           onClick={() => setAsking(true)}
           disabled={offline}
-          title={offline ? t('Lidarr isn’t answering.') : kind === 'artist' ? t('Stop following') : t('Unrequest')}
+          title={offline ? t('Lidarr isn’t answering.') : kind === 'artist' ? t(Words.stopFollowing) : t(Words.unrequest)}
         >
-          <Icon aria-hidden /> {kind === 'artist' ? t('Following') : t('Requested')}
+          <Icon aria-hidden /> {kind === 'artist' ? t(Words.following) : t(Words.requested)}
         </AsyncButton>
         {offline && size === 'large' && <span className="external-state">{t('Lidarr isn’t answering.')}</span>}
         {asking && (
@@ -121,7 +121,7 @@ export function MusicRequestButton({
                   ? t('Unrequest {name}?', { name: title })
                   : t('Unrequest this album?')
             }
-            confirmLabel={kind === 'artist' ? t('Stop following') : t('Unrequest')}
+            confirmLabel={kind === 'artist' ? t(Words.stopFollowing) : t(Words.unrequest)}
             cancelLabel={kind === 'artist' ? t('Keep following') : t('Keep it')}
             danger
             error={undoError}
@@ -157,7 +157,7 @@ export function MusicRequestButton({
         disabled={offline}
         title={offline ? t('Lidarr isn’t answering.') : message}
       >
-        <Icon aria-hidden /> {state === 'failed' ? t('Try again') : kind === 'artist' ? t('Follow') : t('Request album')}
+        <Icon aria-hidden /> {state === 'failed' ? t('Try again') : kind === 'artist' ? t(Words.follow) : t(Words.requestAlbum)}
       </AsyncButton>
       {offline && size === 'large' && <span className="external-state">{t('Lidarr isn’t answering.')}</span>}
       {state === 'failed' && message && (

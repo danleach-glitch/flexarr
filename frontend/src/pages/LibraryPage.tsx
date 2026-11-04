@@ -19,15 +19,15 @@ import { BooksLibrary } from './BooksLibrary'
 import { LibraryRequested } from './LibraryRequested'
 import { PlaylistsPage } from './PlaylistsPage'
 import { AlphaPicker, AlphaRail, ShowMore, useLibraryGrid } from './libraryGrid'
-import { t, tk } from '../i18n'
+import { t, Words } from '../i18n'
 
 const PAGE_SIZE = 200
 
 const sorts = [
-  { value: '', label: tk('A–Z') },
-  { value: 'added', label: tk('Recently added') },
-  { value: 'year', label: tk('Year') },
-  { value: 'rating', label: tk('Rating') },
+  { value: '', label: Words.sortAToZ },
+  { value: 'added', label: Words.recentlyAdded },
+  { value: 'year', label: Words.year },
+  { value: 'rating', label: Words.rating },
 ] as const
 /** What a music library's albums sort by: no ratings there. */
 const albumSorts = sorts.filter((s) => s.value !== 'rating')
@@ -92,19 +92,19 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
   return (
     <nav className="view-switch" aria-label={t('{name} views', { name: library.name })}>
       <Link to={`/library/${library.id}`} aria-current={current('browse')}>
-        {t('Browse')}
+        {t(Words.browse)}
       </Link>
       <Link to={`/library/${library.id}?view=all`} aria-current={current('all')}>
-        {{ Movies: t('All movies'), TvShows: t('All shows'), Music: t('Artists'), Podcasts: t('All podcasts'), HomeVideos: t('All folders'), Audiobooks: t('All books') }[library.type]}
+        {{ Movies: t('All movies'), TvShows: t('All shows'), Music: t(Words.artists), Podcasts: t('All podcasts'), HomeVideos: t('All folders'), Audiobooks: t('All books') }[library.type]}
       </Link>
       {library.type === 'Music' && (
         <Link to={`/library/${library.id}?view=albums`} aria-current={current('albums')}>
-          {t('Albums')}
+          {t(Words.albums)}
         </Link>
       )}
       {hasGenres(library) && (
         <Link to={`/library/${library.id}?view=genres`} aria-current={current('genres')}>
-          {t('Genres')}
+          {t(Words.genres)}
         </Link>
       )}
       {music && (
@@ -116,7 +116,7 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
           it never flickers in for them), or while it's the view open. */}
       {requestable && (requests.data?.configured || view === 'requested') && (
         <Link to={`/library/${library.id}?view=requested`} aria-current={current('requested')}>
-          {t('Requested')}
+          {t(Words.requested)}
         </Link>
       )}
     </nav>
@@ -252,7 +252,7 @@ function LibraryBrowse({ library }: { library: Library }) {
     if (!loaded || !page || page.items.length === 0) return loaded
     const row: HomeRow = {
       id: 'your-artists',
-      title: t('Your artists'),
+      title: t(Words.yourArtists),
       style: 'poster',
       items: page.items,
       link: page.total > page.items.length ? `/library/${library.id}?view=all` : null,
@@ -318,10 +318,10 @@ function GenrePlay({ library, genre, disabled }: { library: string; genre: strin
   return (
     <div className="detail-actions">
       <AsyncButton className="button" onClick={() => play(false)} disabled={disabled}>
-        <icon.play /> {t('Play')}
+        <icon.play /> {t(Words.play)}
       </AsyncButton>
       <AsyncButton className="button quiet" onClick={() => play(true)} disabled={disabled}>
-        <icon.shuffle /> {t('Shuffle')}
+        <icon.shuffle /> {t(Words.shuffle)}
       </AsyncButton>
     </div>
   )
@@ -413,7 +413,7 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
           {genrePage ? (
             <div className="library-heading">
               <Link className="genre-back" to={`/library/${library.id}?view=genres`}>
-                <ChevronLeft /> {t('Genres')}
+                <ChevronLeft /> {t(Words.genres)}
               </Link>
               <h1 className="library-title">{genre}</h1>
             </div>

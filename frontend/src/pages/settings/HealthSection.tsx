@@ -10,7 +10,7 @@ import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
 import { episodeCode, formatSize, relativeTime, unreadableReason } from '../../lib/format'
 import { SettingsHeader } from './shared'
-import { locale, t, tk } from '../../i18n'
+import { locale, t, tk, Words } from '../../i18n'
 
 function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
   const check = useApi(getHealthCheck, [])
@@ -179,7 +179,7 @@ export function HealthSection() {
 
   return (
     <section className="health">
-      <SettingsHeader title={t('Library health')} back={{ to: '/settings/libraries', label: t('Libraries') }} />
+      <SettingsHeader title={t('Library health')} back={{ to: '/settings/libraries', label: t(Words.libraries) }} />
 
       <div className="panel health-score" data-grade={score.score >= 95 ? 'good' : score.score >= 80 ? 'fair' : 'poor'}>
         <div className="health-score-number">

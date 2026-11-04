@@ -1,5 +1,5 @@
 import type { MusicRequested, TitleRequested } from '../api/client'
-import { locale, t } from '../i18n'
+import { locale, t, Words } from '../i18n'
 
 /** Where an album Lidarr (or a film or show Seerr) is waiting for stands, in a few words. */
 export function requestedState(r: Pick<MusicRequested | TitleRequested, 'state' | 'progress' | 'releaseDate'>, now = new Date()): string {
@@ -9,7 +9,7 @@ export function requestedState(r: Pick<MusicRequested | TitleRequested, 'state' 
     case 'importing':
       return t('Importing')
     case 'upcoming': {
-      if (!r.releaseDate) return t('Coming soon')
+      if (!r.releaseDate) return t(Words.comingSoon)
       const date = new Date(`${r.releaseDate}T00:00:00`)
       const sameYear = date.getFullYear() === now.getFullYear()
       return t('Out {date}', { date: date.toLocaleDateString(locale(), { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) }) })

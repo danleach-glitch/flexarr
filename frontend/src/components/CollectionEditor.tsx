@@ -3,7 +3,7 @@ import { ApiError, createCollection, getGenres, updateCollection, type Collectio
 import { useApi } from '../hooks/useApi'
 import { AsyncButton } from './AsyncButton'
 import { useModal } from '../hooks/useModal'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 const thisYear = new Date().getFullYear()
 
@@ -96,10 +96,10 @@ export function CollectionEditor({
               <label>
                 {t('Type')}
                 <select value={rules.type ?? ''} onChange={(e) => set({ type: (e.target.value || null) as SmartRules['type'] })}>
-                  <option value="">{t('Movies and shows')}</option>
-                  <option value="movie">{t('Movies')}</option>
-                  <option value="series">{t('Shows')}</option>
-                  <option value="book">{t('Audiobooks')}</option>
+                  <option value="">{t(Words.moviesAndShows)}</option>
+                  <option value="movie">{t(Words.movies)}</option>
+                  <option value="series">{t(Words.shows)}</option>
+                  <option value="book">{t(Words.audiobooks)}</option>
                 </select>
               </label>
               <label className="grow">
@@ -149,7 +149,7 @@ export function CollectionEditor({
                   <option value="7">{t('Week')}</option>
                   <option value="30">{t('Month')}</option>
                   <option value="90">{t('3 months')}</option>
-                  <option value="365">{t('Year')}</option>
+                  <option value="365">{t(Words.year)}</option>
                 </select>
               </label>
             </div>
@@ -162,10 +162,10 @@ export function CollectionEditor({
                 {t('Order')}
                 <select value={rules.sort ?? 'rating'} onChange={(e) => set({ sort: e.target.value as SmartRules['sort'] })}>
                   <option value="rating">{t('Best rated')}</option>
-                  <option value="added">{t('Recently added')}</option>
+                  <option value="added">{t(Words.recentlyAdded)}</option>
                   <option value="year">{t('Newest')}</option>
                   <option value="popularity">{t('Most popular')}</option>
-                  <option value="title">{t('A–Z')}</option>
+                  <option value="title">{t(Words.sortAToZ)}</option>
                 </select>
               </label>
               <label>
@@ -184,7 +184,7 @@ export function CollectionEditor({
         )}
         <div className="form-actions">
           <button type="button" className="button quiet" onClick={onClose}>
-            {t('Cancel')}
+            {t(Words.cancel)}
           </button>
           <AsyncButton type="submit" className="button" busy={saving}>
             {collection ? t('Save') : t('Create collection')}

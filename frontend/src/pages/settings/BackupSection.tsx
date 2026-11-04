@@ -30,7 +30,7 @@ import { useChoosesOnMac } from '../../hooks/useChoosesOnMac'
 import { formatSize, libraryTypeLabel } from '../../lib/format'
 import { SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
-import { locale, t, tk } from '../../i18n'
+import { locale, t, tk, Words } from '../../i18n'
 
 const kindLabel: Record<BackupKind, string> = {
   Manual: tk('Made by hand'),
@@ -41,12 +41,12 @@ const kindLabel: Record<BackupKind, string> = {
 
 /** The parts of a settings file, in the order they're offered. Server keys and this machine's paths start unticked. */
 const sections: { id: string; label: string; help: string; off?: boolean }[] = [
-  { id: 'libraries', label: tk('Libraries'), help: tk('Added if there’s none of that name here, then scanned.') },
+  { id: 'libraries', label: Words.libraries, help: tk('Added if there’s none of that name here, then scanned.') },
   { id: 'connections', label: tk('Connections'), help: tk('Sonarr, Radarr, Lidarr, Seerr and path mappings, with their keys.') },
-  { id: 'liveTv', label: tk('Live TV'), help: tk('The Dispatcharr source and the DVR’s settings.') },
+  { id: 'liveTv', label: Words.liveTv, help: tk('The Dispatcharr source and the DVR’s settings.') },
   { id: 'streaming', label: tk('Streaming'), help: tk('Hardware acceleration and limits.') },
   { id: 'layout', label: tk('Home & browse'), help: tk('The rows for profiles that haven’t chosen their own.') },
-  { id: 'podcasts', label: tk('Podcasts'), help: tk('The country for charts.') },
+  { id: 'podcasts', label: Words.podcasts, help: tk('The country for charts.') },
   { id: 'notifications', label: tk('Notifications'), help: tk('Push notifications to phones.') },
   { id: 'access', label: tk('Access'), help: tk('When to ask for the API key, and trusted proxies. Asks for the admin PIN.') },
   { id: 'machine', label: tk('This machine’s paths'), help: tk('ffmpeg, the cache and backups folders. Usually wrong on another machine, and it asks for the admin PIN.'), off: true },
@@ -146,9 +146,9 @@ export function BackupSection() {
               </p>
             </div>
             <div className="library-row-actions">
-              <IconButton label={t('Download')} icon={<Download />} onClick={() => setDialog({ kind: 'download', backup: b })} />
+              <IconButton label={t(Words.download)} icon={<Download />} onClick={() => setDialog({ kind: 'download', backup: b })} />
               <IconButton label={t('Restore')} icon={<Restore />} onClick={() => setDialog({ kind: 'restore', createdAt: b.createdAt, name: b.name })} />
-              <IconButton label={t('Delete')} icon={<icon.delete />} className="button quiet small icon danger-icon" onClick={() => setDialog({ kind: 'delete', backup: b })} />
+              <IconButton label={t(Words.delete)} icon={<icon.delete />} className="button quiet small icon danger-icon" onClick={() => setDialog({ kind: 'delete', backup: b })} />
             </div>
           </div>
         ))}
@@ -179,7 +179,7 @@ export function BackupSection() {
       {dialog?.kind === 'delete' && (
         <ConfirmDialog
           title={t('Delete this backup?')}
-          confirmLabel={t('Delete')}
+          confirmLabel={t(Words.delete)}
           danger
           error={deleteError}
           onConfirm={async () => {
@@ -306,7 +306,7 @@ function Automatic({ nightly, keep, folder, folderInUse, onSaved }: { nightly: b
             }}
           />
           <button type="button" className="text-button" onClick={() => setChoosing(false)}>
-            {t('Cancel')}
+            {t(Words.cancel)}
           </button>
         </div>
       )}
@@ -522,7 +522,7 @@ function UploadedBackup({ contents, fromAnotherServer, onRestore, onCancel }: { 
       )}
       <div className="form-actions">
         <button className="button quiet small" onClick={onCancel}>
-          {t('Cancel')}
+          {t(Words.cancel)}
         </button>
         <button className="button small danger" disabled={!!contents.problem} onClick={onRestore}>
           {t('Restore…')}
@@ -582,7 +582,7 @@ function UploadedSettings({ id, file, mainHasPin, onCancel }: { id: string; file
         )}
         <div className="form-actions">
           <button className="button quiet small" onClick={onCancel}>
-            {t('Done')}
+            {t(Words.done)}
           </button>
         </div>
       </div>
@@ -662,7 +662,7 @@ function UploadedSettings({ id, file, mainHasPin, onCancel }: { id: string; file
       )}
       <div className="form-actions">
         <button className="button quiet small" onClick={onCancel}>
-          {t('Cancel')}
+          {t(Words.cancel)}
         </button>
         <AsyncButton className="button small" disabled={chosen.size === 0} onClick={apply}>
           {t('Import')}

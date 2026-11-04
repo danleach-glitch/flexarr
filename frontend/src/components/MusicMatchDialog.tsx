@@ -6,7 +6,7 @@ import { useApi } from '../hooks/useApi'
 import { useModal } from '../hooks/useModal'
 import { AsyncButton } from './AsyncButton'
 import { Search } from './icons'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /** Which cover to keep: the match's own, the one there now, or another result's (by its coverValue). */
 type CoverChoice = { kind: 'own' } | { kind: 'current' } | { kind: 'other'; value: string }
@@ -94,7 +94,7 @@ export function MusicMatchDialog({ detail, onFixed, onClose }: { detail: ItemDet
         <form className="fix-match-search" onSubmit={search} role="search">
           <input type="search" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={album ? t('Artist and album') : t('Artist')} autoFocus disabled={busy} />
           <AsyncButton className="button quiet" type="submit" disabled={busy} busy={results.loading}>
-            <Search /> {t('Search')}
+            <Search /> {t(Words.search)}
           </AsyncButton>
         </form>
 
@@ -121,7 +121,7 @@ export function MusicMatchDialog({ detail, onFixed, onClose }: { detail: ItemDet
                     </span>
                   </span>
                   <span className={m.current ? 'tag keep' : 'tag'}>
-                    {m.current ? t('Current match') : m.inLibrary ? t('In your library') : m.followed ? t('Following') : m.provider === 'lidarr' ? t('In {app}', { app: m.instance ?? 'Lidarr' }) : 'Deezer'}
+                    {m.current ? t('Current match') : m.inLibrary ? t(Words.inYourLibrary) : m.followed ? t(Words.following) : m.provider === 'lidarr' ? t('In {app}', { app: m.instance ?? 'Lidarr' }) : 'Deezer'}
                   </span>
                 </button>
               </li>
@@ -162,7 +162,7 @@ export function MusicMatchDialog({ detail, onFixed, onClose }: { detail: ItemDet
             </AsyncButton>
           )}
           <button className="button quiet" onClick={onClose} disabled={busy}>
-            {t('Cancel')}
+            {t(Words.cancel)}
           </button>
           <AsyncButton className="button" disabled={!chosen || busy} onClick={() => chosen && use(chosen)}>
             {chosen ? t('Use {title}', { title: chosen.title }) : t('Choose one')}
@@ -214,7 +214,7 @@ function MusicMatchPending({ error, onClose }: { error?: string; onClose: () => 
         )}
         <div className="form-actions">
           <button className="button quiet" onClick={onClose}>
-            {error ? t('Close') : t('Cancel')}
+            {error ? t('Close') : t(Words.cancel)}
           </button>
         </div>
       </div>

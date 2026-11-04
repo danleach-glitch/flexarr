@@ -40,7 +40,7 @@ import { announceWatched } from '../hooks/watched'
 import { chapterIndexAt, chapterProgress, formatSpeed, languageName, seriesPlace, timeLeft } from '../lib/books'
 import { formatClock, formatDuration } from '../lib/format'
 import { MoreButton } from './MusicPages'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /**
  * A book's page: cover, title, its series and people, how long it is and how long is left at the speed it plays at,
@@ -128,7 +128,7 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
 
   const more: MenuAction[] = [{ label: t('Add to collection…'), run: () => openAddToCollection(item) }]
   // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
-  if (!playing && (finished || place.saved > 0)) more.push({ label: t('Mark as unread'), run: () => mark(false) })
+  if (!playing && (finished || place.saved > 0)) more.push({ label: t(Words.markAsUnread), run: () => mark(false) })
   if (mainProfile) {
     // Saving takes the admin: the PIN first, if it's run out here.
     more.push({ label: t('Edit…'), run: () => void unlockFirst().then((unlocked) => unlocked && setEditing('details')) })
@@ -170,7 +170,7 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
           <div className="detail-actions">
             {finished ? (
               <AsyncButton className="button" onClick={again}>
-                <icon.play /> {t('Play')}
+                <icon.play /> {t(Words.play)}
               </AsyncButton>
             ) : (
               <PlayButton place={place} sounding={playing && player.playing} onClick={() => playAt()} />
@@ -179,11 +179,11 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
                 again, as in the apps' BookActions), one part-way through asks first, since its place is lost. */}
             {(finished || playing || place.saved > 0) && (
               <AsyncButton className="button quiet" onClick={() => (finished ? again() : setStartingOver(true))}>
-                <icon.startOver /> {t('Start over')}
+                <icon.startOver /> {t(Words.startOver)}
               </AsyncButton>
             )}
             <AsyncButton className="button quiet" aria-pressed={finished} onClick={() => mark(!finished)}>
-              <icon.watched /> {finished ? t('Finished') : t('Mark as finished')}
+              <icon.watched /> {finished ? t('Finished') : t(Words.markAsFinished)}
             </AsyncButton>
             <MoreButton label={t('More for {title}', { title: item.title })} actions={more} />
           </div>
@@ -283,7 +283,7 @@ function PlayButton({ place, sounding, onClick }: { place: Place; sounding: bool
   const position = usePosition(place)
   return (
     <button className="button" onClick={onClick}>
-      {sounding ? <icon.pause /> : <icon.play />} {sounding ? t('Pause') : position > 0 ? t('Resume from {time}', { time: formatClock(position) }) : t('Play')}
+      {sounding ? <icon.pause /> : <icon.play />} {sounding ? t('Pause') : position > 0 ? t(Words.resumeFrom, { time: formatClock(position) }) : t(Words.play)}
     </button>
   )
 }
@@ -292,7 +292,7 @@ function PlayButton({ place, sounding, onClick }: { place: Place; sounding: bool
 function StartOverDialog({ place, onConfirm, onClose }: { place: Place; onConfirm: () => void; onClose: () => void }) {
   const position = usePosition(place)
   return (
-    <ConfirmDialog title={t('Start over?')} confirmLabel={t('Start over')} onConfirm={onConfirm} onClose={onClose}>
+    <ConfirmDialog title={t('Start over?')} confirmLabel={t(Words.startOver)} onConfirm={onConfirm} onClose={onClose}>
       <p>{t('You’re at {time}.', { time: formatClock(position) })}</p>
     </ConfirmDialog>
   )

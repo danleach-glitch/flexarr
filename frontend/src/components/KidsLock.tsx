@@ -4,7 +4,7 @@ import { lockToKids, pickProfileWith, releaseKidsLock, type Me, type Profile } f
 import { useModal } from '../hooks/useModal'
 import { errorText } from '../pages/settings/useSettings'
 import { AsyncButton } from './AsyncButton'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 
 /** Asks for the admin PIN and does `action` with it; the server's answer shows if it's refused. */
 function ParentPinDialog({ title, action, onDone, onCancel }: { title: string; action: string; onDone: (pin: string) => Promise<void>; onCancel: () => void }) {
@@ -43,7 +43,7 @@ function ParentPinDialog({ title, action, onDone, onCancel }: { title: string; a
         )}
         <div className="form-actions">
           <button type="button" className="button quiet" onClick={onCancel} disabled={busy}>
-            {t('Cancel')}
+            {t(Words.cancel)}
           </button>
           <AsyncButton type="submit" className="button" busy={busy}>
             {action}
