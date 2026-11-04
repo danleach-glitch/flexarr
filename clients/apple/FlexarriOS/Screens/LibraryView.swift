@@ -308,38 +308,16 @@ struct LibraryView: View {
     #if os(macOS)
     /// Sort by, showing the order now.
     private var sortMenu: some View {
-        Menu {
-            Picker(t("Sort by"), selection: $sort) {
-                ForEach(content.sorts) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.inline)
-        } label: {
-            PageMenuLabel(icon: "arrow.up.arrow.down", text: sort.label)
-        }
-        .menuStyle(.button).buttonStyle(.borderless).menuIndicator(.hidden).fixedSize()
-        .help(t("Sort by"))
-        .accessibilityLabel(t("Sort by"))
-        .accessibilityValue(sort.label)
+        PageChoice(icon: "arrow.up.arrow.down", title: t("Sort by"), selection: $sort,
+                   options: content.sorts.map { ($0, $0.label) })
     }
 
     /// The genre shown, or all of them.
     private var genreMenu: some View {
-        Menu {
-            Picker(t("Genre"), selection: $genre) {
-                Text(t("All genres")).tag(String?.none)
-                ForEach(filterGenres, id: \.name) { g in
-                    Text("\(g.name) (\(g.count))").tag(Optional(g.name))
-                }
-            }
-            .pickerStyle(.inline)
-        } label: {
-            PageMenuLabel(icon: genre == nil ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill",
-                          text: genre ?? t("All genres"), chosen: genre != nil)
-        }
-        .menuStyle(.button).buttonStyle(.borderless).menuIndicator(.hidden).fixedSize()
-        .help(t("Genre"))
-        .accessibilityLabel(t("Genre"))
-        .accessibilityValue(genre ?? t("All genres"))
+        PageChoice(icon: genre == nil ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill",
+                   title: t("Genre"), selection: $genre,
+                   options: [(String?.none, t("All genres"))] + filterGenres.map { (Optional($0.name), "\($0.name) (\($0.count))") },
+                   shown: genre ?? t("All genres"), chosen: genre != nil)
     }
     #endif
 

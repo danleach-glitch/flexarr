@@ -201,6 +201,85 @@ struct PageMenuLabel: View {
     }
 }
 
+/// A choice on the page (a library's sort or genre): the capsule shows what's chosen, and a click opens the choices
+/// in a popover beside it, drawn here rather than as a system menu (whose items, built from a picker on the page,
+/// came out greyed and unusable).
+struct PageChoice<Value: Hashable>: View {
+    let icon: String
+    let title: String
+    @Binding var selection: Value
+    let options: [(Value, String)]
+    /// What the capsule says, when not the chosen option's own words.
+    var shown: String?
+    var chosen = false
+    @State private var open = false
+
+    var body: some View {
+        let current = options.first { $0.0 == selection }?.1 ?? ""
+        Button { open.toggle() } label: {
+            PageMenuLabel(icon: icon, text: shown ?? current, chosen: chosen)
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .help(title)
+        .accessibilityLabel(title)
+        .accessibilityValue(shown ?? current)
+        .popover(isPresented: $open, arrowEdge: .bottom) { choices }
+    }
+
+    private var choices: some View {
+        ScrollView(.vertical) {
+            PageChoiceRows(title: title, selection: $selection, options: options) { open = false }
+        }
+        .scrollIndicators(.never)
+        .frame(maxHeight: 440)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(6)
+        .frame(minWidth: 220)
+    }
+}
+
+/// One set of choices in a page popover: its heading, then each choice with a tick by the chosen one.
+struct PageChoiceRows<Value: Hashable>: View {
+    let title: String
+    @Binding var selection: Value
+    let options: [(Value, String)]
+    var picked: () -> Void = {}
+    @State private var hovered: Int?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.usher)
+                .padding(.horizontal, 12).padding(.top, 4).padding(.bottom, 4)
+            ForEach(Array(options.enumerated()), id: \.offset) { index, option in
+                Button {
+                    selection = option.0
+                    picked()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .opacity(option.0 == selection ? 1 : 0)
+                        Text(option.1).font(.system(size: 14)).lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(Color.screen)
+                    .padding(.horizontal, 12)
+                    .frame(height: 30)
+                    .background(RoundedRectangle(cornerRadius: Radius.art, style: .continuous)
+                        .fill(Color.screen.opacity(hovered == index ? 0.12 : 0)))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .onHover { hovered = $0 ? index : (hovered == index ? nil : hovered) }
+                .accessibilityAddTraits(option.0 == selection ? [.isSelected] : [])
+            }
+        }
+    }
+}
+
 /// The Mac's page tabs (Browse, All movies, Genres…): a capsule track with the chosen one filled to its edges, the same
 /// size on every page. The system's segmented control insets its highlight from the track, which reads as unfinished
 /// at this size.

@@ -51,7 +51,7 @@ lists. Posters 176 pt wide with 18 pt between them. Rows 28 pt apart.
   its icon; search, where a page has one, after them (`pageSearch`: `PageSearchField`, the tabs' height; a library's
   searches its titles). Search's own page has its field in the middle. Controls that
   belong to part of a page stay on the page, by that part: a library's sort and genre (and audiobooks' filter and
-  sort) on the count's line above the grid, as `PageMenuLabel` capsules showing what's chosen; a podcast's episode
+  sort) on the count's line above the grid, as `PageChoice` capsules showing what's chosen, opening their choices in a popover (system menus built on the page came out greyed); a podcast's episode
   order beside Unplayed and All.
 
 **Lists** (Settings, Downloads; `macReadable`). One centred column, 760 pt at most, with the page margin either side,
