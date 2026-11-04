@@ -5,6 +5,7 @@ import SwiftUI
 enum SidebarItem: Hashable {
     case home
     case watchlist
+    case discover
     case entry(LibraryMenuEntry)
     case downloads
     case search
@@ -49,6 +50,7 @@ struct MacMainView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var downloads
     @State private var navigation = MacNavigation.shared
+    @State private var offersDiscover = false
 
     var body: some View {
         NavigationSplitView {
@@ -58,6 +60,11 @@ struct MacMainView: View {
                         .tag(SidebarItem.home)
                     if model.hasWatchlist && !model.hidesFromMenu(.watchlist) {
                         Label(t(Words.watchlist), systemImage: Symbol.watchlist).tag(SidebarItem.watchlist)
+                    }
+                    // Not for kids, who never request; not for a profile that hid it from the menu.
+                    // Only with Seerr connected, which is where it comes from.
+                    if offersDiscover && !model.isKids && !model.hidesFromMenu(.discover) {
+                        Label(t(Words.discover), systemImage: Symbol.discover).tag(SidebarItem.discover)
                     }
                     Label(t(Words.search), systemImage: Symbol.search).tag(SidebarItem.search)
                 }
@@ -98,6 +105,7 @@ struct MacMainView: View {
         }
         .task(id: model.isOffline) {
             guard !model.isOffline else { return }
+            offersDiscover = (try? await model.client?.requestStatus())?.configured == true
             await model.loadLibraries()
             if model.libraries.isEmpty, model.librariesError != nil, !downloads.downloads.isEmpty { navigation.selection = .downloads }
         }
@@ -156,6 +164,8 @@ struct MacMainView: View {
             if model.isOffline { OfflineView(title: t(Words.home)) { navigation.selection = .downloads } } else { HomeView() }
         case .watchlist:
             WatchlistView()
+        case .discover:
+            MacDiscoverView()
         case .entry(.library(let library)):
             RouteDestination(route: .library(library, .title))
         case .entry(.podcasts):
@@ -181,9 +191,12 @@ struct MacStack<Content: View>: View {
 
     var body: some View {
         @Bindable var router = router
+        // The router goes to the root and to each page pushed: on the Mac a pushed page doesn't inherit what's set
+        // around the stack, and every page's links need it.
         NavigationStack(path: $router.path) {
             content()
-                .navigationDestination(for: Route.self) { RouteDestination(route: $0) }
+                .environment(router)
+                .navigationDestination(for: Route.self) { RouteDestination(route: $0).environment(router) }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             if model.isOffline { OfflineBar() }

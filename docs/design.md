@@ -136,7 +136,7 @@ What's on each client today. The gaps are for future briefs. How the four kinds 
 | Audiobooks | ✅ | ✅ | ✅ | ✅ | ✅ | 🟡 points to the phone |
 | Podcasts | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ by design |
 | Live TV | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Discover | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ |
+| Discover | ✅ | ❌ | ✅ | 🟡 Seerr's rows | ❌ | ✅ |
 | Music requests | ✅ Discover › Music, artist pages | 🟡 Search, artist pages | ✅ Discover › Music, artist pages | 🟡 Search, artist pages | 🟡 Search, artist pages | ✅ Discover › Music, artist pages |
 | Collections | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Playlists and mixes pages | ✅ | 🟡 in Music | 🟡 in Music | 🟡 in Music | 🟡 in Music | 🟡 in Music |
