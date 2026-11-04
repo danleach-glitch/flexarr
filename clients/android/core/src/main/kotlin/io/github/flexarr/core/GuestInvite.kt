@@ -60,6 +60,8 @@ data class GuestInvite(
     val p: String,
     /** When it stops working. */
     @Serializable(with = InstantSerializer::class) val e: Instant? = null,
+    /** The server's name, shown in place of "Dan's Flexarr". Absent from invites made by servers before 0.61. */
+    val m: String? = null,
 ) {
     val ownerName: String get() = n.trim().ifEmpty { t("Someone") }
     val profileName: String get() = p
@@ -68,6 +70,10 @@ data class GuestInvite(
     val authKey: String get() = k
     val token: String get() = t
     val serverId: String get() = s
+    /** The server's name, when the invite carries one. */
+    val serverName: String? get() = m?.trim()?.ifEmpty { null }
+    /** What to call the server: its name, or "Dan's Flexarr". */
+    val serverTitle: String get() = serverTitle(serverName, ownerName)
 
     /** The node's name on the host's tailnet: "flexarr-guest-grans-phone". */
     val hostname: String get() = hostname(g)
@@ -154,11 +160,11 @@ data class GuestJoinProblem(val message: String, val canRetry: Boolean)
  * Why joining with an invite didn't work: short, and the same words as the Apple apps. Only not reaching the host is
  * worth trying again; the rest need a new invite.
  */
-fun guestJoinProblem(error: Throwable, ownerName: String, keyRefused: Boolean = false): GuestJoinProblem = when {
+fun guestJoinProblem(error: Throwable, ownerName: String, keyRefused: Boolean = false, server: String = serverTitle(null, ownerName)): GuestJoinProblem = when {
     keyRefused || (error is FlexarrException.Http && error.status == 410) -> GuestJoinProblem(t("That invite has run out or been used."), canRetry = false)
-    error is FlexarrException.Http && error.status == 503 -> GuestJoinProblem(t("{name}’s Flexarr isn’t taking guests just now.", "name" to ownerName), canRetry = false)
+    error is FlexarrException.Http && error.status == 503 -> GuestJoinProblem(t("{server} isn’t taking guests just now.", "server" to server), canRetry = false)
     error is FlexarrException.Http && (error.status == 403 || error.status == 404) -> GuestJoinProblem(t("This invite didn’t work. Ask {name} for a new one.", "name" to ownerName), canRetry = false)
-    else -> GuestJoinProblem(t("Can’t reach {name}’s Flexarr. Check this device’s internet.", "name" to ownerName), canRetry = true)
+    else -> GuestJoinProblem(t("Can’t reach {server}. Check this device’s internet.", "server" to server), canRetry = true)
 }
 
 /**
@@ -335,3 +341,9 @@ class GuestTvCode(
         private fun base64OrNull(text: String): ByteArray? = runCatching { Base64.getDecoder().decode(text) }.getOrNull()
     }
 }
+
+/** The server's name when there is one, else "Dan's Flexarr" (or "this Flexarr" with no owner either). As FlexarrKit's. */
+fun serverTitle(serverName: String?, ownerName: String?): String =
+    serverName?.trim()?.ifEmpty { null }
+        ?: ownerName?.trim()?.ifEmpty { null }?.let { t("{owner}’s Flexarr", "owner" to it) }
+        ?: t("this Flexarr")
