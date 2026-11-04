@@ -21,7 +21,7 @@ struct JoinInviteView: View {
             BrandMark(size: 56)
                 .padding(.top, 8)
             VStack(spacing: 8) {
-                Text(t("Join {owner}’s Flexarr?", ["owner": invite.ownerName]))
+                Text(t("Join {server}?", ["server": invite.serverTitle]))
                     .font(.title2.weight(.bold))
                     .foregroundStyle(Color.screen)
                     .multilineTextAlignment(.center)
@@ -51,7 +51,7 @@ struct JoinInviteView: View {
                             if joining {
                                 HStack(spacing: 10) {
                                     ProgressView()
-                                    Text(t("Joining {owner}’s Flexarr…", ["owner": invite.ownerName]))
+                                    Text(t("Joining {server}…", ["server": invite.serverTitle]))
                                 }
                             } else {
                                 Text(problem == nil ? t("Join") : t("Try again"))
@@ -114,14 +114,14 @@ struct GuestCodeView: View {
             if let joining = waiter.joining {
                 HStack(spacing: 12) {
                     ProgressView()
-                    Text(t("Joining {owner}’s Flexarr…", ["owner": joining.ownerName]))
+                    Text(t("Joining {server}…", ["server": joining.serverTitle]))
                         .font(.headline)
                         .foregroundStyle(Color.screen)
                 }
             } else if let offer = waiter.offer {
                 // Anyone who heard the code could have sent an invite: one tap to say it's the right one.
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(t("Join {owner}’s Flexarr?", ["owner": offer.ownerName]))
+                    Text(t("Join {server}?", ["server": offer.serverTitle]))
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.screen)
                         .accessibilityAddTraits(.isHeader)
@@ -178,7 +178,7 @@ struct GuestCodeView: View {
         // The invite arrived while the code showed: said aloud, and VoiceOver moves to it.
         .onChange(of: waiter.offer?.token) { _, token in
             guard token != nil, let offer = waiter.offer else { return }
-            AccessibilityNotification.Announcement(t("Join {owner}’s Flexarr?", ["owner": offer.ownerName])).post()
+            AccessibilityNotification.Announcement(t("Join {server}?", ["server": offer.serverTitle])).post()
             titleFocused = true
         }
         // Polls only while the app is in front; back in front, the same code carries on.

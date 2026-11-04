@@ -9,17 +9,18 @@ struct TunnelProblemView: View {
     var onDownloads: (() -> Void)?
     @State private var confirmLeave = false
 
-    private var owner: String { model.credentials?.guest?.ownerName ?? t("the host") }
+    /// The host's server: its name, or "Dan’s Flexarr".
+    private var server: String { model.guestServerTitle(model.credentials?.guest) }
 
     var body: some View {
         VStack(spacing: 20) {
             Image(systemName: "wifi.exclamationmark")
                 .font(.system(size: 44))
                 .foregroundStyle(Color.silver)
-            Text(t("Can’t reach {owner}’s Flexarr", ["owner": owner]))
+            Text(t("Can’t reach {server}", ["server": server]))
                 .font(.title2.weight(.semibold))
                 .multilineTextAlignment(.center)
-            Text(t("Check this device’s internet, or that {owner}’s server is on.", ["owner": owner]))
+            Text(t("Check this device’s internet, or that {server} is on.", ["server": server]))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             // Side by side while they fit, one above another at larger text sizes.
@@ -30,7 +31,7 @@ struct TunnelProblemView: View {
         }
         .padding(40)
         .frame(maxWidth: 560)
-        .leaveGuestConfirmation(isPresented: $confirmLeave, owner: owner) { model.signOut() }
+        .leaveGuestConfirmation(isPresented: $confirmLeave, server: server) { model.signOut() }
     }
 
     @ViewBuilder private var buttons: some View {
@@ -46,25 +47,26 @@ struct TunnelProblemView: View {
 }
 
 extension View {
-    /// "Leave Dan’s Flexarr?", asked before a family guest leaves its host (Settings › Server, or the problem screen).
-    func leaveGuestConfirmation(isPresented: Binding<Bool>, owner: String, onLeave: @escaping () -> Void) -> some View {
-        modifier(LeaveGuestConfirmation(isPresented: isPresented, owner: owner, onLeave: onLeave))
+    /// "Leave Smith House?" (or "Leave Dan’s Flexarr?"), asked before a family guest leaves its host (Settings ›
+    /// Server, or the problem screen).
+    func leaveGuestConfirmation(isPresented: Binding<Bool>, server: String, onLeave: @escaping () -> Void) -> some View {
+        modifier(LeaveGuestConfirmation(isPresented: isPresented, server: server, onLeave: onLeave))
     }
 }
 
 private struct LeaveGuestConfirmation: ViewModifier {
     @Binding var isPresented: Bool
-    let owner: String
+    let server: String
     let onLeave: () -> Void
 
     func body(content: Content) -> some View {
         #if os(tvOS)
         // Its own screen rather than the system's dialog, so the focus can start on Cancel.
         content.fullScreenCover(isPresented: $isPresented) {
-            LeaveGuestPrompt(owner: owner, isPresented: $isPresented, onLeave: onLeave)
+            LeaveGuestPrompt(server: server, isPresented: $isPresented, onLeave: onLeave)
         }
         #else
-        content.confirmationDialog(t("Leave {owner}’s Flexarr?", ["owner": owner]), isPresented: $isPresented, titleVisibility: .visible) {
+        content.confirmationDialog(t("Leave {server}?", ["server": server]), isPresented: $isPresented, titleVisibility: .visible) {
             Button(t("Leave"), role: .destructive, action: onLeave)
         } message: {
             // Signing out deletes the iPhone's downloads.
@@ -76,7 +78,7 @@ private struct LeaveGuestConfirmation: ViewModifier {
 
 #if os(tvOS)
 private struct LeaveGuestPrompt: View {
-    let owner: String
+    let server: String
     @Binding var isPresented: Bool
     let onLeave: () -> Void
     @FocusState private var focus: Choice?
@@ -85,7 +87,7 @@ private struct LeaveGuestPrompt: View {
 
     var body: some View {
         VStack(spacing: 36) {
-            Text(t("Leave {owner}’s Flexarr?", ["owner": owner]))
+            Text(t("Leave {server}?", ["server": server]))
                 .font(.system(size: 52, weight: .bold))
                 .foregroundStyle(Color.screen)
                 .multilineTextAlignment(.center)

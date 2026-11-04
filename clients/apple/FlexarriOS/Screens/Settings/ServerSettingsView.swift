@@ -14,16 +14,17 @@ struct ServerSettingsView: View {
         List {
             if let guest = model.credentials?.guest {
                 Section {
-                    row(t("Server"), t("{owner}’s Flexarr", ["owner": guest.ownerName]))
+                    row(t("Server"), model.guestServerTitle(guest))
                     row(t("Connection"), connection)
                     Button(t("Leave"), role: .destructive) { confirmLeave = true }
                         .listRowBackground(Color.seat)
                 } header: {
                     Text(t("Connected by invite"))
                 }
-                .leaveGuestConfirmation(isPresented: $confirmLeave, owner: guest.ownerName) { model.signOut() }
+                .leaveGuestConfirmation(isPresented: $confirmLeave, server: model.guestServerTitle(guest)) { model.signOut() }
             } else {
             Section {
+                if let name = model.serverName { row(t("Name"), name) }
                 address(t("Address"), model.credentials?.address)
                 if let remote = model.credentials?.remoteAddress {
                     address(t("Away from home"), remote)
