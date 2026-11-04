@@ -18,19 +18,6 @@
       ]
     },
     {
-      "id": "mac",
-      "kind": "server",
-      "name": "Server for Mac",
-      "icon": "apple",
-      "status": "development",
-      "requires": "A Mac with Apple silicon or Intel",
-      "summary": "Run your server on a Mac, as an app from the Mac App Store: install it in one step, choose your media folders, and it runs from the menu bar, converting video with your Mac's graphics hardware. Free.",
-      "note": "Until then, you can build the server for your Mac from source.",
-      "links": [
-        { "label": "Install on a Mac today", "href": "/guide/install-macos" }
-      ]
-    },
-    {
       "id": "iphone",
       "kind": "player",
       "name": "iPhone and iPad",
