@@ -902,6 +902,26 @@ final class AppModel {
         if profilesLoad == load { profilesLoad = nil }
     }
 
+    /// The languages the server offers (English first); empty from servers before 0.61. Settings › Language shows when
+    /// there's more than English.
+    var languages: [LanguageInfo] = []
+
+    /// The profile's chosen language (nil: the device's).
+    var profileLanguage: String?
+
+    private func settleLanguage(_ client: FlexarrClient) async {
+        languages = (try? await client.languages()) ?? []
+        await Localization.shared.settle(profileChoice: profileLanguage, client: client)
+    }
+
+    /// Picks the profile's language on every device (nil: each device's own) and shows it here.
+    func setLanguage(_ code: String?) async throws {
+        guard let client else { return }
+        try await client.setLanguage(code)
+        profileLanguage = code
+        await Localization.shared.settle(profileChoice: code, client: client)
+    }
+
     /// `serverAnswered`: it has just answered (coming back online), so it isn't asked again.
     private func loadProfilesNow(serverAnswered: Bool = false) async {
         // A guest with no network at all needn't wait for its tunnel to give up.
@@ -957,6 +977,9 @@ final class AppModel {
         profiles = list
         hasBeenOnline = true
         let me = await signIn.value
+        // In the profile's language (or the device's) before the first screen, so it doesn't change under you.
+        profileLanguage = me?.language
+        await settleLanguage(client)
         kidsLock = me?.kidsLock == true
         signInMethod = me?.method
         // Asked to, a shared Apple TV asks who's watching once each time the app starts, whoever watched last.

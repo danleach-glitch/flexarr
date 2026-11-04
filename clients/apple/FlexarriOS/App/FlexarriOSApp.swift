@@ -237,8 +237,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 struct FlexarriOSApp: App {
     @UIApplicationDelegateAdaptor private var delegate: AppDelegate
     @State private var model: AppModel
+    @State private var language: LanguageState
 
     init() {
+        // The language shown last, before anything draws; kept where the widgets and notifications can read it too.
+        Localization.appGroup = Bundle.main.object(forInfoDictionaryKey: "FlexarrAppGroup") as? String
+        Localization.shared.startWithLastShown()
+        _language = State(initialValue: LanguageState())
         Symbol.checkAll()
         ThisDevice.identify()
         // Artwork is fetched constantly while browsing; give it a generous disk cache.
@@ -253,6 +258,10 @@ struct FlexarriOSApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                // A new language redraws everything in it.
+                .id(language.code)
+                .environment(\.locale, language.locale)
+                .environment(\.layoutDirection, language.isRightToLeft ? .rightToLeft : .leftToRight)
                 .environment(model)
                 .environment(delegate.downloads)
                 .environment(delegate.notifications)

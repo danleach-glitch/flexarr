@@ -89,6 +89,10 @@ struct SettingsView: View {
                         LibraryOrderSettingsView()
                     }
                 }
+                // Once the server offers more than English (from 0.61).
+                if model.languages.count > 1 {
+                    SettingsLink(t("Language"), icon: "globe", value: LanguageSettingsView.current(model)) { LanguageSettingsView() }
+                }
                 SettingsLink("Notifications", icon: "bell.fill", value: notifications.isOn ? "On" : "Off") { NotificationSettingsView() }
                 SettingsLink("Siri", icon: "waveform", value: siriDeviceName ?? "This \(ThisDevice.name)") { SiriSettingsView() }
                 if let trakt, trakt.available {
