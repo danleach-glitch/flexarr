@@ -4,6 +4,7 @@ import { AsyncButton } from './AsyncButton'
 import { Bookmark } from './icons'
 import { showNotice } from '../lib/notice'
 import { useWatchedChanges } from '../hooks/watched'
+import { t } from '../i18n'
 
 /**
  * Puts a title on the profile's watchlist, or takes it off. `compact` is the poster card's icon-only button.
@@ -41,13 +42,13 @@ export function WatchlistButton({ titleKey, title, on, compact = false, onReques
         if (requested) onRequested?.()
       }
     } catch (e) {
-      const text = e instanceof ApiError && e.messages[0] ? e.messages[0] : 'That didn’t work. Try again.'
+      const text = e instanceof ApiError && e.messages[0] ? e.messages[0] : t('That didn’t work. Try again.')
       if (compact) showNotice(text)
       else setMessage(text)
     }
   }
 
-  const label = onList ? `Remove ${title} from your watchlist` : `Add ${title} to your watchlist`
+  const label = onList ? t('Remove {title} from your watchlist', { title }) : t('Add {title} to your watchlist', { title })
   return (
     <>
       <AsyncButton
@@ -58,7 +59,7 @@ export function WatchlistButton({ titleKey, title, on, compact = false, onReques
         onClick={toggle}
       >
         <Bookmark filled={onList} />
-        {!compact && (onList ? ' On watchlist' : ' Watchlist')}
+        {!compact && ` ${onList ? t('On watchlist') : t('Watchlist')}`}
       </AsyncButton>
       {!compact && message && (
         <span className="error" role="alert">

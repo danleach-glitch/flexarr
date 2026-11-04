@@ -1,4 +1,5 @@
 import type { AlbumType } from '../api/types'
+import { t } from '../i18n'
 
 /** What an album's page calls its kind of release: nothing for a plain album, or one nobody has typed. */
 export function albumTypeLabel(type: AlbumType | null | undefined): string | null {
@@ -6,13 +7,13 @@ export function albumTypeLabel(type: AlbumType | null | undefined): string | nul
     case 'ep':
       return 'EP'
     case 'single':
-      return 'Single'
+      return t('Single')
     case 'live':
-      return 'Live'
+      return t('Live', { ctx: 'album-type' })
     case 'compilation':
-      return 'Compilation'
+      return t('Compilation')
     case 'soundtrack':
-      return 'Soundtrack'
+      return t('Soundtrack')
     default:
       return null
   }

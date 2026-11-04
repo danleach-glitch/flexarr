@@ -19,15 +19,15 @@ import { BooksLibrary } from './BooksLibrary'
 import { LibraryRequested } from './LibraryRequested'
 import { PlaylistsPage } from './PlaylistsPage'
 import { AlphaPicker, AlphaRail, ShowMore, useLibraryGrid } from './libraryGrid'
-import { locale, t } from '../i18n'
+import { t, tk } from '../i18n'
 
 const PAGE_SIZE = 200
 
 const sorts = [
-  { value: '', label: 'A–Z' },
-  { value: 'added', label: 'Recently added' },
-  { value: 'year', label: 'Year' },
-  { value: 'rating', label: 'Rating' },
+  { value: '', label: tk('A–Z') },
+  { value: 'added', label: tk('Recently added') },
+  { value: 'year', label: tk('Year') },
+  { value: 'rating', label: tk('Rating') },
 ] as const
 /** What a music library's albums sort by: no ratings there. */
 const albumSorts = sorts.filter((s) => s.value !== 'rating')
@@ -42,7 +42,7 @@ export function LibraryPage() {
   const [params] = useSearchParams()
   const { libraries } = useLibraries()
   const library = libraries.find((l) => l.id === id)
-  if (!library) return <p className="page-message muted">{libraries.length ? 'This library no longer exists.' : 'Loading…'}</p>
+  if (!library) return <p className="page-message muted">{libraries.length ? t('This library no longer exists.') : t('Loading…')}</p>
   // Podcasts have pages of their own: what you follow, and Apple's directory to find more.
   if (library.type === 'Podcasts') return <Navigate to="/podcasts" replace />
   // Books have shelves, series, authors and narrators of their own.
@@ -90,12 +90,12 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
     [music, requestable],
   )
   return (
-    <nav className="view-switch" aria-label={`${library.name} views`}>
+    <nav className="view-switch" aria-label={t('{name} views', { name: library.name })}>
       <Link to={`/library/${library.id}`} aria-current={current('browse')}>
         {t('Browse')}
       </Link>
       <Link to={`/library/${library.id}?view=all`} aria-current={current('all')}>
-        {{ Movies: 'All movies', TvShows: 'All shows', Music: 'Artists', Podcasts: 'All podcasts', HomeVideos: 'All folders', Audiobooks: 'All books' }[library.type]}
+        {{ Movies: t('All movies'), TvShows: t('All shows'), Music: t('Artists'), Podcasts: t('All podcasts'), HomeVideos: t('All folders'), Audiobooks: t('All books') }[library.type]}
       </Link>
       {library.type === 'Music' && (
         <Link to={`/library/${library.id}?view=albums`} aria-current={current('albums')}>
@@ -127,7 +127,6 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
 function LibraryGenres({ library }: { library: Library }) {
   const music = library.type === 'Music'
   const { data, error, reload } = useApi((signal) => (music ? getLibraryAlbumGenres : getLibraryGenres)(library.id, signal), [library.id])
-  const noun = library.type === 'Movies' ? ['movie', 'movies'] : music ? ['album', 'albums'] : ['show', 'shows']
   return (
     <div className="library-page">
       <header className="library-header">
@@ -149,7 +148,11 @@ function LibraryGenres({ library }: { library: Library }) {
               {g.backdrop ? <img src={imageUrl(g.backdrop, 780)} alt="" loading="lazy" /> : <GenreCovers covers={g.covers} />}
               <span className="genre-name">{g.name}</span>
               <span className="genre-count">
-                {g.count} {g.count === 1 ? noun[0] : noun[1]}
+                {library.type === 'Movies'
+                  ? t('{count, plural, one {# movie} other {# movies}}', { count: g.count })
+                  : music
+                    ? t('{count, plural, one {# album} other {# albums}}', { count: g.count })
+                    : t('{count, plural, one {# show} other {# shows}}', { count: g.count })}
               </span>
             </Link>
           ))}
@@ -249,7 +252,7 @@ function LibraryBrowse({ library }: { library: Library }) {
     if (!loaded || !page || page.items.length === 0) return loaded
     const row: HomeRow = {
       id: 'your-artists',
-      title: 'Your artists',
+      title: t('Your artists'),
       style: 'poster',
       items: page.items,
       link: page.total > page.items.length ? `/library/${library.id}?view=all` : null,
@@ -274,7 +277,7 @@ function LibraryBrowse({ library }: { library: Library }) {
         <header className="library-header">
           <div className="library-heading">{heading}</div>
         </header>
-        <p className="page-message muted">{library.scan ? 'Titles appear here as the scan finds them.' : 'Nothing here yet.'}</p>
+        <p className="page-message muted">{library.scan ? t('Titles appear here as the scan finds them.') : t('Nothing here yet.')}</p>
       </div>
     )
   }
@@ -322,6 +325,39 @@ function GenrePlay({ library, genre, disabled }: { library: string; genre: strin
       </AsyncButton>
     </div>
   )
+}
+
+/** "1,204 movies", "12 Jazz albums", "3 matching": how many titles the grid below holds. */
+function countLine(library: Library, total: number | undefined, { albums, genrePage, genre, query }: { albums: boolean; genrePage: boolean; genre: string; query: string }) {
+  if (albums) {
+    const count = total ?? 0
+    if (query) return t('{count} matching', { count })
+    if (genre && !genrePage) return t('{count, plural, one {# {genre} album} other {# {genre} albums}}', { count, genre })
+    return t('{count, plural, one {# album} other {# albums}}', { count })
+  }
+  if (genrePage) {
+    const count = total ?? 0
+    if (query) return t('{count} matching', { count })
+    return library.type === 'TvShows' ? t('{count, plural, one {# show} other {# shows}}', { count }) : t('{count, plural, one {# movie} other {# movies}}', { count })
+  }
+  const count = total ?? library.itemCount
+  if (query || genre) return t('{count} matching', { count })
+  switch (library.type) {
+    case 'Movies':
+      return t('{count, plural, one {# movie} other {# movies}}', { count })
+    case 'TvShows':
+      return t('{count, plural, one {# show} other {# shows}}', { count })
+    case 'Music':
+      return t('{count, plural, one {# artist} other {# artists}}', { count })
+    case 'Podcasts':
+      return t('{count, plural, one {# podcast} other {# podcasts}}', { count })
+    case 'HomeVideos':
+      return t('{count, plural, one {# folder} other {# folders}}', { count })
+    case 'Audiobooks':
+      return t('{count, plural, one {# book} other {# books}}', { count })
+    default:
+      return t('{count, plural, one {# title} other {# titles}}', { count })
+  }
 }
 
 /** How many artists Your artists shows before its See all. */
@@ -388,13 +424,7 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
             </div>
           )}
           <p className="muted">
-            {total === undefined && (albums || genrePage)
-              ? '\u00a0'
-              : albums
-                ? `${(total ?? 0).toLocaleString(locale())} ${genre && !query && !genrePage ? `${genre} ` : ''}${query ? 'matching' : total === 1 ? 'album' : 'albums'}`
-                : genrePage
-                  ? `${(total ?? 0).toLocaleString(locale())} ${query ? 'matching' : library.type === 'TvShows' ? (total === 1 ? 'show' : 'shows') : total === 1 ? 'movie' : 'movies'}`
-                  : `${(total ?? library.itemCount).toLocaleString(locale())} ${query || genre ? 'matching' : { Movies: 'movies', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts', HomeVideos: 'folders', Audiobooks: 'books' }[library.type]}`}
+            {total === undefined && (albums || genrePage) ? '\u00a0' : countLine(library, total, { albums, genrePage, genre, query })}
           </p>
           {albums && genre && (
             // A genre plays as a station: up to 200 of its tracks, in order or shuffled.
@@ -402,11 +432,11 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
           )}
         </div>
         <div className="library-tools">
-          <input type="search" placeholder={`Search ${library.name}`} aria-label={`Search ${library.name}`} value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input type="search" placeholder={t('Search {name}', { name: library.name })} aria-label={t('Search {name}', { name: library.name })} value={search} onChange={(e) => setSearch(e.target.value)} />
           <select aria-label={t('Sort by')} value={sort} onChange={(e) => setParam('sort', e.target.value)}>
             {(albums ? albumSorts : sorts).map((s) => (
               <option key={s.value} value={s.value}>
-                {s.label}
+                {t(s.label)}
               </option>
             ))}
           </select>
@@ -429,7 +459,7 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
       {library.scan && <ScanProgress scan={library.scan} />}
       {grown && !small && (
         <p className="library-new" role="status">
-          {library.itemCount > (loadedCount ?? 0) ? 'New titles have arrived.' : 'Some titles have gone.'}{' '}
+          {library.itemCount > (loadedCount ?? 0) ? t('New titles have arrived.') : t('Some titles have gone.')}{' '}
           <button className="button quiet small" onClick={restart}>
             {t('Refresh')}
           </button>
@@ -438,7 +468,11 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
       {error && <PageError error={error} onRetry={restart} />}
       {items.length === 0 && total === 0 && (
         <p className="page-message muted">
-          {query ? `Nothing in ${library.name} matches “${query}”.` : library.scan ? 'Titles appear here as the scan finds them.' : 'Nothing here yet.'}
+          {query
+            ? t('Nothing in {name} matches “{query}”.', { name: library.name, query })
+            : library.scan
+              ? t('Titles appear here as the scan finds them.')
+              : t('Nothing here yet.')}
         </p>
       )}
 

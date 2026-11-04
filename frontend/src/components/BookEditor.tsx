@@ -41,9 +41,9 @@ export function BookEditor({ detail, onSaved, onClose }: { detail: ItemDetail; o
 
   async function save(e?: FormEvent) {
     e?.preventDefault()
-    if (!title.trim()) return setError('A book needs a title.')
+    if (!title.trim()) return setError(t('A book needs a title.'))
     const parsedYear = year.trim() ? Number(year) : null
-    if (parsedYear !== null && !(Number.isInteger(parsedYear) && parsedYear > 0 && parsedYear <= 3000)) return setError('A year such as 2016.')
+    if (parsedYear !== null && !(Number.isInteger(parsedYear) && parsedYear > 0 && parsedYear <= 3000)) return setError(t('A year such as 2016.'))
     // Other series it's in stay as they are; the first is the one edited here.
     const others = (detail.book?.series ?? []).slice(1).map((s) => ({ name: s.name, sequence: s.sequence }))
     setSaving(true)
@@ -71,7 +71,7 @@ export function BookEditor({ detail, onSaved, onClose }: { detail: ItemDetail; o
   return (
     <div className="dialog-backdrop" onClick={() => !saving && onClose()}>
       <form className="panel book-editor" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="book-editor-title" onClick={(e) => e.stopPropagation()} onSubmit={save}>
-        <h2 id="book-editor-title">Edit {item.title}</h2>
+        <h2 id="book-editor-title">{t('Edit {title}', { title: item.title })}</h2>
         <div className="book-editor-body">
           <div className="book-editor-fields">
             <label className="field wide">
@@ -86,8 +86,8 @@ export function BookEditor({ detail, onSaved, onClose }: { detail: ItemDetail; o
               <span className="field-label">{t('Year')}</span>
               <input type="text" value={year} onChange={(e) => change(setYear)(e.target.value)} disabled={saving} inputMode="numeric" maxLength={4} />
             </label>
-            <NameList label={t('Authors')} names={authors} typed={typed.authors} disabled={saving} onType={(t) => setTyped({ ...typed, authors: t })} onChange={change(setAuthors)} />
-            <NameList label={t('Narrators')} names={narrators} typed={typed.narrators} disabled={saving} onType={(t) => setTyped({ ...typed, narrators: t })} onChange={change(setNarrators)} />
+            <NameList kind="authors" names={authors} typed={typed.authors} disabled={saving} onType={(t) => setTyped({ ...typed, authors: t })} onChange={change(setAuthors)} />
+            <NameList kind="narrators" names={narrators} typed={typed.narrators} disabled={saving} onType={(t) => setTyped({ ...typed, narrators: t })} onChange={change(setNarrators)} />
             <label className="field">
               <span className="field-label">{t('Series')}</span>
               <input type="text" value={series} onChange={(e) => change(setSeries)(e.target.value)} disabled={saving} maxLength={200} />
@@ -96,7 +96,7 @@ export function BookEditor({ detail, onSaved, onClose }: { detail: ItemDetail; o
               <span className="field-label">{t('Number')}</span>
               <input type="text" value={sequence} onChange={(e) => change(setSequence)(e.target.value)} disabled={saving || !series.trim()} inputMode="decimal" maxLength={20} />
             </label>
-            <NameList label={t('Genres')} names={genres} typed={typed.genres} disabled={saving} onType={(t) => setTyped({ ...typed, genres: t })} onChange={change(setGenres)} />
+            <NameList kind="genres" names={genres} typed={typed.genres} disabled={saving} onType={(t) => setTyped({ ...typed, genres: t })} onChange={change(setGenres)} />
             <label className="field wide">
               <span className="field-label">{t('Description')}</span>
               <textarea value={overview} rows={6} onChange={(e) => change(setOverview)(e.target.value)} disabled={saving} />

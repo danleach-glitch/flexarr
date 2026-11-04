@@ -41,7 +41,7 @@ export function SubtitleSearchDialog({ itemId, fileId, title, onDownloaded, onCl
   return (
     <div className="dialog-backdrop" onClick={() => !busy && onClose()}>
       <div className="panel fix-match subtitle-search" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="subtitle-search-title" onClick={(e) => e.stopPropagation()}>
-        <h2 id="subtitle-search-title">Subtitles for {title}</h2>
+        <h2 id="subtitle-search-title">{t('Subtitles for {title}', { title })}</h2>
         <p className="muted">{t('From the subtitle sites Bazarr searches, in the languages it’s set up for. The one you choose is saved beside the video.')}</p>
 
         <div className="fix-match-results" aria-busy={results.loading}>
@@ -62,9 +62,9 @@ export function SubtitleSearchDialog({ itemId, fileId, title, onDownloaded, onCl
                 >
                   <span className="fix-match-text">
                     <strong>{r.languageLabel}</strong>
-                    <span className="subtitle-release">{r.release || 'Release not named'}</span>
+                    <span className="subtitle-release">{r.release || t('Release not named')}</span>
                     <span className="muted">
-                      {[r.provider, r.uploader && `by ${r.uploader}`, `${r.score}% match`].filter(Boolean).join('\u2003')}
+                      {[r.provider, r.uploader && t('by {name}', { name: r.uploader }), t('{score}% match', { score: r.score })].filter(Boolean).join('\u2003')}
                     </span>
                   </span>
                   {r.matchesFile && <span className="tag keep">{t('Matches your file')}</span>}
@@ -88,7 +88,7 @@ export function SubtitleSearchDialog({ itemId, fileId, title, onDownloaded, onCl
             {t('Cancel')}
           </button>
           <AsyncButton className="button" disabled={!chosen || busy} busy={busy && !!chosen} onClick={() => download(chosen)}>
-            {busy ? 'Downloading…' : 'Download'}
+            {busy ? t('Downloading…') : t('Download')}
           </AsyncButton>
         </div>
       </div>

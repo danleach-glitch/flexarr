@@ -35,7 +35,7 @@ export function BookTools({ player }: { player: AudioPlayer }) {
     <>
       <button
         className={speed === 1 ? 'icon-button now-playing-speed' : 'icon-button now-playing-speed active'}
-        aria-label={`Speed, ${formatSpeed(speed)}`}
+        aria-label={t('Speed, {speed}', { speed: formatSpeed(speed) })}
         aria-haspopup="menu"
         aria-expanded={open?.menu === 'speed'}
         onClick={toggle('speed')}
@@ -60,8 +60,8 @@ export function BookTools({ player }: { player: AudioPlayer }) {
         disabled={!book && !isBook(player.current)}
         onClick={() =>
           player.addBookmark().then(
-            () => showNotice(`Bookmarked ${formatClock(time)}`),
-            () => showNotice('That didn’t work. Try again.'),
+            () => showNotice(t('Bookmarked {time}', { time: formatClock(time) })),
+            () => showNotice(t('That didn’t work. Try again.')),
           )
         }
       >
@@ -72,8 +72,8 @@ export function BookTools({ player }: { player: AudioPlayer }) {
           label={t('Speed')}
           at={open.at}
           actions={[
-            { label: `Slower (${formatSpeed(stepSpeed(speed, -1))})`, run: () => player.setSpeed(stepSpeed(speed, -1)) },
-            { label: `Faster (${formatSpeed(stepSpeed(speed, 1))})`, run: () => player.setSpeed(stepSpeed(speed, 1)) },
+            { label: t('Slower ({speed})', { speed: formatSpeed(stepSpeed(speed, -1)) }), run: () => player.setSpeed(stepSpeed(speed, -1)) },
+            { label: t('Faster ({speed})', { speed: formatSpeed(stepSpeed(speed, 1)) }), run: () => player.setSpeed(stepSpeed(speed, 1)) },
             'divider',
             ...bookSpeedPresets.map((s) => ({ label: `${formatSpeed(s)}${s === speed ? ' ✓' : ''}`, run: () => player.setSpeed(s) })),
           ]}
@@ -86,7 +86,7 @@ export function BookTools({ player }: { player: AudioPlayer }) {
           at={open.at}
           actions={[
             ...bookSleepChoices(end).map((choice) => ({ label: choice.label, run: () => player.setSleep(choice.start()) })),
-            ...(player.sleep ? ['divider' as const, { label: 'Turn off', run: () => player.setSleep(null) }] : []),
+            ...(player.sleep ? ['divider' as const, { label: t('Turn off'), run: () => player.setSleep(null) }] : []),
           ]}
           onClose={() => setOpen(null)}
         />

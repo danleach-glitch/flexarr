@@ -38,14 +38,14 @@ export function BookSeriesPage() {
       <header className="book-series-header">
         <h1>{data.name}</h1>
         <p className="facts">
-          <span>{data.books.length === 1 ? '1 book' : `${data.books.length} books`}</span>
-          {finished > 0 && <span>{finished === data.books.length ? 'All finished' : `${finished} finished`}</span>}
+          <span>{t('{count, plural, one {# book} other {# books}}', { count: data.books.length })}</span>
+          {finished > 0 && <span>{finished === data.books.length ? t('All finished') : t('{count} finished', { count: finished })}</span>}
         </p>
         {data.description && <Overview text={data.description} />}
         {next && (
           <div className="detail-actions">
             <button className="button" onClick={() => player.play([next])}>
-              <icon.play /> {progressOf(next) !== null ? 'Resume' : 'Play'} {next.title}
+              <icon.play /> {progressOf(next) !== null ? t('Resume {title}', { title: next.title }) : t('Play {title}', { title: next.title })}
             </button>
           </div>
         )}
@@ -70,7 +70,7 @@ export function BookSeriesPage() {
                   ))}
                 </span>
                 {progress !== null && !book.userData.watched && (
-                  <span className="detail-progress" aria-label={`${Math.round(progress * 100)}% listened`}>
+                  <span className="detail-progress" aria-label={t('{percent}% listened', { percent: Math.round(progress * 100) })}>
                     <span style={{ width: `${progress * 100}%` }} />
                   </span>
                 )}
@@ -84,7 +84,7 @@ export function BookSeriesPage() {
                   isNext && <span className="series-book-next">{t('Up next')}</span>
                 )}
               </span>
-              <button className="icon-button" aria-label={`${progress !== null && !book.userData.watched ? 'Resume' : 'Play'} ${book.title}`} onClick={() => player.play([book])}>
+              <button className="icon-button" aria-label={progress !== null && !book.userData.watched ? t('Resume {title}', { title: book.title }) : t('Play {title}', { title: book.title })} onClick={() => player.play([book])}>
                 <icon.play />
               </button>
             </li>
@@ -105,7 +105,7 @@ export function BookSeriesPage() {
                   </div>
                 </div>
                 <span className="card-title">{b.title}</span>
-                <span className="card-subtitle">{[b.sequence && `Book ${b.sequence}`, b.year].filter(Boolean).join(', ')}</span>
+                <span className="card-subtitle">{[b.sequence && t('Book {number}', { number: b.sequence }), b.year].filter(Boolean).join(', ')}</span>
               </div>
             ))}
           </div>

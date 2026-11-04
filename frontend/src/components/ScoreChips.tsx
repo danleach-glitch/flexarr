@@ -1,9 +1,9 @@
 import type { RottenTomatoesState } from '../api/types'
 import type { Scores } from '../lib/scores'
 import { scoreMarks, type ScoreMarkDrawing } from './scoreMarks.generated'
-import { t } from '../i18n'
+import { locale, t, tk } from '../i18n'
 
-const TOMATO_WORDS: Record<RottenTomatoesState, string> = { CertifiedFresh: 'Certified Fresh', Fresh: 'Fresh', Rotten: 'Rotten' }
+const TOMATO_WORDS: Record<RottenTomatoesState, string> = { CertifiedFresh: tk('Certified Fresh'), Fresh: tk('Fresh'), Rotten: tk('Rotten') }
 const TOMATO_MARKS: Record<RottenTomatoesState, ScoreMarkDrawing> = {
   CertifiedFresh: scoreMarks.certifiedFresh,
   Fresh: scoreMarks.fresh,
@@ -27,7 +27,7 @@ export function ScoreChips({ scores }: { scores: Scores }) {
     <>
       {imdb !== null && (
         // role="img" so screen readers read the label: on a plain span many skip it, and the mark and number are hidden.
-        <span className="score score-chip" role="img" aria-label={`IMDb ${imdb.toFixed(1)} out of 10`} title={t('IMDb')}>
+        <span className="score score-chip" role="img" aria-label={t('IMDb {score} out of 10', { score: imdb.toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })} title="IMDb">
           <Mark drawing={scoreMarks.imdb} />
           <span aria-hidden="true">{imdb.toFixed(1)}</span>
         </span>
@@ -36,8 +36,8 @@ export function ScoreChips({ scores }: { scores: Scores }) {
         <span
           className="score score-chip"
           role="img"
-          aria-label={`Rotten Tomatoes ${rt.score}%, ${TOMATO_WORDS[rt.state as RottenTomatoesState]}`}
-          title={`Rotten Tomatoes: ${TOMATO_WORDS[rt.state as RottenTomatoesState]}`}
+          aria-label={t('Rotten Tomatoes {score}%, {state}', { score: rt.score, state: t(TOMATO_WORDS[rt.state as RottenTomatoesState]) })}
+          title={t('Rotten Tomatoes: {state}', { state: t(TOMATO_WORDS[rt.state as RottenTomatoesState]) })}
         >
           <Mark drawing={TOMATO_MARKS[rt.state as RottenTomatoesState]} />
           <span aria-hidden="true">{rt.score}%</span>

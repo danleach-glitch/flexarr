@@ -312,7 +312,7 @@ export function ShowMore({ loaded, total, pageSize, busy, error, onMore }: {
         </p>
       )}
       <AsyncButton className="button quiet" onClick={onMore} disabled={busy}>
-        {error ? 'Try again' : `Show ${Math.min(pageSize, total - loaded)} more`}
+        {error ? t('Try again') : t('Show {count} more', { count: Math.min(pageSize, total - loaded) })}
       </AsyncButton>
     </div>
   )
@@ -331,7 +331,11 @@ function JumpFailed({ letter, jump, short }: { letter: string; jump: (letter: st
   return (
     <p className="alpha-failed" role="alert">
       <span className="error">
-        {short ? `Couldn’t load ${letter}.` : `${letter === '#' ? 'Numbers and symbols' : letter} couldn’t be loaded.`}
+        {short
+          ? t('Couldn’t load {letter}.', { letter })
+          : letter === '#'
+            ? t('Numbers and symbols couldn’t be loaded.')
+            : t('{letter} couldn’t be loaded.', { letter })}
       </span>
       <button type="button" className="button quiet small" onClick={() => jump(letter)}>
         {t('Try again')}
@@ -353,7 +357,7 @@ export function AlphaPicker({ jump, jumping, failed, empty }: AlphaProps) {
             if (e.target.value) jump(e.target.value)
           }}
         >
-          <option value="">{jumping ? 'Loading…' : 'Jump to…'}</option>
+          <option value="">{jumping ? t('Loading…') : t('Jump to…')}</option>
           {LETTERS.map((l) => (
             <option key={l} value={l} disabled={empty.has(l)}>
               {l}
@@ -371,7 +375,7 @@ export function AlphaRail({ jump, jumping, failed, empty }: AlphaProps) {
     <>
       <nav className="alpha-rail" aria-label={t('Jump to letter')} aria-busy={jumping ? true : undefined}>
         {LETTERS.map((l) => (
-          <button key={l} className={jumping === l ? 'jumping' : undefined} onClick={() => jump(l)} disabled={empty.has(l)} aria-label={l === '#' ? 'Numbers and symbols' : undefined}>
+          <button key={l} className={jumping === l ? 'jumping' : undefined} onClick={() => jump(l)} disabled={empty.has(l)} aria-label={l === '#' ? t('Numbers and symbols') : undefined}>
             {l}
             {jumping === l && (
               <span className="alpha-loading" aria-hidden="true">
@@ -387,7 +391,7 @@ export function AlphaRail({ jump, jumping, failed, empty }: AlphaProps) {
         )}
       </nav>
       <p className="visually-hidden" role="status">
-        {jumping ? `Loading titles up to ${jumping === '#' ? 'numbers and symbols' : jumping}…` : ''}
+        {jumping ? (jumping === '#' ? t('Loading titles up to numbers and symbols…') : t('Loading titles up to {letter}…', { letter: jumping })) : ''}
       </p>
     </>
   )

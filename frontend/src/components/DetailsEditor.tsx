@@ -7,14 +7,14 @@ import { automaticSort, withName } from '../lib/names'
 import { t } from '../i18n'
 
 /** An album's kinds of release, as its page names them, with a plain album first. */
-const albumTypes: [string, string][] = [
-  ['album', 'Album'],
+const albumTypes = (): [string, string][] => [
+  ['album', t('Album')],
   ['ep', 'EP'],
-  ['single', 'Single'],
-  ['live', 'Live'],
-  ['compilation', 'Compilation'],
-  ['soundtrack', 'Soundtrack'],
-  ['other', 'Other'],
+  ['single', t('Single')],
+  ['live', t('Live', { ctx: 'album-type' })],
+  ['compilation', t('Compilation')],
+  ['soundtrack', t('Soundtrack')],
+  ['other', t('Other')],
 ]
 
 /**
@@ -64,9 +64,9 @@ export function DetailsEditor({ detail, onSaved, onClose }: { detail: ItemDetail
 
   function save(e?: FormEvent) {
     e?.preventDefault()
-    if (!title.trim()) return setError(`${album ? 'An album' : item.kind === 'Movie' ? 'A movie' : 'A show'} needs a title.`)
+    if (!title.trim()) return setError(album ? t('An album needs a title.') : item.kind === 'Movie' ? t('A movie needs a title.') : t('A show needs a title.'))
     const parsedYear = year.trim() ? Number(year) : null
-    if (parsedYear !== null && !(Number.isInteger(parsedYear) && parsedYear >= 1800 && parsedYear <= 3000)) return setError('A year such as 1999.')
+    if (parsedYear !== null && !(Number.isInteger(parsedYear) && parsedYear >= 1800 && parsedYear <= 3000)) return setError(t('A year such as 1999.'))
     const allGenres = withName(genres, typedGenre)
     void run(() =>
       album
@@ -88,7 +88,7 @@ export function DetailsEditor({ detail, onSaved, onClose }: { detail: ItemDetail
     <div className="dialog-backdrop" onClick={() => !saving && onClose()}>
       <form className="panel book-editor" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="details-editor-title" onClick={(e) => e.stopPropagation()} onSubmit={save}>
         <h2 id="details-editor-title">
-          Edit {item.title}
+          {t('Edit {title}', { title: item.title })}
           {detail.detailsLocked && <span className="tag keep details-edited">{t('Edited')}</span>}
         </h2>
         <div className="book-editor-body">
@@ -117,7 +117,7 @@ export function DetailsEditor({ detail, onSaved, onClose }: { detail: ItemDetail
               <label className="field">
                 <span className="field-label">{t('Type')}</span>
                 <select value={albumType} onChange={(e) => change(setAlbumType)(e.target.value)} disabled={saving}>
-                  {albumTypes.map(([value, label]) => (
+                  {albumTypes().map(([value, label]) => (
                     <option key={value} value={value}>
                       {label}
                     </option>
@@ -126,11 +126,11 @@ export function DetailsEditor({ detail, onSaved, onClose }: { detail: ItemDetail
               </label>
             ) : (
               <label className="field">
-                <span className="field-label">{item.kind === 'Movie' ? 'Studio' : 'Network'}</span>
+                <span className="field-label">{item.kind === 'Movie' ? t('Studio') : t('Network')}</span>
                 <input type="text" value={studio} onChange={(e) => change(setStudio)(e.target.value)} disabled={saving} maxLength={200} />
               </label>
             )}
-            <NameList label={t('Genres')} names={genres} typed={typedGenre} disabled={saving} onType={setTypedGenre} onChange={change(setGenres)} />
+            <NameList kind="genres" names={genres} typed={typedGenre} disabled={saving} onType={setTypedGenre} onChange={change(setGenres)} />
             {!album && (
               <label className="field wide">
                 <span className="field-label">{t('Description')}</span>

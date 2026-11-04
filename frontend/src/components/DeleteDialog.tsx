@@ -21,19 +21,19 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
   const app = arrFor(item.kind)
   const what =
     item.kind === 'Movie'
-      ? { name: item.title, noun: 'movie', detail: 'Radarr deletes the movie’s files from disk and stops tracking it.' }
+      ? { name: item.title, noun: 'movie', detail: t('Radarr deletes the movie’s files from disk and stops tracking it.') }
       : item.kind === 'Audiobook'
         ? { name: item.title, noun: 'book', detail: '' } // no app manages books: the file list below says it all
       : item.kind === 'Artist'
-        ? { name: item.title, noun: 'artist', detail: 'Lidarr deletes the artist and all their files from disk.' }
+        ? { name: item.title, noun: 'artist', detail: t('Lidarr deletes the artist and all their files from disk.') }
       : item.kind === 'Album'
-        ? { name: item.title, noun: 'album', detail: 'Lidarr deletes the album’s files from disk.' }
+        ? { name: item.title, noun: 'album', detail: t('Lidarr deletes the album’s files from disk.') }
       : item.kind === 'Series'
-        ? { name: item.title, noun: 'show', detail: 'Sonarr deletes the files of every episode from disk and stops tracking the show.' }
+        ? { name: item.title, noun: 'show', detail: t('Sonarr deletes the files of every episode from disk and stops tracking the show.') }
         : {
             name: [item.seriesTitle, episodeCode(item), item.title].filter(Boolean).join(' '),
             noun: 'episode',
-            detail: 'Sonarr deletes this episode’s file from disk and stops downloading it.',
+            detail: t('Sonarr deletes this episode’s file from disk and stops downloading it.'),
           }
 
   async function confirm() {
@@ -51,16 +51,17 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
   return (
     <div className="dialog-backdrop" onClick={() => !busy && onClose()}>
       <div className="panel confirm-dialog" ref={dialog} role="alertdialog" aria-modal="true" aria-labelledby="delete-title" aria-describedby="delete-detail" onClick={(e) => e.stopPropagation()}>
-        <h2 id="delete-title">Delete {what.name}?</h2>
+        <h2 id="delete-title">{t('Delete {name}?', { name: what.name })}</h2>
         <div id="delete-detail" className="confirm-dialog-detail">
           {plan.loading && !plan.data && <p>{t('Checking how to delete it…')}</p>}
-          {plan.error && <p className="error">Couldn’t check how to delete it: {plan.error instanceof ApiError && plan.error.messages[0] ? plan.error.messages[0] : plan.error.message}</p>}
-          {plan.data?.managedBy && <p>{what.detail} You can’t undo this.</p>}
+          {plan.error && <p className="error">{t('Couldn’t check how to delete it: {reason}', { reason: plan.error instanceof ApiError && plan.error.messages[0] ? plan.error.messages[0] : plan.error.message })}</p>}
+          {plan.data?.managedBy && <p>{t('{detail} You can’t undo this.', { detail: what.detail })}</p>}
           {plan.data && !plan.data.managedBy && (
             <>
               <p>
-                {app ? `${app} doesn’t manage this ${what.noun}, so Flexarr deletes` : 'Flexarr deletes'}{' '}
-                {plan.data.files.length === 0 ? 'it from the library: there are no files on disk.' : plan.data.files.length === 1 ? 'its file from disk:' : `its ${plan.data.files.length} files from disk:`}
+                {app
+                  ? t('{app} doesn’t manage this {kind, select, movie {movie} book {book} artist {artist} album {album} show {show} other {episode}}, so Flexarr deletes {count, plural, =0 {it from the library: there are no files on disk.} one {its file from disk:} other {its # files from disk:}}', { app, kind: what.noun, count: plan.data.files.length })
+                  : t('Flexarr deletes {count, plural, =0 {it from the library: there are no files on disk.} one {its file from disk:} other {its # files from disk:}}', { count: plan.data.files.length })}
               </p>
               {plan.data.files.length > 0 && (
                 <ul className="delete-files">
@@ -69,7 +70,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
                       <code className="confirm-dialog-path">{f}</code>
                     </li>
                   ))}
-                  {plan.data.files.length > 20 && <li>and {plan.data.files.length - 20} more</li>}
+                  {plan.data.files.length > 20 && <li>{t('and {count} more', { count: plan.data.files.length - 20 })}</li>}
                 </ul>
               )}
               <p>{t('Folders it leaves empty go too. You can’t undo this.')}</p>
@@ -86,7 +87,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
             {t('Keep it')}
           </button>
           <AsyncButton className="button danger" onClick={confirm} busy={busy} disabled={!plan.data}>
-            {`Delete ${what.noun}`}
+            {t('{kind, select, movie {Delete movie} book {Delete book} artist {Delete artist} album {Delete album} show {Delete show} other {Delete episode}}', { kind: what.noun })}
           </AsyncButton>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
+import { t } from '../i18n'
 
 /** A title's description, cut to a few lines with More to read the rest, so a long one can't push everything else away. */
 export function Overview({ text }: { text: string }) {
@@ -26,7 +27,7 @@ export function Overview({ text }: { text: string }) {
       </p>
       {(cut || open) && (
         <button type="button" className="overview-toggle" aria-expanded={open} onClick={() => setOpenFor(open ? null : text)}>
-          {open ? 'Less' : 'More'}
+          {open ? t('Less') : t('More')}
         </button>
       )}
     </div>

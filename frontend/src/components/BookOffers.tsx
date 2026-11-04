@@ -17,8 +17,9 @@ export function BookOffers() {
       {offer ? (
         <>
           <span>
-            Jump to {formatClock(offer.position)}
-            {offer.device ? ` from ${offer.device}` : ''}?
+            {offer.device
+              ? t('Jump to {time} from {device}?', { time: formatClock(offer.position), device: offer.device })
+              : t('Jump to {time}?', { time: formatClock(offer.position) })}
           </span>
           <button className="button small" onClick={player.acceptBookOffer}>
             {t('Jump')}
@@ -30,9 +31,7 @@ export function BookOffers() {
       ) : (
         nextBook && (
           <>
-            <span>
-              Next: <strong>{nextBook.title}</strong>
-            </span>
+            <span>{t.rich('Next: {title}', { title: <strong>{nextBook.title}</strong> })}</span>
             <button className="button small" onClick={player.playNextBook}>
               <icon.play /> {t('Play')}
             </button>

@@ -72,9 +72,11 @@ function TitleMatchDialog({ item, onFixed, onClose }: Props) {
       <div className="panel fix-match" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="fix-match-title" onClick={(e) => e.stopPropagation()}>
         <h2 id="fix-match-title">{t('Fix match')}</h2>
         <p className="muted">
-          Which {noun} is this? The one you choose stays matched{managed ? `, and ${arr} manages it` : `, with details from ${source}`}.
+          {managed
+            ? t('{kind, select, movie {Which movie is this?} book {Which book is this?} other {Which show is this?}} The one you choose stays matched, and {app} manages it.', { kind: noun, app: arr })
+            : t('{kind, select, movie {Which movie is this?} book {Which book is this?} other {Which show is this?}} The one you choose stays matched, with details from {source}.', { kind: noun, source })}
         </p>
-        <ul className="fix-match-paths" aria-label={item.kind === 'Movie' ? 'Files' : 'Folder'}>
+        <ul className="fix-match-paths" aria-label={item.kind === 'Movie' ? t('Files') : t('Folder')}>
           {paths.map((p) => (
             <li key={p}>
               <code>{p}</code>
@@ -83,7 +85,7 @@ function TitleMatchDialog({ item, onFixed, onClose }: Props) {
         </ul>
 
         <form className="fix-match-search" onSubmit={search} role="search">
-          <input type="search" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={`Search ${source}`} autoFocus disabled={busy} />
+          <input type="search" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={t('Search {source}', { source })} autoFocus disabled={busy} />
           <AsyncButton className="button quiet" type="submit" disabled={busy} busy={results.loading}>
             <Search /> {t('Search')}
           </AsyncButton>
@@ -114,7 +116,7 @@ function TitleMatchDialog({ item, onFixed, onClose }: Props) {
                     {c.overview && <span className="fix-match-overview">{c.overview}</span>}
                   </span>
                   {(c.current || managed) && (
-                    <span className={c.current ? 'tag keep' : 'tag'}>{c.current ? 'Current match' : c.managedBy ? `In ${c.managedBy}` : `Adds to ${arr}`}</span>
+                    <span className={c.current ? 'tag keep' : 'tag'}>{c.current ? t('Current match') : c.managedBy ? t('In {app}', { app: c.managedBy }) : t('Adds to {app}', { app: arr })}</span>
                   )}
                 </button>
               </li>
@@ -125,11 +127,13 @@ function TitleMatchDialog({ item, onFixed, onClose }: Props) {
         {chosen && (
           <p className="fix-match-note" role="status">
             {!managed
-              ? `Flexarr takes ${chosen.title}’s details from ${source}, and nothing is added anywhere.`
+              ? t('Flexarr takes {title}’s details from {source}, and nothing is added anywhere.', { title: chosen.title, source })
               : chosen.managedBy
-                ? `${chosen.managedBy} already has ${chosen.title}${chosen.managedPath ? ` (in ${chosen.managedPath})` : ''}. Flexarr takes its details from there.`
-                : `${arr} will manage ${chosen.title} from this folder: added unmonitored and without a search, so nothing is downloaded.`}
-            {edited && ` The details you edited are replaced by ${chosen.title}’s.`}
+                ? chosen.managedPath
+                  ? t('{app} already has {title} (in {path}). Flexarr takes its details from there.', { app: chosen.managedBy, title: chosen.title, path: chosen.managedPath })
+                  : t('{app} already has {title}. Flexarr takes its details from there.', { app: chosen.managedBy, title: chosen.title })
+                : t('{app} will manage {title} from this folder: added unmonitored and without a search, so nothing is downloaded.', { app: arr, title: chosen.title })}
+            {edited && ` ${t('The details you edited are replaced by {title}’s.', { title: chosen.title })}`}
           </p>
         )}
         {error && (
@@ -148,7 +152,7 @@ function TitleMatchDialog({ item, onFixed, onClose }: Props) {
             {t('Cancel')}
           </button>
           <AsyncButton className="button" disabled={!chosen || busy} onClick={() => chosen && run(() => fixMatch(item.id, chosen.id))}>
-            {chosen ? `Use ${chosen.title}${chosen.year ? ` (${chosen.year})` : ''}` : 'Choose one'}
+            {chosen ? (chosen.year ? t('Use {title} ({year})', { title: chosen.title, year: String(chosen.year) }) : t('Use {title}', { title: chosen.title })) : t('Choose one')}
           </AsyncButton>
         </div>
       </div>
@@ -220,7 +224,7 @@ function BookMatchDialog({ item, onFixed, onClose }: Props) {
                     </strong>
                     {m.subtitle && <span className="muted">{m.subtitle}</span>}
                     <span className="muted meta-line">
-                      {[m.authors.join(', '), m.narrators.length ? `Read by ${m.narrators.join(', ')}` : null, m.series, m.durationSeconds ? formatDuration(m.durationSeconds) : null]
+                      {[m.authors.join(', '), m.narrators.length ? t('Read by {names}', { names: m.narrators.join(', ') }) : null, m.series, m.durationSeconds ? formatDuration(m.durationSeconds) : null]
                         .filter((fact): fact is string => !!fact)
                         .map((fact) => (
                           <span key={fact}>{fact}</span>
@@ -243,7 +247,7 @@ function BookMatchDialog({ item, onFixed, onClose }: Props) {
             {t('Cancel')}
           </button>
           <AsyncButton className="button" disabled={!chosen || busy} onClick={() => chosen && use(chosen)}>
-            {chosen ? `Use ${chosen.title}` : 'Choose one'}
+            {chosen ? t('Use {title}', { title: chosen.title }) : t('Choose one')}
           </AsyncButton>
         </div>
       </div>

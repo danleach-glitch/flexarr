@@ -137,9 +137,9 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   // then the ellipsis for everything else, so the row doesn't wrap.
   const more: MenuAction[] = []
   // A child's profile has no collections and doesn't find subtitles.
-  if ((item.kind === 'Movie' || item.kind === 'Series') && !kids) more.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
-  if (detail.canSearchSubtitles && !kids) more.push({ label: 'Search for subtitles…', run: () => setFindingSubtitles(true) })
-  if (canFixMatch) more.push({ label: 'Edit…', run: () => setEditingDetails(true) }, { label: 'Fix match…', run: () => setMatching(true) })
+  if ((item.kind === 'Movie' || item.kind === 'Series') && !kids) more.push({ label: t('Add to collection…'), run: () => openAddToCollection(item) })
+  if (detail.canSearchSubtitles && !kids) more.push({ label: t('Search for subtitles…'), run: () => setFindingSubtitles(true) })
+  if (canFixMatch) more.push({ label: t('Edit…'), run: () => setEditingDetails(true) }, { label: t('Fix match…'), run: () => setMatching(true) })
   // A parent's say over the title for profiles with an age limit, once any has one; its episodes follow it.
   const override = detail.kidsOverride
   if (mainProfile && override != null && series === undefined && profiles?.some((p) => p.maxRatingAge != null)) {
@@ -147,12 +147,12 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
       await setKidsOverride(item.id, to)
       onChange()
     }
-    if (override === 'None') more.push({ label: 'Allow for kids', run: kids('Allow') }, { label: 'Block for kids', run: kids('Block') })
-    else more.push({ label: override === 'Allow' ? 'Stop allowing for kids' : 'Stop blocking for kids', run: kids('None') })
+    if (override === 'None') more.push({ label: t('Allow for kids'), run: kids('Allow') }, { label: t('Block for kids'), run: kids('Block') })
+    else more.push({ label: override === 'Allow' ? t('Stop allowing for kids') : t('Stop blocking for kids'), run: kids('None') })
   }
   if (canDelete) {
     if (more.length) more.push('divider')
-    more.push({ label: 'Delete…', run: () => setDeleting(true), danger: true })
+    more.push({ label: t('Delete…'), run: () => setDeleting(true), danger: true })
   }
   const best = detail.files[0]
 
@@ -175,12 +175,12 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   }, [warmId])
   const playLabel = (() => {
     if (item.kind === 'Series') {
-      if (!nextUp) return 'Play'
-      if (item.userData.watched) return `Watch again from ${episodeHeading(nextUp)}`
-      const resume = nextUp.userData.positionSeconds > 0
-      return `${resume ? 'Resume' : 'Play'} ${episodeHeading(nextUp)}`
+      if (!nextUp) return t('Play')
+      const episode = episodeHeading(nextUp)
+      if (item.userData.watched) return t('Watch again from {episode}', { episode })
+      return nextUp.userData.positionSeconds > 0 ? t('Resume {episode}', { episode }) : t('Play {episode}', { episode })
     }
-    return progress ? `Resume from ${formatClock(item.userData.positionSeconds)}` : 'Play'
+    return progress ? t('Resume from {time}', { time: formatClock(item.userData.positionSeconds) }) : t('Play')
   })()
 
   return (
@@ -193,7 +193,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
           {/* Moved on from the episode just watched: said, since the page changed under the reader. */}
           {movedOn && (
             <p className="visually-hidden" role="status">
-              Now showing {episodeHeading(item)}, {item.title}
+              {t('Now showing {episode}, {title}', { episode: episodeHeading(item), title: item.title })}
             </p>
           )}
           {item.kind === 'Episode' && series && (
@@ -247,7 +247,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             )}
             {!kids && (
               <AsyncButton className="button quiet" aria-pressed={item.userData.watched} onClick={toggleWatched}>
-                {item.userData.watched ? <icon.isWatched /> : <icon.watched />} {item.userData.watched ? 'Watched' : 'Mark as watched'}
+                {item.userData.watched ? <icon.isWatched /> : <icon.watched />} {item.userData.watched ? t('Watched') : t('Mark as watched')}
               </AsyncButton>
             )}
             {detail.onWatchlist != null && !kids && <WatchlistButton titleKey={{ libraryItemId: item.id }} title={item.title} on={detail.onWatchlist} />}
@@ -265,15 +265,15 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
                 <icon.more />
               </button>
             )}
-            {moreAt && <Menu label={`More for ${item.title}`} at={moreAt} actions={more} onClose={() => setMoreAt(null)} />}
+            {moreAt && <Menu label={t('More for {title}', { title: item.title })} at={moreAt} actions={more} onClose={() => setMoreAt(null)} />}
           </div>
           {subtitlesSaved && (
             <p className="muted" role="status">
-              {subtitlesSaved} subtitles saved. Choose them from the subtitles menu while it plays.
+              {t('{language} subtitles saved. Choose them from the subtitles menu while it plays.', { language: subtitlesSaved })}
             </p>
           )}
           {progress !== null && (
-            <span className="detail-progress" aria-label={`${Math.round(progress * 100)}% watched`}>
+            <span className="detail-progress" aria-label={t('{percent}% watched', { percent: Math.round(progress * 100) })}>
               <span style={{ width: `${progress * 100}%` }} />
             </span>
           )}
@@ -359,13 +359,13 @@ function Seasons({ series, counts, onChange }: { series: ItemDetail; counts?: Sh
             className={s.id === selected.id ? 'season-tab active' : 'season-tab'}
             onClick={() => setParams({ season: String(s.seasonNumber) }, { replace: true })}
           >
-            {s.homeVideo ? s.title : s.seasonNumber === 0 ? 'Specials' : `Season ${s.seasonNumber}`}
+            {s.homeVideo ? s.title : s.seasonNumber === 0 ? t('Specials') : t('Season {season}', { season: s.seasonNumber })}
             {(() => {
               // Only a season that's short of what's aired says so.
               const count = counts?.find((c) => c.seasonNumber === s.seasonNumber)
               return count && count.have < count.aired ? (
-                <span className="season-count" aria-label={`${count.have} of ${count.aired} episodes`}>
-                  {count.have} of {count.aired}
+                <span className="season-count" aria-label={t('{have} of {count, plural, one {# episode} other {# episodes}}', { have: count.have, count: count.aired })}>
+                  {t('{have} of {aired}', { have: count.have, aired: count.aired })}
                 </span>
               ) : null
             })()}
@@ -374,7 +374,7 @@ function Seasons({ series, counts, onChange }: { series: ItemDetail; counts?: Sh
         ))}
       </div>
       <div className="season-toolbar">
-        <span className="muted">{season.data ? `${season.data.children.length} episodes` : ''}</span>
+        <span className="muted">{season.data ? t('{count, plural, one {# episode} other {# episodes}}', { count: season.data.children.length }) : ''}</span>
         <AsyncButton
           className="text-button"
           onClick={async () => {
@@ -383,7 +383,7 @@ function Seasons({ series, counts, onChange }: { series: ItemDetail; counts?: Sh
             onChange()
           }}
         >
-          {selected.userData.watched ? 'Mark season as unwatched' : 'Mark season as watched'}
+          {selected.userData.watched ? t('Mark season as unwatched') : t('Mark season as watched')}
         </AsyncButton>
       </div>
       <ol className="episode-list">
@@ -413,7 +413,7 @@ function Episode({ episode, overview, onChange }: { episode: ItemSummary; overvi
         state={{ from: location.key } satisfies PlayState}
         onClick={() => rememberScroll(location.key)}
         className="episode-still"
-        aria-label={`Play ${episode.title}`}
+        aria-label={t('Play {title}', { title: episode.title })}
       >
         <Artwork src={episode.artwork.thumb} fallback={episode.artwork.backdrop} title={episode.title} width={500} shape="wide" />
         <span className="episode-play" aria-hidden="true">
@@ -448,7 +448,7 @@ function Episode({ episode, overview, onChange }: { episode: ItemSummary; overvi
 function Cast({ credits, studio }: { credits: Credit[]; studio: string | null }) {
   const cast = credits.filter((c) => c.role === 'Actor')
   const crew = credits.filter((c) => c.role !== 'Actor')
-  const roles = { Director: 'Directed by', Writer: 'Written by', Creator: 'Created by', Producer: 'Produced by' } as const
+  const roles = { Director: t('Directed by'), Writer: t('Written by'), Creator: t('Created by'), Producer: t('Produced by') }
 
   return (
     <section className="cast">
@@ -499,24 +499,24 @@ function FileInfo({ files, itemId, kind }: { files: MediaFile[]; itemId: string;
   const [queued, setQueued] = useState(false)
   return (
     <details className="file-info">
-      <summary>{files.length > 1 ? `${files.length} versions on disk` : 'File and stream details'}</summary>
+      <summary>{files.length > 1 ? t('{count} versions on disk', { count: files.length }) : t('File and stream details')}</summary>
       {files.map((file) => (
         <div key={file.id} className="file">
           <code>{file.path}</code>
-          {file.probeError && <p className="error">This file couldn't be read: {file.probeError}</p>}
+          {file.probeError && <p className="error">{t("This file couldn't be read: {reason}", { reason: file.probeError })}</p>}
           <dl>
             <dt>{t('Video')}</dt>
-            <dd>{[file.videoCodec?.toUpperCase(), file.width && `${file.width}×${file.height}`, pictureLabel(file)].filter(Boolean).join(', ') || 'None'}</dd>
+            <dd>{[file.videoCodec?.toUpperCase(), file.width && `${file.width}×${file.height}`, pictureLabel(file)].filter(Boolean).join(', ') || t('None')}</dd>
             <dt>{t('Audio')}</dt>
-            <dd>{[file.audioCodec?.toUpperCase(), formatChannels(file.audioChannels)].filter(Boolean).join(', ') || 'None'}</dd>
+            <dd>{[file.audioCodec?.toUpperCase(), formatChannels(file.audioChannels)].filter(Boolean).join(', ') || t('None')}</dd>
             <dt>{t('File')}</dt>
             <dd>{[file.container?.toUpperCase(), formatSize(file.size), formatBitrate(file.bitrate)].filter(Boolean).join(', ')}</dd>
             <dt>{t('Subtitles')}</dt>
             <dd>
               {file.streams
                 .filter((s) => s.type === 'Subtitle')
-                .map((s) => s.language ?? 'unknown')
-                .join(', ') || 'None embedded'}
+                .map((s) => s.language ?? t('unknown'))
+                .join(', ') || t('None embedded')}
             </dd>
           </dl>
         </div>
@@ -527,7 +527,7 @@ function FileInfo({ files, itemId, kind }: { files: MediaFile[]; itemId: string;
           disabled={queued}
           onClick={() => analyzeItem(itemId).then(() => setQueued(true))}
         >
-          {queued ? 'Queued: intros and credits for this season will be re-detected shortly' : 'Re-detect intros and credits for this season'}
+          {queued ? t('Queued: intros and credits for this season will be re-detected shortly') : t('Re-detect intros and credits for this season')}
         </AsyncButton>
       )}
     </details>

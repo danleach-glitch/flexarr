@@ -42,9 +42,9 @@ export function CollectionsPage() {
 
   const all = collections.data ?? []
   const sections = [
-    { title: 'Yours', items: all.filter((c) => c.personal) },
-    { title: 'For everyone', items: all.filter((c) => !c.personal && c.kind !== 'Franchise') },
-    { title: 'Franchises', items: all.filter((c) => c.kind === 'Franchise') },
+    { title: t('Yours'), items: all.filter((c) => c.personal) },
+    { title: t('For everyone'), items: all.filter((c) => !c.personal && c.kind !== 'Franchise') },
+    { title: t('Franchises'), items: all.filter((c) => c.kind === 'Franchise') },
   ]
 
   async function adopt(suggestion: CollectionSuggestion) {
@@ -113,7 +113,7 @@ export function CollectionsPage() {
       )}
       {!suggested && collections.data && all.length === 0 && (
         <p className="muted collection-empty">
-          No collections yet. Make one, or pick one from <Link to="/collections?view=suggested">{t('Suggested')}</Link>.
+          {t.rich('No collections yet. Make one, or pick one from {suggested}.', { suggested: <Link to="/collections?view=suggested">{t('Suggested')}</Link> })}
         </p>
       )}
 
@@ -143,9 +143,10 @@ function CollectionCard({ collection: c }: { collection: CollectionSummary }) {
 
 /** "12 of 25 watched", "Smart, 10 titles". */
 function describe(c: CollectionSummary) {
-  const count = `${c.itemCount} ${c.itemCount === 1 ? 'title' : 'titles'}`
-  if (c.kind === 'Smart') return `Smart, ${count}`
-  return c.watchedCount > 0 ? `${c.watchedCount} of ${c.itemCount} watched` : count
+  if (c.kind === 'Smart') return t('Smart, {count, plural, one {# title} other {# titles}}', { count: c.itemCount })
+  return c.watchedCount > 0
+    ? t('{watched} of {count} watched', { watched: c.watchedCount, count: c.itemCount })
+    : t('{count, plural, one {# title} other {# titles}}', { count: c.itemCount })
 }
 
 /** Artwork from a collection's titles: four posters in a grid, or as many as there are. */
@@ -178,14 +179,14 @@ export function CollectionPage() {
     setVersion((v) => v + 1)
   }
 
-  if (error) return <PageError error={error} message={error.message.includes('404') ? 'That collection isn’t here any more.' : undefined} onRetry={reload} />
+  if (error) return <PageError error={error} message={error.message.includes('404') ? t('That collection isn’t here any more.') : undefined} onRetry={reload} />
   if (!data) return <PageLoading />
 
   const c = data.summary
   const items = order ?? data.items
   const manual = c.kind === 'Manual' && c.canEdit
   const next = items.find((i) => !i.userData.watched) ?? items[0]
-  const kindLabel = { Manual: 'Collection', Smart: 'Smart collection', Franchise: 'Movie series', TraktList: 'Trakt list' }[c.kind]
+  const kindLabel = { Manual: t('Collection'), Smart: t('Smart collection'), Franchise: t('Movie series'), TraktList: t('Trakt list') }[c.kind]
 
   async function act(work: () => Promise<unknown>) {
     try {
@@ -228,18 +229,16 @@ export function CollectionPage() {
           </p>
           <h1 className="detail-title">{c.name}</h1>
           <p className="facts">
-            <span>
-              {c.itemCount} {c.itemCount === 1 ? 'title' : 'titles'}
-            </span>
-            {c.watchedCount > 0 && <span>{c.watchedCount} watched</span>}
-            {data.missing.length > 0 && <span>{data.missing.length} not in your library</span>}
+            <span>{t('{count, plural, one {# title} other {# titles}}', { count: c.itemCount })}</span>
+            {c.watchedCount > 0 && <span>{t('{count} watched', { count: c.watchedCount })}</span>}
+            {data.missing.length > 0 && <span>{t('{count} not in your library', { count: data.missing.length })}</span>}
             {c.kind === 'TraktList' ? <span>{t('From Trakt')}</span> : c.personal && <span>{t('Just for you')}</span>}
           </p>
           {c.description && <p className="detail-overview">{c.description}</p>}
           <div className="detail-actions">
             {next && (
               <AsyncButton className="button" onClick={() => play(next)}>
-                <icon.play /> {next.userData.watched ? 'Play' : `Play ${next.title}`}
+                <icon.play /> {next.userData.watched ? t('Play') : t('Play {title}', { title: next.title })}
               </AsyncButton>
             )}
             {items.length > 1 && (
@@ -257,7 +256,7 @@ export function CollectionPage() {
             )}
             {c.canEdit && (
               <AsyncButton className="button quiet" aria-pressed={c.showOnHome} onClick={() => act(() => updateCollection(c.id, { showOnHome: !c.showOnHome }))}>
-                {c.showOnHome ? 'On Home' : 'Show on Home'}
+                {c.showOnHome ? t('On Home') : t('Show on Home')}
               </AsyncButton>
             )}
             {c.canEdit && c.kind !== 'Franchise' && c.kind !== 'TraktList' && (
@@ -265,11 +264,20 @@ export function CollectionPage() {
             )}
             {c.canEdit && (
               <IconButton
-                label={c.kind === 'Franchise' ? 'Hide' : c.kind === 'TraktList' ? 'Remove' : 'Delete'}
+                label={c.kind === 'Franchise' ? t('Hide') : c.kind === 'TraktList' ? t('Remove') : t('Delete')}
                 icon={c.kind === 'Franchise' ? <EyeOff /> : <icon.delete />}
                 className="button quiet icon danger-icon"
                 onClick={() => {
-                  if (!confirm(c.kind === 'Franchise' ? `Hide ${c.name}? It won’t come back with the next sync.` : c.kind === 'TraktList' ? `Stop showing ${c.name}? It stays on Trakt.` : `Delete ${c.name}? The titles stay in your library.`)) return
+                  if (
+                    !confirm(
+                      c.kind === 'Franchise'
+                        ? t('Hide {name}? It won’t come back with the next sync.', { name: c.name })
+                        : c.kind === 'TraktList'
+                          ? t('Stop showing {name}? It stays on Trakt.', { name: c.name })
+                          : t('Delete {name}? The titles stay in your library.', { name: c.name }),
+                    )
+                  )
+                    return
                   return deleteCollection(c.id).then(() => navigate('/collections', { replace: true }))
                 }}
               />
@@ -285,7 +293,11 @@ export function CollectionPage() {
 
       {items.length === 0 && (
         <p className="muted collection-empty">
-          {c.kind === 'Smart' ? 'Nothing matches its rules yet.' : c.kind === 'TraktList' ? 'Nothing on this list is here yet.' : 'Nothing in it yet. Add titles from their ⋯ menu or their page: Add to collection.'}
+          {c.kind === 'Smart'
+            ? t('Nothing matches its rules yet.')
+            : c.kind === 'TraktList'
+              ? t('Nothing on this list is here yet.')
+              : t('Nothing in it yet. Add titles from their ⋯ menu or their page: Add to collection.')}
         </p>
       )}
       {manual && items.length > 1 && <p className="muted collection-hint">{t('Drag posters to reorder.')}</p>}
@@ -315,7 +327,7 @@ export function CollectionPage() {
           <div className="poster-grid">
             {data.missing.map((m) => (
               <div key={m.tmdbId} className="card external-card missing-card">
-                <Link to={`/discover/movie/${m.tmdbId}`} aria-label={`${m.title}, more about it`}>
+                <Link to={`/discover/movie/${m.tmdbId}`} aria-label={t('{title}, more about it', { title: m.title })}>
                   <div className="card-frame">
                     <div className="artwork artwork-poster">{m.poster ? <img src={imageUrl(m.poster, 342)} alt="" loading="lazy" /> : <span className="artwork-fallback">{m.title}</span>}</div>
                   </div>

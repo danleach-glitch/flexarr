@@ -5,20 +5,25 @@ import { useModal } from '../hooks/useModal'
 import { AsyncButton } from './AsyncButton'
 import { safeImageSrc } from '../lib/safeImageSrc'
 import { FilePreview } from './FilePreview'
-import { t } from '../i18n'
+import { t, tk } from '../i18n'
 
-const sourceNames: Record<string, string> = {
-  folder: 'Folder',
-  audible: 'Audible',
-  openlibrary: 'Open Library',
-  tmdb: 'TMDB',
-  tvmaze: 'TVmaze',
-  upload: 'Uploaded',
-  manual: 'Typed',
+/** Brand names stay as they are; the rest are words, translated where they're shown. */
+const sourceNames: Record<string, { name: string; word?: true }> = {
+  folder: { name: tk('Folder'), word: true },
+  audible: { name: 'Audible' },
+  openlibrary: { name: 'Open Library' },
+  tmdb: { name: 'TMDB' },
+  tvmaze: { name: 'TVmaze' },
+  upload: { name: tk('Uploaded'), word: true },
+  manual: { name: tk('Typed'), word: true },
 }
 
 /** A source's name to show; one this app doesn't know yet shows as it comes. */
-const sourceName = (source: string) => sourceNames[source] ?? source.charAt(0).toUpperCase() + source.slice(1)
+function sourceName(source: string) {
+  const known = Object.hasOwn(sourceNames, source) ? sourceNames[source] : undefined
+  if (known) return known.word ? t(known.name) : known.name
+  return source.charAt(0).toUpperCase() + source.slice(1)
+}
 
 /** The chosen file, rather than one of the server's photos. */
 const FILE = ' file'
@@ -116,7 +121,7 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         // The photo chosen has gone from the server's memory: show what it finds now.
-        setError('That photo’s gone. Choose again.')
+        setError(t('That photo’s gone. Choose again.'))
         setPicked(undefined)
         setBroken(new Set())
         reload()
@@ -138,7 +143,7 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
         onClick={(e) => e.stopPropagation()}
         onSubmit={save}
       >
-        <h2 id="person-editor-title">Edit {person.name}</h2>
+        <h2 id="person-editor-title">{t('Edit {name}', { name: person.name })}</h2>
 
         <div className="person-editor-photos">
           {candidates.loading && !candidates.data && <p className="muted">{t('Loading…')}</p>}
@@ -162,7 +167,7 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
             )}
           </div>
           <label className="person-editor-upload file-button">
-            Upload
+            {t('Upload')}
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp"
@@ -185,7 +190,7 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
           <p className="person-editor-sources">
             <span className="muted">{t('Use')}</span>
             {biographies.map((b) => (
-              <button key={b.source} type="button" className="text-button" disabled={saving} aria-label={`Use ${sourceName(b.source)}’s biography`} onClick={() => write(b.text)}>
+              <button key={b.source} type="button" className="text-button" disabled={saving} aria-label={t('Use {source}’s biography', { source: sourceName(b.source) })} onClick={() => write(b.text)}>
                 {sourceName(b.source)}
               </button>
             ))}

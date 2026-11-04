@@ -54,14 +54,14 @@ export function CollectionEditor({
 
   return (
     <div className="dialog-backdrop" onClick={onClose}>
-      <form className="panel collection-editor" ref={dialog} role="dialog" aria-modal="true" aria-label={collection ? `Edit ${collection.name}` : 'New collection'} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <h2>{collection ? `Edit ${collection.name}` : 'New collection'}</h2>
+      <form className="panel collection-editor" ref={dialog} role="dialog" aria-modal="true" aria-label={collection ? t('Edit {name}', { name: collection.name }) : t('New collection')} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+        <h2>{collection ? t('Edit {name}', { name: collection.name }) : t('New collection')}</h2>
         <label className="field">
-          Name
+          {t('Name')}
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} autoFocus placeholder={t('Sunday movies')} />
         </label>
         <label className="field">
-          Description (optional)
+          {t('Description (optional)')}
           <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={300} />
         </label>
 
@@ -94,7 +94,7 @@ export function CollectionEditor({
             <legend className="field-label">{t('Rules')}</legend>
             <div className="field-row">
               <label>
-                Type
+                {t('Type')}
                 <select value={rules.type ?? ''} onChange={(e) => set({ type: (e.target.value || null) as SmartRules['type'] })}>
                   <option value="">{t('Movies and shows')}</option>
                   <option value="movie">{t('Movies')}</option>
@@ -103,7 +103,7 @@ export function CollectionEditor({
                 </select>
               </label>
               <label className="grow">
-                Genre
+                {t('Genre')}
                 <select value={rules.genres?.[0] ?? ''} onChange={(e) => set({ genres: e.target.value ? [e.target.value] : null })}>
                   <option value="">{t('Any genre')}</option>
                   {genres.data?.map((g) => (
@@ -114,16 +114,16 @@ export function CollectionEditor({
             </div>
             <div className="field-row">
               <label className="checkbox">
-                <input type="checkbox" checked={rules.thisYear ?? false} onChange={(e) => set({ thisYear: e.target.checked, yearFrom: null, yearTo: null })} /> This year ({thisYear})
+                <input type="checkbox" checked={rules.thisYear ?? false} onChange={(e) => set({ thisYear: e.target.checked, yearFrom: null, yearTo: null })} /> {t('This year ({year})', { year: String(thisYear) })}
               </label>
               {!rules.thisYear && (
                 <>
                   <label>
-                    From year
+                    {t('From year')}
                     <input type="number" min={1900} max={thisYear + 1} value={rules.yearFrom ?? ''} onChange={(e) => set({ yearFrom: number(e.target.value) })} />
                   </label>
                   <label>
-                    To year
+                    {t('To year')}
                     <input type="number" min={1900} max={thisYear + 1} value={rules.yearTo ?? ''} onChange={(e) => set({ yearTo: number(e.target.value) })} />
                   </label>
                 </>
@@ -131,19 +131,19 @@ export function CollectionEditor({
             </div>
             <div className="field-row">
               <label>
-                Rated at least
+                {t('Rated at least')}
                 <input type="number" min={0} max={10} step={0.1} value={rules.minRating ?? ''} placeholder={t('Any')} onChange={(e) => set({ minRating: number(e.target.value) })} />
               </label>
               <label>
-                {rules.type === 'book' ? 'Finished' : 'Watched'}
+                {rules.type === 'book' ? t('Finished') : t('Watched')}
                 <select value={rules.watched ?? ''} onChange={(e) => set({ watched: (e.target.value || null) as SmartRules['watched'] })}>
                   <option value="">{t('Either')}</option>
                   <option value="unwatched">{t('Not yet')}</option>
-                  <option value="watched">{rules.type === 'book' ? 'Already finished' : 'Already watched'}</option>
+                  <option value="watched">{rules.type === 'book' ? t('Already finished') : t('Already watched')}</option>
                 </select>
               </label>
               <label>
-                Added in the last
+                {t('Added in the last')}
                 <select value={rules.addedWithinDays ?? ''} onChange={(e) => set({ addedWithinDays: number(e.target.value) })}>
                   <option value="">{t('Any time')}</option>
                   <option value="7">{t('Week')}</option>
@@ -155,21 +155,21 @@ export function CollectionEditor({
             </div>
             <div className="field-row">
               <label className="grow">
-                Title or description mentions
+                {t('Title or description mentions')}
                 <input type="text" value={rules.contains ?? ''} placeholder={t('e.g. Christmas')} onChange={(e) => set({ contains: e.target.value || null })} />
               </label>
               <label>
-                Order
+                {t('Order')}
                 <select value={rules.sort ?? 'rating'} onChange={(e) => set({ sort: e.target.value as SmartRules['sort'] })}>
                   <option value="rating">{t('Best rated')}</option>
                   <option value="added">{t('Recently added')}</option>
                   <option value="year">{t('Newest')}</option>
                   <option value="popularity">{t('Most popular')}</option>
-                  <option value="title">A–Z</option>
+                  <option value="title">{t('A–Z')}</option>
                 </select>
               </label>
               <label>
-                At most
+                {t('At most')}
                 <input type="number" min={1} max={200} value={rules.limit ?? 50} onChange={(e) => set({ limit: number(e.target.value) ?? 50 })} />
               </label>
             </div>
@@ -187,7 +187,7 @@ export function CollectionEditor({
             {t('Cancel')}
           </button>
           <AsyncButton type="submit" className="button" busy={saving}>
-            {collection ? 'Save' : 'Create collection'}
+            {collection ? t('Save') : t('Create collection')}
           </AsyncButton>
         </div>
       </form>

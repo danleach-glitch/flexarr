@@ -1,4 +1,4 @@
-import { memo, use, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { Fragment, memo, use, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
   clearApiCache,
@@ -126,16 +126,16 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
     onChange()
   }
 
-  const more: MenuAction[] = [{ label: 'Add to collection…', run: () => openAddToCollection(item) }]
+  const more: MenuAction[] = [{ label: t('Add to collection…'), run: () => openAddToCollection(item) }]
   // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
-  if (!playing && (finished || place.saved > 0)) more.push({ label: 'Mark as unread', run: () => mark(false) })
+  if (!playing && (finished || place.saved > 0)) more.push({ label: t('Mark as unread'), run: () => mark(false) })
   if (mainProfile) {
     // Saving takes the admin: the PIN first, if it's run out here.
-    more.push({ label: 'Edit…', run: () => void unlockFirst().then((unlocked) => unlocked && setEditing('details')) })
-    more.push({ label: 'Edit chapters…', run: () => setEditing('chapters') })
+    more.push({ label: t('Edit…'), run: () => void unlockFirst().then((unlocked) => unlocked && setEditing('details')) })
+    more.push({ label: t('Edit chapters…'), run: () => setEditing('chapters') })
     // The main profile, locked or not, as for a film or show (servers before 0.59 ask for the admin to choose).
-    more.push({ label: 'Fix match…', run: () => setEditing('match') })
-    more.push('divider', { label: 'Delete…', run: () => setDeleting(true), danger: true })
+    more.push({ label: t('Fix match…'), run: () => setEditing('match') })
+    more.push('divider', { label: t('Delete…'), run: () => setDeleting(true), danger: true })
   }
 
   // "und" is a tag's way of saying the language isn't known.
@@ -183,9 +183,9 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
               </AsyncButton>
             )}
             <AsyncButton className="button quiet" aria-pressed={finished} onClick={() => mark(!finished)}>
-              <icon.watched /> {finished ? 'Finished' : 'Mark as finished'}
+              <icon.watched /> {finished ? t('Finished') : t('Mark as finished')}
             </AsyncButton>
-            <MoreButton label={`More for ${item.title}`} actions={more} />
+            <MoreButton label={t('More for {title}', { title: item.title })} actions={more} />
           </div>
         </div>
       </header>
@@ -206,7 +206,7 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
         )}
         {book.chapters.length > 0 && (
           <section className="book-chapters">
-            <h2>{book.chapters.length === 1 ? '1 chapter' : `${book.chapters.length} chapters`}</h2>
+            <h2>{t('{count, plural, one {# chapter} other {# chapters}}', { count: book.chapters.length })}</h2>
             <Chapters
               chapters={book.chapters}
               bookmarks={book.bookmarks}
@@ -221,9 +221,9 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
       </div>
 
       <div className="book-rows">
-        <BookRow title={series ? `More in ${series.name}` : 'More in the series'} items={book.moreInSeries} link={series ? `/book-series/${series.id}` : undefined} />
-        <BookRow title={authors[0] ? `More by ${authors[0].name}` : 'More by the author'} items={book.byAuthor} link={authors[0] ? `/person/${authors[0].personId}` : undefined} />
-        <BookRow title={narrators[0] ? `Read by ${narrators[0].name}` : 'Read by the narrator'} items={book.readByNarrator} link={narrators[0] ? `/person/${narrators[0].personId}` : undefined} />
+        <BookRow title={series ? t('More in {name}', { name: series.name }) : t('More in the series')} items={book.moreInSeries} link={series ? `/book-series/${series.id}` : undefined} />
+        <BookRow title={authors[0] ? t('More by {name}', { name: authors[0].name }) : t('More by the author')} items={book.byAuthor} link={authors[0] ? `/person/${authors[0].personId}` : undefined} />
+        <BookRow title={narrators[0] ? t('Read by {names}', { names: narrators[0].name }) : t('Read by the narrator')} items={book.readByNarrator} link={narrators[0] ? `/person/${narrators[0].personId}` : undefined} />
       </div>
 
       {startingOver && (
@@ -263,8 +263,12 @@ function Facts({ place, year, duration, finished, speed, abridged }: { place: Pl
   const facts = [
     year?.toString(),
     formatDuration(duration),
-    position > 0 && !finished ? `${formatDuration(timeLeft(duration, position, speed))} left${speed !== 1 ? ` at ${formatSpeed(speed)}` : ''}` : null,
-    abridged ? 'Abridged' : null,
+    position > 0 && !finished
+      ? speed !== 1
+        ? t('{time} left at {speed}', { time: formatDuration(timeLeft(duration, position, speed)), speed: formatSpeed(speed) })
+        : t('{time} left', { time: formatDuration(timeLeft(duration, position, speed)) })
+      : null,
+    abridged ? t('Abridged') : null,
   ].filter(Boolean)
   return (
     <p className="facts">
@@ -279,7 +283,7 @@ function PlayButton({ place, sounding, onClick }: { place: Place; sounding: bool
   const position = usePosition(place)
   return (
     <button className="button" onClick={onClick}>
-      {sounding ? <icon.pause /> : <icon.play />} {sounding ? 'Pause' : position > 0 ? `Resume from ${formatClock(position)}` : 'Play'}
+      {sounding ? <icon.pause /> : <icon.play />} {sounding ? t('Pause') : position > 0 ? t('Resume from {time}', { time: formatClock(position) }) : t('Play')}
     </button>
   )
 }
@@ -288,8 +292,8 @@ function PlayButton({ place, sounding, onClick }: { place: Place; sounding: bool
 function StartOverDialog({ place, onConfirm, onClose }: { place: Place; onConfirm: () => void; onClose: () => void }) {
   const position = usePosition(place)
   return (
-    <ConfirmDialog title={t('Start over?')} confirmLabel="Start over" onConfirm={onConfirm} onClose={onClose}>
-      <p>You’re at {formatClock(position)}.</p>
+    <ConfirmDialog title={t('Start over?')} confirmLabel={t('Start over')} onConfirm={onConfirm} onClose={onClose}>
+      <p>{t('You’re at {time}.', { time: formatClock(position) })}</p>
     </ConfirmDialog>
   )
 }
@@ -379,7 +383,7 @@ const ChapterList = memo(function ChapterList({
               </button>
             </div>
             {inChapter.length > 0 && (
-              <ul className="chapter-bookmarks" aria-label={`Bookmarks in ${chapter.title}`}>
+              <ul className="chapter-bookmarks" aria-label={t('Bookmarks in {chapter}', { chapter: chapter.title })}>
                 {inChapter.map((b) => (
                   <li key={b.id} className="chapter-bookmark">
                     <button className="chapter-bookmark-jump" onClick={() => onPlay(b.positionSeconds)}>
@@ -387,7 +391,7 @@ const ChapterList = memo(function ChapterList({
                       <span className="chapter-bookmark-time">{formatClock(b.positionSeconds)}</span>
                       {b.note && <span className="chapter-bookmark-note">{b.note}</span>}
                     </button>
-                    <AsyncButton className="icon-button" aria-label={`Remove the bookmark at ${formatClock(b.positionSeconds)}`} onClick={() => onRemoveBookmark(b.id)}>
+                    <AsyncButton className="icon-button" aria-label={t('Remove the bookmark at {time}', { time: formatClock(b.positionSeconds) })} onClick={() => onRemoveBookmark(b.id)}>
                       <Close />
                     </AsyncButton>
                   </li>
@@ -409,15 +413,21 @@ function ChapterBar({ chapters, index, place, duration }: { chapters: BookChapte
 
 function People({ label, people }: { label: string; people: Credit[] }) {
   if (people.length === 0) return null
+  const links = people.map((p) => (
+    <Link key={p.personId} to={`/person/${p.personId}`}>
+      {p.name}
+    </Link>
+  ))
+  const first = links.slice(0, -1).map((l, i) => (
+    <Fragment key={people[i].personId}>
+      {i > 0 && ', '}
+      {l}
+    </Fragment>
+  ))
   return (
     <p className="book-people">
       <span className="muted">{label} </span>
-      {people.map((p, i) => (
-        <span key={p.personId}>
-          {i > 0 && (i === people.length - 1 ? ' and ' : ', ')}
-          <Link to={`/person/${p.personId}`}>{p.name}</Link>
-        </span>
-      ))}
+      {links.length === 1 ? links[0] : t.rich('{names} and {last}', { names: <>{first}</>, last: links.at(-1) })}
     </p>
   )
 }

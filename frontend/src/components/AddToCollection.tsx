@@ -76,23 +76,23 @@ function AddToCollectionDialog({ item, onClose }: { item: { id: string; title: s
 
   return (
     <div className="dialog-backdrop" onClick={onClose}>
-      <div className="panel add-to-collection" ref={dialog} role="dialog" aria-modal="true" aria-label={`Add ${item.title} to a collection`} onClick={(e) => e.stopPropagation()}>
-        <h2>Add {item.title} to a collection</h2>
+      <div className="panel add-to-collection" ref={dialog} role="dialog" aria-modal="true" aria-label={t('Add {title} to a collection', { title: item.title })} onClick={(e) => e.stopPropagation()}>
+        <h2>{t('Add {title} to a collection', { title: item.title })}</h2>
         {collections.data && editable.length === 0 && <p className="muted">{t('No collections of yours yet. Start one below.')}</p>}
         <ul className="collection-choices">
           {editable.map((c) => (
             <li key={c.id}>
               <label className="checkbox">
                 <input type="checkbox" checked={contains(c)} onChange={() => toggle(c)} /> {c.name}
-                <span className="muted">{c.personal ? 'Just you' : 'Everyone'}</span>
+                <span className="muted">{c.personal ? t('Just you') : t('Everyone')}</span>
               </label>
             </li>
           ))}
         </ul>
-        {others.length > 0 && <p className="muted">Also in {others.map((c) => c.name).join(', ')}.</p>}
+        {others.length > 0 && <p className="muted">{t('Also in {names}.', { names: others.map((c) => c.name).join(', ') })}</p>}
         <form className="field-row" onSubmit={create}>
           <label className="grow">
-            New collection
+            {t('New collection')}
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder={t('Name it, then press Create')} />
           </label>
           <AsyncButton className="button" type="submit" disabled={!name.trim()} busy={creating}>
