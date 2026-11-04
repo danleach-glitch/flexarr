@@ -200,6 +200,11 @@ mac-player-upload: tunnel-apple ## Archive the Mac app (the player) and upload i
 		FLEXARR_MAC_ENTITLEMENTS=FlexarrMac/FlexarrMac-Store.entitlements \
 		FLEXARR_MAC_NOTIFICATION_ENTITLEMENTS=FlexarrMacNotificationService/FlexarrMacNotificationService-Store.entitlements \
 		$(APPLE_VERSION) CURRENT_PROJECT_VERSION=$(BUILD) archive -quiet
+	@# The Swift packages' resource bundles (FlexarrKit's, AetherEngine's) come out of the archive signed with the
+	@# development certificate, and the export doesn't re-sign bundles under Resources, so App Store Connect turns the
+	@# build away (ITMS-90284). They hold no code: unsigned, they're sealed as the app's resources when it's signed.
+	find build/apple/FlexarrMac.xcarchive/Products/Applications/Flexarr.app -type d -name '*.bundle' -path '*/Contents/Resources/*' \
+		-exec codesign --remove-signature {} \;
 	printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' '<plist version="1.0"><dict>' \
 		'<key>method</key><string>app-store-connect</string><key>destination</key><string>$(MAC_EXPORT)</string>' \
 		'<key>teamID</key><string>$(TEAM)</string><key>signingStyle</key><string>automatic</string>' \
