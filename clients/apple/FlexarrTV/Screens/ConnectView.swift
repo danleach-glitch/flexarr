@@ -444,13 +444,13 @@ private struct GuestCode: View {
             if let joining = waiter.joining {
                 HStack(spacing: 20) {
                     ProgressView()
-                    Text(t("Joining {owner}’s Flexarr…", ["owner": joining.ownerName]))
+                    Text(t("Joining {server}…", ["server": joining.serverTitle]))
                         .font(.system(size: 32, weight: .semibold))
                         .foregroundStyle(Color.screen)
                 }
             } else if let offer = waiter.offer {
                 // Anyone who heard the code could have sent an invite: one click to say it's the right one.
-                Text(t("Join {owner}’s Flexarr?", ["owner": offer.ownerName]))
+                Text(t("Join {server}?", ["server": offer.serverTitle]))
                     .font(.system(size: 44, weight: .bold))
                     .foregroundStyle(Color.screen)
                     .fixedSize(horizontal: false, vertical: true)
@@ -463,7 +463,7 @@ private struct GuestCode: View {
                         .buttonStyle(ActionButtonStyle(prominent: true))
                         .focused($focus, equals: .main)
                         // VoiceOver lands here, not on the title: it says whose.
-                        .accessibilityLabel(t("Join {owner}’s Flexarr", ["owner": offer.ownerName]))
+                        .accessibilityLabel(t("Join {server}", ["server": offer.serverTitle]))
                     Button(t("Not now")) { waiter.newCode() }
                         .buttonStyle(ActionButtonStyle(prominent: false))
                 }
@@ -520,7 +520,7 @@ private struct GuestCode: View {
         // The invite arrived while the code showed: said aloud.
         .onChange(of: waiter.offer?.token) { _, token in
             guard token != nil, let offer = waiter.offer else { return }
-            AccessibilityNotification.Announcement(t("Join {owner}’s Flexarr?", ["owner": offer.ownerName])).post()
+            AccessibilityNotification.Announcement(t("Join {server}?", ["server": offer.serverTitle])).post()
         }
         // Polls only while the app is in front; back in front, the same code carries on.
         .task(id: "\(waiter.round)#\(scenePhase == .active)") {
