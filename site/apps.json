@@ -57,10 +57,12 @@
       "id": "mac-player",
       "name": "Mac",
       "icon": "apple",
-      "status": "development",
+      "status": "available",
+      "version": "0.61.0",
       "requires": "A Mac with Apple silicon, macOS 15.2 or later",
-      "summary": "Your libraries in a Mac window, a full-screen player with Picture in Picture and AirPlay, and downloads for watching away from home. On the same App Store page as the iPhone and Apple TV app.",
+      "summary": "Your libraries in a Mac window, a full-screen player with Picture in Picture and AirPlay, and downloads for watching away from home. Download it here today; it's coming to the App Store too, on the same page as the iPhone and Apple TV app.",
       "links": [
+        { "label": "Download for Mac", "href": "https://github.com/danleach-glitch/flexarr/releases/latest/download/Flexarr.dmg", "short": "Download" },
         { "label": "How it connects", "href": "/guide/connect-devices#mac", "short": "Guide" }
       ]
     },
