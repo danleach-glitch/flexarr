@@ -6,6 +6,8 @@
 import { Fragment, createElement, type ReactNode } from 'react'
 import { format, formatParts, parse, type Part } from './messageFormat'
 
+export { Words } from './words.generated'
+
 export interface LanguageInfo {
   code: string
   name: string

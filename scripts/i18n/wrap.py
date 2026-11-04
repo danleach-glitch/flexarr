@@ -70,15 +70,15 @@ def wrap_ts(src):
     return out, manual
 
 
-def add_ts_import(src, path):
-    """Adds t to the file's import from the i18n module (or a new import after the last one)."""
+def add_ts_import(src, path, name="t"):
+    """Adds t (or another name) to the file's import from the i18n module (or a new import after the last one)."""
     import os
     existing = re.search(r"import \{([^}]*)\} from '((?:\.\.?/)+i18n|\.)'", src)
     if existing:
         names = [n.strip() for n in existing.group(1).split(",") if n.strip()]
-        if "t" in names:
+        if name in names:
             return src
-        names = sorted(set(names + ["t"]), key=str.lower)
+        names = sorted(set(names + [name]), key=str.lower)
         return src[:existing.start(1)] + " " + ", ".join(names) + " " + src[existing.end(1):]
     rel = os.path.relpath(Path("frontend/src/i18n").resolve(), path.resolve().parent)
     rel = rel if rel.startswith(".") else "./" + rel
@@ -96,8 +96,18 @@ def add_ts_import(src, path):
         if lines[i].strip() and not lines[i].startswith("//") and last >= 0:
             break
         i += 1
-    lines.insert(last + 1, f"import {{ t }} from '{rel}'")
+    lines.insert(last + 1, f"import {{ {name} }} from '{rel}'")
     return "\n".join(lines)
+
+
+def add_words_import(src, path, lang):
+    if lang == "ts":
+        return add_ts_import(src.replace("\x00", ""), path, name="Words")
+    if lang == "kotlin" and "import io.github.flexarr.core.i18n.Words" not in src and "package io.github.flexarr.core.i18n" not in src:
+        return re.sub(r"^(package [^\n]+\n)", r"\1\nimport io.github.flexarr.core.i18n.Words\n", src, count=1, flags=re.M)
+    if lang == "cs" and "using Flexarr.Core.Localization;" not in src and "namespace Flexarr.Core.Localization" not in src:
+        return "using Flexarr.Core.Localization;\n" + src
+    return src
 
 
 def wrap_swift(src):
@@ -293,15 +303,44 @@ def wrap_cs(src):
     return result, manual
 
 
+def wrap_words(src, lang):
+    """t('Play') → t(Words.play) for every shared word typed inline (any platform)."""
+    import words as shared
+    names = {v: k for k, v in shared.load().items() if "::" not in v}
+    call = {"ts": r"(?<![\w.$])(t|t\.rich)\(\s*", "swift": r"(?<![\w.])(t)\(\s*", "kotlin": r"(?<![\w.])(t)\(\s*",
+            "cs": r"\b(Loc\.T|Problems\.Of|Problems\.Field)\(\s*"}[lang]
+    lit = r"'((?:[^'\\\n]|\\.)*)'|\"((?:[^\"\\\n]|\\.)*)\""
+    manual = []
+
+    def swap(m):
+        text = m.group(2) if m.group(2) is not None else m.group(3)
+        text = text.replace("\\'", "'").replace('\\"', '"')
+        if text not in names:
+            return m.group(0)
+        name = names[text]
+        if lang == "cs":
+            name = name[:1].upper() + name[1:]
+        return f"{m.group(1)}(Words.{name}"
+
+    out = re.sub(call + "(?:" + lit + ")", swap, src)
+    return out, manual
+
+
 WRAPPERS = {"cs": (wrap_cs, (".cs",)), "ts": (wrap_ts, (".tsx", ".ts")), "swift": (wrap_swift, (".swift",)), "kotlin": (wrap_kotlin, (".kt",))}
 
 
 def main(argv):
-    if len(argv) < 2 or argv[0] not in WRAPPERS:
+    if len(argv) < 2 or (argv[0] not in WRAPPERS and argv[0] != "words"):
         print(__doc__, file=sys.stderr)
         return 2
     dry = "--dry-run" in argv
-    fn, suffixes = WRAPPERS[argv[0]]
+    if argv[0] == "words":
+        lang = argv[1]
+        suffixes = {"ts": (".ts", ".tsx"), "swift": (".swift",), "kotlin": (".kt",), "cs": (".cs",)}[lang]
+        argv = ["words"] + argv[2:]
+        fn = lambda src: wrap_words(src, lang)  # noqa: E731
+    else:
+        fn, suffixes = WRAPPERS[argv[0]]
     files = []
     for a in argv[1:]:
         if a.startswith("--"):
@@ -316,6 +355,8 @@ def main(argv):
         out, manual = fn(src)
         if argv[0] == "ts" and out != src:
             out = add_ts_import(out, f)
+        if argv[0] == "words" and out != src:
+            out = add_words_import(out, f, lang)
         for line, why in manual:
             print(f"{f}:{line}: by hand: {why}")
         if out != src:
