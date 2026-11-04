@@ -69,3 +69,32 @@ import Testing
         #expect(Plurals.category("zz", 1) == .other)
     }
 }
+
+@Suite(.serialized) struct LanguageServerTests {
+    @Test func aServerBeforeLanguagesOffersNone() async throws {
+        let (client, _) = stubbedClient(.init(status: 404, body: Data()))
+        #expect(try await client.languages().isEmpty)
+    }
+
+    @Test func settlesOnEnglishWhenTheServerHasNone() async {
+        let (client, _) = stubbedClient(.init(status: 404, body: Data()))
+        Localization.shared.show(LanguagePack(code: "de", name: "Deutsch", direction: "ltr", version: 1, messages: [:]))
+        await Localization.shared.settle(profileChoice: nil, client: client)
+        #expect(Localization.shared.code == "en")
+    }
+
+    @Test func readsAPackForTheAppleApps() async throws {
+        let pack = #"{"code":"de","name":"Deutsch","direction":"ltr","version":5,"messages":{"Play":"Abspielen"}}"#
+        let (client, host) = stubbedClient(.init(status: 200, body: Data(pack.utf8)))
+        #expect(try await client.languagePack("de").messages["Play"] == "Abspielen")
+        #expect(StubProtocol.recorded(host: host).last?.url?.query == "scope=apple")
+    }
+
+    @Test func sendsTheLanguageShownAsAcceptLanguage() async throws {
+        let (client, host) = stubbedClient(.init(status: 404, body: Data()))
+        Localization.shared.show(LanguagePack(code: "de", name: "Deutsch", direction: "ltr", version: 1, messages: [:]))
+        defer { Localization.shared.show(nil) }
+        _ = try? await client.languages()
+        #expect(StubProtocol.recorded(host: host).last?.value(forHTTPHeaderField: "Accept-Language") == "de")
+    }
+}
