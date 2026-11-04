@@ -254,6 +254,12 @@ public struct BookManifest: Codable, Sendable, Hashable {
                             progress: fresh.progress, speed: speed ?? fresh.speed, listening: fresh.listening, nextInSeries: fresh.nextInSeries)
     }
 
+    /// The same manifest at another place (a downloaded book marked finished or unread elsewhere).
+    public func withProgress(_ progress: BookProgress) -> BookManifest {
+        BookManifest(itemId: itemId, durationSeconds: durationSeconds, files: files, chapters: chapters, bookmarks: bookmarks,
+                     progress: progress, speed: speed, listening: listening, nextInSeries: nextInSeries)
+    }
+
     /// The same manifest at another speed.
     public func withSpeed(_ speed: Double) -> BookManifest {
         BookManifest(itemId: itemId, durationSeconds: durationSeconds, files: files, chapters: chapters, bookmarks: bookmarks,

@@ -14,9 +14,10 @@ private let log = FlexarrLog("playback")
 @MainActor
 protocol OfflineLibrary: AnyObject {
     func record(itemId: String, position: Double, finished: Bool)
-    /// Marked unwatched part way through: a download starts from the top again, and its unsent place is dropped.
+    /// Marked unwatched (or unread, or taken out of Continue watching): a download starts from the top again, no longer
+    /// finished, and its unsent place is dropped.
     func forgetPosition(itemId: String)
-    /// Marked watched (an item, or a whole show): a podcast episode's download goes.
+    /// Marked watched (an item, or a whole show): a download says it's finished, and a podcast episode's goes.
     func markedPlayed(itemId: String)
     func nextInfo(after info: PlaybackInfo) -> PlaybackInfo?
 }

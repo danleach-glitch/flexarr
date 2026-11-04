@@ -188,7 +188,7 @@ struct PodcastEpisodeRow: View {
                 Label(episode.isPlayed ? t("Mark as unplayed") : t(Words.markAsPlayed), systemImage: episode.isPlayed ? Symbol.markUnwatched : Symbol.watched)
             }
             // Part way through: unplayed forgets the place, so it leaves the listening list.
-            if episode.progress != nil {
+            if model.hasPlace(episode) {
                 Button { markUnplayed() } label: { Label(t("Mark as unplayed"), systemImage: "circle") }
             }
         }
@@ -496,7 +496,7 @@ struct EpisodeSheet: View {
                     }
                     .buttonStyle(RoundActionStyle())
                     .accessibilityValue(isPlayed ? t("Played") : "")
-                    if shown.progress != nil, played == nil {
+                    if model.hasPlace(shown), played == nil {
                         // Part way through: forget the place without marking it played.
                         Button {
                             if let setPlayed {

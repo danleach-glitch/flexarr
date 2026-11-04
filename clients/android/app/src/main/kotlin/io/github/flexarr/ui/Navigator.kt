@@ -164,8 +164,10 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     }
 
     /** Marks a book finished, or unread (no place, not finished); Continue listening follows. */
-    fun setBookFinished(item: ItemSummary, finished: Boolean) =
+    fun setBookFinished(item: ItemSummary, finished: Boolean) {
+        model.marked(item.id, finished)
         changeWatchState(if (finished) t("Couldn’t mark this as finished") else t("Couldn’t mark this as unread")) { it.setBookFinished(item.id, finished) }
+    }
 
     /** Downloads a whole book, saying so if it didn't work. */
     fun downloadBook(item: ItemSummary) {
@@ -269,11 +271,13 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     /** What the Add to playlist sheet is open for (phones only), shown over every screen. */
     var addingToPlaylist by mutableStateOf<PlaylistAddition?>(null)
 
-    fun setWatched(item: ItemSummary, watched: Boolean) =
+    fun setWatched(item: ItemSummary, watched: Boolean) {
+        model.marked(item.id, watched)
         changeWatchState(if (watched) t("Couldn’t mark this as watched") else t("Couldn’t mark this as unwatched")) {
             it.setWatched(item.id, watched)
             if (watched) model.downloads.markedPlayed(item.id)
         }
+    }
 
     /** The show of an episode, all of it. */
     fun setShowWatched(episode: ItemSummary) {
@@ -286,8 +290,7 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
      * sending its place, so a later report can't put it straight back.
      */
     fun removeFromContinueWatching(item: ItemSummary) {
-        if (model.books.current?.id == item.id) model.books.stop(reportsPlace = false)
-        if (model.podcasts.current?.id == item.id) model.podcasts.stop(reportsPlace = false)
+        model.marked(item.id, played = false)
         changeWatchState(t("Couldn’t remove this from Continue watching")) { it.removeFromContinueWatching(item.id) }
     }
 

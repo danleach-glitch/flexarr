@@ -214,6 +214,16 @@ class BookDownloads(private val context: Context, private val model: AppModel) {
         if (finished || System.currentTimeMillis() - lastSent > SEND_EVERY_MS) scope.launch { catchUp() }
     }
 
+    /** Marked finished or unread elsewhere: the phone's copy says the same, from the start, with no place left to send. */
+    fun marked(itemId: String, finished: Boolean) {
+        entry(itemId) ?: return
+        update(itemId) {
+            it.copy(position = 0.0, unsent = null, finishedAtMillis = if (finished) it.finishedAtMillis ?: System.currentTimeMillis() else null)
+        }
+        // Finished: deleted if Settings says so, as when it's heard to the end.
+        if (finished) scope.launch { catchUp() }
+    }
+
     /** A speed chosen while the book plays from here: kept with it, and sent to the server now or when it can be. */
     fun speedChosen(itemId: String, speed: Double) {
         entry(itemId) ?: return
