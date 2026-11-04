@@ -28,16 +28,15 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.WaitingDevice
 import io.github.flexarr.ui.components.ActionButton
+import io.github.flexarr.ui.components.styledParts
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.PageTitle
 import io.github.flexarr.ui.pairing.MainPinField
@@ -60,7 +59,7 @@ fun WaitingDevicesScreen(model: AppModel) {
     val navigator = LocalNavigator.current
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle("Devices waiting to connect", onBack = { navigator.back() }) }
+            item { PageTitle(t("Devices waiting to connect"), onBack = { navigator.back() }) }
             item { WaitingDevicesSection(model, header = null) }
         }
     }
@@ -72,7 +71,7 @@ fun WaitingDevicesScreen(model: AppModel) {
  * iPhone's.
  */
 @Composable
-fun WaitingDevicesSection(model: AppModel, header: String? = "Devices waiting to connect") {
+fun WaitingDevicesSection(model: AppModel, header: String? = t("Devices waiting to connect")) {
     val client = model.client ?: return
     val scope = rememberCoroutineScope()
     val pairing = model.pairing
@@ -120,7 +119,7 @@ fun WaitingDevicesSection(model: AppModel, header: String? = "Devices waiting to
                 if (allow) {
                     allowAsMainProfile(model, client, device.code, pin)
                     pairing.finished(device.code)
-                    outcome = "“${device.deviceName}” is connected. It’ll be ready in a moment."
+                    outcome = t("“{device}” is connected. It’ll be ready in a moment.", "device" to device.deviceName)
                 } else {
                     pairing.decline(client, device.code)
                 }
@@ -150,9 +149,9 @@ fun WaitingDevicesSection(model: AppModel, header: String? = "Devices waiting to
         Group(
             header = header,
             footer = problem ?: listOfNotNull(
-                "Allow one only if its screen shows the same code.".takeIf { waiting.isNotEmpty() },
+                t("Allow one only if its screen shows the same code.").takeIf { waiting.isNotEmpty() },
                 // Without them, a device asking is only heard about while Flexarr is open here.
-                "Turn on Notifications to be asked when Flexarr isn't open.".takeIf { !model.notifications.isOn },
+                t("Turn on Notifications to be asked when Flexarr isn't open.").takeIf { !model.notifications.isOn },
             ).joinToString(" ").ifEmpty { null },
         ) {
             // Locked here: allowing takes the admin PIN, given once for any of them.
@@ -197,21 +196,18 @@ private fun WaitingDeviceRow(device: WaitingDevice, sending: Boolean, enabled: B
                 Text(device.shortSummary, fontSize = 13.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (!device.asks) Text(t("You turned this away. Allow it if it's yours."), fontSize = 13.sp, color = Flexarr.usher)
                 Text(
-                    buildAnnotatedString {
-                        append("Code ")
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Flexarr.screen)) { append(device.code) }
-                    },
+                    styledParts(t("Code {code}", "code" to device.code), device.code, style = SpanStyle(fontWeight = FontWeight.Bold, color = Flexarr.screen)),
                     fontSize = 15.sp,
                     color = Flexarr.usher,
                     // Read a character at a time, as it's checked against the screen.
-                    modifier = Modifier.semantics { contentDescription = t("Code ") + device.code.toList().joinToString(" ") },
+                    modifier = Modifier.semantics { contentDescription = t("Code {code}", "code" to device.code.toList().joinToString(" ")) },
                 )
             }
             if (sending) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.screen)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ActionButton("Allow", { onAnswer(true) }, Modifier.weight(1f), prominent = true, enabled = enabled && mayAllow)
-            ActionButton("Don’t allow", { onAnswer(false) }, Modifier.weight(1f), enabled = enabled)
+            ActionButton(t("Allow"), { onAnswer(true) }, Modifier.weight(1f), prominent = true, enabled = enabled && mayAllow)
+            ActionButton(t("Don’t allow"), { onAnswer(false) }, Modifier.weight(1f), enabled = enabled)
         }
     }
 }

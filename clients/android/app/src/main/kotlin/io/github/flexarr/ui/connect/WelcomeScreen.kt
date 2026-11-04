@@ -98,19 +98,19 @@ fun WelcomeScreen(onDone: () -> Unit) {
                     0 -> WelcomePage(
                         art = { BrandMark(96.dp) },
                         title = t("Your entertainment, on every screen."),
-                        message = "Flexarr plays the movies, shows and music you keep at home, on this phone, wherever you are.",
+                        message = t("Flexarr plays the movies, shows and music you keep at home, on this phone, wherever you are."),
                     )
                     1 -> WelcomePage(
                         art = { Symbol(Icons.Filled.Dns) },
                         title = t("Set up your free server"),
-                        message = "The app plays from your own Flexarr server, on a computer in your home: a Mac, a NAS or anything with Docker. The server is completely free, and setting it up takes less than a minute.",
+                        message = t("The app plays from your own Flexarr server, on a computer in your home: a Mac, a NAS or anything with Docker. The server is completely free, and setting it up takes less than a minute."),
                     ) {
-                        ActionButton("Set up at flexarr.io", onClick = { uri.openUri(INSTALL_URL) }, icon = Icons.Filled.Language)
+                        ActionButton(t("Set up at flexarr.io"), onClick = { uri.openUri(INSTALL_URL) }, icon = Icons.Filled.Language)
                     }
                     else -> WelcomePage(
                         art = { Symbol(Icons.Filled.Wifi) },
                         title = t("Then connect"),
-                        message = "On the same Wi-Fi, this phone finds your server by itself. Then approve the code it shows and you’re in.",
+                        message = t("On the same Wi-Fi, this phone finds your server by itself. Then approve the code it shows and you’re in."),
                     )
                 }
             }
@@ -122,7 +122,7 @@ fun WelcomeScreen(onDone: () -> Unit) {
             }
             Box(Modifier.widthIn(max = 520.dp).fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
                 ActionButton(
-                    if (last) "Find my server" else "Next",
+                    if (last) t("Find my server") else t("Next"),
                     onClick = { if (last) onDone() else scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } },
                     modifier = Modifier.fillMaxWidth(),
                     prominent = true,

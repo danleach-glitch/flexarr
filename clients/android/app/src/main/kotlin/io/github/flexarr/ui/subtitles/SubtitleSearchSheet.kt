@@ -111,7 +111,7 @@ fun SubtitleSearchSheet(
                 item { Text(message, fontSize = 13.sp, color = Flexarr.danger, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) }
             }
             item {
-                ResultRow("Best match", "Flexarr picks the closest one", provider = null, matchesFile = false, downloading = downloading == BEST_MATCH) { pick(null) }
+                ResultRow(t("Best match"), t("Flexarr picks the closest one"), provider = null, matchesFile = false, downloading = downloading == BEST_MATCH) { pick(null) }
             }
             val found = results
             when {
@@ -151,7 +151,7 @@ private fun ResultRow(title: String, detail: String, provider: String?, matchesF
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(if (downloading) "Downloading…" else detail, fontSize = 13.sp, color = Flexarr.usher, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(if (downloading) t("Downloading…") else detail, fontSize = 13.sp, color = Flexarr.usher, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (provider != null || matchesFile) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     provider?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher, maxLines = 1) }

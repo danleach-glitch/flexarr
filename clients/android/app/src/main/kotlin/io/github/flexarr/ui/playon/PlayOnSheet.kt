@@ -78,9 +78,9 @@ fun PlayOnSheet(client: FlexarrClient, item: ItemSummary, onClose: () -> Unit) {
                 val result = client.playOn(device.id, item.id)
                 val what = result.item?.displayTitle ?: item.displayTitle
                 if (result.delivered) {
-                    "Playing $what on ${result.deviceName}."
+                    t("Playing {title} on {device}.", "title" to what, "device" to result.deviceName)
                 } else {
-                    "Flexarr isn’t open on ${result.deviceName}. $what plays there if it’s opened in the next two minutes."
+                    t("Flexarr isn’t open on {device}. {title} plays there if it’s opened in the next two minutes.", "device" to result.deviceName, "title" to what)
                 }
             } catch (e: Exception) {
                 e.message
@@ -103,7 +103,7 @@ fun PlayOnSheet(client: FlexarrClient, item: ItemSummary, onClose: () -> Unit) {
             when {
                 error != null -> item { Note(error!!, Flexarr.danger) }
                 listed == null -> item { Row(Modifier.padding(16.dp)) { CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.usher) } }
-                listed.isEmpty() -> item { Note("No other screens are signed in. Connect Flexarr on a TV or another phone, then it’s listed here.") }
+                listed.isEmpty() -> item { Note(t("No other screens are signed in. Connect Flexarr on a TV or another phone, then it’s listed here.")) }
                 else -> items(listed, key = { it.id }) { device -> DeviceRow(device, sending == device.id) { send(device) } }
             }
         }
@@ -126,9 +126,9 @@ private fun DeviceRow(device: Device, sending: Boolean, onClick: () -> Unit) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(device.name, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val detail = when {
-                !device.online -> "Flexarr isn’t open"
-                device.nowPlaying != null -> (if (device.nowPlaying!!.paused) "Paused: " else "Playing ") + device.nowPlaying!!.item.displayTitle
-                else -> device.profileName?.let { "Open, as $it" } ?: "Open"
+                !device.online -> t("Flexarr isn’t open")
+                device.nowPlaying != null -> device.nowPlaying!!.item.displayTitle.let { if (device.nowPlaying!!.paused) t("Paused: {title}", "title" to it) else t("Playing {title}", "title" to it) }
+                else -> device.profileName?.let { t("Open, as {profile}", "profile" to it) } ?: t("Open")
             }
             Text(detail, fontSize = 13.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }

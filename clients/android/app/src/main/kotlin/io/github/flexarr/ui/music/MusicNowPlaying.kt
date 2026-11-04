@@ -110,7 +110,7 @@ fun MusicNowPlayingBar(model: AppModel) {
     val track = music.current ?: return
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp).shadow(12.dp, RoundedCornerShape(Tokens.radiusPanel)).clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)
-            .semantics { contentDescription = "Now playing: ${track.title}${track.artistName?.let { " by $it" }.orEmpty()}" },
+            .semantics { contentDescription = track.artistName?.let { t("Now playing: {title} by {artist}", "title" to track.title, "artist" to it) } ?: t("Now playing: {title}", "title" to track.title) },
     ) {
         Row(Modifier.padding(end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.minimumInteractiveComponentSize().size(width = 36.dp, height = 56.dp).pressable(music::stop), contentAlignment = Alignment.Center) {
@@ -126,15 +126,15 @@ fun MusicNowPlayingBar(model: AppModel) {
             // On a Chromecast: its controls.
             val cast = Casting.shared?.takeIf { it.casts(Casting.Kind.Music) }
             if (cast != null) {
-                RoundButton(if (cast.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (cast.isPlaying) "Pause" else "Play", onClick = cast::togglePlayPause)
-                RoundButton(Icons.Filled.SkipNext, "Next", enabled = cast.hasNextTrack, onClick = cast::nextTrack)
+                RoundButton(if (cast.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (cast.isPlaying) t("Pause") else t(Words.play), onClick = cast::togglePlayPause)
+                RoundButton(Icons.Filled.SkipNext, t("Next"), enabled = cast.hasNextTrack, onClick = cast::nextTrack)
             } else {
                 if (music.isLoading) {
                     Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen, modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
                 } else {
-                    RoundButton(if (music.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (music.isPlaying) "Pause" else "Play", onClick = music::togglePlayPause)
+                    RoundButton(if (music.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, if (music.isPlaying) t("Pause") else t(Words.play), onClick = music::togglePlayPause)
                 }
-                RoundButton(Icons.Filled.SkipNext, "Next", enabled = music.hasNext, onClick = music::next)
+                RoundButton(Icons.Filled.SkipNext, t("Next"), enabled = music.hasNext, onClick = music::next)
             }
         }
         // How far the track has got, along the bottom edge: read as it's drawn, so the bar doesn't recompose each tick.
@@ -205,7 +205,7 @@ fun MusicNowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                 ) {
                     Grabber(onDismiss)
                     // Smaller while paused, as every music app does.
-                    val scale by animateFloatAsState(if (music.isPlaying) 1f else 0.9f, spring(dampingRatio = 0.8f, stiffness = 300f), label = t("cover"))
+                    val scale by animateFloatAsState(if (music.isPlaying) 1f else 0.9f, spring(dampingRatio = 0.8f, stiffness = 300f), label = "cover")
                     SquareArtwork(
                         track,
                         Modifier.padding(top = 8.dp).widthIn(max = 320.dp).fillMaxWidth().scale(scale).shadow(24.dp, RoundedCornerShape(Tokens.radiusArt)),
@@ -295,19 +295,19 @@ private fun ScrubberAndControls(music: MusicPlayer, error: Boolean = false) {
 @Composable
 private fun Controls(music: MusicPlayer) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Transport(FlexarrIcons.shuffle, "Shuffle", size = 44, active = music.isShuffled, onClick = music::toggleShuffle)
-        Transport(Icons.Filled.SkipPrevious, "Previous", size = 56, onClick = music::previous)
+        Transport(FlexarrIcons.shuffle, t(Words.shuffle), size = 44, active = music.isShuffled, onClick = music::toggleShuffle)
+        Transport(Icons.Filled.SkipPrevious, t("Previous"), size = 56, onClick = music::previous)
         Box(Modifier.size(76.dp).clip(CircleShape).background(Flexarr.screen).pressable(music::togglePlayPause), contentAlignment = Alignment.Center) {
             if (music.isLoading) CircularProgressIndicator(color = Flexarr.room, modifier = Modifier.size(28.dp))
-            else Icon(if (music.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, contentDescription = if (music.isPlaying) "Pause" else "Play", tint = Flexarr.room, modifier = Modifier.size(32.dp))
+            else Icon(if (music.isPlaying) FlexarrIcons.pause else FlexarrIcons.play, contentDescription = if (music.isPlaying) t("Pause") else t(Words.play), tint = Flexarr.room, modifier = Modifier.size(32.dp))
         }
-        Transport(Icons.Filled.SkipNext, "Next", size = 56, enabled = music.hasNext, onClick = music::next)
+        Transport(Icons.Filled.SkipNext, t("Next"), size = 56, enabled = music.hasNext, onClick = music::next)
         Transport(
             if (music.repeatMode == MusicPlayer.RepeatMode.One) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
             when (music.repeatMode) {
-                MusicPlayer.RepeatMode.Off -> "Repeat"
-                MusicPlayer.RepeatMode.All -> "Repeat all"
-                MusicPlayer.RepeatMode.One -> "Repeat one"
+                MusicPlayer.RepeatMode.Off -> t("Repeat")
+                MusicPlayer.RepeatMode.All -> t("Repeat all")
+                MusicPlayer.RepeatMode.One -> t("Repeat one")
             },
             size = 44,
             active = music.repeatMode != MusicPlayer.RepeatMode.Off,
@@ -329,7 +329,7 @@ private fun Extras(hasLyrics: Boolean, showingLyrics: Boolean, onLyrics: () -> U
     if (!hasLyrics && Casting.shared?.available != true) return
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(36.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
         CastButton(Modifier.size(44.dp))
-        if (hasLyrics) Transport(Icons.Filled.LyricsIcon, if (showingLyrics) "Hide lyrics" else "Lyrics", size = 44, active = showingLyrics, onClick = onLyrics)
+        if (hasLyrics) Transport(Icons.Filled.LyricsIcon, if (showingLyrics) t("Hide lyrics") else t("Lyrics"), size = 44, active = showingLyrics, onClick = onLyrics)
     }
 }
 
@@ -367,7 +367,7 @@ private fun LyricsView(lyrics: Lyrics, position: Double, onSeek: (Double) -> Uni
                 index == active -> 1f
                 else -> 0.4f
             }
-            val alpha by animateFloatAsState(target, tween(250), label = t("line"))
+            val alpha by animateFloatAsState(target, tween(250), label = "line")
             val time = line.time
             Text(
                 // An empty line between verses keeps its place.

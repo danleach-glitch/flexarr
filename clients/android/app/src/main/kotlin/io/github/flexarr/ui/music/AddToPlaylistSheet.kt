@@ -97,7 +97,7 @@ fun AddToPlaylistSheet(client: FlexarrClient, item: PlaylistAddition, onClose: (
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            loadError = e.message ?: "Couldn’t load your playlists."
+            loadError = e.message ?: t("Couldn’t load your playlists.")
         }
     }
     val none = playlists?.isEmpty() == true
@@ -114,7 +114,7 @@ fun AddToPlaylistSheet(client: FlexarrClient, item: PlaylistAddition, onClose: (
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                error = e.message ?: "Something went wrong."
+                error = e.message ?: t("Something went wrong.")
             } finally {
                 busy = null
             }
@@ -122,7 +122,7 @@ fun AddToPlaylistSheet(client: FlexarrClient, item: PlaylistAddition, onClose: (
     }
 
     fun add(p: PlaylistSummary) = run(p.id) {
-        if (client.addToPlaylist(p.id, listOf(item.id)) == 0) "Already in ${p.name}." else "Added to ${p.name}."
+        if (client.addToPlaylist(p.id, listOf(item.id)) == 0) t("Already in {playlist}.", "playlist" to p.name) else t("Added to {playlist}.", "playlist" to p.name)
     }
 
     fun create() {
@@ -131,7 +131,7 @@ fun AddToPlaylistSheet(client: FlexarrClient, item: PlaylistAddition, onClose: (
         run(NEW) {
             val created = client.createPlaylist(trimmed, listOf(item.id))
             name = ""
-            "Made ${created.name} with it."
+            t("Made {playlist} with it.", "playlist" to created.name)
         }
     }
 
@@ -162,7 +162,7 @@ fun AddToPlaylistSheet(client: FlexarrClient, item: PlaylistAddition, onClose: (
             ) {
                 OutlinedTextField(
                     name, { if (it.length <= NAME_LIMIT) name = it },
-                    placeholder = { Text(if (none) "Name your first playlist" else "New playlist") },
+                    placeholder = { Text(if (none) t("Name your first playlist") else t("New playlist")) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { create() }),
@@ -171,7 +171,7 @@ fun AddToPlaylistSheet(client: FlexarrClient, item: PlaylistAddition, onClose: (
                 if (busy == NEW) {
                     Box(Modifier.width(88.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(22.dp), color = Flexarr.usher, strokeWidth = 2.dp) }
                 } else {
-                    ActionButton("Create", onClick = ::create, enabled = busy == null && name.isNotBlank())
+                    ActionButton(t("Create"), onClick = ::create, enabled = busy == null && name.isNotBlank())
                 }
             }
             message?.let { Text(it, fontSize = 14.sp, color = Flexarr.usher, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) }

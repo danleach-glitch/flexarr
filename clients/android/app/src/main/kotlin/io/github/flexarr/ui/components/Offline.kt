@@ -57,7 +57,7 @@ fun OfflineScreen(model: AppModel, title: String, onDownloads: () -> Unit) {
             Text(t("You’re offline"), fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.semantics { heading() })
             if (model.hasDownloads) {
                 Text(t("Your downloads still play."), color = Flexarr.usher, textAlign = TextAlign.Center)
-                ActionButton("Go to Downloads", onClick = onDownloads, prominent = true, modifier = Modifier.padding(top = 8.dp))
+                ActionButton(t("Go to Downloads"), onClick = onDownloads, prominent = true, modifier = Modifier.padding(top = 8.dp))
             }
         }
     }

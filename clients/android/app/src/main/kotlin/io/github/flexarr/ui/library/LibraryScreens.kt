@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.library
 
+import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -91,7 +92,6 @@ import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import java.text.NumberFormat
 import io.github.flexarr.ui.theme.Tokens
 import io.github.flexarr.ui.theme.FlexarrIcons
 
@@ -104,7 +104,7 @@ fun LibrariesScreen(model: AppModel) {
     val loader = rememberLoader(model.credentials, model.librariesVersion) { client.libraries() }
     RoomBackground(ambient = null) {
         Column {
-            PageTitle("Libraries")
+            PageTitle(t(Words.libraries))
             Loaded(loader) { libraries ->
                 PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
                     // What the profile left out of the menu stays reachable from Home and links.
@@ -116,7 +116,7 @@ fun LibrariesScreen(model: AppModel) {
                             Column(Modifier.clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) {
                                 // The watchlist first, ahead of the profile's own order of libraries.
                                 if (showsWatchlist) {
-                                    LibraryRow("Watchlist", Icons.Filled.Bookmark) { navigator.openWatchlist() }
+                                    LibraryRow(t(Words.watchlist), Icons.Filled.Bookmark) { navigator.openWatchlist() }
                                     if (entries.isNotEmpty()) HorizontalDivider(Modifier.padding(start = 62.dp), color = Flexarr.aisle.copy(alpha = 0.6f))
                                 }
                                 entries.forEachIndexed { index, entry ->
@@ -176,13 +176,13 @@ internal sealed interface LibraryMenuEntry {
 
     /** Podcasts are one place however many libraries hold them; [id] is their library's, when there is one. */
     data class Podcasts(override val id: String) : LibraryMenuEntry {
-        override val title get() = "Podcasts"
+        override val title get() = t(Words.podcasts)
         override val icon get() = FlexarrIcons.podcasts
     }
 
     data object LiveTv : LibraryMenuEntry {
         override val id get() = LIVE_TV_ORDER_ID
-        override val title get() = "Live TV"
+        override val title get() = t(Words.liveTv)
         override val icon get() = FlexarrIcons.liveTv
     }
 
@@ -400,11 +400,11 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
             }
             if (loadedLibrary != null && (browses || hasGenres)) {
                 val all = when (loadedLibrary.type) {
-                    LibraryType.TvShows -> "All shows"
-                    LibraryType.HomeVideos -> "All folders"
-                    else -> "All movies"
+                    LibraryType.TvShows -> t("All shows")
+                    LibraryType.HomeVideos -> t("All folders")
+                    else -> t("All movies")
                 }
-                val choices = listOfNotNull("Browse" to Showing.Browse.takeIf { browses }, all to Showing.All, "Genres" to Showing.Genres.takeIf { hasGenres })
+                val choices = listOfNotNull(t(Words.browse) to Showing.Browse.takeIf { browses }, all to Showing.All, t(Words.genres) to Showing.Genres.takeIf { hasGenres })
                     .mapNotNull { (label, value) -> value?.let { label to it } }
                 ShowingSwitch(choices, shows ?: Showing.All) { showing = it }
             }
@@ -416,7 +416,7 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
                     navigator.openLibrary(libraryId, LibrarySort.Title, it.name)
                 }
                 failed != null -> StatusView(failed, retry = { attempt++ })
-                items.isEmpty() && !loading -> StatusView(genre?.let { "No $it titles here." } ?: "Nothing in this library yet.", empty = true)
+                items.isEmpty() && !loading -> StatusView(genre?.let { t("No {genre} titles here.", "genre" to it) } ?: t("Nothing in this library yet."), empty = true)
                 else -> PullToRefreshBox(
                     isRefreshing = refreshing,
                     onRefresh = {
@@ -441,7 +441,7 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
                     ) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             Text(
-                                if (total == 1) "1 title" else "${NumberFormat.getIntegerInstance(io.github.flexarr.core.i18n.Localization.locale).format(total)} titles",
+                                t("{count, plural, one {# title} other {# titles}}", "count" to total),
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = Flexarr.usher,
@@ -491,7 +491,7 @@ private fun SortAndFilter(sort: LibrarySort, onSort: (LibrarySort) -> Unit, genr
                 choices.forEach { choice ->
                     val selected = choice?.name == genre
                     DropdownMenuItem(
-                        text = { Text(choice?.let { "${it.name} (${it.count})" } ?: "All genres", fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) },
+                        text = { Text(choice?.let { "${it.name} (${it.count})" } ?: t("All genres"), fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) },
                         trailingIcon = { if (selected) Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) },
                         onClick = {
                             open = false
@@ -528,7 +528,7 @@ internal fun <T> ShowingSwitch(choices: List<Pair<String, T>>, showing: T, onCha
 @Composable
 internal fun LibraryGenreGrid(genres: List<GenreCount>, caption: (GenreCount) -> String, music: Boolean = false, onOpen: (GenreCount) -> Unit) {
     if (genres.isEmpty()) {
-        StatusView("No genres here yet. They come with each ${if (music) "album" else "title"}’s details once a scan has found them.", empty = true)
+        StatusView(if (music) t("No genres here yet. They come with each album’s details once a scan has found them.") else t("No genres here yet. They come with each title’s details once a scan has found them."), empty = true)
         return
     }
     LazyVerticalGrid(
@@ -546,6 +546,6 @@ internal fun LibraryGenreGrid(genres: List<GenreCount>, caption: (GenreCount) ->
 
 /** "12 films", "1 show". */
 private fun genreCaption(library: Library, genre: GenreCount): String {
-    val noun = if (library.type == LibraryType.TvShows) (if (genre.count == 1) "show" else "shows") else (if (genre.count == 1) "movie" else "movies")
-    return "${genre.count} $noun"
+    return if (library.type == LibraryType.TvShows) t("{count, plural, one {# show} other {# shows}}", "count" to genre.count)
+    else t("{count, plural, one {# movie} other {# movies}}", "count" to genre.count)
 }

@@ -89,13 +89,13 @@ fun deviceIcon(deviceType: String?): ImageVector = when (deviceType) {
 
 /** Why allowing (or turning away) a device didn't work, in a sentence; [outside] the app, from a notification's button. */
 fun pairingProblem(e: Exception, outside: Boolean = false): String = if (e is PinProblem) e.message.orEmpty() else when ((e as? FlexarrException.Http)?.status) {
-    404 -> if (outside) "That code has run out. The device shows a new one; open Flexarr to allow it." else "It may have expired; the device shows a new code."
-    403 -> "Switch to the main profile to allow it."
-    else -> e.message ?: "Something went wrong."
+    404 -> if (outside) t("That code has run out. The device shows a new one; open Flexarr to allow it.") else t("It may have expired; the device shows a new code.")
+    403 -> t("Switch to the main profile to allow it.")
+    else -> e.message ?: t("Something went wrong.")
 }
 
 /** Said while the main profile has no PIN yet, so allowing can't be unlocked from here. */
-const val PIN_MISSING = "Choose an admin PIN in Flexarr in a browser first."
+val PIN_MISSING get() = t("Choose an admin PIN in Flexarr in a browser first.")
 
 /** The admin PIN didn't unlock: wrong, too many tries (the server says how long to wait), or none set yet. */
 class PinProblem(message: String) : Exception(message)
@@ -110,7 +110,7 @@ suspend fun allowAsMainProfile(model: AppModel, client: FlexarrClient, code: Str
         try {
             model.unlock(pin)
         } catch (e: FlexarrException.Http) {
-            throw PinProblem(if (e.status == 409) PIN_MISSING else e.message ?: "That PIN isn’t right.")
+            throw PinProblem(if (e.status == 409) PIN_MISSING else e.message ?: t("That PIN isn’t right."))
         }
     }
     try {
@@ -119,7 +119,7 @@ suspend fun allowAsMainProfile(model: AppModel, client: FlexarrClient, code: Str
         // Unlocked when last asked, but its 15 minutes have run out since: the PIN again.
         if (e.status == 403 && model.isAdmin) {
             model.locked()
-            if (model.canUnlock) throw PinProblem("Enter the admin PIN to allow it.")
+            if (model.canUnlock) throw PinProblem(t("Enter the admin PIN to allow it."))
         }
         throw e
     }
@@ -257,7 +257,7 @@ private fun PairingSheet(model: AppModel, client: FlexarrClient, device: Waiting
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(deviceIcon(device.deviceType), contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(34.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Connect “${device.deviceName}”?", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
+                    Text(t("Connect “{device}”?", "device" to device.deviceName), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
                     Text(device.summary, fontSize = 15.sp, color = Flexarr.usher)
                 }
             }
@@ -292,7 +292,7 @@ private fun PairingSheet(model: AppModel, client: FlexarrClient, device: Waiting
             }
             when {
                 answer == Answer.Connected -> Unit
-                answer is Answer.Failed && (answer as Answer.Failed).gone -> ActionButton("OK", ::close, Modifier.fillMaxWidth())
+                answer is Answer.Failed && (answer as Answer.Failed).gone -> ActionButton(t("OK"), ::close, Modifier.fillMaxWidth())
                 else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     val sending = answer == Answer.Sending
                     // Locked here: allowing takes the admin PIN.
@@ -302,9 +302,9 @@ private fun PairingSheet(model: AppModel, client: FlexarrClient, device: Waiting
                             CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Flexarr.screen)
                         }
                     } else {
-                        ActionButton("Allow", ::allow, Modifier.fillMaxWidth(), prominent = true, enabled = !asksPin || mayAllow(model, pin))
+                        ActionButton(t("Allow"), ::allow, Modifier.fillMaxWidth(), prominent = true, enabled = !asksPin || mayAllow(model, pin))
                     }
-                    ActionButton("Don’t allow", ::decline, Modifier.fillMaxWidth(), enabled = !sending)
+                    ActionButton(t("Don’t allow"), ::decline, Modifier.fillMaxWidth(), enabled = !sending)
                 }
             }
         }

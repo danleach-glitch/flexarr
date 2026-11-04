@@ -160,7 +160,7 @@ fun SettingsScreen(
             } catch (e: FlexarrException.ParentPinNeeded) {
                 asksLockPin = true
             } catch (e: Exception) {
-                lockProblem = e.message ?: "Something went wrong."
+                lockProblem = e.message ?: t("Something went wrong.")
             } finally {
                 lockingToKids = false
             }
@@ -174,7 +174,7 @@ fun SettingsScreen(
             try {
                 notifications.turnOn(credentials)
             } catch (e: Exception) {
-                notificationProblem = e.message ?: "Something went wrong."
+                notificationProblem = e.message ?: t("Something went wrong.")
             } finally {
                 turningOnNotifications = false
             }
@@ -183,10 +183,10 @@ fun SettingsScreen(
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle("Settings") }
+            item { PageTitle(t(Words.settings)) }
             model.currentProfile?.let { current ->
                 item {
-                    Group("Watching as", footer = lockProblem) {
+                    Group(t("Watching as"), footer = lockProblem) {
                         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                             ProfileAvatar(model, current, size = 44)
                             Text(current.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f))
@@ -212,7 +212,7 @@ fun SettingsScreen(
             }
             if (notifications.isAvailable && notificationsAllowed && !notifications.isOn && !notifications.turnedOff) {
                 item {
-                    Group(footer = "This phone isn’t getting notifications from this server, so you won’t hear when something new is ready.") {
+                    Group(footer = t("This phone isn’t getting notifications from this server, so you won’t hear when something new is ready.")) {
                         Row(
                             Modifier.fillMaxWidth().pressable(::turnOnNotifications, enabled = !turningOnNotifications).padding(horizontal = 16.dp, vertical = 14.dp),
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -226,28 +226,28 @@ fun SettingsScreen(
             }
             item {
                 Group {
-                    SettingsLink("Playback", FlexarrIcons.play, value = null, onClick = onPlayback)
+                    SettingsLink(t("Playback"), FlexarrIcons.play, value = null, onClick = onPlayback)
                     Divider()
                     val downloads = model.downloads
-                    SettingsLink("Downloads", Icons.Filled.DownloadForOffline, value = if (downloads.bytesUsed > 0) Format.bytes(downloads.bytesUsed) else downloads.quality.shortLabel, onClick = onDownloads)
+                    SettingsLink(t(Words.downloads), Icons.Filled.DownloadForOffline, value = if (downloads.bytesUsed > 0) Format.bytes(downloads.bytesUsed) else downloads.quality.shortLabel, onClick = onDownloads)
                     // With podcasts, or an audiobooks library to listen to (none for a kids profile, or before 0.58).
                     if (model.podcastStatus?.available == true || model.hasAudiobooks) {
                         Divider()
-                        SettingsLink("Podcasts and audiobooks", Icons.Filled.Headphones, value = null, onClick = onListening)
+                        SettingsLink(t("Podcasts and audiobooks"), Icons.Filled.Headphones, value = null, onClick = onListening)
                     }
                     // Only from servers that can save an order (0.54 on), and with more than one place to put in order.
                     val order = model.currentProfile?.libraryOrder
                     val places = (libraries.state as? Load.Loaded)?.value?.let { LibraryMenuEntry.ordered(model, it).size } ?: 0
                     if (order != null && places > 1) {
                         Divider()
-                        SettingsLink("Library order", Icons.Filled.SwapVert, value = if (order.isEmpty()) "By name" else "Your own", onClick = onLibraryOrder)
+                        SettingsLink(t("Library order"), Icons.Filled.SwapVert, value = if (order.isEmpty()) t("By name") else t("Your own"), onClick = onLibraryOrder)
                     }
                     Divider()
                     // Once the server offers more than English (from 0.61).
                     if (model.languages.size > 1) {
                         SettingsLink(t("Language"), Icons.Filled.Language, value = languageValue(model), onClick = onLanguage)
                     }
-                    SettingsLink("Notifications", Icons.Filled.Notifications, value = if (model.notifications.isOn) "On" else "Off", onClick = onNotifications)
+                    SettingsLink(t("Notifications"), Icons.Filled.Notifications, value = if (model.notifications.isOn) t("On") else t("Off"), onClick = onNotifications)
                     trakt?.takeIf { it.available }?.let { status ->
                         Divider()
                         SettingsLink("Trakt", Icons.Filled.Sync, value = status.settingsValue, onClick = onTrakt)
@@ -262,37 +262,37 @@ fun SettingsScreen(
                 Group {
                     // With an address for away from home, which of the two it's using; otherwise the server's name.
                     val host = if (model.serverUnreachable) {
-                        "Offline"
+                        t("Offline")
                     } else if (model.isGuest) {
-                        "By invite"
+                        t("By invite")
                     } else if (model.credentials?.remoteAddress != null) {
-                        if (model.client?.addresses?.isAway == true) "Away" else "At home"
+                        if (model.client?.addresses?.isAway == true) t("Away") else t("At home")
                     } else {
                         model.credentials?.address?.let { FlexarrClient.normalizeAddress(it)?.host }
                     }
-                    SettingsLink("Server", Icons.Filled.Dns, value = host, onClick = onServer)
+                    SettingsLink(t("Server"), Icons.Filled.Dns, value = host, onClick = onServer)
                 }
             }
             item {
                 Group {
-                    ExternalLink("Rate Flexarr", Icons.Filled.Star) { ReviewPrompt.openStoreListing(context) }
+                    ExternalLink(t("Rate Flexarr"), Icons.Filled.Star) { ReviewPrompt.openStoreListing(context) }
                 }
             }
             item {
                 Group {
                     val uri = LocalUriHandler.current
-                    ExternalLink("Privacy policy", Icons.Filled.PrivacyTip) { uri.openUri(PRIVACY_POLICY_URL) }
+                    ExternalLink(t("Privacy policy"), Icons.Filled.PrivacyTip) { uri.openUri(PRIVACY_POLICY_URL) }
                 }
             }
             item {
-                Group(footer = "Flexarr for Android ${BuildConfig.VERSION_NAME}") {
+                Group(footer = t("Flexarr for Android {version}", "version" to BuildConfig.VERSION_NAME)) {
                     Row(
                         Modifier.fillMaxWidth().pressable({ confirmSignOut = true }).padding(horizontal = 16.dp, vertical = 14.dp),
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, tint = Flexarr.danger)
-                        Text(if (model.isGuest) "Leave" else "Sign out", fontSize = 17.sp, color = Flexarr.danger)
+                        Text(if (model.isGuest) t("Leave") else t("Sign out"), fontSize = 17.sp, color = Flexarr.danger)
                     }
                 }
             }
@@ -356,8 +356,8 @@ private fun ExternalLink(title: String, icon: ImageVector, onClick: () -> Unit) 
 /** "Automatic", "Original", "Small": the size downloads come at, as Settings' row says it. */
 private val DownloadQuality.shortLabel: String
     get() = when (this) {
-        DownloadQuality.Medium -> "Automatic"
-        DownloadQuality.Small -> "Small"
+        DownloadQuality.Medium -> t("Automatic")
+        DownloadQuality.Small -> t("Small")
         else -> label
     }
 
@@ -370,13 +370,13 @@ fun DownloadSettingsScreen(model: AppModel) {
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle("Downloads", onBack = { navigator.back() }) }
+            item { PageTitle(t(Words.downloads), onBack = { navigator.back() }) }
             item {
                 Group(
-                    header = "Movies and episodes",
-                    footer = "The size Download starts with; a title’s page offers the others too. Original keeps the full picture and sound but takes the most space. Podcasts always come as their files are.",
+                    header = t("Movies and episodes"),
+                    footer = t("The size Download starts with; a title’s page offers the others too. Original keeps the full picture and sound but takes the most space. Podcasts always come as their files are."),
                 ) {
-                    listOf(DownloadQuality.Medium to "Automatic (720p)", DownloadQuality.Original to "Original", DownloadQuality.Small to "Small (480p)").forEachIndexed { index, (quality, label) ->
+                    listOf(DownloadQuality.Medium to t("Automatic (720p)"), DownloadQuality.Original to t("Original"), DownloadQuality.Small to t("Small (480p)")).forEachIndexed { index, (quality, label) ->
                         if (index > 0) Divider()
                         Choice(label, downloads.quality == quality) { downloads.chooseQuality(quality) }
                     }
@@ -384,31 +384,31 @@ fun DownloadSettingsScreen(model: AppModel) {
             }
             item {
                 Group(
-                    header = "Automatic",
+                    header = t("Automatic"),
                     footer = if (downloads.automaticOnWiFiOnly) {
-                        "Downloads this phone starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never come while Data Saver is on. Ones you start yourself use mobile data too."
+                        t("Downloads this phone starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never come while Data Saver is on. Ones you start yourself use mobile data too.")
                     } else {
-                        "Downloads this phone starts by itself, like the next episode or new podcast episodes, use mobile data too, but never while Data Saver is on."
+                        t("Downloads this phone starts by itself, like the next episode or new podcast episodes, use mobile data too, but never while Data Saver is on.")
                     },
                 ) {
-                    Toggle("Download the next episode", downloads.downloadsNext, downloads::changeDownloadsNext)
+                    Toggle(t("Download the next episode"), downloads.downloadsNext, downloads::changeDownloadsNext)
                     Divider()
-                    Toggle("Automatic downloads on Wi-Fi only", downloads.automaticOnWiFiOnly, downloads::changeAutomaticOnWiFiOnly)
+                    Toggle(t("Automatic downloads on Wi-Fi only"), downloads.automaticOnWiFiOnly, downloads::changeAutomaticOnWiFiOnly)
                 }
             }
             if (model.hasAudiobooks || model.bookDownloads.books.isNotEmpty()) {
                 item {
-                    Group(header = "Audiobooks") {
-                        Toggle("Download the next in a series", model.bookDownloads.downloadsNextInSeries, model.bookDownloads::changeDownloadsNextInSeries)
+                    Group(header = t(Words.audiobooks)) {
+                        Toggle(t("Download the next in a series"), model.bookDownloads.downloadsNextInSeries, model.bookDownloads::changeDownloadsNextInSeries)
                         Divider()
-                        Toggle("Remove finished books", model.bookDownloads.removesFinished, model.bookDownloads::changeRemovesFinished)
+                        Toggle(t("Remove finished books"), model.bookDownloads.removesFinished, model.bookDownloads::changeRemovesFinished)
                     }
                 }
             }
             item {
                 val used = downloads.bytesUsed + model.bookDownloads.bytesUsed
-                Group(header = "Storage", footer = "Episodes are deleted a day after you finish them, and podcast episodes once they’re played.") {
-                    Fact("Space used", if (used == 0L) "None" else Format.bytes(used))
+                Group(header = t("Storage"), footer = t("Episodes are deleted a day after you finish them, and podcast episodes once they’re played.")) {
+                    Fact(t("Space used"), if (used == 0L) t("None") else Format.bytes(used))
                     if (downloads.downloads.isNotEmpty() || model.bookDownloads.books.isNotEmpty()) {
                         Divider()
                         Text(
@@ -481,7 +481,7 @@ internal fun LeaveDialog(model: AppModel, onDismiss: () -> Unit) {
     val owner = model.credentials?.guest?.ownerName?.ifEmpty { null }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (owner != null) "Leave $owner’s Flexarr?" else "Leave this Flexarr?") },
+        title = { Text(if (owner != null) t("Leave {owner}’s Flexarr?", "owner" to owner) else t("Leave this Flexarr?")) },
         text = { Text(t("Joining again takes a new code. Downloads are deleted.")) },
         confirmButton = { TextButton(onClick = model::signOut) { Text(t("Leave"), color = Flexarr.danger) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(t(Words.cancel), color = Flexarr.screen) } },
@@ -501,11 +501,11 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle("Server", onBack = { navigator.back() }) }
+            item { PageTitle(t("Server"), onBack = { navigator.back() }) }
             // A guest's server is only ever reached through the tunnel: no address to show or change.
             if (guest != null || model.isGuest) item {
                 Group {
-                    Fact("Connected by invite", guest?.ownerName?.ifEmpty { null }?.let { "$it’s Flexarr" }.orEmpty())
+                    Fact(t("Connected by invite"), guest?.ownerName?.ifEmpty { null }?.let { t("{owner}’s Flexarr", "owner" to it) }.orEmpty())
                     Divider()
                     Text(
                         t("Leave"),
@@ -518,17 +518,17 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
                 val remote = model.credentials?.remoteAddress
                 Group(
                     footer = if (remote == null) {
-                        "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this phone picks the address up by itself."
+                        t("To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this phone picks the address up by itself.")
                     } else {
-                        "Away from home, this phone reaches the server over Tailscale, which needs to be connected on it."
+                        t("Away from home, this phone reaches the server over Tailscale, which needs to be connected on it.")
                     },
                 ) {
-                    Fact("Address", shortAddress(model.credentials?.address))
+                    Fact(t("Address"), shortAddress(model.credentials?.address))
                     if (remote != null) {
                         Divider()
-                        Fact("Away from home", shortAddress(remote))
+                        Fact(t("Away from home"), shortAddress(remote))
                         Divider()
-                        Fact("Connected", if (client.addresses.isAway) "Away, over Tailscale" else "At home")
+                        Fact(t("Connected"), if (client.addresses.isAway) t("Away, over Tailscale") else t("At home"))
                     }
                 }
             }
@@ -536,31 +536,31 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
                 Group {
                     when (val state = status.state) {
                         is Load.Loaded -> {
-                            Fact("Version", ServerVersion.short(state.value.version))
+                            Fact(t("Version"), ServerVersion.short(state.value.version))
                             Divider()
-                            Fact("Running on", state.value.osDescription)
+                            Fact(t("Running on"), state.value.osDescription)
                             state.value.startTime?.let(::upSince)?.let {
                                 Divider()
-                                Fact("Up since", it)
+                                Fact(t("Up since"), it)
                             }
                         }
-                        is Load.Failed -> Fact("Status", state.message)
-                        Load.Loading -> Fact("Status", "Checking")
+                        is Load.Failed -> Fact(t("Status"), state.message)
+                        Load.Loading -> Fact(t("Status"), t("Checking"))
                     }
                     Divider()
-                    Fact("Libraries", (libraries.state as? Load.Loaded)?.value?.joinToString(", ") { it.name }.orEmpty())
+                    Fact(t(Words.libraries), (libraries.state as? Load.Loaded)?.value?.joinToString(", ") { it.name }.orEmpty())
                 }
             }
             item {
                 // As the server says now, or as this phone last heard while it can't be asked.
                 val reportsOn = (status.state as? Load.Loaded)?.value?.let { it.errorReports?.enabled == true } ?: ErrorReports.isOn
                 Group(footer = ErrorReports.PRIVACY_NOTE) {
-                    Fact("Error reports", if (reportsOn) "On" else "Off")
+                    Fact(t("Error reports"), if (reportsOn) t("On") else t("Off"))
                 }
             }
             item {
-                Group(footer = "Send this phone’s recent log to your server, to look into a problem.") {
-                    SettingsLink("Send diagnostics", Icons.Filled.MedicalServices, value = null, onClick = onDiagnostics)
+                Group(footer = t("Send this phone’s recent log to your server, to look into a problem.")) {
+                    SettingsLink(t("Send diagnostics"), Icons.Filled.MedicalServices, value = null, onClick = onDiagnostics)
                 }
             }
         }
@@ -593,7 +593,7 @@ fun LibraryOrderSettingsScreen(model: AppModel) {
                     model.setLibraryOrder(if (entries == null) emptyList() else libraryOrder(saved, entries.map { it.id }))
                     if (entries == null) loader.retry()
                 } catch (e: FlexarrException) {
-                    problem = "Couldn’t save the order. ${e.message}"
+                    problem = t("Couldn’t save the order. {reason}", "reason" to e.message)
                     moved = null
                     loader.retry()
                 }
@@ -603,12 +603,12 @@ fun LibraryOrderSettingsScreen(model: AppModel) {
 
     RoomBackground(ambient = null) {
         Column {
-            PageTitle("Library order", onBack = { navigator.back() })
+            PageTitle(t("Library order"), onBack = { navigator.back() })
             Loaded(loader) { libraries ->
                 val entries = moved ?: LibraryMenuEntry.ordered(model, libraries)
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
                     item {
-                        Group(footer = problem ?: "${model.currentProfile?.name ?: "This profile"}’s own. The web, the Apple TV and iPhone list your libraries in this order too.") {
+                        Group(footer = problem ?: model.currentProfile?.name?.let { t("{name}’s own. The web, the Apple TV and iPhone list your libraries in this order too.", "name" to it) } ?: t("This profile’s own. The web, the Apple TV and iPhone list your libraries in this order too.")) {
                             ReorderableEntries(entries, onMove = ::save)
                         }
                     }
@@ -662,8 +662,8 @@ private fun ReorderableEntries(entries: List<LibraryMenuEntry>, onMove: (List<Li
                         .padding(start = 16.dp, end = 4.dp)
                         .semantics(mergeDescendants = true) {
                             customActions = listOfNotNull(
-                                if (index > 0) CustomAccessibilityAction("Move up") { step(entry.id, -1); onMove(order); true } else null,
-                                if (index < order.lastIndex) CustomAccessibilityAction("Move down") { step(entry.id, 1); onMove(order); true } else null,
+                                if (index > 0) CustomAccessibilityAction(t("Move up")) { step(entry.id, -1); onMove(order); true } else null,
+                                if (index < order.lastIndex) CustomAccessibilityAction(t("Move down")) { step(entry.id, 1); onMove(order); true } else null,
                             )
                         },
                     horizontalArrangement = Arrangement.spacedBy(14.dp),

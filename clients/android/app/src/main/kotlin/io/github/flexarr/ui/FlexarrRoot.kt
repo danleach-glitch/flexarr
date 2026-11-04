@@ -1,6 +1,5 @@
 package io.github.flexarr.ui
 
-import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -26,7 +25,7 @@ fun FlexarrRoot(model: AppModel) {
     Surface(Modifier.fillMaxSize()) {
         when (val phase = model.phase) {
             // Only a fresh install gets the welcome: anyone who has connected before knows about the server.
-            AppModel.Phase.SignedOut -> Crossfade(!welcomed && model.store.lastAddress == null, label = t("welcome")) { welcoming ->
+            AppModel.Phase.SignedOut -> Crossfade(!welcomed && model.store.lastAddress == null, label = "welcome") { welcoming ->
                 if (welcoming) WelcomeScreen(onDone = welcome) else ConnectScreen(model)
             }
             is AppModel.Phase.SignedIn -> {

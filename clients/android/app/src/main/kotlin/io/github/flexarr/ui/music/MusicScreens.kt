@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.music
 
+import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -108,7 +109,7 @@ internal fun MusicShelf(model: AppModel, row: HomeRow) {
     val width = PosterWidth * 1.15f
     // New albums links to Albums, newest first; the other rows have no link.
     val seeAll = LocalNavigator.current.libraryLink(row.link, music = true)
-    Shelf(row.title, onSeeAll = seeAll, seeAllLabel = seeAll?.let { "See all albums" }) {
+    Shelf(row.title, onSeeAll = seeAll, seeAllLabel = seeAll?.let { t("See all albums") }) {
         when (row.style) {
             HomeRowStyle.Playlists -> items(row.playlists.orEmpty(), key = { it.id }) { PlaylistCard(it, width) }
             HomeRowStyle.Mixes -> items(row.mixes.orEmpty(), key = { it.id }) { MixCard(it, width) }
@@ -187,9 +188,9 @@ private fun MusicHeader(
         if (showsPlay || hasExtra) Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (showsPlay) {
-                    ActionButton("Play", onClick = onPlay, icon = FlexarrIcons.play, prominent = true, ambient = ambient, enabled = canPlay && !busy)
-                    MusicRoundButton(FlexarrIcons.shuffle, "Shuffle", onShuffle, ambient = ambient, enabled = canShuffle && !busy)
-                    onRadio?.let { MusicRoundButton(FlexarrIcons.radio, "Radio", it, ambient = ambient, enabled = canPlay && !busy) }
+                    ActionButton(t(Words.play), onClick = onPlay, icon = FlexarrIcons.play, prominent = true, ambient = ambient, enabled = canPlay && !busy)
+                    MusicRoundButton(FlexarrIcons.shuffle, t(Words.shuffle), onShuffle, ambient = ambient, enabled = canShuffle && !busy)
+                    onRadio?.let { MusicRoundButton(FlexarrIcons.radio, t(Words.radio), it, ambient = ambient, enabled = canPlay && !busy) }
                 }
                 extra()
                 if (busy) CircularProgressIndicator(Modifier.size(22.dp), color = Flexarr.usher, strokeWidth = 2.dp)
@@ -315,17 +316,17 @@ fun ArtistScreen(model: AppModel, id: String) {
                         )
                     }
                     if (albums.isNotEmpty()) {
-                        fullWidth { SectionHeading("Albums", Modifier.bleed()) }
+                        fullWidth { SectionHeading(t(Words.albums), Modifier.bleed()) }
                         itemsIndexed(albums, key = { _, album -> album.id }) { _, album -> AlbumCard(album, onArtistPage = true) }
                     } else if (extrasChecked && extras?.missing.isNullOrEmpty()) {
-                        fullWidth { Box(Modifier.height(160.dp)) { StatusView("No albums yet.", empty = true) } }
+                        fullWidth { Box(Modifier.height(160.dp)) { StatusView(t("No albums yet."), empty = true) } }
                     }
                     extras?.missing?.takeIf { it.isNotEmpty() }?.let { missing ->
-                        fullWidth { SectionHeading("Not in your library", Modifier.bleed()) }
+                        fullWidth { SectionHeading(t(Words.notInYourLibrary), Modifier.bleed()) }
                         itemsIndexed(missing, key = { index, album -> "missing-$index-${album.id}" }) { _, album -> MusicExternalCard(model, album, width = null, showsRequest = true) }
                     }
                     extras?.similar?.takeIf { it.isNotEmpty() }?.let { similar ->
-                        fullWidth { MusicExternalShelf(model, "Fans also like", similar, Modifier.bleed()) }
+                        fullWidth { MusicExternalShelf(model, t(Words.fansAlsoLike), similar, Modifier.bleed()) }
                     }
                 } }
             }
@@ -383,13 +384,13 @@ fun AlbumScreen(model: AppModel, id: String) {
                         )
                     }
                     if (tracks.isEmpty()) {
-                        item { Box(Modifier.height(160.dp)) { StatusView("No tracks yet.", empty = true) } }
+                        item { Box(Modifier.height(160.dp)) { StatusView(t("No tracks yet."), empty = true) } }
                     } else {
                         val discs = discs(tracks)
                         discs.forEach { (disc, discTracks) ->
                             if (discs.size > 1) {
                                 item(key = "disc-$disc") {
-                                    Text("Disc $disc", style = marquee(20, Flexarr.usher).copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(start = Edge + 4.dp, top = if (disc == discs.first().first) 20.dp else 40.dp, bottom = 6.dp))
+                                    Text(t("Disc {disc}", "disc" to disc), style = marquee(20, Flexarr.usher).copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(start = Edge + 4.dp, top = if (disc == discs.first().first) 20.dp else 40.dp, bottom = 6.dp))
                                 }
                             }
                             discTracks.forEachIndexed { offset, track ->
@@ -426,7 +427,7 @@ fun AlbumScreen(model: AppModel, id: String) {
 private fun MoreButton(actions: List<MenuAction>, ambient: Color) {
     var open by remember { mutableStateOf(false) }
     Box {
-        MusicRoundButton(FlexarrIcons.more, "More", { open = true }, ambient = ambient)
+        MusicRoundButton(FlexarrIcons.more, t("More"), { open = true }, ambient = ambient)
         ItemMenu(actions, open, onDismiss = { open = false })
     }
 }
@@ -435,7 +436,7 @@ private fun MoreButton(actions: List<MenuAction>, ambient: Color) {
 private fun albumFacts(item: ItemSummary, tracks: List<ItemSummary>): List<String> = buildList {
     item.releaseYear?.let { add(it.toString()) }
     val count = if (tracks.isEmpty()) item.childCount else tracks.size
-    if (count > 0) add(if (count == 1) "1 track" else "$count tracks")
+    if (count > 0) add(t("{count, plural, one {# track} other {# tracks}}", "count" to count))
     totalRuntime(tracks)?.let(::add)
 }
 
@@ -468,7 +469,7 @@ fun PlaylistScreen(model: AppModel, id: String) {
                         )
                     }
                     if (tracks.isEmpty()) {
-                        item { Box(Modifier.height(160.dp)) { StatusView("Nothing in this playlist yet.", empty = true) } }
+                        item { Box(Modifier.height(160.dp)) { StatusView(t("Nothing in this playlist yet."), empty = true) } }
                     }
                     // A track can be in a playlist twice: each place is its own row.
                     state.value.tracks.forEachIndexed { index, entry ->

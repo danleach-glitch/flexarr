@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.livetv
 
+import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import android.text.format.Formatter
 import androidx.compose.foundation.background
@@ -102,16 +103,16 @@ fun LiveRecordingsScreen(model: AppModel) {
 
     RoomBackground(ambient = null) {
         Column {
-            PageTitle("Recordings", onBack = { navigator.back() })
+            PageTitle(t("Recordings"), onBack = { navigator.back() })
             val loaded = recordings
             when {
                 // Recordings have no age to check, so a profile with an age limit has none.
-                model.currentProfile?.hasAgeLimit == true -> StatusView("Recordings aren’t available on this profile.", empty = true)
+                model.currentProfile?.hasAgeLimit == true -> StatusView(t("Recordings aren’t available on this profile."), empty = true)
                 loaded == null && failed != null -> StatusView(failed, retry = { scope.launch { load() } })
                 loaded == null -> StatusView()
                 else -> PullToRefreshBox(isRefreshing = refreshing, onRefresh = { refreshing = true; scope.launch { load(); refreshing = false } }) {
                     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                        section("Coming up") {
+                        section(t("Coming up")) {
                             if (loaded.upcoming.isEmpty()) {
                                 Text(
                                     t("Nothing set to record. In the Guide, hold a programme and choose Record, or Record series."),
@@ -122,35 +123,37 @@ fun LiveRecordingsScreen(model: AppModel) {
                             }
                             loaded.upcoming.forEachIndexed { index, recording ->
                                 if (index > 0) Divider()
-                                RecordingRow(recording, action = if (recording.isRecordingNow) "Stop" else "Don’t record") { act { it.removeRecording(recording.id) } }
+                                RecordingRow(recording, action = if (recording.isRecordingNow) t("Stop") else t("Don’t record")) { act { it.removeRecording(recording.id) } }
                             }
                         }
                         if (loaded.series.isNotEmpty()) {
-                            section("Series") {
+                            section(t(Words.series)) {
                                 loaded.series.forEachIndexed { index, series ->
                                     if (index > 0) Divider()
                                     Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                             Text(series.title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
                                             Text(
-                                                "${series.channelName?.let { "On $it" } ?: "On any channel"}, ${series.upcoming} coming up, ${series.recorded} recorded" +
-                                                    if (series.newOnly) ", new only" else "",
+                                                (series.channelName?.let { t("On {channel}", "channel" to it) } ?: t("On any channel")).let { where ->
+                                                    if (series.newOnly) t("{where}, {upcoming} coming up, {recorded} recorded, new only", "where" to where, "upcoming" to series.upcoming, "recorded" to series.recorded)
+                                                    else t("{where}, {upcoming} coming up, {recorded} recorded", "where" to where, "upcoming" to series.upcoming, "recorded" to series.recorded)
+                                                },
                                                 fontSize = 12.sp,
                                                 color = Flexarr.usher,
                                             )
                                         }
-                                        RowMenu("Stop series") { act { it.removeSeries(series.id) } }
+                                        RowMenu(t("Stop series")) { act { it.removeSeries(series.id) } }
                                     }
                                 }
                             }
                         }
                         if (loaded.recent.isNotEmpty()) {
-                            section("Recorded") {
+                            section(t("Recorded")) {
                                 loaded.recent.forEachIndexed { index, recording ->
                                     if (index > 0) Divider()
                                     RecordingRow(
                                         recording,
-                                        action = if (recording.state == "completed") "Delete" else "Clear",
+                                        action = if (recording.state == "completed") t(Words.delete) else t("Clear"),
                                         onOpen = recording.itemId?.let { item -> { navigator.play(item) } },
                                     ) { act { it.removeRecording(recording.id) } }
                                 }
@@ -187,7 +190,7 @@ private fun RecordingRow(recording: Recording, action: String, onOpen: (() -> Un
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(recording.title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
             val parts = buildList {
-                if (recording.season != null && recording.episode != null) add("S${recording.season}E${recording.episode}")
+                if (recording.season != null && recording.episode != null) add(t(Words.seasonEpisodeShort, "season" to recording.season, "episode" to recording.episode))
                 recording.subtitle?.let(::add)
                 add(recording.channelName)
                 add(dayFormat(context).format(recording.start.atZone(ZoneId.systemDefault())))

@@ -191,7 +191,7 @@ fun PodcastScreen(model: AppModel, id: String) {
                         IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = t("More"), tint = Flexarr.screen) }
                         DropdownMenu(menu, onDismissRequest = { menu = false }) {
                             Text(t("Order"), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-                            listOf("Newest first" to false, "Oldest first" to true).forEach { (label, oldest) ->
+                            listOf(t("Newest first") to false, t("Oldest first") to true).forEach { (label, oldest) ->
                                 DropdownMenuItem(
                                     text = { Text(label) },
                                     leadingIcon = { Box(Modifier.width(20.dp)) { if (oldestFirst == oldest) Icon(Icons.Filled.Check, contentDescription = t("Chosen")) } },
@@ -229,7 +229,7 @@ fun PodcastScreen(model: AppModel, id: String) {
                             EpisodesHeading(total, unplayedOnly) { unplayedOnly = it }
                         }
                         if (episodes.isEmpty()) {
-                            item { StatusView(if (unplayedOnly) "You’re up to date." else "No episodes yet.", empty = true, modifier = Modifier.height(160.dp)) }
+                            item { StatusView(if (unplayedOnly) t("You’re up to date.") else t("No episodes yet."), empty = true, modifier = Modifier.height(160.dp)) }
                         }
                         itemsIndexed(episodes, key = { _, episode -> episode.id }) { index, episode ->
                             if (index >= episodes.size - 10) LaunchedEffect(episodes.size) { loadMore() }
@@ -248,7 +248,7 @@ fun PodcastScreen(model: AppModel, id: String) {
         AlertDialog(
             onDismissRequest = { markingAllPlayed = false },
             title = { Text(t("Mark all as played?")) },
-            text = { Text("All ${Format.count(show.episodeCount)} episodes of ${show.title} will be marked as played.") },
+            text = { Text(t("All {count} episodes of {show} will be marked as played.", "count" to show.episodeCount, "show" to show.title)) },
             confirmButton = {
                 TextButton(onClick = {
                     markingAllPlayed = false
@@ -287,11 +287,11 @@ private fun Header(model: AppModel, podcast: Podcast, episodes: List<PodcastEpis
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(podcast.title, style = marquee(28).copy(fontWeight = FontWeight.ExtraBold), textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)
             podcast.author?.let { Text(it, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.9f), textAlign = TextAlign.Center) }
-            FactsLine(listOfNotNull(podcast.categories.firstOrNull(), podcast.countLine, if (podcast.explicit) "Explicit" else null))
+            FactsLine(listOfNotNull(podcast.categories.firstOrNull(), podcast.countLine, if (podcast.explicit) t("Explicit") else null))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ActionButton(
-                if (saving) "…" else if (podcast.isSubscribed) "Following" else "Follow",
+                if (saving) "…" else if (podcast.isSubscribed) t(Words.following) else t(Words.follow),
                 onClick = { onFollow(!podcast.isSubscribed) },
                 icon = if (podcast.isSubscribed) Icons.Filled.Check else Icons.Filled.Add,
                 prominent = !podcast.isSubscribed,
@@ -302,7 +302,7 @@ private fun Header(model: AppModel, podcast: Podcast, episodes: List<PodcastEpis
             val next = episodes.firstOrNull { it.progress != null } ?: episodes.firstOrNull { !it.isPlayed }
             if (next != null) {
                 ActionButton(
-                    if (next.progress != null) "Resume" else if (oldestFirst) "Play" else "Latest episode",
+                    if (next.progress != null) t("Resume") else if (oldestFirst) t(Words.play) else t("Latest episode"),
                     onClick = { model.podcasts.play(next) },
                     icon = FlexarrIcons.play,
                     prominent = podcast.isSubscribed,
@@ -310,7 +310,7 @@ private fun Header(model: AppModel, podcast: Podcast, episodes: List<PodcastEpis
                 )
             }
         }
-        podcast.error?.let { Text("The feed couldn’t be checked last time: $it", fontSize = 12.sp, color = Flexarr.danger, textAlign = TextAlign.Center) }
+        podcast.error?.let { Text(t("The feed couldn’t be checked last time: {reason}", "reason" to it), fontSize = 12.sp, color = Flexarr.danger, textAlign = TextAlign.Center) }
         podcast.overview?.let { overview ->
             Text(
                 overview,
@@ -330,13 +330,13 @@ private fun Header(model: AppModel, podcast: Podcast, episodes: List<PodcastEpis
 private fun EpisodesHeading(total: Int, unplayedOnly: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = Edge).padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
-            if (unplayedOnly) "${Format.count(total)} unplayed" else if (total == 1) "1 episode" else "${Format.count(total)} episodes",
+            if (unplayedOnly) t("{count} unplayed", "count" to total) else t("{count, plural, one {# episode} other {# episodes}}", "count" to total),
             style = marquee(22).copy(fontWeight = FontWeight.Bold),
             maxLines = 1,
             modifier = Modifier.weight(1f),
         )
         SingleChoiceSegmentedButtonRow {
-            listOf("Unplayed" to true, "All" to false).forEachIndexed { index, (label, value) ->
+            listOf(t("Unplayed") to true, t("All") to false).forEachIndexed { index, (label, value) ->
                 SegmentedButton(
                     selected = unplayedOnly == value,
                     onClick = { onChange(value) },

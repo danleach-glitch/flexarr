@@ -43,7 +43,7 @@ fun InviteDialog(model: AppModel) {
             text = {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Flexarr.usher)
-                    Text("Joining $owner’s Flexarr…")
+                    Text(t("Joining {owner}’s Flexarr…", "owner" to owner))
                 }
             },
             confirmButton = {},
@@ -61,8 +61,8 @@ fun InviteDialog(model: AppModel) {
         )
         else -> AlertDialog(
             onDismissRequest = model::dismissInvite,
-            title = { Text("Join $owner’s Flexarr?") },
-            text = { Text("You’ll watch as ${invite.profileName}.") },
+            title = { Text(t("Join {owner}’s Flexarr?", "owner" to owner)) },
+            text = { Text(t("You’ll watch as {profile}.", "profile" to invite.profileName)) },
             confirmButton = { TextButton(onClick = model::confirmInvite) { Text(t("Join"), color = Flexarr.screen) } },
             dismissButton = notNow,
             containerColor = Flexarr.seat,

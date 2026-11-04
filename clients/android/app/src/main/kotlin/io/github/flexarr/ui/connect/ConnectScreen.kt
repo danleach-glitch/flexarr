@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.connect
 
+import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -71,7 +72,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
@@ -80,6 +80,7 @@ import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.data.DiscoveredServer
 import io.github.flexarr.data.ServerBrowser
 import io.github.flexarr.ui.components.ActionButton
+import io.github.flexarr.ui.components.styledParts
 import io.github.flexarr.ui.components.BrandMark
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
@@ -135,14 +136,14 @@ fun ConnectScreen(model: AppModel) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     BrandMark(56.dp)
-                    Text(t("flexarr"), style = marquee(64))
+                    Text("flexarr", style = marquee(64))
                 }
                 Text(t("Your entertainment, on every screen."), fontSize = 20.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                 model.signedOutNotice?.let {
                     Text(it, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.padding(top = 8.dp))
                 }
             }
-            AnimatedContent(step, label = t("connect")) { current ->
+            AnimatedContent(step, label = "connect") { current ->
                 when (current) {
                     Step.Choose -> ChooseServer(
                         browser,
@@ -194,21 +195,22 @@ private fun ChooseServer(
 
         // Someone else's Flexarr, from another home: a code to give whoever invited them.
         if (BuildConfig.GUEST_INVITES) {
-            ActionButton("Join someone’s Flexarr", onClick = onGuest, icon = Icons.Filled.Key, modifier = Modifier.fillMaxWidth())
+            ActionButton(t("Join someone’s Flexarr"), onClick = onGuest, icon = Icons.Filled.Key, modifier = Modifier.fillMaxWidth())
         }
 
         // Typing an address is for the few whose server can't be found: offered only once it hasn't been, or under
         // the list for one that isn't in it.
         if (browser.servers.isNotEmpty() || lookingAWhile) {
-            val lead = if (browser.servers.isEmpty()) "Can’t see your server? Check it’s on the same Wi-Fi, or " else "Not listed? "
-            val link = if (browser.servers.isEmpty()) "enter its address" else "Enter its address"
+            val link = if (browser.servers.isEmpty()) t("enter its address") else t("Enter its address")
+            val sentence = if (browser.servers.isEmpty()) t("Can’t see your server? Check it’s on the same Wi-Fi, or {link}.", "link" to link) else t("Not listed? {link}.", "link" to link)
             Text(
                 buildAnnotatedString {
-                    append(lead)
+                    val at = sentence.indexOf(link)
+                    append(if (at >= 0) sentence.substring(0, at) else "$sentence ")
                     withLink(LinkAnnotation.Clickable("address", TextLinkStyles(SpanStyle(color = Flexarr.silver, fontWeight = FontWeight.SemiBold))) { onManual() }) {
                         append(link)
                     }
-                    append(".")
+                    if (at >= 0) append(sentence.substring(at + link.length))
                 },
                 fontSize = 15.sp,
                 color = Flexarr.usher,
@@ -255,10 +257,10 @@ private fun NewToFlexarr(modifier: Modifier = Modifier) {
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Badge("Completely free", Icons.Filled.Check)
-            Badge("Under a minute", Icons.Filled.Schedule)
+            Badge(t("Completely free"), Icons.Filled.Check)
+            Badge(t("Under a minute"), Icons.Filled.Schedule)
         }
-        ActionButton("Set up a server", onClick = { uri.openUri(INSTALL_URL) }, icon = Icons.AutoMirrored.Filled.OpenInNew, prominent = true, modifier = Modifier.fillMaxWidth())
+        ActionButton(t("Set up a server"), onClick = { uri.openUri(INSTALL_URL) }, icon = Icons.AutoMirrored.Filled.OpenInNew, prominent = true, modifier = Modifier.fillMaxWidth())
     }
 }
 
@@ -305,7 +307,7 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                     color = Flexarr.usher,
                 )
             }
-            ActionButton("Try again", onClick = { attempt++ }, prominent = true, modifier = Modifier.fillMaxWidth())
+            ActionButton(t("Try again"), onClick = { attempt++ }, prominent = true, modifier = Modifier.fillMaxWidth())
         } else if (shown != null) {
             Text(t("Connect this device"), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
             if (needsSetup) {
@@ -313,41 +315,24 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                 // setting it up comes first.
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     NumberedStep(1) {
-                        Text(buildAnnotatedString {
-                            append("On your computer, open ")
-                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(server.address) }
-                            append(" in a web browser.")
-                        })
+                        Text(styledParts(t("On your computer, open {address} in a web browser.", "address" to server.address), server.address))
                     }
                     NumberedStep(2) {
-                        Text(buildAnnotatedString {
-                            if (setupNeedsCode) append("Type in the setup code from the server’s log, then click ")
-                            else append("Click ")
-                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Set up Flexarr") }
-                            append(".")
-                        })
+                        val button = t("Set up Flexarr")
+                        Text(styledParts(if (setupNeedsCode) t("Type in the setup code from the server’s log, then click {button}.", "button" to button) else t("Click {button}.", "button" to button), button))
                     }
                     NumberedStep(3) {
-                        Text(buildAnnotatedString {
-                            append("Go to ")
-                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Settings") }
-                            append(", then ")
-                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Security") }
-                            append(", then ")
-                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Connect a device") }
-                            append(".")
-                        })
+                        val settings = t(Words.settings)
+                        val security = t("Security")
+                        val connect = t("Connect a device")
+                        Text(styledParts(t("Go to {settings}, then {security}, then {connect}.", "settings" to settings, "security" to security, "connect" to connect), settings, security, connect))
                     }
                     NumberedStep(4) { Text(t("Type in this code:")) }
                 }
             } else {
                 // A phone signed in as the main profile is asked to allow it; a computer is the way round.
                 Text(
-                    buildAnnotatedString {
-                        append("On a phone signed in to Flexarr, tap ")
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Allow") }
-                        append(" when it asks — check it shows this code:")
-                    },
+                    t("Allow").let { allow -> styledParts(t("On a phone signed in to Flexarr, tap {allow} when it asks — check it shows this code:", "allow" to allow), allow) },
                     fontSize = 17.sp,
                     color = Flexarr.screen,
                 )
@@ -362,12 +347,8 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
             }
             if (!needsSetup) {
                 Text(
-                    buildAnnotatedString {
-                        append("Or on a computer, open ")
-                        // The page's own address works on servers before and after Connect a device moved to Security.
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(server.address.trimEnd('/') + "/settings/tv") }
-                        append(" and type the code.")
-                    },
+                    // The page's own address works on servers before and after Connect a device moved to Security.
+                    (server.address.trimEnd('/') + "/settings/tv").let { page -> styledParts(t("Or on a computer, open {page} and type the code.", "page" to page), page) },
                     fontSize = 15.sp,
                     color = Flexarr.usher,
                 )
@@ -439,7 +420,7 @@ private fun ManualConnect(model: AppModel, onPair: (DiscoveredServer) -> Unit, o
         if (!usesKey) {
             val url = FlexarrClient.normalizeAddress(address)
             if (url == null) {
-                error = "That doesn’t look like a server address. Try one like http://192.168.1.20:8383."
+                error = t("That doesn’t look like a server address. Try one like http://192.168.1.20:8383.")
                 return
             }
             onPair(DiscoveredServer(url.host, url.toString()))
@@ -459,7 +440,7 @@ private fun ManualConnect(model: AppModel, onPair: (DiscoveredServer) -> Unit, o
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Field("Server address") {
+        Field(t("Server address")) {
             Input(
                 address,
                 { address = it },
@@ -467,19 +448,19 @@ private fun ManualConnect(model: AppModel, onPair: (DiscoveredServer) -> Unit, o
                 KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false, imeAction = if (usesKey) ImeAction.Next else ImeAction.Go),
                 KeyboardActions(onGo = { connect() }, onNext = { keyFocus.requestFocus() }),
                 Modifier.focusRequester(addressFocus),
-                name = "Server address",
+                name = t("Server address"),
             )
         }
         if (usesKey) {
-            Field("API key") {
+            Field(t("API key")) {
                 Input(
                     apiKey,
                     { apiKey = it },
-                    "Paste your API key",
+                    t("Paste your API key"),
                     KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
                     KeyboardActions(onGo = { connect() }),
                     Modifier.focusRequester(keyFocus),
-                    name = "API key",
+                    name = t("API key"),
                     secret = true,
                 )
             }
@@ -488,13 +469,13 @@ private fun ManualConnect(model: AppModel, onPair: (DiscoveredServer) -> Unit, o
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ActionButton(
-                if (connecting) "Connecting" else "Connect",
+                if (connecting) t("Connecting") else t("Connect"),
                 onClick = ::connect,
                 icon = Icons.AutoMirrored.Filled.ArrowForward,
                 prominent = true,
                 enabled = !connecting && address.isNotBlank(),
             )
-            ActionButton("Back", onClick = onBack)
+            ActionButton(t("Back"), onClick = onBack)
         }
         error?.let { ErrorNote(it) }
         if (!usesKey) {
@@ -559,32 +540,32 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
             when {
                 model.joining -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.usher)
-                    Text("Joining ${invite.ownerName}’s Flexarr…", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
+                    Text(t("Joining {owner}’s Flexarr…", "owner" to invite.ownerName), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
                 }
                 joinProblem != null -> {
                     ErrorNote(joinProblem)
                     // Try again only when it could work (the host couldn't be reached); otherwise a new code for a new invite.
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (model.joinCanRetry) ActionButton("Try again", onClick = model::confirmInvite, prominent = true)
-                        ActionButton("New code", onClick = model::dismissInvite, prominent = !model.joinCanRetry)
+                        if (model.joinCanRetry) ActionButton(t("Try again"), onClick = model::confirmInvite, prominent = true)
+                        ActionButton(t("New code"), onClick = model::dismissInvite, prominent = !model.joinCanRetry)
                     }
                 }
                 // Asked first: anyone who heard the code could have sent theirs.
                 else -> {
                     // Said as it arrives: whoever's using TalkBack is looking at the code.
-                    Text("Join ${invite.ownerName}’s Flexarr?", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen,
+                    Text(t("Join {owner}’s Flexarr?", "owner" to invite.ownerName), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen,
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite; heading() })
-                    Text("You’ll watch as ${invite.profileName}.", fontSize = 17.sp, color = Flexarr.usher)
+                    Text(t("You’ll watch as {profile}.", "profile" to invite.profileName), fontSize = 17.sp, color = Flexarr.usher)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        ActionButton("Join", onClick = model::confirmInvite, prominent = true)
-                        ActionButton("Not now", onClick = model::dismissInvite)
+                        ActionButton(t("Join"), onClick = model::confirmInvite, prominent = true)
+                        ActionButton(t("Not now"), onClick = model::dismissInvite)
                     }
                 }
             }
         } else if (guest.code == null && guest.problem != null && !guest.stopped) {
             // No code to be had (the relay can't be reached): just that, and a way to try again.
             Text(guest.problem!!, fontSize = 15.sp, color = Flexarr.screen)
-            ActionButton(if (guest.badInvite) "New code" else "Try again", onClick = { attempt++ }, prominent = true)
+            ActionButton(if (guest.badInvite) t("New code") else t("Try again"), onClick = { attempt++ }, prominent = true)
         } else {
             // Not once codes have stopped: there's none to give.
             if (!guest.stopped) Text(t("Give this code to the person who invited you"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
@@ -592,14 +573,14 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
             if (shown != null) {
                 Text(shown.display, fontSize = 44.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp, color = Flexarr.screen,
                     modifier = Modifier.semantics { contentDescription = shown.spoken })
-                ActionButton("Send it", icon = Icons.Filled.Share, onClick = {
+                ActionButton(t("Send it"), icon = Icons.Filled.Share, onClick = {
                     val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
                         .putExtra(android.content.Intent.EXTRA_TEXT, shown.display)
                     context.startActivity(android.content.Intent.createChooser(send, null))
                 })
                 Text(t("They type it into Settings › Remote access in Flexarr. Keep this screen open."), fontSize = 13.sp, color = Flexarr.usher)
             } else if (guest.stopped) {
-                ActionButton("Show a new code", onClick = { attempt++ }, prominent = true)
+                ActionButton(t("Show a new code"), onClick = { attempt++ }, prominent = true)
             } else if (guest.problem == null) {
                 CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Flexarr.usher)
             }

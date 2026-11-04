@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.home
 
+import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -71,11 +73,11 @@ fun ComingSoonScreen(model: AppModel) {
     val loader = rememberLoader(model.credentials) { UpcomingDays.days(model.client?.upcoming(30).orEmpty()) }
     RoomBackground(ambient = null) {
         Column {
-            PageTitle("Coming soon", onBack = { navigator.back() })
+            PageTitle(t(Words.comingSoon), onBack = { navigator.back() })
             Loaded(loader) { days ->
                 PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
                     if (days.isEmpty()) {
-                        StatusView("Nothing is scheduled. Monitored shows and movies appear here as their dates get close.", empty = true)
+                        StatusView(t("Nothing is scheduled. Monitored shows and movies appear here as their dates get close."), empty = true)
                     } else {
                         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
                             days.forEach { day ->
@@ -105,7 +107,7 @@ private fun EntryRow(entry: UpcomingDays.Entry) {
     val first = entry.first
     Row(
         Modifier.fillMaxWidth()
-            .pressable({ first.libraryItemId?.let(navigator::openItem) ?: run { about = true } }, onClickLabel = if (first.libraryItemId != null) "Open" else "About")
+            .pressable({ first.libraryItemId?.let(navigator::openItem) ?: run { about = true } }, onClickLabel = if (first.libraryItemId != null) t("Open") else t("About"))
             .semantics(mergeDescendants = true) {}
             .padding(horizontal = Edge, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),

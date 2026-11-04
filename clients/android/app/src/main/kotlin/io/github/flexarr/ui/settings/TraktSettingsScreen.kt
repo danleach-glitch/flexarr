@@ -113,17 +113,17 @@ fun TraktSettingsScreen(model: AppModel) {
                     item {
                         WithProblem(trakt.problemAt(TraktSpot.Account)) {
                             Group(footer = status.syncNote) {
-                                Fact("Account", status.username ?: "Connected")
+                                Fact(t("Account"), status.username ?: t("Connected"))
                                 Divider()
                                 Line(status.syncedText())
                                 if (status.queued > 0) {
                                     Divider()
-                                    Fact("Waiting to send", "${status.queued}")
+                                    Fact(t("Waiting to send"), "${status.queued}")
                                 }
                                 Divider()
-                                ActionRow(if (trakt.syncing) TraktWords.SYNCING else "Sync now", busy = trakt.syncing, enabled = !trakt.working) { trakt.sync() }
+                                ActionRow(if (trakt.syncing) TraktWords.SYNCING else t("Sync now"), busy = trakt.syncing, enabled = !trakt.working) { trakt.sync() }
                                 Divider()
-                                ActionRow("Disconnect", color = Flexarr.danger, enabled = !trakt.working) { confirmDisconnect = true }
+                                ActionRow(t("Disconnect"), color = Flexarr.danger, enabled = !trakt.working) { confirmDisconnect = true }
                             }
                         }
                     }
@@ -145,15 +145,15 @@ fun TraktSettingsScreen(model: AppModel) {
                                 // Stays on one line at the largest font sizes, shrinking to fit.
                                 autoSize = TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 34.sp),
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp)
-                                    .clearAndSetSemantics { contentDescription = "Code ${TraktWords.spelled(code.userCode)}" },
+                                    .clearAndSetSemantics { contentDescription = t("Code {code}", "code" to TraktWords.spelled(code.userCode)) },
                             )
                             Divider()
-                            ActionRow("Copy code and open Trakt", icon = Icons.AutoMirrored.Filled.OpenInNew) {
+                            ActionRow(t("Copy code and open Trakt"), icon = Icons.AutoMirrored.Filled.OpenInNew) {
                                 copy(context, code.userCode)
                                 runCatching { uri.openUri(code.verificationUrl) }
                             }
                             Divider()
-                            ActionRow("Cancel", color = Flexarr.screen, enabled = !trakt.working) { trakt.run(TraktSpot.Account) { it.cancelTraktConnect() } }
+                            ActionRow(t(Words.cancel), color = Flexarr.screen, enabled = !trakt.working) { trakt.run(TraktSpot.Account) { it.cancelTraktConnect() } }
                         }
                     }
                 }
@@ -190,10 +190,10 @@ private fun HistoryImport(trakt: TraktState, status: TraktStatus) {
     val preview = trakt.preview
     val footer = when {
         status.importing || status.importedAt != null -> null
-        preview == null -> "See what changes first."
-        else -> "Nothing is marked unwatched, on either side."
+        preview == null -> t("See what changes first.")
+        else -> t("Nothing is marked unwatched, on either side.")
     }
-    Group(header = "Your history", footer = footer) {
+    Group(header = t("Your history"), footer = footer) {
         when {
             status.importing -> Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(Modifier.size(18.dp), color = Flexarr.usher, strokeWidth = 2.dp)
@@ -215,7 +215,7 @@ private fun HistoryImport(trakt: TraktState, status: TraktStatus) {
 
 @Composable
 private fun Lists(trakt: TraktState, lists: List<TraktList>) {
-    Group(header = "Lists", footer = TraktWords.LISTS_NOTE) {
+    Group(header = t("Lists"), footer = TraktWords.LISTS_NOTE) {
         lists.forEachIndexed { index, list ->
             if (index > 0) Divider()
             Toggle(list.name, on = list.selected, onChange = { trakt.choose(list, it) }, detail = list.detail, enabled = !trakt.savingLists)

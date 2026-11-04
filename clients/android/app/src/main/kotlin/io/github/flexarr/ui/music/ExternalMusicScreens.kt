@@ -122,7 +122,7 @@ internal fun AppModel.requestState(item: MusicExternal): MusicRequestState = whe
 }
 
 /** The one quiet line when Lidarr is connected but not answering, as the Apple apps' MusicWords. */
-internal const val LidarrNotAnswering = "Lidarr isn’t answering."
+internal val LidarrNotAnswering get() = t("Lidarr isn’t answering.")
 
 /** Whether Lidarr can take a request now: not when it isn't answering. */
 internal val AppModel.canAskForMusic: Boolean get() = !musicUnreachable
@@ -143,10 +143,10 @@ internal val AppModel.lidarrSilentHere: Boolean
 
 /** "Request album", "Follow", "Requested", "Following" or "In your library"; null for nothing to offer. */
 internal fun MusicRequestState.label(isArtist: Boolean): String? = when (this) {
-    MusicRequestState.CanRequest -> if (isArtist) "Follow" else "Request album"
-    MusicRequestState.Sending -> if (isArtist) "Following…" else "Requesting…"
-    MusicRequestState.Requested -> if (isArtist) "Following" else "Requested"
-    MusicRequestState.InLibrary -> "In your library"
+    MusicRequestState.CanRequest -> if (isArtist) t(Words.follow) else t(Words.requestAlbum)
+    MusicRequestState.Sending -> if (isArtist) t("Following…") else t("Requesting…")
+    MusicRequestState.Requested -> if (isArtist) t(Words.following) else t(Words.requested)
+    MusicRequestState.InLibrary -> t(Words.inYourLibrary)
     MusicRequestState.None -> null
 }
 
@@ -173,9 +173,9 @@ internal fun AppModel.followState(keys: List<String>, followed: Boolean): MusicR
 internal fun AppModel.isUndoingMusic(keys: List<String>): Boolean = keys.any { it in musicUndoing }
 
 /** The question before Following or Requested is undone, its answer and the way out, as the web's. */
-internal fun musicUndoTitle(isArtist: Boolean, name: String) = if (isArtist) "Stop following $name?" else "Unrequest $name?"
-internal fun musicUndoConfirm(isArtist: Boolean) = if (isArtist) "Stop following" else "Unrequest"
-internal fun musicUndoKeep(isArtist: Boolean) = if (isArtist) "Keep following" else "Keep it"
+internal fun musicUndoTitle(isArtist: Boolean, name: String) = if (isArtist) t("Stop following {name}?", "name" to name) else t("Unrequest {name}?", "name" to name)
+internal fun musicUndoConfirm(isArtist: Boolean) = if (isArtist) t(Words.stopFollowing) else t(Words.unrequest)
+internal fun musicUndoKeep(isArtist: Boolean) = if (isArtist) t("Keep following") else t("Keep it")
 
 /** Asked once before Following or Requested is undone. */
 @Composable
@@ -193,12 +193,12 @@ internal fun MusicUndoDialog(isArtist: Boolean, name: String, onConfirm: () -> U
  * once it has (a placeholder artist's own page goes back: the server took them out of the library).
  */
 internal fun Navigator.unfollowMusic(model: AppModel, keys: List<String>, onDone: () -> Unit = {}, send: suspend (FlexarrClient) -> Unit) {
-    watchlistChange("Couldn’t stop following this artist") { if (model.undoMusic(keys, send)) onDone() }
+    watchlistChange(t("Couldn’t stop following this artist")) { if (model.undoMusic(keys, send)) onDone() }
 }
 
 /** Unrequests an album, once; the snackbar says if it didn't work. */
 internal fun Navigator.unrequestMusic(model: AppModel, item: MusicExternal) {
-    watchlistChange("Couldn’t unrequest this album") { model.undoMusic(listOf(item.id)) { it.unrequestAlbum(item) } }
+    watchlistChange(t("Couldn’t unrequest this album")) { model.undoMusic(listOf(item.id)) { it.unrequestAlbum(item) } }
 }
 
 /**
@@ -260,7 +260,7 @@ internal fun MusicRequestRoundButton(
     val on = state == MusicRequestState.Requested || state == MusicRequestState.Sending
     val enabled = model.canAskForMusicHere && !undoing && (state == MusicRequestState.CanRequest || state == MusicRequestState.Requested)
     val icon = state.icon(isArtist) ?: return
-    val label = if (on) (if (isArtist) "Following" else "Requested") else state.label(isArtist).orEmpty()
+    val label = if (on) (if (isArtist) t(Words.following) else t(Words.requested)) else state.label(isArtist).orEmpty()
     val press = { if (state == MusicRequestState.CanRequest) onRequest() else confirming = true }
     val dimmed = !enabled && state != MusicRequestState.Sending
     val onClickLabel = if (on) musicUndoConfirm(isArtist) else null
@@ -298,14 +298,14 @@ internal fun LidarrNotAnsweringNote(model: AppModel) {
  * so in the snackbar if that didn't work. [keys]: what it's kept under ([AppModel.musicAsked]), the item's id by default.
  */
 internal fun Navigator.requestMusic(model: AppModel, item: MusicExternal, keys: List<String> = listOf(item.id)) {
-    watchlistChange(if (item.isArtist) "Couldn’t follow this artist" else "Couldn’t request this album") {
+    watchlistChange(if (item.isArtist) t("Couldn’t follow this artist") else t("Couldn’t request this album")) {
         model.askForMusic(keys) { client -> if (item.isArtist) client.followArtist(item.deezerId) else client.requestAlbum(item) }
     }
 }
 
 /** Follows a library artist, by its id here, once; the snackbar says if it didn't work. */
 internal fun Navigator.followLibraryArtist(model: AppModel, id: String, deezerId: Long?) {
-    watchlistChange("Couldn’t follow this artist") {
+    watchlistChange(t("Couldn’t follow this artist")) {
         model.askForMusic(libraryArtistKeys(id, deezerId)) { it.followLibraryArtist(id) }
     }
 }
@@ -313,10 +313,10 @@ internal fun Navigator.followLibraryArtist(model: AppModel, id: String, deezerId
 /** "Album", "EP", "Single" or "Compilation". */
 private val MusicExternal.releaseKind: String
     get() = when (recordType) {
-        "ep" -> "EP"
-        "single" -> "Single"
-        "compile" -> "Compilation"
-        else -> "Album"
+        "ep" -> t("EP")
+        "single" -> t("Single")
+        "compile" -> t("Compilation")
+        else -> t("Album")
     }
 
 /** Whether [item] has a page to open: the household's own, or Deezer's (an album only Lidarr lists has neither). */
@@ -362,7 +362,7 @@ fun MusicExternalCard(model: AppModel, item: MusicExternal, width: Dp?, modifier
                     // Where it stands, after what it is: "Album, Daft Punk, Requested".
                     val standing = state.takeIf { it == MusicRequestState.InLibrary || it == MusicRequestState.Requested }?.label(item.isArtist)
                     val what = when {
-                        showsKind -> if (item.isArtist) "Artist" else listOfNotNull(item.releaseKind, item.artist).joinToString(", ")
+                        showsKind -> if (item.isArtist) t("Artist") else listOfNotNull(item.releaseKind, item.artist).joinToString(", ")
                         item.isArtist -> null
                         showsRequest -> item.kindLine
                         else -> item.artist ?: item.kindLine
@@ -384,8 +384,8 @@ fun MusicExternalCard(model: AppModel, item: MusicExternal, width: Dp?, modifier
  * In your library; null for nothing to offer.
  */
 internal fun MusicRequestState.chipLabel(): String? = when (this) {
-    MusicRequestState.CanRequest -> "Request"
-    MusicRequestState.Sending, MusicRequestState.Requested -> "Requested"
+    MusicRequestState.CanRequest -> t(Words.request)
+    MusicRequestState.Sending, MusicRequestState.Requested -> t(Words.requested)
     MusicRequestState.InLibrary -> label(isArtist = false)
     MusicRequestState.None -> null
 }
@@ -551,10 +551,10 @@ fun ExternalArtistScreen(model: AppModel, deezerId: Long) {
                             model,
                             art = { MusicArtwork(artist.image, artist.name, circular = true, modifier = Modifier.width(180.dp).shadow(20.dp, CircleShape)) },
                             title = artist.name,
-                            below = { if (artist.albums.isNotEmpty()) FactsLine(listOf(if (artist.albums.size == 1) "1 album" else "${artist.albums.size} albums")) },
+                            below = { if (artist.albums.isNotEmpty()) FactsLine(listOf(t("{count, plural, one {# album} other {# albums}}", "count" to artist.albums.size))) },
                             buttons = {
                                 if (libraryId != null) {
-                                    ActionButton("In your library", onClick = { navigator.openLibraryArtist(libraryId) }, icon = FlexarrIcons.music, prominent = true)
+                                    ActionButton(t(Words.inYourLibrary), onClick = { navigator.openLibraryArtist(libraryId) }, icon = FlexarrIcons.music, prominent = true)
                                 }
                                 // Nothing of theirs plays here: Follow is the page's one action (MusicActions).
                                 if (MusicActions.Button.FOLLOW in MusicActions.of(MusicActions.Input(MusicActions.Kind.ARTIST, hasMusic = false, canRequest = true, platform = MusicActions.Platform.PHONE))) {
@@ -575,7 +575,7 @@ fun ExternalArtistScreen(model: AppModel, deezerId: Long) {
                         itemsIndexed(albums, key = { index, album -> "$title-$index-${album.id}" }) { _, album -> MusicExternalCard(model, album, width = null, showsRequest = true) }
                     }
                     if (artist.similar.isNotEmpty()) {
-                        fullWidth { MusicExternalShelf(model, "Fans also like", artist.similar, Modifier.bleed()) }
+                        fullWidth { MusicExternalShelf(model, t(Words.fansAlsoLike), artist.similar, Modifier.bleed()) }
                     }
                 } }
             }
@@ -652,7 +652,7 @@ fun ExternalAlbumScreen(model: AppModel, deezerId: Long) {
                         item(key = "track-$index") {
                             val disc = track.disc.takeIf { album.tracks.any { it.disc != album.tracks.first().disc } }
                             if (disc != null && (index == 0 || album.tracks[index - 1].disc != track.disc)) {
-                                Text("Disc $disc", style = marquee(20, Flexarr.usher).copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(start = Edge + 4.dp, top = if (index == 0) 20.dp else 40.dp, bottom = 6.dp))
+                                Text(t("Disc {disc}", "disc" to disc), style = marquee(20, Flexarr.usher).copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(start = Edge + 4.dp, top = if (index == 0) 20.dp else 40.dp, bottom = 6.dp))
                             }
                             Box(Modifier.padding(horizontal = Edge - 8.dp).padding(top = if (index == 0 && disc == null) 20.dp else 0.dp)) {
                                 OutsideTrackRow(track, if (track.number > 0) track.number else index + 1)
@@ -671,7 +671,7 @@ fun ExternalAlbumScreen(model: AppModel, deezerId: Long) {
 /** "Album, 2001   14 tracks   1h 1m". */
 private fun albumFacts(album: MusicAlbumDetail): List<String> = buildList {
     album.summary.kindLine?.let(::add)
-    if (album.tracks.isNotEmpty()) add(if (album.tracks.size == 1) "1 track" else "${album.tracks.size} tracks")
+    if (album.tracks.isNotEmpty()) add(t("{count, plural, one {# track} other {# tracks}}", "count" to album.tracks.size))
     if (album.durationSeconds > 0) Format.runtime(album.durationSeconds.toDouble())?.let(::add)
 }
 

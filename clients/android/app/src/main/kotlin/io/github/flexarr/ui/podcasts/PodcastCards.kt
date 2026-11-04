@@ -167,36 +167,36 @@ fun PodcastEpisodeRow(
     var menu by remember { mutableStateOf(false) }
     val download = model.downloads.entry(episode.id)
     val actions = buildList {
-        add(MenuAction(if (episode.progress != null) "Resume" else "Play") { model.podcasts.play(episode) })
-        add(MenuAction("Play next") { model.addToUpNext(episode.id, next = true) })
-        add(MenuAction("Add to Up next") { model.addToUpNext(episode.id, next = false) })
-        removeFromUpNext?.let { add(MenuAction("Remove from Up next", run = it)) }
-        add(MenuAction(if (episode.isPlayed) "Mark as unplayed" else "Mark as played") { setPlayed(!episode.isPlayed) })
+        add(MenuAction(if (episode.progress != null) t("Resume") else t(Words.play)) { model.podcasts.play(episode) })
+        add(MenuAction(t(Words.playNext)) { model.addToUpNext(episode.id, next = true) })
+        add(MenuAction(t("Add to Up next")) { model.addToUpNext(episode.id, next = false) })
+        removeFromUpNext?.let { add(MenuAction(t("Remove from Up next"), run = it)) }
+        add(MenuAction(if (episode.isPlayed) t("Mark as unplayed") else t(Words.markAsPlayed)) { setPlayed(!episode.isPlayed) })
         if (download == null) {
-            add(MenuAction("Download") { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } })
+            add(MenuAction(t(Words.download)) { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } })
         } else {
-            add(MenuAction(if (download.isDownloaded) "Remove download" else "Stop download") { model.downloads.delete(download.id) })
+            add(MenuAction(if (download.isDownloaded) t("Remove download") else t("Stop download")) { model.downloads.delete(download.id) })
         }
         // Part way through: unplayed forgets the place, so it leaves the listening list.
-        if (episode.progress != null) add(MenuAction("Mark as unplayed") { setPlayed(false) })
+        if (episode.progress != null) add(MenuAction(t("Mark as unplayed")) { setPlayed(false) })
     }
     // The iPhone's swipe actions, each also in the menu above (so TalkBack has them once, as custom actions).
     val startSwipe = buildList {
         add(
-            if (episode.isPlayed) SwipeAction("Unplayed", Icons.AutoMirrored.Filled.Undo, Flexarr.aisle) { setPlayed(false) }
-            else SwipeAction("Played", Icons.Filled.CheckCircle, Flexarr.usher, Flexarr.room) { setPlayed(true) },
+            if (episode.isPlayed) SwipeAction(t("Unplayed"), Icons.AutoMirrored.Filled.Undo, Flexarr.aisle) { setPlayed(false) }
+            else SwipeAction(t("Played"), Icons.Filled.CheckCircle, Flexarr.usher, Flexarr.room) { setPlayed(true) },
         )
-        if (removeFromUpNext == null) add(SwipeAction("Play next", Icons.Filled.QueuePlayNext, Flexarr.silver, Flexarr.room) { model.addToUpNext(episode.id, next = true) })
+        if (removeFromUpNext == null) add(SwipeAction(t(Words.playNext), Icons.Filled.QueuePlayNext, Flexarr.silver, Flexarr.room) { model.addToUpNext(episode.id, next = true) })
     }
     val endSwipe = buildList {
         if (removeFromUpNext != null) {
-            add(SwipeAction("Remove from Up next", FlexarrIcons.removeFromRow, Flexarr.danger, Flexarr.room, removeFromUpNext))
+            add(SwipeAction(t("Remove from Up next"), FlexarrIcons.removeFromRow, Flexarr.danger, Flexarr.room, removeFromUpNext))
         } else {
-            add(SwipeAction("Add to Up next", Icons.AutoMirrored.Filled.PlaylistAdd, Flexarr.silver, Flexarr.room) { model.addToUpNext(episode.id, next = false) })
+            add(SwipeAction(t("Add to Up next"), Icons.AutoMirrored.Filled.PlaylistAdd, Flexarr.silver, Flexarr.room) { model.addToUpNext(episode.id, next = false) })
             if (download == null) {
-                add(SwipeAction("Download", FlexarrIcons.download, Flexarr.aisle) { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } })
+                add(SwipeAction(t(Words.download), FlexarrIcons.download, Flexarr.aisle) { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } })
             } else {
-                add(SwipeAction(if (download.isDownloaded) "Remove download" else "Stop download", FlexarrIcons.delete, Flexarr.danger, Flexarr.room) { model.downloads.delete(download.id) })
+                add(SwipeAction(if (download.isDownloaded) t("Remove download") else t("Stop download"), FlexarrIcons.delete, Flexarr.danger, Flexarr.room) { model.downloads.delete(download.id) })
             }
         }
     }
@@ -245,7 +245,7 @@ fun EpisodePlayButton(model: AppModel, episode: PodcastEpisode) {
             drawArc(Flexarr.screen.copy(alpha = 0.25f), 0f, 360f, false, topLeft = androidx.compose.ui.geometry.Offset(inset, inset), size = arc, style = Stroke(stroke))
             if (fraction > 0) drawArc(Flexarr.screen, -90f, 360f * fraction.coerceIn(0f, 1f), false, topLeft = androidx.compose.ui.geometry.Offset(inset, inset), size = arc, style = Stroke(stroke, cap = StrokeCap.Round))
         }
-        Icon(if (playing) FlexarrIcons.pause else FlexarrIcons.play, contentDescription = if (playing) "Pause" else "Play ${episode.title}", tint = Flexarr.screen, modifier = Modifier.size(16.dp))
+        Icon(if (playing) FlexarrIcons.pause else FlexarrIcons.play, contentDescription = if (playing) t("Pause") else t("Play {title}", "title" to episode.title), tint = Flexarr.screen, modifier = Modifier.size(16.dp))
     }
 }
 
@@ -265,7 +265,7 @@ internal fun EpisodeSheet(model: AppModel, episode: PodcastEpisode, setPlayed: (
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(shown.podcastTitle, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
                     Text(shown.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
-                    FactsLine(listOfNotNull(dateLine(shown.publishedAt), shown.timeLine, if (shown.explicit) "Explicit" else null))
+                    FactsLine(listOfNotNull(dateLine(shown.publishedAt), shown.timeLine, if (shown.explicit) t("Explicit") else null))
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -274,7 +274,7 @@ internal fun EpisodeSheet(model: AppModel, episode: PodcastEpisode, setPlayed: (
                 val isCurrent = player.current?.id == shown.id
                 val isPlaying = isCurrent && player.isPlaying
                 ActionButton(
-                    if (isPlaying) "Pause" else if (isCurrent || shown.progress != null) "Resume" else "Play",
+                    if (isPlaying) t("Pause") else if (isCurrent || shown.progress != null) t("Resume") else t(Words.play),
                     onClick = {
                         if (isPlaying) return@ActionButton player.togglePlayPause()
                         // Playing (or carrying on) goes to the player: the notes give way to Now Playing.
@@ -293,7 +293,7 @@ internal fun EpisodeSheet(model: AppModel, episode: PodcastEpisode, setPlayed: (
                 EpisodeDownloadButton(model, shown.id, shown.title)
                 // Shows where it stands: a green tick once played (tap to undo), an outline tick to mark it.
                 LabeledAction(
-                    if (isPlayed) "Mark as unplayed" else "Mark as played",
+                    if (isPlayed) t("Mark as unplayed") else t(Words.markAsPlayed),
                     if (isPlayed) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
                     {
                         setPlayed(!isPlayed)
@@ -304,7 +304,7 @@ internal fun EpisodeSheet(model: AppModel, episode: PodcastEpisode, setPlayed: (
                 )
                 if (shown.progress != null && played == null) {
                     // Part way through: forget the place without marking it played.
-                    LabeledAction("Mark as unplayed", Icons.Outlined.Circle, {
+                    LabeledAction(t("Mark as unplayed"), Icons.Outlined.Circle, {
                         setPlayed(false)
                         played = false
                     })
@@ -321,8 +321,8 @@ fun dateLine(published: String?): String? {
     val today = LocalDate.now()
     val days = ChronoUnit.DAYS.between(date, today)
     return when {
-        days == 0L -> "Today"
-        days == 1L -> "Yesterday"
+        days == 0L -> t("Today")
+        days == 1L -> t("Yesterday")
         days in 2..6 -> date.dayOfWeek.getDisplayName(TextStyle.FULL, io.github.flexarr.core.i18n.Localization.locale)
         date.year == today.year -> date.format(DateTimeFormatter.ofPattern("d MMM", io.github.flexarr.core.i18n.Localization.locale))
         else -> date.format(DateTimeFormatter.ofPattern("d MMM yyyy", io.github.flexarr.core.i18n.Localization.locale))

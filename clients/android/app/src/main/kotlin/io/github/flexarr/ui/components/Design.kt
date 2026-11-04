@@ -62,7 +62,10 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -123,7 +126,7 @@ fun Modifier.pressable(
             enabled = enabled,
             onClickLabel = onClickLabel,
             role = role,
-            onLongClickLabel = onLongClickLabel ?: "Show more",
+            onLongClickLabel = onLongClickLabel ?: t("Show more"),
             onLongClick = onLongClick,
             onClick = onClick,
         )
@@ -218,7 +221,7 @@ fun SectionHeading(title: String, modifier: Modifier = Modifier, onSeeAll: (() -
                 color = Flexarr.usher,
                 // The usual 48 to touch, reaching up beside the heading rather than below it.
                 // [seeAllLabel] is what TalkBack says for it ("See all artists"), when "See all" alone wouldn't do.
-                modifier = Modifier.pressable(onSeeAll, onClickLabel = "See all of $title")
+                modifier = Modifier.pressable(onSeeAll, onClickLabel = t("See all of {title}", "title" to title))
                     .then(if (seeAllLabel != null) Modifier.semantics { contentDescription = seeAllLabel } else Modifier)
                     .padding(start = 12.dp, top = 20.dp).padding(4.dp),
             )
@@ -319,7 +322,7 @@ fun StatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Bool
             else -> {
                 Icon(Icons.Filled.WifiOff, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(40.dp))
                 Text(message, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen, textAlign = TextAlign.Center, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-                if (retry != null) ActionButton("Try again", onClick = retry, prominent = true)
+                if (retry != null) ActionButton(t("Try again"), onClick = retry, prominent = true)
             }
         }
     }
@@ -327,3 +330,15 @@ fun StatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Bool
 
 /** Body text in the app's colours. */
 val Body = TextStyle(fontSize = 15.sp, color = Flexarr.screen)
+
+/**
+ * A sentence already in the language shown, with each of [parts] (values put into it) in [style] where it first
+ * appears: `styledParts(t("Go to {page}.", "page" to page), page)`, so the sentence stays whole for translators.
+ */
+fun styledParts(text: String, vararg parts: String, style: SpanStyle = SpanStyle(fontWeight = FontWeight.Bold)): AnnotatedString = buildAnnotatedString {
+    append(text)
+    parts.forEach { part ->
+        val at = if (part.isEmpty()) -1 else text.indexOf(part)
+        if (at >= 0) addStyle(style, at, at + part.length)
+    }
+}

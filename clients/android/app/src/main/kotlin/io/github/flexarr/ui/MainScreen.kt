@@ -1,6 +1,8 @@
 package io.github.flexarr.ui
 
+import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.tk
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -119,12 +121,15 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.mainButtonFill
 import io.github.flexarr.ui.theme.FlexarrIcons
 
-private enum class Tab(val route: String, val label: String) {
-    Home("home", "Home"),
-    Libraries("libraries", "Libraries"),
-    Downloads("downloads", "Downloads"),
-    Search("search", "Search"),
-    Settings("settings", "Settings"),
+private enum class Tab(val route: String, private val english: String) {
+    Home("home", tk(Words.home)),
+    Libraries("libraries", tk(Words.libraries)),
+    Downloads("downloads", tk(Words.downloads)),
+    Search("search", tk(Words.search)),
+    Settings("settings", tk(Words.settings)),
+    ;
+
+    val label: String get() = t(english)
 }
 
 /** Home, Libraries, Downloads, Search and Settings along the bottom, each keeping its own place; titles open on top of them. */
@@ -260,8 +265,8 @@ fun MainScreen(model: AppModel) {
                 // The prompt to allow it comes up by itself; a device that's gone is said so.
                 is AppLink.Pairing -> when (model.pairing.open(client, link.code)) {
                     PairingPrompts.Opened.Asking -> Unit
-                    PairingPrompts.Opened.Gone -> navigator.notices.showSnackbar("That device isn’t waiting any more. If it shows a new code, it asks again.")
-                    PairingPrompts.Opened.NotMainProfile -> navigator.notices.showSnackbar("Switch to the main profile to allow it.")
+                    PairingPrompts.Opened.Gone -> navigator.notices.showSnackbar(t("That device isn’t waiting any more. If it shows a new code, it asks again."))
+                    PairingPrompts.Opened.NotMainProfile -> navigator.notices.showSnackbar(t("Switch to the main profile to allow it."))
                 }
                 // Asked about over every screen (InviteDialog), never sent here.
                 is AppLink.Join -> Unit
@@ -347,14 +352,14 @@ fun MainScreen(model: AppModel) {
                     .then(if (offline) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier),
             ) {
                 composable(Tab.Home.route) {
-                    Crossfade(model.serverUnreachable, label = t("offline")) { if (it) OfflineScreen(model, "Home") { select(Tab.Downloads) } else HomeScreen(model) }
+                    Crossfade(model.serverUnreachable, label = "offline") { if (it) OfflineScreen(model, t(Words.home)) { select(Tab.Downloads) } else HomeScreen(model) }
                 }
                 composable(Tab.Libraries.route) {
-                    Crossfade(model.serverUnreachable, label = t("offline")) { if (it) OfflineScreen(model, "Libraries") { select(Tab.Downloads) } else LibrariesScreen(model) }
+                    Crossfade(model.serverUnreachable, label = "offline") { if (it) OfflineScreen(model, t(Words.libraries)) { select(Tab.Downloads) } else LibrariesScreen(model) }
                 }
                 composable(Tab.Downloads.route) { DownloadsScreen(model) }
                 composable(Tab.Search.route) {
-                    Crossfade(model.serverUnreachable, label = t("offline")) { if (it) OfflineScreen(model, "Search") { select(Tab.Downloads) } else SearchScreen(model) }
+                    Crossfade(model.serverUnreachable, label = "offline") { if (it) OfflineScreen(model, t(Words.search)) { select(Tab.Downloads) } else SearchScreen(model) }
                 }
                 composable(Tab.Settings.route) {
                     SettingsScreen(

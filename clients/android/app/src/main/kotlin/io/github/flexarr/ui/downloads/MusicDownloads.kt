@@ -144,7 +144,7 @@ fun MusicDownloadButton(model: AppModel, source: MusicDownloadSource) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                problem = e.message ?: "Couldn’t download this."
+                problem = e.message ?: t("Couldn’t download this.")
             }
         }
     }
@@ -168,11 +168,11 @@ fun MusicDownloadButton(model: AppModel, source: MusicDownloadSource) {
         val here = status == CollectionStatus.Downloaded
         AlertDialog(
             onDismissRequest = { removing = false },
-            title = { Text(if (here) "Remove this download?" else "Stop this download?") },
-            text = if (here) ({ Text("${Format.bytes(store.bytesUsed(collection))} on this phone.") }) else null,
+            title = { Text(if (here) t("Remove this download?") else t("Stop this download?")) },
+            text = if (here) ({ Text(t("{size} on this phone.", "size" to Format.bytes(store.bytesUsed(collection)))) }) else null,
             confirmButton = {
                 TextButton(onClick = { removing = false; store.removeCollection(collection.id) }) {
-                    Text(if (here) "Remove download" else "Stop download", color = Flexarr.danger)
+                    Text(if (here) t("Remove download") else t("Stop download"), color = Flexarr.danger)
                 }
             },
             dismissButton = { TextButton(onClick = { removing = false }) { Text(t(Words.cancel), color = Flexarr.screen) } },
@@ -206,11 +206,11 @@ private fun CollectionStateIcon(status: CollectionStatus?, modifier: Modifier = 
 }
 
 private fun collectionDescription(status: CollectionStatus?): String = when (status) {
-    null -> "Download"
-    CollectionStatus.Preparing -> "Getting ready on the server"
-    is CollectionStatus.Downloading -> "Downloading, ${(status.fraction * 100).toInt()}%"
-    CollectionStatus.Downloaded -> "Downloaded"
-    is CollectionStatus.Failed -> "Couldn’t download"
+    null -> t(Words.download)
+    CollectionStatus.Preparing -> t("Getting ready on the server")
+    is CollectionStatus.Downloading -> t("Downloading, {percent}%", "percent" to (status.fraction * 100).toInt())
+    CollectionStatus.Downloaded -> t("Downloaded")
+    is CollectionStatus.Failed -> t("Couldn’t download")
 }
 
 /** A small filled green arrow that marks something downloaded (a track, an album). */
@@ -279,10 +279,10 @@ fun CollectionRow(model: AppModel, collection: LocalCollection, onOpen: () -> Un
             CollectionStatusLine(model, collection)
         }
         Box {
-            IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = "More for ${collection.title}", tint = Flexarr.usher) }
+            IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = t("More for {title}", "title" to collection.title), tint = Flexarr.usher) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
-                    text = { Text(if (store.status(collection) == CollectionStatus.Downloaded) "Remove download" else "Stop download", color = Flexarr.danger) },
+                    text = { Text(if (store.status(collection) == CollectionStatus.Downloaded) t("Remove download") else t("Stop download"), color = Flexarr.danger) },
                     onClick = { menu = false; store.removeCollection(collection.id) },
                 )
             }
@@ -294,18 +294,18 @@ fun CollectionRow(model: AppModel, collection: LocalCollection, onOpen: () -> Un
 private fun CollectionStatusLine(model: AppModel, collection: LocalCollection) {
     val store = model.downloads
     @Composable fun caption(text: String) = Text(text, fontSize = 12.sp, color = Flexarr.usher, style = Tabular)
-    val estimate = collection.estimatedBytes?.let { "about ${Format.bytes(it)}" }
+    val estimate = collection.estimatedBytes?.let { t("about {size}", "size" to Format.bytes(it)) }
     val total = collection.trackIds.size
     when (val status = store.status(collection)) {
-        CollectionStatus.Preparing -> caption(listOfNotNull("Getting ready", estimate).joinToString("   "))
+        CollectionStatus.Preparing -> caption(listOfNotNull(t("Getting ready"), estimate).joinToString("   "))
         is CollectionStatus.Downloading -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             val here = store.tracks(collection).count { it.isDownloaded }
-            caption(listOfNotNull("$here of $total tracks", estimate).joinToString("   "))
+            caption(listOfNotNull(t("{here} of {total, plural, one {# track} other {# tracks}}", "here" to here, "total" to total), estimate).joinToString("   "))
             LinearProgressIndicator(progress = { status.fraction.toFloat() }, color = Flexarr.silver, trackColor = Flexarr.aisle, modifier = Modifier.fillMaxWidth().padding(end = 4.dp))
         }
         CollectionStatus.Downloaded -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             DownloadedMark()
-            caption(listOf(if (total == 1) "1 track" else "$total tracks", Format.bytes(store.bytesUsed(collection))).joinToString("   "))
+            caption(listOf(t("{count, plural, one {# track} other {# tracks}}", "count" to total), Format.bytes(store.bytesUsed(collection))).joinToString("   "))
         }
         is CollectionStatus.Failed -> Text(status.message, fontSize = 12.sp, color = Flexarr.danger)
     }
@@ -325,7 +325,7 @@ fun OfflineCollectionScreen(model: AppModel, collectionId: String, onBack: () ->
     val ambient = collection?.let { glowColor(it.album?.accentColor ?: it.accentColor) } ?: Flexarr.silver
     RoomBackground(ambient = ambient, intensity = 0.3f) {
         if (collection == null) {
-            StatusView("This download was removed.", empty = true)
+            StatusView(t("This download was removed."), empty = true)
         } else {
             val downloads = store.tracks(collection)
             val tracks = downloads.filter { it.isDownloaded }.map { it.item }
@@ -344,13 +344,13 @@ fun OfflineCollectionScreen(model: AppModel, collectionId: String, onBack: () ->
                             FactsLine(CollectionRules.facts(collection, tracks))
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            ActionButton("Play", onClick = { music.play(tracks, albums = albums) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient, enabled = tracks.isNotEmpty())
-                            ActionButton("Shuffle", onClick = { music.play(tracks, shuffled = true, albums = albums) }, icon = FlexarrIcons.shuffle, ambient = ambient, enabled = tracks.size >= 2)
+                            ActionButton(t(Words.play), onClick = { music.play(tracks, albums = albums) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient, enabled = tracks.isNotEmpty())
+                            ActionButton(t(Words.shuffle), onClick = { music.play(tracks, shuffled = true, albums = albums) }, icon = FlexarrIcons.shuffle, ambient = ambient, enabled = tracks.size >= 2)
                         }
                     }
                 }
                 if (downloads.isEmpty()) {
-                    item { Box(Modifier.height(160.dp)) { StatusView("Nothing here yet.", empty = true) } }
+                    item { Box(Modifier.height(160.dp)) { StatusView(t("Nothing here yet."), empty = true) } }
                 }
                 itemsIndexed(downloads, key = { _, download -> download.id }) { offset, download ->
                     val track = download.item
@@ -386,7 +386,7 @@ fun OfflineCollectionScreen(model: AppModel, collectionId: String, onBack: () ->
         AlertDialog(
             onDismissRequest = { removing = false },
             title = { Text(t("Remove this download?")) },
-            text = { Text("${Format.bytes(store.bytesUsed(collection))} on this phone.") },
+            text = { Text(t("{size} on this phone.", "size" to Format.bytes(store.bytesUsed(collection)))) },
             confirmButton = {
                 TextButton(onClick = {
                     removing = false

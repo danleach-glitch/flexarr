@@ -1,6 +1,8 @@
 package io.github.flexarr.ui.books
 
+import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.tk
 import android.os.Build
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
@@ -119,7 +121,11 @@ import io.github.flexarr.ui.theme.Tokens
 // An audiobooks library, as the iPhone app's music library is laid out: shelves to browse, then every book (with filters
 // and orders), the series, the authors and the genres.
 
-private enum class BooksView(val label: String) { Shelves("Browse"), All("All books"), Genres("Genres"), Series("Series"), Authors("Authors") }
+private enum class BooksView(private val english: String) {
+    Shelves(tk(Words.browse)), All(tk("All books")), Genres(tk(Words.genres)), Series(tk(Words.series)), Authors(tk("Authors"));
+
+    val label: String get() = t(english)
+}
 
 /**
  * An audiobooks library; [view] "" opens its shelves, or a [BookSort]'s raw value every book in that order. With a
@@ -172,7 +178,7 @@ private fun BookQuery.narrowed(fixedGenre: Boolean) = (if (fixedGenre) copy(genr
 private fun Shelves(model: AppModel, loader: Loader<BookShelves>) {
     val navigator = LocalNavigator.current
     Loaded(loader) { shelves: BookShelves ->
-        if (shelves.isEmpty) return@Loaded StatusView("No books yet.", empty = true)
+        if (shelves.isEmpty) return@Loaded StatusView(t("No books yet."), empty = true)
         PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
                 // Servers from 0.59 pick the books for a hero; none (or an older server), no hero.
@@ -182,19 +188,19 @@ private fun Shelves(model: AppModel, loader: Loader<BookShelves>) {
                 // In the profile's order, without the ones it switched off (a server before 0.58: all, in this order).
                 shelves.frontPage.forEach { shelf ->
                     when (shelf) {
-                        BookShelf.ContinueListening -> bookShelf("Continue listening", shelves.continueListening, plays = { navigator.playBook(it) })
-                        BookShelf.NextInSeries -> bookShelf("Next in series", shelves.nextInSeries)
-                        BookShelf.RecentlyAdded -> bookShelf("Recently added", shelves.recentlyAdded)
+                        BookShelf.ContinueListening -> bookShelf(t("Continue listening"), shelves.continueListening, plays = { navigator.playBook(it) })
+                        BookShelf.NextInSeries -> bookShelf(t("Next in series"), shelves.nextInSeries)
+                        BookShelf.RecentlyAdded -> bookShelf(t(Words.recentlyAdded), shelves.recentlyAdded)
                         BookShelf.Series -> if (shelves.series.isNotEmpty()) item("series") {
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                SectionHeading("Series")
+                                SectionHeading(t(Words.series))
                                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
                                     items(shelves.series, key = { it.id }) { SeriesCard(it, PosterWidth * 1.15f) { navigator.openBookSeries(it.id) } }
                                 }
                             }
                         }
-                        BookShelf.Authors -> peopleShelf("Authors", shelves.authors)
-                        BookShelf.Finished -> bookShelf("Finished", shelves.finished)
+                        BookShelf.Authors -> peopleShelf(t("Authors"), shelves.authors)
+                        BookShelf.Finished -> bookShelf(t("Finished"), shelves.finished)
                     }
                 }
             }
@@ -214,7 +220,7 @@ private fun BookHeroSlide(shelves: BookShelves, book: ItemSummary, height: Dp) {
     val cover = book.artwork.poster
     val coverSize = if (isWide) 280.dp else 220.dp
     val coverTop = 20.dp
-    Box(Modifier.fillMaxWidth().heightIn(min = height).pressable({ navigator.openBook(book.id) }, onClickLabel = "Open")) {
+    Box(Modifier.fillMaxWidth().heightIn(min = height).pressable({ navigator.openBook(book.id) }, onClickLabel = t("Open"))) {
         // Fades out rather than painting the room colour, so there's no seam with the shelves below.
         Box(Modifier.matchParentSize().clipToBounds().fadeOut()) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -247,14 +253,14 @@ private fun BookHeroSlide(shelves: BookShelves, book: ItemSummary, height: Dp) {
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(book.title, style = marquee(30).copy(fontWeight = FontWeight.Black), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 520.dp))
                 book.book?.authors?.let { Text(it, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                book.book?.narrator?.let { Text("Read by $it", fontSize = 13.sp, color = Flexarr.screen.copy(alpha = 0.65f), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                book.book?.narrator?.let { Text(t("Read by {name}", "name" to it), fontSize = 13.sp, color = Flexarr.screen.copy(alpha = 0.65f), maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
             shelves.featuredOverviews[book.id]?.let {
                 Text(it, fontSize = 15.sp, color = Flexarr.screen.copy(alpha = 0.85f), maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 520.dp))
             }
             val partWay = book.userData.positionSeconds > 0 && !book.userData.watched
             ActionButton(
-                if (partWay) "Resume" else "Play",
+                if (partWay) t("Resume") else t(Words.play),
                 onClick = { navigator.playBook(book) },
                 icon = FlexarrIcons.play,
                 prominent = true,
@@ -294,7 +300,7 @@ private fun LazyListScope.peopleShelf(title: String, people: List<BookPerson>) {
     }
 }
 
-private fun bookCount(count: Int) = if (count == 1) "1 book" else "${Format.count(count)} books"
+private fun bookCount(count: Int) = t("{count, plural, one {# book} other {# books}}", "count" to count)
 
 /** A series: the covers of its first books fanned behind one another, its name, and how far through it this profile is. */
 @Composable
@@ -308,7 +314,7 @@ internal fun SeriesCard(series: BookSeriesSummary, width: Dp?, onClick: () -> Un
             Text(series.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             val done = series.finishedCount
             Text(
-                if (done > 0) "$done of ${series.bookCount} finished" else bookCount(series.bookCount),
+                if (done > 0) t("{done} of {total} finished", "done" to done, "total" to series.bookCount) else bookCount(series.bookCount),
                 fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, style = Tabular,
             )
         }
@@ -356,7 +362,7 @@ private class Pager<T>(private val key: (T) -> String, private val page: suspend
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            if (items.isEmpty()) error = e.message ?: "Something went wrong."
+            if (items.isEmpty()) error = e.message ?: t("Something went wrong.")
         } finally {
             loading = false
         }
@@ -436,9 +442,9 @@ private fun AllBooks(model: AppModel, libraryId: String, query: BookQuery, fixed
     LaunchedEffect(pager, attempt, model.watchStateVersion) { pager.reload() }
     PagedGrid(
         pager,
-        if (query.narrowed(fixedGenre)) "No books match." else "No books yet.",
+        if (query.narrowed(fixedGenre)) t("No books match.") else t("No books yet."),
         retry = { attempt++ },
-        emptyAction = if (query.narrowed(fixedGenre)) "Clear filters" to clearFilters else null,
+        emptyAction = if (query.narrowed(fixedGenre)) t("Clear filters") to clearFilters else null,
         header = {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 // A genre's own screen has its name for a title already.
@@ -454,10 +460,10 @@ private fun AllBooks(model: AppModel, libraryId: String, query: BookQuery, fixed
 
 /** The lengths a list can be narrowed to, in hours. */
 private val lengths = listOf(
-    "Under 5h" to (null to 5.0),
+    t("Under 5h") to (null to 5.0),
     "5–10h" to (5.0 to 10.0),
     "10–20h" to (10.0 to 20.0),
-    "Over 20h" to (20.0 to null),
+    t("Over 20h") to (20.0 to null),
 )
 
 private fun lengthLabel(query: BookQuery): String? = lengths.firstOrNull { it.second == (query.minHours to query.maxHours) }?.first
@@ -471,7 +477,7 @@ private fun SortAndFilterMenu(query: BookQuery, fixedGenre: Boolean, onChange: (
             Icon(Icons.Filled.FilterList, contentDescription = t("Sort and filter"), tint = if (query.narrowed(fixedGenre)) Flexarr.silver else Flexarr.screen)
         }
         DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
-            MenuHeading("Sort by")
+            MenuHeading(t("Sort by"))
             BookSort.entries.forEach { sort ->
                 Choice(sort.label, query.sort == sort) {
                     open = false
@@ -481,8 +487,8 @@ private fun SortAndFilterMenu(query: BookQuery, fixedGenre: Boolean, onChange: (
                 }
             }
             HorizontalDivider(color = Flexarr.aisle)
-            MenuHeading("Filter")
-            Choice("All books", !query.narrowed(fixedGenre)) { open = false; onChange(BookQuery(sort = query.sort, descending = query.descending)) }
+            MenuHeading(t("Filter"))
+            Choice(t("All books"), !query.narrowed(fixedGenre)) { open = false; onChange(BookQuery(sort = query.sort, descending = query.descending)) }
             HorizontalDivider(color = Flexarr.aisle)
             BookProgressFilter.entries.forEach { filter ->
                 Choice(filter.label, query.progress == filter) { open = false; onChange(query.copy(progress = if (query.progress == filter) null else filter)) }
@@ -496,7 +502,7 @@ private fun SortAndFilterMenu(query: BookQuery, fixedGenre: Boolean, onChange: (
                 }
             }
             HorizontalDivider(color = Flexarr.aisle)
-            Choice("Unabridged only", query.abridged == false) { open = false; onChange(query.copy(abridged = if (query.abridged == false) null else false)) }
+            Choice(t("Unabridged only"), query.abridged == false) { open = false; onChange(query.copy(abridged = if (query.abridged == false) null else false)) }
         }
     }
 }
@@ -522,7 +528,7 @@ private fun SeriesGrid(model: AppModel, libraryId: String) {
     val pager = remember(libraryId) { Pager<BookSeriesSummary>({ it.id }) { skip, take -> client.bookSeriesList(libraryId, skip = skip, take = take) } }
     var attempt by remember { mutableIntStateOf(0) }
     LaunchedEffect(pager, attempt, model.watchStateVersion) { pager.reload() }
-    PagedGrid(pager, "No series here yet.", retry = { attempt++ }, minimum = GridMinimum * 1.3f) { series ->
+    PagedGrid(pager, t("No series here yet."), retry = { attempt++ }, minimum = GridMinimum * 1.3f) { series ->
         SeriesCard(series, width = null) { navigator.openBookSeries(series.id) }
     }
 }
@@ -534,7 +540,7 @@ private fun AuthorsGrid(model: AppModel, libraryId: String) {
     val pager = remember(libraryId) { Pager<BookPerson>({ it.id }) { skip, take -> client.bookPeople(libraryId, BookPersonRole.Author, skip = skip, take = take) } }
     var attempt by remember { mutableIntStateOf(0) }
     LaunchedEffect(pager, attempt) { pager.reload() }
-    PagedGrid(pager, "No authors here yet.", retry = { attempt++ }, minimum = 96.dp) { person ->
+    PagedGrid(pager, t("No authors here yet."), retry = { attempt++ }, minimum = 96.dp) { person ->
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
             PersonCard(person.name, bookCount(person.bookCount), person.image) { navigator.openPerson(person.id, person.name) }
         }
@@ -549,7 +555,7 @@ private fun GenreList(model: AppModel, libraryId: String, openGenre: (String) ->
     // Counts don't change with what's been listened to, so only the library keys it (pull to refresh is there).
     val loader = rememberLoader(libraryId) { client.bookGenres(libraryId) }
     Loaded(loader) { genres: List<GenreCount> ->
-        if (genres.isEmpty()) return@Loaded StatusView("No genres here yet. They come with each book’s details once a scan has found them.", empty = true)
+        if (genres.isEmpty()) return@Loaded StatusView(t("No genres here yet. They come with each book’s details once a scan has found them."), empty = true)
         PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(if (isWide) 240.dp else 150.dp),

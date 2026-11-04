@@ -66,11 +66,11 @@ fun DiagnosticsSettingsScreen(model: AppModel) {
             outcome = try {
                 val id = LogHub.sendDiagnostics(client, diagnosticsHeader(model), note)
                 note = ""
-                "Sent to your server ($id). Mention that if you ask for help."
+                t("Sent to your server ({id}). Mention that if you ask for help.", "id" to id)
             } catch (e: FlexarrException) {
                 when {
                     e is FlexarrException.UnexpectedResponse || (e is FlexarrException.Http && e.status in setOf(404, 405)) ->
-                        "This server doesn’t take diagnostics yet. Update Flexarr on it, then try again."
+                        t("This server doesn’t take diagnostics yet. Update Flexarr on it, then try again.")
                     else -> e.message
                 }
             } finally {
@@ -81,10 +81,10 @@ fun DiagnosticsSettingsScreen(model: AppModel) {
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle("Send diagnostics", onBack = { navigator.back() }) }
+            item { PageTitle(t("Send diagnostics"), onBack = { navigator.back() }) }
             item {
                 Notes(
-                    footer = "Sends what this phone has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)",
+                    footer = t("Sends what this phone has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)"),
                 ) {
                     BasicTextField(
                         value = note,
@@ -107,7 +107,7 @@ fun DiagnosticsSettingsScreen(model: AppModel) {
                         Modifier.fillMaxWidth().pressable({ send() }, enabled = enabled).padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(if (sending) "Sending…" else "Send diagnostics", fontSize = 17.sp, color = if (enabled) Flexarr.silver else Flexarr.usher, modifier = Modifier.weight(1f))
+                        Text(if (sending) t("Sending…") else t("Send diagnostics"), fontSize = 17.sp, color = if (enabled) Flexarr.silver else Flexarr.usher, modifier = Modifier.weight(1f))
                         if (sending) CircularProgressIndicator(Modifier.size(18.dp), color = Flexarr.usher, strokeWidth = 2.dp)
                     }
                 }

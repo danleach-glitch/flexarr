@@ -1,5 +1,6 @@
 package io.github.flexarr.ui
 
+import io.github.flexarr.core.i18n.t
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -38,8 +39,8 @@ import io.github.flexarr.ui.theme.Tokens
 import io.github.flexarr.ui.tv.TvActionButton
 import kotlinx.coroutines.delay
 
-private const val READY = "An update is ready"
-private const val RESTART = "Restart to update"
+private val READY get() = t("An update is ready")
+private val RESTART get() = t("Restart to update")
 
 /** [AppUpdates] for this screen, checking at launch and each time the app comes back in front. */
 @Composable
@@ -79,7 +80,7 @@ fun TvAppUpdatePrompt() {
         ) {
             Text(READY, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.padding(bottom = 4.dp))
             TvActionButton(RESTART, onClick = updates::restart, prominent = true, modifier = Modifier.fillMaxWidth().focusRequester(restart))
-            TvActionButton("Later", onClick = { later = true }, modifier = Modifier.fillMaxWidth())
+            TvActionButton(t("Later"), onClick = { later = true }, modifier = Modifier.fillMaxWidth())
         }
     }
     LaunchedEffect(Unit) {
