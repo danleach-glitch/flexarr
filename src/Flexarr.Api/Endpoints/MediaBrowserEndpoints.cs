@@ -29,7 +29,7 @@ public static class MediaBrowserEndpoints
             .AddEndpointFilter(async (context, next) =>
                 Authorized(context.HttpContext) ? await next(context) : Results.Unauthorized());
 
-        group.MapGet("/System/Configuration", () => Results.Ok(new { ServerName = "Flexarr" }));
+        group.MapGet("/System/Configuration", (IOptionsMonitor<FlexarrOptions> options) => Results.Ok(new { ServerName = ServerName.Of(options.CurrentValue) }));
 
         group.MapPost("/Notifications/Admin", () => Results.NoContent());
 

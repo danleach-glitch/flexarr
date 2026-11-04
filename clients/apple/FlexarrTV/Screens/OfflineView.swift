@@ -10,8 +10,11 @@ struct OfflineView: View {
     @State private var confirmSignOut = false
     @State private var confirmLeave = false
 
-    private var owner: String? {
-        model.credentials?.guest?.ownerName.trimmingCharacters(in: .whitespaces).nilIfEmpty
+    private var isGuest: Bool { model.credentials?.isGuest == true }
+
+    /// The server's name (a guest's host: "Dan’s Flexarr" when it has none), or "this Flexarr".
+    private var server: ServerNaming {
+        isGuest ? model.guestServerNaming(model.credentials?.guest) : ServerNaming(name: model.serverName, owner: nil)
     }
 
     var body: some View {
@@ -21,12 +24,11 @@ struct OfflineView: View {
                 .foregroundStyle(Color.silver)
                 .accessibilityHidden(true)
             // As the tunnel's problem screen words it.
-            Text(owner.map { t("Can’t reach {owner}’s Flexarr", ["owner": $0]) } ?? t("Can’t reach this Flexarr"))
+            Text(t("{kind, select, named {Can’t reach {server}} owner {Can’t reach {owner}’s Flexarr} other {Can’t reach this Flexarr}}", server.values))
                 .font(.system(size: 52, weight: .bold))
                 .foregroundStyle(Color.screen)
                 .accessibilityAddTraits(.isHeader)
-            Text(owner.map { t("Check this device’s internet, or that {owner}’s server is on.", ["owner": $0]) }
-                 ?? t("Check this device’s internet, or that its server is on."))
+            Text(t("{kind, select, named {Check this device’s internet, or that {server} is on.} owner {Check this device’s internet, or that {owner}’s Flexarr is on.} other {Check this device’s internet, or that its server is on.}}", server.values))
                 .font(.system(size: 30))
                 .foregroundStyle(Color.usher)
             HStack(spacing: 30) {
@@ -40,8 +42,8 @@ struct OfflineView: View {
                     }
                 }
                 .buttonStyle(ActionButtonStyle(prominent: true))
-                Button(owner == nil ? t("Sign out") : t("Leave")) {
-                    if owner == nil { confirmSignOut = true } else { confirmLeave = true }
+                Button(isGuest ? t("Leave") : t("Sign out")) {
+                    if isGuest { confirmLeave = true } else { confirmSignOut = true }
                 }
                 .buttonStyle(ActionButtonStyle())
             }
@@ -54,7 +56,7 @@ struct OfflineView: View {
         .confirmationDialog(t("Sign out of this server?"), isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button(t("Sign out"), role: .destructive) { model.signOut() }
         }
-        .leaveGuestConfirmation(isPresented: $confirmLeave, owner: owner ?? "this") { model.signOut() }
+        .leaveGuestConfirmation(isPresented: $confirmLeave, server: server) { model.signOut() }
     }
 }
 

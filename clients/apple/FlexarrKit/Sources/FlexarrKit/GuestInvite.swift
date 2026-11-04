@@ -23,6 +23,8 @@ public struct GuestInvite: Codable, Sendable, Equatable {
     public let p: String
     /// When it stops working.
     public let e: Date?
+    /// The server's name, shown in place of "Dan's Flexarr". Absent from invites made by servers before 0.61.
+    public var m: String? = nil
 
     public var ownerName: String { n.trimmingCharacters(in: .whitespaces).isEmpty ? FlexarrKit.t(tk("Someone")) : n }
     public var profileName: String { p }
@@ -31,6 +33,11 @@ public struct GuestInvite: Codable, Sendable, Equatable {
     public var authKey: String { k }
     public var token: String { t }
     public var serverId: String { s }
+    /// The server's name, when the invite carries one.
+    public var serverName: String? { m.flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 } }
+    /// What to call the server: its name, or "Dan's Flexarr".
+    public var serverNaming: ServerNaming { ServerNaming(name: serverName, owner: ownerName) }
+    public var serverTitle: String { serverNaming.title }
 
     /// The node's name on the host's tailnet: "flexarr-guest-grans-ipad".
     public var hostname: String { Self.hostname(for: g) }

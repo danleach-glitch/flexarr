@@ -565,6 +565,18 @@
   font-size: var(--step-1);
 }
 
+/* The server's name, under the main profile's name and colour, in the same column. */
+.onboard-server-name {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.onboard-server-name span {
+  color: var(--usher);
+  font-size: var(--step--1);
+}
+
 .onboard-swatches {
   display: flex;
   flex-wrap: wrap;

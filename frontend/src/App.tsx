@@ -44,6 +44,7 @@ import './styles/settings.css'
 import './styles/podcasts.css'
 import './styles/livetv.css'
 import './styles/books.css'
+import { setServerTitle } from './lib/serverTitle'
 
 // The player (with hls.js) and settings load on demand to keep the first page light.
 /**
@@ -232,6 +233,7 @@ export default function App() {
       // Signed in from here: this browser's errors go to the server's log, as the version the server serves.
       // And to Flexarr's developer too, only when the main profile has switched error reports on.
       .then((status) => {
+        setServerTitle(status.serverName)
         const version = status.version.split('+')[0]
         errorReporter.enable(version)
         configureSentry(status.errorReports, version)

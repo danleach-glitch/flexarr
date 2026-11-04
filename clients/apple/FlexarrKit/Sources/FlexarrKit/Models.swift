@@ -101,6 +101,16 @@ public struct SystemStatus: Codable, Sendable, Equatable {
     /// The server's own random id, which `FlexarrClient.serverId(at:)` asks another address for before the app sends
     /// its sign-in there. Absent from servers before 0.55.
     public var serverId: String? = nil
+    /// What the server is called: the name its admin gave it, or its machine's name. Absent from servers before 0.61.
+    public var serverName: String? = nil
+    /// Whether an admin chose `serverName` (rather than it being the machine's name): a family guest is shown "Dan's
+    /// Flexarr" until then. Absent from servers before 0.61.
+    public var serverNamed: Bool? = nil
+
+    /// The name to show on this sign-in: a guest only sees one an admin chose.
+    public func serverName(forGuest guest: Bool) -> String? {
+        guest && serverNamed == false ? nil : serverName
+    }
 }
 
 /// The server's error-report switch, which the apps follow: off unless the owner turned it on.

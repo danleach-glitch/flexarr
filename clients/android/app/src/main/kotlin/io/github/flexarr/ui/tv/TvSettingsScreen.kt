@@ -38,7 +38,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
 import io.github.flexarr.BuildConfig
-import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.TraktStatus
 import io.github.flexarr.core.traktStatus
@@ -112,7 +111,7 @@ private fun MainPage(
     val profile = model.currentProfile
     // A guest stays on its invite's profile.
     val switches = profile != null && model.profiles.size > 1 && !model.isGuest
-    val owner = model.credentials?.guest?.ownerName?.ifEmpty { null }
+    val server = model.guestServerNaming(model.credentials?.guest)
     // Only from servers that keep an order with the profile (0.54 on): it's kept there, not on this TV.
     val sidebarFirst = if (profile?.libraryOrder != null) sidebarEntries(model, libraries).firstOrNull() else null
     // Coming back, the row that opened the page; otherwise the first row.
@@ -181,12 +180,10 @@ private fun MainPage(
         }
         item {
             // With an address for away from home, which of the two it's using; otherwise the server's name.
-            val connection = if (model.isGuest) {
-                t("By invite")
-            } else if (model.credentials?.remoteAddress != null) {
+            val connection = if (model.credentials?.remoteAddress != null && !model.isGuest) {
                 if (model.client?.addresses?.isAway == true) t("Away") else t("At home")
             } else {
-                model.credentials?.address?.let { FlexarrClient.normalizeAddress(it)?.host }
+                model.serverTitle
             }
             TvSettingsRow(
                 t("Server"), onClick = { open(TvSettingsPageId.Server) }, modifier = Modifier.focusFor(TvSettingsPageId.Server),
@@ -199,7 +196,7 @@ private fun MainPage(
                 TvSettingsRow(
                     t("Leave"), onClick = { confirmSignOut = true }, modifier = Modifier.padding(top = 18.dp),
                     icon = Icons.AutoMirrored.Filled.Logout, destructive = true,
-                    help = owner?.let { t("Stop watching {owner}’s Flexarr here. Joining again takes a new code.", "owner" to it) } ?: t("Stop watching this Flexarr here. Joining again takes a new code."),
+                    help = t("{kind, select, named {Stop watching {server} here. Joining again takes a new code.} owner {Stop watching {owner}’s Flexarr here. Joining again takes a new code.} other {Stop watching this Flexarr here. Joining again takes a new code.}}", *server.values),
                 )
             } else {
                 TvSettingsRow(
@@ -217,7 +214,7 @@ private fun MainPage(
             Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 val guest = model.isGuest
                 Text(
-                    if (guest) owner?.let { t("Leave {owner}’s Flexarr?", "owner" to it) } ?: t("Leave this Flexarr?") else t("Sign out of this server?"),
+                    if (guest) t("{kind, select, named {Leave {server}?} owner {Leave {owner}’s Flexarr?} other {Leave this Flexarr?}}", *server.values) else t("Sign out of this server?"),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                 )

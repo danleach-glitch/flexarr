@@ -4,6 +4,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Server name
+- Your server has a name. It starts as the computer's name (just "Flexarr" in Docker), and you can change it in **Settings › Overview** on the web, or on the first card of the setup guide.
+- Phones and TVs list the server by its name under **Servers on your network**, and their **Settings › Server** shows it, even while the server can't be reached. The Mac app's menu shows it too.
+- Once you've named it, family guests see the server's name rather than "Dan's Flexarr", and so does the invite page at flexarr.io/join.
+- The browser tab says the name ("Smith House – Flexarr"), and so do Siri, AI assistants connected to Flexarr, and the connection the setup guide adds to Sonarr, Radarr and Lidarr.
+
 ### Every app and the web
 - Words read the same on every screen and app: "Add to favourites", "Go to podcast", "Remove download", "Now playing" on the TV, "TV shows" and "Home videos", and curly apostrophes throughout, where some said "Add to Favourites" or "Couldn't". The live player says "Live" on every app.
 

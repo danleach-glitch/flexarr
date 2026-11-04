@@ -95,7 +95,8 @@ struct SettingsView: View {
     }
 
     private var connection: String? {
-        guard model.credentials?.remoteAddress != nil else { return model.credentials?.address.host() }
+        // The server's name when it has given one; with an address for away from home, which of the two is in use.
+        guard model.credentials?.remoteAddress != nil else { return model.serverTitle }
         return model.client?.addresses.isAway == true ? t("Away") : t("At home")
     }
 }

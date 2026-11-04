@@ -8,9 +8,13 @@ import ServiceManagement
 /// - `choose [folder to start in]`: shows macOS's folder window; the chosen folder's path, or nothing if cancelled.
 /// - `login-item [on|off]`: whether the app opens at login (after changing it): on, off, or approval when macOS waits
 ///   for the person to allow it in System Settings.
+/// - `name <name>`: what the server is called (at its start, and after a rename): the app announces it on the network
+///   and shows it in the menu. Answers "ok".
 @MainActor
 final class AppRequests {
     let token = UUID().uuidString
+    /// The server said what it's called.
+    var onName: ((String) -> Void)?
     private let folders: MediaFolders
     private var listener: NWListener?
     private var starting: CheckedContinuation<UInt16, Error>?
@@ -74,6 +78,10 @@ final class AppRequests {
             return folders.choose(startingIn: argument) ?? ""
         case "login-item":
             return LoginItem.answer(turning: argument)
+        case "name":
+            guard let name = argument?.trimmingCharacters(in: .whitespaces), !name.isEmpty else { return "" }
+            onName?(name)
+            return "ok"
         default:
             return ""
         }

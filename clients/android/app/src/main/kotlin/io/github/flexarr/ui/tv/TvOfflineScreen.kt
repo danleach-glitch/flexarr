@@ -51,7 +51,7 @@ fun TvOfflineScreen(model: AppModel) {
     val scope = rememberCoroutineScope()
     var checking by remember { mutableStateOf(false) }
     var confirmSignOut by remember { mutableStateOf(false) }
-    val owner = model.credentials?.guest?.ownerName?.ifEmpty { null }
+    val guest = model.isGuest
     // As the tunnel's problem screen words it.
     val (title, line) = tunnelProblemWords(model)
     Column(
@@ -76,7 +76,7 @@ fun TvOfflineScreen(model: AppModel) {
                 prominent = true,
                 modifier = Modifier.focusRequester(again),
             )
-            TvActionButton(if (owner == null) t("Sign out") else t("Leave"), onClick = { confirmSignOut = true })
+            TvActionButton(if (guest) t("Leave") else t("Sign out"), onClick = { confirmSignOut = true })
         }
     }
     TakeFocus(again, key = confirmSignOut, ready = !confirmSignOut)
@@ -85,12 +85,12 @@ fun TvOfflineScreen(model: AppModel) {
         val cancel = remember { FocusRequester() }
         Dialog(onDismissRequest = { confirmSignOut = false }) {
             Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(14.dp)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text(if (owner != null) t("Leave {owner}’s Flexarr?", "owner" to owner) else t("Sign out of this server?"), fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                if (owner != null) Text(t("Joining again takes a new code."), fontSize = 14.sp, color = Flexarr.usher)
+                Text(if (guest) t("{kind, select, named {Leave {server}?} owner {Leave {owner}’s Flexarr?} other {Leave this Flexarr?}}", *model.guestServerNaming(model.credentials?.guest).values) else t("Sign out of this server?"), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                if (guest) Text(t("Joining again takes a new code."), fontSize = 14.sp, color = Flexarr.usher)
                 // As the Apple TV: Cancel first, and where focus starts.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     TvActionButton(t(Words.cancel), onClick = { confirmSignOut = false }, prominent = true, modifier = Modifier.focusRequester(cancel))
-                    TvActionButton(if (owner != null) t("Leave") else t("Sign out"), onClick = {
+                    TvActionButton(if (guest) t("Leave") else t("Sign out"), onClick = {
                         confirmSignOut = false
                         model.signOut()
                     }, ambient = Flexarr.danger)

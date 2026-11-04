@@ -15,7 +15,12 @@ namespace Flexarr.Api.Security;
 /// for its server is the same server (absent from servers before 0.55).
 /// </param>
 /// <param name="Install">How the server was installed, so the welcome page can say where its code is (absent before 0.56).</param>
-public sealed record SetupStatusDto(bool Open, bool CodeRequired = true, string? ServerId = null, Updates.InstallKind? Install = null);
+/// <param name="ServerName">
+/// What the server is called, for the connect screen before signing in; only at home and over Tailscale, as the
+/// network announcement is, and not in a container, where Docker's port forwarding makes visitors from the internet
+/// look as though they're at home (absent before 0.61).
+/// </param>
+public sealed record SetupStatusDto(bool Open, bool CodeRequired = true, string? ServerId = null, Updates.InstallKind? Install = null, string? ServerName = null);
 
 /// <summary>What a browser sends to set the server up: the setup code, and the admin PIN (it guards the server's settings).</summary>
 public sealed record SetupClaimDto(string? Code, string? Pin = null);
@@ -196,7 +201,9 @@ public static class FirstRunEndpoints
         group.MapGet("/", (HttpContext http, FirstRun firstRun, IOptionsMonitor<FlexarrOptions> options, Updates.IInstallEnvironment install) =>
         {
             var open = firstRun.OpenTo(http);
-            return Results.Ok(new SetupStatusDto(open, ServerId: options.CurrentValue.ServerId, Install: open ? install.Kind : null));
+            return Results.Ok(new SetupStatusDto(open, ServerId: options.CurrentValue.ServerId, Install: open ? install.Kind : null,
+                ServerName: NetworkZones.Of(http) == NetworkZone.Internet || Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true"
+                    ? null : Configuration.ServerName.Of(options.CurrentValue)));
         });
         // Only the web app's own scripts send X-Requested-With, so a form on another site can't claim the server.
         // The PIN comes with the code, so setup is done all at once or not at all: closing the page before the button

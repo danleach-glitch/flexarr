@@ -250,7 +250,17 @@ builder.Services.AddMcpServer(o =>
         + "the episode that device's profile is up to, a podcast's the episode to hear next. add_to_up_next queues podcast episodes. Devices only "
         + "take commands while Flexarr is open on them.";
 })
-    .WithHttpTransport(o => o.Stateless = true)
+    .WithHttpTransport(o =>
+    {
+        o.Stateless = true;
+        // The assistant calls the server what its admin named it.
+        o.ConfigureSessionOptions = (http, mcp, _) =>
+        {
+            var name = ServerName.Of(http.RequestServices.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue);
+            mcp.ServerInfo = new ModelContextProtocol.Protocol.Implementation { Name = "flexarr", Title = name, Version = mcp.ServerInfo?.Version ?? "0.0.0" };
+            return Task.CompletedTask;
+        };
+    })
     // MapMcp sits outside the /api/v1 group, so its tools get the profile's hidden libraries here.
     .WithRequestFilters(f => f.AddCallToolFilter(next => async (request, ct) =>
     {
@@ -341,6 +351,8 @@ builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompre
 builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(o => o.Level = System.IO.Compression.CompressionLevel.Fastest);
 
 var app = builder.Build();
+// The machine's name, which the server is called until it's named, is looked up now so no request waits for it.
+_ = Task.Run(ServerName.Warm);
 // The Mac app's sandbox can't run other programs, Tailscale's command included.
 TailscaleService.Sandboxed = app.Services.GetRequiredService<IInstallEnvironment>().Kind == InstallKind.MacApp;
 // config.json's watcher belongs to this server: let it go when the server stops (tests start many in one process, and

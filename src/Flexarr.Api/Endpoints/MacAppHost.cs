@@ -38,6 +38,9 @@ public sealed class MacAppHost(IConfiguration configuration)
             _ => StartAtLogin.Off,
         };
 
+    /// <summary>Tells the app what the server is called, which it announces on the network and shows in its menu.</summary>
+    public Task AnnounceNameAsync(string name, CancellationToken cancellationToken) => SendAsync("name", name, cancellationToken);
+
     private async Task<string?> SendAsync(string command, string? argument, CancellationToken cancellationToken)
     {
         if (!IsAvailable)

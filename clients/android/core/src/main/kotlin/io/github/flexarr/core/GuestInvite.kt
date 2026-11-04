@@ -60,6 +60,8 @@ data class GuestInvite(
     val p: String,
     /** When it stops working. */
     @Serializable(with = InstantSerializer::class) val e: Instant? = null,
+    /** The server's name, shown in place of "Dan's Flexarr". Absent from invites made by servers before 0.61. */
+    val m: String? = null,
 ) {
     val ownerName: String get() = n.trim().ifEmpty { t("Someone") }
     val profileName: String get() = p
@@ -68,6 +70,11 @@ data class GuestInvite(
     val authKey: String get() = k
     val token: String get() = t
     val serverId: String get() = s
+    /** The server's name, when the invite carries one. */
+    val serverName: String? get() = m?.trim()?.ifEmpty { null }
+    /** What to call the server: its name, or "Dan's Flexarr". */
+    val serverNaming: ServerNaming get() = ServerNaming(serverName, ownerName)
+    val serverTitle: String get() = serverNaming.title
 
     /** The node's name on the host's tailnet: "flexarr-guest-grans-phone". */
     val hostname: String get() = hostname(g)
@@ -154,11 +161,11 @@ data class GuestJoinProblem(val message: String, val canRetry: Boolean)
  * Why joining with an invite didn't work: short, and the same words as the Apple apps. Only not reaching the host is
  * worth trying again; the rest need a new invite.
  */
-fun guestJoinProblem(error: Throwable, ownerName: String, keyRefused: Boolean = false): GuestJoinProblem = when {
+fun guestJoinProblem(error: Throwable, ownerName: String, keyRefused: Boolean = false, server: ServerNaming = ServerNaming(null, ownerName)): GuestJoinProblem = when {
     keyRefused || (error is FlexarrException.Http && error.status == 410) -> GuestJoinProblem(t("That invite has run out or been used."), canRetry = false)
-    error is FlexarrException.Http && error.status == 503 -> GuestJoinProblem(t("{name}’s Flexarr isn’t taking guests just now.", "name" to ownerName), canRetry = false)
+    error is FlexarrException.Http && error.status == 503 -> GuestJoinProblem(t("{kind, select, named {{server} isn’t taking guests just now.} owner {{owner}’s Flexarr isn’t taking guests just now.} other {This Flexarr isn’t taking guests just now.}}", *server.values), canRetry = false)
     error is FlexarrException.Http && (error.status == 403 || error.status == 404) -> GuestJoinProblem(t("This invite didn’t work. Ask {name} for a new one.", "name" to ownerName), canRetry = false)
-    else -> GuestJoinProblem(t("Can’t reach {name}’s Flexarr. Check this device’s internet.", "name" to ownerName), canRetry = true)
+    else -> GuestJoinProblem(t("{kind, select, named {Can’t reach {server}. Check this device’s internet.} owner {Can’t reach {owner}’s Flexarr. Check this device’s internet.} other {Can’t reach this Flexarr. Check this device’s internet.}}", *server.values), canRetry = true)
 }
 
 /**
@@ -334,4 +341,25 @@ class GuestTvCode(
 
         private fun base64OrNull(text: String): ByteArray? = runCatching { Base64.getDecoder().decode(text) }.getOrNull()
     }
+}
+
+/** The server's name when there is one, else "Dan's Flexarr" (or "this Flexarr" with no owner either). As FlexarrKit's. */
+fun serverTitle(serverName: String?, ownerName: String?): String = ServerNaming(serverName, ownerName).title
+
+/**
+ * What a sentence calls a server: the name an admin chose, else "Dan’s Flexarr", else "this Flexarr". A sentence takes
+ * [values] and has all three wordings whole, `{kind, select, named {Leave {server}?} owner {Leave {owner}’s Flexarr?}
+ * other {Leave this Flexarr?}}`, so a translator is never handed a piece of one. As FlexarrKit's.
+ */
+class ServerNaming(name: String?, owner: String?) {
+    val name: String? = name?.trim()?.ifEmpty { null }
+    val owner: String? = owner?.trim()?.ifEmpty { null }
+
+    val kind: String get() = if (name != null) "named" else if (owner != null) "owner" else "other"
+
+    /** For `t(…)`: `kind`, `server` and `owner`. */
+    val values: Array<Pair<String, Any?>> get() = arrayOf("kind" to kind, "server" to name.orEmpty(), "owner" to owner.orEmpty())
+
+    /** On its own, as a value: "Smith House", "Dan’s Flexarr" or "this Flexarr". */
+    val title: String get() = t("{kind, select, named {{server}} owner {{owner}’s Flexarr} other {this Flexarr}}", *values)
 }

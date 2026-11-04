@@ -113,7 +113,17 @@ data class SystemStatus(
      * sign-in there. Absent from servers before 0.55.
      */
     val serverId: String? = null,
-)
+    /** What the server is called: the name its admin gave it, or its machine's name. Absent from servers before 0.61. */
+    val serverName: String? = null,
+    /**
+     * Whether an admin chose [serverName] (rather than it being the machine's name): a family guest is shown "Dan's
+     * Flexarr" until then. Absent from servers before 0.61.
+     */
+    val serverNamed: Boolean? = null,
+) {
+    /** The name to show on this sign-in: a guest only sees one an admin chose. */
+    fun serverName(forGuest: Boolean): String? = if (forGuest && serverNamed == false) null else serverName
+}
 
 /** The server's error-report switch, which the apps follow: off unless the owner turned it on. */
 @Serializable

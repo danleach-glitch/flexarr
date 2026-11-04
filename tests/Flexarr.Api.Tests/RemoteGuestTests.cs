@@ -125,12 +125,30 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         Assert.Equal("Gran", payload.P);
         Assert.Equal("Gran's iPad", payload.G);
         Assert.False(string.IsNullOrEmpty(payload.S));
+        Assert.Null(payload.M); // Unnamed: the machine's name isn't for guests.
         Assert.Equal(factory.Clock.GetUtcNow().UtcDateTime.AddDays(3), invite.Invite.ExpiresAt, TimeSpan.FromDays(1));
         using var admin = factory.Admin();
         var waiting = await admin.GetFromJsonAsync<List<GuestInviteDto>>("/api/v1/remote/guests/invites", Web);
         Assert.Contains(waiting!, w => w.Id == invite.Invite.Id && w.ProfileName == "Gran");
         // Only a hash of the token is kept on the server.
         Assert.DoesNotContain(payload.T, await File.ReadAllTextAsync(Path.Combine(factory.DataDirectory, GuestInvites.FileName)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task An_invite_carries_the_servers_name_once_an_admin_has_given_it_one()
+    {
+        var gran = await factory.AddProfileAsync("Gran named");
+        using var admin = factory.Admin();
+        Assert.True((await admin.PutAsJsonAsync("/api/v1/settings", new { serverName = "Smith House" })).IsSuccessStatusCode);
+        try
+        {
+            var (_, payload) = await InviteAsync(gran, "Gran's TV");
+            Assert.Equal("Smith House", payload.M);
+        }
+        finally
+        {
+            await admin.PutAsJsonAsync("/api/v1/settings", new { serverName = "" });
+        }
     }
 
     [Fact]

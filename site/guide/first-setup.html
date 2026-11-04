@@ -124,6 +124,7 @@
             <li><a href="#open-flexarr-in-a-browser">Open Flexarr in a browser</a></li>
             <li><a href="#enter-the-setup-code">Enter the setup code</a></li>
             <li><a href="#the-setup-guide">The setup guide</a></li>
+            <li><a href="#the-server-s-name">The server&#39;s name</a></li>
             <li><a href="#add-your-libraries">Add your libraries</a></li>
             <li><a href="#the-first-scan">The first scan</a></li>
             <li><a href="#the-api-key">The API key</a></li>
@@ -166,7 +167,7 @@
 <h2 id="the-setup-guide"><a class="anchor" href="#the-setup-guide" aria-hidden="true" tabindex="-1">#</a>The setup guide</h2>
 <p>Next, Flexarr welcomes you with a short setup guide, one card at a time. Choose <strong>Get started</strong>, or <strong>I&#39;ll set it up myself</strong> to go straight to Home. Every step after your name can be skipped, and <strong>Set up later</strong> leaves the guide whenever you like:</p>
 <ol>
-<li><strong>What&#39;s your name?</strong> Type your name and choose a colour for your profile, the one that runs Flexarr.</li>
+<li><strong>What&#39;s your name?</strong> Type your name and choose a colour for your profile, the one that runs Flexarr. Below it, <strong>Server name</strong> is what phones and TVs will call the server. It starts as the computer&#39;s name; change it to something like &quot;Smith House&quot; if you like (see <a href="#the-server-s-name">The server&#39;s name</a>).</li>
 <li><strong>Connect your apps.</strong> Connect Sonarr, Radarr and Lidarr, if you use them. If Flexarr finds one running nearby, its address is filled in already, and you only paste its API key. Flexarr also adds its own webhook to each app in the background (<strong>Setting up instant updates…</strong>), so new downloads show up straight away (see <a href="/guide/connect-arrs#webhooks-new-downloads-appear-straight-away">Webhooks</a>). Connected the wrong one? Choose <strong>Disconnect</strong>. Don&#39;t use them? Choose <strong>Skip</strong>.</li>
 <li><strong>Add your libraries.</strong> There&#39;s a line each for <strong>Movies</strong>, <strong>TV Shows</strong> and <strong>Music</strong>. A folder from Sonarr, Radarr or Lidarr is filled in already. Otherwise choose <strong>Choose folder</strong>, go to the folder that holds it and choose <strong>Add library</strong>. Then choose <strong>Next</strong>, or <strong>Continue</strong> once they&#39;re added. Choose a whole drive or your home folder and it warns you: reading all of it takes hours. The guide adds one library of each kind; more, home videos and (in the next release) audiobooks are in <strong>Settings › Libraries</strong>.</li>
 <li><strong>Who&#39;s watching?</strong> Add a profile for each person in the house, or choose <strong>Skip</strong>. Added someone by mistake? Choose the <strong>✕</strong> on their picture. See <a href="/guide/profiles">Profiles</a>.</li>
@@ -176,6 +177,9 @@
 <p>At the end, the guide shows what&#39;s set up, says <strong>Checking your libraries</strong> while it reads your files for the first time, and warns you if a library came up empty or Flexarr can&#39;t see one of an app&#39;s folders.</p>
 <p>If you leave part way, Home lists what&#39;s left under <strong>Finish setting up</strong>. Each one opens the right page in Settings; <strong>Hide</strong> puts the list away. Everything in the guide is in Settings too, as described below.</p>
 <p>You&#39;re signed in as the server&#39;s <strong>main profile</strong>, the one that can change settings.</p>
+<h2 id="the-server-s-name"><a class="anchor" href="#the-server-s-name" aria-hidden="true" tabindex="-1">#</a>The server&#39;s name</h2>
+<p>Phones and TVs list the server by its name under <strong>Servers on your network</strong>, and show it in their <strong>Settings › Server</strong>, and so does the browser tab. Family guests see it once you&#39;ve named it; until then they see your name, as in &quot;Dan&#39;s Flexarr&quot;. A new server is named after the computer it runs on (in Docker, just &quot;Flexarr&quot;).</p>
+<p>To rename it, go to <strong>Settings › Overview</strong> and choose the pencil beside <strong>Name</strong> under <strong>Server</strong>. Type the new name (up to 40 characters) and choose <strong>Save</strong>. Apps pick the new name up when they next come back on screen. Clear the box and save to go back to the computer&#39;s name.</p>
 <h2 id="add-your-libraries"><a class="anchor" href="#add-your-libraries" aria-hidden="true" tabindex="-1">#</a>Add your libraries</h2>
 <p>A library is a set of folders holding one kind of media. Go to <strong>Settings › Libraries</strong> and choose <strong>Add library</strong>.</p>
 <figure><img src="/guide/img/libraries.webp" alt="Settings › Libraries listing each library with its folder and a Fine for kids switch" data-caption="Settings › Libraries" loading="lazy" decoding="async"></figure>

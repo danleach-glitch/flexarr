@@ -1627,6 +1627,16 @@
   cursor: default;
 }
 
+/* The server's name, renamed in place. A long name with no spaces wraps rather than running off a phone. */
+.server-name .library-rename {
+  flex: 1;
+  margin: 0;
+}
+
+.server-name .setting-text .muted {
+  overflow-wrap: anywhere;
+}
+
 .setting-rows > .muted:only-child,
 .setting-rows > p {
   margin: 12px 0;

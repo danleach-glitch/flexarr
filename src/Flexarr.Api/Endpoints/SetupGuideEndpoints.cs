@@ -153,9 +153,8 @@ public static partial class SetupGuideEndpoints
                     ?? throw new InvalidOperationException(Loc.T("{name} has no Webhook connection to add.", new { name = arr.Name }));
                 if (existing is null)
                 {
-                    // The apps want names of their own.
-                    var taken = notifications.Any(n => string.Equals(n["name"]?.GetValue<string>(), "Flexarr", StringComparison.OrdinalIgnoreCase));
-                    notification["name"] = taken ? $"Flexarr ({Dns.GetHostName()})" : "Flexarr";
+                    // The apps want names of their own: this server's name, numbered if another connection has it.
+                    notification["name"] = ConnectionName(ServerName.Of(current), notifications.Select(n => n["name"]?.GetValue<string>()));
                 }
 
                 foreach (var (key, value) in notification.ToList())
@@ -219,6 +218,23 @@ public static partial class SetupGuideEndpoints
 
     private static bool IsLoopback(string host) =>
         host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || (IPAddress.TryParse(host, out var ip) && IPAddress.IsLoopback(ip));
+
+    /// <summary>
+    /// The name for this server's webhook in an *arr app: "Flexarr (Smith House)", or just "Flexarr" when that's the
+    /// server's name too; with a number after it when another connection already has it.
+    /// </summary>
+    internal static string ConnectionName(string serverName, IEnumerable<string?> taken)
+    {
+        var names = taken.OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var name = serverName.Equals("Flexarr", StringComparison.OrdinalIgnoreCase) ? "Flexarr" : $"Flexarr ({serverName})";
+        var candidate = name;
+        for (var n = 2; names.Contains(candidate); n++)
+        {
+            candidate = $"{name} {n.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+        }
+
+        return candidate;
+    }
 
     private static bool IsWebhook(JsonObject n) => string.Equals(n["implementation"]?.GetValue<string>(), "Webhook", StringComparison.OrdinalIgnoreCase);
 

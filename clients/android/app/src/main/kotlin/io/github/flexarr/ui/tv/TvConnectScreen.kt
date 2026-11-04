@@ -231,7 +231,7 @@ private fun GuestCode(model: AppModel, onBack: () -> Unit) {
             when {
                 model.joining -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.usher)
-                    Text(t("Joining {owner}’s Flexarr…", "owner" to invite.ownerName), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(t("{kind, select, named {Joining {server}…} owner {Joining {owner}’s Flexarr…} other {Joining this Flexarr…}}", *invite.serverNaming.values), fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 }
                 joinProblem != null -> {
                     ErrorNote(joinProblem)
@@ -245,7 +245,7 @@ private fun GuestCode(model: AppModel, onBack: () -> Unit) {
                 // Asked first: anyone who heard the code could have sent theirs.
                 else -> {
                     // Said as it arrives: whoever's using TalkBack is looking at the code.
-                    Text(t("Join {owner}’s Flexarr?", "owner" to invite.ownerName), fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                    Text(t("{kind, select, named {Join {server}?} owner {Join {owner}’s Flexarr?} other {Join this Flexarr?}}", *invite.serverNaming.values), fontSize = 22.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite; heading() })
                     Text(t("You’ll watch as {profile}.", "profile" to invite.profileName), fontSize = 16.sp, color = Flexarr.usher)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

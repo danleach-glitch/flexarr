@@ -66,6 +66,7 @@ import io.github.flexarr.data.ServerCredentials
 import io.github.flexarr.data.GuestTunnelInfo
 import io.github.flexarr.core.GuestInvite
 import io.github.flexarr.core.GuestJoinProblem
+import io.github.flexarr.core.ServerNaming
 import io.github.flexarr.core.guestJoinProblem
 import io.github.flexarr.core.redeemInvite
 import io.github.flexarr.guest.GuestTunnel
@@ -147,6 +148,37 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Said on the connect screen after the server signed this device out. */
     var signedOutNotice: String? by mutableStateOf(null)
         private set
+
+    /**
+     * What the server is called, as it last said (kept, so it shows while the server can't be reached); null before it
+     * has said, and from servers before 0.61.
+     */
+    var serverName: String? by mutableStateOf(store.savedServerName)
+        private set
+
+    /**
+     * Keeps what the server is called, for Settings and for while it can't be reached; a guest only keeps a name an
+     * admin chose. Servers before 0.61 say nothing, and leave it as it was.
+     */
+    private fun noteServerName(status: SystemStatus, address: String, guest: Boolean) {
+        if (status.serverName == null && status.serverNamed == null) return
+        if (credentials?.address != address) return
+        val name = status.serverName(forGuest = guest)
+        if (name == serverName) return
+        serverName = name
+        if (saved) store.saveServerName(name)
+    }
+
+    /** What to call the server: its name when it has given one, else its address's host ("192.168.1.106"). */
+    val serverTitle: String
+        get() = credentials?.guest?.let { guestServerTitle(it) }
+            ?: serverName ?: credentials?.address?.let { runCatching { java.net.URI(it).host }.getOrNull() } ?: "Flexarr"
+
+    /** A guest's host server: the name it last gave, or the invite's, or "Dan's Flexarr". */
+    fun guestServerTitle(guest: GuestTunnelInfo?): String = guestServerNaming(guest).title
+
+    /** The same, for sentences that name it (see [ServerNaming]). */
+    fun guestServerNaming(guest: GuestTunnelInfo?): ServerNaming = ServerNaming(serverName ?: guest?.serverName, guest?.ownerName)
 
     /** The notice is for a guest whose host removed it: there's no home server to show a code for. */
     var signedOutAsGuest = false
@@ -983,9 +1015,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     suspend fun join(invite: GuestInvite) {
         val owner = invite.ownerName
-        if (invite.isExpired()) throw GuestJoinException(guestJoinProblem(IllegalStateException(), owner, keyRefused = true))
+        if (invite.isExpired()) throw GuestJoinException(guestJoinProblem(IllegalStateException(), owner, keyRefused = true, server = invite.serverNaming))
         leaving?.join()
-        val info = GuestTunnelInfo(invite.tailnetTarget, invite.hostname, owner)
+        val info = GuestTunnelInfo(invite.tailnetTarget, invite.hostname, owner, invite.serverName)
         val port = withContext(Dispatchers.IO) {
             // Trying this invite again after its sign-in didn't go through: the node joined with its key already (which
             // is spent now), so it starts as that identity. Otherwise afresh: an identity left from an earlier invite
@@ -996,7 +1028,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             fun failed(e: TunnelException): Nothing {
                 // A refused identity or key is no use again; anything else (the network) leaves it for Try again.
                 if (e.needsLogin) tunnel.forget() else tunnel.use(null)
-                throw GuestJoinException(guestJoinProblem(e, owner, keyRefused = e.needsLogin))
+                throw GuestJoinException(guestJoinProblem(e, owner, keyRefused = e.needsLogin, server = invite.serverNaming))
             }
             try {
                 tunnel.start(if (joinedBefore) "" else invite.authKey)
@@ -1021,7 +1053,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         } catch (e: Exception) {
             // The node stays known to the tailnet (its key is spent), so trying again with the same invite still works.
             withContext(Dispatchers.IO) { tunnel.use(null) }
-            throw GuestJoinException(guestJoinProblem(e, owner))
+            throw GuestJoinException(guestJoinProblem(e, owner, server = invite.serverNaming))
         }
         val credentials = ServerCredentials(address, redeemed.apiKey, guest = info)
         store.save(credentials)
@@ -1139,6 +1171,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         upNext = emptyList()
         forgetWatchlist()
         if (saved) store.clear()
+        serverName = null
         profiles = emptyList()
         profilesLoaded = false
         hasBeenOnline = false
@@ -1537,13 +1570,13 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** The host removed this guest's device: its sign-in, tunnel and downloads go, and the connect screen says what to do. */
     private fun removedAsGuest() {
         val credentials = credentials ?: return
-        val owner = credentials.guest?.ownerName?.ifEmpty { null }
+        val server = guestServerNaming(credentials.guest)
         // Not kept for coming back: every guest's address is this phone's own loopback one, so another host's Flexarr
         // joined later would look like the same server and take them on.
         downloads.signedOut(null)
         notifications.forget()
         forget()
-        signedOutNotice = if (owner != null) t("You no longer have access to {name}’s Flexarr.", "name" to owner) else t("You no longer have access to this Flexarr.")
+        signedOutNotice = t("{kind, select, named {You no longer have access to {server}.} owner {You no longer have access to {owner}’s Flexarr.} other {You no longer have access to this Flexarr.}}", *server.values)
         signedOutAsGuest = true
     }
 
@@ -1577,7 +1610,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             ErrorReports.stop()
         } else if (address != reportsServer && client != null) {
             reportsServer = address
-            scope.launch { ErrorReports.refresh(client, address) }
+            // The name kept for this server (none for a new one), until it says its own.
+            serverName = if (saved) store.savedServerName else null
+            val guest = credentials?.isGuest == true
+            scope.launch { ErrorReports.refresh(client, address)?.let { noteServerName(it, address, guest) } }
         }
     }
 
@@ -1604,6 +1640,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         client?.let { scope.launch { it.warmConnection() } }
         tunnelIdle?.cancel()
         if (credentials?.isGuest == true) scope.launch(Dispatchers.IO) { tunnel.ensureRunning() }
+        // Renamed on the web while the app was away: the name follows.
+        credentials?.let { now ->
+            client?.let { scope.launch { runCatching { it.systemStatus() }.getOrNull()?.let { status -> noteServerName(status, now.address, now.isGuest) } } }
+        }
         // Offline mode ends (or starts) as soon as it's known whether the server answers now, and tries again while
         // the app's in front.
         scheduleRetry()

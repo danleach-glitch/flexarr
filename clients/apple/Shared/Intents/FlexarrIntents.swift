@@ -346,10 +346,17 @@ enum FlexarrIntentError: Error, CustomLocalizedStringResourceConvertible {
         case .noWatchlist: .shown(t("Your Flexarr server needs updating for the watchlist."))
         case .notConnected: .shown(t("Open Flexarr and connect it to your server first."))
         case .nothingToPlay(let title): .shown(t("{title} has nothing to play.", ["title": title]))
-        case .noSuchTitle(let term): .shown(t("Nothing in your library is called {term}.", ["term": term]))
-        case .deviceGone(let name): .shown(t("{device} isn’t signed in to the server any more.", ["device": name]))
+        case .noSuchTitle(let term):
+            if let server = Self.serverName { .shown(t("Nothing on {server} is called {term}.", ["server": server, "term": term])) }
+            else { .shown(t("Nothing in your library is called {term}.", ["term": term])) }
+        case .deviceGone(let name):
+            if let server = Self.serverName { .shown(t("{device} isn’t signed in to {server} any more.", ["device": name, "server": server])) }
+            else { .shown(t("{device} isn’t signed in to the server any more.", ["device": name])) }
         }
     }
+
+    /// What the server is called, as it last said (kept with the sign-in), so Siri can say it.
+    private static var serverName: String? { CredentialStore().savedServerName }
 }
 
 // MARK: - Playing

@@ -4,6 +4,7 @@ import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
 import { episodeCode, formatClock } from '../../lib/format'
 import { SettingLink, SettingsGroup, SettingsHeader } from './shared'
+import { ServerNameRow } from './ServerNameRow'
 import { locale, t, Words } from '../../i18n'
 
 /** "Sonarr, Radarr and Lidarr" */
@@ -64,6 +65,7 @@ export function OverviewSection() {
       </SettingsGroup>
 
       <SettingsGroup title={t('Server')}>
+        <ServerNameRow name={status ? (status.serverName ?? null) : undefined} />
         <SettingLink
           to="/settings/libraries"
           label={t(Words.libraries)}

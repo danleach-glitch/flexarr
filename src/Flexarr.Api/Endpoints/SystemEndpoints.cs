@@ -15,8 +15,13 @@ namespace Flexarr.Api.Endpoints;
 /// This server's id, which GET /setup also gives without signing in: before an app sends its sign-in to
 /// <paramref name="RemoteUrl"/>, it checks the server there answers with the same one.
 /// </param>
+/// <param name="ServerName">What the server is called (Settings › Overview); absent from servers before 0.61.</param>
+/// <param name="ServerNamed">
+/// Whether an admin chose <paramref name="ServerName"/>, rather than it being the machine's name: family guests are
+/// shown "Dan's Flexarr" until someone names it. Absent from servers before 0.61.
+/// </param>
 public sealed record SystemStatus(string AppName, string Version, string OsDescription, string RuntimeVersion, DateTimeOffset StartTime, string? RemoteUrl,
-    ErrorReportStatus ErrorReports, string? ServerId);
+    ErrorReportStatus ErrorReports, string? ServerId, string? ServerName = null, bool? ServerNamed = null);
 
 public sealed record ErrorReportStatus(bool Enabled, string? InstallId);
 
@@ -50,7 +55,9 @@ public static class SystemEndpoints
             StartTime,
             RemoteUrl(install.Kind, await tailscale.RemoteUrlAsync(Port(http), ct), RemoteAccessEndpoints.TailnetIp, Port(http)),
             options.CurrentValue.Logs is { ErrorReports: true, ErrorReportsId: { } id } ? new ErrorReportStatus(true, id) : new ErrorReportStatus(false, null),
-            options.CurrentValue.ServerId));
+            options.CurrentValue.ServerId,
+            ServerName.Of(options.CurrentValue),
+            ServerName.IsNamed(options.CurrentValue)));
 
         return api;
     }

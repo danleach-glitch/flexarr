@@ -39,9 +39,12 @@ struct ServerMenu: View {
     let server: ServerProcess
 
     var body: some View {
-        // Only when something's wrong: a running server needs no status line.
+        // Only when something's wrong: a running server needs no status line, just its name.
         if server.status != .running {
             Text(server.status.description)
+            Divider()
+        } else if let name = server.serverName {
+            Text(name)
             Divider()
         }
         Button(t("Open Flexarr")) { NSWorkspace.shared.open(server.openAddress) }

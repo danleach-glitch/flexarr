@@ -14,13 +14,14 @@ struct ServerSettingsView: View {
             SettingsGroupLabel(t("Connection"))
             if let guest = model.credentials?.guest {
                 // A family guest: no address to show, just whose server, and a way to leave it.
-                SettingsFact(t("Connected by invite"), t("{owner}’s Flexarr", ["owner": guest.ownerName]))
+                SettingsFact(t("Connected by invite"), model.guestServerTitle(guest))
                 SettingsRow(title: t("Leave"), symbol: "rectangle.portrait.and.arrow.right",
-                            help: t("Stop watching {owner}’s Flexarr here. Joining again takes a new code.", ["owner": guest.ownerName])) {
+                            help: t("{kind, select, named {Stop watching {server} here. Joining again takes a new code.} owner {Stop watching {owner}’s Flexarr here. Joining again takes a new code.} other {Stop watching this Flexarr here. Joining again takes a new code.}}", model.guestServerNaming(guest).values)) {
                     confirmLeave = true
                 }
-                .leaveGuestConfirmation(isPresented: $confirmLeave, owner: guest.ownerName) { model.signOut() }
+                .leaveGuestConfirmation(isPresented: $confirmLeave, server: model.guestServerNaming(guest)) { model.signOut() }
             } else {
+            if let name = model.serverName { SettingsFact(t("Name"), name) }
             SettingsFact(t("Address"), address(model.credentials?.address))
             }
             if let remote = model.credentials?.remoteAddress {

@@ -22,6 +22,8 @@ final class AppModel {
             LogHub.shared.signedIn(client)
             // Error reports follow the server signed in to: none signed out, the last answer for a new one.
             if credentials?.address != Self.credentials(in: oldValue)?.address {
+                // The name kept for this server (none for a new one) until it says its own.
+                serverName = store.savedServerName
                 ErrorReports.stop()
                 ErrorReports.resume(server: credentials?.address)
                 Task { await refreshErrorReports() }
@@ -124,6 +126,9 @@ final class AppModel {
     var addingToPlaylist: PlaylistAdditionRequest?
     /// The server's error-report switch, as it last said (nil until asked, and from servers before it).
     private(set) var errorReports: ErrorReportSetting?
+    /// What the server is called, as it last said (kept, so it shows while the server can't be reached); nil before
+    /// it has said, and from servers before 0.61.
+    private(set) var serverName: String?
     /// Why the connect screen is showing when nobody asked for it: the server stopped accepting this device.
     private(set) var signedOutNotice: String?
     /// The notice is for a guest its host removed: there's no server of its own to show a code for.
@@ -152,6 +157,7 @@ final class AppModel {
 
     init() {
         let defaults = UserDefaults.standard
+        defer { serverName = store.savedServerName }
         #if DEBUG
         // `-FlexarrServer <url> -FlexarrApiKey <key>` launch arguments sign in directly
         // (used for simulator runs and screenshots).
@@ -333,6 +339,8 @@ final class AppModel {
         guard let credentials, let client else { return }
         guard let status = try? await client.systemStatus(), self.credentials?.address == credentials.address else { return }
         noteServerAge(status.version, of: credentials.address)
+        // So does its name, which a rename on the web changes while the app is open.
+        noteServerName(status, guest: credentials.isGuest)
         errorReports = status.errorReports
         ErrorReports.apply(status.errorReports, server: credentials.address)
     }
@@ -472,6 +480,7 @@ final class AppModel {
         serverUpdateNotice = nil
         leaveOfflineMode()
         store.clear()
+        serverName = nil
         libraries = []
         resetProfiles()
         forgetWatchlist()
@@ -771,21 +780,43 @@ final class AppModel {
 
     /// The host removed this device (or deleted it from their tailnet): signed out, back to joining, saying why.
     private func removedAsGuest(_ guest: GuestTunnelInfo?) {
-        let owner = guest.map(\.ownerName).flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 }
-        signedOutNotice = owner.map { t("You no longer have access to {owner}’s Flexarr.", ["owner": $0]) }
-            ?? t("You no longer have access to this Flexarr.")
+        signedOutNotice = t("{kind, select, named {You no longer have access to {server}.} owner {You no longer have access to {owner}’s Flexarr.} other {You no longer have access to this Flexarr.}}", guestServerNaming(guest).values)
         forget()
         signedOutAsGuest = true
+    }
+
+    /// Keeps what the server is called, for Settings and for while it can't be reached. Servers before 0.61 say
+    /// nothing, and leave it as it was.
+    private func noteServerName(_ status: SystemStatus, guest: Bool) {
+        guard status.serverName != nil || status.serverNamed != nil else { return }
+        let name = status.serverName(forGuest: guest)
+        guard name != serverName else { return }
+        serverName = name
+        store.saveServerName(name)
+    }
+
+    /// What to call the server: its name when it has given one, else its address's host ("192.168.1.106").
+    var serverTitle: String {
+        if let guest = credentials?.guest { return guestServerTitle(guest) }
+        return serverName ?? credentials?.address.host() ?? "Flexarr"
+    }
+
+    /// A guest's host server: the name it last gave, or the invite's, or "Dan's Flexarr".
+    func guestServerTitle(_ guest: GuestTunnelInfo?) -> String { guestServerNaming(guest).title }
+
+    /// The same, for sentences that name it (see `ServerNaming`).
+    func guestServerNaming(_ guest: GuestTunnelInfo?) -> ServerNaming {
+        ServerNaming(name: serverName ?? guest?.serverName, owner: guest?.ownerName)
     }
 
     enum JoinError: LocalizedError {
         /// Run out, used, or cancelled: the same invite can't work again.
         case usedUp
-        case paused(owner: String)
+        case paused(server: ServerNaming)
         case otherServer
         /// The host's tailnet or server couldn't be reached: the same invite can try again (the key, if used, is
         /// kept as this device's identity, and the server lets the same device redeem the same invite again).
-        case unreachable(owner: String)
+        case unreachable(server: ServerNaming)
         case failed(String)
 
         /// Trying the same invite again can work.
@@ -797,9 +828,9 @@ final class AppModel {
         var errorDescription: String? {
             switch self {
             case .usedUp: t("That invite has run out or been used.")
-            case .paused(let owner): t("{owner}’s Flexarr isn’t taking guests just now.", ["owner": owner])
+            case .paused(let server): t("{kind, select, named {{server} isn’t taking guests just now.} owner {{owner}’s Flexarr isn’t taking guests just now.} other {This Flexarr isn’t taking guests just now.}}", server.values)
             case .otherServer: t("This invite led to a different server than it named. Ask for a new one.")
-            case .unreachable(let owner): t("Can’t reach {owner}’s Flexarr. Check this device’s internet.", ["owner": owner])
+            case .unreachable(let server): t("{kind, select, named {Can’t reach {server}. Check this device’s internet.} owner {Can’t reach {owner}’s Flexarr. Check this device’s internet.} other {Can’t reach this Flexarr. Check this device’s internet.}}", server.values)
             case .failed(let why): why
             }
         }
@@ -814,7 +845,7 @@ final class AppModel {
         // One tunnel, one host: a guest leaves its last host first (its sign-out goes through that tunnel).
         if credentials?.isGuest == true { signOut() }
         await guestLeaving?.value
-        let info = GuestTunnelInfo(target: invite.tailnetTarget, hostname: invite.hostname, ownerName: invite.ownerName)
+        let info = GuestTunnelInfo(target: invite.tailnetTarget, hostname: invite.hostname, ownerName: invite.ownerName, serverName: invite.serverName)
         // Trying this invite again after its sign-in didn't go through: the node joined with its key already (spent
         // now), so it starts as that identity. Otherwise afresh: an identity left from an earlier invite would keep
         // the node on that tailnet and ignore this key.
@@ -831,7 +862,7 @@ final class AppModel {
             // Said plainly; Tailscale's own words go to the log. The network: left for Try again.
             log.warning("Joining didn't reach the host: \(error.localizedDescription)")
             GuestTunnel.shared.stop()
-            throw JoinError.unreachable(owner: invite.ownerName)
+            throw JoinError.unreachable(server: invite.serverNaming)
         }
         let redeemed: RedeemedInvite
         do {
@@ -841,11 +872,11 @@ final class AppModel {
             GuestTunnel.shared.stop()
             switch error {
             case FlexarrClientError.http(410, _): throw JoinError.usedUp
-            case FlexarrClientError.http(503, _): throw JoinError.paused(owner: invite.ownerName)
+            case FlexarrClientError.http(503, _): throw JoinError.paused(server: invite.serverNaming)
             case FlexarrClientError.http(_, let message): throw JoinError.failed(message ?? t("The server refused the invite."))
             default:
                 log.warning("Redeeming the invite failed: \(error.localizedDescription)")
-                throw JoinError.unreachable(owner: invite.ownerName)
+                throw JoinError.unreachable(server: invite.serverNaming)
             }
         }
         if !invite.serverId.isEmpty, redeemed.serverId != invite.serverId {

@@ -85,7 +85,6 @@ import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.BuildConfig
 import io.github.flexarr.core.DownloadQuality
-import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.bytes
 import io.github.flexarr.core.FlexarrException
@@ -263,12 +262,10 @@ fun SettingsScreen(
                     // With an address for away from home, which of the two it's using; otherwise the server's name.
                     val host = if (model.serverUnreachable) {
                         t("Offline")
-                    } else if (model.isGuest) {
-                        t("By invite")
-                    } else if (model.credentials?.remoteAddress != null) {
+                    } else if (model.credentials?.remoteAddress != null && !model.isGuest) {
                         if (model.client?.addresses?.isAway == true) t("Away") else t("At home")
                     } else {
-                        model.credentials?.address?.let { FlexarrClient.normalizeAddress(it)?.host }
+                        model.serverTitle
                     }
                     SettingsLink(t("Server"), Icons.Filled.Dns, value = host, onClick = onServer)
                 }
@@ -478,10 +475,9 @@ internal fun shortAddress(address: String?): String = address.orEmpty().replace(
 /** Leaving someone else's Flexarr as a guest: the tunnel, sign-in and downloads go, and joining again takes a new code. */
 @Composable
 internal fun LeaveDialog(model: AppModel, onDismiss: () -> Unit) {
-    val owner = model.credentials?.guest?.ownerName?.ifEmpty { null }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (owner != null) t("Leave {owner}’s Flexarr?", "owner" to owner) else t("Leave this Flexarr?")) },
+        title = { Text(t("{kind, select, named {Leave {server}?} owner {Leave {owner}’s Flexarr?} other {Leave this Flexarr?}}", *model.guestServerNaming(model.credentials?.guest).values)) },
         text = { Text(t("Joining again takes a new code. Downloads are deleted.")) },
         confirmButton = { TextButton(onClick = model::signOut) { Text(t("Leave"), color = Flexarr.danger) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(t(Words.cancel), color = Flexarr.screen) } },
@@ -505,7 +501,7 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
             // A guest's server is only ever reached through the tunnel: no address to show or change.
             if (guest != null || model.isGuest) item {
                 Group {
-                    Fact(t("Connected by invite"), guest?.ownerName?.ifEmpty { null }?.let { t("{owner}’s Flexarr", "owner" to it) }.orEmpty())
+                    Fact(t("Connected by invite"), model.guestServerTitle(guest))
                     Divider()
                     Text(
                         t("Leave"),
@@ -523,6 +519,10 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
                         t("Away from home, this phone reaches the server over Tailscale, which needs to be connected on it.")
                     },
                 ) {
+                    model.serverName?.let {
+                        Fact(t("Name"), it)
+                        Divider()
+                    }
                     Fact(t("Address"), shortAddress(model.credentials?.address))
                     if (remote != null) {
                         Divider()

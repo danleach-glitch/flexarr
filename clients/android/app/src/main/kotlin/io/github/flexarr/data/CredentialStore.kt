@@ -26,7 +26,12 @@ data class GuestTunnelInfo(
     val hostname: String,
     /** The host's name, for "Connected by invite" and Leave. */
     val ownerName: String,
-)
+    /** The server's name, from the invite (absent from invites before 0.61 and from guests who joined before). */
+    val serverName: String? = null,
+) {
+    /** What to call the host's server: its name, or "Dan's Flexarr". */
+    val serverTitle: String get() = io.github.flexarr.core.serverTitle(serverName, ownerName)
+}
 
 /** A saved server connection: the address, this device's token and who's watching. */
 data class ServerCredentials(
@@ -80,7 +85,8 @@ class CredentialStore internal constructor(context: Context, private val secrets
         // A token that can't be read back (the Keystore key was reset) leaves the address, so connecting again is quick.
         val key = prefs.getString(API_KEY, null)?.let { runCatching { secrets.decrypt(it) }.getOrNull() } ?: return null
         val guest = prefs.getString(GUEST_TARGET, null)?.let { target ->
-            GuestTunnelInfo(target, prefs.getString(GUEST_HOSTNAME, null).orEmpty(), prefs.getString(GUEST_OWNER, null).orEmpty())
+            GuestTunnelInfo(target, prefs.getString(GUEST_HOSTNAME, null).orEmpty(), prefs.getString(GUEST_OWNER, null).orEmpty(),
+                prefs.getString(GUEST_SERVER_NAME, null))
         }
         return ServerCredentials(
             address,
@@ -98,6 +104,8 @@ class CredentialStore internal constructor(context: Context, private val secrets
     fun save(credentials: ServerCredentials) {
         val guest = credentials.guest
         prefs.edit()
+            // Another server's name mustn't stay behind for this one.
+            .also { if (prefs.getString(ADDRESS, null) != credentials.address) it.remove(SERVER_NAME) }
             .putString(ADDRESS, credentials.address)
             .also { if (guest == null) it.putString(LAST_ADDRESS, credentials.address) }
             .putString(API_KEY, secrets.encrypt(credentials.apiKey))
@@ -107,8 +115,17 @@ class CredentialStore internal constructor(context: Context, private val secrets
             .putString(GUEST_TARGET, guest?.target)
             .putString(GUEST_HOSTNAME, guest?.hostname)
             .putString(GUEST_OWNER, guest?.ownerName)
+            .putString(GUEST_SERVER_NAME, guest?.serverName)
             .apply()
     }
+
+    /** Remembers what the server is called, so Settings can say so while it can't be reached (null forgets it). */
+    fun saveServerName(name: String?) {
+        prefs.edit().putString(SERVER_NAME, name?.trim()?.ifEmpty { null }).apply()
+    }
+
+    /** The server's name as it last gave it; null before it has said (or for servers before 0.61). */
+    val savedServerName: String? get() = prefs.getString(SERVER_NAME, null)
 
     /** Keeps the server's address for away from home in step with what it says. Never for a guest's sign-in. */
     fun saveRemoteAddress(address: String?) {
@@ -156,7 +173,7 @@ class CredentialStore internal constructor(context: Context, private val secrets
 
     fun clear() {
         prefs.edit().remove(ADDRESS).remove(API_KEY).remove(PROFILE).remove(PROFILES).remove(KIDS_LOCK).remove(REMOTE).remove(SERVER_ID)
-            .remove(GUEST_TARGET).remove(GUEST_HOSTNAME).remove(GUEST_OWNER).apply()
+            .remove(GUEST_TARGET).remove(GUEST_HOSTNAME).remove(GUEST_OWNER).remove(GUEST_SERVER_NAME).remove(SERVER_NAME).apply()
     }
 
     /** Encrypted as the token is, for other secrets kept beside it (the notification key). */
@@ -176,6 +193,8 @@ class CredentialStore internal constructor(context: Context, private val secrets
         const val GUEST_TARGET = "guest.target"
         const val GUEST_HOSTNAME = "guest.hostname"
         const val GUEST_OWNER = "guest.owner"
+        const val GUEST_SERVER_NAME = "guest.serverName"
+        const val SERVER_NAME = "serverName"
     }
 }
 

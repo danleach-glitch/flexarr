@@ -129,7 +129,9 @@ internal fun diagnosticsHeader(model: AppModel): String = buildList {
     add("Flexarr for Android ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
     add("Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) on ${Build.MANUFACTURER} ${Build.MODEL}")
     add("Sent ${Instant.now()}")
-    model.credentials?.address?.let { FlexarrClient.normalizeAddress(it)?.host }?.let { add("Server: $it") }
+    model.credentials?.address?.let { FlexarrClient.normalizeAddress(it)?.host }?.let { host ->
+        add(model.serverName?.let { "Server: $it ($host)" } ?: "Server: $host")
+    }
     if (model.credentials?.remoteAddress != null) {
         add("Connected: ${if (model.client?.addresses?.isAway == true) "away, over Tailscale" else "at home"}")
     }

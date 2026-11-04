@@ -54,6 +54,34 @@ class GuestSignInTest {
     }
 
     @Test
+    fun `the server's name is kept for the server it came from`() {
+        val named = tunnel.copy(serverName = "Smith House")
+        store.save(ServerCredentials("http://127.0.0.1:52000/", "guest-key", guest = named))
+        assertEquals("Smith House", store.load()!!.guest!!.serverName)
+        assertEquals("Smith House", store.load()!!.guest!!.serverTitle)
+
+        store.saveServerName("Smith House")
+        store.save(ServerCredentials("http://127.0.0.1:52000/", "guest-key", guest = named))
+        assertEquals("Smith House", store.savedServerName)
+        // Another server's sign-in doesn't inherit it.
+        store.save(ServerCredentials("http://192.168.1.20:8383/", "key"))
+        assertNull(store.savedServerName)
+
+        store.saveServerName(" ")
+        assertNull(store.savedServerName)
+        store.saveServerName("Cabin")
+        store.clear()
+        assertNull(store.savedServerName)
+    }
+
+    @Test
+    fun `a guest saved before names still reads, as Dan's Flexarr`() {
+        store.save(ServerCredentials("http://127.0.0.1:52000/", "guest-key", guest = tunnel))
+        assertNull(store.load()!!.guest!!.serverName)
+        assertEquals("Dan’s Flexarr", store.load()!!.guest!!.serverTitle)
+    }
+
+    @Test
     fun `the guest's address follows the tunnel's port, and signing out forgets the tunnel`() {
         store.save(ServerCredentials("http://127.0.0.1:52000/", "guest-key", guest = tunnel))
         store.saveGuestAddress("http://127.0.0.1:53000/")

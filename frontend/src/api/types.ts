@@ -18,6 +18,8 @@ export interface SystemStatus {
   remoteUrl: string | null
   /** Whether errors go to Flexarr's developer (Sentry), and this server's random id for them; older servers leave it out. */
   errorReports?: ErrorReports
+  /** What the server is called. Absent from servers before 0.61. */
+  serverName?: string | null
 }
 
 export interface ErrorReports {
@@ -600,6 +602,10 @@ export interface Settings {
   allowMusicRequests?: boolean | null
   /** The server runs in a container (Docker). Absent from servers before 0.60. */
   inContainer?: boolean | null
+  /** The name an admin gave the server, or null for the default. Absent from servers before 0.61. */
+  serverName?: string | null
+  /** What the server is called when nobody has named it: the machine's name. Absent from servers before 0.61. */
+  defaultServerName?: string | null
 }
 
 export interface SettingsUpdate {
@@ -623,6 +629,8 @@ export interface SettingsUpdate {
   /** Letting devices at home in without the key asks again: the admin PIN, or a yes when it has none. */
   pin?: string
   confirm?: boolean
+  /** A new name for the server; empty goes back to the machine's name. */
+  serverName?: string
 }
 
 export interface ArrStatus {
