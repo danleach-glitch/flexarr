@@ -56,6 +56,47 @@ describe('Setup guide', () => {
     expect(sent(api, 'PUT', '/profiles/owner')).toMatchObject({ name: 'Dan', color: '#a9c2ec' })
   })
 
+  it('names the server on the first card, starting from the machine’s name, and only saves a change', async () => {
+    const settings = { arr: [], pathMappings: [], serverName: null, defaultServerName: 'Dans-Mac-Mini' }
+    const api = mockApi({
+      '/profiles': [main],
+      'PUT /profiles/owner': { ...main, name: 'Dan' },
+      'PUT /settings': { ...settings, serverName: 'Smith House' },
+      'PUT /setup-guide': undefined,
+      '/settings': settings,
+      '/arr/discover': [],
+    })
+    renderAt('name')
+
+    const server = await screen.findByRole('textbox', { name: 'Server name' })
+    expect(server).toHaveValue('Dans-Mac-Mini')
+    fireEvent.change(screen.getByRole('textbox', { name: 'Your name' }), { target: { value: 'Dan' } })
+    fireEvent.change(server, { target: { value: ' Smith House ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+
+    expect(await screen.findByRole('heading', { name: 'Connect your apps' })).toBeInTheDocument()
+    expect(sent(api, 'PUT', '/settings')).toEqual({ serverName: 'Smith House' })
+    expect(document.title).toBe('Smith House · Flexarr')
+  })
+
+  it('leaves the server’s name alone when it isn’t changed, and hides it on servers without one', async () => {
+    const api = mockApi({
+      '/profiles': [main],
+      'PUT /profiles/owner': { ...main, name: 'Dan' },
+      'PUT /setup-guide': undefined,
+      '/settings': { arr: [], pathMappings: [] },
+      '/arr/discover': [],
+    })
+    renderAt('name')
+
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Your name' }), { target: { value: 'Dan' } })
+    expect(screen.queryByRole('textbox', { name: 'Server name' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+
+    expect(await screen.findByRole('heading', { name: 'Connect your apps' })).toBeInTheDocument()
+    expect(sent(api, 'PUT', '/settings')).toBeUndefined()
+  })
+
   it('keeps an app’s API key hidden as it’s typed', async () => {
     mockApi({ '/profiles': [main], '/settings': { arr: [], pathMappings: [] }, '/arr/discover': [], 'PUT /setup-guide': undefined })
     renderAt('apps')
