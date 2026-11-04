@@ -330,11 +330,12 @@ final class PlayerViewController: NSViewController {
         if flash { self.flash(seconds < 0 ? t("−{seconds} s", ["seconds": Int(abs(seconds))]) : t("+{seconds} s", ["seconds": Int(abs(seconds))])) }
     }
 
-    func seek(to seconds: Double) {
+    /// `exact`: land on the very second (Skip intro, a remote's seek) rather than the keyframe before it, as the iPhone's.
+    func seek(to seconds: Double, exact: Bool = false) {
         guard let transport else { return }
         let target = max(0, min(seconds, transport.duration > 0 ? transport.duration : seconds))
         seekTarget = (target, Date())
-        transport.seek(to: target)
+        transport.seek(to: target, exact: exact)
         updateTime(target, transport)
         delegate?.playerScreen(self, didSeekTo: target)
         showControls()

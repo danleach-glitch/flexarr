@@ -120,8 +120,8 @@ struct MacPlayerControls: View {
                     Image(systemName: "pip.enter").font(.system(size: 17, weight: .semibold)).frame(width: 44, height: 44)
                 }
                 .buttonStyle(GlassCircle())
-                .help(t("Picture in Picture"))
-                .accessibilityLabel(t("Picture in Picture"))
+                .help(t("Picture in picture"))
+                .accessibilityLabel(t("Picture in picture"))
             }
         }
         .padding(.horizontal, Self.edge)
@@ -163,7 +163,7 @@ struct MacPlayerControls: View {
     }
 
     private var remaining: String {
-        if state.isLive { return state.behindLive < LiveTransport.liveSlack ? t("LIVE") : "−" + PlayerViewController.clock(state.behindLive) }
+        if state.isLive { return state.behindLive < LiveTransport.liveSlack ? t("Live") : "−" + PlayerViewController.clock(state.behindLive) }
         return state.duration > 0 ? "−" + PlayerViewController.clock(max(0, state.duration - state.position)) : ""
     }
 
@@ -280,7 +280,7 @@ struct MacPlayerControls: View {
             }
             if !state.isLive {
                 Menu {
-                    let title = state.sleepMinutesLeft.map { t("Sleep timer ({minutes} min left)", ["minutes": $0]) } ?? t("Sleep timer")
+                    let title = state.sleepMinutesLeft.map { t("Sleep timer, {minutes} min left", ["minutes": $0]) } ?? t("Sleep timer")
                     Picker(title, selection: Binding(get: { state.sleepSetting }, set: { screen?.setSleep($0) })) {
                         Text(t("Off")).tag(SleepTimer.Setting?.none)
                         ForEach(SleepTimer.minuteChoices, id: \.self) { Text(SleepTimer.Setting.minutes($0).label).tag(SleepTimer.Setting?.some(.minutes($0))) }
