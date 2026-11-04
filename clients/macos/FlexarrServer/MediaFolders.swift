@@ -64,8 +64,8 @@ final class MediaFolders {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.prompt = "Use with Flexarr"
-        panel.message = "Choose a folder for Flexarr. It can use everything inside it."
+        panel.prompt = t("Use with Flexarr")
+        panel.message = t("Choose a folder for Flexarr. It can use everything inside it.")
         NSApp.activate()
         guard panel.runModal() == .OK, let url = panel.url,
               let bookmark = try? Self.bookmark(url), url.startAccessingSecurityScopedResource() else { return nil }

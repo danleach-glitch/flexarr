@@ -1,15 +1,6 @@
 import Foundation
 import Observation
 
-/// A language the server offers. Absent from servers before 0.61, which offer none.
-public struct LanguageInfo: Codable, Sendable, Hashable, Identifiable {
-    public let code: String
-    public let name: String
-    public let direction: String
-    public let version: Int64
-    public var id: String { code }
-}
-
 /// A language's strings for the Apple apps, keyed by their English (as `make strings` writes them).
 public struct LanguagePack: Codable, Sendable, Equatable {
     public let code: String
@@ -120,10 +111,29 @@ public final class Localization: @unchecked Sendable {
 
     // MARK: Packs on the device
 
+    /// Where the built-in packs are: FlexarrKit's resources, or (the Mac app, which compiles these files itself) the app's.
+    static var packBundle: Bundle {
+        #if SWIFT_PACKAGE
+        Bundle.module
+        #else
+        Bundle.main
+        #endif
+    }
+
+    /// The languages built into this app.
+    public static var bundledCodes: [String] {
+        (packBundle.urls(forResourcesWithExtension: "json", subdirectory: "Languages") ?? []).map { $0.deletingPathExtension().lastPathComponent }
+    }
+
+    /// Shows the device's own language, from the packs built in (for an app with no profile, like the Mac app's menu).
+    public func showDeviceLanguage() {
+        show(Self.deviceChoice(offered: Self.bundledCodes).flatMap(Self.newestOnDevice))
+    }
+
     /// The pack built into this app for a language (de-AT tries de-AT then de).
     public static func bundled(_ code: String) -> LanguagePack? {
         for c in fallbacks(code) {
-            if let url = Bundle.module.url(forResource: c, withExtension: "json", subdirectory: "Languages"),
+            if let url = packBundle.url(forResource: c, withExtension: "json", subdirectory: "Languages"),
                let data = try? Data(contentsOf: url), let pack = try? JSONDecoder().decode(LanguagePack.self, from: data) {
                 return pack
             }
@@ -131,7 +141,7 @@ public final class Localization: @unchecked Sendable {
         return nil
     }
 
-    private struct Kept: Codable {
+    struct Kept: Codable {
         let pack: LanguagePack
     }
 
@@ -141,12 +151,12 @@ public final class Localization: @unchecked Sendable {
         return base?.appending(path: "Languages", directoryHint: .isDirectory)
     }
 
-    private static func kept(_ code: String) -> Kept? {
+    static func kept(_ code: String) -> Kept? {
         guard let url = folder?.appending(path: "\(code).json"), let data = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(Kept.self, from: data)
     }
 
-    private static func keep(_ pack: LanguagePack) {
+    static func keep(_ pack: LanguagePack) {
         guard let folder else { return }
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         if let data = try? JSONEncoder().encode(Kept(pack: pack)) {
@@ -204,28 +214,6 @@ public final class Localization: @unchecked Sendable {
         }
     }
 
-    /// Settles the language: the profile's choice (nil follows the device), shown from the device's newest copy at
-    /// once, then from the server's if it has a newer one. Offline, the device's copy stays.
-    public func settle(profileChoice: String?, client: FlexarrClient) async {
-        let offered = (try? await client.languages()) ?? []
-        let code = profileChoice ?? Self.deviceChoice(offered: offered.map(\.code))
-        guard let code, code != "en" else {
-            show(nil)
-            Self.lastShown = nil
-            return
-        }
-        let onDevice = Self.newestOnDevice(code)
-        show(onDevice)
-        // The list says each pack's version: download only when the server's is newer than the device's.
-        let published = offered.first { Self.fallbacks(code).contains($0.code) }
-        if let published, published.version > (onDevice?.version ?? -1), let pack = try? await client.languagePack(published.code) {
-            Self.keep(pack)
-            show(pack)
-        } else if published == nil, onDevice == nil {
-            show(nil)
-        }
-        Self.lastShown = self.code == "en" ? nil : self.code
-    }
 }
 
 /// Watches the language shown, for SwiftUI: `.id(language.code)` redraws everything in a new one.
