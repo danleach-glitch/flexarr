@@ -174,7 +174,7 @@ struct LiveGuideGrid: View {
                         }
                         if let onFavourite {
                             Button { onFavourite(channel) } label: {
-                                Label(channel.isFavourite ? t("Remove from Favourites") : t("Add to Favourites"),
+                                Label(channel.isFavourite ? t("Remove from favourites") : t("Add to favourites"),
                                       systemImage: channel.isFavourite ? "star.slash" : "star")
                             }
                         }

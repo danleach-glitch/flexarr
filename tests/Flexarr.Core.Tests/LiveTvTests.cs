@@ -259,9 +259,9 @@ public sealed class LiveCommandTests
     }
 
     [Theory]
-    [InlineData("Server returned 403 Forbidden", "refused Flexarr's sign-in", false)]
-    [InlineData("Server returned 404 Not Found", "doesn't have this channel", false)]
-    [InlineData("http://x/live/a/b/1.ts: Input/output error", "isn't sending this channel", false)]
+    [InlineData("Server returned 403 Forbidden", "refused Flexarr’s sign-in", false)]
+    [InlineData("Server returned 404 Not Found", "doesn’t have this channel", false)]
+    [InlineData("http://x/live/a/b/1.ts: Input/output error", "isn’t sending this channel", false)]
     [InlineData("Server returned 503 Service Unavailable", "No connection free", true)]
     public void Says_why_a_channel_would_not_play(string ffmpeg, string expected, bool busy)
     {

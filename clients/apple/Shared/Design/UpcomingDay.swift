@@ -47,7 +47,7 @@ enum UpcomingDay {
     /// Ready to watch, or how far its download has got; nil otherwise.
     static func status(_ item: UpcomingItem) -> String? {
         if item.available == true { return t("Ready to watch") }
-        if let progress = item.download?.progress { return t("Downloading {percent}%", ["percent": Int((progress * 100).rounded())]) }
+        if let progress = item.download?.progress { return t("Downloading, {percent}%", ["percent": Int((progress * 100).rounded())]) }
         return nil
     }
 

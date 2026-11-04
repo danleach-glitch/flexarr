@@ -19,7 +19,7 @@ public static class RequestForgery
         if (IsForged(http))
         {
             http.Response.StatusCode = StatusCodes.Status403Forbidden;
-            await Problems.Of("This request came from another website, so Flexarr didn't act on it.", status: 403).ExecuteAsync(http);
+            await Problems.Of("This request came from another website, so Flexarr didn’t act on it.", status: 403).ExecuteAsync(http);
             return;
         }
 

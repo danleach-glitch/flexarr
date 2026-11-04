@@ -4,6 +4,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Every app and the web
+- Words read the same on every screen and app: "Add to favourites", "Go to podcast", "Remove download", "Now playing" on the TV, "TV shows" and "Home videos", and curly apostrophes throughout, where some said "Add to Favourites" or "Couldn't". The live player says "Live" on every app.
+
 ### Android
 - Counts read properly for one of something: "1 track", "1 season" and "1 episode" where some said "1 tracks" or "1 songs".
 - Dates, times, numbers and file sizes follow your phone's or TV's own way of writing them everywhere.

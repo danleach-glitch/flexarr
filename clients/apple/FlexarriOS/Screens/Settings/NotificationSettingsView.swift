@@ -58,7 +58,7 @@ struct NotificationSettingsView: View {
                 }
 
                 Section {
-                    toggle(t("Upcoming"), \.upcoming, detail: t("Each morning, what's airing today"))
+                    toggle(t("Upcoming"), \.upcoming, detail: t("Each morning, what’s airing today"))
                     if notifications.settings.upcoming {
                         Picker(t("At"), selection: setting(\.upcomingHour)) {
                             ForEach(0..<24, id: \.self) { Text(Self.hourLabel($0)).tag($0) }
@@ -160,7 +160,7 @@ struct NotificationSettingsView: View {
             try await notifications.sendTest(credentials)
             testSent = t("Test notification sent. It should arrive in a moment.")
         } catch {
-            problem = Problem(error, title: t("Couldn't send a test notification"))
+            problem = Problem(error, title: t("Couldn’t send a test notification"))
         }
     }
 
@@ -169,7 +169,7 @@ struct NotificationSettingsView: View {
         var message: String
 
         init(_ error: Error, title: String? = nil) {
-            self.title = title ?? t("Couldn't change notifications")
+            self.title = title ?? t("Couldn’t change notifications")
             message = ConnectionError(error).message
         }
     }

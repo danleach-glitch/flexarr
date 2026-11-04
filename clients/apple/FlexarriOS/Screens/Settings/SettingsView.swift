@@ -66,7 +66,7 @@ struct SettingsView: View {
                     .disabled(turningOnNotifications)
                     .listRowBackground(Color.seat)
                 } footer: {
-                    Text(t("This {device} isn't getting notifications from this server, so you won't hear when something new is ready.", ["device": ThisDevice.name]))
+                    Text(t("This {device} isn’t getting notifications from this server, so you won’t hear when something new is ready.", ["device": ThisDevice.name]))
                 }
             }
 
@@ -143,7 +143,7 @@ struct SettingsView: View {
         .task { await catchUpOnPairing() }
         .task(id: model.currentProfile?.id) { trakt = try? await model.client?.traktStatus() }
         .task { notificationsAllowed = [.authorized, .provisional].contains(await notifications.authorization()) }
-        .alert(t("Couldn't turn on notifications"), isPresented: Binding(get: { notificationProblem != nil }, set: { if !$0 { notificationProblem = nil } })) {
+        .alert(t("Couldn’t turn on notifications"), isPresented: Binding(get: { notificationProblem != nil }, set: { if !$0 { notificationProblem = nil } })) {
             Button(t("OK"), role: .cancel) {}
         } message: {
             Text(notificationProblem ?? "")

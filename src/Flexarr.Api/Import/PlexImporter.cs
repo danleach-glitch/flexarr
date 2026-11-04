@@ -54,7 +54,7 @@ public sealed partial class PlexImporter(FlexarrDbContext db, IReadOnlyList<Path
         var full = Path.IsPathFullyQualified(path) ? Path.GetFullPath(path) : string.Empty;
         if (!full.EndsWith(Path.DirectorySeparatorChar + DatabaseName, StringComparison.OrdinalIgnoreCase))
         {
-            throw new ArgumentException(Loc.T("That isn't Plex's database. Give the full path to the file named {file}.", new { file = DatabaseName }), nameof(path));
+            throw new ArgumentException(Loc.T("That isn’t Plex’s database. Give the full path to the file named {file}.", new { file = DatabaseName }), nameof(path));
         }
 
         return full;
@@ -91,7 +91,7 @@ public sealed partial class PlexImporter(FlexarrDbContext db, IReadOnlyList<Path
 
     public async Task<PlexImportResult> ImportAsync(PlexImportRequest request, CancellationToken ct)
     {
-        var path = Resolve(request.Path) ?? throw new FileNotFoundException(Loc.T("Couldn't find a Plex database on this machine."));
+        var path = Resolve(request.Path) ?? throw new FileNotFoundException(Loc.T("Couldn’t find a Plex database on this machine."));
 
         // file path → (watched count, offset ms, last viewed unix seconds), keeping the most recent per file.
         var history = new Dictionary<string, (int Views, long OffsetMs, long LastViewed)>(StringComparer.Ordinal);
@@ -132,7 +132,7 @@ public sealed partial class PlexImporter(FlexarrDbContext db, IReadOnlyList<Path
         var profileId = request.ProfileId ?? PlaybackState.DefaultUser;
         if (!await db.Profiles.AnyAsync(p => p.Id == profileId, ct))
         {
-            throw new FileNotFoundException(Loc.T("That Flexarr profile doesn't exist."));
+            throw new FileNotFoundException(Loc.T("That Flexarr profile doesn’t exist."));
         }
 
         var states = await db.PlaybackStates.Where(p => p.UserId == profileId).ToDictionaryAsync(p => p.MediaItemId, ct);

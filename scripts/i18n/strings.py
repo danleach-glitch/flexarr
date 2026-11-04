@@ -166,7 +166,14 @@ def build(now=None, write_check=False):
         found.setdefault(key, set()).update(scopes)
     for e in scan_errors:
         problems.append(e)
+    for key, places in sorted(typed.items()):
+        if STRAIGHT_APOSTROPHE.search(scan.english(key)):
+            problems.append(f"{places[0]}: {key!r}: write a curly apostrophe (’), not a straight one")
     english = validate_english(found, problems)
+    for group in near_duplicates(english):
+        if tuple(group) not in DISTINCT:
+            problems.append("the same English written two ways (pick one, or add it to DISTINCT in strings.py if they're "
+                            "different uses): " + "  |  ".join(repr(k) for k in group))
 
     old_en = read_json(PACKS / "en.json", {})
     packs = load_packs()
@@ -240,6 +247,16 @@ def build(now=None, write_check=False):
     return out, problems
 
 
+# Contractions and possessives take a curly apostrophe (docs/design.md, Words). A straight one is also ICU's quote
+# character, so it can swallow the {value} after it.
+STRAIGHT_APOSTROPHE = re.compile(r"\w'\w|(^|\s)'\d")
+
+# Near-duplicates that are different uses, not slips: a button's label for screen readers beside a question.
+DISTINCT = {
+    ("Connect {name}", "Connect “{name}”?"),
+}
+
+
 def near_duplicates(keys):
     """Groups of English that differ only in case, punctuation or spacing (Up Next / Up next, couldn't / couldn’t),
     the candidates for one string or a shared word. Contexts count: music::Play isn't a duplicate of Play."""
@@ -249,8 +266,9 @@ def near_duplicates(keys):
         norm = re.sub(r"[\s.,!?…:;’'\"“”()–—-]+", " ", scan.english(key)).strip().casefold()
         groups.setdefault((ctx, norm), []).append(key)
     def usual(key):
-        # A question or "…" button beside its plain form, or a capital only at the start, is a different use, not a slip.
-        e = re.sub(r"[\s.?…]+$", "", scan.english(key))
+        # A question or "…" button beside its plain form, a capital only at the start, or a piece that follows something
+        # else (", main profile" after a name) is a different use, not a slip.
+        e = re.sub(r"^[\s,;:–—-]+|[\s.?…]+$", "", scan.english(key))
         return e[:1].lower() + e[1:]
 
     return [sorted(g) for g in groups.values() if len(g) > 1 and len({usual(k) for k in g}) > 1]
@@ -292,7 +310,7 @@ def main(argv):
             path.write_text(text, encoding="utf-8")
     english = json.loads(out[PACKS / "en.json"])
     print(f"{len(english)} strings; packs: {', '.join(c for c in load_packs()) or 'none yet'}")
-    dupes = near_duplicates(english)
+    dupes = [g for g in near_duplicates(english) if tuple(g) not in DISTINCT]
     if dupes and "--duplicates" in argv:
         print("Near-duplicates (make them one string, or a shared word in languages/words.json):")
         for g in dupes:

@@ -469,7 +469,7 @@ struct BookView: View {
                                     }
                                     Button(t(Words.cancel), role: .cancel) {}
                                 } message: {
-                                    Text(t("You're at {time}.", ["time": Format.timestamp(position)]))
+                                    Text(t("You’re at {time}.", ["time": Format.timestamp(position)]))
                                 }
                         case .finished:
                             Button {

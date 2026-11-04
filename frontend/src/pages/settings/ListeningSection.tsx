@@ -41,7 +41,7 @@ export function ListeningSection() {
     try {
       setSaved(await savePodcastPreferences(changes))
     } catch {
-      setError(t("That didn't save. Try again."))
+      setError(t('That didn’t save. Try again.'))
       settle()
       // What the server has now, in place of the change that didn't save.
       void getPodcastPreferences().then(setSaved, () => undefined)

@@ -55,7 +55,7 @@ public sealed partial class GuestTvCodes(IHttpClientFactory clients, IOptionsMon
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InviteException(Loc.T("Flexarr's relay answered {status}. Try again in a minute.", new { status = (int)response.StatusCode }), StatusCodes.Status502BadGateway);
+            throw new InviteException(Loc.T("Flexarr’s relay answered {status}. Try again in a minute.", new { status = (int)response.StatusCode }), StatusCodes.Status502BadGateway);
         }
 
         try
@@ -95,7 +95,7 @@ public sealed partial class GuestTvCodes(IHttpClientFactory clients, IOptionsMon
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InviteException(Loc.T("Flexarr's relay answered {status}. Try again in a minute.", new { status = (int)response.StatusCode }), StatusCodes.Status502BadGateway);
+            throw new InviteException(Loc.T("Flexarr’s relay answered {status}. Try again in a minute.", new { status = (int)response.StatusCode }), StatusCodes.Status502BadGateway);
         }
 
         LogDelivered();

@@ -87,7 +87,7 @@ export function ImportSection() {
               setLookup((n) => n + 1)
             }}
           >
-            <span className="field-label">{t("Plex wasn't found in the usual places. Where is com.plexapp.plugins.library.db?")}</span>
+            <span className="field-label">{t('Plex wasn’t found in the usual places. Where is com.plexapp.plugins.library.db?')}</span>
             <input type="text" value={path} onChange={(e) => setPath(e.target.value)} placeholder="/path/to/Plug-in Support/Databases/com.plexapp.plugins.library.db" />
             <div className="form-actions">
               <AsyncButton type="submit" className="button quiet small" busy={source.loading}>
@@ -130,8 +130,8 @@ export function ImportSection() {
             {result && (
               <p role="status" className="import-result">
                 {t('Brought over {count, plural, one {# title} other {# titles}}: {watched, number} watched and {inProgress, number} to resume.', { count: result.matched, watched: result.watched, inProgress: result.inProgress })}
-                {result.keptNewer > 0 && ` ${t("{count, number} you'd watched more recently in Flexarr were left as they were.", { count: result.keptNewer })}`}
-                {result.unmatched > 0 && ` ${t("{count, plural, one {# file Plex knows about isn't in your Flexarr libraries.} other {# files Plex knows about aren't in your Flexarr libraries.}}", { count: result.unmatched })}`}
+                {result.keptNewer > 0 && ` ${t('{count, number} you’d watched more recently in Flexarr were left as they were.', { count: result.keptNewer })}`}
+                {result.unmatched > 0 && ` ${t('{count, plural, one {# file Plex knows about isn’t in your Flexarr libraries.} other {# files Plex knows about aren’t in your Flexarr libraries.}}', { count: result.unmatched })}`}
               </p>
             )}
             {error && (

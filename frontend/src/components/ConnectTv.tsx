@@ -88,7 +88,7 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
   if (state === 'done') {
     return (
       <div className="panel connect-tv" role="status">
-        <h2>{details?.deviceName ? t('{name} is connected', { name: details.deviceName }) : t('The device is connected')}</h2>
+        <h2>{details?.deviceName ? t('“{name}” is connected', { name: details.deviceName }) : t('The device is connected')}</h2>
         <p className="muted">{t('It signs in within a couple of seconds. You can put this away.')}</p>
       </div>
     )
@@ -118,7 +118,7 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
     const home = details.zone === 'Local'
     return (
       <div className="panel connect-tv">
-        <h2>{t('Connect {name}?', { name: details.deviceName })}</h2>
+        <h2>{t('Connect “{name}”?', { name: details.deviceName })}</h2>
         <p className="connect-tv-big-code">{details.code}</p>
         <p className="muted">{t('Asked {where}.', { where: askedFrom(details) })}</p>
         {home ? (

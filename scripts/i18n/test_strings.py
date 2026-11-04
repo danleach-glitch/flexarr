@@ -200,6 +200,15 @@ class DuplicateTests(unittest.TestCase):
         groups = strings.near_duplicates(["Mark as watched", "Mark as Watched", "music::Play", "Play", "Delete", "Delete…", "Other"])
         self.assertEqual(groups, [["Mark as Watched", "Mark as watched"]])
 
+    def test_a_piece_after_a_name_is_not_a_slip(self):
+        self.assertEqual(strings.near_duplicates([", main profile", "Main profile"]), [])
+
+    def test_straight_apostrophes(self):
+        for text in ("Couldn't play this", "Flexarr's", "'90s"):
+            self.assertTrue(strings.STRAIGHT_APOSTROPHE.search(text), text)
+        for text in ("Couldn’t play this", "'{' prints a brace", "''"):
+            self.assertFalse(strings.STRAIGHT_APOSTROPHE.search(text), text)
+
 
 if __name__ == "__main__":
     unittest.main()

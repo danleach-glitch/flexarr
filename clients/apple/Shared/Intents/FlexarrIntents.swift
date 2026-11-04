@@ -347,7 +347,7 @@ enum FlexarrIntentError: Error, CustomLocalizedStringResourceConvertible {
         case .notConnected: .shown(t("Open Flexarr and connect it to your server first."))
         case .nothingToPlay(let title): .shown(t("{title} has nothing to play.", ["title": title]))
         case .noSuchTitle(let term): .shown(t("Nothing in your library is called {term}.", ["term": term]))
-        case .deviceGone(let name): .shown(t("{device} isn't signed in to the server any more.", ["device": name]))
+        case .deviceGone(let name): .shown(t("{device} isn’t signed in to the server any more.", ["device": name]))
         }
     }
 }
@@ -424,8 +424,8 @@ enum Play {
         case (true, true, false): t("Shuffling {title} on {device}.", values)
         case (true, false, true): t("Playing {title} on {device} as {profile}.", values)
         case (true, false, false): t("Playing {title} on {device}.", values)
-        case (false, _, true): t("Flexarr isn't open on {device}. {title} will play as {profile} when you open it in the next two minutes.", values)
-        case (false, _, false): t("Flexarr isn't open on {device}. {title} will play when you open it in the next two minutes.", values)
+        case (false, _, true): t("Flexarr isn’t open on {device}. {title} will play as {profile} when you open it in the next two minutes.", values)
+        case (false, _, false): t("Flexarr isn’t open on {device}. {title} will play when you open it in the next two minutes.", values)
         }
         return Result.result(dialog: .shown(said))
     }
@@ -518,7 +518,7 @@ struct NewPodcastEpisodesIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
         let fresh = try await client.newPodcastEpisodes(unplayed: true, take: 5)
-        guard !fresh.isEmpty else { return .result(dialog: .shown(t("Nothing new. You're up to date."))) }
+        guard !fresh.isEmpty else { return .result(dialog: .shown(t("Nothing new. You’re up to date."))) }
         let said = fresh.map { t("{title}, from {show}", ["title": $0.title, "show": $0.podcastTitle]) }.joined(separator: ". ")
         return .result(dialog: .shown(t("{count, plural, one {One new episode: {episodes}.} other {# new episodes: {episodes}.}}",
                                         ["count": fresh.count, "episodes": said])))
@@ -729,22 +729,22 @@ struct ControlPlaybackIntent: AppIntent {
             case .pause, .resume, .stop:
                 let control: DeviceControl = action == .pause ? .pause : action == .resume ? .resume : .stop
                 let result = try await client.control(device: target.id, control)
-                return .result(dialog: .shown(result.delivered ? t("Done.") : t("Flexarr isn't open on {device}.", ["device": result.deviceName])))
+                return .result(dialog: .shown(result.delivered ? t("Done.") : t("Flexarr isn’t open on {device}.", ["device": result.deviceName])))
             case .subtitlesOn, .subtitlesOff:
                 return .result(dialog: .shown(t("Done."))) // handled above
             case .skipIntro, .next, .back, .forward:
                 // Open, playing, then able to: a TV whose app is closed after a server restart isn't told to update.
                 guard let tv = try await client.devices().first(where: { $0.id == target.id }) else { throw FlexarrIntentError.deviceGone(target.name) }
-                guard tv.online else { return .result(dialog: .shown(t("Flexarr isn't open on {device}.", ["device": target.name]))) }
+                guard tv.online else { return .result(dialog: .shown(t("Flexarr isn’t open on {device}.", ["device": target.name]))) }
                 guard let playing = tv.nowPlaying else { return .result(dialog: .shown(t("Nothing is playing on {device}.", ["device": target.name]))) }
                 guard tv.takes(action.kind) else { return .result(dialog: .shown(t("{device} needs a newer Flexarr.", ["device": target.name]))) }
-                guard !playing.item.isPrivate || action == .back || action == .forward else { return .result(dialog: .shown(t("That's private on this profile."))) }
+                guard !playing.item.isPrivate || action == .back || action == .forward else { return .result(dialog: .shown(t("That’s private on this profile."))) }
                 switch action {
                 case .skipIntro:
-                    guard playing.prompt == .skipIntro || playing.prompt == .skipRecap else { return .result(dialog: .shown(t("There's no intro to skip."))) }
+                    guard playing.prompt == .skipIntro || playing.prompt == .skipRecap else { return .result(dialog: .shown(t("There’s no intro to skip."))) }
                     _ = try await client.control(device: target.id, .skipSegment)
                 case .next:
-                    guard playing.hasNext != false else { return .result(dialog: .shown(t("There's no next episode."))) }
+                    guard playing.hasNext != false else { return .result(dialog: .shown(t("There’s no next episode."))) }
                     _ = try await client.control(device: target.id, .next)
                 default:
                     try await client.skip(device: target.id, by: jump)
@@ -754,7 +754,7 @@ struct ControlPlaybackIntent: AppIntent {
         } catch FlexarrClientError.http(status: 404, _) {
             throw FlexarrIntentError.deviceGone(target.name)
         } catch FlexarrClientError.http(status: 409, let message) {
-            return .result(dialog: .shown(message ?? t("Flexarr isn't open on {device}.", ["device": target.name])))
+            return .result(dialog: .shown(message ?? t("Flexarr isn’t open on {device}.", ["device": target.name])))
         }
     }
 
@@ -768,11 +768,11 @@ struct ControlPlaybackIntent: AppIntent {
         case .stop: player.closePlayer()
         case .skipIntro:
             guard player.isShowingTitle else { return t("Nothing is playing here.") }
-            guard player.canSkipSegment else { return t("There's no intro to skip.") }
+            guard player.canSkipSegment else { return t("There’s no intro to skip.") }
             player.remote(DeviceCommand(id: UUID().uuidString, kind: .skipSegment, itemId: nil, fromBeginning: false, sentBy: nil, sentAt: Date()))
         case .next:
             if player.isShowingTitle {
-                guard player.hasNextTitle else { return t("There's no next episode.") }
+                guard player.hasNextTitle else { return t("There’s no next episode.") }
                 player.remote(DeviceCommand(id: UUID().uuidString, kind: .next, itemId: nil, fromBeginning: false, sentBy: nil, sentAt: Date()))
             } else if model.music.current != nil {
                 model.music.next()
@@ -840,10 +840,10 @@ struct SubtitlesIntent: AppIntent {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
         do {
             guard let tv = try await client.devices().first(where: { $0.id == target.id }) else { throw FlexarrIntentError.deviceGone(target.name) }
-            guard tv.online else { return t("Flexarr isn't open on {device}.", ["device": target.name]) }
+            guard tv.online else { return t("Flexarr isn’t open on {device}.", ["device": target.name]) }
             guard let playing = tv.nowPlaying else { return t("Nothing is playing on {device}.", ["device": target.name]) }
             guard tv.takes(.subtitleTrack) else { return t("{device} needs a newer Flexarr.", ["device": target.name]) }
-            guard !playing.item.isPrivate else { return t("That's private on this profile.") }
+            guard !playing.item.isPrivate else { return t("That’s private on this profile.") }
             var track: String?
             if on {
                 let tracks = playing.tracks ?? PlayerTracks(audio: [], subtitles: [])
@@ -856,7 +856,7 @@ struct SubtitlesIntent: AppIntent {
         } catch FlexarrClientError.http(status: 404, _) {
             throw FlexarrIntentError.deviceGone(target.name)
         } catch FlexarrClientError.http(status: 409, let message) {
-            return message ?? t("Flexarr isn't open on {device}.", ["device": target.name])
+            return message ?? t("Flexarr isn’t open on {device}.", ["device": target.name])
         }
     }
 }
@@ -903,7 +903,7 @@ private func changeSound(on device: DeviceEntity?, model: AppModel, here: (inout
         return t("Sent to {device}.", ["device": target.name])
     } catch FlexarrClientError.http(status: 409, let message) {
         // Not open there, or its app is too old: the server says which.
-        return message ?? t("Flexarr isn't open on {device}.", ["device": target.name])
+        return message ?? t("Flexarr isn’t open on {device}.", ["device": target.name])
     } catch FlexarrClientError.http(status: 404, _) {
         throw FlexarrIntentError.deviceGone(target.name)
     }
@@ -934,14 +934,14 @@ struct NightModeIntent: AppIntent {
             if settings.nightMode == .scheduled {
                 let now = settings.isNight(at: Date())
                 if now == on {
-                    return on ? t("Night mode's already on, on its schedule.")
-                        : t("Night mode's off, and comes on at {time} as scheduled.", ["time": SoundSettings.clock(settings.nightStart)])
+                    return on ? t("Night mode’s already on, on its schedule.")
+                        : t("Night mode’s off, and comes on at {time} as scheduled.", ["time": SoundSettings.clock(settings.nightStart)])
                 }
                 settings.nightMode = on ? .on : .off
-                return on ? t("Night mode's on. That replaces its schedule.") : t("Night mode's off. That replaces its schedule.")
+                return on ? t("Night mode’s on. That replaces its schedule.") : t("Night mode’s off. That replaces its schedule.")
             }
             settings.nightMode = on ? .on : .off
-            return on ? t("Night mode's on.") : t("Night mode's off.")
+            return on ? t("Night mode’s on.") : t("Night mode’s off.")
         }, there: DeviceSound(nightMode: on ? "On" : "Off"))
         return .result(dialog: .shown(said))
     }
@@ -970,10 +970,10 @@ struct DialogueBoostIntent: AppIntent {
         let said = try await changeSound(on: device, model: model, here: { settings in
             settings.dialogueBoost = boost
             return switch boost {
-            case .off: t("Dialogue boost's off.")
-            case .low: t("Dialogue boost's low.")
-            case .medium: t("Dialogue boost's medium.")
-            case .high: t("Dialogue boost's high.")
+            case .off: t("Dialogue boost’s off.")
+            case .low: t("Dialogue boost’s low.")
+            case .medium: t("Dialogue boost’s medium.")
+            case .high: t("Dialogue boost’s high.")
             }
         }, there: DeviceSound(dialogueBoost: boost.rawValue))
         return .result(dialog: .shown(said))

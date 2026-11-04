@@ -80,7 +80,7 @@ final class LiveTvTour: XCTestCase {
             guideButton.tap()
             pause(4)
             shot("50b-live-guide")
-            let later = app.buttons.matching(NSPredicate(format: "label CONTAINS ', ' AND NOT label CONTAINS 'Favourites'")).element(boundBy: 3)
+            let later = app.buttons.matching(NSPredicate(format: "label CONTAINS ', ' AND NOT label CONTAINS[c] 'favourites'")).element(boundBy: 3)
             if later.exists {
                 later.press(forDuration: 1.2)
                 pause(1.5)

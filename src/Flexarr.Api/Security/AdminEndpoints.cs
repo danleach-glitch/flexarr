@@ -55,7 +55,7 @@ public static class AdminEndpoints
             {
                 if (!IsApiKey(request.ApiKey, options.CurrentValue.ApiKey))
                 {
-                    return Problems.Of("That isn't the right API key.", status: 403);
+                    return Problems.Of("That isn’t the right API key.", status: 403);
                 }
             }
             else
@@ -70,7 +70,7 @@ public static class AdminEndpoints
 
                 if (result == PinCheck.Wrong)
                 {
-                    return Problems.Of("That PIN isn't right.", status: 403);
+                    return Problems.Of("That PIN isn’t right.", status: 403);
                 }
             }
 
@@ -106,7 +106,7 @@ public static class AdminEndpoints
             {
                 if (!IsApiKey(request.ApiKey, options.CurrentValue.ApiKey))
                 {
-                    return Problems.Of("That isn't the right API key.", status: 403);
+                    return Problems.Of("That isn’t the right API key.", status: 403);
                 }
 
                 withKey = true;
@@ -133,7 +133,7 @@ public static class AdminEndpoints
 
                 if (result == PinCheck.Wrong)
                 {
-                    return Problems.Of("That isn't the current admin PIN.", status: 403);
+                    return Problems.Of("That isn’t the current admin PIN.", status: 403);
                 }
 
                 withKey = true; // as good as the key, from here
@@ -143,7 +143,7 @@ public static class AdminEndpoints
             {
                 return main.AdminPinHash is null
                     ? Problems.Of("Choose an admin PIN from a browser or device you signed in, or with the API key.", status: 403)
-                    : Problems.Of("Enter the current admin PIN, or the server's API key (it's in config.json in the server's data folder).", status: 403);
+                    : Problems.Of("Enter the current admin PIN, or the server’s API key (it’s in config.json in the server’s data folder).", status: 403);
             }
 
             var replacing = main.AdminPinHash is not null;

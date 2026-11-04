@@ -144,7 +144,7 @@ public sealed class PodcastFetcher(HttpClient http)
         {
             if (url.Scheme != Uri.UriSchemeHttp && url.Scheme != Uri.UriSchemeHttps)
             {
-                throw new HttpRequestException(Loc.Mark("The feed sent Flexarr to an address that isn't on the web."));
+                throw new HttpRequestException(Loc.Mark("The feed sent Flexarr to an address that isn’t on the web."));
             }
 
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -173,7 +173,7 @@ public sealed class PodcastFetcher(HttpClient http)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
         {
-            return Failed(Loc.Mark("That isn't a web address."));
+            return Failed(Loc.Mark("That isn’t a web address."));
         }
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -206,8 +206,8 @@ public sealed class PodcastFetcher(HttpClient http)
                 {
                     return Failed(response.StatusCode switch
                     {
-                        HttpStatusCode.NotFound or HttpStatusCode.Gone => Loc.Mark("The feed isn't there any more."),
-                        HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => Loc.Mark("The feed's host refused to send it."),
+                        HttpStatusCode.NotFound or HttpStatusCode.Gone => Loc.Mark("The feed isn’t there any more."),
+                        HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => Loc.Mark("The feed’s host refused to send it."),
                         _ => $"The feed's host answered {(int)response.StatusCode}.",
                     });
                 }
@@ -232,11 +232,11 @@ public sealed class PodcastFetcher(HttpClient http)
         }
         catch (HttpRequestException ex)
         {
-            return Failed(ex.HttpRequestError == HttpRequestError.NameResolutionError ? Loc.Mark("The feed's host couldn't be found.") : ex.Message);
+            return Failed(ex.HttpRequestError == HttpRequestError.NameResolutionError ? Loc.Mark("The feed’s host couldn’t be found.") : ex.Message);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            return Failed(Loc.Mark("The feed's host didn't answer in time."));
+            return Failed(Loc.Mark("The feed’s host didn’t answer in time."));
         }
 
         static FeedFetch Failed(string error) => new(null, false, null, null, null, error);

@@ -114,7 +114,7 @@ export const libraryTypeLabel: Record<LibraryType, string> = {
     return t(Words.movies)
   },
   get TvShows() {
-    return t('TV Shows')
+    return t('TV shows')
   },
   get Music() {
     return t(Words.music)
@@ -123,7 +123,7 @@ export const libraryTypeLabel: Record<LibraryType, string> = {
     return t(Words.podcasts)
   },
   get HomeVideos() {
-    return t('Home Videos')
+    return t('Home videos')
   },
   get Audiobooks() {
     return t(Words.audiobooks)

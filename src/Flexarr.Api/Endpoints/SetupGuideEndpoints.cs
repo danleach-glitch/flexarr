@@ -202,7 +202,7 @@ public static partial class SetupGuideEndpoints
                 }
 
                 LogWebhookUnreachable(logger, arr.Name, string.Join(", ", tried));
-                return Results.Ok(new ArrWebhookDto(false, null, Loc.T("{name} couldn't reach Flexarr. Add the webhook by hand: see Settings › Connections › Webhooks.", new { name = arr.Name })));
+                return Results.Ok(new ArrWebhookDto(false, null, Loc.T("{name} couldn’t reach Flexarr. Add the webhook by hand: see Settings › Connections › Webhooks.", new { name = arr.Name })));
             }
             catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or System.Text.Json.JsonException
                 || (ex is TaskCanceledException && !ct.IsCancellationRequested))

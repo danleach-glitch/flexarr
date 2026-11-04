@@ -128,7 +128,7 @@ struct MixCard: View {
                 model.playTracks(detail.tracks, showingNowPlaying: router)
             } catch FlexarrClientError.http(status: 404, _) {
                 // Yesterday's mix: the day's mixes have been made afresh since the page loaded.
-                model.player.showFailure(t("Today's mixes have changed. Try again."))
+                model.player.showFailure(t("Today’s mixes have changed. Try again."))
                 if let onStale { onStale() } else { model.invalidate() }
             } catch {
                 model.player.showFailure(ConnectionError(error).message)

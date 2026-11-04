@@ -398,7 +398,7 @@ private struct LibraryGenreGrid: View {
 
     var body: some View {
         if genres.isEmpty {
-            StatusView(state: .empty(t("No genres here yet. They come with each title's details once a scan has found them.")))
+            StatusView(state: .empty(t("No genres here yet. They come with each title’s details once a scan has found them.")))
                 .frame(height: 400)
         } else {
             let minimum: CGFloat = sizeClass == .regular ? 240 : 150

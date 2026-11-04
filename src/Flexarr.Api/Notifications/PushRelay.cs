@@ -78,7 +78,7 @@ public sealed partial class PushRelay(HttpClient http, IOptionsMonitor<FlexarrOp
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {
             LogUnreachable(ex.Message);
-            return (PushOutcome.Failed, Loc.T("Couldn't reach the notification relay."));
+            return (PushOutcome.Failed, Loc.T("Couldn’t reach the notification relay."));
         }
     }
 

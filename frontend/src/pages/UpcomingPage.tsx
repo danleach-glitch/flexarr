@@ -152,7 +152,7 @@ function subtitle(item: UpcomingItem) {
 
 function status(item: UpcomingItem) {
   if (item.available) return t('Ready to watch')
-  if (item.download) return t('Downloading {percent}%', { percent: Math.round(item.download.progress * 100) })
+  if (item.download) return t('Downloading, {percent}%', { percent: Math.round(item.download.progress * 100) })
   return null
 }
 

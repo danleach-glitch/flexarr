@@ -144,7 +144,7 @@ fun MusicDownloadButton(model: AppModel, source: MusicDownloadSource) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                problem = e.message ?: t("Couldn’t download this.")
+                problem = e.message ?: t("Couldn’t download this")
             }
         }
     }

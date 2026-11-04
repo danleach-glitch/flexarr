@@ -95,7 +95,7 @@ final class MusicTour: XCTestCase {
         press(.down, times: 3, wait: 0.8)
         shot("35-album-tracks-focused")
         // Now Playing, in the sidebar while the music plays; selecting it puts focus on the controls.
-        app.openSidebarRow("Now Playing", wait: 2)
+        app.openSidebarRow("Now playing", wait: 2)
         shot("36-now-playing-tab")
         logFocus("tab")
         shot("37-now-playing")
@@ -123,7 +123,7 @@ final class MusicTour: XCTestCase {
         logFocus("album")
         guard app.buttons["Play"].firstMatch.hasFocus else { return XCTFail("the album's Play should have focus") }
         press(.select, wait: 7)
-        app.openSidebarRow("Now Playing", wait: 2)
+        app.openSidebarRow("Now playing", wait: 2)
         // From Play/Pause, past Next and Repeat to Lyrics.
         press(.right, times: 3, wait: 1)
         logFocus("lyrics control")

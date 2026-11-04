@@ -133,8 +133,8 @@ public static class DeviceEndpoints
             {
                 null => Results.NotFound(),
                 { Delivered: true } result => Results.Ok(result),
-                { } result when commands.IsOnline(id) => Problems.Of("The Flexarr app on {deviceName} can't do that yet: update it.", new { deviceName = result.DeviceName }, status: StatusCodes.Status409Conflict),
-                { } result => Problems.Of("Flexarr isn't open on {deviceName}.", new { deviceName = result.DeviceName }, status: StatusCodes.Status409Conflict),
+                { } result when commands.IsOnline(id) => Problems.Of("The Flexarr app on {deviceName} can’t do that yet: update it.", new { deviceName = result.DeviceName }, status: StatusCodes.Status409Conflict),
+                { } result => Problems.Of("Flexarr isn’t open on {deviceName}.", new { deviceName = result.DeviceName }, status: StatusCodes.Status409Conflict),
             };
         });
 
@@ -170,7 +170,7 @@ public static class DeviceEndpoints
                 : Remote(id, DeviceCommandKind.AudioTrack, signIns, commands, current, trackId: request.TrackId));
         group.MapPost("/{id}/subtitles", (string id, DeviceTrackRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
             request.TrackId is { Length: > MaxTrackId }
-                ? Problems.Of("That isn't one of the player's subtitles.", status: StatusCodes.Status400BadRequest)
+                ? Problems.Of("That isn’t one of the player’s subtitles.", status: StatusCodes.Status400BadRequest)
                 : Remote(id, DeviceCommandKind.SubtitleTrack, signIns, commands, current, trackId: string.IsNullOrEmpty(request.TrackId) ? null : request.TrackId));
         // Past 2× only for a book: apps play films and episodes no faster.
         group.MapPost("/{id}/rate", (string id, DeviceRateRequest request, SignIns signIns, DeviceCommands commands, PlaybackSessions sessions, CurrentProfile current) =>
@@ -200,7 +200,7 @@ public static class DeviceEndpoints
 
             if (!LiveActivities.IsToken(request.Token) || request.Environment is not ("production" or "sandbox") || request.ItemId == Guid.Empty)
             {
-                return Problems.Of("Send the activity's push token (hex) and environment (production or sandbox).", status: StatusCodes.Status400BadRequest);
+                return Problems.Of("Send the activity’s push token (hex) and environment (production or sandbox).", status: StatusCodes.Status400BadRequest);
             }
 
             if (!relay.IsEnabled)
@@ -212,7 +212,7 @@ public static class DeviceEndpoints
             var library = await db.MediaItems.AsNoTracking().Where(i => i.Id == request.ItemId).Select(i => (Guid?)i.LibraryId).FirstOrDefaultAsync(ct);
             if (library is not { } libraryId || db.HiddenLibraryIds.Contains(libraryId))
             {
-                return Problems.Of("There's no title with that id.", status: StatusCodes.Status404NotFound);
+                return Problems.Of("There’s no title with that id.", status: StatusCodes.Status404NotFound);
             }
 
             return activities.Start(id, request, Owner(current, http))
@@ -267,19 +267,19 @@ public static class DeviceEndpoints
         // Not open first: what a device takes is only known once it has listened since the server started.
         if (!commands.IsOnline(device.Id))
         {
-            return Problems.Of("Flexarr isn't open on {name}.", new { name = device.Name }, status: StatusCodes.Status409Conflict);
+            return Problems.Of("Flexarr isn’t open on {name}.", new { name = device.Name }, status: StatusCodes.Status409Conflict);
         }
 
         if (!commands.Takes(device.Id, kind))
         {
-            return Problems.Of("The Flexarr app on {name} can't do that yet: update it.", new { name = device.Name }, status: StatusCodes.Status409Conflict);
+            return Problems.Of("The Flexarr app on {name} can’t do that yet: update it.", new { name = device.Name }, status: StatusCodes.Status409Conflict);
         }
 
         var command = new DeviceCommand(DeviceCommand.NewId(), kind, null, false, SenderName(signIns, current), DateTime.UtcNow, Seconds: seconds, TrackId: trackId,
             Rate: rate, EndOfChapter: endOfChapter);
         return commands.Send(device.Id, command, keep: false)
             ? Results.Ok(new DeviceCommandResultDto(true, device.Name, null))
-            : Problems.Of("Flexarr isn't open on {name}.", new { name = device.Name }, status: StatusCodes.Status409Conflict);
+            : Problems.Of("Flexarr isn’t open on {name}.", new { name = device.Name }, status: StatusCodes.Status409Conflict);
     }
 
     private const int MaxTrackId = 64;
@@ -405,7 +405,7 @@ public static class DeviceEndpoints
 
         if (request.ProfileId is { } asked && !await db.Profiles.AnyAsync(p => p.Id == asked, ct))
         {
-            return new PlayOutcome(null, false, Loc.T("There's no profile with that id."), 404);
+            return new PlayOutcome(null, false, Loc.T("There’s no profile with that id."), 404);
         }
 
         // The profile asked for, or the one chosen on the device: the next episode is theirs.
@@ -413,7 +413,7 @@ public static class DeviceEndpoints
         var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == request.ItemId, ct);
         if (item is null)
         {
-            return new PlayOutcome(null, false, Loc.T("There's no title with that id."), 404);
+            return new PlayOutcome(null, false, Loc.T("There’s no title with that id."), 404);
         }
 
         var target = await PlayableAsync(item, profileId, db, playback, ct);
@@ -427,7 +427,7 @@ public static class DeviceEndpoints
         {
             return new PlayOutcome(null, false, commands.Accepts(device.Id) is null && !commands.IsOnline(device.Id)
                 ? Loc.T("Open Flexarr on {name} first, so it can say whether it plays audiobooks.", new { name = device.Name })
-                : Loc.T("The Flexarr app on {name} can't play audiobooks yet: update it.", new { name = device.Name }), StatusCodes.Status409Conflict);
+                : Loc.T("The Flexarr app on {name} can’t play audiobooks yet: update it.", new { name = device.Name }), StatusCodes.Status409Conflict);
         }
 
         // Shuffling a show: the device is handed the show itself and asks for random episodes as it goes.
@@ -458,7 +458,7 @@ public static class DeviceEndpoints
 
         if (await db.LiveChannels.AsNoTracking().FirstOrDefaultAsync(c => c.Id == channelId, ct) is not { } channel)
         {
-            return new PlayOutcome(null, false, Loc.T("There's no such channel."), StatusCodes.Status404NotFound);
+            return new PlayOutcome(null, false, Loc.T("There’s no such channel."), StatusCodes.Status404NotFound);
         }
 
         var command = new DeviceCommand(DeviceCommand.NewId(), DeviceCommandKind.Watch, null, false, SenderName(signIns, current), DateTime.UtcNow,

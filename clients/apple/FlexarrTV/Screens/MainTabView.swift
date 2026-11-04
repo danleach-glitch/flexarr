@@ -69,7 +69,7 @@ struct MainTabView: View {
                 Tab(value: TabID.nowPlaying) {
                     NowPlayingView()
                 } label: {
-                    Label(t("Now Playing"), systemImage: Symbol.nowPlaying)
+                    Label(t(Words.nowPlaying), systemImage: Symbol.nowPlaying)
                 }
             }
             // The libraries and Live TV, in the order chosen in Settings › Sidebar: however many there are, the

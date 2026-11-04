@@ -158,7 +158,7 @@ struct BooksLibraryView: View {
                     if browse.browse == .all, isFiltered {
                         noMatches.frame(height: 400)
                     } else {
-                        StatusView(state: .empty(browse.browse == .genres ? t("No genres here yet. They come with each book's details once a scan has found them.") : t("No books yet."))).frame(height: 400)
+                        StatusView(state: .empty(browse.browse == .genres ? t("No genres here yet. They come with each book’s details once a scan has found them.") : t("No books yet."))).frame(height: 400)
                     }
                 } else {
                     content

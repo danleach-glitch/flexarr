@@ -135,7 +135,7 @@ public static class CollectionSuggestions
         {
             (Loc.T("Top 10 shows this year"), Loc.T("The best-rated shows with episodes out this year."), new SmartRules(Type: "series", ThisYear: true, Limit: 10)),
             (Loc.T("Top 10 movies this year"), Loc.T("The best-rated movies released this year."), new SmartRules(Type: "movie", ThisYear: true, Limit: 10)),
-            (Loc.T("Highly rated, never watched"), Loc.T("Movies rated 7.5 or more that you haven't seen."), new SmartRules(Type: "movie", MinRating: 7.5, Watched: "unwatched")),
+            (Loc.T("Highly rated, never watched"), Loc.T("Movies rated 7.5 or more that you haven’t seen."), new SmartRules(Type: "movie", MinRating: 7.5, Watched: "unwatched")),
             (Loc.T("New this month"), Loc.T("Everything added in the last 30 days."), new SmartRules(AddedWithinDays: 30, Sort: "added")),
         };
 
@@ -176,7 +176,7 @@ public static class CollectionSuggestions
             // At most two per decade, so they span the library rather than all coming from its biggest decade.
             .GroupBy(g => g.Decade).SelectMany(d => d.Take(2)).OrderByDescending(g => g.Count).Take(6).ToList();
         ideas.AddRange(films.Select(g => (
-            Loc.T("''{decade}s {genre}", new { decade = (g.Decade % 100).ToString("00", System.Globalization.CultureInfo.InvariantCulture), genre = g.Name }),
+            Loc.T("’{decade}s {genre}", new { decade = (g.Decade % 100).ToString("00", System.Globalization.CultureInfo.InvariantCulture), genre = g.Name }),
             Loc.T("{count, plural, one {# {genre} movie from the {decade}s, best first.} other {# {genre} movies from the {decade}s, best first.}}",
                 new { count = g.Count, genre = g.Name.ToLowerInvariant(), decade = g.Decade.ToString(System.Globalization.CultureInfo.InvariantCulture) }),
             new SmartRules(Type: "movie", Genres: [g.Name], YearFrom: g.Decade, YearTo: g.Decade + 9))));

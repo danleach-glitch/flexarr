@@ -136,7 +136,7 @@ public static partial class RequestEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Problems.Of("Seerr didn't say where it can add requests ({status}).", new { status = (int?)ex.StatusCode ?? 0 }, status: 502);
+                return Problems.Of("Seerr didn’t say where it can add requests ({status}).", new { status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
         });
 
@@ -207,7 +207,7 @@ public static partial class RequestEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Problems.Of("Seerr didn't answer the search ({status}).", new { status = (int?)ex.StatusCode ?? 0 }, status: 502);
+                return Problems.Of("Seerr didn’t answer the search ({status}).", new { status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
         });
 
@@ -242,7 +242,7 @@ public static partial class RequestEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Problems.Of("Seerr didn't answer ({status}).", new { status = (int?)ex.StatusCode ?? 0 }, status: 502);
+                return Problems.Of("Seerr didn’t answer ({status}).", new { status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
         });
 
@@ -252,8 +252,8 @@ public static partial class RequestEndpoints
             if ((await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(KindOf(request.MediaType)))
             {
                 return request.MediaType == "movie"
-                    ? Problems.Of("This profile can't request movies.", status: 403)
-                    : Problems.Of("This profile can't request shows.", status: 403);
+                    ? Problems.Of("This profile can’t request movies.", status: 403)
+                    : Problems.Of("This profile can’t request shows.", status: 403);
             }
 
             if (options.CurrentValue.Seerr?.Instance is not { } instance)
@@ -285,7 +285,7 @@ public static partial class RequestEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Problems.Of("Seerr didn't accept the request ({status}). It may already be requested.", new { status = (int?)ex.StatusCode ?? 0 }, status: 502);
+                return Problems.Of("Seerr didn’t accept the request ({status}). It may already be requested.", new { status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
             catch (NotRequestableException ex)
             {
@@ -315,7 +315,7 @@ public static partial class RequestEndpoints
 
             return await RequestRequested.ListAsync(instance, seerr, arr, options.CurrentValue, db, cache, library, ct) is { } listed
                 ? Results.Ok(listed)
-                : Problems.Of("Seerr isn't answering. Try again later.", status: 502);
+                : Problems.Of("Seerr isn’t answering. Try again later.", status: 502);
         });
 
         // Take a film or show request back, for the household: Seerr's request goes, Radarr or Sonarr stop wanting it.
@@ -330,8 +330,8 @@ public static partial class RequestEndpoints
             if ((await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(KindOf(body.MediaType)))
             {
                 return body.MediaType == "movie"
-                    ? Problems.Of("This profile can't request movies.", status: 403)
-                    : Problems.Of("This profile can't request shows.", status: 403);
+                    ? Problems.Of("This profile can’t request movies.", status: 403)
+                    : Problems.Of("This profile can’t request shows.", status: 403);
             }
 
             if (options.CurrentValue.Seerr?.Instance is not { } instance)
@@ -355,7 +355,7 @@ public static partial class RequestEndpoints
                 LogUndoRefused(loggers.CreateLogger("Flexarr.Requests"), ex.InnerException!, ex.Service, status);
                 return status is >= 400 and < 500
                     ? Problems.Of("{service} turned that down.", new { service = ex.Service }, status: 502)
-                    : Problems.Of("{service} isn't answering. Try again later.", new { service = ex.Service }, status: 502);
+                    : Problems.Of("{service} isn’t answering. Try again later.", new { service = ex.Service }, status: 502);
             }
         });
 
@@ -376,7 +376,7 @@ public static partial class RequestEndpoints
         // requested; such a show is often specials TheTVDB files under another (a Halloween special, say).
         if (mediaType == "tv" && await seerr.GetAsync(instance, $"tv/{tmdbId}", ct) is { } show && LacksTvdbId(show))
         {
-            throw new NotRequestableException(Loc.T("Sonarr can't add this show: TheTVDB doesn't list it. It may be part of another show."));
+            throw new NotRequestableException(Loc.T("Sonarr can’t add this show: TheTVDB doesn’t list it. It may be part of another show."));
         }
 
         var to = await RequestDestinations.ForRequestAsync(seerr, instance, options.PathMappings, db, profileId, kind, ct);

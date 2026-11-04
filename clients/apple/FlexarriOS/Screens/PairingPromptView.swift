@@ -84,7 +84,7 @@ struct PairingPromptView: View {
             Button {
                 Task { await prompts.decline() }
             } label: {
-                Text(t("Don't allow")).frame(maxWidth: .infinity)
+                Text(t("Don’t allow")).frame(maxWidth: .infinity)
             }
             .buttonStyle(ActionButtonStyle())
         }
@@ -107,7 +107,7 @@ struct PairingPromptView: View {
             Text(t("Connected"))
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.screen)
-            Text(t("It'll be ready in a moment."))
+            Text(t("It’ll be ready in a moment."))
                 .font(.body)
                 .foregroundStyle(Color.usher)
         }

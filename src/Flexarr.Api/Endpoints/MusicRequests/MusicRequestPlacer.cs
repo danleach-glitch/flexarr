@@ -20,7 +20,7 @@ public static partial class MusicRequestPlacer
         if (target is null)
         {
             return problem is null
-                ? Problems.Of("Lidarr isn't answering. Try again later.", status: 502)
+                ? Problems.Of("Lidarr isn’t answering. Try again later.", status: 502)
                 : Results.Problem(problem, statusCode: 409);
         }
 
@@ -54,7 +54,7 @@ public static partial class MusicRequestPlacer
             : (await c.Client.LookupAlbumsAsync(target.Lidarr, $"lidarr:{releaseGroup}", ct)).FirstOrDefault(a => a.ForeignAlbumId == releaseGroup && a.Artist is not null);
         if (album is null && deezer is null)
         {
-            return Problems.Of("Lidarr can't find this album.", status: 409);
+            return Problems.Of("Lidarr can’t find this album.", status: 409);
         }
 
         var (title, artistName, year) = album is not null
@@ -63,7 +63,7 @@ public static partial class MusicRequestPlacer
         var owned = await c.OwnedAsync(ct);
         if (owned.AlbumId(artistName, title) is not null || (deezer is not null && owned.AlbumId(deezer.Artist?.Name, deezer.Title) is not null))
         {
-            return Problems.Of("It's already in your library.", status: 409);
+            return Problems.Of("It’s already in your library.", status: 409);
         }
 
         var artist = album?.Artist is { ForeignArtistId.Length: > 0 } lookedUp
@@ -71,7 +71,7 @@ public static partial class MusicRequestPlacer
             : await MusicMatcher.MatchArtistAsync(c.Client, target.Lidarr, artistName, [title], ct);
         if (artist?.ForeignArtistId is not { Length: > 0 } artistMbid)
         {
-            return Problems.Of("Lidarr can't find {title} by {artistName}.", new { title, artistName }, status: 409);
+            return Problems.Of("Lidarr can’t find {title} by {artistName}.", new { title, artistName }, status: 409);
         }
 
         // A Lidarr that has the artist already keeps them: the album goes there, not to a second Lidarr.
@@ -81,7 +81,7 @@ public static partial class MusicRequestPlacer
         var match = await MusicMatcher.MatchAlbumAsync(c.Client, lidarr, knownArtist, title, year, ct, album?.ForeignAlbumId);
         if (match?.ForeignAlbumId is not { Length: > 0 } albumMbid)
         {
-            return Problems.Of("Lidarr can't find {title} by {artistName}.", new { title, artistName = artist.ArtistName }, status: 409);
+            return Problems.Of("Lidarr can’t find {title} by {artistName}.", new { title, artistName = artist.ArtistName }, status: 409);
         }
 
         // An artist Lidarr has unmonitored stays so, and the album relies on the search now: monitoring the artist
@@ -144,7 +144,7 @@ public static partial class MusicRequestPlacer
             ?? await MusicMatcher.MatchArtistAsync(c.Client, target.Lidarr, name, known, ct);
         if (artist?.ForeignArtistId is not { Length: > 0 } artistMbid)
         {
-            return Problems.Of("Lidarr can't find {name}.", new { name }, status: 409);
+            return Problems.Of("Lidarr can’t find {name}.", new { name }, status: 409);
         }
 
         // Any Lidarr may already have them (not only the one new music goes to): follow them there.

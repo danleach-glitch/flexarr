@@ -77,7 +77,7 @@ public static partial class MatchEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Problems.Of("{name} didn't answer the search ({status}).", new { name = instances[0].Name, status = (int?)ex.StatusCode ?? 0 }, status: 502);
+                return Problems.Of("{name} didn’t answer the search ({status}).", new { name = instances[0].Name, status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
         }).WithTags("Match").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
@@ -139,7 +139,7 @@ public static partial class MatchEndpoints
 
                     if (item.Path is null)
                     {
-                        return Problems.Of("{noun, select, movie {Flexarr doesn't know this movie's folder, so it can't add it to {kind}.} other {Flexarr doesn't know this show's folder, so it can't add it to {kind}.}}", new { noun, kind }, status: 409);
+                        return Problems.Of("{noun, select, movie {Flexarr doesn’t know this movie’s folder, so it can’t add it to {kind}.} other {Flexarr doesn’t know this show’s folder, so it can’t add it to {kind}.}}", new { noun, kind }, status: 409);
                     }
 
                     var arrPath = PathMapper.Unmap(item.Path, config.PathMappings).TrimEnd('/').Normalize(NormalizationForm.FormC);
@@ -149,7 +149,7 @@ public static partial class MatchEndpoints
                     {
                         if (await arr.LookupMoviesAsync(instance, $"tmdb:{request.Id}", ct) is not [var found, ..])
                         {
-                            return Problems.Of("{name} couldn't find that movie any more.", new { name = instance.Name }, status: 404);
+                            return Problems.Of("{name} couldn’t find that movie any more.", new { name = instance.Name }, status: 404);
                         }
 
                         var movie = await arr.AddMovieAsync(instance, request.Id, found.Title, arrPath, profile, ct);
@@ -159,7 +159,7 @@ public static partial class MatchEndpoints
                     {
                         if (await arr.LookupSeriesAsync(instance, $"tvdb:{request.Id}", ct) is not [var found, ..])
                         {
-                            return Problems.Of("{name} couldn't find that show any more.", new { name = instance.Name }, status: 404);
+                            return Problems.Of("{name} couldn’t find that show any more.", new { name = instance.Name }, status: 404);
                         }
 
                         var series = await arr.AddSeriesAsync(instance, request.Id, found.Title, arrPath, profile, ct);
@@ -171,11 +171,11 @@ public static partial class MatchEndpoints
             }
             catch (HttpRequestException ex) when (ex.StatusCode is System.Net.HttpStatusCode.BadRequest)
             {
-                return Problems.Of("{kind} wouldn't add it: {message}", new { kind, message = ex.Message }, status: 409);
+                return Problems.Of("{kind} wouldn’t add it: {message}", new { kind, message = ex.Message }, status: 409);
             }
             catch (HttpRequestException ex)
             {
-                return Problems.Of("{kind} didn't answer ({status}), so the match wasn't changed.", new { kind, status = (int?)ex.StatusCode ?? 0 }, status: 502);
+                return Problems.Of("{kind} didn’t answer ({status}), so the match wasn’t changed.", new { kind, status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
 
             Forget(db, item, rematched);
@@ -221,7 +221,7 @@ public static partial class MatchEndpoints
 
             if ((item.Kind == MediaKind.Movie ? item.TmdbId : item.TvdbId ?? item.TvMazeId) is null)
             {
-                return Problems.Of("{title} isn't matched to anything yet. Use Fix match to choose what it is.", new { title = item.Title }, status: 409);
+                return Problems.Of("{title} isn’t matched to anything yet. Use Fix match to choose what it is.", new { title = item.Title }, status: 409);
             }
 
             item.MatchLocked = true;
@@ -260,7 +260,7 @@ public static partial class MatchEndpoints
     /// <summary>Without Radarr, films are found on TMDB, which needs the owner's key.</summary>
     private static IResult? OnlineUnavailable(MediaItem item, FlexarrOptions config) =>
         item.Kind == MediaKind.Movie && config.Tmdb?.ApiKey is not { Length: > 0 }
-            ? Problems.Of("Fixing a movie's match needs Radarr, or a TMDB key. Add either under Settings › Connections.", status: 409)
+            ? Problems.Of("Fixing a movie’s match needs Radarr, or a TMDB key. Add either under Settings › Connections.", status: 409)
             : null;
 
     /// <summary>Without Radarr or Sonarr: films from TMDB's search, shows from TVmaze's.</summary>
@@ -287,7 +287,7 @@ public static partial class MatchEndpoints
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {
-            return Problems.Of("{name} didn't answer the search.", new { name = item.Kind == MediaKind.Movie ? "TMDB" : "TVmaze" }, status: 502);
+            return Problems.Of("{name} didn’t answer the search.", new { name = item.Kind == MediaKind.Movie ? "TMDB" : "TVmaze" }, status: 502);
         }
     }
 

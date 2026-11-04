@@ -229,12 +229,12 @@ public static class FirstRunEndpoints
                 : FirstRun.ClaimResult.Closed;
             if (result == FirstRun.ClaimResult.WrongCode)
             {
-                return Problems.Of("That isn't this server's setup code. It's in the server's log, and in setup-code.txt in its data folder.", status: 400);
+                return Problems.Of("That isn’t this server’s setup code. It’s in the server’s log, and in setup-code.txt in its data folder.", status: 400);
             }
 
             if (result == FirstRun.ClaimResult.Closed)
             {
-                return Problems.Of("This server is already set up. Sign in with a code from a device that's signed in.", status: 403);
+                return Problems.Of("This server is already set up. Sign in with a code from a device that’s signed in.", status: 403);
             }
 
             ApiKeyAuthenticationHandler.AppendSessionCookie(http, token!);

@@ -405,7 +405,7 @@ private fun ChapterList(player: PodcastPlayer, chapters: List<PodcastChapter>) {
 @Composable
 private fun Notes(player: PodcastPlayer, episode: PodcastEpisode) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionTitle(t("Episode Notes"))
+        SectionTitle(t("Episode notes"))
         FactsLine(
             listOfNotNull(dateLine(episode.publishedAt), episode.durationSeconds?.let(Format::runtime), if (episode.explicit) t("Explicit") else null),
             Modifier.padding(horizontal = 12.dp),

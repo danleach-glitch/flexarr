@@ -98,7 +98,7 @@ struct ContinueListeningWidget: Widget {
                 .containerBackground(for: .widget) { Color.room }
         }
         .configurationDisplayName(t("Continue listening"))
-        .description(t("The book or podcast episode you're on, to carry on with."))
+        .description(t("The book or podcast episode you’re on, to carry on with."))
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular])
     }
 }
@@ -292,7 +292,7 @@ struct WatchlistWidget: Widget {
                 .widgetURL(WatchlistSnapshot.watchlistURL)
         }
         .configurationDisplayName(t(Words.watchlist))
-        .description(t("What's on your watchlist and ready to watch."))
+        .description(t("What’s on your watchlist and ready to watch."))
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

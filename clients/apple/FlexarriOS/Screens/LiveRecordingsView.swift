@@ -29,7 +29,7 @@ struct LiveRecordingsView: View {
                         ForEach(recordings.upcoming) { recording in
                             row(recording)
                                 .swipeActions {
-                                    Button(recording.isRecordingNow ? t("Stop") : t("Don't record"), role: .destructive) {
+                                    Button(recording.isRecordingNow ? t("Stop") : t("Don’t record"), role: .destructive) {
                                         act { try await $0.removeRecording(recording.id) }
                                     }
                                 }
@@ -94,7 +94,7 @@ struct LiveRecordingsView: View {
                 Text(recording.title).font(.body.weight(.semibold)).foregroundStyle(Color.screen)
                 Text(detail(recording)).font(.caption).foregroundStyle(Color.usher).lineLimit(1)
                 if recording.clashes {
-                    Text(t("Won't record: every stream is wanted by recordings scheduled before it.")).font(.caption).foregroundStyle(Color.danger)
+                    Text(t("Won’t record: every stream is wanted by recordings scheduled before it.")).font(.caption).foregroundStyle(Color.danger)
                 } else if let reason = recording.reason, recording.state != "scheduled" {
                     Text(reason).font(.caption).foregroundStyle(Color.usher)
                 }

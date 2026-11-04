@@ -72,7 +72,7 @@ public sealed partial class HealthCheck(IServiceScopeFactory scopes, IMediaProbe
                 var info = new FileInfo(file.Path);
                 if (!info.Exists)
                 {
-                    problems.Add(new FileProblemDto(file.Id, file.MediaItemId, file.Path, "Missing", Loc.Mark("Not on disk. It may have been deleted or moved, or its drive isn't connected.")));
+                    problems.Add(new FileProblemDto(file.Id, file.MediaItemId, file.Path, "Missing", Loc.Mark("Not on disk. It may have been deleted or moved, or its drive isn’t connected.")));
                 }
                 else if (info.Length == 0)
                 {

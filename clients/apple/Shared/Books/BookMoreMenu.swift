@@ -30,7 +30,7 @@ struct BookMoreMenu: View {
             } message: { plan in
                 Text(plan.bookMessage)
             }
-            .alert(t("Couldn't delete it"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+            .alert(t("Couldn’t delete it"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
                 Button(t("OK"), role: .cancel) {}
             } message: {
                 Text(failure ?? "")

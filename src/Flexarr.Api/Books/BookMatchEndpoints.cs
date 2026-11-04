@@ -82,7 +82,7 @@ public static class BookMatchEndpoints
             chosen ??= (await providers.SearchAsync(request.Query, request.Author, ct)).FirstOrDefault(m => m.Provider == request.Provider && m.Id == request.Id);
             if (chosen is null)
             {
-                return Problems.Of("That result can't be found any more. Search again.", status: 409);
+                return Problems.Of("That result can’t be found any more. Search again.", status: 409);
             }
 
             var details = book.Book ??= new BookDetails { MediaItemId = book.Id };

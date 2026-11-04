@@ -58,7 +58,7 @@ struct ServerSettingsView: View {
             Section {
                 SettingsLink(t("Send diagnostics"), icon: "stethoscope") { DiagnosticsSettingsView() }
             } footer: {
-                Text(t("Send this {device}'s recent log to your server, to look into a problem.", ["device": ThisDevice.name]))
+                Text(t("Send this {device}’s recent log to your server, to look into a problem.", ["device": ThisDevice.name]))
             }
         }
         .settingsPage(t("Server"))

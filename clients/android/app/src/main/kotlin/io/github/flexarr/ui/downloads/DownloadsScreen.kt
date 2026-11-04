@@ -193,7 +193,7 @@ private fun BookDownloadRow(model: AppModel, book: io.github.flexarr.core.LocalB
             book.item.book?.authors?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             @Composable fun caption(text: String) = Text(text, fontSize = 12.sp, color = Flexarr.usher, style = io.github.flexarr.ui.podcasts.Tabular)
             when {
-                book.phase == LocalPhase.Failed -> Text(book.failure ?: t("Couldn’t download this."), fontSize = 12.sp, color = Flexarr.danger)
+                book.phase == LocalPhase.Failed -> Text(book.failure ?: t("Couldn’t download this"), fontSize = 12.sp, color = Flexarr.danger)
                 !book.isDownloaded -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     val progress = store.progress(book)
                     caption(t("Downloading, {percent}%", "percent" to (progress * 100).toInt()))
@@ -296,7 +296,7 @@ private fun DownloadStatusLine(model: AppModel, download: LocalDownload, doneLin
             caption(t("Downloading, {percent}%", "percent" to (progress * 100).toInt()))
             LinearProgressIndicator(progress = { progress.toFloat() }, color = Flexarr.silver, trackColor = Flexarr.aisle, modifier = Modifier.fillMaxWidth().padding(end = 4.dp))
         }
-        download.phase == LocalPhase.Failed -> Text(download.failure ?: t("Couldn’t download this."), fontSize = 12.sp, color = Flexarr.danger)
+        download.phase == LocalPhase.Failed -> Text(download.failure ?: t("Couldn’t download this"), fontSize = 12.sp, color = Flexarr.danger)
         else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.ArrowCircleDown, contentDescription = t("Downloaded"), tint = Flexarr.go, modifier = Modifier.size(14.dp))
             caption(doneLine.joinToString("   "))
@@ -376,7 +376,7 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
             try {
                 store.download(item)
             } catch (e: Exception) {
-                problem = e.message ?: t("Couldn’t download this.")
+                problem = e.message ?: t("Couldn’t download this")
             }
         }
     }
@@ -396,7 +396,7 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
                 .pressable({
                     when {
                         download == null -> start()
-                        download.phase == LocalPhase.Failed -> problem = download.failure ?: t("Couldn’t download this.")
+                        download.phase == LocalPhase.Failed -> problem = download.failure ?: t("Couldn’t download this")
                         else -> removing = true
                     }
                 })

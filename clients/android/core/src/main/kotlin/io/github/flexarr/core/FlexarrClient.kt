@@ -74,9 +74,9 @@ sealed class FlexarrException(message: String) : Exception(message) {
     /** The response was not what a Flexarr server sends (for example an HTML page). */
     class UnexpectedResponse : FlexarrException(t("That address answered, but not like a Flexarr server. Check the host name and port."))
 
-    class InvalidAddress : FlexarrException(t("That doesn't look like a server address. Try something like {example}.", "example" to "http://192.168.1.20:8383"))
+    class InvalidAddress : FlexarrException(t("That doesn’t look like a server address. Try something like {example}.", "example" to "http://192.168.1.20:8383"))
 
-    class Unreachable(cause: IOException) : FlexarrException(t("Couldn't reach the server. Make sure Flexarr is running and this device is on the same network.")) {
+    class Unreachable(cause: IOException) : FlexarrException(t("Couldn’t reach the server. Make sure Flexarr is running and this device is on the same network.")) {
         init {
             initCause(cause)
         }

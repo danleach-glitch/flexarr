@@ -812,8 +812,8 @@ public struct DeletionPlan: Decodable, Sendable, Equatable {
     /// What the question before deleting a book says.
     public var bookMessage: String {
         files.isEmpty
-            ? t("Flexarr deletes it from the library: there are no files on disk. You can't undo this.")
-            : t("{count, plural, one {Flexarr deletes its file from disk. Folders it leaves empty go too. You can't undo this.} other {Flexarr deletes its # files from disk. Folders it leaves empty go too. You can't undo this.}}",
+            ? t("Flexarr deletes it from the library: there are no files on disk. You can’t undo this.")
+            : t("{count, plural, one {Flexarr deletes its file from disk. Folders it leaves empty go too. You can’t undo this.} other {Flexarr deletes its # files from disk. Folders it leaves empty go too. You can’t undo this.}}",
                 ["count": files.count])
     }
 }

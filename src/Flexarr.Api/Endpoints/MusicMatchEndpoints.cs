@@ -98,8 +98,8 @@ public static class MusicMatchEndpoints
             if (results.Count == 0 && failed.Count > 0)
             {
                 return failed.Count == 1
-                    ? Problems.Of("{name} didn't answer the search.", new { name = failed[0] }, status: 502)
-                    : Problems.Of("{first} and {second} didn't answer the search.", new { first = failed[0], second = failed[1] }, status: 502);
+                    ? Problems.Of("{name} didn’t answer the search.", new { name = failed[0] }, status: 502)
+                    : Problems.Of("{first} and {second} didn’t answer the search.", new { first = failed[0], second = failed[1] }, status: 502);
             }
 
             return Results.Ok(await WithLibraryAsync(db, entity, results, ct));
@@ -121,13 +121,13 @@ public static class MusicMatchEndpoints
                 || !int.TryParse(request.Id, NumberStyles.None, CultureInfo.InvariantCulture, out var lidarrId) && request.Provider == "lidarr"
                 || !long.TryParse(request.Id, NumberStyles.None, CultureInfo.InvariantCulture, out var deezerId) && request.Provider == "deezer")
             {
-                return Problems.Of("That match isn't one Flexarr can use. Search again.", status: 400);
+                return Problems.Of("That match isn’t one Flexarr can use. Search again.", status: 400);
             }
 
             if (request.Cover is { } wanted && wanted != KeepCover && ArtworkUrl.TrustedRemote(wanted) is null
                 && !(ArtworkUrl.TryParseArr(wanted, out var coverInstance, out _) && options.CurrentValue.Arr.Any(a => a.Kind == ArrKind.Lidarr && a.Name == coverInstance)))
             {
-                return Problems.Of("That cover can't be used. Choose another.", status: 400);
+                return Problems.Of("That cover can’t be used. Choose another.", status: 400);
             }
 
             var current = entity.MatchLocked && (request.Provider == "deezer" ? entity.DeezerId == request.Id
@@ -160,15 +160,15 @@ public static class MusicMatchEndpoints
             }
             catch (HttpRequestException ex) when (ex.StatusCode is System.Net.HttpStatusCode.NotFound)
             {
-                return Problems.Of("That match can't be found any more. Search again.", status: 404);
+                return Problems.Of("That match can’t be found any more. Search again.", status: 404);
             }
             catch (DeezerException)
             {
-                return Problems.Of("Deezer doesn't have that any more. Search again.", status: 404);
+                return Problems.Of("Deezer doesn’t have that any more. Search again.", status: 404);
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
             {
-                return Problems.Of("{name} didn't answer, so the match wasn't changed.", new { name = lidarr?.Name ?? "Deezer" }, status: 502);
+                return Problems.Of("{name} didn’t answer, so the match wasn’t changed.", new { name = lidarr?.Name ?? "Deezer" }, status: 502);
             }
 
             if (request.Cover == KeepCover)

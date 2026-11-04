@@ -229,7 +229,7 @@ struct MusicDestination: View {
             if let album = item.parentId {
                 AlbumView(id: album, preview: nil)
             } else {
-                StatusView(state: .empty(t("This track isn't part of an album.")))
+                StatusView(state: .empty(t("This track isn’t part of an album.")))
             }
         }
     }

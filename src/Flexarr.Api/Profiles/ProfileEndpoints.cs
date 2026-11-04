@@ -134,7 +134,7 @@ public static partial class ProfileEndpoints
             // mustn't quietly change the main profile's own PIN instead.
             if (profile.IsMain && (!string.IsNullOrEmpty(request.CurrentPin) || !string.IsNullOrEmpty(request.ApiKey)))
             {
-                return Results.Problem(detail: Loc.T("The admin PIN is changed with POST /admin/pin now (Settings › Security). The main profile's PIN here is its own."),
+                return Results.Problem(detail: Loc.T("The admin PIN is changed with POST /admin/pin now (Settings › Security). The main profile’s PIN here is its own."),
                     statusCode: 409, extensions: new Dictionary<string, object?> { ["adminPinMoved"] = true });
             }
 
@@ -196,12 +196,12 @@ public static partial class ProfileEndpoints
         {
             if (current.IsGuest)
             {
-                return Problems.Of("A guest's device stays on the profile it was invited to.", status: 403);
+                return Problems.Of("A guest’s device stays on the profile it was invited to.", status: 403);
             }
 
             if (current.SignInId is not { } signInId)
             {
-                return Problems.Of("Child lock needs a browser or device that's signed in.", status: 409);
+                return Problems.Of("Child lock needs a browser or device that’s signed in.", status: 409);
             }
 
             var kids = await db.Profiles.AsNoTracking().Where(p => p.IsKids).OrderBy(p => p.CreatedAt).ToListAsync(ct);
@@ -240,7 +240,7 @@ public static partial class ProfileEndpoints
             // A family guest has no say over anyone's PIN, and no tries at the admin PIN to spend.
             if (current.IsGuest)
             {
-                return Problems.Of("Guests can't change PINs.", status: 403);
+                return Problems.Of("Guests can’t change PINs.", status: 403);
             }
 
             if (await db.Profiles.FindAsync([id], ct) is not { } profile)
@@ -262,7 +262,7 @@ public static partial class ProfileEndpoints
 
             if (result == PinCheck.Wrong)
             {
-                return Results.Problem(detail: Loc.T("That isn't the admin PIN."), statusCode: 403, extensions: new Dictionary<string, object?> { ["parentPin"] = true });
+                return Results.Problem(detail: Loc.T("That isn’t the admin PIN."), statusCode: 403, extensions: new Dictionary<string, object?> { ["parentPin"] = true });
             }
 
             profile.SetPin(null);
@@ -433,7 +433,7 @@ public static partial class ProfileEndpoints
         {
             if (id == PlaybackState.DefaultUser)
             {
-                return Problems.Of("The main profile can't be removed.", status: 409);
+                return Problems.Of("The main profile can’t be removed.", status: 409);
             }
 
             // A device locked to it would be left as nobody in particular: it moves to another kids profile, if there is one.
@@ -472,7 +472,7 @@ public static partial class ProfileEndpoints
 
             if (!await images.SaveAsync(id, http.Body, ct))
             {
-                return Problems.Of("That file isn't a picture Flexarr can read. Try a JPEG or PNG.", status: 400);
+                return Problems.Of("That file isn’t a picture Flexarr can read. Try a JPEG or PNG.", status: 400);
             }
 
             profile.ImageUpdatedAt = DateTime.UtcNow;
@@ -524,7 +524,7 @@ public static partial class ProfileEndpoints
             var adminPinOnly = profile.IsMain && current.TakesAdminPinForMain;
             if (adminPinOnly && profile.AdminPinHash is null)
             {
-                return Problems.Of("The main profile can only be chosen here once there's an admin PIN.", status: 403);
+                return Problems.Of("The main profile can only be chosen here once there’s an admin PIN.", status: 403);
             }
 
             var pinGiven = !string.IsNullOrEmpty(request.Pin);
@@ -564,7 +564,7 @@ public static partial class ProfileEndpoints
                 if (result == PinCheck.Wrong)
                 {
                     // `ownPin`: the PIN for this choice was the wrong one (apps from before also sent a parent's).
-                    return Results.Problem(detail: Loc.T("That PIN isn't right."), statusCode: 403, extensions: new Dictionary<string, object?> { ["ownPin"] = true });
+                    return Results.Problem(detail: Loc.T("That PIN isn’t right."), statusCode: 403, extensions: new Dictionary<string, object?> { ["ownPin"] = true });
                 }
 
                 // The same digits may be both PINs (as they are on a server upgraded with the PIN asked for).
@@ -734,12 +734,12 @@ public static partial class ProfileEndpoints
 
         if (isMain && (request.IsKids || request.MaxRatingAge is not null))
         {
-            return Problems.Of("The main profile can't have an age limit: it manages the server.", status: 409);
+            return Problems.Of("The main profile can’t have an age limit: it manages the server.", status: 409);
         }
 
         if (request.IsKids && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.AdminPinHash == null, ct))
         {
-            return Problems.Of("Choose an admin PIN first: it's what keeps children in their profiles.", status: 409);
+            return Problems.Of("Choose an admin PIN first: it’s what keeps children in their profiles.", status: 409);
         }
 
         return null;
@@ -771,7 +771,7 @@ public static partial class ProfileEndpoints
         {
             PinCheck.Right => null,
             PinCheck.LockedOut => TooManyPins(http, retryAfter),
-            _ => Results.Problem(detail: Loc.T("That PIN isn't right."), statusCode: 403, extensions: parent),
+            _ => Results.Problem(detail: Loc.T("That PIN isn’t right."), statusCode: 403, extensions: parent),
         };
     }
 

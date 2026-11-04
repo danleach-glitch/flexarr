@@ -71,10 +71,10 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
         using var request = new HttpRequestMessage(HttpMethod.Post, Url("api/v2/tailnet/-/keys")) { Content = JsonContent.Create(body, options: Json) };
         using var response = await SendAsync(request, ct);
         var created = await response.Content.ReadFromJsonAsync<CreatedKey>(Json, ct)
-            ?? throw new TailscaleApiException(Loc.T("Tailscale didn't return a key."));
+            ?? throw new TailscaleApiException(Loc.T("Tailscale didn’t return a key."));
         if (string.IsNullOrEmpty(created.Key) || string.IsNullOrEmpty(created.Id))
         {
-            throw new TailscaleApiException(Loc.T("Tailscale didn't return a key."));
+            throw new TailscaleApiException(Loc.T("Tailscale didn’t return a key."));
         }
 
         LogMinted(created.Id);
@@ -230,20 +230,20 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
         }
         catch (HttpRequestException ex)
         {
-            throw new TailscaleApiException(Loc.T("Couldn't reach Tailscale ({error}).", new { error = ex.Message }));
+            throw new TailscaleApiException(Loc.T("Couldn’t reach Tailscale ({error}).", new { error = ex.Message }));
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            throw new TailscaleApiException(Loc.T("Tailscale didn't answer in time. Try again in a minute."));
+            throw new TailscaleApiException(Loc.T("Tailscale didn’t answer in time. Try again in a minute."));
         }
         catch (JsonException)
         {
-            throw new TailscaleApiException(Loc.T("Tailscale's answer couldn't be read. Is something between this server and Tailscale?"));
+            throw new TailscaleApiException(Loc.T("Tailscale’s answer couldn’t be read. Is something between this server and Tailscale?"));
         }
         catch (NotSupportedException)
         {
             // ReadFromJsonAsync on an answer that isn't JSON at all (a captive portal's HTML page).
-            throw new TailscaleApiException(Loc.T("Tailscale's answer couldn't be read. Is something between this server and Tailscale?"));
+            throw new TailscaleApiException(Loc.T("Tailscale’s answer couldn’t be read. Is something between this server and Tailscale?"));
         }
     }
 
@@ -286,10 +286,10 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
 
         return status switch
         {
-            HttpStatusCode.Unauthorized => Loc.T("Tailscale didn't accept the OAuth client. Check its ID and secret."),
+            HttpStatusCode.Unauthorized => Loc.T("Tailscale didn’t accept the OAuth client. Check its ID and secret."),
             HttpStatusCode.Forbidden => message is null
-                ? Loc.T("The OAuth client isn't allowed to do that. It needs auth_keys for the guest tag and policy_file:read.")
-                : Loc.T("The OAuth client isn't allowed to do that ({message}). It needs auth_keys for the guest tag and policy_file:read.", new { message }),
+                ? Loc.T("The OAuth client isn’t allowed to do that. It needs auth_keys for the guest tag and policy_file:read.")
+                : Loc.T("The OAuth client isn’t allowed to do that ({message}). It needs auth_keys for the guest tag and policy_file:read.", new { message }),
             HttpStatusCode.TooManyRequests => Loc.T("Tailscale asked Flexarr to slow down. Try again in a minute."),
             _ => message is null
                 ? Loc.T("Tailscale answered {status}.", new { status = (int)status })
@@ -327,14 +327,14 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
             if (!response.IsSuccessStatusCode)
             {
                 throw new TailscaleApiException(response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.BadRequest or HttpStatusCode.Forbidden
-                    ? Loc.T("Tailscale didn't accept the OAuth client. Check its ID and secret.")
+                    ? Loc.T("Tailscale didn’t accept the OAuth client. Check its ID and secret.")
                     : Loc.T("Tailscale answered {status} when signing in.", new { status = (int)response.StatusCode }), response.StatusCode);
             }
 
             var token = await response.Content.ReadFromJsonAsync<TokenResponse>(Json, ct);
             if (string.IsNullOrEmpty(token?.AccessToken))
             {
-                throw new TailscaleApiException(Loc.T("Tailscale didn't return an access token."));
+                throw new TailscaleApiException(Loc.T("Tailscale didn’t return an access token."));
             }
 
             // Tokens last an hour; renew a little early.

@@ -43,8 +43,10 @@ Code never holds a bare English sentence that people read. It calls the lookup, 
 - **Shared words** — design.md's vocabulary (Play, Resume from {time}, Start over, Mark as watched, Request, Watchlist…)
   — live once, in `languages/words.json`, and code uses the generated constant: `t(Words.play)`, `t(Words.resumeFrom,
   { time })` (C# `Loc.T(Words.Play)`). Typing one of them inline is a `make strings` error, so changing a word there
-  changes it on every platform. `make strings --duplicates` lists English that differs only in case or punctuation
-  (Up Next / Up next), to fold into one string or a shared word.
+  changes it on every platform. English that differs only in case or punctuation (Up Next / Up next) is a `make strings`
+  error: fold it into one string or a shared word, or, when the two are different uses (a button's label beside a
+  question), list them in `DISTINCT` in `scripts/i18n/strings.py`.
+- Apostrophes are curly (’): a straight one is a `make strings` error, since it's also ICU's quote character.
 
 ### Plurals and choices
 
@@ -117,6 +119,7 @@ it would write is different:
 - collects every lookup from `frontend/src`, `clients/apple`, `clients/android` and `src/` into `en.json`, adding new
   strings and dropping unused ones, and records each string's scopes;
 - fails on a lookup it can't read (interpolation, a variable, a bad context);
+- fails on a straight apostrophe, and on English written two ways that isn't listed as `DISTINCT`;
 - parses every message, in English and every pack, and fails on a syntax error;
 - checks each translation has exactly English's values, plural categories that exist in its language, and no markup;
 - carries translations over to changed English and marks them out of date;

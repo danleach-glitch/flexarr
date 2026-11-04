@@ -161,7 +161,7 @@ struct ShowGapsSection: View {
                             .tint(Color.screen)
                             .controlSize(.small)
                             .disabled(busy)
-                            .accessibilityLabel(t("Search for season {season}'s missing episodes", ["season": season]))
+                            .accessibilityLabel(t("Search for season {season}’s missing episodes", ["season": season]))
                     }
                 }
             }
@@ -198,7 +198,7 @@ struct ShowGapsSection: View {
             try await client.requestSeasons(tmdbId: tmdbId, seasons: [season.seasonNumber])
             asked.insert(season.seasonNumber)
             undone.remove(season.seasonNumber)
-            said = t("Requested {season}", ["season": season.title])
+            said = t("Requested, {season}", ["season": season.title])
         } catch {
             model.requestError = ConnectionError(error).message
         }

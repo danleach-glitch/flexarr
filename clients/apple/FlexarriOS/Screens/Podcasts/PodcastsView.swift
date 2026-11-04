@@ -202,7 +202,7 @@ struct PodcastBrowseView: View {
         .textInputAutocapitalization(.never)
         .task { if browse.top.isEmpty, let client = model.client { await browse.loadTop(client: client) } }
         .task(id: text) { if let client = model.client { await browse.search(text, client: client) } }
-        .alert(t("Couldn't add this"), isPresented: Binding(get: { browse.error != nil }, set: { if !$0 { browse.clearError() } })) {
+        .alert(t("Couldn’t add this"), isPresented: Binding(get: { browse.error != nil }, set: { if !$0 { browse.clearError() } })) {
             Button(t("OK"), role: .cancel) {}
         } message: {
             Text(browse.error ?? "")

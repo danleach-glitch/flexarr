@@ -1210,7 +1210,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         } catch (e: TunnelException) {
             if (credentials?.guest != guest || e.needsLogin) return false
             flexarrLog.warning("The guest tunnel didn't start: ${e.message}")
-            if (offlineAsGuest || network.isOffline) goOffline() else tunnelProblem = e.message ?: t("The tunnel didn't start")
+            if (offlineAsGuest || network.isOffline) goOffline() else tunnelProblem = e.message ?: t("The tunnel didn’t start")
             return false
         } finally {
             early.cancel()

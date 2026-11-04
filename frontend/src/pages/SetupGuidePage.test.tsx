@@ -69,7 +69,7 @@ describe('Setup guide', () => {
     const api = mockApi({
       '/libraries': [podcasts],
       '/arr/folders': [folder('Sonarr', '/data/tv'), folder('Radarr', '/movies', 'Missing')],
-      'POST /libraries': { ...podcasts, id: 'tv', name: 'TV Shows', type: 'TvShows', folders: ['/data/tv'] },
+      'POST /libraries': { ...podcasts, id: 'tv', name: 'TV shows', type: 'TvShows', folders: ['/data/tv'] },
       'PUT /setup-guide': undefined,
       '/profiles': [main],
     })
@@ -82,7 +82,7 @@ describe('Setup guide', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
 
     expect(await screen.findByRole('heading', { name: 'Who’s watching?' })).toBeInTheDocument()
-    expect(sent(api, 'POST', '/libraries')).toEqual({ name: 'TV Shows', type: 'TvShows', folders: ['/data/tv'] })
+    expect(sent(api, 'POST', '/libraries')).toEqual({ name: 'TV shows', type: 'TvShows', folders: ['/data/tv'] })
   })
 
   it('warns about a whole drive or home folder', async () => {

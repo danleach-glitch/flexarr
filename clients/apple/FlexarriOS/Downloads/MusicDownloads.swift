@@ -66,13 +66,13 @@ struct MusicDownloadButton: View {
                 Text(t("{size} on this {device}.", ["size": formatBytes(store.bytesUsed(by: collection)), "device": ThisDevice.name]))
             }
         }
-        .alert(t("Couldn't download this"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+        .alert(t("Couldn’t download this"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
             Button(t("Try again")) { Task { await start() } }
             Button(t(Words.cancel), role: .cancel) {}
         } message: {
             Text(failure ?? "")
         }
-        .alert(t("Couldn't download this"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+        .alert(t("Couldn’t download this"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button(t("OK"), role: .cancel) {}
         } message: {
             Text(error ?? "")
@@ -96,7 +96,7 @@ struct MusicDownloadButton: View {
         case .preparing: t("Getting ready on the server")
         case .downloading(let fraction): t("Downloading, {percent}%", ["percent": Int(fraction * 100)])
         case .downloaded: t("Downloaded")
-        case .failed: t("Couldn't download")
+        case .failed: t("Couldn’t download")
         }
     }
 }

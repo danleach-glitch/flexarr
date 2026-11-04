@@ -282,7 +282,7 @@ internal fun ChannelLogo(channel: LiveChannel, width: Dp, starting: Boolean, mod
 @Composable
 private fun ChannelRow(channel: LiveChannel, starting: Boolean, onWatch: () -> Unit, onRecord: ((LiveProgramme) -> Unit)?, onFavourite: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
-    val favouriteLabel = if (channel.isFavourite) t("Remove from Favourites") else t("Add to Favourites")
+    val favouriteLabel = if (channel.isFavourite) t("Remove from favourites") else t("Add to favourites")
     Box {
         Row(
             Modifier.fillMaxWidth().pressable(onWatch, onLongClick = { menu = true }).padding(horizontal = Edge, vertical = 6.dp)
@@ -462,7 +462,7 @@ private fun LiveGuideView(
                                                 DropdownMenuItem(text = { Text(seriesLabel(programme)) }, onClick = { close(); act { toggleSeries(client, programme, channel.id); null } })
                                             }
                                             DropdownMenuItem(
-                                                text = { Text(if (channel.isFavourite) t("Remove from Favourites") else t("Add to Favourites")) },
+                                                text = { Text(if (channel.isFavourite) t("Remove from favourites") else t("Add to favourites")) },
                                                 onClick = { close(); onFavourite(channel) },
                                             )
                                         },

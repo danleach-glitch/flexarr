@@ -160,7 +160,7 @@ export function Shell() {
                   <Route path="link" element={<LinkPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="settings/:section" element={<SettingsPage />} />
-                  <Route path="*" element={<p className="page-message muted">{t("There's nothing at this address.")}</p>} />
+                  <Route path="*" element={<p className="page-message muted">{t('There’s nothing at this address.')}</p>} />
                 </Route>
               </Routes>
             </Suspense>
@@ -371,7 +371,7 @@ export default function App() {
       {codePage && <p className="connect-tagline">{t('Your entertainment, on every screen.')}</p>}
       <section className="panel" aria-label={t('Server status')}>
         {state.kind === 'loading' && <p className="muted">{t('Connecting…')}</p>}
-        {state.kind === 'error' && <p className="error">{t("Can't reach the server ({message}). Check that Flexarr is running, then reload.", { message: state.message })}</p>}
+        {state.kind === 'error' && <p className="error">{t('Can’t reach the server ({message}). Check that Flexarr is running, then reload.', { message: state.message })}</p>}
         {state.kind === 'unauthorized' && state.setupOpen && (
           <form className="setup-welcome api-key-form" onSubmit={setUp}>
             <h1>{t('Welcome to your Flexarr server')}</h1>
@@ -382,7 +382,7 @@ export default function App() {
               <>
                 <label htmlFor="setupCode">{t('Setup code')}</label>
                 <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required />
-                {state.wrongCode && <p className="error">{t("That isn't this server's setup code.")}</p>}
+                {state.wrongCode && <p className="error">{t('That isn’t this server’s setup code.')}</p>}
                 <p className="muted small-print setup-code-help">
                   {whereTheCodeIs(setupInstall)}{' '}
                   <a href="https://flexarr.io/guide/first-setup#enter-the-setup-code" target="_blank" rel="noreferrer">
@@ -448,7 +448,7 @@ export default function App() {
                 {t('Connect')}
               </button>
             </div>
-            {state.wrongKey && <p className="error">{t("That isn't the right key.")}</p>}
+            {state.wrongKey && <p className="error">{t('That isn’t the right key.')}</p>}
             <p className="muted small-print">
               {t('For whoever set it up: the key is in config.json in the server’s data folder. Opening Flexarr through Tailscale signs you in without it.')}
             </p>

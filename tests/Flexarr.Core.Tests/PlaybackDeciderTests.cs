@@ -32,7 +32,7 @@ public class PlaybackDeciderTests
         var hdr10Only = PlaybackDecider.Decide(file, AppleTv with { Hdr10 = true }, [], new PlaybackOptions());
         var dolbyVision = PlaybackDecider.Decide(file, AppleTv with { DolbyVision = true, Hdr10 = true }, [], new PlaybackOptions());
 
-        Assert.Contains("This display doesn't show Dolby Vision", hdr10Only.Reasons);
+        Assert.Contains("This display doesn’t show Dolby Vision", hdr10Only.Reasons);
         Assert.Equal(PlaybackMethod.DirectPlay, dolbyVision.Method);
     }
 
@@ -41,7 +41,7 @@ public class PlaybackDeciderTests
     {
         var file = File("mp4", "hevc", "eac3", 6, VideoRange.Hdr10);
 
-        Assert.Contains("This display isn't showing HDR10 right now", PlaybackDecider.Decide(file, AppleTv with { Hdr10 = false }, [], new PlaybackOptions()).Reasons);
+        Assert.Contains("This display isn’t showing HDR10 right now", PlaybackDecider.Decide(file, AppleTv with { Hdr10 = false }, [], new PlaybackOptions()).Reasons);
         // An app that doesn't say (older versions) is taken at its word that it shows HDR.
         Assert.Equal(PlaybackMethod.DirectPlay, PlaybackDecider.Decide(file, AppleTv, [], new PlaybackOptions()).Method);
     }

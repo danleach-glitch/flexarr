@@ -1312,7 +1312,7 @@ final class MusicPlayer {
 
     private func trackFailed(_ reason: String?) {
         log.error("Track failed: \(reason ?? "no reason")", ["playbackId": playbackId])
-        errorMessage = reason ?? t("This track couldn't be played.")
+        errorMessage = reason ?? t("This track couldn’t be played.")
         endSession()
         clearItem()
         // Move on rather than fall silent, unless it was the last one.

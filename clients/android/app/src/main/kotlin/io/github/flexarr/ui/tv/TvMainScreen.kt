@@ -472,7 +472,7 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
                 // Music that's playing gets a place of its own, as the Music app does: the surest way to reach it.
                 if (nowPlaying) {
                     item(key = "now-playing") {
-                        SidebarRow(t("Now Playing"), selected = false, onClick = onNowPlaying, icon = { Icon(FlexarrIcons.nowPlaying, contentDescription = null, modifier = Modifier.size(20.dp)) })
+                        SidebarRow(t(Words.nowPlaying), selected = false, onClick = onNowPlaying, icon = { Icon(FlexarrIcons.nowPlaying, contentDescription = null, modifier = Modifier.size(20.dp)) })
                     }
                 }
                 items(tabs, key = { it.route }) { tab ->

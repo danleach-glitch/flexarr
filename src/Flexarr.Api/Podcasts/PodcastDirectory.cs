@@ -102,7 +102,7 @@ public sealed partial class PodcastDirectory(HttpClient http, IMemoryCache cache
         if (!response.IsSuccessStatusCode)
         {
             LogDirectoryFailed(url, (int)response.StatusCode);
-            throw new HttpRequestException(Loc.T("Apple's podcast directory isn't answering. Try again in a minute."));
+            throw new HttpRequestException(Loc.T("Apple’s podcast directory isn’t answering. Try again in a minute."));
         }
 
         await using var body = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);

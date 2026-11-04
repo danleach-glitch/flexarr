@@ -45,7 +45,7 @@ struct SettingsView: View {
                 }
             }
             SettingsLinkRow(title: t("Home screen"), symbol: "rectangle.topthird.inset.filled", value: topShelf.label,
-                            help: t("What the Apple TV's Top Shelf shows when Flexarr is in the top row.")) {
+                            help: t("What the Apple TV’s Top Shelf shows when Flexarr is in the top row.")) {
                 HomeScreenSettingsView()
             }
             // Once the server offers more than English (from 0.61).
@@ -56,8 +56,8 @@ struct SettingsView: View {
                 }
             }
             if model.profiles.count > 1 {
-                SettingsLinkRow(title: t("Profiles"), symbol: "person.2", value: asksWhoIsWatching ? t("Ask who's watching") : t("Last profile"),
-                                help: t("Whether Flexarr asks who's watching each time it opens on this Apple TV.")) {
+                SettingsLinkRow(title: t("Profiles"), symbol: "person.2", value: asksWhoIsWatching ? t("Ask who’s watching") : t("Last profile"),
+                                help: t("Whether Flexarr asks who’s watching each time it opens on this Apple TV.")) {
                     ProfileSettingsView()
                 }
             }
@@ -69,12 +69,12 @@ struct SettingsView: View {
                 }
             }
             SettingsLinkRow(title: t("Server"), symbol: "server.rack", value: connection,
-                            help: t("The server this Apple TV uses: its address, how it's reached and what it's running.")) {
+                            help: t("The server this Apple TV uses: its address, how it’s reached and what it’s running.")) {
                 ServerSettingsView()
             }
 
             SettingsRow(title: t("Sign out"), symbol: "rectangle.portrait.and.arrow.right",
-                        help: t("Disconnect this Apple TV from the server. You'll need to connect it again to watch."), destructive: true) {
+                        help: t("Disconnect this Apple TV from the server. You’ll need to connect it again to watch."), destructive: true) {
                 confirmSignOut = true
             }
             .padding(.top, 36)

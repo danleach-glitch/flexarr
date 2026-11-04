@@ -373,7 +373,7 @@ public static partial class PlaybackEndpoints
                 : await subtitles.GetAsync(file, session.Subtitles, track, ct);
             if (path is null)
             {
-                return Problems.Of("These subtitles couldn't be converted.", status: 422);
+                return Problems.Of("These subtitles couldn’t be converted.", status: 422);
             }
 
             var delay = await db.PlaybackStates.AsNoTracking().Where(p => p.UserId == session.ProfileId && p.MediaItemId == session.ItemId)
@@ -413,7 +413,7 @@ public static partial class PlaybackEndpoints
                 text = await Subtitles.StyledAsync(file, track, settings, ct);
             }
 
-            return text is null ? Problems.Of("These subtitles couldn't be read.", status: 422) : Results.Text(text, "text/x-ssa");
+            return text is null ? Problems.Of("These subtitles couldn’t be read.", status: 422) : Results.Text(text, "text/x-ssa");
         });
 
         // The fonts attached to the file, which its styled subtitles are drawn with.
@@ -538,7 +538,7 @@ public static partial class PlaybackEndpoints
 
         return path is not null ? Results.File(path, contentType)
             : transcodes.TakenOverReason(sid) is { } reason ? TakenOver(reason) // ended while this request waited
-            : Problems.Of("The segment couldn't be converted.", status: 500);
+            : Problems.Of("The segment couldn’t be converted.", status: 500);
     }
 
     /// <summary>A player asked for a converted stream's playlist or segments: a session got ready ahead of Play is now in use.</summary>
