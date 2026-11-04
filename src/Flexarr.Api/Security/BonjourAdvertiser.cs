@@ -41,20 +41,23 @@ public sealed partial class BonjourAdvertiser(IServer server, IHostApplicationLi
             return;
         }
 
-        var host = await LocalHostNameAsync(stoppingToken);
+        // The same lookup the server's name defaults to, done once, off any request.
+        var host = await Task.Run(() => Configuration.ServerName.MachineName ?? Environment.MachineName, stoppingToken);
         var url = $"http://{host}.local:{port}";
         while (!stoppingToken.IsCancellationRequested)
         {
-            // Announce under the current name until it changes, then withdraw that and announce the new one.
-            var name = Configuration.ServerName.Of(options.CurrentValue);
+            // Announce under the current name until it changes, then withdraw that and announce the new one. The
+            // change is listened for before the name is read, so a rename in between isn't missed.
             using var renamed = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+            string? name = null;
             using var watch = options.OnChange((o, _) =>
             {
-                if (Configuration.ServerName.Of(o) != name)
+                if (name is not null && Configuration.ServerName.Of(o) != name)
                 {
                     renamed.Cancel();
                 }
             });
+            name = Configuration.ServerName.Of(options.CurrentValue);
 
             try
             {
@@ -87,14 +90,21 @@ public sealed partial class BonjourAdvertiser(IServer server, IHostApplicationLi
             var name = Configuration.ServerName.Of(options.CurrentValue);
             if (name != told)
             {
+                // A few seconds each, so an app that stops answering can't hold up later renames.
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeout.CancelAfter(TimeSpan.FromSeconds(5));
                 try
                 {
-                    await macApp.AnnounceNameAsync(name, ct);
+                    await macApp.AnnounceNameAsync(name, timeout.Token);
                     told = name;
                 }
-                catch (Exception ex) when (ex is IOException or System.Net.Sockets.SocketException)
+                catch (Exception ex) when (ex is IOException or System.Net.Sockets.SocketException
+                                               || (ex is OperationCanceledException && !ct.IsCancellationRequested))
                 {
                     LogUnavailable(ex.Message);
+                    // Tried again shortly, rather than only after the next settings change.
+                    await Task.WhenAny(renamed.Reader.ReadAsync(ct).AsTask(), Task.Delay(TimeSpan.FromSeconds(10), ct));
+                    continue;
                 }
             }
 
@@ -107,11 +117,16 @@ public sealed partial class BonjourAdvertiser(IServer server, IHostApplicationLi
     {
         var portText = port.ToString(System.Globalization.CultureInfo.InvariantCulture);
         string[]? command = OperatingSystem.IsMacOS() ? ["/usr/bin/dns-sd", "-R", name, ServiceType, "local", portText, $"url={url}"]
-            : File.Exists("/usr/bin/avahi-publish") ? ["/usr/bin/avahi-publish", "-s", name, ServiceType, portText, $"url={url}"]
+            // "--": a name starting with "-" is the name, not an option.
+            : File.Exists("/usr/bin/avahi-publish") ? ["/usr/bin/avahi-publish", "-s", "--", name, ServiceType, portText, $"url={url}"]
             : null;
         if (command is null)
         {
-            return await RespondAsync(new MdnsService(name, ServiceType, host, port, url), ct);
+            // This responder doesn't settle clashes as dns-sd and Avahi do, and every unnamed container is "Flexarr":
+            // a few letters of the server's id keep two apart.
+            var unique = !Configuration.ServerName.IsNamed(options.CurrentValue) && options.CurrentValue.ServerId is { Length: >= 4 } id
+                ? $"{name} ({id[..4]})" : name;
+            return await RespondAsync(new MdnsService(unique, ServiceType, host, port, url), ct);
         }
 
         // The tool keeps the announcement up while it runs; restart it if it stops.
@@ -166,33 +181,6 @@ public sealed partial class BonjourAdvertiser(IServer server, IHostApplicationLi
             LogUnavailable(ex.Message);
             return false;
         }
-    }
-
-    /// <summary>macOS's Bonjour name ("Dans-Mac-Mini"), else the machine name.</summary>
-    private static async Task<string> LocalHostNameAsync(CancellationToken ct)
-    {
-        if (OperatingSystem.IsMacOS())
-        {
-            try
-            {
-                var start = new ProcessStartInfo("/usr/sbin/scutil") { UseShellExecute = false, RedirectStandardOutput = true };
-                start.ArgumentList.Add("--get");
-                start.ArgumentList.Add("LocalHostName");
-                using var process = Process.Start(start)!;
-                var name = (await process.StandardOutput.ReadToEndAsync(ct)).Trim();
-                await process.WaitForExitAsync(ct);
-                if (name.Length > 0)
-                {
-                    return name;
-                }
-            }
-            catch (System.ComponentModel.Win32Exception)
-            {
-                // Fall back to the machine name.
-            }
-        }
-
-        return Environment.MachineName;
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Announcing \"{Name}\" on the local network at {Url}")]
