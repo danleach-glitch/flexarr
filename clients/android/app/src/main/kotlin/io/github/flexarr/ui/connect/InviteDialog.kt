@@ -34,7 +34,6 @@ fun InviteDialog(model: AppModel) {
     }
     // One that came to the code this device showed is asked about on that screen.
     val invite = model.offeredInvite?.takeIf { !model.inviteFromCode } ?: return
-    val owner = invite.ownerName
     val problem = model.joinProblem
     val notNow: @Composable () -> Unit = { TextButton(onClick = model::dismissInvite) { Text(t("Not now"), color = Flexarr.screen) } }
     when {
@@ -43,7 +42,7 @@ fun InviteDialog(model: AppModel) {
             text = {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Flexarr.usher)
-                    Text(t("Joining {owner}’s Flexarr…", "owner" to owner))
+                    Text(t("Joining {server}…", "server" to invite.serverTitle))
                 }
             },
             confirmButton = {},
@@ -61,7 +60,7 @@ fun InviteDialog(model: AppModel) {
         )
         else -> AlertDialog(
             onDismissRequest = model::dismissInvite,
-            title = { Text(t("Join {owner}’s Flexarr?", "owner" to owner)) },
+            title = { Text(t("Join {server}?", "server" to invite.serverTitle)) },
             text = { Text(t("You’ll watch as {profile}.", "profile" to invite.profileName)) },
             confirmButton = { TextButton(onClick = model::confirmInvite) { Text(t("Join"), color = Flexarr.screen) } },
             dismissButton = notNow,

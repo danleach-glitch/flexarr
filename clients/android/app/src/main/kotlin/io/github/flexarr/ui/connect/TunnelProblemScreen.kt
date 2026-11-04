@@ -33,9 +33,10 @@ import io.github.flexarr.ui.theme.Flexarr
 
 /** "Can’t reach Dan’s Flexarr", and the line under it: shared by the phone's and the TV's problem screens. */
 internal fun tunnelProblemWords(model: AppModel): Pair<String, String> {
-    val owner = model.credentials?.guest?.ownerName?.ifEmpty { null }
-    return if (owner != null) {
-        t("Can’t reach {owner}’s Flexarr", "owner" to owner) to t("Check this device’s internet, or that {owner}’s server is on.", "owner" to owner)
+    // The server's name (a guest's host: "Dan’s Flexarr" when it has none), or "this Flexarr".
+    val server = if (model.isGuest) model.guestServerTitle(model.credentials?.guest) else model.serverName
+    return if (server != null) {
+        t("Can’t reach {server}", "server" to server) to t("Check this device’s internet, or that {server} is on.", "server" to server)
     } else {
         t("Can’t reach this Flexarr") to t("Check this device’s internet, or that its server is on.")
     }
