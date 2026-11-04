@@ -54,14 +54,40 @@ public struct GuestTunnelInfo: Codable, Sendable, Equatable {
     }
 
     /// What to call the host's server: its name, or "Dan's Flexarr".
-    public var serverTitle: String { Self.title(serverName: serverName, ownerName: ownerName) }
+    public var serverNaming: ServerNaming { ServerNaming(name: serverName, owner: ownerName) }
+    public var serverTitle: String { serverNaming.title }
 
     /// The server's name when there is one, else "Dan's Flexarr" (or "this Flexarr" with no owner either).
     public static func title(serverName: String?, ownerName: String?) -> String {
-        if let name = serverName?.trimmingCharacters(in: .whitespaces), !name.isEmpty { return name }
-        if let owner = ownerName?.trimmingCharacters(in: .whitespaces), !owner.isEmpty { return t("{owner}’s Flexarr", ["owner": owner]) }
-        return t("this Flexarr")
+        ServerNaming(name: serverName, owner: ownerName).title
     }
+}
+
+/// What a sentence calls a server: the name an admin chose, else "Dan’s Flexarr", else "this Flexarr". A sentence takes
+/// `values` and has all three wordings whole, `{kind, select, named {Leave {server}?} owner {Leave {owner}’s Flexarr?}
+/// other {Leave this Flexarr?}}`, so a translator is never handed a piece of one.
+public struct ServerNaming: Sendable, Equatable {
+    public let name: String?
+    public let owner: String?
+
+    public init(name: String?, owner: String?) {
+        self.name = name?.trimmingCharacters(in: .whitespaces).nilIfBlank
+        self.owner = owner?.trimmingCharacters(in: .whitespaces).nilIfBlank
+    }
+
+    public var kind: String { name != nil ? "named" : owner != nil ? "owner" : "other" }
+
+    /// For `t(…)`: `kind`, `server` and `owner`.
+    public var values: [String: Any] { ["kind": kind, "server": name ?? "", "owner": owner ?? ""] }
+
+    /// On its own, as a value: "Smith House", "Dan’s Flexarr" or "this Flexarr".
+    public var title: String {
+        t("{kind, select, named {{server}} owner {{owner}’s Flexarr} other {this Flexarr}}", values)
+    }
+}
+
+private extension String {
+    var nilIfBlank: String? { isEmpty ? nil : self }
 }
 
 public struct CredentialStore: Sendable {

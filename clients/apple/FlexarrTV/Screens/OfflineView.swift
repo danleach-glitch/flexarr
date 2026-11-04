@@ -12,9 +12,9 @@ struct OfflineView: View {
 
     private var isGuest: Bool { model.credentials?.isGuest == true }
 
-    /// The server's name (a guest's host: "Dan’s Flexarr" when it has none), or nil for "this Flexarr".
-    private var server: String? {
-        isGuest ? model.guestServerTitle(model.credentials?.guest) : model.serverName
+    /// The server's name (a guest's host: "Dan’s Flexarr" when it has none), or "this Flexarr".
+    private var server: ServerNaming {
+        isGuest ? model.guestServerNaming(model.credentials?.guest) : ServerNaming(name: model.serverName, owner: nil)
     }
 
     var body: some View {
@@ -24,12 +24,11 @@ struct OfflineView: View {
                 .foregroundStyle(Color.silver)
                 .accessibilityHidden(true)
             // As the tunnel's problem screen words it.
-            Text(server.map { t("Can’t reach {server}", ["server": $0]) } ?? t("Can’t reach this Flexarr"))
+            Text(t("{kind, select, named {Can’t reach {server}} owner {Can’t reach {owner}’s Flexarr} other {Can’t reach this Flexarr}}", server.values))
                 .font(.system(size: 52, weight: .bold))
                 .foregroundStyle(Color.screen)
                 .accessibilityAddTraits(.isHeader)
-            Text(server.map { t("Check this device’s internet, or that {server} is on.", ["server": $0]) }
-                 ?? t("Check this device’s internet, or that its server is on."))
+            Text(t("{kind, select, named {Check this device’s internet, or that {server} is on.} owner {Check this device’s internet, or that {owner}’s Flexarr is on.} other {Check this device’s internet, or that its server is on.}}", server.values))
                 .font(.system(size: 30))
                 .foregroundStyle(Color.usher)
             HStack(spacing: 30) {
@@ -57,7 +56,7 @@ struct OfflineView: View {
         .confirmationDialog(t("Sign out of this server?"), isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button(t("Sign out"), role: .destructive) { model.signOut() }
         }
-        .leaveGuestConfirmation(isPresented: $confirmLeave, server: model.guestServerTitle(model.credentials?.guest)) { model.signOut() }
+        .leaveGuestConfirmation(isPresented: $confirmLeave, server: server) { model.signOut() }
     }
 }
 

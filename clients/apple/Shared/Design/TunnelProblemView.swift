@@ -10,17 +10,17 @@ struct TunnelProblemView: View {
     @State private var confirmLeave = false
 
     /// The host's server: its name, or "Dan’s Flexarr".
-    private var server: String { model.guestServerTitle(model.credentials?.guest) }
+    private var server: ServerNaming { model.guestServerNaming(model.credentials?.guest) }
 
     var body: some View {
         VStack(spacing: 20) {
             Image(systemName: "wifi.exclamationmark")
                 .font(.system(size: 44))
                 .foregroundStyle(Color.silver)
-            Text(t("Can’t reach {server}", ["server": server]))
+            Text(t("{kind, select, named {Can’t reach {server}} owner {Can’t reach {owner}’s Flexarr} other {Can’t reach this Flexarr}}", server.values))
                 .font(.title2.weight(.semibold))
                 .multilineTextAlignment(.center)
-            Text(t("Check this device’s internet, or that {server} is on.", ["server": server]))
+            Text(t("{kind, select, named {Check this device’s internet, or that {server} is on.} owner {Check this device’s internet, or that {owner}’s Flexarr is on.} other {Check this device’s internet, or that its server is on.}}", server.values))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             // Side by side while they fit, one above another at larger text sizes.
@@ -49,14 +49,14 @@ struct TunnelProblemView: View {
 extension View {
     /// "Leave Smith House?" (or "Leave Dan’s Flexarr?"), asked before a family guest leaves its host (Settings ›
     /// Server, or the problem screen).
-    func leaveGuestConfirmation(isPresented: Binding<Bool>, server: String, onLeave: @escaping () -> Void) -> some View {
+    func leaveGuestConfirmation(isPresented: Binding<Bool>, server: ServerNaming, onLeave: @escaping () -> Void) -> some View {
         modifier(LeaveGuestConfirmation(isPresented: isPresented, server: server, onLeave: onLeave))
     }
 }
 
 private struct LeaveGuestConfirmation: ViewModifier {
     @Binding var isPresented: Bool
-    let server: String
+    let server: ServerNaming
     let onLeave: () -> Void
 
     func body(content: Content) -> some View {
@@ -66,7 +66,7 @@ private struct LeaveGuestConfirmation: ViewModifier {
             LeaveGuestPrompt(server: server, isPresented: $isPresented, onLeave: onLeave)
         }
         #else
-        content.confirmationDialog(t("Leave {server}?", ["server": server]), isPresented: $isPresented, titleVisibility: .visible) {
+        content.confirmationDialog(t("{kind, select, named {Leave {server}?} owner {Leave {owner}’s Flexarr?} other {Leave this Flexarr?}}", server.values), isPresented: $isPresented, titleVisibility: .visible) {
             Button(t("Leave"), role: .destructive, action: onLeave)
         } message: {
             // Signing out deletes the iPhone's downloads.
@@ -78,7 +78,7 @@ private struct LeaveGuestConfirmation: ViewModifier {
 
 #if os(tvOS)
 private struct LeaveGuestPrompt: View {
-    let server: String
+    let server: ServerNaming
     @Binding var isPresented: Bool
     let onLeave: () -> Void
     @FocusState private var focus: Choice?
@@ -87,7 +87,7 @@ private struct LeaveGuestPrompt: View {
 
     var body: some View {
         VStack(spacing: 36) {
-            Text(t("Leave {server}?", ["server": server]))
+            Text(t("{kind, select, named {Leave {server}?} owner {Leave {owner}’s Flexarr?} other {Leave this Flexarr?}}", server.values))
                 .font(.system(size: 52, weight: .bold))
                 .foregroundStyle(Color.screen)
                 .multilineTextAlignment(.center)

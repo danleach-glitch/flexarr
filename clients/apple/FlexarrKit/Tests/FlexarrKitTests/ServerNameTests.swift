@@ -65,4 +65,20 @@ struct ServerNameTests {
         store.clear()
         #expect(store.savedServerName == nil)
     }
+
+    @Test func sentencesPickAWholeWordingForEachKindOfName() {
+        let leave = "{kind, select, named {Leave {server}?} owner {Leave {owner}’s Flexarr?} other {Leave this Flexarr?}}"
+        #expect(t(leave, ServerNaming(name: "Smith House", owner: "Dan").values) == "Leave Smith House?")
+        #expect(t(leave, ServerNaming(name: " ", owner: "Dan").values) == "Leave Dan’s Flexarr?")
+        #expect(t(leave, ServerNaming(name: nil, owner: nil).values) == "Leave this Flexarr?")
+        #expect(ServerNaming(name: nil, owner: "Dan").title == "Dan’s Flexarr")
+    }
+
+    @Test func aGuestOnlySeesANameSomeoneChose() throws {
+        let unnamed = try status(#","serverName":"Dans-Mac-Mini","serverNamed":false"#)
+        #expect(unnamed.serverName(forGuest: true) == nil)
+        #expect(unnamed.serverName(forGuest: false) == "Dans-Mac-Mini")
+        let named = try status(#","serverName":"Smith House","serverNamed":true"#)
+        #expect(named.serverName(forGuest: true) == "Smith House")
+    }
 }

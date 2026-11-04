@@ -16,10 +16,10 @@ struct ServerSettingsView: View {
                 // A family guest: no address to show, just whose server, and a way to leave it.
                 SettingsFact(t("Connected by invite"), model.guestServerTitle(guest))
                 SettingsRow(title: t("Leave"), symbol: "rectangle.portrait.and.arrow.right",
-                            help: t("Stop watching {server} here. Joining again takes a new code.", ["server": model.guestServerTitle(guest)])) {
+                            help: t("{kind, select, named {Stop watching {server} here. Joining again takes a new code.} owner {Stop watching {owner}’s Flexarr here. Joining again takes a new code.} other {Stop watching this Flexarr here. Joining again takes a new code.}}", model.guestServerNaming(guest).values)) {
                     confirmLeave = true
                 }
-                .leaveGuestConfirmation(isPresented: $confirmLeave, server: model.guestServerTitle(guest)) { model.signOut() }
+                .leaveGuestConfirmation(isPresented: $confirmLeave, server: model.guestServerNaming(guest)) { model.signOut() }
             } else {
             if let name = model.serverName { SettingsFact(t("Name"), name) }
             SettingsFact(t("Address"), address(model.credentials?.address))

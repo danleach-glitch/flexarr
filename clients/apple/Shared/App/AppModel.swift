@@ -22,6 +22,8 @@ final class AppModel {
             LogHub.shared.signedIn(client)
             // Error reports follow the server signed in to: none signed out, the last answer for a new one.
             if credentials?.address != Self.credentials(in: oldValue)?.address {
+                // The name kept for this server (none for a new one) until it says its own.
+                serverName = store.savedServerName
                 ErrorReports.stop()
                 ErrorReports.resume(server: credentials?.address)
                 Task { await refreshErrorReports() }
@@ -337,6 +339,8 @@ final class AppModel {
         guard let credentials, let client else { return }
         guard let status = try? await client.systemStatus(), self.credentials?.address == credentials.address else { return }
         noteServerAge(status.version, of: credentials.address)
+        // So does its name, which a rename on the web changes while the app is open.
+        noteServerName(status, guest: credentials.isGuest)
         errorReports = status.errorReports
         ErrorReports.apply(status.errorReports, server: credentials.address)
     }
@@ -537,16 +541,10 @@ final class AppModel {
     /// Keeps the saved address for away from home in step with the server's (remote access turned on or off since,
     /// or a sign-in from before the app kept one). Best effort, once per launch, after the profiles are up.
     private func refreshRemoteAddress() async {
-        guard !remoteChecked, let credentials else { return }
+        // A guest only ever reaches its host through the tunnel.
+        guard !remoteChecked, let credentials, !credentials.isGuest else { return }
         remoteChecked = true
         guard let status = try? await credentials.client.systemStatus() else { return }
-        // What the server is called, kept for Settings and for while it can't be reached.
-        if let name = status.serverName, self.credentials?.address == credentials.address, name != serverName {
-            serverName = name
-            store.saveServerName(name)
-        }
-        // A guest only ever reaches its host through the tunnel.
-        guard !credentials.isGuest else { return }
         let remote = await Self.remoteAddress(for: status, address: credentials.address, kept: credentials.remoteAddress)
         // Who's watching may have been chosen meanwhile: what matters is that it's still the same sign-in.
         guard let now = self.credentials, remote != now.remoteAddress,
@@ -782,9 +780,19 @@ final class AppModel {
 
     /// The host removed this device (or deleted it from their tailnet): signed out, back to joining, saying why.
     private func removedAsGuest(_ guest: GuestTunnelInfo?) {
-        signedOutNotice = t("You no longer have access to {server}.", ["server": guestServerTitle(guest)])
+        signedOutNotice = t("{kind, select, named {You no longer have access to {server}.} owner {You no longer have access to {owner}’s Flexarr.} other {You no longer have access to this Flexarr.}}", guestServerNaming(guest).values)
         forget()
         signedOutAsGuest = true
+    }
+
+    /// Keeps what the server is called, for Settings and for while it can't be reached. Servers before 0.61 say
+    /// nothing, and leave it as it was.
+    private func noteServerName(_ status: SystemStatus, guest: Bool) {
+        guard status.serverName != nil || status.serverNamed != nil else { return }
+        let name = status.serverName(forGuest: guest)
+        guard name != serverName else { return }
+        serverName = name
+        store.saveServerName(name)
     }
 
     /// What to call the server: its name when it has given one, else its address's host ("192.168.1.106").
@@ -794,18 +802,21 @@ final class AppModel {
     }
 
     /// A guest's host server: the name it last gave, or the invite's, or "Dan's Flexarr".
-    func guestServerTitle(_ guest: GuestTunnelInfo?) -> String {
-        GuestTunnelInfo.title(serverName: serverName ?? guest?.serverName, ownerName: guest?.ownerName)
+    func guestServerTitle(_ guest: GuestTunnelInfo?) -> String { guestServerNaming(guest).title }
+
+    /// The same, for sentences that name it (see `ServerNaming`).
+    func guestServerNaming(_ guest: GuestTunnelInfo?) -> ServerNaming {
+        ServerNaming(name: serverName ?? guest?.serverName, owner: guest?.ownerName)
     }
 
     enum JoinError: LocalizedError {
         /// Run out, used, or cancelled: the same invite can't work again.
         case usedUp
-        case paused(server: String)
+        case paused(server: ServerNaming)
         case otherServer
         /// The host's tailnet or server couldn't be reached: the same invite can try again (the key, if used, is
         /// kept as this device's identity, and the server lets the same device redeem the same invite again).
-        case unreachable(server: String)
+        case unreachable(server: ServerNaming)
         case failed(String)
 
         /// Trying the same invite again can work.
@@ -817,9 +828,9 @@ final class AppModel {
         var errorDescription: String? {
             switch self {
             case .usedUp: t("That invite has run out or been used.")
-            case .paused(let server): t("{server} isn’t taking guests just now.", ["server": server])
+            case .paused(let server): t("{kind, select, named {{server} isn’t taking guests just now.} owner {{owner}’s Flexarr isn’t taking guests just now.} other {This Flexarr isn’t taking guests just now.}}", server.values)
             case .otherServer: t("This invite led to a different server than it named. Ask for a new one.")
-            case .unreachable(let server): t("Can’t reach {server}. Check this device’s internet.", ["server": server])
+            case .unreachable(let server): t("{kind, select, named {Can’t reach {server}. Check this device’s internet.} owner {Can’t reach {owner}’s Flexarr. Check this device’s internet.} other {Can’t reach this Flexarr. Check this device’s internet.}}", server.values)
             case .failed(let why): why
             }
         }
@@ -851,7 +862,7 @@ final class AppModel {
             // Said plainly; Tailscale's own words go to the log. The network: left for Try again.
             log.warning("Joining didn't reach the host: \(error.localizedDescription)")
             GuestTunnel.shared.stop()
-            throw JoinError.unreachable(server: invite.serverTitle)
+            throw JoinError.unreachable(server: invite.serverNaming)
         }
         let redeemed: RedeemedInvite
         do {
@@ -861,11 +872,11 @@ final class AppModel {
             GuestTunnel.shared.stop()
             switch error {
             case FlexarrClientError.http(410, _): throw JoinError.usedUp
-            case FlexarrClientError.http(503, _): throw JoinError.paused(server: invite.serverTitle)
+            case FlexarrClientError.http(503, _): throw JoinError.paused(server: invite.serverNaming)
             case FlexarrClientError.http(_, let message): throw JoinError.failed(message ?? t("The server refused the invite."))
             default:
                 log.warning("Redeeming the invite failed: \(error.localizedDescription)")
-                throw JoinError.unreachable(server: invite.serverTitle)
+                throw JoinError.unreachable(server: invite.serverNaming)
             }
         }
         if !invite.serverId.isEmpty, redeemed.serverId != invite.serverId {

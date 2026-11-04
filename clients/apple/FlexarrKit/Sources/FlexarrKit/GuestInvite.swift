@@ -36,7 +36,8 @@ public struct GuestInvite: Codable, Sendable, Equatable {
     /// The server's name, when the invite carries one.
     public var serverName: String? { m.flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 } }
     /// What to call the server: its name, or "Dan's Flexarr".
-    public var serverTitle: String { GuestTunnelInfo.title(serverName: serverName, ownerName: ownerName) }
+    public var serverNaming: ServerNaming { ServerNaming(name: serverName, owner: ownerName) }
+    public var serverTitle: String { serverNaming.title }
 
     /// The node's name on the host's tailnet: "flexarr-guest-grans-ipad".
     public var hostname: String { Self.hostname(for: g) }

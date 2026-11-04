@@ -21,7 +21,7 @@ struct ServerSettingsView: View {
                 } header: {
                     Text(t("Connected by invite"))
                 }
-                .leaveGuestConfirmation(isPresented: $confirmLeave, server: model.guestServerTitle(guest)) { model.signOut() }
+                .leaveGuestConfirmation(isPresented: $confirmLeave, server: model.guestServerNaming(guest)) { model.signOut() }
             } else {
             Section {
                 if let name = model.serverName { row(t("Name"), name) }
