@@ -91,13 +91,15 @@ The player's timeline shades the intro and credits once they're known.
 
 ### Skip buttons, or skipping by itself
 
-By default, a **Skip intro** or **Skip Recap** button appears when one starts. On iPhone and Apple TV it shows by itself, without the rest of the controls. To skip without pressing anything, turn these on in **Settings › Playback** on any device, or from the player's menu on the web:
+By default, a **Skip intro** or **Skip recap** button appears when one starts. On iPhone and Apple TV it shows by itself, without the rest of the controls. To skip without pressing anything, turn these on in **Settings › Playback** on any device, or from the player's menu on the web:
 
 - **Skip intros**: jumps past the opening titles.
 - **Skip recaps**: jumps past "Previously on…".
 - **Skip credits**: ends the episode as the credits start.
 
 They're your profile's own, on every device.
+
+With **Skip intros** or **Skip recaps** on, Flexarr doesn't jump without warning. Just before the intro, a **Skip intro in 3** button counts down (**Skip recap in 5** for a recap), filling as it goes, and the skip lands as the intro begins. Press it to skip straight away, or press the **✕** beside it (Back on a TV, Esc on the web or a Mac) to watch the intro this time. Pausing holds the countdown. If you go back into an intro that was skipped, a plain **Skip intro** button shows, so you can watch it.
 
 ## Up next
 
