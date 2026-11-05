@@ -226,7 +226,12 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
         controller.error?.let { message -> PlayerError(controller, message, onClose) }
 
         AnimatedVisibility(showing, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize().onFocusChanged { controlsFocused = it.hasFocus }) {
-            Controls(controller, scrubTo, onScrub = { scrubTo = it; interaction++ }, onInteract = { interaction++ }, timeline = timeline, menuButtons = menuButtons, onMenu = { menuOpen = it })
+            Controls(
+                controller, scrubTo, onScrub = { scrubTo = it; interaction++ }, onInteract = { interaction++ }, timeline = timeline,
+                menuButtons = menuButtons, onMenu = { menuOpen = it },
+                // Up from the timeline goes to Skip Intro or Next Episode while it's up (focusing a countdown stops it).
+                onUp = { promptUp && runCatching { prompt.requestFocus() }.isSuccess },
+            )
         }
         menuOpen?.let { menu ->
             TvMenuPanel(menu, controller, controller.sleep, controller.offersEndOfEpisode, onAudioSync = {
@@ -252,7 +257,11 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
             controller.promptWidest,
             controller.promptIsSkip,
             Modifier.align(Alignment.BottomEnd).padding(end = 40.dp, bottom = if (showing) 120.dp else 40.dp)
-                .onFocusChanged { promptFocused = it.hasFocus }
+                .onFocusChanged {
+                    promptFocused = it.hasFocus
+                    // Focus reaching a counting pill (Up from the picture or the timeline) stops its countdown.
+                    if (it.hasFocus && controller.countingDown) controller.holdCountdown()
+                }
                 .onKeyEvent { event ->
                     // Up and down bring the controls, as they do from the picture.
                     if (event.type != KeyEventType.KeyDown || showing) return@onKeyEvent false
@@ -279,7 +288,7 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
 
 /** The title at the top; the timeline at the foot, with the episode buttons and the menus beneath it. */
 @Composable
-private fun Controls(controller: PlaybackController, scrubTo: Double?, onScrub: (Double?) -> Unit, onInteract: () -> Unit, timeline: FocusRequester, menuButtons: Map<TvMenu, FocusRequester>, onMenu: (TvMenu) -> Unit) {
+private fun Controls(controller: PlaybackController, scrubTo: Double?, onScrub: (Double?) -> Unit, onInteract: () -> Unit, timeline: FocusRequester, menuButtons: Map<TvMenu, FocusRequester>, onMenu: (TvMenu) -> Unit, onUp: () -> Boolean = { false }) {
     val info = controller.info
     Box(Modifier.fillMaxSize()) {
         // Keep the title and times readable over bright pictures.
@@ -293,7 +302,7 @@ private fun Controls(controller: PlaybackController, scrubTo: Double?, onScrub: 
             }
         }
         Column(Modifier.align(Alignment.BottomCenter).padding(horizontal = 40.dp, vertical = 26.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Timeline(controller, scrubTo, onScrub, timeline)
+            Timeline(controller, scrubTo, onScrub, timeline, onUp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 // A film has neither episode button; an episode has both. Previous always works (with nothing before,
                 // it starts this one again); Next is dimmed at the last.
@@ -313,7 +322,7 @@ private fun Controls(controller: PlaybackController, scrubTo: Double?, onScrub: 
  * there above it, faster the longer they're held; OK goes there. Without a move, OK pauses and plays.
  */
 @Composable
-private fun Timeline(controller: PlaybackController, scrubTo: Double?, onScrub: (Double?) -> Unit, focus: FocusRequester) {
+private fun Timeline(controller: PlaybackController, scrubTo: Double?, onScrub: (Double?) -> Unit, focus: FocusRequester, onUp: () -> Boolean = { false }) {
     val source = remember { MutableInteractionSource() }
     val focused by source.collectIsFocusedAsState()
     val duration = controller.duration.coerceAtLeast(1.0)
@@ -331,6 +340,7 @@ private fun Timeline(controller: PlaybackController, scrubTo: Double?, onScrub: 
                 when (event.nativeKeyEvent.keyCode) {
                     KeyEvent.KEYCODE_DPAD_LEFT -> onScrub((shown - step).coerceAtLeast(0.0)).let { true }
                     KeyEvent.KEYCODE_DPAD_RIGHT -> onScrub((shown + step).coerceAtMost(duration)).let { true }
+                    KeyEvent.KEYCODE_DPAD_UP -> onUp()
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
                         if (scrubTo != null) {
                             controller.seekTo(scrubTo)

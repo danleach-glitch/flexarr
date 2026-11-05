@@ -652,6 +652,27 @@ final class PlayerControlsView: UIView {
     #if os(tvOS)
     /// Where focus goes next, once: the button whose menu just closed.
     var focusNext: UIView?
+    /// Focus reached the Skip intro / Next Episode pill (on a TV, that stops a countdown).
+    var onPromptFocused: (() -> Void)?
+
+    /// Up from the timeline goes to the pill while it's up, over the menu buttons between them.
+    override func shouldUpdateFocus(in context: UIFocusUpdateContext) -> Bool {
+        if context.focusHeading == .up, promptShown, let from = context.previouslyFocusedItem as? UIView, from === scrubber || from.isDescendant(of: scrubber),
+           context.nextFocusedItem as? UIView !== promptButton {
+            focusNext = promptButton
+            DispatchQueue.main.async { [weak self] in
+                self?.setNeedsFocusUpdate()
+                self?.updateFocusIfNeeded()
+            }
+            return false
+        }
+        return super.shouldUpdateFocus(in: context)
+    }
+
+    override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
+        super.didUpdateFocus(in: context, with: coordinator)
+        if context.nextFocusedItem as? UIView === promptButton { onPromptFocused?() }
+    }
     #endif
 
     static func button(_ symbol: String, size: CGFloat, menu: Bool = false) -> UIButton {

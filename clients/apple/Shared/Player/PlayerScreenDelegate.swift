@@ -16,6 +16,8 @@ protocol PlayerScreenDelegate: AnyObject {
     func playerScreenNext(_ screen: PlayerViewController)
     func playerScreenPromptTapped(_ screen: PlayerViewController)
     func playerScreenCancelNext(_ screen: PlayerViewController)
+    /// Up on a TV during a countdown (Skip intro, Next Episode): stop it, leaving the button focused.
+    func playerScreenHoldCountdown(_ screen: PlayerViewController)
     /// An audio track the transport can't switch to itself: the session is started again with it.
     func playerScreen(_ screen: PlayerViewController, selectAudio id: String)
     /// The viewer chose subtitles (`.some(nil)`: off), to remember for this title and the next.
@@ -36,7 +38,6 @@ protocol PlayerScreenDelegate: AnyObject {
 }
 
 extension PlayerScreenDelegate {
-    /// Up on a TV during a countdown (Skip intro, Next Episode): stop it, leaving the button focused.
     func playerScreenHoldCountdown(_ screen: PlayerViewController) {}
     func playerScreen(_ screen: PlayerViewController, audioDelay seconds: Double) {}
     func playerScreen(_ screen: PlayerViewController, choseRate rate: Float) {}

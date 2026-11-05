@@ -153,6 +153,13 @@ final class PlayerViewController: UIViewController {
         // did this itself; on Apple TV it's also what lets tvOS negotiate the HDMI route for multichannel sound.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
+        #if os(tvOS)
+        // Back is the player's: it ends a scan or scrub, cancels a countdown, hides the controls, and only then closes.
+        // A gesture for it, since tvOS otherwise closes the full-screen player on Back however the press was handled.
+        let back = UITapGestureRecognizer(target: self, action: #selector(backPressed))
+        back.allowedPressTypes = [NSNumber(value: UIPress.PressType.menu.rawValue)]
+        view.addGestureRecognizer(back)
+        #endif
         #if os(iOS)
         let tap = UITapGestureRecognizer(target: self, action: #selector(tapped))
         tap.delegate = self
@@ -297,7 +304,11 @@ final class PlayerViewController: UIViewController {
         countingDownToNext = countingDown
         updateIdleTimer()
         #if os(tvOS)
-        if focusChanged || appeared { setNeedsFocusUpdate(); updateFocusIfNeeded() }
+        // A countdown over the picture alone doesn't take focus (Up does), but the player must hold it, or the remote's
+        // Up and Back go to the page behind the player (Back closed it).
+        let countdownOverPicture = countingDown && !controlsVisible && !rootView.takesFocus
+        if countdownOverPicture { rootView.takesFocus = true }
+        if focusChanged || appeared || countdownOverPicture { setNeedsFocusUpdate(); updateFocusIfNeeded() }
         #endif
 
     }
@@ -410,6 +421,13 @@ final class PlayerViewController: UIViewController {
             guard let self else { return }
             delegate?.playerScreenPromptTapped(self)
         }
+        #if os(tvOS)
+        // Focus reaching a counting pill (Up from the picture or the timeline) stops its countdown.
+        controls.onPromptFocused = { [weak self] in
+            guard let self, countingDownToNext else { return }
+            delegate?.playerScreenHoldCountdown(self)
+        }
+        #endif
         controls.onCancel = { [weak self] in
             guard let self else { return }
             delegate?.playerScreenCancelNext(self)
@@ -603,6 +621,29 @@ final class PlayerViewController: UIViewController {
         showControls()
     }
 
+    @objc private func backPressed() {
+        guard presentedViewController == nil else { return }
+        menuOpen = false
+        switch sleepPhase {
+        case .asleep: return wake()
+        case .asking: return extendSleep()
+        case .off: break
+        }
+        if scan != nil { return endScan(commit: false) }
+        if controls.scrubber.cancelScrubIfNeeded() { return }
+        if audioSyncOpen { return closeAudioSync() }
+        // Counting down (Skip intro, Next Episode): Back cancels it and the pill goes, before anything else.
+        if countingDownToNext {
+            delegate?.playerScreenCancelNext(self)
+            return
+        }
+        if controlsVisible {
+            hideControls()
+            return
+        }
+        close()
+    }
+
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         // The guide or the channel list is open over the picture: the remote is theirs, not the player's (up and
         // down there would otherwise change channel behind them).
@@ -610,6 +651,8 @@ final class PlayerViewController: UIViewController {
             super.pressesBegan(presses, with: event)
             return
         }
+        // Back goes to `backPressed` (a gesture), including waking the screen or answering "Still watching?".
+        if presses.contains(where: { $0.type == .menu }) { return }
         // An open menu takes the remote's presses for itself, so one reaching the player means none is open, whatever
         // the last word was: a menu that went without saying so mustn't keep the controls up for good.
         menuOpen = false
@@ -653,19 +696,7 @@ final class PlayerViewController: UIViewController {
                     return
                 }
             case .menu:
-                if scan != nil { endScan(commit: false); return }
-                if controls.scrubber.cancelScrubIfNeeded() { return }
-                if audioSyncOpen { return closeAudioSync() }
-                if controlsVisible {
-                    hideControls()
-                    return
-                }
-                // Counting down to the next episode: Back is "not now", and a second Back leaves.
-                if countingDownToNext {
-                    delegate?.playerScreenCancelNext(self)
-                    return
-                }
-                close()
+                // `backPressed` has it.
                 return
             case .upArrow, .downArrow:
                 // Up during a countdown over the picture: it stops, and the button takes focus for Select.
@@ -720,6 +751,9 @@ final class PlayerViewController: UIViewController {
             super.pressesEnded(presses, with: event)
             return
         }
+        // Back is the player's from the press's start (it cancels a countdown, hides the controls or closes): passed on
+        // when let go, the system would close the player too, even after it cancelled a countdown.
+        if presses.contains(where: { $0.type == .menu }) { return }
         for press in presses where press.type == .leftArrow || press.type == .rightArrow {
             // Let go before it became a hold: a click, which skips.
             if let holdTask {
