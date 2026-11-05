@@ -47,6 +47,7 @@ import { mediaErrorRecovery } from '../lib/hlsRecovery'
 import { speedLabel } from '../lib/podcasts'
 import { drawStyled, type StyledSubtitles } from '../lib/styledSubtitles'
 import { cueLine, pictureIn } from '../lib/subtitlePlacement'
+import { skipAt, skipCancelled, skipFresh, skipPressed, skipSeeked, type SkipNow, type SkipState } from '../lib/skipTiming'
 import { NEXT_EPISODE_COUNTDOWN_SECONDS, nextEpisodeTiming, upNextAt, upNextAtEnd, upNextFresh, upNextMoved, type UpNextState } from '../lib/upNext'
 import { dialogueBoostChoices, isShaping, nightModeChoices, readSoundSettings, shapingFor, speakerChoices, timeOfDay, unshaped, useSoundSettings, useSoundShaping, writeSoundSettings } from '../lib/soundSettings'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
@@ -269,8 +270,11 @@ export function PlayerPage() {
   const blackBars = preferences.subtitlesInBlackBars ?? false
   const [notice, setNotice] = useState<string>()
   // The latest request to get the next episode ready, so an older answer arriving late is let go.
-  // Intros and recaps already skipped by themselves, so seeking back into one to watch it isn't overruled.
-  const autoSkipped = useRef(new Set<string>())
+  // Skip intro / recap (lib/skipTiming, docs/skip-timing.md): what's been skipped or cancelled this episode, kept
+  // between timeupdates, and what the pill shows now.
+  const skipState = useRef<SkipState>(skipFresh)
+  const [skipShown, setSkipShown] = useState<Omit<SkipNow, 'state' | 'skipTo'>>({})
+  const skipTick = useRef<(position: number) => void>(() => undefined)
 
   const duration = info?.durationSeconds ?? 0
 
@@ -475,7 +479,8 @@ export function PlayerPage() {
     // credits would mark it watched and count down to the one after).
     setTime(0)
     setBufferedTo(0)
-    autoSkipped.current = new Set()
+    skipState.current = skipFresh
+    setSkipShown({})
     playingItem.current = undefined
     // Come back to with Forward after closing: the title's page, not the episode again from the top.
     if (playState?.closed) {
@@ -556,6 +561,7 @@ export function PlayerPage() {
       setTime(Math.floor(el.currentTime))
       // Next Episode follows the real position, so it moves on on time rather than up to a second late.
       upNextTick.current(el.currentTime)
+      skipTick.current(el.currentTime)
       for (let i = 0; i < el.buffered.length; i++) {
         if (el.buffered.start(i) <= el.currentTime + 0.5 && el.buffered.end(i) >= el.currentTime) setBufferedTo(Math.floor(el.buffered.end(i)))
       }
@@ -593,6 +599,7 @@ export function PlayerPage() {
     // Scrubbing back from the end plays on.
     const onSeeking = () => {
       seeked.current = true
+      skipState.current = skipSeeked(skipState.current)
       if (!el.ended) {
         setEnded(false)
         setEndCountdown(null)
@@ -901,10 +908,9 @@ export function PlayerPage() {
 
   // ---------- Markers and Up Next
 
-  const intro = info?.markers.find((m) => m.type === 'Intro')
-  const recap = info?.markers.find((m) => m.type === 'Recap')
   const credits = info?.markers.find((m) => m.type === 'Credits')
-  const skippable = [recap, intro].find((m) => m && time >= m.start && time < m.end - 1)
+  const skipCounting = skipShown.counting
+  const skippable = skipCounting?.marker ?? skipShown.button
   // Waiting for the end means the credits, or the very end without them, at the speed it's playing.
   const sleepEnd = credits?.start ?? duration
   const sleepLeft = secondsLeft(sleep, clock, duration > 0 ? Math.max(0, (sleepEnd - time) / speed) : Infinity)
@@ -965,17 +971,35 @@ export function PlayerPage() {
     else seekTo(0)
   }
 
-  // Skip intros and recaps by themselves when the profile asks, once each.
-  useEffect(() => {
-    if (!skippable || error) return
-    const key = `${skippable.type}@${skippable.start}`
-    const wanted = skippable.type === 'Intro' ? preferences.skipIntros : preferences.skipRecaps
-    if (!wanted || autoSkipped.current.has(key)) return
-    autoSkipped.current.add(key)
-    seekTo(skippable.end)
-    setNotice(skippable.type === 'Recap' ? t('Skipped the recap') : t('Skipped the intro'))
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- seekTo is a plain function of this render
-  }, [skippable, preferences, error])
+  // Skip intros and recaps by themselves when the profile asks, after a countdown that follows the position (it holds
+  // when paused), once each. Each timeupdate, on the real position.
+  skipTick.current = (position: number) => {
+    if (!info || error) return
+    const now = skipAt({ markers: info.markers, time: position, skipIntros: preferences.skipIntros, skipRecaps: preferences.skipRecaps, state: skipState.current })
+    skipState.current = now.state
+    if (now.skipTo !== undefined) {
+      seekTo(now.skipTo)
+      setSkipShown({})
+      return
+    }
+    setSkipShown((shown) =>
+      shown.button === now.button && shown.counting?.marker === now.counting?.marker && shown.counting?.left === now.counting?.left && shown.counting?.progress === now.counting?.progress
+        ? shown
+        : { button: now.button, counting: now.counting },
+    )
+  }
+  const pressSkip = () => {
+    if (!info || !skippable) return
+    const pressed = skipPressed(skipState.current, skippable, info.markers, preferences.skipIntros, preferences.skipRecaps)
+    skipState.current = pressed.state
+    setSkipShown({})
+    seekTo(pressed.skipTo)
+  }
+  const cancelSkip = () => {
+    if (!skipCounting) return
+    skipState.current = skipCancelled(skipState.current, skipCounting.marker)
+    setSkipShown({})
+  }
 
   useEffect(() => {
     if (!notice) return
@@ -1242,13 +1266,14 @@ export function PlayerPage() {
           chooseSubtitle(subtitleKey ? null : (info?.subtitles.find((s) => s.isText && !s.isForced)?.key ?? null))
           break
         case 's':
-          if (skippable) seekTo(skippable.end)
+          pressSkip()
           break
         case 'n':
           playNext()
           break
         case 'Escape':
           if (menu) setMenu(null)
+          else if (skipCounting && !showUpNext) cancelSkip()
           else if (!document.fullscreenElement) exit()
           break
       }
@@ -1397,10 +1422,36 @@ export function PlayerPage() {
         </div>
       )}
 
+      {/* Said once as a countdown starts: its number ticks every second, so it stays out of the live region. */}
+      <div className="visually-hidden" aria-live="polite">
+        {skipCounting && !showUpNext && !error ? (skipCounting.marker.type === 'Recap' ? t(Words.skipRecap) : t(Words.skipIntro)) : ''}
+      </div>
+
       {skippable && !showUpNext && !error && (
-        <button className="skip-button" onClick={() => seekTo(skippable.end)} autoFocus>
-          {skippable.type === 'Recap' ? t(Words.skipRecap) : t(Words.skipIntro)}
-        </button>
+        // One split pill, as Next Episode's: the skip and, while counting down, its X. Each half is its own button.
+        <div className={skipCounting ? 'skip-pill counting' : 'skip-pill'}>
+          <button
+            className="skip-pill-skip"
+            onClick={pressSkip}
+            autoFocus
+            style={{ '--fill': `${(skipCounting?.progress ?? 0) * 100}%` } as CSSProperties}
+          >
+            <span className="skip-pill-label">
+              {skipCounting
+                ? skippable.type === 'Recap'
+                  ? t(Words.skipRecapIn, { seconds: skipCounting.left })
+                  : t(Words.skipIntroIn, { seconds: skipCounting.left })
+                : skippable.type === 'Recap'
+                  ? t(Words.skipRecap)
+                  : t(Words.skipIntro)}
+            </span>
+          </button>
+          {skipCounting && (
+            <button className="skip-pill-cancel" onClick={cancelSkip} aria-label={t(Words.cancel)}>
+              <icon.removeFromRow />
+            </button>
+          )}
+        </div>
       )}
 
       {/* Said once as the card shows: the countdown's number ticks every second, so it stays out of the live region. */}

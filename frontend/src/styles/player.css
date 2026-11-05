@@ -374,30 +374,87 @@
 
 /* ---------- Skip, up next, states ---------- */
 
-.skip-button {
+/* Skip intro / Skip recap: a split pill like Next Episode's. Counting down (Skip intros on), the left half fills as it
+   counts and the X beside it cancels. */
+.skip-pill {
   position: absolute;
   right: var(--edge);
   bottom: 140px;
-  min-height: 52px;
-  padding: 0 26px;
-  border: 1px solid rgb(255 255 255 / 0.5);
-  border-radius: var(--radius-control);
-  background: rgb(20 16 24 / 0.72);
-  backdrop-filter: blur(10px);
-  font-size: var(--step-1);
-  font-weight: 700;
-  cursor: pointer;
   z-index: 5;
+  display: flex;
+  gap: 2px;
 }
 
-.skip-button:hover,
-.skip-button:focus-visible {
+.skip-pill button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border: 0;
+  overflow: hidden;
   background: var(--screen);
   color: var(--room);
-  border-color: var(--screen);
+  font: inherit;
+  font-size: var(--step-0);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
 }
 
-/* "Skipped the intro": where the skip button would have been, briefly. */
+.skip-pill .skip-pill-skip {
+  padding: 0 26px;
+  border-radius: 999px;
+}
+
+.skip-pill.counting .skip-pill-skip {
+  padding: 0 18px 0 22px;
+  border-radius: 999px 0 0 999px;
+}
+
+/* The countdown's fill: a tint of the room running across the white, moving on with each timeupdate. */
+.skip-pill .skip-pill-skip::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--fill, 0%);
+  background: color-mix(in srgb, var(--room) 16%, transparent);
+  transition: width 0.3s linear;
+}
+
+.skip-pill:not(.counting) .skip-pill-skip::before {
+  display: none;
+}
+
+.skip-pill-label {
+  position: relative;
+}
+
+.skip-pill .skip-pill-cancel {
+  width: 46px;
+  padding: 0 4px 0 0;
+  border-radius: 0 999px 999px 0;
+  background: color-mix(in srgb, var(--aisle) 85%, transparent);
+  color: var(--screen);
+}
+
+.skip-pill .skip-pill-cancel svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* The half you're on is white with dark content, the other grey. */
+.skip-pill .skip-pill-cancel:is(:hover, :focus-visible) {
+  background: var(--screen);
+  color: var(--room);
+}
+
+.skip-pill:has(.skip-pill-cancel:is(:hover, :focus-visible)) .skip-pill-skip:not(:focus-visible) {
+  background: color-mix(in srgb, var(--aisle) 85%, transparent);
+  color: var(--screen);
+}
+
+/* A brief notice where the skip pill would be. */
 .player-notice {
   position: absolute;
   right: var(--edge);
@@ -687,7 +744,7 @@
     width: 120px;
   }
 
-  .skip-button,
+  .skip-pill,
   .up-next {
     bottom: 120px;
   }
