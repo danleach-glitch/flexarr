@@ -1052,8 +1052,9 @@ final class AppModel {
         #if DEBUG
         if skipsProfileChoice { needsProfileChoice = false }
         #endif
-        // Siri learns the library's titles from the signed-in server, so "play the next <show>" is understood.
-        if !needsProfileChoice { FlexarrShortcuts.updateAppShortcutParameters() }
+        #if !os(tvOS)
+        if !needsProfileChoice { teachSiriTitles() }
+        #endif
         Task { await refreshRemoteAddress() }
     }
 
@@ -1361,6 +1362,20 @@ final class AppModel {
         }
         player.play(itemId: item.id, preview: item, startAt: fromBeginning ? 0 : nil, client: client, from: from)
     }
+
+    #if !os(tvOS)
+    /// Siri learns the library's titles from the signed-in server, so "play the next <show>" is understood. Only when
+    /// the server or profile changed, or a day on: each time, the system reads up to 600 titles again, which is heavy.
+    private func teachSiriTitles() {
+        let who = "\(credentials?.address.absoluteString ?? "")#\(currentProfile?.id ?? "")"
+        let defaults = UserDefaults.standard
+        if defaults.string(forKey: "siriTitlesFor") == who, let at = defaults.object(forKey: "siriTitlesAt") as? Date,
+           Date().timeIntervalSince(at) < 24 * 60 * 60 { return }
+        defaults.set(who, forKey: "siriTitlesFor")
+        defaults.set(Date(), forKey: "siriTitlesAt")
+        FlexarrShortcuts.updateAppShortcutParameters()
+    }
+    #endif
 
     /// Back in front: the connection to the server is set up again before Play needs it (docs/fast-start.md).
     func warmConnection() {
