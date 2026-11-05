@@ -290,11 +290,14 @@ final class PlayerViewController: UIViewController {
 
     func setPrompt(_ title: String?, symbol: String = "forward.fill", countingDown: Bool, widest: String? = nil, takesFocus: Bool = true) {
         let focusChanged = controls.promptTakesFocus != takesFocus
+        // A pill coming up mid-play, over the picture alone: focus moves to it, so Select presses it. (Asking the
+        // controls alone did nothing, focus being on the picture outside them.)
+        let appeared = !controls.promptShown && title != nil && takesFocus && !controlsVisible
         controls.setPrompt(title, symbol: symbol, countingDown: countingDown, widest: widest, takesFocus: takesFocus)
         countingDownToNext = countingDown
         updateIdleTimer()
         #if os(tvOS)
-        if focusChanged { setNeedsFocusUpdate(); updateFocusIfNeeded() }
+        if focusChanged || appeared { setNeedsFocusUpdate(); updateFocusIfNeeded() }
         #endif
 
     }
