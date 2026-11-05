@@ -634,17 +634,21 @@ final class PlayerViewController: UIViewController {
         case .off: break
         }
         if scan != nil { return endScan(commit: false) }
-        if controls.scrubber.cancelScrubIfNeeded() { return }
+        // A scrub that went somewhere: Back puts the head back. A thumb resting on the clickpad starts a "scrub" that
+        // hasn't moved; that one mustn't keep Back from leaving.
+        if controls.scrubber.isScrubbing {
+            let moved = abs(controls.scrubber.scrubPosition - (transport?.currentTime ?? controls.scrubber.scrubPosition)) > 2
+            controls.scrubber.cancelScrubIfNeeded()
+            if moved { return }
+        }
         if audioSyncOpen { return closeAudioSync() }
-        // Counting down (Skip intro, Next Episode): Back cancels it and the pill goes, before anything else.
+        // Counting down (Skip intro, Next Episode): Back cancels it and the pill goes.
         if countingDownToNext {
             delegate?.playerScreenCancelNext(self)
             return
         }
-        if controlsVisible {
-            hideControls()
-            return
-        }
+        // Otherwise Back leaves, controls up or not, as it always has (a thumb on the clickpad keeps bringing them
+        // back, so hiding them first left no way out).
         close()
     }
 
