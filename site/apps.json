@@ -49,7 +49,7 @@
       "name": "Mac",
       "icon": "apple",
       "status": "available",
-      "version": "0.61.0",
+      "version": "0.62.1",
       "summary": "Your libraries in a Mac window, a full-screen player with Picture in Picture and AirPlay, and downloads for away from home.",
       "links": [
         { "label": "Download for Mac", "href": "https://github.com/danleach-glitch/flexarr/releases/latest/download/Flexarr.dmg", "primary": true, "icon": "laptop" },
