@@ -8,5 +8,6 @@ dev
 .git
 .github
 docs
-# The Next Episode test cases the web build type-checks (frontend/src/lib/upNext.test.ts).
-!docs/next-episode-timing.json
+# The shared test cases the web build type-checks along with its tests (docs/next-episode-timing.json,
+# docs/skip-timing.json, and any added beside them).
+!docs/*.json
