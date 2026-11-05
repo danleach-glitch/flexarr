@@ -5,7 +5,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Apple TV
-- The Apple TV no longer wakes to a black screen that won't respond. Flexarr was teaching the Apple TV's Siri every title in your library, which used up so much of its memory that the whole box stalled until tvOS freed some. Siri on the Apple TV doesn't take Flexarr phrases, so the TV app no longer does this.
+- The Apple TV no longer wakes to a black screen that won't respond. Flexarr was teaching the Apple TV's Siri every title in your library, which used up so much of its memory that the whole box stalled until tvOS freed some. The TV app no longer does this, so "Play … in Flexarr" is for Siri on your iPhone, iPad or Mac.
 
 ### iPhone and iPad
 - Siri relearns your library's titles once a day, or when you switch server or profile, rather than each time Flexarr opens.
