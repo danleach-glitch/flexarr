@@ -7,7 +7,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -96,13 +97,20 @@ internal fun FadingPrompt(
 // Next episode shows ▶▶, as on Apple; Skip intro and recap their skip-ahead.
 private fun promptIcon(skip: Boolean): ImageVector = if (skip) Icons.Filled.SkipNext else Icons.Filled.FastForward
 
-/** The countdown's fill across the left half: a tint of the room, moving on smoothly between the player's ticks. */
+/**
+ * The countdown's fill: white sweeping across the grey half, moving on smoothly between the player's ticks. It draws
+ * its content (a dark copy of the label) only where the white has reached.
+ */
 @Composable
-private fun Modifier.countdownFill(progress: Float?): Modifier {
-    val fill by animateFloatAsState(progress ?: 0f, tween(300, easing = LinearEasing), label = "fill")
-    if (progress == null) return this
-    val tint = Flexarr.room.copy(alpha = 0.16f)
-    return drawBehind { drawRect(tint, size = size.copy(width = size.width * fill)) }
+private fun Modifier.fillReveal(progress: Float): Modifier {
+    val fill by animateFloatAsState(progress, tween(300, easing = LinearEasing), label = "fill")
+    val white = Flexarr.screen
+    return drawWithContent {
+        clipRect(right = size.width * fill) {
+            drawRect(white)
+            this@drawWithContent.drawContent()
+        }
+    }
 }
 
 /** The Next half's shape: a capsule by itself, its left end only with the X beside it. */
@@ -127,17 +135,26 @@ private fun PromptLabel(title: String, hold: String?, color: Color, fontSize: Te
 internal fun PromptPill(look: PromptLook, progress: Float?, onTap: () -> Unit, onCancel: () -> Unit) {
     val countingDown = look.countingDown
     // Both halves as tall as the taller (the label's), so they meet as one pill.
+    val inner: @Composable (Color) -> Unit = { tint ->
+        Icon(promptIcon(look.skip), contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+        PromptLabel(look.title, look.hold, tint, 14.sp)
+    }
     Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(
+        // Counting down, the half rests grey and fills with white; otherwise it's white.
+        Box(
             // Taps land up to 8dp above and below the pill, so it's easy to hit while staying compact.
             Modifier.fillMaxHeight().pressable(onTap).padding(vertical = 8.dp).clip(nextShape(countingDown))
-                .background(Flexarr.screen.copy(alpha = 0.95f)).countdownFill(progress.takeIf { countingDown })
-                .padding(horizontal = 13.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .background(if (countingDown) restingFill else Flexarr.screen.copy(alpha = 0.95f)),
         ) {
-            Icon(promptIcon(look.skip), contentDescription = null, tint = Flexarr.room, modifier = Modifier.size(14.dp))
-            PromptLabel(look.title, look.hold, Flexarr.room, 14.sp)
+            val row = Modifier.padding(horizontal = 13.dp, vertical = 8.dp)
+            Row(row, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                inner(if (countingDown) Flexarr.screen else Flexarr.room)
+            }
+            if (countingDown && progress != null) {
+                Row(Modifier.matchParentSize().fillReveal(progress).then(row), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    inner(Flexarr.room)
+                }
+            }
         }
         if (countingDown) {
             Box(
@@ -160,17 +177,27 @@ private fun TvPromptHalf(onClick: () -> Unit, shape: RoundedCornerShape, modifie
         onClick = onClick,
         modifier = modifier.fillMaxHeight(),
         shape = ClickableSurfaceDefaults.shape(shape),
+        // Counting down, the half rests grey and fills with white, a lighter grey showing focus; otherwise the focused
+        // half is white.
         colors = ClickableSurfaceDefaults.colors(
             containerColor = restingFill,
-            focusedContainerColor = Flexarr.screen,
-            pressedContainerColor = Flexarr.screen,
+            focusedContainerColor = if (progress != null) Flexarr.screen.copy(alpha = 0.32f) else Flexarr.screen,
+            pressedContainerColor = if (progress != null) Flexarr.screen.copy(alpha = 0.32f) else Flexarr.screen,
         ),
         // The halves sit 2dp apart: grown on focus, one would cover the gap.
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 0.97f),
         interactionSource = source,
     ) {
-        Row(Modifier.fillMaxHeight().countdownFill(progress).padding(start = start, end = end), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-            content(if (focused) Flexarr.room else Flexarr.screen)
+        Box(Modifier.fillMaxHeight()) {
+            val row = Modifier.fillMaxHeight().padding(start = start, end = end)
+            Row(row, horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
+                content(if (focused && progress == null) Flexarr.room else Flexarr.screen)
+            }
+            if (progress != null) {
+                Row(Modifier.matchParentSize().fillReveal(progress).then(row), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
+                    content(Flexarr.room)
+                }
+            }
         }
     }
 }

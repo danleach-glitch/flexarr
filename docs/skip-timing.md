@@ -5,7 +5,8 @@ Every player (Apple TV, iPhone, Mac, Android, Android TV, the web) follows these
 off, nothing changes: a plain *Skip intro* (or *Skip recap*) button shows inside the marker, as before.
 
 Instead of jumping without warning, the player counts down first in the split pill Next Episode uses:
-**Skip intro in 3 | ✕** (or **Skip recap in 5 | ✕**). A fill runs across the pill's left half as it counts. Pressing
+**Skip intro in 3 | ✕** (or **Skip recap in 5 | ✕**). The pill's left half rests grey with light words and fills with
+white as it counts, the words dark where the white has reached (on a TV, the focused half is a lighter grey). Pressing
 the pill skips now; **✕** (Cancel) puts the pill away and lets the intro play.
 
 | Marker | Countdown | Runs from | Skips at |

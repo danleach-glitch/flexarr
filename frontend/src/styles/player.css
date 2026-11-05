@@ -412,22 +412,29 @@
   border-radius: 999px 0 0 999px;
 }
 
-/* The countdown's fill: a tint of the room running across the white, moving on with each timeupdate. */
-.skip-pill .skip-pill-skip::before {
-  content: '';
+/* Counting down, the pill rests grey and fills with white (.pill-fill), moving on with each timeupdate. */
+.skip-pill.counting .skip-pill-skip {
+  background: color-mix(in srgb, var(--aisle) 85%, transparent);
+  color: var(--screen);
+}
+
+.skip-pill .pill-fill {
+  padding: 0 18px 0 22px;
+  transition: clip-path 0.3s linear;
+}
+
+/* The fill over a counting pill: white with dark words, clipped to how far the countdown has run. It lays its copy of
+   the label out as the button does, so the two line up. */
+.pill-fill {
   position: absolute;
-  inset: 0 auto 0 0;
-  width: var(--fill, 0%);
-  background: color-mix(in srgb, var(--room) 16%, transparent);
-  transition: width 0.3s linear;
-}
-
-.skip-pill:not(.counting) .skip-pill-skip::before {
-  display: none;
-}
-
-.skip-pill-label {
-  position: relative;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--screen);
+  color: var(--room);
+  clip-path: inset(0 calc(100% - var(--fill, 0%)) 0 0);
+  pointer-events: none;
 }
 
 .skip-pill .skip-pill-cancel {
@@ -577,19 +584,20 @@
   border-radius: 999px 0 0 999px;
 }
 
-/* The countdown's fill, as on the skip pill: a tint of the room running across the white, a second at a time. */
+/* Counting down, as the skip pill: grey filling with white, a second at a time. */
 .up-next-pill .up-next-play {
   position: relative;
   overflow: hidden;
 }
 
-.up-next-pill.counting .up-next-play::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: var(--fill, 0%);
-  background: color-mix(in srgb, var(--room) 16%, transparent);
-  transition: width 1s linear;
+.up-next-pill.counting .up-next-play {
+  background: color-mix(in srgb, var(--aisle) 85%, transparent);
+  color: var(--screen);
+}
+
+.up-next-pill .pill-fill {
+  padding: 0 14px;
+  transition: clip-path 1s linear;
 }
 
 .up-next-play-label {

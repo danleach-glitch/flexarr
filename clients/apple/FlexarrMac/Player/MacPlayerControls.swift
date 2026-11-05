@@ -203,17 +203,25 @@ struct MacPlayerControls: View {
         if let prompt = state.prompt {
             HStack(spacing: 0) {
                 Button { screen?.promptTapped() } label: {
-                    Label(prompt.title, systemImage: prompt.symbol)
+                    let label = Label(prompt.title, systemImage: prompt.symbol)
                         .font(.callout.weight(.semibold)).monospacedDigit()
                         .padding(.horizontal, 16).padding(.vertical, 9)
-                        .foregroundStyle(Color.room)
-                        .background {
-                            // The countdown's fill, a tint of the room running across the white.
-                            GeometryReader { geometry in
-                                Color.room.opacity(0.16).frame(width: geometry.size.width * (state.promptProgress ?? 0))
+                    // Counting down, the pill rests grey and fills with white, the words dark where the white has reached.
+                    label
+                        .foregroundStyle(prompt.countingDown ? Color.screen : Color.room)
+                        .background(prompt.countingDown ? Color.aisle.opacity(0.85) : Color.screen.opacity(0.95))
+                        .overlay(alignment: .leading) {
+                            if prompt.countingDown {
+                                GeometryReader { geometry in
+                                    label.foregroundStyle(Color.room)
+                                        .frame(width: geometry.size.width, height: geometry.size.height)
+                                        .background(Color.screen)
+                                        .mask(alignment: .leading) {
+                                            Rectangle().frame(width: geometry.size.width * (state.promptProgress ?? 0))
+                                        }
+                                }
                             }
                         }
-                        .background(Color.screen.opacity(0.95))
                         .clipShape(UnevenRoundedRectangle(topLeadingRadius: Radius.panel, bottomLeadingRadius: Radius.panel,
                                                           bottomTrailingRadius: prompt.countingDown ? 0 : Radius.panel,
                                                           topTrailingRadius: prompt.countingDown ? 0 : Radius.panel))

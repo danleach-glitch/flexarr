@@ -203,6 +203,8 @@ final class PlayerControlsView: UIView {
                 promptButton.layoutIfNeeded()
             }
         }
+        promptCounting = countingDown && title != nil
+        updatePromptCover()
         if title == nil || !countingDown {
             promptWidthHold?.isActive = false
             promptWidthHold = nil
@@ -213,6 +215,7 @@ final class PlayerControlsView: UIView {
             : [.layerMinXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMinYCorner, .layerMaxXMaxYCorner]
         UIView.animate(withDuration: 0.2) {
             self.promptButton.alpha = title == nil ? 0 : 1
+            self.promptCover.alpha = title == nil ? 0 : 1
             self.cancelButton.alpha = countingDown ? 1 : 0
         }
         promptButton.isUserInteractionEnabled = title != nil
@@ -225,32 +228,103 @@ final class PlayerControlsView: UIView {
     /// The countdown's fill across the pill, 0...1 (nil: none). It moves on with each tick, linearly, so it runs smoothly
     /// while playing and holds when paused.
     func setPromptProgress(_ progress: Double?) {
+        layoutPromptCover()
         guard let progress else {
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
+            promptFill.layer.removeAllAnimations()
             promptFill.frame.size.width = 0
-            promptFill.isHidden = true
-            CATransaction.commit()
             return
         }
-        let bounds = promptButton.bounds
-        let wasHidden = promptFill.isHidden
-        CATransaction.begin()
-        CATransaction.setDisableActions(wasHidden)
-        CATransaction.setAnimationDuration(0.3)
-        CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .linear))
-        promptFill.isHidden = false
-        promptFill.frame = CGRect(x: 0, y: 0, width: bounds.width * min(1, max(0, progress)), height: bounds.height)
-        CATransaction.commit()
+        let bounds = promptCover.bounds
+        let target = CGRect(x: 0, y: 0, width: bounds.width * min(1, max(0, progress)), height: bounds.height)
+        if promptFill.frame.width == 0 {
+            promptFill.frame = target
+            return
+        }
+        UIView.animate(withDuration: 0.3, delay: 0, options: [.curveLinear, .beginFromCurrentState, .allowUserInteraction]) {
+            self.promptFill.frame = target
+        }
     }
 
-    /// The countdown's fill, over the pill's left half: a tint of the room, so it reads on white and on grey.
-    private let promptFill: CALayer = {
-        let layer = CALayer()
-        layer.backgroundColor = UIColor(Color.room).withAlphaComponent(0.16).cgColor
-        layer.isHidden = true
-        return layer
+    /// Counting down, the pill rests grey with light words and fills with white, the words dark where the white has
+    /// reached. A cover drawn over the button does it, so the button underneath only takes focus and presses (tvOS draws
+    /// a focused button's own white platter over any colours given it). On a TV the focused half is a lighter grey then.
+    private var promptCounting = false
+    private let promptCover: UIView = {
+        let view = UIView()
+        view.clipsToBounds = true
+        view.isUserInteractionEnabled = false
+        view.isAccessibilityElement = false
+        view.isHidden = true
+        view.alpha = 0
+        return view
     }()
+    private let promptCoverLabel = PlayerControlsView.coverLabel()
+    private let promptFill: UIView = {
+        let view = UIView()
+        view.clipsToBounds = true
+        view.backgroundColor = UIColor(Color.screen)
+        return view
+    }()
+    private let promptFillLabel = PlayerControlsView.coverLabel()
+
+    private static func coverLabel() -> UIButton {
+        let button = UIButton(configuration: .filled())
+        button.isUserInteractionEnabled = false
+        button.isAccessibilityElement = false
+        return button
+    }
+
+    /// The cover's two copies of the pill's label: light on grey, and dark on the white fill.
+    private func updatePromptCover() {
+        promptCover.isHidden = !promptCounting
+        guard promptCounting, let configuration = promptButton.configuration else { return }
+        #if os(tvOS)
+        let focused = promptButton.isFocused
+        #else
+        let focused = false
+        #endif
+        let grey = UIColor(Color.aisle).withAlphaComponent(0.85)
+        let base = focused ? Self.blend(UIColor(Color.aisle), UIColor(Color.screen), 0.3) : grey
+        promptCoverLabel.configuration = Self.cover(configuration, background: base, foreground: UIColor(Color.screen))
+        promptFillLabel.configuration = Self.cover(configuration, background: UIColor(Color.screen), foreground: UIColor(Color.room))
+        layoutPromptCover()
+    }
+
+    private func layoutPromptCover() {
+        guard promptCounting else { return }
+        // Just shown: lay it out first, or its copies are drawn at the size it had before.
+        promptRow?.layoutIfNeeded()
+        let bounds = promptCover.bounds
+        promptCoverLabel.frame = bounds
+        promptFillLabel.frame = bounds
+        promptFill.frame.size.height = bounds.height
+        promptCover.layer.cornerRadius = bounds.height / 2
+        promptCover.layer.maskedCorners = promptButton.layer.maskedCorners
+    }
+
+    private static func cover(_ configuration: UIButton.Configuration, background: UIColor, foreground: UIColor) -> UIButton.Configuration {
+        var copy = configuration
+        copy.baseBackgroundColor = background
+        copy.background.backgroundColor = background
+        copy.baseForegroundColor = foreground
+        copy.imageColorTransformer = UIConfigurationColorTransformer { _ in foreground }
+        let font = configuration.titleTextAttributesTransformer
+        copy.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+            var attributes = font?(attributes) ?? attributes
+            attributes.foregroundColor = foreground
+            return attributes
+        }
+        return copy
+    }
+
+    /// `a` taken `amount` of the way towards `b`, opaque.
+    private static func blend(_ a: UIColor, _ b: UIColor, _ amount: CGFloat) -> UIColor {
+        var (r1, g1, b1, a1): (CGFloat, CGFloat, CGFloat, CGFloat) = (0, 0, 0, 0)
+        var (r2, g2, b2, a2): (CGFloat, CGFloat, CGFloat, CGFloat) = (0, 0, 0, 0)
+        a.getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+        b.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+        return UIColor(red: r1 + (r2 - r1) * amount, green: g1 + (g2 - g1) * amount, blue: b1 + (b2 - b1) * amount, alpha: 1)
+    }
 
     var promptShown: Bool { promptButton.alpha > 0 }
     private var promptWidthHold: NSLayoutConstraint?
@@ -361,7 +435,19 @@ final class PlayerControlsView: UIView {
         cancelButton.alpha = 0
         cancelButton.isHidden = true
         promptButton.clipsToBounds = true
-        promptButton.layer.addSublayer(promptFill)
+        // The countdown's cover sits over the Next half (not inside it: the button redraws its own layers over anything
+        // added to it), following its frame.
+        promptCover.addSubview(promptCoverLabel)
+        promptFill.addSubview(promptFillLabel)
+        promptCover.addSubview(promptFill)
+        prompts.addSubview(promptCover)
+        promptCover.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            promptCover.leadingAnchor.constraint(equalTo: promptButton.leadingAnchor),
+            promptCover.trailingAnchor.constraint(equalTo: promptButton.trailingAnchor),
+            promptCover.topAnchor.constraint(equalTo: promptButton.topAnchor),
+            promptCover.bottomAnchor.constraint(equalTo: promptButton.bottomAnchor),
+        ])
         cancelButton.clipsToBounds = true
         promptButton.isUserInteractionEnabled = false
         cancelButton.isUserInteractionEnabled = false
@@ -372,6 +458,7 @@ final class PlayerControlsView: UIView {
         previousButton.addAction(UIAction { [weak self] _ in self?.onPrevious?() }, for: .primaryActionTriggered)
         nextButton.addAction(UIAction { [weak self] _ in self?.onNext?() }, for: .primaryActionTriggered)
         promptButton.addAction(UIAction { [weak self] _ in self?.onPrompt?() }, for: .primaryActionTriggered)
+        (promptButton as? PillButton)?.onUpdate = { [weak self] in self?.updatePromptCover() }
         cancelButton.addAction(UIAction { [weak self] _ in self?.onCancel?() }, for: .primaryActionTriggered)
         channelsButton.addAction(UIAction { [weak self] _ in self?.onChannels?() }, for: .primaryActionTriggered)
         channelsButton.accessibilityLabel = t("Channels")
@@ -757,10 +844,14 @@ final class GradientView: UIView {
 final class PillButton: UIButton {
     /// On Apple TV each half shows whether it has focus, as the system's buttons do: white with dark text when focused,
     /// grey with light text when not. On a phone, Next Episode is white and its X grey.
+    /// Told after each configuration update (focus coming or going), so a cover over the button can follow it.
+    var onUpdate: (() -> Void)?
+
     static func focusable(_ configuration: UIButton.Configuration) -> PillButton {
         let button = PillButton(configuration: configuration)
         #if os(tvOS)
         button.configurationUpdateHandler = { button in
+            defer { (button as? PillButton)?.onUpdate?() }
             guard var configuration = button.configuration else { return }
             configuration.baseBackgroundColor = button.isFocused ? UIColor(Color.screen) : UIColor(Color.aisle).withAlphaComponent(0.85)
             configuration.baseForegroundColor = button.isFocused ? UIColor(Color.room) : UIColor(Color.screen)

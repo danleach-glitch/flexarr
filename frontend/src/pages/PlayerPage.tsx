@@ -911,6 +911,13 @@ export function PlayerPage() {
   const credits = info?.markers.find((m) => m.type === 'Credits')
   const skipCounting = skipShown.counting
   const skippable = skipCounting?.marker ?? skipShown.button
+  const skipLabel = skipCounting
+    ? skippable?.type === 'Recap'
+      ? t(Words.skipRecapIn, { seconds: skipCounting.left })
+      : t(Words.skipIntroIn, { seconds: skipCounting.left })
+    : skippable?.type === 'Recap'
+      ? t(Words.skipRecap)
+      : t(Words.skipIntro)
   // Waiting for the end means the credits, or the very end without them, at the speed it's playing.
   const sleepEnd = credits?.start ?? duration
   const sleepLeft = secondsLeft(sleep, clock, duration > 0 ? Math.max(0, (sleepEnd - time) / speed) : Infinity)
@@ -1436,15 +1443,13 @@ export function PlayerPage() {
             autoFocus
             style={{ '--fill': `${(skipCounting?.progress ?? 0) * 100}%` } as CSSProperties}
           >
-            <span className="skip-pill-label">
-              {skipCounting
-                ? skippable.type === 'Recap'
-                  ? t(Words.skipRecapIn, { seconds: skipCounting.left })
-                  : t(Words.skipIntroIn, { seconds: skipCounting.left })
-                : skippable.type === 'Recap'
-                  ? t(Words.skipRecap)
-                  : t(Words.skipIntro)}
-            </span>
+            <span className="skip-pill-label">{skipLabel}</span>
+            {/* The fill: white sweeping across the grey, with the words dark where it has reached. */}
+            {skipCounting && (
+              <span className="pill-fill" aria-hidden="true">
+                <span className="skip-pill-label">{skipLabel}</span>
+              </span>
+            )}
           </button>
           {skipCounting && (
             <button className="skip-pill-cancel" onClick={cancelSkip} aria-label={t(Words.cancel)}>
@@ -1486,6 +1491,13 @@ export function PlayerPage() {
                 <span className="up-next-play-label">
                   <icon.play /> {t('Play now')}
                 </span>
+                {counting && (
+                  <span className="pill-fill" aria-hidden="true">
+                    <span className="up-next-play-label">
+                      <icon.play /> {t('Play now')}
+                    </span>
+                  </span>
+                )}
               </button>
               {counting && (
                 <button className="up-next-cancel" onClick={cancelUpNext} aria-label={t(Words.cancel)}>
