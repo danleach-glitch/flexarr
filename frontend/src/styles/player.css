@@ -577,6 +577,28 @@
   border-radius: 999px 0 0 999px;
 }
 
+/* The countdown's fill, as on the skip pill: a tint of the room running across the white, a second at a time. */
+.up-next-pill .up-next-play {
+  position: relative;
+  overflow: hidden;
+}
+
+.up-next-pill.counting .up-next-play::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--fill, 0%);
+  background: color-mix(in srgb, var(--room) 16%, transparent);
+  transition: width 1s linear;
+}
+
+.up-next-play-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .up-next-pill .up-next-cancel {
   width: 40px;
   padding: 0 4px 0 0;

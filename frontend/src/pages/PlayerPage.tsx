@@ -1478,8 +1478,14 @@ export function PlayerPage() {
             </strong>
             {/* One split pill: Play now and, while counting down, its X. Each half is its own button. */}
             <div className={counting ? 'up-next-pill counting' : 'up-next-pill'}>
-              <button className="up-next-play" onClick={moveOn}>
-                <icon.play /> {t('Play now')}
+              <button
+                className="up-next-play"
+                onClick={moveOn}
+                style={counting ? ({ '--fill': `${((NEXT_EPISODE_COUNTDOWN_SECONDS - countdown) / NEXT_EPISODE_COUNTDOWN_SECONDS) * 100}%` } as CSSProperties) : undefined}
+              >
+                <span className="up-next-play-label">
+                  <icon.play /> {t('Play now')}
+                </span>
               </button>
               {counting && (
                 <button className="up-next-cancel" onClick={cancelUpNext} aria-label={t(Words.cancel)}>
