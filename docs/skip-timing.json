@@ -1,0 +1,38 @@
+{
+  "about": "Test cases for SkipTiming (docs/skip-timing.md). FlexarrKit, Android core and the web all test against this file. timing: SkipTiming.of(marker); landing: SkipTiming.landing(marker, at); countdown: seconds left on SkipTiming.of(marker) at a time (null before it runs, 0 when it's time to skip); chain: where skipping markers[skipping] lands. expect null means no countdown.",
+  "timing": [
+    { "name": "Intro mid-episode: 3s before it", "type": "Intro", "start": 120, "end": 180, "expect": { "countdownFrom": 117, "skipAt": 120 } },
+    { "name": "Recap mid-episode: 5s before it", "type": "Recap", "start": 30, "end": 90, "expect": { "countdownFrom": 25, "skipAt": 30 } },
+    { "name": "Recap at the start: counts 0 to 5", "type": "Recap", "start": 0, "end": 60, "expect": { "countdownFrom": 0, "skipAt": 5 } },
+    { "name": "Intro at 1s: counts 0 to 3", "type": "Intro", "start": 1, "end": 40, "expect": { "countdownFrom": 0, "skipAt": 3 } },
+    { "name": "Intro exactly 3s in", "type": "Intro", "start": 3, "end": 40, "expect": { "countdownFrom": 0, "skipAt": 3 } },
+    { "name": "Short recap at the start: no room after the countdown", "type": "Recap", "start": 0, "end": 6, "expect": null },
+    { "name": "Short recap at the start with just enough room", "type": "Recap", "start": 0, "end": 7, "expect": { "countdownFrom": 0, "skipAt": 5 } },
+    { "name": "A 1-second intro: no countdown", "type": "Intro", "start": 200, "end": 201, "expect": null },
+    { "name": "Unknown marker types never count down", "type": "Credits", "start": 2800, "end": 2900, "expect": null }
+  ],
+  "landing": [
+    { "name": "Resumed mid-intro: 3s from there", "type": "Intro", "start": 120, "end": 180, "at": 150, "expect": { "countdownFrom": 150, "skipAt": 153 } },
+    { "name": "Resumed mid-recap: 5s from there", "type": "Recap", "start": 0, "end": 60, "at": 20, "expect": { "countdownFrom": 20, "skipAt": 25 } },
+    { "name": "Landed near the intro's end: no room", "type": "Intro", "start": 120, "end": 180, "at": 176, "expect": null },
+    { "name": "Landed with just enough room", "type": "Intro", "start": 120, "end": 180, "at": 175, "expect": { "countdownFrom": 175, "skipAt": 178 } },
+    { "name": "Outside the marker: nothing", "type": "Intro", "start": 120, "end": 180, "at": 181, "expect": null }
+  ],
+  "countdown": [
+    { "name": "Before it runs", "type": "Intro", "start": 120, "end": 180, "at": 116.9, "expect": null },
+    { "name": "As it starts", "type": "Intro", "start": 120, "end": 180, "at": 117, "expect": 3 },
+    { "name": "Partway", "type": "Intro", "start": 120, "end": 180, "at": 118.2, "expect": 2 },
+    { "name": "Last second", "type": "Intro", "start": 120, "end": 180, "at": 119.5, "expect": 1 },
+    { "name": "Time to skip", "type": "Intro", "start": 120, "end": 180, "at": 120, "expect": 0 },
+    { "name": "Recap at the start, first frame", "type": "Recap", "start": 0, "end": 60, "at": 0, "expect": 5 },
+    { "name": "No countdown for a short marker", "type": "Recap", "start": 0, "end": 6, "at": 1, "expect": null }
+  ],
+  "chain": [
+    { "name": "Recap straight into an intro, both on: past both", "markers": [{ "type": "Recap", "start": 0, "end": 60 }, { "type": "Intro", "start": 60, "end": 90 }], "skipping": 0, "skipIntros": true, "skipRecaps": true, "expect": 90 },
+    { "name": "Within a second counts as straight into", "markers": [{ "type": "Recap", "start": 0, "end": 60 }, { "type": "Intro", "start": 60.8, "end": 90 }], "skipping": 0, "skipIntros": true, "skipRecaps": true, "expect": 90 },
+    { "name": "Intro skipping off: stops at the recap's end", "markers": [{ "type": "Recap", "start": 0, "end": 60 }, { "type": "Intro", "start": 60, "end": 90 }], "skipping": 0, "skipIntros": false, "skipRecaps": true, "expect": 60 },
+    { "name": "A gap between them: stops at the recap's end", "markers": [{ "type": "Recap", "start": 0, "end": 60 }, { "type": "Intro", "start": 75, "end": 105 }], "skipping": 0, "skipIntros": true, "skipRecaps": true, "expect": 60 },
+    { "name": "Credits are never chained", "markers": [{ "type": "Intro", "start": 0, "end": 30 }, { "type": "Credits", "start": 30, "end": 60 }], "skipping": 0, "skipIntros": true, "skipRecaps": true, "expect": 30 },
+    { "name": "A plain press with the settings off still skips its own marker", "markers": [{ "type": "Intro", "start": 120, "end": 180 }], "skipping": 0, "skipIntros": false, "skipRecaps": false, "expect": 180 }
+  ]
+}
