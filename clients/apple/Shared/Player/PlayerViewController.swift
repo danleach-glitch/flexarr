@@ -621,6 +621,10 @@ final class PlayerViewController: UIViewController {
         showControls()
     }
 
+    private static func isEscapeKey(_ press: UIPress) -> Bool {
+        press.type != .menu && press.key?.keyCode == .keyboardEscape
+    }
+
     @objc private func backPressed() {
         guard presentedViewController == nil else { return }
         menuOpen = false
@@ -651,8 +655,11 @@ final class PlayerViewController: UIViewController {
             super.pressesBegan(presses, with: event)
             return
         }
-        // Back goes to `backPressed` (a gesture), including waking the screen or answering "Still watching?".
+        // Back goes to `backPressed` (a gesture), including waking the screen or answering "Still watching?". A
+        // keyboard's Esc (the simulator, a Bluetooth keyboard) comes as a key rather than the remote's Back, which the
+        // gesture doesn't see: it's Back too.
         if presses.contains(where: { $0.type == .menu }) { return }
+        if presses.contains(where: Self.isEscapeKey) { return backPressed() }
         // An open menu takes the remote's presses for itself, so one reaching the player means none is open, whatever
         // the last word was: a menu that went without saying so mustn't keep the controls up for good.
         menuOpen = false
@@ -753,7 +760,9 @@ final class PlayerViewController: UIViewController {
         }
         // Back is the player's from the press's start (it cancels a countdown, hides the controls or closes): passed on
         // when let go, the system would close the player too, even after it cancelled a countdown.
-        if presses.contains(where: { $0.type == .menu }) { return }
+        if presses.contains(where: Self.isEscapeKey) { return }
+        // A Back press that ends here wasn't taken by the gesture (which cancels the press when it fires): it's ours.
+        if presses.contains(where: { $0.type == .menu }) { return backPressed() }
         for press in presses where press.type == .leftArrow || press.type == .rightArrow {
             // Let go before it became a hold: a click, which skips.
             if let holdTask {
