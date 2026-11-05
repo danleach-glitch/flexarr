@@ -10,6 +10,8 @@
   "trailer": "Trailer",
   "skipIntro": "Skip intro",
   "skipRecap": "Skip recap",
+  "skipIntroIn": "Skip intro in {seconds}",
+  "skipRecapIn": "Skip recap in {seconds}",
   "nextEpisodeIn": "Next episode in {seconds}",
   "autoPlayNext": "Auto-play the next episode",
   "autoPlayNextHelp": "The next episode starts after a 10-second countdown.",

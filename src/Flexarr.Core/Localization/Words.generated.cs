@@ -75,7 +75,9 @@ public static class Words
     public const string SkipCredits = "Skip credits";
     public const string SkipCreditsHelp = "Ends the episode as the credits start.";
     public const string SkipIntro = "Skip intro";
+    public const string SkipIntroIn = "Skip intro in {seconds}";
     public const string SkipRecap = "Skip recap";
+    public const string SkipRecapIn = "Skip recap in {seconds}";
     public const string SortAToZ = "A–Z";
     public const string StartOver = "Start over";
     public const string StopFollowing = "Stop following";
