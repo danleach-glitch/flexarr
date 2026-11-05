@@ -864,6 +864,9 @@ final class PlaybackController: NSObject {
                 if !isFinishing { beginFinishing(following: true) }
                 if countdown != left { countdown = left; updatePrompt() }
                 if left == 0 { advance(); return }
+                if let from = timing.countdownFrom, let at = timing.nextAt, at > from {
+                    screen?.setPromptProgress(min(1, max(0, (seconds - from) / (at - from))))
+                }
             }
         }
         if next != prompt {
@@ -1312,7 +1315,12 @@ final class PlaybackController: NSObject {
         }
         let counting = (isFinishing && countdown != nil) || skipCountingDown
         screen?.setPrompt(title, symbol: symbol, countingDown: counting, widest: widest, takesFocus: skipCountingDown || !nextCancelled)
-        if !counting { screen?.setPromptProgress(nil) }
+        if !counting {
+            screen?.setPromptProgress(nil)
+        } else if isFinishing, let countdown {
+            // Next Episode's fill, a second at a time (the tick moves it on more finely while the picture plays).
+            screen?.setPromptProgress(1 - Double(countdown) / Double(Self.countdownSeconds))
+        }
     }
 
     private func promptTapped() {
