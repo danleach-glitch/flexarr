@@ -19,6 +19,8 @@ final class MacPlayerState {
     var behindLive: Double = 0
     /// Next Episode, Skip intro, Back to live: the pill above the timeline.
     var prompt: (title: String, symbol: String, countingDown: Bool)?
+    /// How far the pill's countdown has run, 0...1, for its fill (nil: none).
+    var promptProgress: Double?
     var flash: String?
     var audioTracks: [TransportTrack] = []
     var activeAudio: String?
@@ -205,9 +207,16 @@ struct MacPlayerControls: View {
                         .font(.callout.weight(.semibold)).monospacedDigit()
                         .padding(.horizontal, 16).padding(.vertical, 9)
                         .foregroundStyle(Color.room)
-                        .background(Color.screen.opacity(0.95), in: UnevenRoundedRectangle(topLeadingRadius: Radius.panel, bottomLeadingRadius: Radius.panel,
-                                                                           bottomTrailingRadius: prompt.countingDown ? 0 : Radius.panel,
-                                                                           topTrailingRadius: prompt.countingDown ? 0 : Radius.panel))
+                        .background {
+                            // The countdown's fill, a tint of the room running across the white.
+                            GeometryReader { geometry in
+                                Color.room.opacity(0.16).frame(width: geometry.size.width * (state.promptProgress ?? 0))
+                            }
+                        }
+                        .background(Color.screen.opacity(0.95))
+                        .clipShape(UnevenRoundedRectangle(topLeadingRadius: Radius.panel, bottomLeadingRadius: Radius.panel,
+                                                          bottomTrailingRadius: prompt.countingDown ? 0 : Radius.panel,
+                                                          topTrailingRadius: prompt.countingDown ? 0 : Radius.panel))
                 }
                 if prompt.countingDown {
                     Button { screen?.cancelNext() } label: {
