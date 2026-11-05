@@ -278,14 +278,19 @@ final class PlayerViewController: UIViewController {
         phaseChanged(.loading)
     }
 
+    /// The countdown's fill across the pill (nil: none).
+    func setPromptProgress(_ progress: Double?) {
+        controls.setPromptProgress(progress)
+    }
+
     func setEpisodeNavigation(hasPrevious: Bool, hasNext: Bool) {
         controls.setEpisodeNavigation(hasPrevious: hasPrevious, hasNext: hasNext)
         nowPlaying.setEpisodeNavigation(hasPrevious: hasPrevious, hasNext: hasNext)
     }
 
-    func setPrompt(_ title: String?, symbol: String = "forward.fill", countingDown: Bool, takesFocus: Bool = true) {
+    func setPrompt(_ title: String?, symbol: String = "forward.fill", countingDown: Bool, widest: String? = nil, takesFocus: Bool = true) {
         let focusChanged = controls.promptTakesFocus != takesFocus
-        controls.setPrompt(title, symbol: symbol, countingDown: countingDown, takesFocus: takesFocus)
+        controls.setPrompt(title, symbol: symbol, countingDown: countingDown, widest: widest, takesFocus: takesFocus)
         countingDownToNext = countingDown
         updateIdleTimer()
         #if os(tvOS)

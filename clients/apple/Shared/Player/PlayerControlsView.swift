@@ -184,15 +184,16 @@ final class PlayerControlsView: UIView {
     }
 
     /// The pill above the timeline: Skip Intro, Next Episode (counting down), with Cancel beside it while counting.
-    /// `symbol` goes beside the title: forward.end.fill for a skip, the live symbol for Back to live.
-    func setPrompt(_ title: String?, symbol: String = "forward.fill", countingDown: Bool, takesFocus: Bool = true) {
+    /// `symbol` goes beside the title: forward.end.fill for a skip, the live symbol for Back to live. Counting down, the
+    /// pill keeps the width of `widest` (its title at the countdown's start).
+    func setPrompt(_ title: String?, symbol: String = "forward.fill", countingDown: Bool, widest: String? = nil, takesFocus: Bool = true) {
         promptTakesFocus = takesFocus
         if let title {
             UIView.performWithoutAnimation {
                 // Counting down, the pill keeps its "in 10" width, so it doesn't twitch as the number changes or goes.
                 if countingDown, promptWidthHold == nil {
-                    promptButton.configuration?.title = t(Words.nextEpisodeIn, ["seconds": 10])
-                    promptButton.configuration?.image = UIImage(systemName: "forward.fill")
+                    promptButton.configuration?.title = widest ?? t(Words.nextEpisodeIn, ["seconds": 10])
+                    promptButton.configuration?.image = UIImage(systemName: symbol)
                     let width = promptButton.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).width
                     promptWidthHold = promptButton.widthAnchor.constraint(greaterThanOrEqualToConstant: width)
                     promptWidthHold?.isActive = true
@@ -202,7 +203,7 @@ final class PlayerControlsView: UIView {
                 promptButton.layoutIfNeeded()
             }
         }
-        if title == nil {
+        if title == nil || !countingDown {
             promptWidthHold?.isActive = false
             promptWidthHold = nil
         }
@@ -220,6 +221,36 @@ final class PlayerControlsView: UIView {
         if title != nil, wasHidden { setNeedsFocusUpdate() }
         #endif
     }
+
+    /// The countdown's fill across the pill, 0...1 (nil: none). It moves on with each tick, linearly, so it runs smoothly
+    /// while playing and holds when paused.
+    func setPromptProgress(_ progress: Double?) {
+        guard let progress else {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            promptFill.frame.size.width = 0
+            promptFill.isHidden = true
+            CATransaction.commit()
+            return
+        }
+        let bounds = promptButton.bounds
+        let wasHidden = promptFill.isHidden
+        CATransaction.begin()
+        CATransaction.setDisableActions(wasHidden)
+        CATransaction.setAnimationDuration(0.3)
+        CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .linear))
+        promptFill.isHidden = false
+        promptFill.frame = CGRect(x: 0, y: 0, width: bounds.width * min(1, max(0, progress)), height: bounds.height)
+        CATransaction.commit()
+    }
+
+    /// The countdown's fill, over the pill's left half: a tint of the room, so it reads on white and on grey.
+    private let promptFill: CALayer = {
+        let layer = CALayer()
+        layer.backgroundColor = UIColor(Color.room).withAlphaComponent(0.16).cgColor
+        layer.isHidden = true
+        return layer
+    }()
 
     var promptShown: Bool { promptButton.alpha > 0 }
     private var promptWidthHold: NSLayoutConstraint?
@@ -330,6 +361,7 @@ final class PlayerControlsView: UIView {
         cancelButton.alpha = 0
         cancelButton.isHidden = true
         promptButton.clipsToBounds = true
+        promptButton.layer.addSublayer(promptFill)
         cancelButton.clipsToBounds = true
         promptButton.isUserInteractionEnabled = false
         cancelButton.isUserInteractionEnabled = false
