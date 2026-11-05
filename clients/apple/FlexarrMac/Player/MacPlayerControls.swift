@@ -19,6 +19,8 @@ final class MacPlayerState {
     var behindLive: Double = 0
     /// Next Episode, Skip intro, Back to live: the pill above the timeline.
     var prompt: (title: String, symbol: String, countingDown: Bool)?
+    /// How far the pill's countdown has run, 0...1, for its fill (nil: none).
+    var promptProgress: Double?
     var flash: String?
     var audioTracks: [TransportTrack] = []
     var activeAudio: String?
@@ -201,19 +203,34 @@ struct MacPlayerControls: View {
         if let prompt = state.prompt {
             HStack(spacing: 0) {
                 Button { screen?.promptTapped() } label: {
-                    Label(prompt.title, systemImage: prompt.symbol)
+                    let label = Label(prompt.title, systemImage: prompt.symbol)
                         .font(.callout.weight(.semibold)).monospacedDigit()
                         .padding(.horizontal, 16).padding(.vertical, 9)
-                        .foregroundStyle(Color.room)
-                        .background(Color.screen.opacity(0.95), in: UnevenRoundedRectangle(topLeadingRadius: Radius.panel, bottomLeadingRadius: Radius.panel,
-                                                                           bottomTrailingRadius: prompt.countingDown ? 0 : Radius.panel,
-                                                                           topTrailingRadius: prompt.countingDown ? 0 : Radius.panel))
+                    // Counting down, the pill rests grey and fills with white, the words dark where the white has reached.
+                    label
+                        .foregroundStyle(prompt.countingDown ? Color.screen : Color.room)
+                        .background(prompt.countingDown ? Color.aisle.opacity(0.85) : Color.screen.opacity(0.95))
+                        .overlay(alignment: .leading) {
+                            if prompt.countingDown {
+                                GeometryReader { geometry in
+                                    label.foregroundStyle(Color.room)
+                                        .frame(width: geometry.size.width, height: geometry.size.height)
+                                        .background(Color.screen)
+                                        .mask(alignment: .leading) {
+                                            Rectangle().frame(width: geometry.size.width * (state.promptProgress ?? 0))
+                                        }
+                                }
+                            }
+                        }
+                        .clipShape(UnevenRoundedRectangle(topLeadingRadius: Radius.panel, bottomLeadingRadius: Radius.panel,
+                                                          bottomTrailingRadius: prompt.countingDown ? 0 : Radius.panel,
+                                                          topTrailingRadius: prompt.countingDown ? 0 : Radius.panel))
                 }
                 if prompt.countingDown {
                     Button { screen?.cancelNext() } label: {
                         Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
                             .padding(.horizontal, 12).padding(.vertical, 12)
-                            .background(Color.aisle.opacity(0.85), in: UnevenRoundedRectangle(bottomTrailingRadius: Radius.panel, topTrailingRadius: Radius.panel))
+                            .background(Color.room.opacity(0.9), in: UnevenRoundedRectangle(bottomTrailingRadius: Radius.panel, topTrailingRadius: Radius.panel))
                     }
                     .accessibilityLabel(t(Words.cancel))
                 }

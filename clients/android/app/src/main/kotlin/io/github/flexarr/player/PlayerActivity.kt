@@ -427,9 +427,11 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
         FadingPrompt(
             controller.promptTitle?.takeIf { !asleep },
             controller.countingDown,
+            controller.promptWidest,
+            controller.promptIsSkip,
             Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(end = 24.dp, bottom = if (controlsVisible) 132.dp else 32.dp),
-        ) { title, countingDown, held ->
-            PromptPill(title, countingDown, held, onTap = controller::promptTapped, onCancel = controller::cancelNext)
+        ) { look ->
+            PromptPill(look, controller.promptProgress, onTap = controller::promptTapped, onCancel = controller::cancelNext)
         }
         SleepPrompt(controller.sleep)
         ShakeForSleep(controller.sleep)

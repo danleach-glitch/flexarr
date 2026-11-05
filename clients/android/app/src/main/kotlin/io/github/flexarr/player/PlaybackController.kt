@@ -37,7 +37,9 @@ import io.github.flexarr.data.PlayerSettings
 import io.github.flexarr.data.SoundSettings
 import io.github.flexarr.core.DeviceProfile
 import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.core.Marker
 import io.github.flexarr.core.MarkerType
+import io.github.flexarr.core.SkipTiming
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.PlaybackInfo
 import io.github.flexarr.core.PlaybackMethod
@@ -120,8 +122,23 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** What the pill above the timeline says (Skip Intro, Next Episode in 4), or null for nothing. */
     var promptTitle: String? by mutableStateOf(null)
         private set
-    /** Counting down to the next episode: Cancel shows beside the pill. */
+    /** Counting down (to the next episode, or to a skip): Cancel shows beside the pill. */
     var countingDown by mutableStateOf(false)
+        private set
+    /** The pill offers to skip an intro or recap (its icon), rather than the next episode. */
+    var promptIsSkip by mutableStateOf(false)
+        private set
+    /** Counting down, the pill's title at the countdown's start: it holds that width as the number changes. */
+    var promptWidest: String? by mutableStateOf(null)
+        private set
+    /** How far the countdown has run, 0..1, for the pill's fill (null: none). */
+    var promptProgress: Float? by mutableStateOf(null)
+        private set
+    /**
+     * On a TV, whether the pill takes focus (so OK presses it): a plain one does; a counting one doesn't until Up stops
+     * it ([holdCountdown]); Next Episode after Cancel doesn't.
+     */
+    var promptTakesFocus by mutableStateOf(true)
         private set
 
     // The menus' state.
@@ -169,7 +186,24 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     private var prompt: PlaybackPrompt = PlaybackPrompt.None
     private var preferences = PlaybackPreferences()
+    /** Intros and recaps already skipped (by themselves or the button): seeking back into one offers the plain button. */
     private val autoSkipped = mutableSetOf<String>()
+    /** Intros and recaps whose countdown was cancelled: nothing more for them this episode. */
+    private val skipCancelled = mutableSetOf<String>()
+    /** Countdowns started where a seek or resume landed inside a marker, by marker. */
+    private val skipLanded = mutableMapOf<String, SkipTiming>()
+    /** The intro or recap counting down to its skip now (docs/skip-timing.md), and the seconds left. */
+    private var skipCounting: Pair<Marker, SkipTiming>? = null
+    private var skipLeft: Int? = null
+    /** The intro or recap the pill offers to skip. */
+    private var promptMarker: Marker? = null
+    /** Intros and recaps whose countdown was stopped with Up on a TV: the plain button stays up for them instead. */
+    private val skipHeld = mutableSetOf<String>()
+    /** A skip on its way to this position: the pill holds at 0 until the picture gets there, then goes. */
+    private var skipLanding: Pair<Double, Long>? = null
+    /** Next Episode's countdown stopped with Up on a TV (the plain button stays, focused), or cancelled with Back (it goes). */
+    private var nextHeld = false
+    private var nextHidden = false
     private var lastReport = 0L
     private var isFinishing = false
     /** On to the next episode: the pill goes as it is until the next one begins, rather than turning into "Next episode". */
@@ -562,12 +596,19 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         preferences = started.preferences ?: PlaybackPreferences()
         prompt = PlaybackPrompt.None
         movingOn = false
-        autoSkipped.clear()
+        skipCounting = null
+        skipLeft = null
         // The same title opened again (another audio track, a recovery, the converted stream): Cancel and the countdown
-        // hold for the rest of the episode.
+        // hold for the rest of the episode, and so do the intros skipped and cancelled.
         if (!sameTitle) {
+            autoSkipped.clear()
+            skipCancelled.clear()
+            skipLanded.clear()
             isFinishing = false
             nextCancelled = false
+            nextHeld = false
+            nextHidden = false
+            skipHeld.clear()
             landedPastNext = false
             countdown = null
         }
@@ -652,13 +693,40 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         if (player.duration > 0) duration = player.duration / 1000.0
         sleep.check(::untilEndOfEpisode)
         val baseTiming = nextTiming(info)
-        val next = PlaybackPrompt.at(seconds, info.markers, if (info.next != null) baseTiming else null, info.next != null)
-        // Skip intros and recaps by themselves when the profile asks, once each.
-        if (next is PlaybackPrompt.Skip && (if (next.type == MarkerType.Intro) preferences.skipIntros else preferences.skipRecaps) &&
-            autoSkipped.add("${next.type.raw}@${next.to}")
-        ) {
-            seekTo(next.to)
-            return
+        // A skip landing: the pill holds at 0 until the picture is there, then goes.
+        skipLanding?.let { (end, at) ->
+            if (kotlin.math.abs(seconds - end) >= 2 && System.currentTimeMillis() - at < 5_000) return
+            skipLanding = null
+            skipCounting = null
+            skipLeft = null
+            promptMarker = null
+            prompt = PlaybackPrompt.None
+            updatePrompt()
+        }
+        // Skip intros and recaps by themselves when the profile asks, after a countdown, once each.
+        if (tickSkip(seconds, info)) return
+        var next = PlaybackPrompt.at(seconds, info.markers, if (info.next != null) baseTiming else null, info.next != null)
+        promptMarker = null
+        val counting = skipCounting
+        if (counting != null) {
+            promptMarker = counting.first
+            next = PlaybackPrompt.Skip(counting.first.type, skipEnd(counting.first))
+        } else if (heldMarker(seconds, info) != null) {
+            // Stopped with Up: the plain button, from where the countdown was to the marker's end.
+            val held = heldMarker(seconds, info)!!
+            promptMarker = held
+            next = PlaybackPrompt.Skip(held.type, skipEnd(held))
+        } else if (next is PlaybackPrompt.Skip) {
+            val marker = skippableMarker(seconds, info)
+            if (marker != null) {
+                // A cancelled countdown leaves nothing for that intro; otherwise the plain button.
+                if (key(marker) in skipCancelled) {
+                    next = PlaybackPrompt.None
+                } else {
+                    promptMarker = marker
+                    next = PlaybackPrompt.Skip(marker.type, skipEnd(marker))
+                }
+            }
         }
         // Next Episode's countdown follows the position (docs/next-episode-timing.md): the picture plays on under it,
         // pausing holds it and going back before it puts it away. Not after Cancel, nor while the sleep timer stops
@@ -696,6 +764,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     countdown = left
                     updatePrompt()
                 }
+                val from = timing.countdownFrom
+                if (isFinishing && from != null && nextAt > from) promptProgress = ((seconds - from) / (nextAt - from)).coerceIn(0.0, 1.0).toFloat()
             } else if (isFinishing) {
                 // Gone back before the countdown.
                 endCountdown()
@@ -715,6 +785,113 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             }
         }
         if (System.currentTimeMillis() - lastReport >= REPORT_INTERVAL_MS && player.isPlaying) report(paused = false)
+    }
+
+    // Skip intro and recap
+
+    private fun key(marker: Marker) = "${marker.type.raw}@${marker.start}"
+
+    private fun autoSkips(type: MarkerType) = when (type) {
+        MarkerType.Intro -> preferences.skipIntros
+        MarkerType.Recap -> preferences.skipRecaps
+        else -> false
+    }
+
+    /** The intro or recap the plain button offers at [seconds] (not in its last second, so it doesn't flash as it ends). */
+    private fun skippableMarker(seconds: Double, info: PlaybackInfo) =
+        info.markers.firstOrNull { (it.type == MarkerType.Intro || it.type == MarkerType.Recap) && seconds >= it.start && seconds < it.end - 1 }
+
+    private fun skipEnd(marker: Marker) = SkipTiming.skipEnd(marker, info?.markers.orEmpty(), preferences.skipIntros, preferences.skipRecaps)
+
+    /**
+     * The countdown before an intro or recap skips by itself (docs/skip-timing.md), following the picture. True when it
+     * reached 0 and skipped.
+     */
+    private fun tickSkip(seconds: Double, info: PlaybackInfo): Boolean {
+        var counting: Pair<Marker, SkipTiming>? = null
+        for (marker in info.markers) {
+            if (!autoSkips(marker.type)) continue
+            val key = key(marker)
+            if (key in autoSkipped || key in skipCancelled || key in skipHeld || seconds >= marker.end - 1) continue
+            // Scrubbed back before a countdown that started where a seek landed: the usual one stands again.
+            skipLanded[key]?.let { if (seconds < it.countdownFrom) skipLanded.remove(key) }
+            val timing = skipLanded[key] ?: SkipTiming.of(marker) ?: continue
+            if (seconds < timing.countdownFrom) continue
+            counting = when {
+                seconds < timing.skipAt -> marker to timing
+                // Counted all the way down while playing: skip.
+                skipCounting?.first == marker -> {
+                    skipPast(marker)
+                    return true
+                }
+                // Landed past the countdown without counting (a resume, a seek): a fresh one from here.
+                else -> SkipTiming.landing(marker, seconds)?.let { fresh ->
+                    skipLanded[key] = fresh
+                    marker to fresh
+                } ?: continue
+            }
+            break
+        }
+        val left = counting?.let { it.second.secondsLeft(seconds) ?: 0 }
+        val changed = skipCounting?.first != counting?.first || skipLeft != left
+        skipCounting = counting
+        skipLeft = left
+        // A new countdown shows as the prompt changes, just after; here only the number moving on.
+        if (changed && prompt is PlaybackPrompt.Skip) updatePrompt()
+        if (counting != null) promptProgress = counting.second.progress(seconds)
+        return false
+    }
+
+    /** Skips [marker] (and any auto-skipped intro or recap straight after it), remembering each. */
+    private fun skipPast(marker: Marker) {
+        val end = skipEnd(marker)
+        info?.markers.orEmpty().filter { it.start >= marker.start && it.end <= end }.forEach { autoSkipped.add(key(it)) }
+        // Counted down: the pill shows 0, full, until the skip lands (then it goes).
+        val counted = skipCounting
+        if (counted != null) {
+            skipLeft = 0
+            updatePrompt()
+            promptProgress = 1f
+        }
+        player.seekTo((end * 1000).toLong())
+        position = end
+        skipLanding = end to System.currentTimeMillis()
+        keepTicking()
+    }
+
+    private fun heldMarker(seconds: Double, info: PlaybackInfo) = info.markers.firstOrNull { marker ->
+        key(marker) in skipHeld && seconds >= (SkipTiming.of(marker)?.countdownFrom ?: marker.start) && seconds < marker.end - 1
+    }
+
+    /** Up on a TV during a countdown: it stops, and the plain button stays up, focused, for OK to press. */
+    fun holdCountdown() {
+        val counting = skipCounting
+        if (counting != null && !isFinishing) {
+            skipHeld.add(key(counting.first))
+            skipCounting = null
+            skipLeft = null
+            promptMarker = counting.first
+            prompt = PlaybackPrompt.Skip(counting.first.type, skipEnd(counting.first))
+            updatePrompt()
+        } else if (isFinishing && countdown != null) {
+            nextCancelled = true
+            nextHeld = true
+            isFinishing = false
+            countdown = null
+            countdownJob?.cancel()
+            updatePrompt()
+        }
+    }
+
+    /** X on a skip countdown: the intro plays, and nothing more is offered for it this episode. */
+    private fun cancelSkip() {
+        val counting = skipCounting ?: return
+        skipCancelled.add(key(counting.first))
+        skipCounting = null
+        skipLeft = null
+        promptMarker = null
+        prompt = PlaybackPrompt.None
+        updatePrompt()
     }
 
     private fun nextTiming(info: PlaybackInfo): NextEpisodeTiming? {
@@ -743,6 +920,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     fun skip(seconds: Int) = seekTo((player.currentPosition / 1000.0 + seconds).coerceAtLeast(0.0))
 
     fun seekTo(seconds: Double) {
+        // A seek during a skip countdown: the next tick works out afresh where it stands (a small seek counts on).
+        skipCounting = null
         player.seekTo((seconds * 1000).toLong())
         position = seconds
         keepTicking()
@@ -863,14 +1042,17 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     fun promptTapped() {
         if (isFinishing) return playNext(watched = true)
         when (val current = prompt) {
-            is PlaybackPrompt.Skip -> seekTo(current.to)
+            is PlaybackPrompt.Skip -> promptMarker?.let(::skipPast) ?: seekTo(current.to)
             PlaybackPrompt.NextEpisode -> playNext(watched = true)
             PlaybackPrompt.None -> Unit
         }
     }
 
     /** Not now: stop counting and let the episode play on; it closes at its end unless Next Episode is pressed. */
-    fun cancelNext() {
+    /** [hide]: Back on a TV, where the button goes with the countdown (the phone's X leaves it up). */
+    fun cancelNext(hide: Boolean = false) {
+        if (skipCounting != null && !isFinishing) return cancelSkip()
+        if (hide) nextHidden = true
         nextCancelled = true
         dropPrepared()
         val ended = player.playbackState == Player.STATE_ENDED
@@ -918,17 +1100,48 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         if (movingOn) {
             promptTitle = null
             countingDown = false
+            promptProgress = null
             return
         }
+        val skipCountingDown = !isFinishing && skipCounting != null && skipLeft != null && prompt is PlaybackPrompt.Skip
         // "Next Episode in 4" (on shuffle too: the next one just happens to be random).
         val nextTitle = countdown?.let { t(Words.nextEpisodeIn, "seconds" to it) } ?: t("Next episode")
         promptTitle = if (isFinishing) nextTitle else when (val current = prompt) {
             PlaybackPrompt.None -> null
-            is PlaybackPrompt.Skip -> if (current.type == MarkerType.Recap) t(Words.skipRecap) else t(Words.skipIntro)
-            // The sleep timer stops this episode at its end: there's no next one to offer.
-            PlaybackPrompt.NextEpisode -> if (sleepHoldsEpisode) null else nextTitle
+            is PlaybackPrompt.Skip -> {
+                val left = skipLeft
+                when {
+                    skipCountingDown && left != null && current.type == MarkerType.Recap -> t(Words.skipRecapIn, "seconds" to left)
+                    skipCountingDown && left != null -> t(Words.skipIntroIn, "seconds" to left)
+                    current.type == MarkerType.Recap -> t(Words.skipRecap)
+                    else -> t(Words.skipIntro)
+                }
+            }
+            // The sleep timer stops this episode at its end: there's no next one to offer. Nor after Back on a TV.
+            PlaybackPrompt.NextEpisode -> if (sleepHoldsEpisode || nextHidden) null else nextTitle
         }
-        countingDown = isFinishing && countdown != null
+        val skipType = (prompt as? PlaybackPrompt.Skip)?.type
+        promptIsSkip = !isFinishing && skipType != null
+        countingDown = (isFinishing && countdown != null) || skipCountingDown
+        promptTakesFocus = when {
+            countingDown -> false
+            !isFinishing && prompt is PlaybackPrompt.Skip -> true
+            else -> !nextCancelled || nextHeld
+        }
+        promptWidest = when {
+            skipCountingDown && skipType == MarkerType.Recap -> t(Words.skipRecapIn, "seconds" to 5)
+            skipCountingDown -> t(Words.skipIntroIn, "seconds" to 3)
+            countingDown -> t(Words.nextEpisodeIn, "seconds" to COUNTDOWN_SECONDS)
+            else -> null
+        }
+        val count = countdown
+        promptProgress = when {
+            !countingDown -> null
+            skipCountingDown -> promptProgress
+            // Next Episode's fill, a second at a time (the tick moves it on more finely while the picture plays).
+            count != null -> 1f - count.toFloat() / COUNTDOWN_SECONDS
+            else -> null
+        }
     }
 
     // Audio

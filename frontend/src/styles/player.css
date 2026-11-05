@@ -374,30 +374,94 @@
 
 /* ---------- Skip, up next, states ---------- */
 
-.skip-button {
+/* Skip intro / Skip recap: a split pill like Next Episode's. Counting down (Skip intros on), the left half fills as it
+   counts and the X beside it cancels. */
+.skip-pill {
   position: absolute;
   right: var(--edge);
   bottom: 140px;
-  min-height: 52px;
-  padding: 0 26px;
-  border: 1px solid rgb(255 255 255 / 0.5);
-  border-radius: var(--radius-control);
-  background: rgb(20 16 24 / 0.72);
-  backdrop-filter: blur(10px);
-  font-size: var(--step-1);
-  font-weight: 700;
-  cursor: pointer;
   z-index: 5;
+  display: flex;
+  gap: 2px;
 }
 
-.skip-button:hover,
-.skip-button:focus-visible {
+.skip-pill button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border: 0;
+  overflow: hidden;
   background: var(--screen);
   color: var(--room);
-  border-color: var(--screen);
+  font: inherit;
+  font-size: var(--step-0);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
 }
 
-/* "Skipped the intro": where the skip button would have been, briefly. */
+.skip-pill .skip-pill-skip {
+  padding: 0 26px;
+  border-radius: 999px;
+}
+
+.skip-pill.counting .skip-pill-skip {
+  padding: 0 18px 0 22px;
+  border-radius: 999px 0 0 999px;
+}
+
+/* Counting down, the pill rests grey and fills with white (.pill-fill), moving on with each timeupdate. */
+.skip-pill.counting .skip-pill-skip {
+  background: color-mix(in srgb, var(--aisle) 85%, transparent);
+  color: var(--screen);
+}
+
+.skip-pill .pill-fill {
+  padding: 0 18px 0 22px;
+  transition: clip-path 0.3s linear;
+}
+
+/* The fill over a counting pill: white with dark words, clipped to how far the countdown has run. It lays its copy of
+   the label out as the button does, so the two line up. */
+.pill-fill {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--screen);
+  color: var(--room);
+  clip-path: inset(0 calc(100% - var(--fill, 0%)) 0 0);
+  pointer-events: none;
+}
+
+.skip-pill .skip-pill-cancel {
+  width: 46px;
+  padding: 0 4px 0 0;
+  border-radius: 0 999px 999px 0;
+  background: color-mix(in srgb, var(--room) 90%, transparent);
+  color: var(--screen);
+}
+
+.skip-pill .skip-pill-cancel svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* The half you're on is white with dark content, the other grey. */
+.skip-pill .skip-pill-cancel:is(:hover, :focus-visible) {
+  background: var(--screen);
+  color: var(--room);
+}
+
+.skip-pill:has(.skip-pill-cancel:is(:hover, :focus-visible)) .skip-pill-skip:not(:focus-visible) {
+  background: color-mix(in srgb, var(--aisle) 85%, transparent);
+  color: var(--screen);
+}
+
+/* A brief notice where the skip pill would be. */
 .player-notice {
   position: absolute;
   right: var(--edge);
@@ -520,11 +584,34 @@
   border-radius: 999px 0 0 999px;
 }
 
+/* Counting down, as the skip pill: grey filling with white, a second at a time. */
+.up-next-pill .up-next-play {
+  position: relative;
+  overflow: hidden;
+}
+
+.up-next-pill.counting .up-next-play {
+  background: color-mix(in srgb, var(--aisle) 85%, transparent);
+  color: var(--screen);
+}
+
+.up-next-pill .pill-fill {
+  padding: 0 14px;
+  transition: clip-path 1s linear;
+}
+
+.up-next-play-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .up-next-pill .up-next-cancel {
   width: 40px;
   padding: 0 4px 0 0;
   border-radius: 0 999px 999px 0;
-  background: color-mix(in srgb, var(--aisle) 85%, transparent);
+  background: color-mix(in srgb, var(--room) 90%, transparent);
   color: var(--screen);
 }
 
@@ -687,7 +774,7 @@
     width: 120px;
   }
 
-  .skip-button,
+  .skip-pill,
   .up-next {
     bottom: 120px;
   }

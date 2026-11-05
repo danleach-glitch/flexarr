@@ -275,3 +275,55 @@ struct EmptyHomeMessageTests {
         #expect(message.body == "Flexarr is reading the files in Films (4 of 10). Your movies appear here as they’re recognised.")
     }
 }
+
+/// docs/skip-timing.json: the skip countdown cases every platform tests against.
+struct SkipTimingTests {
+    struct Cases: Decodable {
+        struct M: Decodable { var type: String; var start: Double; var end: Double }
+        struct Expect: Decodable { var countdownFrom: Double; var skipAt: Double }
+        struct Timing: Decodable { var name: String; var type: String; var start: Double; var end: Double; var at: Double?; var expect: Expect? }
+        struct Countdown: Decodable { var name: String; var type: String; var start: Double; var end: Double; var at: Double; var expect: Int? }
+        struct Chain: Decodable { var name: String; var markers: [M]; var skipping: Int; var skipIntros: Bool; var skipRecaps: Bool; var expect: Double }
+        var timing: [Timing]
+        var landing: [Timing]
+        var countdown: [Countdown]
+        var chain: [Chain]
+    }
+
+    static func cases() throws -> Cases {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        return try JSONDecoder().decode(Cases.self, from: Data(contentsOf: root.appendingPathComponent("docs/skip-timing.json")))
+    }
+
+    static func marker(_ type: String, _ start: Double, _ end: Double) -> Marker {
+        Marker(type: MarkerType(rawValue: type) ?? .unknown, start: start, end: end)
+    }
+
+    @Test func sharedCases() throws {
+        let cases = try Self.cases()
+        #expect(cases.timing.count >= 5 && cases.landing.count >= 3 && cases.countdown.count >= 5 && cases.chain.count >= 3)
+        for c in cases.timing {
+            let expected = c.expect.map { SkipTiming(countdownFrom: $0.countdownFrom, skipAt: $0.skipAt) }
+            #expect(SkipTiming.of(Self.marker(c.type, c.start, c.end)) == expected, "\(c.name)")
+        }
+        for c in cases.landing {
+            let expected = c.expect.map { SkipTiming(countdownFrom: $0.countdownFrom, skipAt: $0.skipAt) }
+            #expect(SkipTiming.landing(Self.marker(c.type, c.start, c.end), at: c.at ?? 0) == expected, "\(c.name)")
+        }
+        for c in cases.countdown {
+            #expect(SkipTiming.of(Self.marker(c.type, c.start, c.end))?.countdown(at: c.at) == c.expect, "\(c.name)")
+        }
+        for c in cases.chain {
+            let markers = c.markers.map { Self.marker($0.type, $0.start, $0.end) }
+            #expect(SkipTiming.skipEnd(of: markers[c.skipping], in: markers, skipIntros: c.skipIntros, skipRecaps: c.skipRecaps) == c.expect, "\(c.name)")
+        }
+    }
+
+    @Test func fillFollowsThePosition() {
+        let t = SkipTiming(countdownFrom: 117, skipAt: 120)
+        #expect(t.progress(at: 116) == 0)
+        #expect(t.progress(at: 118.5) == 0.5)
+        #expect(t.progress(at: 121) == 1)
+    }
+}

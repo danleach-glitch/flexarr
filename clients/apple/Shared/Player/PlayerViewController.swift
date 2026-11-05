@@ -153,6 +153,13 @@ final class PlayerViewController: UIViewController {
         // did this itself; on Apple TV it's also what lets tvOS negotiate the HDMI route for multichannel sound.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
+        #if os(tvOS)
+        // Back is the player's: it ends a scan or scrub, cancels a countdown, hides the controls, and only then closes.
+        // A gesture for it, since tvOS otherwise closes the full-screen player on Back however the press was handled.
+        let back = UITapGestureRecognizer(target: self, action: #selector(backPressed))
+        back.allowedPressTypes = [NSNumber(value: UIPress.PressType.menu.rawValue)]
+        view.addGestureRecognizer(back)
+        #endif
         #if os(iOS)
         let tap = UITapGestureRecognizer(target: self, action: #selector(tapped))
         tap.delegate = self
@@ -278,18 +285,30 @@ final class PlayerViewController: UIViewController {
         phaseChanged(.loading)
     }
 
+    /// The countdown's fill across the pill (nil: none).
+    func setPromptProgress(_ progress: Double?) {
+        controls.setPromptProgress(progress)
+    }
+
     func setEpisodeNavigation(hasPrevious: Bool, hasNext: Bool) {
         controls.setEpisodeNavigation(hasPrevious: hasPrevious, hasNext: hasNext)
         nowPlaying.setEpisodeNavigation(hasPrevious: hasPrevious, hasNext: hasNext)
     }
 
-    func setPrompt(_ title: String?, symbol: String = "forward.fill", countingDown: Bool, takesFocus: Bool = true) {
+    func setPrompt(_ title: String?, symbol: String = "forward.fill", countingDown: Bool, widest: String? = nil, takesFocus: Bool = true) {
         let focusChanged = controls.promptTakesFocus != takesFocus
-        controls.setPrompt(title, symbol: symbol, countingDown: countingDown, takesFocus: takesFocus)
+        // A pill coming up mid-play, over the picture alone: focus moves to it, so Select presses it. (Asking the
+        // controls alone did nothing, focus being on the picture outside them.)
+        let appeared = !controls.promptShown && title != nil && takesFocus && !controlsVisible
+        controls.setPrompt(title, symbol: symbol, countingDown: countingDown, widest: widest, takesFocus: takesFocus)
         countingDownToNext = countingDown
         updateIdleTimer()
         #if os(tvOS)
-        if focusChanged { setNeedsFocusUpdate(); updateFocusIfNeeded() }
+        // A countdown over the picture alone doesn't take focus (Up does), but the player must hold it, or the remote's
+        // Up and Back go to the page behind the player (Back closed it).
+        let countdownOverPicture = countingDown && !controlsVisible && !rootView.takesFocus
+        if countdownOverPicture { rootView.takesFocus = true }
+        if focusChanged || appeared || countdownOverPicture { setNeedsFocusUpdate(); updateFocusIfNeeded() }
         #endif
 
     }
@@ -402,6 +421,13 @@ final class PlayerViewController: UIViewController {
             guard let self else { return }
             delegate?.playerScreenPromptTapped(self)
         }
+        #if os(tvOS)
+        // Focus reaching a counting pill (Up from the picture or the timeline) stops its countdown.
+        controls.onPromptFocused = { [weak self] in
+            guard let self, countingDownToNext else { return }
+            delegate?.playerScreenHoldCountdown(self)
+        }
+        #endif
         controls.onCancel = { [weak self] in
             guard let self else { return }
             delegate?.playerScreenCancelNext(self)
@@ -595,6 +621,33 @@ final class PlayerViewController: UIViewController {
         showControls()
     }
 
+    private static func isEscapeKey(_ press: UIPress) -> Bool {
+        press.type != .menu && press.key?.keyCode == .keyboardEscape
+    }
+
+    @objc private func backPressed() {
+        guard presentedViewController == nil else { return }
+        menuOpen = false
+        switch sleepPhase {
+        case .asleep: return wake()
+        case .asking: return extendSleep()
+        case .off: break
+        }
+        if scan != nil { return endScan(commit: false) }
+        if controls.scrubber.cancelScrubIfNeeded() { return }
+        if audioSyncOpen { return closeAudioSync() }
+        // Counting down (Skip intro, Next Episode): Back cancels it and the pill goes, before anything else.
+        if countingDownToNext {
+            delegate?.playerScreenCancelNext(self)
+            return
+        }
+        if controlsVisible {
+            hideControls()
+            return
+        }
+        close()
+    }
+
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         // The guide or the channel list is open over the picture: the remote is theirs, not the player's (up and
         // down there would otherwise change channel behind them).
@@ -602,6 +655,11 @@ final class PlayerViewController: UIViewController {
             super.pressesBegan(presses, with: event)
             return
         }
+        // Back goes to `backPressed` (a gesture), including waking the screen or answering "Still watching?". A
+        // keyboard's Esc (the simulator, a Bluetooth keyboard) comes as a key rather than the remote's Back, which the
+        // gesture doesn't see: it's Back too.
+        if presses.contains(where: { $0.type == .menu }) { return }
+        if presses.contains(where: Self.isEscapeKey) { return backPressed() }
         // An open menu takes the remote's presses for itself, so one reaching the player means none is open, whatever
         // the last word was: a menu that went without saying so mustn't keep the controls up for good.
         menuOpen = false
@@ -645,21 +703,14 @@ final class PlayerViewController: UIViewController {
                     return
                 }
             case .menu:
-                if scan != nil { endScan(commit: false); return }
-                if controls.scrubber.cancelScrubIfNeeded() { return }
-                if audioSyncOpen { return closeAudioSync() }
-                if controlsVisible {
-                    hideControls()
-                    return
-                }
-                // Counting down to the next episode: Back is "not now", and a second Back leaves.
-                if countingDownToNext {
-                    delegate?.playerScreenCancelNext(self)
-                    return
-                }
-                close()
+                // `backPressed` has it.
                 return
             case .upArrow, .downArrow:
+                // Up during a countdown over the picture: it stops, and the button takes focus for Select.
+                if press.type == .upArrow, countingDownToNext, !controlsVisible, scan == nil {
+                    delegate?.playerScreenHoldCountdown(self)
+                    return
+                }
                 if zapsChannels, !controlsVisible, scan == nil {
                     if press.type == .upArrow {
                         delegate?.playerScreenPrevious(self)
@@ -679,11 +730,6 @@ final class PlayerViewController: UIViewController {
                         scan?.rate = 2
                     }
                     showScanRate()
-                    return
-                }
-                // Counting down with the controls hidden: the edges move between Cancel and Next Episode.
-                if countingDownToNext, !controlsVisible {
-                    super.pressesBegan(presses, with: event)
                     return
                 }
                 // The remote's edges skip when clicked and scan when held, unless focus is on a button row.
@@ -712,6 +758,11 @@ final class PlayerViewController: UIViewController {
             super.pressesEnded(presses, with: event)
             return
         }
+        // Back is the player's from the press's start (it cancels a countdown, hides the controls or closes): passed on
+        // when let go, the system would close the player too, even after it cancelled a countdown.
+        if presses.contains(where: Self.isEscapeKey) { return }
+        // A Back press that ends here wasn't taken by the gesture (which cancels the press when it fires): it's ours.
+        if presses.contains(where: { $0.type == .menu }) { return backPressed() }
         for press in presses where press.type == .leftArrow || press.type == .rightArrow {
             // Let go before it became a hold: a click, which skips.
             if let holdTask {

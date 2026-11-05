@@ -186,13 +186,19 @@ final class PlayerViewController: NSViewController {
         nowPlaying.setTitle(state.title, subtitle: state.subtitle, artwork: image)
     }
 
+    /// The countdown's fill across the pill (nil: none), moving on linearly between ticks.
+    func setPromptProgress(_ progress: Double?) {
+        guard let progress else { state.promptProgress = nil; return }
+        if state.promptProgress == nil { state.promptProgress = progress } else { withAnimation(.linear(duration: 0.3)) { state.promptProgress = progress } }
+    }
+
     func setEpisodeNavigation(hasPrevious: Bool, hasNext: Bool) {
         state.hasPrevious = hasPrevious
         state.hasNext = hasNext
         nowPlaying.setEpisodeNavigation(hasPrevious: hasPrevious, hasNext: hasNext)
     }
 
-    func setPrompt(_ title: String?, symbol: String = "forward.fill", countingDown: Bool, takesFocus: Bool = true) {
+    func setPrompt(_ title: String?, symbol: String = "forward.fill", countingDown: Bool, widest: String? = nil, takesFocus: Bool = true) {
         state.prompt = title.map { ($0, symbol, countingDown) }
         countingDownToNext = countingDown
         updateAwake()

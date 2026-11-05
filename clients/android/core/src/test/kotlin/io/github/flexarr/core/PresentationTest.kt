@@ -146,6 +146,49 @@ class PresentationTest {
         }
     }
 
+    /** Every case in docs/skip-timing.json, the cases FlexarrKit and the web test against too. */
+    @Test
+    fun `skip timing matches the shared cases`() {
+        val file = generateSequence(File("").absoluteFile) { it.parentFile }
+            .map { File(it, "docs/skip-timing.json") }
+            .firstOrNull { it.isFile } ?: error("docs/skip-timing.json not found above ${File("").absolutePath}")
+        val root = FlexarrClient.json.parseToJsonElement(file.readText()).jsonObject
+        fun JsonObject.marker() = Marker(
+            MarkerType.entries.firstOrNull { it.raw == getValue("type").jsonPrimitive.content } ?: MarkerType.Unknown,
+            getValue("start").jsonPrimitive.double, getValue("end").jsonPrimitive.double,
+        )
+        fun JsonObject.expected() = this["expect"]?.takeIf { it !is JsonNull }?.jsonObject?.let {
+            SkipTiming(it.getValue("countdownFrom").jsonPrimitive.double, it.getValue("skipAt").jsonPrimitive.double)
+        }
+        fun JsonObject.name() = getValue("name").jsonPrimitive.content
+        val timing = root.getValue("timing").jsonArray.map { it.jsonObject }
+        assertTrue(timing.size >= 5)
+        for (case in timing) assertEquals(case.name(), case.expected(), SkipTiming.of(case.marker()))
+        for (case in root.getValue("landing").jsonArray.map { it.jsonObject }) {
+            assertEquals(case.name(), case.expected(), SkipTiming.landing(case.marker(), case.getValue("at").jsonPrimitive.double))
+        }
+        for (case in root.getValue("countdown").jsonArray.map { it.jsonObject }) {
+            val expected = case["expect"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.double?.toInt()
+            assertEquals(case.name(), expected, SkipTiming.of(case.marker())?.secondsLeft(case.getValue("at").jsonPrimitive.double))
+        }
+        for (case in root.getValue("chain").jsonArray.map { it.jsonObject }) {
+            val markers = case.getValue("markers").jsonArray.map { it.jsonObject.marker() }
+            val actual = SkipTiming.skipEnd(
+                markers[case.getValue("skipping").jsonPrimitive.double.toInt()], markers,
+                case.getValue("skipIntros").jsonPrimitive.boolean, case.getValue("skipRecaps").jsonPrimitive.boolean,
+            )
+            assertEquals(case.name(), case.getValue("expect").jsonPrimitive.double, actual, 0.0)
+        }
+    }
+
+    @Test
+    fun `skip fill follows the position`() {
+        val t = SkipTiming(117.0, 120.0)
+        assertEquals(0f, t.progress(116.0))
+        assertEquals(0.5f, t.progress(118.5))
+        assertEquals(1f, t.progress(121.0))
+    }
+
     private val credits = listOf(Marker(MarkerType.Credits, 1300.0, 1400.0))
 
     @Test

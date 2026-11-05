@@ -210,6 +210,73 @@ fun nextEpisodeTiming(markers: List<Marker>, duration: Double, skipCredits: Bool
     }
 }
 
+/**
+ * When Skip intros / Skip recaps count down before skipping (docs/skip-timing.md): from [countdownFrom] to [skipAt], over
+ * the picture before the marker, so the skip lands as it starts. It follows the playing position like Next Episode's.
+ */
+data class SkipTiming(val countdownFrom: Double, val skipAt: Double) {
+    /** Whole seconds left at [time]: null before the countdown, 0 once it's time to skip. */
+    fun secondsLeft(time: Double): Int? {
+        if (time < countdownFrom) return null
+        return ceil(skipAt - time).coerceIn(0.0, skipAt - countdownFrom).toInt()
+    }
+
+    /** How far through the countdown [time] is, 0..1, for the pill's fill. */
+    fun progress(time: Double): Float {
+        val length = skipAt - countdownFrom
+        return if (length > 0) ((time - countdownFrom) / length).coerceIn(0.0, 1.0).toFloat() else 1f
+    }
+
+    companion object {
+        /** A countdown needs this much of the marker left after it, or there's only the plain button. */
+        const val MINIMUM_LEFT = 2.0
+        /** Markers starting within this of where a skip lands are skipped with it (a recap straight into an intro). */
+        const val CHAIN_GAP = 1.0
+
+        /** The countdown's length: 3 seconds for an intro, 5 for a recap, null for anything else. */
+        fun seconds(type: MarkerType): Double? = when (type) {
+            MarkerType.Intro -> 3.0
+            MarkerType.Recap -> 5.0
+            else -> null
+        }
+
+        /** The countdown before [marker] starts (from 0 when it starts sooner than that); null without room for one. */
+        fun of(marker: Marker): SkipTiming? {
+            val length = seconds(marker.type) ?: return null
+            val from = (marker.start - length).coerceAtLeast(0.0)
+            return fitting(SkipTiming(from, from + length), marker)
+        }
+
+        /** A fresh countdown from [time], where a seek or resume landed inside [marker]; null outside it or without room. */
+        fun landing(marker: Marker, time: Double): SkipTiming? {
+            val length = seconds(marker.type) ?: return null
+            if (time < marker.start || time >= marker.end) return null
+            return fitting(SkipTiming(time, time + length), marker)
+        }
+
+        private fun fitting(timing: SkipTiming, marker: Marker) = timing.takeIf { marker.end - it.skipAt >= MINIMUM_LEFT }
+
+        /** Where skipping [marker] lands: its end, or past any auto-skipped intro or recap starting straight after it. */
+        fun skipEnd(marker: Marker, markers: List<Marker>, skipIntros: Boolean, skipRecaps: Boolean): Double {
+            var end = marker.end
+            var moved = true
+            while (moved) {
+                moved = false
+                for (other in markers) {
+                    if (other.end <= end || other.start > end + CHAIN_GAP) continue
+                    val auto = when (other.type) {
+                        MarkerType.Intro -> skipIntros
+                        MarkerType.Recap -> skipRecaps
+                        else -> false
+                    }
+                    if (auto) { end = other.end; moved = true }
+                }
+            }
+            return end
+        }
+    }
+}
+
 /** What the player should offer at a given moment, from the server's markers. */
 sealed interface PlaybackPrompt {
     data object None : PlaybackPrompt
