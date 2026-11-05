@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.62.1 · 5 November 2026
 
 ### Apple TV
 - Back leaves the player again with the controls showing. In 0.62.0 it only brought the controls back, so the only way out was the Home button.
