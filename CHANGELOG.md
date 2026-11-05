@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.62.0 · 5 November 2026
 
 ### Player
 - With **Skip intros** or **Skip recaps** on, the player no longer jumps without warning. A **Skip intro in 3** button (**Skip recap in 5** for a recap) counts down just before, and the skip lands as the intro begins. Press it to skip now, or press **✕** to watch the intro this time. On every app and the web.
