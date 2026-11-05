@@ -4,6 +4,10 @@ import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.i18n.Words
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -47,50 +51,59 @@ import androidx.tv.material3.Surface
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
 
-// Skip Intro or Next Episode, the pill above the timeline. Counting down to the next episode, its X (Cancel) is the
-// pill's right half: "Next episode in 7 | X", the halves 2dp apart with square inner edges. Each half is its own
-// button: on a TV the focused one is white and the other grey; on the phone Next is white and the X grey.
+// Skip Intro or Next Episode, the pill above the timeline. Counting down (to the next episode, or to a skip), its X
+// (Cancel) is the pill's right half: "Next episode in 7 | X", the halves 2dp apart with square inner edges, and a fill
+// runs across the left half as it counts. Each half is its own button: on a TV the focused one is white and the other
+// grey; on the phone Next is white and the X grey.
 
-/** The pill's width doesn't follow the countdown: it holds its "Next episode in 10" width from the countdown's start. */
-private val holdWidthOf: String get() = t(Words.nextEpisodeIn, "seconds" to 10)
-
-/** Skip intro or Skip recap, in the language shown (anything else the pill says is Next episode). */
-private fun isSkip(title: String) = title == t(Words.skipIntro) || title == t(Words.skipRecap)
+/** What the pill shows: its title, the X while counting down, the width it holds and whether it's a skip. */
+internal data class PromptLook(val title: String, val countingDown: Boolean, val hold: String?, val skip: Boolean)
 
 /** What the pill last showed, so it fades out as it was (not as a shorter "Next episode" first). */
 private class PromptShown {
-    var title = ""
-    var countingDown = false
-    var held = false
+    var look = PromptLook("", false, null, false)
     var visible = false
 }
 
 /**
- * Shows [content] with the pill's [title] while there is one and fades it out as it last was once there isn't. Its
- * third argument says whether the pill holds its "Next episode in 10" width: from the countdown's start until it goes.
+ * Shows [content] while the pill has a [title] and fades it out as it last was once it hasn't. Counting down, the pill
+ * holds the width of [widest] (its title at the countdown's start) until it goes, so it doesn't twitch as the number
+ * changes.
  */
 @Composable
-internal fun FadingPrompt(title: String?, countingDown: Boolean, modifier: Modifier = Modifier, content: @Composable (title: String, countingDown: Boolean, held: Boolean) -> Unit) {
+internal fun FadingPrompt(
+    title: String?,
+    countingDown: Boolean,
+    widest: String?,
+    skip: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable (PromptLook) -> Unit,
+) {
     val shown = remember { PromptShown() }
     if (title != null) {
-        if (!shown.visible) shown.held = false
-        if (countingDown && !isSkip(title)) shown.held = true
-        shown.title = title
-        shown.countingDown = countingDown
+        val hold = if (shown.visible) shown.look.hold else null
+        shown.look = PromptLook(title, countingDown, if (countingDown && widest != null) widest else hold, skip)
         shown.visible = true
     } else {
         shown.visible = false
     }
-    val showTitle = shown.title
-    val showCounting = shown.countingDown
-    val held = shown.held
+    val look = shown.look
     AnimatedVisibility(title != null, modifier = modifier, enter = fadeIn(), exit = fadeOut()) {
-        content(showTitle, showCounting, held)
+        content(look)
     }
 }
 
 // Next episode shows ▶▶, as on Apple; Skip intro and recap their skip-ahead.
-private fun promptIcon(title: String): ImageVector = if (isSkip(title)) Icons.Filled.SkipNext else Icons.Filled.FastForward
+private fun promptIcon(skip: Boolean): ImageVector = if (skip) Icons.Filled.SkipNext else Icons.Filled.FastForward
+
+/** The countdown's fill across the left half: a tint of the room, moving on smoothly between the player's ticks. */
+@Composable
+private fun Modifier.countdownFill(progress: Float?): Modifier {
+    val fill by animateFloatAsState(progress ?: 0f, tween(300, easing = LinearEasing), label = "fill")
+    if (progress == null) return this
+    val tint = Flexarr.room.copy(alpha = 0.16f)
+    return drawBehind { drawRect(tint, size = size.copy(width = size.width * fill)) }
+}
 
 /** The Next half's shape: a capsule by itself, its left end only with the X beside it. */
 private fun nextShape(countingDown: Boolean) = if (countingDown) RoundedCornerShape(topStartPercent = 50, bottomStartPercent = 50) else RoundedCornerShape(percent = 50)
@@ -99,30 +112,32 @@ private val xShape = RoundedCornerShape(topEndPercent = 50, bottomEndPercent = 5
 
 private val restingFill get() = Flexarr.aisle.copy(alpha = 0.85f)
 
-/** The label, with tabular digits, kept at least as wide as "Next episode in 10" while [held]. */
+/** The label, with tabular digits, kept at least as wide as [hold] (the countdown's first title) while there is one. */
 @Composable
-private fun PromptLabel(title: String, held: Boolean, color: Color, fontSize: TextUnit) {
+private fun PromptLabel(title: String, hold: String?, color: Color, fontSize: TextUnit) {
     val style = TextStyle(color = color, fontSize = fontSize, fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum")
     Box(contentAlignment = Alignment.CenterStart) {
-        if (held) BasicText(holdWidthOf, style = style, maxLines = 1, modifier = Modifier.alpha(0f).clearAndSetSemantics {})
+        if (hold != null) BasicText(hold, style = style, maxLines = 1, modifier = Modifier.alpha(0f).clearAndSetSemantics {})
         BasicText(title, style = style, maxLines = 1)
     }
 }
 
 /** The phone's pill, kept compact: Next white, its X grey. */
 @Composable
-internal fun PromptPill(title: String, countingDown: Boolean, held: Boolean, onTap: () -> Unit, onCancel: () -> Unit) {
+internal fun PromptPill(look: PromptLook, progress: Float?, onTap: () -> Unit, onCancel: () -> Unit) {
+    val countingDown = look.countingDown
     // Both halves as tall as the taller (the label's), so they meet as one pill.
     Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(
             // Taps land up to 8dp above and below the pill, so it's easy to hit while staying compact.
             Modifier.fillMaxHeight().pressable(onTap).padding(vertical = 8.dp).clip(nextShape(countingDown))
-                .background(Flexarr.screen.copy(alpha = 0.95f)).padding(horizontal = 13.dp, vertical = 8.dp),
+                .background(Flexarr.screen.copy(alpha = 0.95f)).countdownFill(progress.takeIf { countingDown })
+                .padding(horizontal = 13.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(promptIcon(title), contentDescription = null, tint = Flexarr.room, modifier = Modifier.size(14.dp))
-            PromptLabel(title, held, Flexarr.room, 14.sp)
+            Icon(promptIcon(look.skip), contentDescription = null, tint = Flexarr.room, modifier = Modifier.size(14.dp))
+            PromptLabel(look.title, look.hold, Flexarr.room, 14.sp)
         }
         if (countingDown) {
             Box(
@@ -138,7 +153,7 @@ internal fun PromptPill(title: String, countingDown: Boolean, held: Boolean, onT
 
 /** One half of the TV's pill: white with dark content when focused, grey with light content when not. */
 @Composable
-private fun TvPromptHalf(onClick: () -> Unit, shape: RoundedCornerShape, modifier: Modifier, start: Dp, end: Dp, content: @Composable (Color) -> Unit) {
+private fun TvPromptHalf(onClick: () -> Unit, shape: RoundedCornerShape, modifier: Modifier, start: Dp, end: Dp, progress: Float? = null, content: @Composable (Color) -> Unit) {
     val source = remember { MutableInteractionSource() }
     val focused by source.collectIsFocusedAsState()
     Surface(
@@ -154,7 +169,7 @@ private fun TvPromptHalf(onClick: () -> Unit, shape: RoundedCornerShape, modifie
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 0.97f),
         interactionSource = source,
     ) {
-        Row(Modifier.fillMaxHeight().padding(start = start, end = end), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxHeight().countdownFill(progress).padding(start = start, end = end), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
             content(if (focused) Flexarr.room else Flexarr.screen)
         }
     }
@@ -162,11 +177,12 @@ private fun TvPromptHalf(onClick: () -> Unit, shape: RoundedCornerShape, modifie
 
 /** The TV's pill: each half takes focus (left and right move between them); [nextModifier] is the Next half's. */
 @Composable
-internal fun TvPromptPill(title: String, countingDown: Boolean, held: Boolean, onTap: () -> Unit, onCancel: () -> Unit, nextModifier: Modifier = Modifier) {
+internal fun TvPromptPill(look: PromptLook, progress: Float?, onTap: () -> Unit, onCancel: () -> Unit, nextModifier: Modifier = Modifier) {
+    val countingDown = look.countingDown
     Row(Modifier.height(38.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        TvPromptHalf(onTap, nextShape(countingDown), nextModifier, start = 16.dp, end = 18.dp) { tint ->
-            Icon(promptIcon(title), contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
-            PromptLabel(title, held, tint, 14.5.sp)
+        TvPromptHalf(onTap, nextShape(countingDown), nextModifier, start = 16.dp, end = 18.dp, progress = progress.takeIf { countingDown }) { tint ->
+            Icon(promptIcon(look.skip), contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
+            PromptLabel(look.title, look.hold, tint, 14.5.sp)
         }
         if (countingDown) {
             TvPromptHalf(onCancel, xShape, Modifier.semantics { contentDescription = t(Words.cancel) }, start = 10.dp, end = 13.dp) { tint ->

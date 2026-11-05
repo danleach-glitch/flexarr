@@ -245,6 +245,8 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
         FadingPrompt(
             controller.promptTitle?.takeIf { promptUp },
             controller.countingDown,
+            controller.promptWidest,
+            controller.promptIsSkip,
             Modifier.align(Alignment.BottomEnd).padding(end = 40.dp, bottom = if (showing) 120.dp else 40.dp)
                 .onFocusChanged { promptFocused = it.hasFocus }
                 .onKeyEvent { event ->
@@ -255,9 +257,9 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
                         else -> false
                     }
                 },
-        ) { title, countingDown, held ->
+        ) { look ->
             // Left and right move between Next and its X; Back is Cancel too while counting down.
-            TvPromptPill(title, countingDown, held, onTap = controller::promptTapped, onCancel = controller::cancelNext, nextModifier = Modifier.focusRequester(prompt))
+            TvPromptPill(look, controller.promptProgress, onTap = controller::promptTapped, onCancel = controller::cancelNext, nextModifier = Modifier.focusRequester(prompt))
         }
         controller.subtitleSearchFile?.let { fileId ->
             controller.info?.let { info ->
