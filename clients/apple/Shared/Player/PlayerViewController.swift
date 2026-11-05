@@ -668,6 +668,11 @@ final class PlayerViewController: UIViewController {
                 close()
                 return
             case .upArrow, .downArrow:
+                // Up during a countdown over the picture: it stops, and the button takes focus for Select.
+                if press.type == .upArrow, countingDownToNext, !controlsVisible, scan == nil {
+                    delegate?.playerScreenHoldCountdown(self)
+                    return
+                }
                 if zapsChannels, !controlsVisible, scan == nil {
                     if press.type == .upArrow {
                         delegate?.playerScreenPrevious(self)
@@ -687,11 +692,6 @@ final class PlayerViewController: UIViewController {
                         scan?.rate = 2
                     }
                     showScanRate()
-                    return
-                }
-                // Counting down with the controls hidden: the edges move between Cancel and Next Episode.
-                if countingDownToNext, !controlsVisible {
-                    super.pressesBegan(presses, with: event)
                     return
                 }
                 // The remote's edges skip when clicked and scan when held, unless focus is on a button row.

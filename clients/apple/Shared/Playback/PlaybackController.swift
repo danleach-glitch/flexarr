@@ -150,6 +150,15 @@ final class PlaybackController: NSObject {
     /// The intro or recap counting down to its skip now, and the seconds left.
     @ObservationIgnored private var skipCounting: (marker: Marker, timing: SkipTiming)?
     @ObservationIgnored private var skipLeft: Int?
+    /// Intros and recaps whose countdown was stopped with Up on a TV: the plain button stays up for them instead.
+    @ObservationIgnored private var skipHeld: Set<String> = []
+    /// A skip on its way to `end`: the pill stays as it was (at 0) until the picture gets there, rather than showing the
+    /// plain button for the old position a moment first.
+    @ObservationIgnored private var skipLanding: (end: Double, at: Date)?
+    /// Next Episode's countdown stopped with Up on a TV: the plain button stays, focused. Cancelled with Back there:
+    /// the button goes.
+    @ObservationIgnored private var nextHeld = false
+    @ObservationIgnored private var nextHidden = false
     /// Where a seek is going: until it lands, ticks from the old position don't count down.
     @ObservationIgnored private var skipSeekTarget: (seconds: Double, at: Date)?
     /// The intro or recap the pill offers to skip.
@@ -472,11 +481,15 @@ final class PlaybackController: NSObject {
         preferences = info.preferences ?? .standard
         skipCounting = nil
         skipLeft = nil
+        skipLanding = nil
         if !sameTitle {
             autoSkipped = []
             skipCancelled = []
             skipLanded = [:]
+            skipHeld = []
             nextCancelled = false
+            nextHeld = false
+            nextHidden = false
             playingOn = false
             endFinishing()
         }
@@ -831,6 +844,17 @@ final class PlaybackController: NSObject {
         // Moving on to the next episode: this one's last ticks mustn't start its countdown again.
         guard let info, seconds.isFinite, hasPlayed, !isAdvancing else { return }
         lastPosition = seconds
+        // A skip landing: the pill holds at 0 until the picture is there, then goes.
+        if let landing = skipLanding {
+            guard abs(seconds - landing.end) < 2 || Date().timeIntervalSince(landing.at) > 5 else { return }
+            skipLanding = nil
+            skipCounting = nil
+            skipLeft = nil
+            promptMarker = nil
+            prompt = .none
+            updatePrompt()
+            reportForRemotes()
+        }
         // Skip intros and recaps by themselves when the profile asks, after a countdown, once each.
         if tickSkip(seconds, info) { return }
         var next = info.prompt(at: seconds, preferences: preferences)
@@ -838,6 +862,12 @@ final class PlaybackController: NSObject {
         if let counting = skipCounting {
             promptMarker = counting.marker
             next = .skip(counting.marker.type, to: skipEnd(counting.marker))
+        } else if let held = info.markers.first(where: { marker in
+            skipHeld.contains(Self.key(marker)) && seconds >= (SkipTiming.of(marker)?.countdownFrom ?? marker.start) && seconds < marker.end - 1
+        }) {
+            // Stopped with Up: the plain button, from where the countdown was to the marker's end.
+            promptMarker = held
+            next = .skip(held.type, to: skipEnd(held))
         } else if case .skip = next, let marker = skippableMarker(at: seconds, in: info) {
             // A cancelled countdown leaves nothing for that intro; otherwise the plain button.
             if skipCancelled.contains(Self.key(marker)) { next = .none } else { promptMarker = marker; next = .skip(marker.type, to: skipEnd(marker)) }
@@ -913,7 +943,7 @@ final class PlaybackController: NSObject {
         var counting: (marker: Marker, timing: SkipTiming)?
         for marker in info.markers where autoSkips(marker.type) {
             let key = Self.key(marker)
-            guard !autoSkipped.contains(key), !skipCancelled.contains(key), seconds < marker.end - 1 else { continue }
+            guard !autoSkipped.contains(key), !skipCancelled.contains(key), !skipHeld.contains(key), seconds < marker.end - 1 else { continue }
             // Scrubbed back before a countdown that started where a seek landed: the usual one stands again.
             if let landed = skipLanded[key], seconds < landed.countdownFrom { skipLanded[key] = nil }
             guard let timing = skipLanded[key] ?? SkipTiming.of(marker), seconds >= timing.countdownFrom else { continue }
@@ -948,11 +978,33 @@ final class PlaybackController: NSObject {
     private func skipPast(_ marker: Marker) {
         let end = skipEnd(marker)
         for other in info?.markers ?? [] where other.start >= marker.start && other.end <= end { autoSkipped.insert(Self.key(other)) }
-        skipCounting = nil
-        skipLeft = nil
-        screen?.setPromptProgress(nil)
-        promptMarker = nil
-        skip(to: end)
+        // Counted down: the pill shows 0, full, until the skip lands (then it goes).
+        if skipCounting != nil {
+            skipLeft = 0
+            updatePrompt()
+            screen?.setPromptProgress(1)
+        }
+        skipLanding = (end, Date())
+        // Exact: a keyframe landing a few seconds early would replay the intro's tail and bring the skip back.
+        transport?.seek(to: end, exact: true)
+    }
+
+    /// Up on a TV during a countdown: it stops, and the plain button stays up, focused, for Select to press.
+    private func holdCountdown() {
+        if let counting = skipCounting, !isFinishing {
+            skipHeld.insert(Self.key(counting.marker))
+            skipCounting = nil
+            skipLeft = nil
+            promptMarker = counting.marker
+            prompt = .skip(counting.marker.type, to: skipEnd(counting.marker))
+            updatePrompt()
+            reportForRemotes()
+        } else if isFinishing, countdown != nil {
+            nextCancelled = true
+            nextHeld = true
+            endFinishing()
+            reportForRemotes()
+        }
     }
 
     /// ✕ on a skip countdown: the intro plays, and nothing more is offered for it this episode.
@@ -1301,8 +1353,8 @@ final class PlaybackController: NSObject {
                 } else {
                     type == .recap ? t(Words.skipRecap) : t(Words.skipIntro)
                 }
-            // Not over the sleep timer's question, or for an episode it's stopping at the end of.
-            case .nextEpisode: screen?.sleepHoldsEpisode == true ? nil : nextTitle
+            // Not over the sleep timer's question, or for an episode it's stopping at the end of, or after Back.
+            case .nextEpisode: screen?.sleepHoldsEpisode == true || nextHidden ? nil : nextTitle
             }
         }
         if !isFinishing, case .skip = prompt { symbol = "forward.end.fill" }
@@ -1314,7 +1366,16 @@ final class PlaybackController: NSObject {
             t(Words.nextEpisodeIn, ["seconds": 10])
         }
         let counting = (isFinishing && countdown != nil) || skipCountingDown
-        screen?.setPrompt(title, symbol: symbol, countingDown: counting, widest: widest, takesFocus: skipCountingDown || !nextCancelled)
+        // A counting pill doesn't take focus (Up does, and stops it); a plain one does, so Select presses it. Not Next
+        // Episode after Cancel: Select pauses as usual then.
+        let takesFocus: Bool = if counting {
+            false
+        } else if !isFinishing, case .skip = prompt {
+            true
+        } else {
+            !nextCancelled || nextHeld
+        }
+        screen?.setPrompt(title, symbol: symbol, countingDown: counting, widest: widest, takesFocus: takesFocus)
         if !counting {
             screen?.setPromptProgress(nil)
         } else if isFinishing, let countdown {
@@ -1665,6 +1726,8 @@ extension PlaybackController: PlayerScreenDelegate {
         if isFinishing, seconds < from ?? (info?.durationSeconds ?? 0) - 1 {
             // Scrubbed back before the countdown (or out of the end): not finishing after all.
             nextCancelled = false
+            nextHeld = false
+            nextHidden = false
             endFinishing()
         }
     }
@@ -1686,8 +1749,16 @@ extension PlaybackController: PlayerScreenDelegate {
         promptTapped()
     }
 
+    func playerScreenHoldCountdown(_ screen: PlayerViewController) {
+        holdCountdown()
+    }
+
     func playerScreenCancelNext(_ screen: PlayerViewController) {
         if skipCounting != nil, !isFinishing { return cancelSkip() }
+        #if os(tvOS)
+        // Back on a TV: the countdown and its button go.
+        nextHidden = true
+        #endif
         cancelNext()
     }
 

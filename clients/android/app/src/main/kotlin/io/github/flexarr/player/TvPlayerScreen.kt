@@ -125,19 +125,20 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
     // Focus follows: the timeline with the controls up; without them, Skip Intro or Next Episode while it's up (so OK
     // presses it), else the screen itself (for the remote's keys). One place decides, so the controls going away can't
     // take focus back from the pill.
-    LaunchedEffect(showing, promptUp, audioSyncOpen, searchingSubtitles, menuOpen, controller.error) {
+    LaunchedEffect(showing, promptUp, controller.promptTakesFocus, audioSyncOpen, searchingSubtitles, menuOpen, controller.error) {
         if (controller.error != null || audioSyncOpen || searchingSubtitles || menuOpen != null) return@LaunchedEffect
         // The controls are placed a frame or two after they're asked for: keep asking for a moment.
         repeat(6) {
             delay(50)
             // Until they have it: once they do, focus is the viewer's to move.
             if (showing && controlsFocused) return@LaunchedEffect
-            if (!showing && promptUp && promptFocused) return@LaunchedEffect
+            if (!showing && promptUp && controller.promptTakesFocus && promptFocused) return@LaunchedEffect
             runCatching {
                 when {
                     // Back from a menu: its button.
                     showing -> (menuClosed?.let(menuButtons::getValue) ?: timeline).requestFocus()
-                    promptUp -> prompt.requestFocus()
+                    // A counting pill stays unfocused (Up focuses it and stops the countdown).
+                    promptUp && controller.promptTakesFocus -> prompt.requestFocus()
                     else -> root.requestFocus()
                 }
             }
@@ -164,7 +165,8 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
                 show()
             }
             scrubTo != null -> scrubTo = null
-            controller.countingDown -> controller.cancelNext()
+            // Back during a countdown: it stops and the button goes.
+            controller.countingDown -> controller.cancelNext(hide = true)
             else -> controlsVisible = false
         }
     }
@@ -206,7 +208,9 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> controller.togglePlayPause().let { show(); true }
                     KeyEvent.KEYCODE_DPAD_LEFT -> skip(-controller.skipSeconds).let { true }
                     KeyEvent.KEYCODE_DPAD_RIGHT -> skip(controller.skipSeconds).let { true }
-                    KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> show().let { true }
+                    // Up during a countdown: it stops, and the button takes focus for OK.
+                    KeyEvent.KEYCODE_DPAD_UP -> (if (controller.countingDown && promptUp) controller.holdCountdown() else show()).let { true }
+                    KeyEvent.KEYCODE_DPAD_DOWN -> show().let { true }
                     else -> false
                 }
             },

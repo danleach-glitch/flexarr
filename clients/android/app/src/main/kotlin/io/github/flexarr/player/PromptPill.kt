@@ -120,6 +120,9 @@ private val xShape = RoundedCornerShape(topEndPercent = 50, bottomEndPercent = 5
 
 private val restingFill get() = Flexarr.aisle.copy(alpha = 0.85f)
 
+/** The X's resting grey: darker than a counting half's, so the two read apart. */
+private val cancelFill get() = Flexarr.room.copy(alpha = 0.9f)
+
 /** The label, with tabular digits, kept at least as wide as [hold] (the countdown's first title) while there is one. */
 @Composable
 private fun PromptLabel(title: String, hold: String?, color: Color, fontSize: TextUnit) {
@@ -159,7 +162,7 @@ internal fun PromptPill(look: PromptLook, progress: Float?, onTap: () -> Unit, o
         if (countingDown) {
             Box(
                 Modifier.fillMaxHeight().pressable(onCancel).semantics { contentDescription = t(Words.cancel) }.padding(vertical = 8.dp)
-                    .clip(xShape).background(restingFill).padding(start = 11.dp, end = 14.dp),
+                    .clip(xShape).background(cancelFill).padding(start = 11.dp, end = 14.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(Icons.Filled.Close, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(13.dp))
@@ -170,7 +173,7 @@ internal fun PromptPill(look: PromptLook, progress: Float?, onTap: () -> Unit, o
 
 /** One half of the TV's pill: white with dark content when focused, grey with light content when not. */
 @Composable
-private fun TvPromptHalf(onClick: () -> Unit, shape: RoundedCornerShape, modifier: Modifier, start: Dp, end: Dp, progress: Float? = null, content: @Composable (Color) -> Unit) {
+private fun TvPromptHalf(onClick: () -> Unit, shape: RoundedCornerShape, modifier: Modifier, start: Dp, end: Dp, progress: Float? = null, resting: Color = restingFill, content: @Composable (Color) -> Unit) {
     val source = remember { MutableInteractionSource() }
     val focused by source.collectIsFocusedAsState()
     Surface(
@@ -180,7 +183,7 @@ private fun TvPromptHalf(onClick: () -> Unit, shape: RoundedCornerShape, modifie
         // Counting down, the half rests grey and fills with white, a lighter grey showing focus; otherwise the focused
         // half is white.
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = restingFill,
+            containerColor = resting,
             focusedContainerColor = if (progress != null) Flexarr.screen.copy(alpha = 0.32f) else Flexarr.screen,
             pressedContainerColor = if (progress != null) Flexarr.screen.copy(alpha = 0.32f) else Flexarr.screen,
         ),
@@ -212,7 +215,7 @@ internal fun TvPromptPill(look: PromptLook, progress: Float?, onTap: () -> Unit,
             PromptLabel(look.title, look.hold, tint, 14.5.sp)
         }
         if (countingDown) {
-            TvPromptHalf(onCancel, xShape, Modifier.semantics { contentDescription = t(Words.cancel) }, start = 10.dp, end = 13.dp) { tint ->
+            TvPromptHalf(onCancel, xShape, Modifier.semantics { contentDescription = t(Words.cancel) }, start = 10.dp, end = 13.dp, resting = cancelFill) { tint ->
                 Icon(Icons.Filled.Close, contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
             }
         }

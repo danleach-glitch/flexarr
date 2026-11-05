@@ -36,6 +36,8 @@ protocol PlayerScreenDelegate: AnyObject {
 }
 
 extension PlayerScreenDelegate {
+    /// Up on a TV during a countdown (Skip intro, Next Episode): stop it, leaving the button focused.
+    func playerScreenHoldCountdown(_ screen: PlayerViewController) {}
     func playerScreen(_ screen: PlayerViewController, audioDelay seconds: Double) {}
     func playerScreen(_ screen: PlayerViewController, choseRate rate: Float) {}
     func playerScreenSleepChanged(_ screen: PlayerViewController) {}

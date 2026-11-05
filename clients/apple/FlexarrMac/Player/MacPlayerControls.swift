@@ -230,7 +230,7 @@ struct MacPlayerControls: View {
                     Button { screen?.cancelNext() } label: {
                         Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
                             .padding(.horizontal, 12).padding(.vertical, 12)
-                            .background(Color.aisle.opacity(0.85), in: UnevenRoundedRectangle(bottomTrailingRadius: Radius.panel, topTrailingRadius: Radius.panel))
+                            .background(Color.room.opacity(0.9), in: UnevenRoundedRectangle(bottomTrailingRadius: Radius.panel, topTrailingRadius: Radius.panel))
                     }
                     .accessibilityLabel(t(Words.cancel))
                 }

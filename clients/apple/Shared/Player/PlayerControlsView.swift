@@ -717,6 +717,9 @@ final class PlayerControlsView: UIView {
 
     /// The Skip Intro / Next Episode pill (filled, in the app's colours) and Cancel beside it; the player's other
     /// panels use them too.
+    /// The X's resting grey: darker than a counting pill's.
+    static let cancelFill = UIColor(Color.room).withAlphaComponent(0.9)
+
     static func pill(filled: Bool) -> UIButton {
         var configuration = UIButton.Configuration.filled()
         // Next Episode and its X are the two halves of one pill (`PillButton` rounds their outer ends).
@@ -748,11 +751,12 @@ final class PlayerControlsView: UIView {
         #endif
         configuration.image = UIImage(systemName: "xmark")
         configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: side, weight: .bold)
-        // With nothing focused (a phone), the X half rests grey beside the white Next Episode half, as on a TV.
-        configuration.baseBackgroundColor = UIColor(Color.aisle).withAlphaComponent(0.85)
+        // The X half rests a darker grey, so it reads apart from the counting half beside it.
+        configuration.baseBackgroundColor = Self.cancelFill
         configuration.baseForegroundColor = UIColor(Color.screen)
         configuration.contentInsets = NSDirectionalEdgeInsets(top: side, leading: side * 0.8, bottom: side, trailing: side * 1.2)
         let button = PillButton.focusable(configuration)
+        button.restingBackground = Self.cancelFill
         button.layer.maskedCorners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
         button.accessibilityLabel = t(Words.cancel)
         return button
@@ -846,6 +850,8 @@ final class PillButton: UIButton {
     /// grey with light text when not. On a phone, Next Episode is white and its X grey.
     /// Told after each configuration update (focus coming or going), so a cover over the button can follow it.
     var onUpdate: (() -> Void)?
+    /// Its grey when not focused on a TV.
+    var restingBackground = UIColor(Color.aisle).withAlphaComponent(0.85)
 
     static func focusable(_ configuration: UIButton.Configuration) -> PillButton {
         let button = PillButton(configuration: configuration)
@@ -853,7 +859,8 @@ final class PillButton: UIButton {
         button.configurationUpdateHandler = { button in
             defer { (button as? PillButton)?.onUpdate?() }
             guard var configuration = button.configuration else { return }
-            configuration.baseBackgroundColor = button.isFocused ? UIColor(Color.screen) : UIColor(Color.aisle).withAlphaComponent(0.85)
+            let resting = (button as? PillButton)?.restingBackground ?? UIColor(Color.aisle).withAlphaComponent(0.85)
+            configuration.baseBackgroundColor = button.isFocused ? UIColor(Color.screen) : resting
             configuration.baseForegroundColor = button.isFocused ? UIColor(Color.room) : UIColor(Color.screen)
             button.configuration = configuration
         }

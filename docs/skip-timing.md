@@ -27,10 +27,12 @@ the pill skips now; **✕** (Cancel) puts the pill away and lets the intro play.
   an intro) skips to the end of both, with no second countdown.
 - **Once each:** a marker skipped (by itself or by the button) shows the plain button if you seek back into it, so you
   can watch it. A cancelled one shows nothing more for the rest of the episode. Neither changes the setting.
-- On the TVs the pill takes focus: Select skips now, Back is ✕, and left and right move between the halves. On the Mac,
-  Return skips and Esc cancels.
-- The countdown's number uses fixed-width digits and the pill holds its width while counting. Screen readers hear
-  it once as it shows.
+- On the TVs the counting pill comes up without focus (Select pauses as usual, left and right skip). **Up** stops the
+  countdown and leaves a plain *Skip intro* button, focused, for Select to press. **Back** cancels it and the pill goes.
+  On the Mac, Return skips and Esc cancels.
+- The countdown runs down to 0 and holds there, full, until the skip has landed, so the pill never flashes the plain
+  button first. Its number uses fixed-width digits and the pill holds its width while counting. Screen readers hear
+  it once as it shows. The ✕ is a darker grey than the counting half.
 - The iPhone remote shows a plain *Skip intro* during the countdown; pressing it skips to the marker's end, even before
   the marker starts.
 
