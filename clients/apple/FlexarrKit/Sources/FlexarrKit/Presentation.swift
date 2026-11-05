@@ -292,6 +292,76 @@ public struct NextEpisodeTiming: Equatable, Sendable {
     }
 }
 
+/// When Skip intros / Skip recaps count down before skipping (docs/skip-timing.md). The countdown runs over the picture
+/// before the marker, so the skip lands as it starts; it follows the playing position like Next Episode's.
+public struct SkipTiming: Equatable, Sendable {
+    public var countdownFrom: Double
+    /// Where the countdown reaches 0 and the skip happens.
+    public var skipAt: Double
+
+    /// A countdown needs this much of the marker left after it, or there's only the plain button.
+    public static let minimumLeft: Double = 2
+    /// Markers starting within this of where a skip lands are skipped with it (a recap straight into an intro).
+    public static let chainGap: Double = 1
+
+    public init(countdownFrom: Double, skipAt: Double) {
+        self.countdownFrom = countdownFrom
+        self.skipAt = skipAt
+    }
+
+    /// The countdown's length for a marker type: 3 seconds for an intro, 5 for a recap, nil for anything else.
+    public static func seconds(for type: MarkerType) -> Double? {
+        switch type {
+        case .intro: 3
+        case .recap: 5
+        default: nil
+        }
+    }
+
+    /// The countdown before `marker` starts (from 0 when it starts sooner than that); nil without room for one.
+    public static func of(_ marker: Marker) -> SkipTiming? {
+        guard let length = seconds(for: marker.type) else { return nil }
+        let from = max(0, marker.start - length)
+        return fitting(SkipTiming(countdownFrom: from, skipAt: from + length), marker)
+    }
+
+    /// A fresh countdown from `time`, where a seek or resume landed inside `marker`; nil outside it or without room.
+    public static func landing(_ marker: Marker, at time: Double) -> SkipTiming? {
+        guard let length = seconds(for: marker.type), time >= marker.start, time < marker.end else { return nil }
+        return fitting(SkipTiming(countdownFrom: time, skipAt: time + length), marker)
+    }
+
+    private static func fitting(_ timing: SkipTiming, _ marker: Marker) -> SkipTiming? {
+        marker.end - timing.skipAt >= minimumLeft ? timing : nil
+    }
+
+    /// Whole seconds left at `time`: nil before the countdown, 0 once it's time to skip.
+    public func countdown(at time: Double) -> Int? {
+        guard time >= countdownFrom else { return nil }
+        return Int(min(skipAt - countdownFrom, max(0, (skipAt - time).rounded(.up))))
+    }
+
+    /// How far through the countdown `time` is, 0...1, for the pill's fill.
+    public func progress(at time: Double) -> Double {
+        let length = skipAt - countdownFrom
+        return length > 0 ? min(1, max(0, (time - countdownFrom) / length)) : 1
+    }
+
+    /// Where skipping `marker` lands: its end, or past any auto-skipped intro or recap starting straight after it.
+    public static func skipEnd(of marker: Marker, in markers: [Marker], skipIntros: Bool, skipRecaps: Bool) -> Double {
+        var end = marker.end
+        var moved = true
+        while moved {
+            moved = false
+            for other in markers where other.end > end && other.start <= end + chainGap {
+                let auto = other.type == .intro ? skipIntros : other.type == .recap ? skipRecaps : false
+                if auto { end = other.end; moved = true }
+            }
+        }
+        return end
+    }
+}
+
 extension PlaybackInfo {
     public func nextEpisodeTiming(_ preferences: PlaybackPreferences) -> NextEpisodeTiming? {
         guard next != nil else { return nil }
