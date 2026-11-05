@@ -77,6 +77,18 @@ struct TitleQuery: EntityStringQuery {
     @MainActor
     func suggestedEntities() async throws -> [TitleEntity] {
         guard let client = model.client else { return [] }
+        // The system asks for these once per kind of title (Play and Save both): a minute's answer serves both.
+        let who = "\(client.baseURL.absoluteString)#\(model.currentProfile?.id ?? "")"
+        if let kept = Self.kept, kept.who == who, Date().timeIntervalSince(kept.at) < 60 { return kept.titles }
+        let titles = try await fetchSuggested(client)
+        Self.kept = (who, Date(), titles)
+        return titles
+    }
+
+    @MainActor private static var kept: (who: String, at: Date, titles: [TitleEntity])?
+
+    @MainActor
+    private func fetchSuggested(_ client: FlexarrClient) async throws -> [TitleEntity] {
         var titles: [ItemSummary] = []
         let libraries = model.libraries.isEmpty ? ((try? await client.libraries()) ?? []) : model.libraries
         for library in libraries.sorted(by: { $0.type == .tvShows && $1.type != .tvShows }) where [.movies, .tvShows, .homeVideos].contains(library.type) {
@@ -1029,6 +1041,9 @@ struct FlexarrSearchIntent: ShowInAppSearchResultsIntent {
 
 // MARK: - What Siri listens for
 
+// Not on the Apple TV: Siri there doesn't use them, and teaching the system the library's titles made its `linkd`
+// swell to hundreds of MB, starving the whole box of memory (a black screen on waking, until tvOS killed things).
+#if !os(tvOS)
 /// The phrases Siri answers to without any setting up, once the app is installed. Each has at most one parameter,
 /// and the app's name; `updateAppShortcutParameters()` (called after signing in) teaches Siri the library's titles.
 struct FlexarrShortcuts: AppShortcutsProvider {
@@ -1161,6 +1176,7 @@ struct FlexarrShortcuts: AppShortcutsProvider {
         )
     }
 }
+#endif
 
 extension IntentDialog {
     /// Words already in the language shown (`t`), said as they are.
