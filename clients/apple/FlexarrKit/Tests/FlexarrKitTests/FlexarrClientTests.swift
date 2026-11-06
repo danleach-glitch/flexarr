@@ -760,6 +760,33 @@ struct ServerAddressesTests {
         #expect(!addresses.isAway)
     }
 
+    @Test func aLaunchStartsAtTheAddressThatAnsweredLast() throws {
+        let suite = "io.github.flexarr.test.\(UUID().uuidString)"
+        let memory = try #require(UserDefaults(suiteName: suite))
+        defer { memory.removePersistentDomain(forName: suite) }
+        let home = URL(string: "http://mini.local:8383")!, remote = URL(string: "https://mini.ts.net:8443")!
+
+        // Nothing kept yet: home.
+        let first = ServerAddresses(home: home, remote: remote, memory: memory)
+        #expect(first.current == home)
+        first.reached(remote)
+
+        // Away last time: the next launch starts there, and checks home as soon as something has answered.
+        let away = ServerAddresses(home: home, remote: remote, memory: memory)
+        #expect(away.current == remote)
+        #expect(away.isAway)
+        #expect(away.shouldCheckHome())
+        // Another server's remote address, or none any more, isn't this one's.
+        #expect(ServerAddresses(home: home, remote: URL(string: "https://other.ts.net")!, memory: memory).current == home)
+        #expect(ServerAddresses(home: home, remote: nil, memory: memory).current == home)
+        // Without anywhere to keep it (a client made for one address), always home.
+        #expect(ServerAddresses(home: home, remote: remote).current == home)
+
+        // Home again: the launch after starts at home.
+        away.reached(home)
+        #expect(ServerAddresses(home: home, remote: remote, memory: memory).current == home)
+    }
+
     @Test func sharedInstancesAreOnePerPair() {
         let home = URL(string: "http://shared-\(UUID().uuidString).local:8383")!, remote = URL(string: "https://mini.ts.net:8443")!
         #expect(ServerAddresses.shared(home: home, remote: remote) === ServerAddresses.shared(home: home, remote: remote))
@@ -824,6 +851,28 @@ struct RemoteFallbackTests {
         }
         #expect(StubProtocol.recorded(host: home).count == 1)
         #expect(StubProtocol.recorded(host: remote).count == 1)
+    }
+
+    @Test func awayLastTimeTheFirstRequestGoesStraightToTheRemoteAddress() async throws {
+        let suite = "io.github.flexarr.test.\(UUID().uuidString)"
+        let memory = try #require(UserDefaults(suiteName: suite))
+        defer { memory.removePersistentDomain(forName: suite) }
+        let homeHost = "home-\(UUID().uuidString.lowercased()).local"
+        let remoteHost = "remote-\(UUID().uuidString.lowercased()).ts.net"
+        StubProtocol.register(host: remoteHost, .init(status: 200, body: Data("[]".utf8)))
+        let home = URL(string: "http://\(homeHost):8383")!, remote = URL(string: "https://\(remoteHost):8443")!
+        memory.set(remote.absoluteString, forKey: ServerAddresses.memoryKey)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubProtocol.self]
+        let client = FlexarrClient(addresses: ServerAddresses(home: home, remote: remote, memory: memory), apiKey: "secret",
+                                   session: URLSession(configuration: configuration))
+
+        _ = try await client.libraries()
+
+        #expect(StubProtocol.recorded(host: remoteHost).first?.url?.path == "/api/v1/libraries")
+        // Home wasn't waited on: at most it's asked afterwards whether it's back.
+        #expect(!StubProtocol.recorded(host: homeHost).contains { $0.url?.path == "/api/v1/libraries" })
+        #expect(client.addresses.isAway)
     }
 
     @Test func statusWithoutARemoteAddressStillDecodes() throws {

@@ -6,6 +6,10 @@ import Foundation
 /// the first answer wins; a write only moves over once the first address has failed to connect, so it's never sent
 /// twice. While away, home is tried again every few minutes so the app goes back to it once it's reachable.
 ///
+/// Which address answered last is kept between launches (`shared` instances only), so an app started away from home
+/// begins at the remote address rather than waiting on home first; home is then checked as soon as something has
+/// answered, so an app that has come home goes back to it.
+///
 /// The home address is a private one over plain HTTP, and on someone else's network (a café, a hotel) something else
 /// may answer at it. So once the app knows the server's id (`serverId`), home is asked who it is, without the sign-in,
 /// before it's sent anything signed in (`proveHome`): after a launch, and again whenever it hasn't answered for
@@ -37,12 +41,22 @@ public final class ServerAddresses: @unchecked Sendable {
     private var homeProvenAt: Date?
     private var proofUnderWay = false
     private var proofWaiters: [AsyncStream<Bool>.Continuation] = []
+    /// Where the address that answered last is kept between launches; nil keeps nothing.
+    private let memory: UserDefaults?
+    static let memoryKey = "io.github.flexarr.server.lastReached"
 
-    public init(home: URL, remote: URL?, serverId: String? = nil) {
+    /// `memory`: where the address that answered last is kept, to start there next launch (nil: always starts at home).
+    public init(home: URL, remote: URL?, serverId: String? = nil, memory: UserDefaults? = nil) {
         self.home = home
         self.remote = remote == home ? nil : remote
         self.serverId = serverId?.isEmpty == false ? serverId : nil
-        _current = home
+        self.memory = memory
+        // Away last time: most likely still away, and a launch needn't wait on home to find that out again.
+        if let remote = self.remote, memory?.string(forKey: Self.memoryKey) == remote.absoluteString {
+            _current = remote
+        } else {
+            _current = home
+        }
     }
 
     /// The address requests go to now.
@@ -59,13 +73,16 @@ public final class ServerAddresses: @unchecked Sendable {
 
     /// `url` answered: send everything there from now on.
     public func reached(_ url: URL) {
-        lock.withLock {
+        let moved = lock.withLock {
             if url != home, _current == home {
                 homeCheckedAt = Date() // leaving home starts the clock for trying it again
                 homeProvenAt = nil // and whatever is at its address next has to say who it is
             }
+            let moved = _current != url
             _current = url
+            return moved
         }
+        if moved { memory?.set(url.absoluteString, forKey: Self.memoryKey) }
     }
 
     /// True once per interval while away: time to see whether home answers again.
@@ -162,7 +179,7 @@ public final class ServerAddresses: @unchecked Sendable {
         let key = "\(home.absoluteString)|\(remote?.absoluteString ?? "")|\(serverId ?? "")"
         return registryLock.withLock {
             if let existing = registry[key] { return existing }
-            let made = ServerAddresses(home: home, remote: remote, serverId: serverId)
+            let made = ServerAddresses(home: home, remote: remote, serverId: serverId, memory: .standard)
             registry[key] = made
             return made
         }

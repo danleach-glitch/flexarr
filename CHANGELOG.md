@@ -12,6 +12,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### iPhone, iPad and Apple TV
 - While an episode plays, the lock screen and Control Center show the show's poster instead of the episode's still.
 
+### iPhone, iPad and Mac
+- Away from home, Flexarr opens a couple of seconds sooner: it starts with your server's away-from-home address when that's the one that answered last time, instead of waiting on the home address first.
+
 ### Security
 - On iPhone, iPad, Apple TV and Mac, away from home, your sign-in goes to your server's home address only after it has shown it's your server, so another network using the same address never receives it and can't sign the app out.
 
