@@ -28,6 +28,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Opening the Android app, or coming back to it, asks the server the same small questions once rather than several times, so Home has less to wait behind on mobile data.
 - A phone or tablet left on **Who’s watching?** no longer opens the last profile’s downloads when it goes offline, if that profile has a PIN. A child’s profile takes over if there is one; otherwise **Who’s watching?** stays until the server can be reached again.
 - While the app is on **Who’s watching?**, the Continue Watching, Continue listening and Up Next widgets ask you to open Flexarr and choose, rather than go on showing the last profile’s titles. The Watchlist widget already did.
+- Connecting with an API key to an address on the internet typed without `http://` or `https://` only ever uses https. The Android app used to fall back to plain http when https didn’t answer, which sent the key unencrypted; now it says so, and you can type `http://` yourself if your server really has no https. Home, `.local` and Tailscale addresses connect as before.
 
 ## 0.62.1 · 5 November 2026
 

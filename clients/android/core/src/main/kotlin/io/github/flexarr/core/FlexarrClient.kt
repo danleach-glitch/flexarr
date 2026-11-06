@@ -74,6 +74,12 @@ sealed class FlexarrException(message: String) : Exception(message) {
     /** The response was not what a Flexarr server sends (for example an HTML page). */
     class UnexpectedResponse : FlexarrException(t("That address answered, but not like a Flexarr server. Check the host name and port."))
 
+    /**
+     * Nothing answered like a Flexarr server over https at an internet address typed without `http://`. Plain http isn't
+     * tried there unasked ([FlexarrClient.addressCandidates]): it would send the sign-in in the clear.
+     */
+    class NoSecureAnswer : FlexarrException(t("No Flexarr server answered there over https. If yours only uses http, type http:// before its address."))
+
     class InvalidAddress : FlexarrException(t("That doesn’t look like a server address. Try something like {example}.", "example" to "http://192.168.1.20:8383"))
 
     class Unreachable(cause: IOException) : FlexarrException(t("Couldn’t reach the server. Make sure Flexarr is running and this device is on the same network.")) {
@@ -773,17 +779,28 @@ class FlexarrClient(
 
         /**
          * The addresses to try, in order, for what a person typed. As [normalizeAddress], except that a host on the
-         * internet typed without a scheme is tried over https first (on 443, unless a port was typed), and only then as
-         * http on Flexarr's port, so a sign-in isn't sent in the clear when it needn't be. A home-network host (a private
-         * or Tailscale address, `.local`, `.ts.net`, a name with no dots) stays as it was.
+         * internet typed without a scheme is tried over https only (on 443, unless a port was typed), so a sign-in is
+         * never sent there in the clear unless `http://` was typed: falling back to http when https doesn't answer
+         * would hand the key to anyone on the way who can stop https answering. A home-network host (a private or
+         * Tailscale address, `.local`, `.ts.net`, a name with no dots) stays as it was.
          */
         fun addressCandidates(input: String): List<HttpUrl> {
             val text = input.trim()
             val url = normalizeAddress(text) ?: return emptyList()
-            if ("://" in text || isHomeNetworkHost(url.host)) return listOf(url)
+            if (!triesOnlyHttps(text)) return listOf(url)
             val portTyped = Regex("^(?:\\[[^]]+]|[^/:]+):\\d+").containsMatchIn(text)
-            val secure = url.newBuilder().scheme("https").port(if (portTyped) url.port else 443).build()
-            return listOf(secure, url)
+            return listOf(url.newBuilder().scheme("https").port(if (portTyped) url.port else 443).build())
+        }
+
+        /**
+         * What was typed is a host on the internet with no `http://` or `https://`, which [addressCandidates] tries
+         * over https only: when nothing answers there, the person is told how to ask for plain http
+         * ([FlexarrException.NoSecureAnswer]).
+         */
+        fun triesOnlyHttps(input: String): Boolean {
+            val text = input.trim()
+            val url = normalizeAddress(text) ?: return false
+            return "://" !in text && !isHomeNetworkHost(url.host)
         }
 
         /** A host only reached at home or over Tailscale, where a server is usually plain http on its own port. */

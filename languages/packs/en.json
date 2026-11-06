@@ -1504,6 +1504,7 @@
  "Nightly": "Nightly",
  "No": "No",
  "No Apple TV to play on": "No Apple TV to play on",
+ "No Flexarr server answered there over https. If yours only uses http, type http:// before its address.": "No Flexarr server answered there over https. If yours only uses http, type http:// before its address.",
  "No PIN": "No PIN",
  "No Settings. Leaving takes the admin PIN.": "No Settings. Leaving takes the admin PIN.",
  "No Tailscale OAuth client is set up.": "No Tailscale OAuth client is set up.",

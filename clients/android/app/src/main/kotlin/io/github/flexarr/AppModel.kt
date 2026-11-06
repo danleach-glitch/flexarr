@@ -967,7 +967,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      * device's own token first, so the key itself isn't kept here.
      */
     suspend fun connect(address: String, apiKey: String) {
-        // A host on the internet is tried over https first, then as typed would have been (see addressCandidates).
+        // A host on the internet typed without http:// is only tried over https (see addressCandidates).
         val candidates = FlexarrClient.addressCandidates(address).ifEmpty { throw FlexarrException.InvalidAddress() }
         var credentials: ServerCredentials? = null
         var status: SystemStatus? = null
@@ -980,7 +980,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             } catch (e: FlexarrException) {
                 // Not there (or not a Flexarr server there): the next way of reaching it, if there's one left.
                 val tryNext = e is FlexarrException.Unreachable || e is FlexarrException.UnexpectedResponse
-                if (!tryNext || index == candidates.lastIndex) throw e
+                if (tryNext && index < candidates.lastIndex) continue
+                // Only https was tried, and plain http isn't unasked (the key would go in the clear): how to ask for it.
+                if (tryNext && FlexarrClient.triesOnlyHttps(address)) throw FlexarrException.NoSecureAnswer()
+                throw e
             }
         }
         // Older than the apps support: not signed in to, and the connect screen says to update it.
