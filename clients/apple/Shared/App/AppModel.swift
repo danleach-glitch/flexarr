@@ -584,7 +584,9 @@ final class AppModel {
         guard !remoteChecked, let credentials, !credentials.isGuest else { return }
         remoteChecked = true
         guard let status = try? await credentials.client.systemStatus() else { return }
-        let remote = await Self.remoteAddress(for: status, address: credentials.address, kept: credentials.remoteAddress)
+        // A new one has to give the id kept at sign-in, not one this answer brings with it.
+        let remote = await Self.remoteAddress(for: status, address: credentials.address, kept: credentials.remoteAddress,
+                                              knownId: credentials.serverId)
         // Never swapped for another: a server whose id has changed is a different server, to be connected to afresh.
         let id = credentials.serverId ?? status.serverId
         // Who's watching may have been chosen meanwhile: what matters is that it's still the same sign-in.
@@ -600,8 +602,8 @@ final class AppModel {
 
     /// The server's address for away from home, once it's a Tailscale one with the same server there (see
     /// `FlexarrClient.remoteAddress`); one that isn't is left out, and said so in the log.
-    private static func remoteAddress(for status: SystemStatus, address: URL, kept: URL? = nil) async -> URL? {
-        await FlexarrClient.remoteAddress(for: status, address: address, kept: kept, refused: { log.warning($0) })
+    private static func remoteAddress(for status: SystemStatus, address: URL, kept: URL? = nil, knownId: String? = nil) async -> URL? {
+        await FlexarrClient.remoteAddress(for: status, address: address, kept: kept, knownId: knownId, refused: { log.warning($0) })
     }
 
     /// The same sign-in with this device's own token in place of the server's API key, if it holds the key
