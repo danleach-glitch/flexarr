@@ -632,6 +632,8 @@ final class AppModel {
         guard credentials != nil else { return }
         settleOfflineProfile()
         needsProfileChoice = false
+        // A link that was waiting for "Who's watching?" doesn't open later, out of the blue, when someone switches profile.
+        afterProfileChoice = nil
         profilesLoaded = true
         if !isOffline {
             log.info("Offline: the server can't be reached")
@@ -1088,6 +1090,14 @@ final class AppModel {
     static var asksWhoIsWatching: Bool {
         get { UserDefaults.standard.bool(forKey: "FlexarrAsksWhoIsWatching") }
         set { UserDefaults.standard.set(newValue, forKey: "FlexarrAsksWhoIsWatching") }
+    }
+
+    /// `asksWhoIsWatching` as a view can follow it: what the Top Shelf may show depends on it.
+    private(set) var asksWhoIsWatchingHere = AppModel.asksWhoIsWatching
+
+    func setAsksWhoIsWatching(_ asks: Bool) {
+        Self.asksWhoIsWatching = asks
+        asksWhoIsWatchingHere = asks
     }
 
     /// Makes `profile` the one watching on this device (remembered across launches). A wrong
@@ -1862,6 +1872,12 @@ final class AppModel {
             Task { await open(rest, as: wanted) }
             return
         }
+        // "Who's watching?" comes first: a link (Play on the Top Shelf, say) that arrives while it's up, or before
+        // it's known whether it will be, waits for whoever is chosen rather than opening as whoever watched last.
+        if profileChoicePending {
+            Task { await openOnceChosen(url) }
+            return
+        }
         switch host {
         case "watchlist":
             pendingRoute = .watchlist
@@ -1911,6 +1927,32 @@ final class AppModel {
                 player.play(itemId: id, preview: nil, startAt: start, client: client, shuffle: shuffle, subtitleKey: subtitles)
             }
         default: break
+        }
+    }
+
+    /// Whether "Who's watching?" is up, or may be once the profiles have loaded: nobody has been chosen on this device,
+    /// or an Apple TV set to ask each time it starts hasn't yet. Not with one profile (as last known), which is never
+    /// asked, so its links needn't wait for the list.
+    private var profileChoicePending: Bool {
+        if needsProfileChoice { return true }
+        guard let credentials, !profilesLoaded else { return false }
+        #if DEBUG
+        if skipsProfileChoice { return false }
+        #endif
+        guard credentials.profileToken == nil || (Self.asksWhoIsWatching && !askedWhoIsWatching) else { return false }
+        return store.savedProfiles.count != 1
+    }
+
+    /// Opens `url` once it's settled who's watching: as things are if nobody is asked, else once someone is chosen
+    /// (PIN and all), as a link that names a profile with a PIN is.
+    private func openOnceChosen(_ url: URL) async {
+        for _ in 0..<50 where !profilesLoaded { try? await Task.sleep(for: .milliseconds(200)) }
+        // Never loaded (signed out meanwhile, or a guest with no tunnel): there's nobody to open it as.
+        guard profilesLoaded else { return }
+        if needsProfileChoice {
+            afterProfileChoice = url
+        } else {
+            open(url: url)
         }
     }
 
