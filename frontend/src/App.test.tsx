@@ -1987,6 +1987,63 @@ describe('Library grid going back', () => {
   })
 })
 
+describe('Loaded when opened', () => {
+  const owner = { profileId: 'owner', method: 'local', zone: 'Local', isAdmin: true, tailscaleLogin: null }
+
+  it('opens Fix match over a film’s page, which stays as it is while the dialog’s code arrives', async () => {
+    const film = summary({ id: 'm1', title: 'The Nice Guys' })
+    mockApi({ '/libraries': [], '/me': owner, '/profiles': [], '/items/m1': detail(film), '/items/m1/similar': [] })
+
+    renderAt('/item/m1')
+    fireEvent.click(await screen.findByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Fix match…' }))
+
+    // Nothing takes the page away while it loads.
+    expect(screen.getByRole('heading', { level: 1, name: 'The Nice Guys' })).toBeVisible()
+    expect(await screen.findByRole('dialog', { name: 'Fix match' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'The Nice Guys' })).toBeVisible()
+
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('shows a book’s page, and its chapter editor', async () => {
+    const book = summary({ id: 'b1', kind: 'Audiobook', title: 'Project Hail Mary', libraryId: 'lib-books', durationSeconds: 58000 })
+    const about = {
+      subtitle: null, asin: null, isbn: null, publisher: null, language: null, abridged: false, explicit: false, durationSeconds: 58000, chapterSource: 'File',
+      finishedAt: null, speed: null, series: [], chapters: [{ title: 'One', startSeconds: 0 }], bookmarks: [], moreInSeries: [], byAuthor: [], readByNarrator: [], authors: [],
+    }
+    mockApi({ '/libraries': [], '/me': owner, '/profiles': [], '/items/b1': detail(book, { book: about }), '/books/listening': { speed: 1 } })
+
+    renderAt('/item/b1')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Project Hail Mary' })).toBeInTheDocument()
+    // The rest of the app is there throughout: only the page waits for its code.
+    expect(screen.getByRole('navigation', { name: 'Main' })).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: 'More for Project Hail Mary' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Edit chapters…' }))
+    expect(await screen.findByRole('dialog', { name: 'Chapters' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Project Hail Mary' })).toBeVisible()
+  })
+
+  it('shows a book library’s shelves and a music library’s playlists under the library’s own views', async () => {
+    const books = { ...movies, id: 'lib-books', name: 'Audiobooks', type: 'Audiobooks' }
+    const music = { ...movies, id: 'lib-music', name: 'Music', type: 'Music' }
+    const shelves = { continueListening: [], nextInSeries: [], recentlyAdded: [], series: [], authors: [], narrators: [], genres: [], finished: [] }
+    mockApi({ '/libraries': [books, music], '/libraries/lib-books/book-shelves': shelves, '/playlists': [] })
+
+    const first = renderAt('/library/lib-books')
+    expect(await screen.findByRole('navigation', { name: 'Audiobooks views' })).toBeInTheDocument()
+    first.unmount()
+
+    renderAt('/library/lib-music?view=playlists')
+    const views = await screen.findByRole('navigation', { name: 'Music views' })
+    expect(within(views).getByRole('link', { name: 'Playlists' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('heading', { level: 1, name: 'Music' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Main' })).toBeVisible()
+  })
+})
+
 describe('Requests', () => {
   it('asks the server who you are once, however many parts of the page want to know', async () => {
     const film = summary({ id: 'm1', title: 'The Nice Guys' })

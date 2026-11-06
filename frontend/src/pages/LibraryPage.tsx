@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { PageError } from '../components/PageStatus'
 import { Link, Navigate, useNavigationType, useParams, useSearchParams } from 'react-router'
 import { forgetPage, getGenreTracks, getLibraryAlbumGenres, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, getMusicRequestStatus, getRequestStatusCached, imageUrl, keepPage, keptPage, type HomeRow, type Library } from '../api/client'
@@ -12,12 +12,11 @@ import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { ChevronLeft } from '../components/icons'
 import { icon } from '../components/icons.generated'
 import { libraryGenreLink } from '../lib/links'
+import { onDemand } from '../lib/onDemand'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
-import { BooksLibrary } from './BooksLibrary'
 import { LibraryRequested } from './LibraryRequested'
-import { PlaylistsPage } from './PlaylistsPage'
 import { AlphaPicker, AlphaRail, ShowMore, useLibraryGrid } from './libraryGrid'
 import { t, Words } from '../i18n'
 
@@ -31,6 +30,15 @@ const sorts = [
 ] as const
 /** What a music library's albums sort by: no ratings there. */
 const albumSorts = sorts.filter((s) => s.value !== 'rating')
+
+// A book library's shelves and a music library's playlists load when one is opened: most first pages need neither.
+const BooksLibrary = lazy(() => onDemand(() => import('./BooksLibrary').then((m) => ({ default: m.BooksLibrary }))))
+const PlaylistsPage = lazy(() => onDemand(() => import('./PlaylistsPage').then((m) => ({ default: m.PlaylistsPage }))))
+
+/** Says Loading… where the page goes, as the library does before it's known, while a page's code arrives. */
+function WhileLoading({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<p className="page-message muted">{t('Loading…')}</p>}>{children}</Suspense>
+}
 
 /**
  * Ways into a library: Browse (a home page of rows for just this library), All (every title, with sort, genre and
@@ -46,7 +54,12 @@ export function LibraryPage() {
   // Podcasts have pages of their own: what you follow, and Apple's directory to find more.
   if (library.type === 'Podcasts') return <Navigate to="/podcasts" replace />
   // Books have shelves, series, authors and narrators of their own.
-  if (library.type === 'Audiobooks') return <BooksLibrary library={library} />
+  if (library.type === 'Audiobooks')
+    return (
+      <WhileLoading>
+        <BooksLibrary library={library} />
+      </WhileLoading>
+    )
 
   // A genre's own page, as books have: its titles (a music library's albums) under its name, with a way back to Genres.
   const genrePage = params.get('view') === 'genre' && params.get('genre') && hasGenres(library)
@@ -59,15 +72,17 @@ export function LibraryPage() {
   // The profile's playlists, under the library's views.
   if (library.type === 'Music' && params.get('view') === 'playlists')
     return (
-      <PlaylistsPage
-        key={`${id} playlists`}
-        heading={
-          <div className="library-heading">
-            <h1 className="library-title">{library.name}</h1>
-            <ViewSwitch library={library} view="playlists" />
-          </div>
-        }
-      />
+      <WhileLoading>
+        <PlaylistsPage
+          key={`${id} playlists`}
+          heading={
+            <div className="library-heading">
+              <h1 className="library-title">{library.name}</h1>
+              <ViewSwitch library={library} view="playlists" />
+            </div>
+          }
+        />
+      </WhileLoading>
     )
   const all = params.get('view') === 'all' || params.has('sort') || params.has('genre')
   if (all) return <LibraryAll key={id} />

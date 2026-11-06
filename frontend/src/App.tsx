@@ -30,8 +30,8 @@ import { HomePage } from './pages/HomePage'
 import { ItemPage } from './pages/ItemPage'
 import { LibraryPage } from './pages/LibraryPage'
 import { PersonPage } from './pages/PersonPage'
-import { LinkPage } from './pages/LinkPage'
 import { errorReporter } from './lib/errorReporter'
+import { onDemand } from './lib/onDemand'
 import { configureSentry } from './lib/sentry'
 import { session } from './lib/session'
 import './styles/tokens.generated.css'
@@ -48,10 +48,6 @@ import { setServerTitle } from './lib/serverTitle'
 
 // The player (with hls.js) and settings load on demand to keep the first page light.
 /**
- * Loads a page on demand. A tab opened before an update can ask for a file the update replaced; then the page reloads
- * once to pick up the new version rather than going blank. (Deploys also keep a week of old files.)
- */
-/**
  * A page that starts afresh for each title it shows: going from one to another (a Similar title, a person's film)
  * never shows the last one's details, or its Play button, under the new address while the new one loads.
  */
@@ -60,21 +56,9 @@ function Fresh({ children }: { children: ReactNode }) {
   return <Fragment key={Object.values(params).join('/')}>{children}</Fragment>
 }
 
+/** A page loaded on demand (see onDemand for a tab opened before an update). */
 function lazyPage<T extends { default: ComponentType }>(load: () => Promise<T>) {
-  return lazy(async () => {
-    try {
-      const page = await load()
-      session.remove('flexarr.reloadedForUpdate')
-      return page
-    } catch (error) {
-      if (!session.get('flexarr.reloadedForUpdate')) {
-        session.set('flexarr.reloadedForUpdate', '1')
-        location.reload()
-        return new Promise<T>(() => {}) // the reload replaces this page
-      }
-      throw error
-    }
-  })
+  return lazy(() => onDemand(load))
 }
 
 const PlayerPage = lazyPage(() => import('./pages/PlayerPage').then((m) => ({ default: m.PlayerPage })))
@@ -90,6 +74,7 @@ const ExternalTitlePage = lazyPage(() => import('./pages/ExternalTitlePage').the
 const MusicExternalAlbumPage = lazyPage(() => import('./pages/MusicExternalPages').then((m) => ({ default: m.MusicExternalAlbumPage })))
 const MusicExternalArtistPage = lazyPage(() => import('./pages/MusicExternalPages').then((m) => ({ default: m.MusicExternalArtistPage })))
 const MixPage = lazyPage(() => import('./pages/MixPage').then((m) => ({ default: m.MixPage })))
+const LinkPage = lazyPage(() => import('./pages/LinkPage').then((m) => ({ default: m.LinkPage })))
 const BookSeriesPage = lazyPage(() => import('./pages/BookSeriesPage').then((m) => ({ default: m.BookSeriesPage })))
 const PlaylistsPage = lazyPage(() => import('./pages/PlaylistsPage').then((m) => ({ default: m.PlaylistsPage })))
 const PlaylistPage = lazyPage(() => import('./pages/PlaylistsPage').then((m) => ({ default: m.PlaylistPage })))
