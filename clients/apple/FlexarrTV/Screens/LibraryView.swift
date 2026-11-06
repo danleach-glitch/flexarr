@@ -39,6 +39,10 @@ struct LibraryView: View {
     @State private var isRefreshing = false
     /// The letter being jumped to while the titles up to it load.
     @State private var jumping: String?
+    /// The rail's letters with nothing to jump to, as of the titles loaded. Kept, and worked out again only when the
+    /// titles change: every move of focus draws this screen again, and going through thousands of titles for their
+    /// letters each time made the remote feel sticky in a long library.
+    @State private var emptyLetters: Set<String> = []
     @FocusState private var focusedItem: String?
     /// The sort and genre buttons and the A–Z rail.
     @FocusState private var focusedControl: String?
@@ -92,10 +96,10 @@ struct LibraryView: View {
                         .frame(height: 500)
                 } else {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 64) {
-                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        ForEach(items) { item in
                             card(item)
                                 .id(item.id)
-                                .onAppear { loadMoreIfNeeded(at: index) }
+                                .onAppear { loadMoreIfNeeded(showing: item) }
                         }
                     }
                     .focusSection()
@@ -139,6 +143,8 @@ struct LibraryView: View {
         .onChange(of: focusedControl) { _, now in if now == nil { lastFocusHereAt = .now } }
         .onChange(of: takesFocus.wrappedValue, focusFirstTitleOnArrival)
         .onChange(of: items.first?.id, focusFirstTitleOnArrival)
+        .onChange(of: items, initial: true) { emptyLetters = Self.emptyLetters(among: items, of: total) }
+        .onChange(of: total) { emptyLetters = Self.emptyLetters(among: items, of: total) }
         .onChange(of: focusedItem) { old, new in
             if old != nil, new == nil { lastFocusHereAt = .now }
             focusFirstTitleFromSidebar(old: old, new: new)
@@ -349,7 +355,7 @@ struct LibraryView: View {
     /// Letters with nothing to jump to: none among the titles loaded, and either every title is loaded or the grid
     /// has already loaded past the letter. "#" also covers accented titles, which sort after Z, so it's only known
     /// once everything is loaded.
-    private var emptyLetters: Set<String> {
+    static func emptyLetters(among items: [ItemSummary], of total: Int) -> Set<String> {
         let found = Set(items.map(Self.letter(of:)))
         let complete = items.count >= total
         let last = items.last.map(Self.letter(of:)) ?? "#"
@@ -379,7 +385,8 @@ struct LibraryView: View {
                 focusedItem = target.id
                 return
             }
-            guard !emptyLetters.contains(letter), items.count < total else { return }
+            // Worked out afresh: the kept set follows `items` a moment later, and this loop has just added to them.
+            guard !Self.emptyLetters(among: items, of: total).contains(letter), items.count < total else { return }
             let skip = items.count
             guard let page = try? await fetch(client, skip: skip, take: Self.maxPageSize),
                   current == generation, !page.items.isEmpty else { return }
@@ -391,8 +398,9 @@ struct LibraryView: View {
         }
     }
 
-    private func loadMoreIfNeeded(at index: Int) {
-        guard !isLoading, items.count < total, index >= items.count - 18, let client = model.client else { return }
+    /// The next page, once a title in the last three rows comes on screen.
+    private func loadMoreIfNeeded(showing item: ItemSummary) {
+        guard !isLoading, items.count < total, items.suffix(18).contains(where: { $0.id == item.id }), let client = model.client else { return }
         let current = generation
         let skip = items.count
         isLoading = true

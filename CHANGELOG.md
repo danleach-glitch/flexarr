@@ -29,6 +29,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On an Apple TV set to **Ask who's watching**, the Home screen's Top Shelf no longer shows a profile's titles when that profile asks for a PIN, and Play on the Top Shelf waits for **Who's watching?** rather than starting as whoever watched last.
 - A show's page opens with **Play** in focus, not **Shuffle**. Play is there from the start and fills in the episode once it's known.
 - Pressing down from a row of buttons onto **Play** (on Browse, say) lands on Play wherever you were along the row, rather than skipping to the row of titles below. Up from far along a row comes back to a page's buttons the same way.
+- Moving around a big library's grid feels less sticky after jumping to a late letter: the A to Z rail is no longer worked out again from every loaded title at each press of the remote.
 
 ## 0.62.1 · 5 November 2026
 
