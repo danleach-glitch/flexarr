@@ -116,10 +116,40 @@ export function currentLanguage(): { code: string; direction: 'ltr' | 'rtl' } {
  * as English.
  */
 export function locale(): string {
+  // Worked out once for the language shown and the browser's languages: a page asks this for every date it writes,
+  // and asking Intl for the browser's own locale builds a formatter each time.
+  const languages = typeof navigator === 'undefined' ? [] : (navigator.languages ?? [navigator.language])
+  const key = `${pack.code} ${languages.join(' ')}`
+  if (localeKept?.key === key) return localeKept.value
   const code = pack.code === 'en-XA' ? 'en' : pack.code
   const base = code.split('-')[0]
-  const preferred = [new Intl.DateTimeFormat().resolvedOptions().locale, ...(typeof navigator === 'undefined' ? [] : (navigator.languages ?? [navigator.language]))]
-  return preferred.find((l) => l.split('-')[0].toLowerCase() === base && (code === base || l.toLowerCase() === code.toLowerCase())) ?? code
+  const preferred = [new Intl.DateTimeFormat().resolvedOptions().locale, ...languages]
+  const value = preferred.find((l) => l.split('-')[0].toLowerCase() === base && (code === base || l.toLowerCase() === code.toLowerCase())) ?? code
+  localeKept = { key, value }
+  return value
+}
+
+let localeKept: { key: string; value: string } | undefined
+
+/** Most formatters kept at once: pages ask for a handful of shapes, so reaching this means something asks for ever-new ones. */
+const MAX_DATE_FORMATS = 50
+const dateFormats = new Map<string, Intl.DateTimeFormat>()
+
+/**
+ * A date and time formatter for the language shown, kept for the next time it's asked for: building one is slow, and
+ * a TV guide writes thousands of times at once. Given options that name the parts wanted, its `format(date)` writes
+ * what `date.toLocaleTimeString(locale(), options)` or `toLocaleDateString` does. A new one is built when the
+ * language or the computer's time zone changes.
+ */
+export function dateFormat(options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = `${locale()} ${new Date().getTimezoneOffset()} ${JSON.stringify(options)}`
+  let format = dateFormats.get(key)
+  if (!format) {
+    if (dateFormats.size >= MAX_DATE_FORMATS) dateFormats.clear()
+    format = new Intl.DateTimeFormat(locale(), options)
+    dateFormats.set(key, format)
+  }
+  return format
 }
 
 export function onLanguageChange(listener: () => void): () => void {

@@ -289,6 +289,7 @@ function Guide() {
                   const right = Math.min(hours * 60, minutes(p.end)) * PX_PER_MINUTE
                   const onNow = Date.parse(p.start) <= now && Date.parse(p.end) > now
                   const past = Date.parse(p.end) <= now
+                  const time = programmeTime(p)
                   return (
                     <button
                       key={p.id}
@@ -296,7 +297,7 @@ function Guide() {
                         .filter(Boolean)
                         .join(' ')}
                       style={{ left, width: Math.max(0, right - left - 2) }}
-                      title={[p.title, programmeTime(p), p.recording ? (p.recording === 'recording' ? t('Recording now') : t('Set to record')) : null].filter(Boolean).join('\u2003')}
+                      title={[p.title, time, p.recording ? (p.recording === 'recording' ? t('Recording now') : t('Set to record')) : null].filter(Boolean).join('\u2003')}
                       onClick={() => setSelected({ channel: c, programme: p })}
                     >
                       <strong>
@@ -304,7 +305,7 @@ function Guide() {
                         {p.series && !p.recording && <SeriesDots className="record-dot" aria-label={t(Words.series)} />}
                         {programmeTitle(p)}
                       </strong>
-                      <span className="muted">{programmeTime(p)}</span>
+                      <span className="muted">{time}</span>
                     </button>
                   )
                 })}
