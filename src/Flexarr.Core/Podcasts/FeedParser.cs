@@ -244,7 +244,9 @@ public static partial class FeedParser
     };
 
     /// <summary>An RFC 822 date as feeds write them (names for zones, "+0000" offsets, missing weekdays), in UTC.</summary>
-    public static DateTime? Date(string? value)
+    public static DateTime? Date(string? value) => Date(value, weekdayDropped: false);
+
+    private static DateTime? Date(string? value, bool weekdayDropped)
     {
         var text = Clean(value);
         if (text is null)
@@ -267,9 +269,10 @@ public static partial class FeedParser
             return exact.UtcDateTime;
         }
 
-        // A weekday that doesn't match the date ("Mon, 3 Jan 2024") makes the formats above refuse it: drop it.
+        // A weekday that doesn't match the date ("Mon, 3 Jan 2024") makes the formats above refuse it: drop it. Once
+        // only: a "date" that was pages of commas went a call deeper for each, until the stack ran out.
         var comma = text.IndexOf(',', StringComparison.Ordinal);
-        return comma > 0 && comma < 10 ? Date(text[(comma + 1)..]) : null;
+        return !weekdayDropped && comma > 0 && comma < 10 ? Date(text[(comma + 1)..], weekdayDropped: true) : null;
     }
 
     /// <summary>The most of a description's HTML that's read.</summary>

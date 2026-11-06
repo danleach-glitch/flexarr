@@ -117,6 +117,16 @@ public sealed class FeedParserTests
     public void ReadsDatesAsFeedsWriteThem(string text, string expected) =>
         Assert.Equal(DateTime.Parse(expected, System.Globalization.CultureInfo.InvariantCulture), FeedParser.Date(text));
 
+    [Fact]
+    public void ADateThatsPagesOfCommas_IsNoDate_AndDoesntRunOutOfStack()
+    {
+        // Each comma near the start was taken for a weekday to drop, one call deeper: 60,000 characters of this stopped the server.
+        Assert.Null(FeedParser.Date(string.Concat(Enumerable.Repeat("a,", 200_000))));
+        Assert.Null(FeedParser.Date("Mon, " + new string('x', 200)));
+        // Padded with spaces is still a date.
+        Assert.Equal(new DateTime(2024, 9, 3, 10, 0, 0, DateTimeKind.Utc), FeedParser.Date("Tue,   03 Sep 2024" + new string(' ', 200) + "10:00:00 GMT"));
+    }
+
     [Theory]
     [InlineData("3723", 3723.0)]
     [InlineData("62:03", 3723.0)]
