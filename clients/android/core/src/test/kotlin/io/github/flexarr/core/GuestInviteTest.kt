@@ -50,7 +50,7 @@ class GuestInviteTest {
     fun `refuses anything that could point elsewhere`() {
         assertNull(GuestInvite.parse("https://evil.example/join#${payload()}"))
         assertNull(GuestInvite.parse("https://evilflexarr.io/join#${payload()}"))
-        assertNull(GuestInvite.parse(payload("a" to "192.168.1.106:8383"))) // not a tailnet address
+        assertNull(GuestInvite.parse(payload("a" to "192.168.1.50:8383"))) // not a tailnet address
         assertNull(GuestInvite.parse(payload("a" to "100.101.102.103"))) // no port
         assertNull(GuestInvite.parse(payload("a" to "100.128.0.1:8383"))) // past 100.64.0.0/10
         assertNull(GuestInvite.parse(payload("a" to "mini.tail.ts.net:8383"))) // a name, which could be looked up anywhere

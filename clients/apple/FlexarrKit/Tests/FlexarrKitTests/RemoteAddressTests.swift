@@ -4,7 +4,7 @@ import Testing
 
 /// Which address for away from home the app keeps, so its sign-in only ever goes to its own server.
 struct RemoteAddressTests {
-    private let home = URL(string: "http://192.168.1.106:8383")!
+    private let home = URL(string: "http://192.168.1.50:8383")!
     private let tailscale = URL(string: "https://mini.tail1234.ts.net:8443")!
 
     private func status(_ remoteUrl: String?, serverId: String? = "home-id") -> SystemStatus {

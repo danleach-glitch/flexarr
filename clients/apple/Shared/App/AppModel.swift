@@ -826,7 +826,7 @@ final class AppModel {
         store.saveServerName(name)
     }
 
-    /// What to call the server: its name when it has given one, else its address's host ("192.168.1.106").
+    /// What to call the server: its name when it has given one, else its address's host ("192.168.1.50").
     var serverTitle: String {
         if let guest = credentials?.guest { return guestServerTitle(guest) }
         return serverName ?? credentials?.address.host() ?? "Flexarr"

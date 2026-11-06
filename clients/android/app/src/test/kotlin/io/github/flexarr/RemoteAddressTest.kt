@@ -12,7 +12,7 @@ import java.net.ConnectException
 
 /** Which address for away from home the app keeps, so its sign-in only ever goes to its own server. */
 class RemoteAddressTest {
-    private val home = "http://192.168.1.106:8383/"
+    private val home = "http://192.168.1.50:8383/"
     private val tailscale = "https://mini.tail1234.ts.net:8443/"
 
     private fun status(remoteUrl: String?, serverId: String? = "home-id") =

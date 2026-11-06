@@ -3,7 +3,7 @@ import { looksRemote, reportStart } from './startTiming'
 
 describe('start timings', () => {
   it('tells home addresses from away', () => {
-    for (const home of ['localhost', '127.0.0.1', '192.168.1.106', '10.0.2.2', '172.20.0.5', 'mini.local', '[::1]', 'fd7a:115c::1']) expect(looksRemote(home)).toBe(false)
+    for (const home of ['localhost', '127.0.0.1', '192.168.1.50', '10.0.2.2', '172.20.0.5', 'mini.local', '[::1]', 'fd7a:115c::1']) expect(looksRemote(home)).toBe(false)
     for (const away of ['flexarr.example.com', '100.101.102.103', '81.2.69.160', '172.40.0.1']) expect(looksRemote(away)).toBe(true)
   })
 
