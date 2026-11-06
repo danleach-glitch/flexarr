@@ -149,4 +149,93 @@ public class SubtitleTracksTests
             Directory.Delete(cache, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task ATrackThatDidntConvert_IsLeftAloneAsPlaybackStarts_UntilItsAskedForOrTheFileChanges()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var cache = Directory.CreateTempSubdirectory("flexarr-failed-").FullName;
+        try
+        {
+            // Stands in for ffmpeg: notes each run, and fails until it's told to work.
+            var ffmpeg = Path.Combine(cache, "fake-ffmpeg");
+            var asked = Path.Combine(cache, "asked");
+            var works = Path.Combine(cache, "works");
+            System.IO.File.WriteAllText(ffmpeg, $"""
+                #!/bin/sh
+                echo "$*" >> '{asked}'
+                [ -e '{works}' ] || exit 1
+                for arg; do case "$arg" in *.tmp) printf 'WEBVTT\n' > "$arg";; esac; done
+                """);
+            System.IO.File.SetUnixFileMode(ffmpeg, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            var settings = new TranscodeSettings { CacheDirectory = cache, FfmpegPath = ffmpeg };
+            var film = Path.Combine(cache, "Film (2020).mkv");
+            System.IO.File.WriteAllText(film, "not really a film");
+            var file = new MediaFile { Path = film, Streams = [Stream(0, StreamType.Video, "h264"), Stream(2, StreamType.Subtitle, "subrip", "eng"), Stream(3, StreamType.Subtitle, "subrip", "fre")] };
+            var tracks = Subtitles.For(file);
+            Assert.Equal(["e2", "e3"], tracks.Select(t => t.Key));
+            Assert.DoesNotContain(tracks, t => Subtitles.Failed(file, t, settings));
+
+            // The read fails: noted against both tracks, and playback starting again doesn't read the file again.
+            Assert.Empty(await Subtitles.ToWebVttAsync(file, tracks, settings, CancellationToken.None, retryFailed: false));
+            Assert.All(tracks, t => Assert.True(Subtitles.Failed(file, t, settings)));
+            Assert.Empty(await Subtitles.ToWebVttAsync(file, tracks, settings, CancellationToken.None, retryFailed: false));
+            Assert.Single(System.IO.File.ReadAllLines(asked));
+
+            // Asked for, a track is tried again; and once it converts it's no longer marked.
+            Assert.Empty(await Subtitles.ToWebVttAsync(file, [tracks[0]], settings, CancellationToken.None));
+            Assert.Equal(2, System.IO.File.ReadAllLines(asked).Length);
+            System.IO.File.WriteAllText(works, "");
+            var converted = await Subtitles.ToWebVttAsync(file, [tracks[0]], settings, CancellationToken.None);
+            Assert.Equal(Subtitles.CachePath(file, tracks[0], settings), converted["e2"]);
+            Assert.False(Subtitles.Failed(file, tracks[0], settings));
+            Assert.True(Subtitles.Failed(file, tracks[1], settings));
+
+            // A changed file is a new file: everything about it is tried afresh.
+            System.IO.File.SetLastWriteTimeUtc(film, DateTime.UtcNow.AddDays(1));
+            Assert.False(Subtitles.Failed(file, tracks[1], settings));
+            Assert.Equal(["e2", "e3"], (await Subtitles.ToWebVttAsync(file, tracks, settings, CancellationToken.None, retryFailed: false)).Keys.Order());
+        }
+        finally
+        {
+            Directory.Delete(cache, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task AReadThatRunsOutOfTime_IsNotedToo()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var cache = Directory.CreateTempSubdirectory("flexarr-slow-").FullName;
+        try
+        {
+            // Stands in for ffmpeg reading a file from a share that's too slow.
+            var ffmpeg = Path.Combine(cache, "fake-ffmpeg");
+            System.IO.File.WriteAllText(ffmpeg, """
+                #!/bin/sh
+                exec sleep 30
+                """);
+            System.IO.File.SetUnixFileMode(ffmpeg, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            var settings = new TranscodeSettings { CacheDirectory = cache, FfmpegPath = ffmpeg };
+            var file = File(false, Stream(0, StreamType.Video, "h264"), Stream(2, StreamType.Subtitle, "subrip", "eng"));
+            var track = Assert.Single(Subtitles.For(file));
+
+            using var limit = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Subtitles.ToWebVttAsync(file, [track], settings, limit.Token, retryFailed: false));
+
+            Assert.True(Subtitles.Failed(file, track, settings));
+        }
+        finally
+        {
+            Directory.Delete(cache, recursive: true);
+        }
+    }
 }

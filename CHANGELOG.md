@@ -18,6 +18,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Playback
 - Reading the closed captions out of a recording no longer competes with the stream you've just started: it runs in the background and gives way to playback.
+- Subtitles inside a very large file (a 60 GB film on a network share, say) are given up to an hour to be read instead of ten minutes, so they arrive rather than never turning up.
+- When a file's subtitles or captions can't be read, the server remembers it instead of reading the whole file again at every play; choosing the track tries it again. One bad subtitle track no longer stops a file's other tracks from working.
 
 ## 0.62.1 · 5 November 2026
 
