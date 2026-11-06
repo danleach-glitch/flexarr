@@ -104,10 +104,13 @@ suspend fun FlexarrClient.podcastAutoDownloads(): List<PodcastAutoDownload> = ge
 /** Episodes this phone has downloaded that have since been played, wherever. Absent from servers before 0.56. */
 suspend fun FlexarrClient.podcastPlayedDownloads(): List<PodcastPlayedDownload> = get("podcasts/played-downloads")
 
-/** The request for a ready download's file, signed in, from [fromByte] on (to carry on a transfer that stopped). */
-fun FlexarrClient.downloadFileRequest(id: String, fromByte: Long = 0): Request =
+/**
+ * The request for a ready download's file, signed in, from [fromByte] on (to carry on a transfer that stopped). Made
+ * for the address the sign-in may go to ([FlexarrClient.signInBase]); an IOException when that's nowhere on this network.
+ */
+suspend fun FlexarrClient.downloadFileRequest(id: String, fromByte: Long = 0): Request =
     Request.Builder()
-        .url(baseUrl.newBuilder().addPathSegments("api/v1/offline/$id/file").build())
+        .url(signInBase().newBuilder().addPathSegments("api/v1/offline/$id/file").build())
         .signIn()
         .apply { if (fromByte > 0) header("Range", "bytes=$fromByte-") }
         .build()

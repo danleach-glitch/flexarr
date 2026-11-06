@@ -606,6 +606,17 @@ class FlexarrClient(
     private suspend fun homeTrusted(http: OkHttpClient): Boolean = addresses.checkHome { verifyHome(http) }
 
     /**
+     * The address a request built beside [send] (the command stream, a download's file) may carry the sign-in to, as
+     * [reach] decides it for everything else: the one in use, unless that's home and home hasn't shown it's this
+     * server on this network, when it's the remote address, or with none a [ConnectException].
+     */
+    internal suspend fun signInBase(): HttpUrl {
+        val primary = addresses.current
+        if (primary != addresses.home || homeTrusted(http)) return primary
+        return addresses.alternate(primary) ?: throw ConnectException("Something else answers at the server's home address on this network.")
+    }
+
+    /**
      * Whether this server answers at home on the network in use, asked without the sign-in: with its id
      * ([ServerAddresses.serverId]) when that's known, otherwise answering like a Flexarr server (as [isReachable]).
      */

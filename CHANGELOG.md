@@ -16,6 +16,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A show's page opens with **Play** in focus, not **Shuffle**. Play is there from the start and fills in the episode once it's known.
 - Pressing down from a row of buttons onto **Play** (on Browse, say) lands on Play wherever you were along the row, rather than skipping to the row of titles below. Up from far along a row comes back to a page's buttons the same way.
 
+### Android
+- Away from home, the Android app checks that it's your server answering at its home address before it listens for commands from other devices or carries on a download there, as it already did for everything else. Until then it uses the server's remote address, or waits.
+
 ## 0.62.1 · 5 November 2026
 
 ### Apple TV
