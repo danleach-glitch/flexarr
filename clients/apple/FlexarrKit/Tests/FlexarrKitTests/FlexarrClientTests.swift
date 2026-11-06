@@ -126,6 +126,29 @@ struct FlexarrClientTests {
         #expect(client.events.configuration.urlCache == nil)
     }
 
+    @Test func whatAnEarlierVersionKeptInTheSharedCache_IsEmptiedOnce() throws {
+        let suite = "flexarr.tests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let cache = URLCache(memoryCapacity: 1024 * 1024, diskCapacity: 0)
+        // What a version that made its requests on the shared session left: an answer, beside the sign-in it was asked with.
+        var asked = URLRequest(url: URL(string: "http://flexarr.local:8383/api/v1/profiles")!)
+        asked.setValue("secret", forHTTPHeaderField: "X-Api-Key")
+        func keepAnAnswer() {
+            let answer = HTTPURLResponse(url: asked.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"])!
+            cache.storeCachedResponse(CachedURLResponse(response: answer, data: Data(#"{"profiles":[]}"#.utf8)), for: asked)
+        }
+        keepAnAnswer()
+        #expect(cache.cachedResponse(for: asked) != nil)
+
+        #expect(FlexarrClient.forgetAnswersKeptBefore(in: cache, noted: defaults))
+        #expect(cache.cachedResponse(for: asked) == nil)
+        // Once only: the artwork kept there since isn't thrown away at every launch.
+        keepAnAnswer()
+        #expect(!FlexarrClient.forgetAnswersKeptBefore(in: cache, noted: defaults))
+        #expect(cache.cachedResponse(for: asked) != nil)
+    }
+
     @Test func sendsApiKeyHeaderAndDecodesStatus() async throws {
         let (client, host) = stubbedClient(.init(status: 200, body: try Fixture.data("system-status")))
 

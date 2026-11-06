@@ -252,6 +252,8 @@ struct FlexarriOSApp: App {
         ThisDevice.identify()
         // Artwork is fetched constantly while browsing; give it a generous disk cache.
         URLCache.shared = URLCache(memoryCapacity: 48 * 1024 * 1024, diskCapacity: 384 * 1024 * 1024)
+        // An earlier version kept the server's answers there too, with the sign-in they were asked with: gone, once.
+        Task.detached(priority: .utility) { FlexarrClient.forgetAnswersKeptBefore() }
         let model = AppModel()
         _model = State(initialValue: model)
         // Siri and Shortcuts intents share the sign-in and the player (see Shared/Intents), and so does the car.

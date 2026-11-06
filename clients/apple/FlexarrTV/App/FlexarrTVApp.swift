@@ -16,6 +16,8 @@ struct FlexarrTVApp: App {
         ThisDevice.identify()
         // Artwork is fetched constantly while browsing; give it a generous disk cache.
         URLCache.shared = URLCache(memoryCapacity: 64 * 1024 * 1024, diskCapacity: 512 * 1024 * 1024)
+        // An earlier version kept the server's answers there too, with the sign-in they were asked with: gone, once.
+        Task.detached(priority: .utility) { FlexarrClient.forgetAnswersKeptBefore() }
         let model = AppModel()
         _model = State(initialValue: model)
         // The guide over the live picture is the Apple TV's (it's the grid from the Live TV screen).

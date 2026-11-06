@@ -239,6 +239,20 @@ public struct FlexarrClient: Sendable {
         return configuration
     }
 
+    /// Empties the shared cache once on each device. Versions before this one made their requests on the shared
+    /// session, so its file on a device that ran one still holds the server's answers and the headers each request
+    /// carried (the sign-in among them), and would until it was signed out. Artwork goes with them that one time, and
+    /// is fetched again as it's shown. Asked for at each launch; true the one time it empties it (noted in `defaults`).
+    @discardableResult
+    public static func forgetAnswersKeptBefore(in cache: URLCache = .shared, noted defaults: UserDefaults = .standard) -> Bool {
+        guard !defaults.bool(forKey: answersForgottenKey) else { return false }
+        cache.removeAllCachedResponses()
+        defaults.set(true, forKey: answersForgottenKey)
+        return true
+    }
+
+    static let answersForgottenKey = "io.github.flexarr.cache.answersForgotten"
+
     /// What API requests go over: the session given, or this client's own rather than the shared one.
     var requests: URLSession { session === URLSession.shared ? Self.apiSession : session }
 
