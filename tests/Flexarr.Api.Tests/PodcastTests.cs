@@ -618,6 +618,80 @@ public sealed class PodcastTests : IDisposable
     }
 
     [Fact]
+    public async Task WhenFfmpegIsInstalled_AnEpisodeThatsReallyAPlaylistOfTheServersFiles_IsRefused_AndASoundFileIsConverted()
+    {
+        if (!await HasFfmpegAsync())
+        {
+            return;
+        }
+
+        // A track on the server's disks, and a feed whose first episode is a playlist naming it; its second is honest FLAC.
+        var track = Path.Combine(_factory.MediaDirectory, "private.flac");
+        await RunFfmpegAsync("-v", "error", "-f", "lavfi", "-i", "sine=frequency=440", "-t", "2", track);
+        _host.Files["https://cdn.example.com/stolen.m3u8"] = (Encoding.UTF8.GetBytes(
+            $"#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:10\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:2.0,\n{track}\n#EXT-X-ENDLIST\n"), "application/vnd.apple.mpegurl");
+        _host.Files["https://cdn.example.com/honest.flac"] = (await File.ReadAllBytesAsync(track), "audio/flac");
+        _host.Feed("https://feeds.example.com/sly", """
+            <rss version="2.0"><channel><title>Sly</title>
+            <item><title>Stolen</title><guid>stolen</guid><pubDate>Tue, 08 Sep 2026 09:00:00 GMT</pubDate>
+            <enclosure url="https://cdn.example.com/stolen.m3u8" length="100" type="audio/ogg"/></item>
+            <item><title>Honest</title><guid>honest</guid><pubDate>Tue, 01 Sep 2026 09:00:00 GMT</pubDate>
+            <enclosure url="https://cdn.example.com/honest.flac" length="100" type="audio/flac"/></item>
+            </channel></rss>
+            """);
+        var folder = await AddLibraryAsync();
+        var client = Client();
+        var id = (await AddPodcastAsync(client, "https://feeds.example.com/sly")).GetProperty("id").GetString();
+        var episodes = (await GetAsync(client, $"podcasts/{id}/episodes")).GetProperty("items").EnumerateArray()
+            .ToDictionary(e => e.GetProperty("title").GetString()!, e => e.GetProperty("id").GetString());
+        var preparer = _server.Services.GetRequiredService<Flexarr.Api.Downloads.DownloadPreparer>();
+
+        async Task<JsonElement> DownloadAsync(string title)
+        {
+            var created = await (await client.PostAsJsonAsync(Api("offline"), new { itemId = episodes[title], quality = "Original" })).Content.ReadFromJsonAsync<JsonElement>();
+            await preparer.RunOnceAsync(CancellationToken.None);
+            return await GetAsync(client, $"offline/{created.GetProperty("id").GetString()}");
+        }
+
+        var stolen = await DownloadAsync("Stolen");
+        Assert.Equal("Failed", stolen.GetProperty("status").GetString());
+        Assert.Empty(Directory.GetFiles(Path.Combine(folder, "Sly")));
+
+        var honest = await DownloadAsync("Honest");
+        Assert.Equal("Ready", honest.GetProperty("status").GetString());
+        Assert.EndsWith(".m4a", honest.GetProperty("fileName").GetString(), StringComparison.Ordinal);
+    }
+
+    private static async Task<bool> HasFfmpegAsync()
+    {
+        try
+        {
+            await RunFfmpegAsync("-version");
+            return true;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return false;
+        }
+    }
+
+    private static async Task RunFfmpegAsync(params string[] args)
+    {
+        var start = new System.Diagnostics.ProcessStartInfo("ffmpeg") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        foreach (var arg in args)
+        {
+            start.ArgumentList.Add(arg);
+        }
+
+        using var process = System.Diagnostics.Process.Start(start)!;
+        var output = process.StandardOutput.ReadToEndAsync();
+        var errors = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        await output;
+        Assert.True(process.ExitCode == 0, $"ffmpeg failed: {await errors}");
+    }
+
+    [Fact]
     public async Task OpmlImport_SubscribesToEachFeed_AndExportGivesThemBack()
     {
         await AddLibraryAsync();

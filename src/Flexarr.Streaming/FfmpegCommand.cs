@@ -56,6 +56,13 @@ public static class FfmpegCommand
     public static readonly string[] LocalFile = ["-protocol_whitelist", "file"];
 
     /// <summary>
+    /// Before an input that came from the internet and should be sound (a podcast episode): the only kinds of file
+    /// ffmpeg may read it as (MP3, MP4/M4A, AAC, Ogg/Opus, FLAC, WAV, AIFF, WebM/Matroska, WMA). Left to go by what's in
+    /// the file, it would follow a playlist to any sound file on the server's disks and hand that back.
+    /// </summary>
+    public static readonly string[] SoundFiles = ["-format_whitelist", "aac,aiff,asf,flac,matroska,mov,mp3,ogg,wav"];
+
+    /// <summary>
     /// A stream got ready ahead of Play makes this much, then stops until a player takes it up: enough to open on,
     /// without encoding minutes of a title nobody may play. It starts with the full <see cref="RunAheadSeconds"/> burst,
     /// so a player that takes it up while it's still going gets the whole run-ahead (see
@@ -303,13 +310,17 @@ public static class FfmpegCommand
     /// Arguments to make an M4A of a track for keeping on a phone: its sound (stream <paramref name="audioIndex"/>)
     /// as AAC at <see cref="DownloadPlanner.TrackBitrate"/>, folded to stereo if there's more. Progress goes to stdout.
     /// </summary>
-    public static IReadOnlyList<string> M4a(string input, int audioIndex, int channels, string output)
+    /// <remarks>
+    /// <paramref name="soundFileOnly"/> is for a file that came from the internet (a podcast episode): ffmpeg then
+    /// refuses anything that isn't one of <see cref="SoundFiles"/>, whatever the file says it is.
+    /// </remarks>
+    public static IReadOnlyList<string> M4a(string input, int audioIndex, int channels, string output, bool soundFileOnly = false)
     {
         var rate = (DownloadPlanner.TrackBitrate / 1000).ToString(CultureInfo.InvariantCulture) + "k";
         return
         [
             "-hide_banner", "-v", "error", "-nostdin", "-y", "-progress", "pipe:1", "-nostats",
-            .. LocalFile, "-i", input,
+            .. LocalFile, .. soundFileOnly ? SoundFiles : [], "-i", input,
             "-map", $"0:{audioIndex}", "-vn", "-sn", "-dn",
             "-c:a", "aac", "-ac", Math.Clamp(channels, 1, 2).ToString(CultureInfo.InvariantCulture), "-b:a", rate,
             "-map_metadata", "-1", "-map_chapters", "-1", "-movflags", "+faststart", "-f", "ipod", output,

@@ -369,7 +369,8 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             finished = Path.Combine(folder, $"{download.Id:N}.m4a");
             var converting = Path.Combine(folder, $"{download.Id:N}.part.m4a");
             var settings = PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue);
-            error = await RunAsync(settings.FfmpegPath, FfmpegCommand.M4a(partial, 0, 2, converting), enclosure.DurationSeconds ?? 0, download.Id, ct);
+            // The file is whatever a stranger's feed pointed at: read as a sound file, or not at all.
+            error = await RunAsync(settings.FfmpegPath, FfmpegCommand.M4a(partial, 0, 2, converting, soundFileOnly: true), enclosure.DurationSeconds ?? 0, download.Id, ct);
             File.Delete(partial);
             if (error is null)
             {

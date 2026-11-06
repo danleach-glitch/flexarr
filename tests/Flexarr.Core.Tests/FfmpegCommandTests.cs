@@ -36,6 +36,18 @@ public class FfmpegCommandTests
     }
 
     [Fact]
+    public void APodcastEpisode_IsReadOnlyAsASoundFile_WhateverItSaysItIs()
+    {
+        var episode = string.Join(' ', FfmpegCommand.M4a("/in.part.m3u8", 0, 2, "/out/x.part.m4a", soundFileOnly: true));
+        var track = string.Join(' ', FfmpegCommand.M4a("/in.ogg", 0, 2, "/out/x.part.m4a"));
+
+        // No playlists (hls, concat) among them: those name other files for ffmpeg to read.
+        Assert.Contains("-protocol_whitelist file -format_whitelist aac,aiff,asf,flac,matroska,mov,mp3,ogg,wav -i /in.part.m3u8", episode, StringComparison.Ordinal);
+        // A library's own tracks come in more kinds of file than that, and are the owner's.
+        Assert.DoesNotContain("-format_whitelist", track, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Software_UsesLibx264()
     {
         var args = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { ToneMap = false }, 0, "/out", Settings(HardwareAcceleration.None)));
