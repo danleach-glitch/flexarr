@@ -37,6 +37,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Discover
 - Discover opens sooner: Seerr's four lists are asked for together instead of one after another, and coming back to Discover within a few minutes (from a title's page, say) doesn't ask for them again. What's in your library, on your watchlist or just requested is still marked afresh every time. A list Seerr is slow to answer is left out rather than failing the page.
+- Discover, searching everything and the page of a title you don't have are a little quicker on a big library, most of all while you type a search: marking what you already have looks up just the titles on screen instead of every film and show.
 
 ### Backups
 - Backups no longer carry the Live TV guide, which a big channel list makes most of the database: they're smaller and quicker to make. A server restored from one fetches its guide again as it starts. Channels, favourites and recordings are kept as before.

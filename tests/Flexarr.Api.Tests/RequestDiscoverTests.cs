@@ -8,6 +8,7 @@ using Flexarr.Core.Media;
 using Flexarr.Integrations.Arr;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
@@ -176,6 +177,87 @@ public sealed class RequestDiscoverTests : IAsyncLifetime
         var rows = (await Client().GetFromJsonAsync<JsonElement>(Api("/requests/discover"))).EnumerateArray().ToList();
 
         Assert.Equal(["trending", "movies", "tv", "upcoming"], rows.Select(r => r.GetProperty("id").GetString()));
+    }
+
+    [Fact]
+    public async Task SearchEverything_MarksWhatsInTheLibrary_ByKindAndTmdbId_TheFirstCopyWhenThereAreTwo()
+    {
+        // The same film in two libraries (the first added is the one marked), and a film whose TMDB id a show shares.
+        var first = (await AddFilmsAsync(("Twice", "301"), ("Film 302", "302")))[0];
+        await AddFilmsAsync(("Twice", "301"));
+        _seerr.Responses["GET /api/v1/search?query=twice&page=1"] = Page(Title("movie", 301, "Twice"), Title("tv", 302, "Show 302"), Title("movie", 303, "Elsewhere", status: 2),
+            """{"id":301,"mediaType":"person","name":"Someone"}""");
+
+        var found = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/search?q=twice"));
+
+        Assert.Equal([(301, "Twice", "Available", first), (302, "Show 302", "None", null), (303, "Elsewhere", "Requested", null)],
+            found.EnumerateArray().Select(i => (i.GetProperty("tmdbId").GetInt32(), i.GetProperty("title").GetString()!, i.GetProperty("availability").GetString()!,
+                i.GetProperty("libraryItemId").ValueKind == JsonValueKind.Null ? (Guid?)null : i.GetProperty("libraryItemId").GetGuid())));
+    }
+
+    [Fact]
+    public async Task AnOutsideTitlesPage_SaysWhetherItsHere_AndMarksItsRecommendations()
+    {
+        var films = await AddFilmsAsync(("Here", "401"), ("Also Here", "402"));
+        foreach (var id in new[] { 401, 403 })
+        {
+            _seerr.Responses[$"GET /api/v1/movie/{id}"] = Title("movie", id, id == 401 ? "Here" : "Not Here");
+            _seerr.Responses[$"GET /api/v1/movie/{id}/recommendations"] = Page(Title("movie", 402, "Also Here"), Title("movie", 404, "Nor This", status: 3), Title("tv", 402, "A Show"));
+        }
+
+        var here = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/title/movie/401"));
+        var notHere = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/title/movie/403"));
+
+        Assert.Equal(("Here", "Available", films[0]), (here.GetProperty("title").GetString(), here.GetProperty("availability").GetString(), here.GetProperty("libraryItemId").GetGuid()));
+        Assert.Equal(("Not Here", "None", JsonValueKind.Null), (notHere.GetProperty("title").GetString(), notHere.GetProperty("availability").GetString(), notHere.GetProperty("libraryItemId").ValueKind));
+        foreach (var page in new[] { here, notHere })
+        {
+            Assert.Equal([(402, "Also Here", "Available", films[1]), (404, "Nor This", "Requested", null), (402, "A Show", "None", null)],
+                page.GetProperty("recommendations").EnumerateArray().Select(i => (i.GetProperty("tmdbId").GetInt32(), i.GetProperty("title").GetString()!,
+                    i.GetProperty("availability").GetString()!, i.GetProperty("libraryItemId").ValueKind == JsonValueKind.Null ? (Guid?)null : i.GetProperty("libraryItemId").GetGuid())));
+        }
+    }
+
+    [Fact]
+    public async Task MarkingWhatsInTheLibrary_LooksUpOnlyTheTitlesOnThePage_NotEveryFilmAndShow()
+    {
+        await AddFilmsAsync(("Here Already", "101"), ("Twice", "301"), ("Here", "401"));
+        SeerrLists();
+        _seerr.Responses["GET /api/v1/search?query=twice&page=1"] = Page(Title("movie", 301, "Twice"));
+        _seerr.Responses["GET /api/v1/movie/401"] = Title("movie", 401, "Here");
+        _seerr.Responses["GET /api/v1/movie/401/recommendations"] = Page(Title("movie", 101, "Here Already"));
+        var sql = new Statements();
+        using var server = _server.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.ConfigureDbContext<FlexarrDbContext>(o => o.AddInterceptors(sql))));
+        var client = server.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+
+        foreach (var path in new[] { "/requests/discover", "/requests/search?q=twice", "/requests/title/movie/401" })
+        {
+            sql.Run.Clear();
+            (await client.GetAsync(Api(path))).EnsureSuccessStatusCode();
+
+            // Whatever reads titles by their TMDB id names the ids it wants, which SQLite finds by index: no statement
+            // collects every film and show with one.
+            var lookups = sql.Run.Where(statement => statement.Contains("\"m\".\"TmdbId\" IS NOT NULL", StringComparison.Ordinal)).ToList();
+            Assert.NotEmpty(lookups);
+            Assert.All(lookups, statement => Assert.Matches("""
+                "m"\."TmdbId" (IN \(|= )@
+                """.Trim(), statement));
+        }
+    }
+
+    /// <summary>Every statement the server sent the database.</summary>
+    private sealed class Statements : Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor
+    {
+        public ConcurrentQueue<string> Run { get; } = new();
+
+        public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+            System.Data.Common.DbCommand command, Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            Run.Enqueue(command.CommandText);
+            return ValueTask.FromResult(result);
+        }
     }
 
     /// <summary>Stands in for Seerr: answers by "METHOD /path?query" (a key ending in * answers anything that starts with it), 404 otherwise.</summary>

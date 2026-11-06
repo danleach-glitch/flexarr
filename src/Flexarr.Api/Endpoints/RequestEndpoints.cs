@@ -155,13 +155,13 @@ public static partial class RequestEndpoints
                 return Results.Ok(Array.Empty<ExternalRowDto>());
             }
 
-            var library = await LibraryIndexAsync(db, ct);
             var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
             var wanted = await watchlist.KeysAsync(current.Id, ct);
             var rows = new List<ExternalRowDto>();
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
-            // Trakt's picks are worked out alongside Seerr's lists (they only use Seerr and Trakt from here on).
-            var picksTask = trakt.RowAsync(current.Id, instance, library, wanted, hidden, ct);
+            // Trakt's picks are worked out alongside Seerr's lists. They use the database until they're done, so nothing
+            // here does before they're awaited below.
+            var picksTask = trakt.RowAsync(current.Id, instance, wanted, hidden, ct);
             ExternalRowDto? picks;
             SeerrPage?[] pages;
             try
@@ -178,6 +178,7 @@ public static partial class RequestEndpoints
             }
 
             // The lists are everyone's; the marks on them (in the library, on the watchlist) are this profile's, now.
+            var library = await LibraryIndexAsync(db, pages.OfType<SeerrPage>().SelectMany(p => p.Results).Select(r => r.Id), ct);
             foreach (var ((id, _, title), page) in Lists.Zip(pages))
             {
                 if (page is not null)
@@ -208,7 +209,7 @@ public static partial class RequestEndpoints
             try
             {
                 var page = await seerr.SearchAsync(instance, q.Trim(), ct);
-                var library = await LibraryIndexAsync(db, ct);
+                var library = await LibraryIndexAsync(db, page.Results.Select(r => r.Id), ct);
                 var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
                 var wanted = await watchlist.KeysAsync(current.Id, ct);
                 return Results.Ok(page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library, wanted))
@@ -228,7 +229,7 @@ public static partial class RequestEndpoints
                 return Results.NotFound();
             }
 
-            var library = await LibraryIndexAsync(db, ct);
+            var library = await LibraryIndexAsync(db, [tmdbId], ct);
             var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
             library.TryGetValue($"{mediaType}:{tmdbId.ToString(CultureInfo.InvariantCulture)}", out var itemId);
             if (itemId == Guid.Empty && hidden.Hides(KindOf(mediaType)))
@@ -245,6 +246,11 @@ public static partial class RequestEndpoints
 
                 var ratings = await SafeGetAsync(seerr, instance, SeerrRatings.PathFor(mediaType == "movie", tmdbId), ct);
                 var recommendations = await SafeGetAsync(seerr, instance, $"{mediaType}/{tmdbId}/recommendations", ct);
+                // The title as Seerr names it, and what it recommends, marked too.
+                var recommended = recommendations is { ValueKind: JsonValueKind.Object } r && r.TryGetProperty("results", out var list) && list.ValueKind == JsonValueKind.Array
+                    ? list.EnumerateArray().Select(e => e.Deserialize<SeerrResult>(Web)!.Id)
+                    : [];
+                library = await LibraryIndexAsync(db, recommended.Append(title.Deserialize<SeerrResult>(Web)!.Id).Append(tmdbId), ct);
                 var onWatchlist = (await watchlist.MembershipAsync(current.Id, new Watchlist.WatchlistAdd(null, mediaType, tmdbId), ct)).OnWatchlist;
                 var wanted = await watchlist.KeysAsync(current.Id, ct);
                 return Results.Ok(Detail(mediaType, title, ratings, recommendations, library, hidden, wanted) with { OnWatchlist = onWatchlist });
@@ -518,11 +524,21 @@ public static partial class RequestEndpoints
     internal static string? Tmdb(string? path, string size) =>
         path is null ? null : ImageEndpoints.RemoteUrl($"https://image.tmdb.org/t/p/{size}{path}");
 
-    /// <summary>"movie:123" / "tv:456" (TMDB ids) → library item.</summary>
-    internal static async Task<Dictionary<string, Guid>> LibraryIndexAsync(FlexarrDbContext db, CancellationToken ct)
+    /// <summary>"movie:123" / "tv:456" (TMDB ids) → library item, for the titles asked about.</summary>
+    /// <param name="tmdbIds">
+    /// The TMDB ids on the page, films' and shows' alike: only those are looked up, which the index on TmdbId answers,
+    /// rather than reading every film and show in the library to mark a handful.
+    /// </param>
+    internal static async Task<Dictionary<string, Guid>> LibraryIndexAsync(FlexarrDbContext db, IEnumerable<int> tmdbIds, CancellationToken ct)
     {
         var map = new Dictionary<string, Guid>(StringComparer.Ordinal);
-        foreach (var i in await db.MediaItems.Where(i => i.TmdbId != null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series))
+        var ids = tmdbIds.Select(i => i.ToString(CultureInfo.InvariantCulture)).Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return map;
+        }
+
+        foreach (var i in await db.MediaItems.Where(i => i.TmdbId != null && ids.Contains(i.TmdbId) && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series))
                      .Select(i => new { i.Id, i.Kind, i.TmdbId }).ToListAsync(ct))
         {
             map.TryAdd($"{(i.Kind == MediaKind.Movie ? "movie" : "tv")}:{i.TmdbId}", i.Id);

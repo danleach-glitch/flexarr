@@ -90,7 +90,7 @@ public static class RequestRequested
         }
 
         // A film already in a library the profile sees is in, whatever Seerr thinks; a show may be partly in.
-        var inLibrary = await RequestEndpoints.LibraryIndexAsync(db, ct);
+        var inLibrary = await RequestEndpoints.LibraryIndexAsync(db, titles.Select(t => t.TmdbId), ct);
         var everywhere = await db.MediaItems.IgnoreQueryFilters().Where(i => i.TmdbId != null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series))
             .Select(i => new { i.Kind, i.TmdbId, i.LibraryId }).ToListAsync(ct);
         var whereIs = everywhere.ToLookup(i => $"{(i.Kind == MediaKind.Movie ? "movie" : "tv")}:{i.TmdbId}", i => i.LibraryId);
