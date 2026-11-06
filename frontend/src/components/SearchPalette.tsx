@@ -222,12 +222,23 @@ function recentResults(recent: RecentSearches | null): Result[] {
  * ⌘K search across titles, albums, tracks, people, episodes and genres, operable entirely from the keyboard. Before
  * anything's typed it offers the profile's recent searches, shared with their other devices.
  */
+/**
+ * How long typing must pause before the library is asked. Long enough that a word typed at an ordinary speed is one
+ * search rather than one per letter; a single letter matches nearly everything, so it waits until it's plainly the
+ * whole search (a film can be called "M" or "X").
+ */
+function searchDelay(query: string) {
+  return query.length < 2 ? 600 : 250
+}
+
 export function SearchPalette({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('')
   const [found, setFound] = useState<Result[]>([])
   const [recent, setRecent] = useState<RecentSearches | null>(null)
   const [active, setActive] = useState(0)
   const [loading, setLoading] = useState(false)
+  // The last query the library was asked for: until it's this one, "nothing matches" would be a guess.
+  const [asked, setAsked] = useState('')
   // What's outside the library, for the query it was found for (it arrives after the library's own results).
   const [outside, setOutside] = useState<{ query: string; results: Result[] }>({ query: '', results: [] })
   const services = useRef<Promise<{ titles: boolean; music: boolean }>>(null)
@@ -255,6 +266,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
     const controller = new AbortController()
     const timer = setTimeout(() => {
       setLoading(true)
+      setAsked(q)
       search(q, controller.signal)
         .then((r) => {
           setFound(flatten(r))
@@ -262,7 +274,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
         })
         .catch(() => undefined)
         .finally(() => setLoading(false))
-    }, 120)
+    }, searchDelay(q))
     return () => {
       clearTimeout(timer)
       controller.abort()
@@ -392,7 +404,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
           <kbd>{t('esc')}</kbd>
         </label>
         <div className="palette-results" id="search-results" role="listbox">
-          {query.trim() && !loading && results.length === 0 && <p className="palette-empty">{t('Nothing in your library matches “{query}”.', { query: query.trim() })}</p>}
+          {query.trim() && asked === query.trim() && !loading && results.length === 0 && <p className="palette-empty">{t('Nothing in your library matches “{query}”.', { query: query.trim() })}</p>}
           {groups.map(([group, items], g) => (
             <div key={group} role="group" aria-label={group}>
               {!query.trim() && g === 0 ? (

@@ -27,6 +27,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Flexarr opens a little sooner in a browser: it asks the server for everything the first screen needs at once, and a server that's slow to say which languages it has no longer holds the screen at **Connecting…**.
 - The first page has less to download: Now Playing, playlists, audiobook pages and the main profile's editors are fetched the first time you open them.
 - With music, a podcast or a book playing, a long grid of posters no longer redraws every card each time the track changes or pauses.
+- Search asks your server once you pause typing rather than at nearly every letter, and no longer says nothing matches before it has looked.
 
 ## 0.62.1 · 5 November 2026
 
