@@ -342,6 +342,27 @@ public sealed class WatchlistTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FilmsAskedForAllAtOnce_StillStopAtTheDaysLimit()
+    {
+        var id = (await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = "Script" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        var device = (await (await Client().PostAsJsonAsync(Api("/session/device"), new { deviceName = "A script" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+        var script = _server.CreateClient();
+        script.DefaultRequestHeaders.Add("X-Api-Key", device);
+        Assert.True((await script.PostAsJsonAsync(Api($"/profiles/{id}/select"), new { })).IsSuccessStatusCode);
+        var limit = Flexarr.Api.Endpoints.RequestEndpoints.DailyLimit;
+        // One that's refused (a show Sonarr can't add) doesn't use up any of the day.
+        _seerr.Responses["GET /api/v1/tv/339754"] = """{"id": 339754, "name": "LOL Halloween", "externalIds": {"tvdbId": null, "imdbId": null}}""";
+        Assert.Equal(HttpStatusCode.Conflict, (await script.PostAsJsonAsync(Api("/requests"), new { mediaType = "tv", tmdbId = 339754 })).StatusCode);
+
+        // Sent together, so none has been counted by the time the others are checked.
+        var answers = await Task.WhenAll(Enumerable.Range(0, limit + 30).Select(i => script.PostAsJsonAsync(Api("/requests"), new { mediaType = "movie", tmdbId = 60_000 + i })));
+
+        Assert.Equal(limit, answers.Count(a => a.StatusCode == HttpStatusCode.Accepted));
+        Assert.Equal(30, answers.Count(a => a.StatusCode == HttpStatusCode.TooManyRequests));
+        Assert.Equal(limit, Requests());
+    }
+
+    [Fact]
     public async Task OnlyTheAdmin_TurnsOnAutoRequest()
     {
         // A TV on the main profile, locked: it watches, but doesn't manage the server.

@@ -461,7 +461,7 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         }
 
         // The day's worth of requests counts here too: a long watchlist isn't a way round it. The title stays on the list.
-        if (await RequestEndpoints.OverDailyLimitAsync(db, cache, profileId, ct))
+        if (!await RequestEndpoints.TakeAskAsync(db, cache, profileId, ct))
         {
             return false;
         }
@@ -469,12 +469,12 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         try
         {
             await RequestEndpoints.PlaceAsync(seerr, instance, options.CurrentValue, db, profileId, mediaType, tmdbId, ct);
-            RequestEndpoints.CountAsk(cache, profileId);
             cache.Remove(SeerrKey(mediaType, tmdbId));
             return true;
         }
         catch (Exception ex) when (SeerrFailed(ex, ct))
         {
+            RequestEndpoints.ReturnAsk(cache, profileId);
             return false;
         }
     }
