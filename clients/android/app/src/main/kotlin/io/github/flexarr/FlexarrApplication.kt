@@ -17,6 +17,7 @@ import io.github.flexarr.data.CredentialStore
 import io.github.flexarr.logging.ErrorReports
 import io.github.flexarr.logging.LogHub
 import io.github.flexarr.notifications.FlexarrMessagingService
+import io.github.flexarr.ui.tv.TvGuideCache
 
 class FlexarrApplication : Application(), SingletonImageLoader.Factory {
     lateinit var model: AppModel
@@ -53,6 +54,15 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
                 model.wentToBackground()
             }
         })
+    }
+
+    /**
+     * Android wants memory back, or the app has left the screen: the guide the TV keeps between Live TV and the guide
+     * over the picture goes (it's fetched again if it's wanted).
+     */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        TvGuideCache.clear()
     }
 
     /** A TV by its UI mode, a tablet by its narrowest side (600 dp and over, as Android's own layouts count it). */

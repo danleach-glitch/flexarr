@@ -22,6 +22,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android TV sticks and phones that give an app little memory, the player holds less of a high-bitrate film or Live TV channel in memory at once, so it's less likely to stutter or close the app. Other devices buffer as before.
 - Opening a title or pressing **Play** no longer waits behind posters that are still loading, which showed after scrolling a long grid on a slow connection.
 - Downloading a long playlist no longer makes its page and the Downloads tab stutter while the tracks come in.
+- Live TV's guide on the phone uses less data: it's fetched again every five minutes rather than every two, and the channel list behind it as often. The line for now still moves each minute. An Android TV no longer holds the whole guide in memory after you've left Live TV.
 
 ## 0.62.1 · 5 November 2026
 
