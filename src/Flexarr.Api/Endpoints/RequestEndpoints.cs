@@ -266,10 +266,16 @@ public static partial class RequestEndpoints
                 return Problems.Field("Use \"movie\" or \"tv\".", field: "mediaType");
             }
 
+            if (await OverDailyLimitAsync(db, cache, current.Id, ct))
+            {
+                return Problems.Of("That’s a lot of requests for one day. Try again tomorrow.", status: 429);
+            }
+
             try
             {
                 var seasons = request.MediaType == "tv" && request.Seasons is { Count: > 0 } chosen ? chosen.Where(n => n > 0).Distinct().Order().ToList() : null;
                 await PlaceAsync(seerr, instance, options.CurrentValue, db, current.Id, request.MediaType, request.TmdbId, ct, seasons);
+                CountAsk(cache, current.Id);
                 RequestRequested.Forget();
                 if (seasons is not null)
                 {
@@ -361,6 +367,42 @@ public static partial class RequestEndpoints
 
         return api;
     }
+
+    /// <summary>
+    /// The most films and shows one profile can ask for in a day (music has its own,
+    /// <see cref="MusicRequestEndpoints.DailyLimit"/>): Seerr approves them with Flexarr's key, and Radarr and Sonarr
+    /// download what it approves, so without one a guest's device or a teenager's profile could fill the disk.
+    /// </summary>
+    internal const int DailyLimit = 50;
+
+    /// <summary>
+    /// Whether <paramref name="profileId"/> has asked for its day's worth of films and shows: its requests in the last
+    /// day, or what it has asked since (asking again for the same title reuses its request but still reaches Seerr).
+    /// Never the main profile, which manages Sonarr and Radarr anyway.
+    /// </summary>
+    internal static async Task<bool> OverDailyLimitAsync(FlexarrDbContext db, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, string profileId, CancellationToken ct)
+    {
+        if (profileId == PlaybackState.DefaultUser)
+        {
+            return false;
+        }
+
+        var since = DateTime.UtcNow.AddDays(-1);
+        return AskCount(cache, profileId).Value >= DailyLimit
+            || await db.MediaRequests.CountAsync(r => r.ProfileId == profileId && (r.Kind == MediaKind.Movie || r.Kind == MediaKind.Series) && r.RequestedAt > since, ct)
+            >= DailyLimit;
+    }
+
+    /// <summary>Counts a film or show request that reached Seerr towards <paramref name="profileId"/>'s day.</summary>
+    internal static void CountAsk(Microsoft.Extensions.Caching.Memory.IMemoryCache cache, string profileId) =>
+        Interlocked.Increment(ref AskCount(cache, profileId).Value);
+
+    private static System.Runtime.CompilerServices.StrongBox<int> AskCount(Microsoft.Extensions.Caching.Memory.IMemoryCache cache, string profileId) =>
+        Microsoft.Extensions.Caching.Memory.CacheExtensions.GetOrCreate(cache, $"title-ask:{profileId}", entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(1);
+            return new System.Runtime.CompilerServices.StrongBox<int>();
+        })!;
 
     /// <summary>
     /// Asks Seerr for a title for a profile, sent to the library it chose, and remembers who asked (Seerr only knows

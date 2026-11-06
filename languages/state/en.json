@@ -2610,6 +2610,7 @@
   "That search result isn’t one Flexarr knows. Search again.": "s",
   "That title isn’t in the library.": "s",
   "That’s a lot of music for one day. Try again tomorrow.": "s",
+  "That’s a lot of requests for one day. Try again tomorrow.": "s",
   "That’s a lot of undoing for one hour. Try again later.": "s",
   "That’s a whole drive or home folder. Choose the folder your {kind} are in.": "w",
   "That’s private on this profile.": "a",
