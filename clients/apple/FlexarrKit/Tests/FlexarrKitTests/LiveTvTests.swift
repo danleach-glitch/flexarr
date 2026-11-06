@@ -34,6 +34,46 @@ struct LiveTvTests {
         #expect(LiveGuide.isDue(fetchedAt: fetched, now: fetched.addingTimeInterval(6 * 3600)))
     }
 
+    @Test func aKeptGuideIsDueOnceARecordingMarkIsOutOfDate_NotBefore() {
+        let fetched = Date(timeIntervalSince1970: 1_800_000_000)
+        func guide(_ recording: String?, from start: TimeInterval, to end: TimeInterval) -> LiveGuide {
+            let programme = LiveProgramme(id: 1, start: fetched.addingTimeInterval(start), end: fetched.addingTimeInterval(end), title: "F1",
+                                          subtitle: nil, description: nil, category: nil, season: nil, episode: nil, isNew: false,
+                                          recording: recording, series: nil)
+            let plain = LiveProgramme(id: 2, start: fetched.addingTimeInterval(-3600), end: fetched.addingTimeInterval(3600), title: "News",
+                                      subtitle: nil, description: nil, category: nil, season: nil, episode: nil, isNew: false,
+                                      recording: nil, series: nil)
+            let channels = [
+                GuideChannel(id: "a", number: 1, name: "One", group: nil, logoUrl: nil, isFavourite: false, programmes: [plain]),
+                GuideChannel(id: "b", number: 2, name: "Two", group: nil, logoUrl: nil, isFavourite: false, programmes: [plain, programme]),
+            ]
+            return LiveGuide(from: fetched.addingTimeInterval(-3600), until: fetched.addingTimeInterval(7 * 3600), channels: channels)
+        }
+        func after(_ seconds: TimeInterval) -> Date { fetched.addingTimeInterval(seconds) }
+
+        // Nothing set to record: kept the half hour, whatever's on.
+        #expect(!guide(nil, from: 600, to: 1200).isDue(fetchedAt: fetched, now: after(900)))
+        #expect(guide(nil, from: 600, to: 1200).isDue(fetchedAt: fetched, now: after(30 * 60)))
+        #expect(guide(nil, from: 600, to: 1200).isDue(fetchedAt: nil, now: after(0)))
+
+        // Set to record, ten minutes off: kept until it starts, then due (it should say it's recording), and no longer
+        // once it's over (nothing more to learn about it).
+        let scheduled = guide("scheduled", from: 600, to: 1200)
+        #expect(!scheduled.isDue(fetchedAt: fetched, now: after(480)))
+        #expect(scheduled.isDue(fetchedAt: fetched, now: after(600)))
+        #expect(scheduled.isDue(fetchedAt: fetched, now: after(900)))
+        #expect(!scheduled.isDue(fetchedAt: fetched, now: after(1200)))
+
+        // Set while it was on, the answer saying "scheduled" as the recording hadn't begun: due at the next look.
+        #expect(guide("scheduled", from: -600, to: 1200).isDue(fetchedAt: fetched, now: after(120)))
+
+        // Recording now: kept while it's on, due once it has ended (the mark comes off).
+        let recording = guide("recording", from: -600, to: 600)
+        #expect(!recording.isDue(fetchedAt: fetched, now: after(480)))
+        #expect(recording.isDue(fetchedAt: fetched, now: after(600)))
+        #expect(recording.isDue(fetchedAt: fetched, now: after(720)))
+    }
+
     @Test func guide() throws {
         let guide = try Fixture.decode(LiveGuide.self, "live-guide")
         #expect(guide.until > guide.from)

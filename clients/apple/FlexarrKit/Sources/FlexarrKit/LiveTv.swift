@@ -132,6 +132,22 @@ public struct LiveGuide: Codable, Sendable, Hashable {
         guard let fetchedAt else { return true }
         return now.timeIntervalSince(fetchedAt) >= keptFor
     }
+
+    /// Whether this guide, fetched at `fetchedAt`, is due to be fetched again: it's old, or the clock has overtaken
+    /// one of its recording marks. A showing set to record that's now on should say it's recording (it may have just
+    /// been set, or have started since), and one that was recording and has ended should lose its mark. Only the
+    /// server knows which, so the guide is asked for again at the next look, as it was at every look before it was
+    /// kept, rather than showing the old mark for up to half an hour. Marks that are right cost nothing: a showing
+    /// still to come, and one recording that's still on.
+    public func isDue(fetchedAt: Date?, now: Date = Date()) -> Bool {
+        if Self.isDue(fetchedAt: fetchedAt, now: now) { return true }
+        return channels.contains { channel in
+            channel.programmes.contains { programme in
+                guard programme.isSetToRecord else { return false }
+                return programme.isRecordingNow ? programme.end <= now : programme.start <= now && programme.end > now
+            }
+        }
+    }
 }
 
 // MARK: - Recordings (the DVR)

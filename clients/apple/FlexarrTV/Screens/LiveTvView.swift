@@ -62,8 +62,8 @@ struct LiveTvView: View {
                 try? await Task.sleep(for: .seconds(60))
             }
         }
-        // The guide: a day's worth, looked at every five minutes and fetched again once it's old (or wasn't had: a
-        // fetch that failed is tried again at the next look).
+        // The guide: a day's worth, looked at every five minutes and fetched again once it's old, a recording has
+        // started or ended since (its mark changes), or it wasn't had: a fetch that failed is tried again at the next look.
         .task {
             while !Task.isCancelled {
                 await loadGuide(onlyIfDue: true)
@@ -171,7 +171,7 @@ struct LiveTvView: View {
     private func loadGuide(onlyIfDue: Bool = false) async {
         guard let client = model.client else { return }
         if !model.hasAgeLimit { upcoming = try? await client.recordings().upcoming.count }
-        if onlyIfDue, !LiveGuide.isDue(fetchedAt: guideLoadedAt) { return }
+        if onlyIfDue, let guide, !guide.isDue(fetchedAt: guideLoadedAt) { return }
         if let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: 24) {
             guide = loaded
             guideLoadedAt = Date()

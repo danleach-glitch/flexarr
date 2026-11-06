@@ -71,10 +71,11 @@ struct LiveGuideView: View {
         // Only while the app is in front: with music keeping it alive in the background, it would go on asking.
         .task(id: scenePhase == .active) {
             guard scenePhase == .active else { return }
-            // The line for now moves on every couple of minutes; the listings are fetched again only once they're old
-            // (or weren't had: a fetch that failed is tried again at the next look).
+            // The line for now moves on every couple of minutes; the listings are fetched again only once they're old,
+            // a recording has started or ended since (its mark changes), or they weren't had: a fetch that failed is
+            // tried again at the next look.
             while !Task.isCancelled {
-                if LiveGuide.isDue(fetchedAt: guideLoadedAt) { await load() }
+                if guide?.isDue(fetchedAt: guideLoadedAt) ?? true { await load() }
                 now = Date()
                 try? await Task.sleep(for: .seconds(120))
             }
