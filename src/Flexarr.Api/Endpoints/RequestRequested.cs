@@ -334,7 +334,7 @@ public static class RequestRequested
     /// One call, kept a little while (dropped by a request or an unrequest); null when it failed or took too long, which
     /// isn't kept, so the next page asks again.
     /// </summary>
-    private static async Task<T?> Cached<T>(IMemoryCache cache, string key, TimeSpan ttl, Func<CancellationToken, Task<T>> call, CancellationToken ct) where T : class
+    internal static async Task<T?> Cached<T>(IMemoryCache cache, string key, TimeSpan ttl, Func<CancellationToken, Task<T>> call, CancellationToken ct) where T : class
     {
         if (cache.TryGetValue(key, out T? hit) && hit is not null)
         {

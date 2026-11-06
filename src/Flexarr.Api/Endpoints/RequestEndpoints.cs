@@ -98,6 +98,13 @@ public static partial class RequestEndpoints
     ];
 
     /// <summary>
+    /// How long Seerr's lists are kept: they're the same for everyone and change over hours, so visits close together
+    /// (a title's page and back) share one fetch. What Seerr says of a title in them (asked for, in) can change
+    /// sooner: a request or an unrequest made here drops them.
+    /// </summary>
+    private static readonly TimeSpan ListsFor = TimeSpan.FromMinutes(5);
+
+    /// <summary>
     /// TMDB's popular shows are mostly long-running ones (Grey's Anatomy, Friends), so that row keeps to shows that
     /// started in the last year, up to today so it isn't filled with ones yet to air.
     /// </summary>
@@ -141,7 +148,7 @@ public static partial class RequestEndpoints
         });
 
         group.MapGet("/discover", async (IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, Watchlist.WatchlistService watchlist,
-            Trakt.TraktRecommendations trakt, CurrentProfile current, CancellationToken ct) =>
+            Trakt.TraktRecommendations trakt, CurrentProfile current, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct) =>
         {
             if (options.CurrentValue.Seerr?.Instance is not { } instance)
             {
@@ -156,26 +163,28 @@ public static partial class RequestEndpoints
             // Trakt's picks are worked out alongside Seerr's lists (they only use Seerr and Trakt from here on).
             var picksTask = trakt.RowAsync(current.Id, instance, library, wanted, hidden, ct);
             ExternalRowDto? picks;
+            SeerrPage?[] pages;
             try
             {
-                foreach (var (id, list, title) in Lists)
-                {
-                    try
-                    {
-                        var page = await seerr.DiscoverAsync(instance, list, 1, ct, FilterFor(id, today));
-                        rows.Add(new ExternalRowDto(id, Loc.T(title), page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library, wanted))
-                            .Where(t => t.LibraryItemId is not null || !hidden.Hides(KindOf(t.MediaType))).ToList()));
-                    }
-                    catch (HttpRequestException)
-                    {
-                        // One list failing shouldn't hide the others.
-                    }
-                }
+                // Asked for together, not one after another, and kept a few minutes. One list failing (it comes back
+                // null, and isn't kept) shouldn't hide the others.
+                pages = await Task.WhenAll(Lists.Select(l => RequestRequested.Cached(cache, $"seerr-discover:{instance.BaseUrl}:{l.List}?{FilterFor(l.Id, today)}", ListsFor,
+                    t => seerr.DiscoverAsync(instance, l.List, 1, t, FilterFor(l.Id, today)), ct)));
             }
             finally
             {
                 // Never left running past the request, which owns the database context it uses.
                 picks = await picksTask;
+            }
+
+            // The lists are everyone's; the marks on them (in the library, on the watchlist) are this profile's, now.
+            foreach (var ((id, _, title), page) in Lists.Zip(pages))
+            {
+                if (page is not null)
+                {
+                    rows.Add(new ExternalRowDto(id, Loc.T(title), page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library, wanted))
+                        .Where(t => t.LibraryItemId is not null || !hidden.Hides(KindOf(t.MediaType))).ToList()));
+                }
             }
 
             // A profile connected to Trakt gets its picks, after what's trending.
@@ -381,6 +390,8 @@ public static partial class RequestEndpoints
 
         var to = await RequestDestinations.ForRequestAsync(seerr, instance, options.PathMappings, db, profileId, kind, ct);
         await seerr.RequestAsync(instance, mediaType, tmdbId, to, ct, seasons);
+        // Seerr now says it's asked for: what was kept of its lists and requests is out of date.
+        RequestRequested.Forget();
         if (!await db.MediaRequests.AnyAsync(r => r.ProfileId == profileId && r.Kind == kind && r.TmdbId == tmdbId && r.FulfilledAt == null, ct))
         {
             db.MediaRequests.Add(new MediaRequest { ProfileId = profileId, Kind = kind, TmdbId = tmdbId });

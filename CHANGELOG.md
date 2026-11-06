@@ -35,6 +35,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - **Play** and **Shuffle** on an artist or an album start sooner on a big library, most of all on a slower server: gathering the tracks no longer reads through every title you have.
 - A song's volume levelling (ReplayGain) is read when the library scans the file, not the first time the song is played, so the first play of music added from now on starts a touch sooner, most of all from a drive that was asleep. Music already in your library works as before.
 
+### Discover
+- Discover opens sooner: Seerr's four lists are asked for together instead of one after another, and coming back to Discover within a few minutes (from a title's page, say) doesn't ask for them again. What's in your library, on your watchlist or just requested is still marked afresh every time. A list Seerr is slow to answer is left out rather than failing the page.
+
 ### Backups
 - Backups no longer carry the Live TV guide, which a big channel list makes most of the database: they're smaller and quicker to make. A server restored from one fetches its guide again as it starts. Channels, favourites and recordings are kept as before.
 
