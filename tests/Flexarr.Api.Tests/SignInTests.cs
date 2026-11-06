@@ -345,6 +345,34 @@ public class SignInTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task ARemovedProfile_SignsItsDevicesOut_WhenTheMainProfileHasAPinOfItsOwn()
+    {
+        var gone = await CreateProfileAsync("Leaving a PIN behind");
+        var tv = Device(await DeviceTokenAsync("Guest room TV"));
+        await tv.PostAsJsonAsync(Api($"/profiles/{gone}/select"), new { pin = (string?)null });
+        var listed = await Admin().GetFromJsonAsync<JsonElement>(Api("/sign-ins"));
+        Assert.Contains(listed.EnumerateArray(), s => s.GetProperty("name").GetString() == "Guest room TV");
+        await factory.SetMainProfilePinAsync("2468");
+        try
+        {
+            await Admin().DeleteAsync(Api($"/profiles/{gone}"));
+
+            // It would have become the main profile without ever being asked for the main profile's PIN.
+            Assert.Equal(HttpStatusCode.Unauthorized, (await tv.GetAsync(Api("/me"))).StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, (await tv.GetAsync(Api("/home"))).StatusCode);
+            listed = await Admin().GetFromJsonAsync<JsonElement>(Api("/sign-ins"));
+            Assert.DoesNotContain(listed.EnumerateArray(), s => s.GetProperty("name").GetString() == "Guest room TV");
+        }
+        finally
+        {
+            await factory.SetMainProfilePinAsync(null);
+        }
+
+        // Still signed out once the PIN has gone: it doesn't come back as the main profile.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await tv.GetAsync(Api("/me"))).StatusCode);
+    }
+
+    [Fact]
     public async Task ChangingAPin_RetiresTokensIssuedBefore()
     {
         var id = await CreateProfileAsync("Repinned", pin: "1357");

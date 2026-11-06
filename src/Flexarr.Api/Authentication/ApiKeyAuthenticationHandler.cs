@@ -300,6 +300,13 @@ public sealed class ApiKeyAuthenticationHandler(
                 // Locked to kids profiles and its own has gone: another of them, never one without a limit.
                 (profile, admin) = (kids, false);
             }
+            else if (await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash != null, Context.RequestAborted))
+            {
+                // Its profile has been removed, and the main profile has a PIN of its own that was never given here:
+                // becoming the main profile would get round it, so it's signed out instead.
+                signIns.Revoke(signIn.Id);
+                return AuthenticateResult.Fail("This sign-in's profile has been removed");
+            }
             else
             {
                 // Its profile has been removed: it watches as the main profile, but only manages the server once the

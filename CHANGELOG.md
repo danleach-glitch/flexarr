@@ -26,6 +26,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A podcast feed written to be slow to read can no longer keep the server busy for hours, stop it, or hold up podcast updates. Show notes are read in time that keeps step with their length, only their first 200,000 characters count, and a feed's newest 20,000 episodes are kept.
 - One request can no longer fill the server's memory or disk by adding the same artist to a playlist thousands of times. A playlist holds up to 10,000 tracks, a book keeps up to 1,000 bookmarks for each profile, and a collection's description and rules have a length.
 - Other accounts on the server's machine can no longer read Flexarr's database, logs or cache. The server keeps them to its own account from the next start, as it already did its settings file, and a Mac install's `~/.flexarr` folder is closed to everyone else whole.
+- With a PIN on the main profile, removing another profile signs out the TVs, phones and browsers that were on it. They used to carry on as the main profile, without being asked for its PIN; connect them again to choose who's watching. Without a PIN on the main profile, nothing changes.
 
 ## 0.62.1 · 5 November 2026
 
