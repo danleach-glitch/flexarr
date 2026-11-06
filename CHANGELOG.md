@@ -19,6 +19,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Security
 - On the web, a link someone sends you can no longer make your browser change anything on your server just by being opened. A link to a channel, title or playlist only ever asks for that one thing.
 
+### Web
+- In an audiobook library of more than a few hundred books, jumping to a letter no longer leaves books out of the grid.
+
 ## 0.62.1 · 5 November 2026
 
 ### Apple TV

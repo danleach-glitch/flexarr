@@ -29,6 +29,8 @@ import { AlphaPicker, AlphaRail, ShowMore, useLibraryGrid } from './libraryGrid'
 import { locale, t, tk, Words } from '../i18n'
 
 const PAGE_SIZE = 60
+/** The most books the server gives in one page (BookEndpoints' MaxPage). */
+const MAX_PAGE = 200
 
 type View = 'browse' | 'all' | 'series' | 'authors' | 'genres' | 'narrators' | 'genre'
 
@@ -234,6 +236,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
     snapshotKey: `books-${view} ${library.id} ${key}`,
     query,
     pageSize: PAGE_SIZE,
+    jumpPageSize: MAX_PAGE,
     itemCount: library.itemCount,
     load: (page, signal) => getLibraryBooks(library.id, { ...filters, search: query || undefined, ...page }, signal),
   })

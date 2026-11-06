@@ -6,6 +6,7 @@ import { useWatchedChanges, watchedSince } from '../hooks/watched'
 import { t } from '../i18n'
 
 export const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
+/** A letter jump's page: the most the films, shows and music lists give at once. A list that gives fewer says so (`jumpPageSize`). */
 const JUMP_PAGE = 500
 const JUMP_PARALLEL = 4
 
@@ -86,11 +87,14 @@ function append(loaded: ItemSummary[], pages: ItemSummary[][]) {
  * A library's grid of titles, a page at a time: searching (`query`), Show more, jumping to a letter, refreshing when
  * a scan changes the library, and picking up where it was on Back. `snapshotKey` names the grid (its library, sort
  * and filters, not the search): a grid with the same key is restored on Back. `itemCount` is the library's size now.
+ * `jumpPageSize` is the most titles `load` gives in one page: a letter jump asks for pages that size, side by side, so
+ * asking for more than the server gives would leave the titles between them out.
  */
-export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }: {
+export function useLibraryGrid({ snapshotKey, query, pageSize, jumpPageSize = JUMP_PAGE, itemCount, load }: {
   snapshotKey: string
   query: string
   pageSize: number
+  jumpPageSize?: number
   itemCount: number | undefined
   load: (page: { skip?: number; take: number }, signal?: AbortSignal) => Promise<Paged<ItemSummary>>
 }) {
@@ -252,8 +256,8 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
       while (!loaded.some((i) => letterOf(i) === letter) && !passed(loaded) && total !== undefined && loaded.length < total) {
         setJumping(letter)
         const skips: number[] = []
-        for (let skip = loaded.length; skip < total && skips.length < JUMP_PARALLEL; skip += JUMP_PAGE) skips.push(skip)
-        const pages = await Promise.all(skips.map((skip) => loader.current({ skip, take: JUMP_PAGE })))
+        for (let skip = loaded.length; skip < total && skips.length < JUMP_PARALLEL; skip += jumpPageSize) skips.push(skip)
+        const pages = await Promise.all(skips.map((skip) => loader.current({ skip, take: jumpPageSize })))
         if (run !== generation.current) return
         const next = append(loaded, pages.map((p) => p.items))
         if (next.length === loaded.length) break
