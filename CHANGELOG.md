@@ -18,6 +18,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Security
 - Downloading a subtitle you picked from **Search for subtitles…** only sends Bazarr a result it found itself. With Bazarr 1.5.6 or older, a made-up result could have run code on the machine Bazarr runs on; Bazarr 1.6.0 and newer wasn't affected.
+- Telling a device to play something as another profile no longer tells you how far that profile is into it, or which episode they're up to. The device still plays their next episode, and you're told all of it when the profile is your own.
 
 ## 0.62.1 · 5 November 2026
 

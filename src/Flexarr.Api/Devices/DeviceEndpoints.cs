@@ -433,7 +433,12 @@ public static class DeviceEndpoints
         // Shuffling a show: the device is handed the show itself and asks for random episodes as it goes.
         var shuffle = request.Shuffle && item.Kind is MediaKind.Series or MediaKind.Season;
         var playing = shuffle ? item.Id : target.Id;
-        var summary = await db.MediaItems.Where(i => i.Id == playing).Summaries(profileId).FirstAsync(ct);
+        // How far someone is into a title is theirs to know: unless the caller is that profile (or the admin), the
+        // answer describes it as the caller's own profile sees it, and for a profile the caller named, only the
+        // title that was asked for, not the episode they're up to. The device is still sent what will play.
+        var theirs = current.IsAdmin || current.Id == profileId;
+        var described = theirs || request.ProfileId is null ? playing : item.Id;
+        var summary = await db.MediaItems.Where(i => i.Id == described).Summaries(theirs ? profileId : current.Id).FirstAsync(ct);
         // Within two days: nothing plays longer, and a device turns it into a whole number of seconds.
         var start = !shuffle && playing == item.Id && request.StartSeconds is { } at && double.IsFinite(at) && at is >= 0 and <= 172_800 ? at : (double?)null;
         var command = new DeviceCommand(DeviceCommand.NewId(), DeviceCommandKind.Play, playing, request.FromBeginning, SenderName(signIns, current), DateTime.UtcNow, shuffle,

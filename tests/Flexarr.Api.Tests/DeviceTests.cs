@@ -189,6 +189,52 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task PlayingAsSomeoneElse_DoesntSayHowFarTheyAre_ButStillSendsTheirEpisode()
+    {
+        var show = await SeedAsync("Ghosts", ("S01E01", 1, 1), ("S01E02", 1, 2));
+        var created = await Admin().PostAsJsonAsync(Api("/profiles"), new { name = $"Sam {Guid.NewGuid():N}", pin = "2468" });
+        var sam = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        var alex = (await (await Admin().PostAsJsonAsync(Api("/profiles"), new { name = $"Alex {Guid.NewGuid():N}" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        using (var scope = factory.Services.CreateScope())
+        {
+            // Sam has seen the first episode twice; Alex nothing.
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.PlaybackStates.Add(new PlaybackState { UserId = sam, MediaItemId = show.Episodes["S01E01"], Watched = true, PlayCount = 2, LastPlayedAt = DateTime.UtcNow.AddDays(-1) });
+            await db.SaveChangesAsync();
+        }
+
+        var (id, tv) = await DeviceAsync("Snug");
+        var (_, alexPhone) = await DeviceAsync("Alex's phone");
+        Assert.Equal(HttpStatusCode.OK, (await alexPhone.PostAsJsonAsync(Api($"/profiles/{alex}/select"), new { })).StatusCode);
+        var (_, samPhone) = await DeviceAsync("Sam's phone");
+        Assert.Equal(HttpStatusCode.OK, (await samPhone.PostAsJsonAsync(Api($"/profiles/{sam}/select"), new { pin = "2468" })).StatusCode);
+
+        // The TV isn't listening, so nothing plays: the answer is all Alex gets.
+        var episode = await alexPhone.PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = show.Episodes["S01E01"], profileId = sam });
+        var seen = (await episode.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("item").GetProperty("userData");
+        Assert.False(seen.GetProperty("watched").GetBoolean());
+        Assert.Equal(0, seen.GetProperty("playCount").GetInt32());
+        Assert.Equal(JsonValueKind.Null, seen.GetProperty("lastPlayedAt").ValueKind);
+        var asked = await alexPhone.PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = show.Series, profileId = sam });
+        var told = (await asked.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("item");
+        Assert.Equal(show.Series, told.GetProperty("id").GetGuid());
+        Assert.Equal(2, told.GetProperty("userData").GetProperty("unwatchedCount").GetInt32());
+
+        // The TV is still sent the episode Sam is up to, as Sam.
+        var (response, reader) = await ListenAsync(tv);
+        var command = await NextCommandAsync(reader);
+        Assert.Equal(show.Episodes["S01E02"], command.GetProperty("itemId").GetGuid());
+        Assert.Equal(sam, command.GetProperty("profileId").GetString());
+
+        // Sam is told all of it.
+        var own = await samPhone.PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = show.Series, profileId = sam });
+        Assert.Equal("S01E02", (await own.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("item").GetProperty("title").GetString());
+        var ownEpisode = await samPhone.PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = show.Episodes["S01E01"], profileId = sam });
+        Assert.Equal(2, (await ownEpisode.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("item").GetProperty("userData").GetProperty("playCount").GetInt32());
+        response.Dispose();
+    }
+
+    [Fact]
     public async Task PuttingAChannelOnADevice_SendsIt()
     {
         var channel = new Flexarr.Core.LiveTv.LiveChannel { Name = "BBC One", Number = 101, SourceId = 1 };
