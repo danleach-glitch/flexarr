@@ -207,6 +207,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
             // A book's files are read once, chapters and all, and what they say is kept with them for BookAssembler.
             var books = library.Type == LibraryType.Audiobooks;
+            var music = library.Type == LibraryType.Music;
             foreach (var batch in work.Chunk(BatchSize))
             {
                 var probes = new ConcurrentDictionary<string, (ProbeResult? Result, BookFileProbe? Book, string? Error)>(StringComparer.Ordinal);
@@ -254,7 +255,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
                     if (match is not null)
                     {
-                        Apply(match, file, result, error);
+                        Apply(match, file, result, error, music);
                         match.BookProbe = bookProbe?.ToJson();
                         state.ChangedBooks.Add(match.MediaItemId);
                         updated++;
@@ -275,7 +276,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     }
 
                     var mediaFile = new MediaFile { Path = file.FullName, MediaItemId = item.Id, BookProbe = bookProbe?.ToJson() };
-                    Apply(mediaFile, file, result, error);
+                    Apply(mediaFile, file, result, error, music);
                     db.MediaFiles.Add(mediaFile);
                     added++;
                 }
@@ -519,7 +520,8 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         }
     }
 
-    private static void Apply(MediaFile target, FileInfo file, ProbeResult? result, string? error)
+    /// <param name="music">A track: its ReplayGain is kept from the tags just read, so playing it needn't read them again.</param>
+    private static void Apply(MediaFile target, FileInfo file, ProbeResult? result, string? error, bool music)
     {
         if (target.Size != file.Length || target.ModifiedAt != file.LastWriteTimeUtc)
         {
@@ -530,6 +532,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         target.ModifiedAt = file.LastWriteTimeUtc;
         target.ProbeError = error;
         target.Streams.Clear();
+        target.Loudness = music && result is not null ? ReplayGain.FromTags(result.Tags).ToJson() : null;
 
         if (result is null)
         {

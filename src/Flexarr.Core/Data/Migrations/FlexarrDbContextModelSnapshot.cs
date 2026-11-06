@@ -752,6 +752,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<int?>("Height")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Loudness")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("MarkersScannedAt")
                         .HasColumnType("TEXT");
 

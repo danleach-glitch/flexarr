@@ -32,6 +32,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Music
 - **Play** and **Shuffle** on an artist or an album start sooner on a big library, most of all on a slower server: gathering the tracks no longer reads through every title you have.
+- A song's volume levelling (ReplayGain) is read when the library scans the file, not the first time the song is played, so the first play of music added from now on starts a touch sooner, most of all from a drive that was asleep. Music already in your library works as before.
 
 ### Backups
 - Backups no longer carry the Live TV guide, which a big channel list makes most of the database: they're smaller and quicker to make. A server restored from one fetches its guide again as it starts. Channels, favourites and recordings are kept as before.

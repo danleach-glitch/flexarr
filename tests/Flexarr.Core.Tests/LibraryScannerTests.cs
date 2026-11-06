@@ -675,6 +675,45 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Music_ATracksReplayGain_IsKeptWithItsFile_AndReadAgainWhenTheFileChanges()
+    {
+        var root = Touch("music/Dire Straits/Communiqué (1979)/02 - News.flac", "music/Dire Straits/Communiqué (1979)/03 - Untagged.flac", "movies/Heat (1995)/Heat (1995).mkv");
+        _probe.Tags["02 - News.flac"] = new()
+        {
+            ["artist"] = "Dire Straits", ["album"] = "Communiqué", ["title"] = "News", ["track"] = "2",
+            ["REPLAYGAIN_TRACK_GAIN"] = "-7.52 dB", ["REPLAYGAIN_TRACK_PEAK"] = "0.988525", ["REPLAYGAIN_ALBUM_GAIN"] = "-8.10 dB", ["REPLAYGAIN_ALBUM_PEAK"] = "1.000000",
+        };
+        var music = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+        var movies = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
+
+        await Scanner().ScanAsync(music, null, default);
+        await Scanner().ScanAsync(movies, null, default);
+
+        async Task<string?> KeptAsync(string name) => (await _db.MediaFiles.AsNoTracking().SingleAsync(f => f.Path.EndsWith(name))).Loudness;
+        Assert.Equal(new Flexarr.Core.Parsing.Loudness(-7.52, -8.10, 0.988525, 1.0), Flexarr.Core.Parsing.Loudness.FromJson(await KeptAsync("News.flac")));
+        // A track without the tags is known to have none (which isn't "not looked at"); a film has nothing kept.
+        Assert.Equal(Flexarr.Core.Parsing.Loudness.Unknown, Flexarr.Core.Parsing.Loudness.FromJson(await KeptAsync("Untagged.flac")));
+        Assert.Null(await KeptAsync("Heat (1995).mkv"));
+
+        // Retagged (the file changed): the next scan keeps what it says now.
+        _probe.Tags["02 - News.flac"]["REPLAYGAIN_TRACK_GAIN"] = "-6.00 dB";
+        var news = Path.Combine(root, "music/Dire Straits/Communiqué (1979)/02 - News.flac");
+        File.SetLastWriteTimeUtc(news, File.GetLastWriteTimeUtc(news).AddMinutes(1));
+        _db.ChangeTracker.Clear();
+        await Scanner().ScanAsync(music, null, default);
+
+        Assert.Equal(-6.0, Flexarr.Core.Parsing.Loudness.FromJson(await KeptAsync("News.flac"))!.TrackGain);
+
+        // A file that can no longer be read keeps nothing, rather than what it used to say.
+        _probe.Fail = true;
+        File.SetLastWriteTimeUtc(news, File.GetLastWriteTimeUtc(news).AddMinutes(1));
+        _db.ChangeTracker.Clear();
+        await Scanner().ScanAsync(music, null, default);
+
+        Assert.Null(await KeptAsync("News.flac"));
+    }
+
+    [Fact]
     public async Task AFolderThatCantBeRead_KeepsItsFiles()
     {
         if (OperatingSystem.IsWindows())
