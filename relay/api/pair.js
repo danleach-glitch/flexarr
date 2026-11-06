@@ -110,6 +110,49 @@ function limited(ip, now = Date.now()) {
   return ++entry.count > RATE_LIMIT;
 }
 
+// --- Budgets per address for the two things a flood does all day and a household hardly ever: asking about codes
+// nobody is showing, and registering new ones. A TV registers one code every ten minutes and polls only its own; a
+// server asks about the code someone typed. An address that has used its budget is refused from this instance's
+// memory, before the store is touched. What it uses is counted in the store too when there is one (an INCR, as
+// trakt.js counts), so the budget is one across every instance; a TV's ordinary polls cost the store nothing more.
+
+const BUDGETS = {
+  unknown: { max: 20, seconds: 600 },
+  register: { max: 20, seconds: 600 },
+};
+const spent = new Map();
+
+function used(kind, ip, now) {
+  const entry = spent.get(`${kind}:${ip}`);
+  return entry && entry.window === Math.floor(now / 1000 / BUDGETS[kind].seconds) ? entry.count : 0;
+}
+
+/** True once the address has used its budget: answered from memory, without the store. */
+function overBudget(kind, ip, now = Date.now()) {
+  return used(kind, ip, now) >= BUDGETS[kind].max;
+}
+
+/** Counts one against the address's budget; true when that one is over it. */
+async function spend(kind, ip, now = Date.now()) {
+  const { max, seconds } = BUDGETS[kind];
+  const window = Math.floor(now / 1000 / seconds);
+  let count = used(kind, ip, now) + 1;
+  if (kvConfigured()) {
+    const key = `pair:budget:${kind}:${hash(ip).slice(0, 32)}:${window}`;
+    try {
+      const [shared] = await kv([['INCR', key], ['EXPIRE', key, String(seconds * 2)]]);
+      if (typeof shared === 'number') count = Math.max(count, shared);
+    } catch {
+      // This instance's own count will do.
+    }
+  }
+  const name = `${kind}:${ip}`;
+  // Oldest first: a flood of new addresses drops the stalest, never everyone's counts at once.
+  if (!spent.has(name) && spent.size >= 10_000) for (const old of [...spent.keys()].slice(0, 1000)) spent.delete(old);
+  spent.set(name, { window, count });
+  return count > max;
+}
+
 // --- Checks.
 
 function isPublicKey(value) {
@@ -190,17 +233,20 @@ module.exports = async (req, res) => {
       if (typeof wanted !== 'string' || !CODE.test(wanted)) return reply(res, 400, { reason: 'BadCode' });
       if (!isPublicKey(publicKey)) return reply(res, 400, { reason: 'BadPublicKey' });
       if (typeof secret !== 'string' || !SECRET.test(secret)) return reply(res, 400, { reason: 'BadSecret' });
+      if (overBudget('register', ip) || await spend('register', ip)) return reply(res, 429, { reason: 'TooManyRequests' });
       const added = await store.add(`pair:${wanted}`, JSON.stringify({ publicKey, secretHash: hash(secret) }));
       return added ? reply(res, 201, { expiresIn: TTL_SECONDS }) : reply(res, 409, { reason: 'CodeTaken' });
     }
 
     if (typeof code !== 'string' || !CODE.test(code)) return reply(res, 400, { reason: 'BadCode' });
+    if (overBudget('unknown', ip)) return reply(res, 429, { reason: 'TooManyRequests' });
     const secret = req.method === 'GET' ? query.get('secret') : null;
     // A TV's poll (every few seconds) reads its code and any invite together, in one round trip to the store.
     const [registered, invite] = secret !== null
       ? await store.getMany([`pair:${code}`, `pair:${code}:invite`])
       : [await store.get(`pair:${code}`), null];
     const entry = registered ? JSON.parse(registered) : null;
+    if (!entry) await spend('unknown', ip);
 
     // The server leaves the sealed invite, once.
     if (req.method === 'POST' && query.get('action') === 'invite') {
@@ -240,3 +286,4 @@ module.exports = async (req, res) => {
 module.exports._store = store;
 module.exports._memory = memory;
 module.exports._hits = hits;
+module.exports._spent = spent;
