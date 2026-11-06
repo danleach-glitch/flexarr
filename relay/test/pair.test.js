@@ -117,6 +117,14 @@ function fresh() {
   pair._memory.clear();
   pair._hits.clear();
   pair._spent.clear();
+  pair._asking.clear();
+}
+
+/** How many of each status came back, as { 404: 20, 429: 20 }. */
+function statuses(answers) {
+  const counts = {};
+  for (const { status } of answers) counts[status] = (counts[status] || 0) + 1;
+  return counts;
 }
 
 /** An eight-character code nobody is showing, different for each n. */
@@ -240,3 +248,69 @@ test('a store that can\'t count falls back to this instance\'s count, and the an
     for (let i = 0; i < 20; i++) assert.equal((await call({ url: `/api/pair?code=${unknownCode(i)}`, ip })).status, 404);
     assert.equal((await call({ url: `/api/pair?code=${unknownCode(20)}`, ip })).status, 429);
   }, { failing: (commands) => commands.some(([name]) => name === 'INCR') }));
+
+// --- The same budgets when the requests arrive together, not one after another.
+
+test('unknown codes asked about all at once get the same budget as one after another', async () => {
+  fresh();
+  const ip = '198.51.100.28';
+  const answers = await Promise.all(Array.from({ length: 40 }, (_, i) => call({ url: `/api/pair?code=${unknownCode(i)}`, ip })));
+  assert.deepEqual(statuses(answers), { 404: 20, 429: 20 });
+  assert.equal(pair._asking.size, 0);
+  assert.equal((await call({ url: `/api/pair?code=${unknownCode(40)}`, ip })).status, 429);
+});
+
+test('with a store, a burst of unknown codes costs it the budget\'s worth of lookups and no more', () =>
+  withStore(async ({ sent }) => {
+    fresh();
+    const ip = '198.51.100.29';
+    const answers = await Promise.all(Array.from({ length: 40 }, (_, i) => call({ url: `/api/pair?code=${unknownCode(i)}`, ip })));
+    assert.deepEqual(statuses(answers), { 404: 20, 429: 20 });
+    assert.equal(sent.filter(([name]) => name === 'GET').length, 20);
+    assert.equal(sent.filter(([name]) => name === 'INCR').length, 20);
+
+    // New codes all at once: twenty are kept, and the rest never reach the store.
+    sent.length = 0;
+    const registered = await Promise.all(Array.from({ length: 40 }, (_, i) =>
+      call({ method: 'POST', body: { code: unknownCode(100 + i), publicKey: publicKey(), secret }, ip })));
+    assert.deepEqual(statuses(registered), { 201: 20, 429: 20 });
+    assert.equal(sent.filter(([name]) => name === 'SET').length, 20);
+    assert.equal(sent.filter(([name]) => name === 'INCR').length, 20);
+  }));
+
+test('a store that can\'t count still holds a burst to the budget', () =>
+  withStore(async () => {
+    fresh();
+    const ip = '198.51.100.30';
+    const answers = await Promise.all(Array.from({ length: 40 }, (_, i) => call({ url: `/api/pair?code=${unknownCode(i)}`, ip })));
+    assert.deepEqual(statuses(answers), { 404: 20, 429: 20 });
+    const registered = await Promise.all(Array.from({ length: 40 }, (_, i) =>
+      call({ method: 'POST', body: { code: unknownCode(100 + i), publicKey: publicKey(), secret }, ip })));
+    assert.deepEqual(statuses(registered), { 201: 20, 429: 20 });
+  }, { failing: (commands) => commands.some(([name]) => name === 'INCR') }));
+
+test('lookups of a real code that arrive together are all answered, and none is left counted', async () => {
+  fresh();
+  const ip = '198.51.100.31';
+  assert.equal((await call({ method: 'POST', body: { code: 'ABCDEFGH', publicKey: publicKey(), secret }, ip })).status, 201);
+  const answers = await Promise.all([
+    ...Array.from({ length: 8 }, () => call({ url: `/api/pair?code=ABCDEFGH&secret=${secret}`, ip })),
+    ...Array.from({ length: 8 }, () => call({ url: '/api/pair?code=ABCDEFGH', ip })),
+  ]);
+  assert.deepEqual(statuses(answers), { 200: 8, 204: 8 });
+  assert.equal(pair._asking.size, 0);
+  assert.equal(pair._spent.has(`unknown:${ip}`), false);
+});
+
+test('a lookup the store fails is not counted and holds nothing back afterwards', async () => {
+  fresh();
+  const ip = '198.51.100.32';
+  await withStore(async () => {
+    const answers = await Promise.all(Array.from({ length: 25 }, (_, i) => call({ url: `/api/pair?code=${unknownCode(i)}`, ip })));
+    // Twenty are asked of the store, which is down; the rest wait their turn behind them.
+    assert.deepEqual(statuses(answers), { 503: 20, 429: 5 });
+  }, { failing: () => true });
+  assert.equal(pair._asking.size, 0);
+  assert.equal(pair._spent.has(`unknown:${ip}`), false);
+  assert.equal((await call({ url: `/api/pair?code=${unknownCode(30)}`, ip })).status, 404);
+});

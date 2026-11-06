@@ -121,6 +121,9 @@ const BUDGETS = {
   register: { max: 20, seconds: 600 },
 };
 const spent = new Map();
+// Lookups under way per address. Whether a code is unknown is only known once the store has answered, so until then
+// each counts against the unknown budget: sixty sent at once can't all be through before the first is counted.
+const asking = new Map();
 
 function used(kind, ip, now) {
   const entry = spent.get(`${kind}:${ip}`);
@@ -129,28 +132,34 @@ function used(kind, ip, now) {
 
 /** True once the address has used its budget: answered from memory, without the store. */
 function overBudget(kind, ip, now = Date.now()) {
-  return used(kind, ip, now) >= BUDGETS[kind].max;
+  const underWay = kind === 'unknown' ? asking.get(ip) || 0 : 0;
+  return used(kind, ip, now) + underWay >= BUDGETS[kind].max;
 }
 
 /** Counts one against the address's budget; true when that one is over it. */
 async function spend(kind, ip, now = Date.now()) {
   const { max, seconds } = BUDGETS[kind];
   const window = Math.floor(now / 1000 / seconds);
-  let count = used(kind, ip, now) + 1;
+  const name = `${kind}:${ip}`;
+  let entry = spent.get(name);
+  if (!entry || entry.window !== window) {
+    // Oldest first: a flood of new addresses drops the stalest, never everyone's counts at once.
+    if (!entry && spent.size >= 10_000) for (const old of [...spent.keys()].slice(0, 1000)) spent.delete(old);
+    entry = { window, count: 0 };
+    spent.set(name, entry);
+  }
+  // Counted here before the store is asked, so requests that arrive together each see the ones before them.
+  entry.count += 1;
   if (kvConfigured()) {
     const key = `pair:budget:${kind}:${hash(ip).slice(0, 32)}:${window}`;
     try {
       const [shared] = await kv([['INCR', key], ['EXPIRE', key, String(seconds * 2)]]);
-      if (typeof shared === 'number') count = Math.max(count, shared);
+      if (typeof shared === 'number') entry.count = Math.max(entry.count, shared);
     } catch {
       // This instance's own count will do.
     }
   }
-  const name = `${kind}:${ip}`;
-  // Oldest first: a flood of new addresses drops the stalest, never everyone's counts at once.
-  if (!spent.has(name) && spent.size >= 10_000) for (const old of [...spent.keys()].slice(0, 1000)) spent.delete(old);
-  spent.set(name, { window, count });
-  return count > max;
+  return entry.count > max;
 }
 
 // --- Checks.
@@ -242,11 +251,21 @@ module.exports = async (req, res) => {
     if (overBudget('unknown', ip)) return reply(res, 429, { reason: 'TooManyRequests' });
     const secret = req.method === 'GET' ? query.get('secret') : null;
     // A TV's poll (every few seconds) reads its code and any invite together, in one round trip to the store.
-    const [registered, invite] = secret !== null
-      ? await store.getMany([`pair:${code}`, `pair:${code}:invite`])
-      : [await store.get(`pair:${code}`), null];
-    const entry = registered ? JSON.parse(registered) : null;
-    if (!entry) await spend('unknown', ip);
+    let invite;
+    let entry;
+    asking.set(ip, (asking.get(ip) || 0) + 1);
+    try {
+      const [registered, left] = secret !== null
+        ? await store.getMany([`pair:${code}`, `pair:${code}:invite`])
+        : [await store.get(`pair:${code}`), null];
+      invite = left;
+      entry = registered ? JSON.parse(registered) : null;
+      if (!entry) await spend('unknown', ip);
+    } finally {
+      const underWay = asking.get(ip) - 1;
+      if (underWay > 0) asking.set(ip, underWay);
+      else asking.delete(ip);
+    }
 
     // The server leaves the sealed invite, once.
     if (req.method === 'POST' && query.get('action') === 'invite') {
@@ -287,3 +306,4 @@ module.exports._store = store;
 module.exports._memory = memory;
 module.exports._hits = hits;
 module.exports._spent = spent;
+module.exports._asking = asking;
