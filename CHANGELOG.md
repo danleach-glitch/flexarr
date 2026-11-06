@@ -31,6 +31,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - With music, a podcast or a book playing, a long grid of posters no longer redraws every card each time the track changes or pauses.
 - Search asks your server once you pause typing rather than at nearly every letter, and no longer says nothing matches before it has looked.
 - Reloading the page with a long music queue brings the queue back at once, rather than asking your server for every album in it ahead of the page itself.
+- A film or episode whose styled subtitles come with dozens of fonts no longer fetches them all at once, so the picture isn't kept waiting behind them.
 
 ## 0.62.1 · 5 November 2026
 
