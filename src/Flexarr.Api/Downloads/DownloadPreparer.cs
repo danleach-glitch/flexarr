@@ -341,6 +341,16 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         var root = await db.Libraries.IgnoreQueryFilters().Where(l => l.Type == Core.Libraries.LibraryType.Podcasts).OrderBy(l => l.CreatedAt)
             .SelectMany(l => l.Folders).Select(f => f.Path).FirstOrDefaultAsync(ct);
         var folder = root is not null && Directory.Exists(root) ? Path.Combine(root, SafeName(show)) : Folder(options.CurrentValue);
+        // A fetched episode waits there for the phone as a converted copy does, so it's kept to the same room to spare.
+        if (ShortOfSpace(folder, Math.Clamp(enclosure.LengthBytes ?? 0, 0, MaxPodcastBytes)))
+        {
+            download.Status = DownloadStatus.Failed;
+            download.Error = "The server is too short of space to get this ready. Try again later.";
+            await db.SaveChangesAsync(ct);
+            LogShortOfSpace(download.Id, folder);
+            return;
+        }
+
         Directory.CreateDirectory(folder);
 
         var extension = Path.GetExtension(new Uri(enclosure.AudioUrl).AbsolutePath).ToLowerInvariant() is { Length: > 1 and <= 5 } fromUrl ? fromUrl

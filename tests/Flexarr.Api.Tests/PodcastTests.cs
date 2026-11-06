@@ -591,6 +591,33 @@ public sealed class PodcastTests : IDisposable
     }
 
     [Fact]
+    public async Task AnEpisodeThatWouldLeaveTheDriveWithoutRoomToSpare_IsntFetched_AndSaysWhy()
+    {
+        var folder = await AddLibraryAsync();
+        var client = Client();
+        var id = (await AddPodcastAsync(client)).GetProperty("id").GetString();
+        var episode = (await GetAsync(client, $"podcasts/{id}/episodes")).GetProperty("items")[0].GetProperty("id").GetString();
+        var preparer = _server.Services.GetRequiredService<Flexarr.Api.Downloads.DownloadPreparer>();
+        var asked = new List<string>();
+        preparer.FreeBytes = drive =>
+        {
+            asked.Add(drive);
+            return Flexarr.Api.Downloads.DownloadPreparer.SpareBytes + 999; // room to spare, but not after this episode's 1,000 bytes
+        };
+
+        var created = await (await client.PostAsJsonAsync(Api("offline"), new { itemId = episode, quality = "Original" })).Content.ReadFromJsonAsync<JsonElement>();
+        var downloadId = created.GetProperty("id").GetString()!;
+        await preparer.RunOnceAsync(CancellationToken.None);
+        var refused = await GetAsync(client, $"offline/{downloadId}");
+
+        Assert.Equal("Failed", refused.GetProperty("status").GetString());
+        Assert.Contains("short of space", refused.GetProperty("error").GetString(), StringComparison.Ordinal);
+        // Asked of the drive the episode would be kept on, and nothing was fetched onto it.
+        Assert.Equal(Path.Combine(folder, "The History Hour"), Assert.Single(asked));
+        Assert.Empty(Directory.GetFiles(Path.Combine(folder, "The History Hour")));
+    }
+
+    [Fact]
     public async Task OpmlImport_SubscribesToEachFeed_AndExportGivesThemBack()
     {
         await AddLibraryAsync();
