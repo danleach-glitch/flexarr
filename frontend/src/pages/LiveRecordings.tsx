@@ -42,8 +42,8 @@ export default function LiveRecordings() {
   return (
     <div className="recordings">
       <p className="muted recordings-summary">
-        {t.rich('Recordings go to {folder}', { folder: <code>{data.folder}</code> })}
-        {data.freeBytes != null && <>{'\u2003'}{t('{size} free', { size: formatSize(data.freeBytes) })}</>}{'\u2003'}
+        {data.folder && <>{t.rich('Recordings go to {folder}', { folder: <code>{data.folder}</code> })}{'\u2003'}</>}
+        {data.freeBytes != null && <>{t('{size} free', { size: formatSize(data.freeBytes) })}{'\u2003'}</>}
         {t('{count, plural, one {one channel at a time} other {# channels at a time}}', { count: data.streams })}
       </p>
       {error && (

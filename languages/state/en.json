@@ -328,6 +328,7 @@
   "Bazarr doesn’t have this yet. It picks up new titles from Sonarr and Radarr every so often.": "s",
   "Bazarr finds subtitles for another copy of this ({file}). Play that one to get them.": "s",
   "Bazarr finds subtitles for what {app} manages, and this isn’t one of them.": "s",
+  "Bazarr isn’t answering. Try again later.": "s",
   "Bazarr isn’t set up. Add it in Settings › Connections.": "s",
   "Bazarr took too long.": "s",
   "Because you watched {title}": "s",

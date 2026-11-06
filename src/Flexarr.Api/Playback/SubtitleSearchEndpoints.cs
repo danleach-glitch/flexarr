@@ -58,9 +58,10 @@ public static partial class SubtitleSearchEndpoints
 
         var group = api.MapGroup("/items/{id:guid}/subtitles").WithTags("Subtitles").NotForKids();
 
-        group.MapGet("/search", async (Guid id, Guid? fileId, IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr, FlexarrDbContext db, CancellationToken ct) =>
+        group.MapGet("/search", async (Guid id, Guid? fileId, IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr, FlexarrDbContext db, CurrentProfile profile,
+            ILoggerFactory logs, CancellationToken ct) =>
         {
-            var found = await FindAsync(id, fileId, options, bazarr, db, ct);
+            var found = await FindAsync(id, fileId, options, bazarr, db, profile, logs, ct);
             if (found.Problem is { } problem)
             {
                 return problem;
@@ -74,14 +75,16 @@ public static partial class SubtitleSearchEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Problems.Of("Bazarr couldn’t search: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway);
+                return profile.IsMainProfile
+                    ? Problems.Of("Bazarr couldn’t search: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway)
+                    : NotAnswering(ex, logs);
             }
         });
 
         group.MapPost("/download", async (Guid id, SubtitleDownloadRequest request, IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr,
-            FlexarrDbContext db, ILoggerFactory logs, CancellationToken ct) =>
+            FlexarrDbContext db, CurrentProfile profile, ILoggerFactory logs, CancellationToken ct) =>
         {
-            var found = await FindAsync(id, request.FileId, options, bazarr, db, ct);
+            var found = await FindAsync(id, request.FileId, options, bazarr, db, profile, logs, ct);
             if (found.Problem is { } problem)
             {
                 return problem;
@@ -104,7 +107,9 @@ public static partial class SubtitleSearchEndpoints
                 }
                 catch (HttpRequestException ex)
                 {
-                    return Problems.Of("Bazarr couldn’t search: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway);
+                    return profile.IsMainProfile
+                        ? Problems.Of("Bazarr couldn’t search: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway)
+                        : NotAnswering(ex, logs);
                 }
 
                 if (chosen is null)
@@ -129,7 +134,9 @@ public static partial class SubtitleSearchEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Problems.Of("Bazarr couldn’t download it: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway);
+                return profile.IsMainProfile
+                    ? Problems.Of("Bazarr couldn’t download it: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway)
+                    : NotAnswering(ex, logs);
             }
 
             if (saved is null)
@@ -143,9 +150,9 @@ public static partial class SubtitleSearchEndpoints
         });
 
         group.MapPost("/sync", async (Guid id, SubtitleSyncRequest request, IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr,
-            FlexarrDbContext db, SubtitleSyncs syncs, ILoggerFactory logs, CancellationToken ct) =>
+            FlexarrDbContext db, SubtitleSyncs syncs, CurrentProfile profile, ILoggerFactory logs, CancellationToken ct) =>
         {
-            var found = await FindAsync(id, request.FileId, options, bazarr, db, ct);
+            var found = await FindAsync(id, request.FileId, options, bazarr, db, profile, logs, ct);
             if (found.Problem is { } problem)
             {
                 return problem;
@@ -189,8 +196,9 @@ public static partial class SubtitleSearchEndpoints
                 }
                 catch (HttpRequestException ex)
                 {
+                    // Bazarr's own words can name its address, and any profile watching this may ask how it went: they stay in the log.
                     LogSyncFailed(log, ex, path);
-                    return ex.Message;
+                    return Loc.Mark("Bazarr couldn’t re-sync these subtitles. Its log says why.");
                 }
                 catch (TaskCanceledException) when (!stopping.IsCancellationRequested)
                 {
@@ -272,7 +280,8 @@ public static partial class SubtitleSearchEndpoints
     private sealed record Found(IResult? Problem, BazarrInstance? Bazarr = null, BazarrMedia? Media = null, MediaFile? File = null);
 
     /// <summary>The Bazarr film or episode for an item's file, given a languages profile if it had none (Bazarr won't search without one).</summary>
-    private static async Task<Found> FindAsync(Guid id, Guid? fileId, IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr, FlexarrDbContext db, CancellationToken ct)
+    private static async Task<Found> FindAsync(Guid id, Guid? fileId, IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr, FlexarrDbContext db,
+        CurrentProfile asking, ILoggerFactory logs, CancellationToken ct)
     {
         if (options.CurrentValue.Bazarr?.Instance is not { } instance)
         {
@@ -331,8 +340,20 @@ public static partial class SubtitleSearchEndpoints
         }
         catch (HttpRequestException ex)
         {
-            return new Found(Problems.Of("Bazarr can’t be reached: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway));
+            return new Found(asking.IsMainProfile
+                ? Problems.Of("Bazarr can’t be reached: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway)
+                : NotAnswering(ex, logs));
         }
+    }
+
+    /// <summary>
+    /// What a profile other than the main one is told when Bazarr fails: its own words can name its address, which is
+    /// the main profile's to know, so they go to the log instead.
+    /// </summary>
+    private static IResult NotAnswering(HttpRequestException ex, ILoggerFactory logs)
+    {
+        LogBazarrFailed(logs.CreateLogger(typeof(SubtitleSearchEndpoints)), ex);
+        return Problems.Of("Bazarr isn’t answering. Try again later.", status: StatusCodes.Status502BadGateway);
     }
 
     private static Task<List<MediaFile>> PlayableFilesAsync(FlexarrDbContext db, Guid id, CancellationToken ct) =>
@@ -399,6 +420,9 @@ public static partial class SubtitleSearchEndpoints
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Bazarr was asked to re-sync {Path}, but the file didn't change")]
     private static partial void LogSyncUnchanged(ILogger logger, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Bazarr failed a subtitle request")]
+    private static partial void LogBazarrFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Bazarr couldn't re-sync {Path}")]
     private static partial void LogSyncFailed(ILogger logger, Exception exception, string path);

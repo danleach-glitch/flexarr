@@ -222,7 +222,7 @@ public static partial class DiscoveryEndpoints
             {
                 try
                 {
-                    upcoming = (await UpcomingEndpoints.UpcomingAsync(10, options, arr, cache, db, null, ct)).Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16).ToList();
+                    upcoming = (await UpcomingEndpoints.UpcomingAsync(10, options, arr, cache, db, null, ct)).Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16).ToList().For(profile);
                     downloading = (await UpcomingEndpoints.DownloadsAsync(options, arr, cache, db, null, ct)).Count;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
@@ -337,8 +337,8 @@ public static partial class DiscoveryEndpoints
                 try
                 {
                     var arr = services.GetRequiredService<Integrations.Arr.ArrClient>();
-                    upcoming = [.. (await UpcomingEndpoints.ForLibraryAsync(library, 10, options.CurrentValue, arr, cache, db, ct))
-                        .Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16)];
+                    upcoming = (await UpcomingEndpoints.ForLibraryAsync(library, 10, options.CurrentValue, arr, cache, db, ct))
+                        .Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16).ToList().For(profile);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {

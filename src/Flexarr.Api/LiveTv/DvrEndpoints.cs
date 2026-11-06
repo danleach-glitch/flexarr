@@ -39,7 +39,8 @@ public static class DvrEndpoints
         // Recordings have no ratings, so profiles with an age limit don't record (the writes below turn them away) or see them.
         var group = api.MapGroup("/livetv/recordings").WithTags("Live TV").RequireAuthorization().NotForKids();
 
-        group.MapGet("/", async (FlexarrDbContext db, DvrService dvr, IOptionsMonitor<FlexarrOptions> options, TimeProvider clock, CancellationToken ct) =>
+        group.MapGet("/", async (FlexarrDbContext db, DvrService dvr, IOptionsMonitor<FlexarrOptions> options, TimeProvider clock, CurrentProfile profile,
+            CancellationToken ct) =>
         {
             if (db.IsLimited())
             {
@@ -60,7 +61,8 @@ public static class DvrEndpoints
             return new RecordingsDto(
                 [.. upcoming.Select(r => ToDto(r, clashing.Contains(r.Id), null))],
                 [.. recent.Select(r => ToDto(r, false, r.FilePath is { } path ? items.GetValueOrDefault(path) : null))],
-                rules, streams, folder, FreeBytes(folder));
+                // Where recordings go on the server's disk is the main profile's to know.
+                rules, streams, profile.IsMainProfile ? folder : "", FreeBytes(folder));
         });
 
         group.MapPost("/", async (RecordRequest request, FlexarrDbContext db, DvrService dvr, DvrSignal signal, CurrentProfile profile, CancellationToken ct) =>

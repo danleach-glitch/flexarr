@@ -30,6 +30,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Behind an HTTPS reverse proxy that isn't listed in `trustedProxies`, a browser's sign-in is now only ever sent over HTTPS, and the browser is told to keep to HTTPS. Before, it could cross your network unencrypted the first time that browser asked for the `http://` address.
 - Backups can no longer be kept in the folder the web app is served from, where one could have been fetched without signing in or giving the admin PIN. Settings refuses that folder, and no backup is made there.
 - A kids profile can no longer control the household's other screens or follow what they're playing. It's shown no other devices, and can't pause, stop or start anything on them. A parent can still play something on a child's device.
+- Only the main profile is told where things are on the server. Other profiles, guests and kids included, no longer receive the folder and file paths of titles, libraries and recordings, the address of Sonarr or Radarr with **Coming soon** and **Downloads**, or Bazarr's own words when a subtitle search fails (those go to the log). On the web they see the same pages without those lines.
 
 ## 0.62.1 · 5 November 2026
 
