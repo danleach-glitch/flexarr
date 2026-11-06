@@ -24,6 +24,16 @@ struct LiveTvTests {
         #expect(programme.displayTitle == "Doctor Who: The Star Beast")
     }
 
+    @Test func aFetchedGuideIsKeptForHalfAnHour_AndOneNeverFetchedIsDueAtOnce() {
+        let fetched = Date(timeIntervalSince1970: 1_800_000_000)
+        #expect(LiveGuide.isDue(fetchedAt: nil, now: fetched))
+        // The screens look every couple of minutes: none of those looks fetches it again until it's old.
+        #expect(!LiveGuide.isDue(fetchedAt: fetched, now: fetched.addingTimeInterval(120)))
+        #expect(!LiveGuide.isDue(fetchedAt: fetched, now: fetched.addingTimeInterval(29 * 60)))
+        #expect(LiveGuide.isDue(fetchedAt: fetched, now: fetched.addingTimeInterval(30 * 60)))
+        #expect(LiveGuide.isDue(fetchedAt: fetched, now: fetched.addingTimeInterval(6 * 3600)))
+    }
+
     @Test func guide() throws {
         let guide = try Fixture.decode(LiveGuide.self, "live-guide")
         #expect(guide.until > guide.from)

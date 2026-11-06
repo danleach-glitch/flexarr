@@ -120,6 +120,18 @@ public struct LiveGuide: Codable, Sendable, Hashable {
     public let from: Date
     public let until: Date
     public let channels: [GuideChannel]
+
+    /// How long a guide that's been fetched is shown before the whole of it is asked for again. The listings change a
+    /// few times a day (the server reads its source every six hours), and a recording set or taken off on this device
+    /// has the guide fetched again at once, so a screen left on the guide needn't download every channel's day every
+    /// couple of minutes.
+    public static let keptFor: TimeInterval = 30 * 60
+
+    /// Whether a guide fetched at `fetchedAt` is due to be fetched again (nil: there's none yet, so yes).
+    public static func isDue(fetchedAt: Date?, now: Date = Date()) -> Bool {
+        guard let fetchedAt else { return true }
+        return now.timeIntervalSince(fetchedAt) >= keptFor
+    }
 }
 
 // MARK: - Recordings (the DVR)

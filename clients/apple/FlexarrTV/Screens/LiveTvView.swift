@@ -14,6 +14,8 @@ struct LiveTvView: View {
     @State private var chosen: Category?
     @FocusState private var focusedCategory: Category?
     @State private var guide: LiveGuide?
+    /// When `guide` was fetched: it's kept a while (`LiveGuide.keptFor`) rather than downloaded again at every look.
+    @State private var guideLoadedAt: Date?
     /// How many recordings are coming up, for the sidebar.
     @State private var upcoming: Int?
 
@@ -60,10 +62,11 @@ struct LiveTvView: View {
                 try? await Task.sleep(for: .seconds(60))
             }
         }
-        // The guide: a day's worth, fetched again every five minutes.
+        // The guide: a day's worth, looked at every five minutes and fetched again once it's old (or wasn't had: a
+        // fetch that failed is tried again at the next look).
         .task {
             while !Task.isCancelled {
-                await loadGuide()
+                await loadGuide(onlyIfDue: true)
                 try? await Task.sleep(for: .seconds(300))
             }
         }
@@ -163,10 +166,16 @@ struct LiveTvView: View {
 
     static let gold = Color.screen
 
-    private func loadGuide() async {
+    /// The count of recordings coming up, and the guide: always after a recording was set or taken off (for its
+    /// marks), otherwise (`onlyIfDue`) only once the one shown is old.
+    private func loadGuide(onlyIfDue: Bool = false) async {
         guard let client = model.client else { return }
         if !model.hasAgeLimit { upcoming = try? await client.recordings().upcoming.count }
-        if let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: 24) { guide = loaded }
+        if onlyIfDue, !LiveGuide.isDue(fetchedAt: guideLoadedAt) { return }
+        if let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: 24) {
+            guide = loaded
+            guideLoadedAt = Date()
+        }
     }
 
     private func load() async {

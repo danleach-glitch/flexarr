@@ -13,6 +13,8 @@ struct LiveGuideView: View {
     let onFavourite: (LiveChannel) -> Void
 
     @State private var guide: LiveGuide?
+    /// When `guide` was fetched: it's kept a while (`LiveGuide.keptFor`) rather than downloaded again at every look.
+    @State private var guideLoadedAt: Date?
     @State private var windowStart = LiveGuideView.halfHour(before: Date())
     @State private var details: (programme: LiveProgramme, channel: LiveChannel)?
     @State private var now = Date()
@@ -69,8 +71,10 @@ struct LiveGuideView: View {
         // Only while the app is in front: with music keeping it alive in the background, it would go on asking.
         .task(id: scenePhase == .active) {
             guard scenePhase == .active else { return }
+            // The line for now moves on every couple of minutes; the listings are fetched again only once they're old
+            // (or weren't had: a fetch that failed is tried again at the next look).
             while !Task.isCancelled {
-                await load()
+                if LiveGuide.isDue(fetchedAt: guideLoadedAt) { await load() }
                 now = Date()
                 try? await Task.sleep(for: .seconds(120))
             }
@@ -228,6 +232,7 @@ struct LiveGuideView: View {
         if let client = model.client,
            let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: Int(Self.hours) + 2) {
             guide = loaded
+            guideLoadedAt = Date()
         }
     }
 
