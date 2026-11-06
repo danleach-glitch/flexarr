@@ -14,6 +14,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### iPhone, iPad and Mac
 - Away from home, Flexarr opens a couple of seconds sooner: it starts with your server's away-from-home address when that's the one that answered last time, instead of waiting on the home address first.
+- Scrolling no longer stutters while a big album or playlist downloads: the list of downloads is saved in the background, every couple of seconds at most, instead of in full at every step of every track.
 
 ### Live TV
 - On iPhone, iPad and Mac, the guide draws faster with a long channel list, and tapping a channel's logo no longer redraws the whole grid.

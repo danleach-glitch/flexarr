@@ -258,6 +258,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     @ObservationIgnored private var polling: Task<Void, Never>?
     @ObservationIgnored private let monitor = NWPathMonitor()
     @ObservationIgnored private var lastSaved = Date.distantPast
+    /// Writes `all` to its file away from the main thread, at most every couple of seconds (see `save`).
+    @ObservationIgnored private let manifestWriter = SavedList.Writer<LocalDownload>(to: DownloadStore.manifest, encoder: DownloadStore.makeEncoder())
     @ObservationIgnored private var isReconciling = false
     /// Podcast episodes whose download was deleted by hand (by episode id): never fetched by themselves again. Kept in
     /// the keychain too, which outlives reinstalling the app.
@@ -300,6 +302,16 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             Task { @MainActor in self?.connectivityChanged(online: online, wifi: wifi) }
         }
         monitor.start(queue: .main)
+        // Leaving the front (or closing): whatever's waiting to be saved is written first, since the app can be
+        // suspended at any moment after.
+        #if canImport(UIKit)
+        let leaving = [UIApplication.willResignActiveNotification, UIApplication.willTerminateNotification]
+        #else
+        let leaving = [NSApplication.didResignActiveNotification, NSApplication.willTerminateNotification]
+        #endif
+        for name in leaving {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [manifestWriter] _ in manifestWriter.flush() }
+        }
     }
 
     /// A saved list, keeping every entry that reads; a copy of the file is kept when any doesn't.
@@ -883,7 +895,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             try? FileManager.default.removeItem(at: Self.folder.appending(path: name))
         }
         all.removeAll { $0.id == id }
-        save()
+        save(rightAway: true) // its file has gone
         removeImageIfUnused(download.imageFileName)
         resumeData[id] = nil
         // A book's download is the phone's alone: the server keeps no copy to drop.
@@ -933,6 +945,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         collections = []
         saveCollections()
         for name in pictures { removeImageIfUnused(name) }
+        // Signed out: the emptied list is on disk before anything else happens.
+        manifestWriter.flush()
         profileId = nil
         UserDefaults.standard.removeObject(forKey: "downloads.profile")
     }
@@ -1077,16 +1091,36 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         saveCollections()
     }
 
-    private static let encoder: JSONEncoder = {
+    private static let encoder = makeEncoder()
+
+    nonisolated private static func makeEncoder() -> JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         return encoder
-    }()
+    }
 
-    private func save(throttled: Bool = false) {
+    /// Whether the app is in front and in use, where it isn't suspended from one moment to the next.
+    private var isInFront: Bool {
+        #if canImport(UIKit)
+        UIApplication.shared.applicationState == .active
+        #else
+        true
+        #endif
+    }
+
+    /// Saves the downloads. In front, the list is handed to `manifestWriter`: written off the main thread, the newest
+    /// only and at most every couple of seconds, so a playlist coming down (a save per track per step, of the whole
+    /// list) doesn't hitch the screen each time. It's written out on leaving the front (see `init`). Anywhere else
+    /// (woken in the background for a finished transfer, say) it's written before going on, as the app may be
+    /// suspended straight after; `throttled` (a transfer's progress) then at most every two seconds. `rightAway` is
+    /// for a file arriving or going: written at once even in front (still off the main thread), so the list on disk is
+    /// never a moment behind the files beside it.
+    private func save(throttled: Bool = false, rightAway: Bool = false) {
+        manifestWriter.save(all, rightAway: rightAway)
+        if isInFront { return }
         if throttled, Date().timeIntervalSince(lastSaved) < 2 { return }
         lastSaved = Date()
-        if let data = try? Self.encoder.encode(all) { try? data.write(to: Self.manifest, options: .atomic) }
+        manifestWriter.flush()
     }
 
     private func saveCollections() {
@@ -1106,7 +1140,9 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         let sizes = book.manifest.files.map { Double(max(1, $0.size)) }
         let total = sizes.reduce(0, +)
         let done = sizes.indices.reduce(0.0) { sum, n in sum + sizes[n] * (book.files[n] != nil ? 1 : bookFileProgress[id]?[n] ?? 0) }
-        all[index].state = .downloading(min(0.999, done / total))
+        let whole = min(0.999, done / total)
+        guard Self.shows(whole, after: all[index].state) else { return }
+        all[index].state = .downloading(whole)
         save(throttled: true)
     }
 
@@ -1125,6 +1161,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             $0.book = book
             if complete { $0.state = .downloaded }
         }
+        save(rightAway: true) // a file is here
         if complete {
             bookFileProgress[id] = nil
             log.info("Downloaded the book \(download.item.title)")
@@ -1147,9 +1184,16 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     fileprivate func progressed(_ id: String, _ fraction: Double) {
         if let (book, file) = Self.bookFile(id) { return bookProgressed(book, file: file, fraction) }
-        guard let index = all.firstIndex(where: { $0.id == id }) else { return }
+        guard let index = all.firstIndex(where: { $0.id == id }), Self.shows(fraction, after: all[index].state) else { return }
         all[index].state = .downloading(fraction)
         save(throttled: true)
+    }
+
+    /// Whether a transfer's progress has moved on by a percent that shows. The system reports it many times a second,
+    /// and each change to `all` redraws every screen that lists downloads, so smaller steps are let go by.
+    nonisolated private static func shows(_ fraction: Double, after state: LocalDownload.State) -> Bool {
+        guard case .downloading(let shown) = state, fraction.isFinite, shown.isFinite else { return true }
+        return (fraction * 100).rounded(.down) != (shown * 100).rounded(.down)
     }
 
     fileprivate func arrived(_ id: String, fileName: String, bytes: Int64) {
@@ -1158,6 +1202,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             $0.fileName = fileName
             $0.sizeBytes = bytes
         }
+        save(rightAway: true) // its file is here
         log.info("Downloaded \(id)")
         if let client { Task { try? await client.markDownloadReceived(id) } }
         if let download = all.first(where: { $0.id == id }) { fetchNext(after: download) }
@@ -1233,6 +1278,8 @@ extension DownloadStore: URLSessionDownloadDelegate {
 
     nonisolated func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
         MainActor.assumeIsolated {
+            // Saved before the system is told it can suspend the app again.
+            manifestWriter.flush()
             backgroundCompletion?()
             backgroundCompletion = nil
         }
