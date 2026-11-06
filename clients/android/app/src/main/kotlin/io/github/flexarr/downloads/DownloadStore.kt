@@ -53,6 +53,7 @@ import io.github.flexarr.core.requestDownload
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -183,6 +184,15 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
      */
     private val hurry = Channel<Unit>(Channel.CONFLATED)
 
+    /**
+     * Downloads that have come (by id) whose server hasn't been told yet. It lets its own copy go as soon as it hears,
+     * so it's told only once the list saying they're here is on disk ([saved]). Told at once, as it used to be, an app
+     * stopped before the list's next save (up to two seconds off, for a long list) came back to a list without the
+     * file and a server without its copy, and the download failed; stopped before the server's told, the server still
+     * has the file and it's fetched again. Read and changed on the main thread.
+     */
+    private val unacknowledged = mutableSetOf<String>()
+
     /** Reads the saved lists off the main thread, then lets saves through. */
     private val loading: Job = scope.launch {
         val (saved, savedCollections) = withContext(Dispatchers.IO) {
@@ -203,13 +213,11 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     init {
         // Written one after another, a moment apart, so a burst of changes is one write.
         scope.launch(Dispatchers.IO) {
-            for (list in saves) {
-                hurry.tryReceive() // asked for before this write, which is it
-                val took = measureTimeMillis { write(list, LocalDownload.serializer(), MANIFEST) }
-                delay(SAVE_GAP_MS)
-                // A long list takes a while to write: the longer it took, the longer before the next, unless files
-                // were deleted meanwhile.
-                withTimeoutOrNull(saveGapMillis(took) - SAVE_GAP_MS) { hurry.receive() }
+            saveAsTheyCome(saves, hurry) { list ->
+                var written = false
+                val took = measureTimeMillis { written = write(list, LocalDownload.serializer(), MANIFEST) }
+                if (written) scope.launch { saved(list) }
+                took
             }
         }
         scope.launch(Dispatchers.IO) {
@@ -568,9 +576,22 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         transferring.remove(id)
         update(id) { it.copy(phase = LocalPhase.Downloaded, fileName = name, sizeBytes = bytes, progress = 1.0, failure = null) }
         flexarrLog.info("Downloaded $id")
+        val here = byId(id) ?: return // deleted as it came: the server was told that
+        // The server is told once the list saying so is saved ([saved]).
+        unacknowledged += id
+        fetchNext(here)
+    }
+
+    /**
+     * [list] is on disk: the server is told about the downloads in it that have come since the last save, and lets
+     * its copies go.
+     */
+    private fun saved(list: List<LocalDownload>) {
+        val here = DownloadRules.savedArrivals(unacknowledged, list)
+        if (here.isEmpty()) return
+        unacknowledged -= here
         val client = currentClient ?: return
-        scope.launch { runCatching { client.markDownloadReceived(id) } }
-        byId(id)?.let(::fetchNext)
+        here.forEach { id -> scope.launch { runCatching { client.markDownloadReceived(id) } } }
     }
 
     internal fun failed(id: String, message: String) {
@@ -775,6 +796,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         work.cancelUniqueWork(workName(id))
         UserInitiatedTransfers.cancel(context, id)
         transferring.remove(id)
+        unacknowledged.remove(id)
         download.fileName?.let { fileIn(folder, it)?.delete() }
         fileIn(folder, "${safeName(id)}.part")?.delete()
         all = all.filterNot { it.id == id }
@@ -830,6 +852,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         all = emptyList()
         collections = emptyList()
         transferring.clear()
+        unacknowledged.clear()
         save()
         hurry.trySend(Unit)
         saveCollections()
@@ -902,14 +925,14 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         if (loaded) collectionSaves.trySend(collections)
     }
 
-    private fun <T> write(list: List<T>, serializer: KSerializer<T>, name: String) {
+    /** True when the list reached disk. */
+    private fun <T> write(list: List<T>, serializer: KSerializer<T>, name: String): Boolean =
         runCatching {
             val text = FlexarrClient.json.encodeToString(ListSerializer(serializer), list)
             val temporary = File(folder, "$name.tmp")
             temporary.writeText(text)
             temporary.renameTo(File(folder, name))
-        }.onFailure { flexarrLog.error("Couldn't save $name", it) }
-    }
+        }.onFailure { flexarrLog.error("Couldn't save $name", it) }.getOrDefault(false)
 
     private val folder: File get() = folder(context)
 
@@ -957,6 +980,23 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
          * rests ten times as long as the write took, up to two seconds.
          */
         internal fun saveGapMillis(writeMillis: Long): Long = (writeMillis * SAVE_REST).coerceIn(SAVE_GAP_MS, MOST_SAVE_GAP_MS)
+
+        /**
+         * Writes each list sent to [saves] with [write] (which says how long it took), one after another: the first at
+         * once, then only the newest of whatever came during the rest after a write ([saveGapMillis]). A word on
+         * [hurry] (downloads were deleted) ends that rest early, though never sooner than the moment every save
+         * leaves.
+         */
+        internal suspend fun <T> saveAsTheyCome(saves: ReceiveChannel<T>, hurry: ReceiveChannel<Unit>, write: suspend (T) -> Long) {
+            for (list in saves) {
+                hurry.tryReceive() // asked for before this write, which is it
+                val took = write(list)
+                delay(SAVE_GAP_MS)
+                // A long list takes a while to write: the longer it took, the longer before the next, unless files
+                // were deleted meanwhile.
+                withTimeoutOrNull(saveGapMillis(took) - SAVE_GAP_MS) { hurry.receive() }
+            }
+        }
 
         private fun reportUnreadable(count: Int, keptAs: File?) {
             flexarrLog.error("Couldn't read $count saved download entries; the file was kept as ${keptAs?.name ?: "nothing"}")

@@ -234,6 +234,14 @@ object DownloadRules {
     private const val PREPARING_POLL_MS = 10_000L
     private const val WAITING_POLL_MS = 30_000L
 
+    /**
+     * Of the downloads that have come but whose server hasn't been told ([waiting], by id), those the list just written
+     * to disk ([saved]) has as here. Only these are told to the server, which lets its own copy go on hearing: one the
+     * saved list doesn't have yet (it came after the list was taken, or was deleted since) waits for the next save.
+     */
+    fun savedArrivals(waiting: Set<String>, saved: List<LocalDownload>): Set<String> =
+        if (waiting.isEmpty()) emptySet() else saved.filter { it.isDownloaded && it.id in waiting }.mapTo(mutableSetOf()) { it.id }
+
     /** Fetched by itself while automatic downloads are kept to Wi-Fi: it never comes over mobile data. */
     fun isWiFiOnly(download: LocalDownload, automaticOnWiFiOnly: Boolean): Boolean = automaticOnWiFiOnly && download.automatic
 

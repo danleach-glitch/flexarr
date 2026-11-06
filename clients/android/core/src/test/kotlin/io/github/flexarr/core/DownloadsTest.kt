@@ -122,6 +122,22 @@ class DownloadsTest {
     }
 
     @Test
+    fun `the server is told a download has come only once the saved list says so`() {
+        val here = local(itemId = "ep1")
+        val coming = local(itemId = "ep2", phase = LocalPhase.Downloading)
+        val longHere = local(itemId = "ep3")
+        val waiting = setOf(here.id, coming.id, "d-deleted")
+
+        // Here in the list on disk, and not yet told: told now. One told before isn't told again.
+        assertEquals(setOf(here.id), DownloadRules.savedArrivals(waiting, listOf(here, coming, longHere)))
+        // The list was taken before it came, or it's been deleted since: it waits for a save that has it.
+        assertEquals(emptySet<String>(), DownloadRules.savedArrivals(waiting, listOf(here.copy(phase = LocalPhase.Downloading, fileName = null), coming)))
+        assertEquals(emptySet<String>(), DownloadRules.savedArrivals(waiting, emptyList()))
+        // Nothing waiting: nothing to tell, however long the list.
+        assertEquals(emptySet<String>(), DownloadRules.savedArrivals(emptySet(), listOf(here, longHere)))
+    }
+
+    @Test
     fun `only downloads the phone starts by itself wait for Wi-Fi`() {
         assertTrue(DownloadRules.isWiFiOnly(local(automatic = true), automaticOnWiFiOnly = true))
         assertEquals(false, DownloadRules.isWiFiOnly(local(automatic = true), automaticOnWiFiOnly = false))
