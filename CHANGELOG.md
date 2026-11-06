@@ -16,6 +16,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A show's page opens with **Play** in focus, not **Shuffle**. Play is there from the start and fills in the episode once it's known.
 - Pressing down from a row of buttons onto **Play** (on Browse, say) lands on Play wherever you were along the row, rather than skipping to the row of titles below. Up from far along a row comes back to a page's buttons the same way.
 
+### Security
+- The Tailscale connection built into the apps for family invites takes in a fix for a fault that could crash an app while it's connected that way.
+
 ## 0.62.1 · 5 November 2026
 
 ### Apple TV
