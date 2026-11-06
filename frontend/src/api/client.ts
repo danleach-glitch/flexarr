@@ -1119,6 +1119,11 @@ export interface SetupGuide extends Record<SetupStep, boolean> {
 
 /** Absent (404) from servers before 0.56.0. */
 export const getSetupGuide = (signal?: AbortSignal) => apiGet<SetupGuide>('/setup-guide', signal)
+/**
+ * The guide as Home shows it: kept a little while like Home's own answer (and cleared by any change), so coming back to
+ * Home doesn't wait for it again. The guide's own pages ask afresh.
+ */
+export const getSetupGuideForHome = (signal?: AbortSignal) => cachedGet<SetupGuide>('/setup-guide', signal)
 export const saveSetupGuide = (update: { opened?: boolean; dismissed?: boolean; skipped?: SetupStep[] }) => request<void>('PUT', '/setup-guide', update)
 
 export const browseFilesystem = (path?: string, signal?: AbortSignal) =>

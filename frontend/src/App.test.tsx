@@ -1,4 +1,4 @@
-import { waitFor, act, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
+import { waitFor, act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
 import { MemoryRouter, useNavigate } from 'react-router'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App, { Shell } from './App'
@@ -406,6 +406,39 @@ describe('App', () => {
     fireEvent.click(tick)
 
     await vi.waitFor(() => expect(posted).toEqual([{ watched: true }, { watched: false }]))
+  })
+
+  it('comes back to Home without waiting for the setup guide again, for the main profile', async () => {
+    let asked = 0
+    mockApi({
+      '/libraries': [movies],
+      '/me': { profileId: 'owner', method: 'local', zone: 'Local', isAdmin: true, tailscaleLogin: null },
+      '/profiles': [],
+      '/home': { featured: [niceGuys], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+      'PUT /setup-guide': undefined,
+      'GET /setup-guide': () => {
+        asked += 1
+        // Asked a second time, the server is slow to say (away from home).
+        return asked === 1 ? { opened: true, dismissed: false, skipped: [], apps: true, libraries: true, profiles: false, devices: false, away: false } : new Promise(() => undefined)
+      },
+    })
+
+    const home = renderAt('/')
+    expect(await screen.findByRole('heading', { name: 'Finish setting up' })).toBeInTheDocument()
+    home.unmount()
+
+    // Back from a title: Home's own answer is still kept, and so is the guide's.
+    renderAt('/')
+    expect(await screen.findByRole('heading', { level: 1, name: 'The Nice Guys' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Finish setting up' })).toBeInTheDocument()
+    expect(asked).toBe(1)
+
+    // Hiding the list is a change, which clears what was kept: the next visit asks the server.
+    fireEvent.click(screen.getByRole('button', { name: 'Hide' }))
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Finish setting up' })).toBeNull())
+    cleanup()
+    renderAt('/')
+    await waitFor(() => expect(asked).toBe(2))
   })
 
   it('asks for an API key when the server requires one, then retries with it', async () => {

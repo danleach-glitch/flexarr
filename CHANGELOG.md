@@ -32,6 +32,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Search asks your server once you pause typing rather than at nearly every letter, and no longer says nothing matches before it has looked.
 - Reloading the page with a long music queue brings the queue back at once, rather than asking your server for every album in it ahead of the page itself.
 - A film or episode whose styled subtitles come with dozens of fonts no longer fetches them all at once, so the picture isn't kept waiting behind them.
+- For the main profile, going back to Home from a title shows it at once, as it does for everyone else, rather than after one more answer from your server.
 
 ## 0.62.1 · 5 November 2026
 
