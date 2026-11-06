@@ -78,6 +78,14 @@ public static class DeviceEndpoints
     {
         var group = api.MapGroup("/devices").WithTags("Devices");
 
+        // A kids profile doesn't control the household's other screens: it lists none of them (see ListAsync) and can
+        // send them nothing. Its own device still listens for commands (a GET), and may end a Live Activity it began.
+        group.AddEndpointFilter(async (context, next) =>
+            context.HttpContext.Request.Method is var method && !HttpMethods.IsGet(method) && !HttpMethods.IsDelete(method)
+                && context.HttpContext.RequestServices.GetRequiredService<FlexarrDbContext>().ServesKids
+                ? Problems.Of("That isn’t available on a kids profile.", status: 403)
+                : await next(context));
+
         group.MapGet("/", async (SignIns signIns, DeviceCommands commands, PlaybackSessions sessions, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
             Results.Ok(await ListAsync(signIns, commands, sessions, db, current, ct)));
 
@@ -318,7 +326,8 @@ public static class DeviceEndpoints
         var names = await db.Profiles.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);
         var list = new List<DeviceDto>();
         // A family guest sees none of the household's devices, and guests' own devices aren't anyone's to control.
-        if (current.IsGuest)
+        // Nor does a kids profile: which screens there are, who's on each and what they're playing isn't a child's to follow.
+        if (current.IsGuest || db.ServesKids)
         {
             return [];
         }
@@ -566,7 +575,7 @@ public static class DeviceEndpoints
         // changes: the profile chosen on the device, or what it may see, can change while it listens.
         var kidsSettings = LibraryVisibility.KidsSettingsVersion;
         var appliedAt = DateTime.UtcNow;
-        async Task<bool> HidesAsync(ItemSummaryDto item)
+        async Task LookAgainAsync()
         {
             if (current.SignInId is { } signInId && (DateTime.UtcNow - appliedAt >= HiddenRecheck || kidsSettings != LibraryVisibility.KidsSettingsVersion))
             {
@@ -577,7 +586,11 @@ public static class DeviceEndpoints
                 await LibraryVisibility.ApplyAsync(db, profile, ct);
                 appliedAt = DateTime.UtcNow;
             }
+        }
 
+        async Task<bool> HidesAsync(ItemSummaryDto item)
+        {
+            await LookAgainAsync();
             return item.Id != Guid.Empty && (db.HiddenLibraryIds.Contains(item.LibraryId)
                 || db.IsLimited() && !await LibraryVisibility.CanSeeAsync(db, item.LibraryId, item.Id, ct));
         }
@@ -668,6 +681,14 @@ public static class DeviceEndpoints
 
                 while (watching is not null && watching.Changes.TryRead(out var change))
                 {
+                    // A kids profile (now chosen on the device, perhaps since it began listening) isn't told what the
+                    // household's other screens are doing, as GET /devices lists it none of them.
+                    await LookAgainAsync();
+                    if (db.ServesKids)
+                    {
+                        continue;
+                    }
+
                     if (change.NowPlaying is { Item: var item } playing && await HidesAsync(item))
                     {
                         change = change with { NowPlaying = Private(playing) };

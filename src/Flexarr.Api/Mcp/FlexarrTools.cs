@@ -201,10 +201,11 @@ public static class FlexarrTools
 
     [McpServerTool(Name = "set_sleep_timer"), Description("Sets the sleep timer on a device that's playing: stop after some minutes, or at the end of the audiobook's chapter. Neither turns it off. Flexarr must be open on the device.")]
     public static McpCommandResult SetSleepTimer([Description("The device's id, from list_devices")] string deviceId, SignIns signIns, DeviceCommands commands, CurrentProfile profile,
-        [Description("Minutes from now, 1 to 600")] double? minutes = null, [Description("Stop at the end of the chapter instead")] bool endOfChapter = false)
+        FlexarrDbContext db, [Description("Minutes from now, 1 to 600")] double? minutes = null, [Description("Stop at the end of the chapter instead")] bool endOfChapter = false)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        if (!profile.IsTrusted)
+        ArgumentNullException.ThrowIfNull(db);
+        if (!profile.IsTrusted || db.ServesKids)
         {
             throw new InvalidOperationException("This sign-in may not control other devices.");
         }
@@ -228,7 +229,8 @@ public static class FlexarrTools
         [Description("For a show: play its episodes in a random order")] bool shuffle = false)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        if (!profile.IsTrusted)
+        ArgumentNullException.ThrowIfNull(db);
+        if (!profile.IsTrusted || db.ServesKids)
         {
             throw new InvalidOperationException("This sign-in may not play on other devices.");
         }
@@ -247,10 +249,11 @@ public static class FlexarrTools
 
     [McpServerTool(Name = "control_device"), Description("Pauses, resumes or stops what a device is playing.")]
     public static McpCommandResult ControlDevice([Description("The device's id, from list_devices")] string deviceId, [Description("pause, resume or stop")] string action,
-        SignIns signIns, DeviceCommands commands, CurrentProfile profile)
+        SignIns signIns, DeviceCommands commands, CurrentProfile profile, FlexarrDbContext db)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        if (!profile.IsTrusted)
+        ArgumentNullException.ThrowIfNull(db);
+        if (!profile.IsTrusted || db.ServesKids)
         {
             throw new InvalidOperationException("This sign-in may not control other devices.");
         }
@@ -269,12 +272,13 @@ public static class FlexarrTools
 
     [McpServerTool(Name = "set_device_sound"), Description("Changes a device's sound: dialogue boost (makes voices clearer), night mode (quietens loud scenes) and speakers. Only reaches a device with Flexarr open; anything left out stays as it is.")]
     public static McpCommandResult SetDeviceSound([Description("The device's id, from list_devices")] string deviceId,
-        SignIns signIns, DeviceCommands commands, CurrentProfile profile,
+        SignIns signIns, DeviceCommands commands, CurrentProfile profile, FlexarrDbContext db,
         [Description("off, low, medium or high")] string? dialogueBoost = null, [Description("off, on, or scheduled (the hours set on the device)")] string? nightMode = null,
         [Description("auto, stereo or surround (5.1)")] string? speakers = null)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        if (!profile.IsTrusted)
+        ArgumentNullException.ThrowIfNull(db);
+        if (!profile.IsTrusted || db.ServesKids)
         {
             throw new InvalidOperationException("This sign-in may not control other devices.");
         }
@@ -307,8 +311,8 @@ public static class FlexarrTools
         ArgumentNullException.ThrowIfNull(profile);
 
         // Everyone's watching, as GET /events tells it: only the API key or a trusted sign-in has it, and a family
-        // guest (never trusted) sees nothing of the household's screens.
-        if (!profile.IsTrusted || profile.IsGuest)
+        // guest (never trusted) sees nothing of the household's screens. Nor does a kids profile.
+        if (!profile.IsTrusted || profile.IsGuest || db.ServesKids)
         {
             return [];
         }

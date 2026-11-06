@@ -37,6 +37,13 @@ public static class EventEndpoints
             return;
         }
 
+        // Nor a kids profile: what the household's other screens play, and when, isn't a child's to follow.
+        if (db.ServesKids)
+        {
+            await Problems.Of("That isn’t available on a kids profile.", status: 403).ExecuteAsync(http);
+            return;
+        }
+
         http.Response.StatusCode = StatusCodes.Status200OK;
         http.Response.Headers.ContentType = "text/event-stream";
         http.Response.Headers.CacheControl = "no-cache";
@@ -71,6 +78,10 @@ public static class EventEndpoints
                         kidsSettings = LibraryVisibility.KidsSettingsVersion;
                         await LibraryVisibility.ApplyAsync(db, current.Id, ct);
                         hidden = db.HiddenLibraryIds.ToHashSet();
+                        if (db.ServesKids)
+                        {
+                            return; // made a kids profile while it listened
+                        }
                     }
 
                     if (playback.Item is { } item && (hidden.Contains(item.LibraryId)

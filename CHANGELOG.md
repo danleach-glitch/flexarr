@@ -29,6 +29,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - With a PIN on the main profile, removing another profile signs out the TVs, phones and browsers that were on it. They used to carry on as the main profile, without being asked for its PIN; connect them again to choose who's watching. Without a PIN on the main profile, nothing changes.
 - Behind an HTTPS reverse proxy that isn't listed in `trustedProxies`, a browser's sign-in is now only ever sent over HTTPS, and the browser is told to keep to HTTPS. Before, it could cross your network unencrypted the first time that browser asked for the `http://` address.
 - Backups can no longer be kept in the folder the web app is served from, where one could have been fetched without signing in or giving the admin PIN. Settings refuses that folder, and no backup is made there.
+- A kids profile can no longer control the household's other screens or follow what they're playing. It's shown no other devices, and can't pause, stop or start anything on them. A parent can still play something on a child's device.
 
 ## 0.62.1 · 5 November 2026
 

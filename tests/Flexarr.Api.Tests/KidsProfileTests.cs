@@ -124,6 +124,92 @@ public class KidsProfileTests
     }
 
     [Fact]
+    public async Task AKidsProfile_DoesntControlOrFollowTheHouseholdsOtherScreens()
+    {
+        using var server = new FlexarrApiFactory();
+        await server.SetMainPinAsync(MainPin);
+        var items = await SeedAsync(server);
+        var ada = await CreateAsync(server, "Ada", 8, isKids: true);
+        async Task<(string Id, HttpClient Client)> DeviceAsync(string name)
+        {
+            var body = await JsonAsync(await Admin(server).PostAsJsonAsync(Api("/session/device"), new { deviceName = name }));
+            var client = server.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Api-Key", body.GetProperty("token").GetString());
+            return (body.GetProperty("id").GetString()!, client);
+        }
+
+        var (tvId, tv) = await DeviceAsync("Living room TV");
+        var (tabletId, tablet) = await DeviceAsync("Ada's tablet");
+        Assert.Equal(2, (await tablet.GetFromJsonAsync<JsonElement>(Api("/devices"))).GetArrayLength()); // on the main profile, as paired
+        Assert.Equal(HttpStatusCode.OK, (await SelectAsync(tablet, ada)).StatusCode);
+
+        // It's shown none of the household's devices, can send them nothing, and can't follow what plays.
+        Assert.Equal(0, (await tablet.GetFromJsonAsync<JsonElement>(Api("/devices"))).GetArrayLength());
+        foreach (var (path, body) in new (string, object)[]
+        {
+            ("play", new { itemId = items["paddington"] }), ("pause", new { }), ("resume", new { }), ("stop", new { }), ("seek", new { positionSeconds = 60 }),
+            ("skip", new { seconds = 30 }), ("next", new { }), ("sleep", new { minutes = 1 }), ("sound", new { nightMode = "On" }), ("rate", new { rate = 2 }),
+        })
+        {
+            Assert.Equal(HttpStatusCode.Forbidden, (await tablet.PostAsJsonAsync(Api($"/devices/{tvId}/{path}"), body)).StatusCode);
+        }
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await tablet.PutAsJsonAsync(Api($"/devices/{tvId}/activity"),
+            new { token = new string('a', 64), environment = "production", itemId = items["paddington"] })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await tablet.GetAsync(Api("/events"), HttpCompletionOption.ResponseHeadersRead)).StatusCode);
+
+        // Its own device still listens, so a parent can play something on it; it just isn't told what other screens play.
+        async Task<StreamReader> ListenAsync(HttpClient device)
+        {
+            var response = await device.GetAsync(Api("/devices/commands?nowPlaying=true"), HttpCompletionOption.ResponseHeadersRead);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var reader = new StreamReader(await response.Content.ReadAsStreamAsync());
+            Assert.Equal(": connected", await reader.ReadLineAsync());
+            return reader;
+        }
+
+        static async Task<List<string>> EventsUntilAsync(StreamReader reader, string name)
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var seen = new List<string>();
+            while (true)
+            {
+                var line = await reader.ReadLineAsync(timeout.Token) ?? throw new InvalidOperationException("The stream ended.");
+                if (line.StartsWith("event: ", StringComparison.Ordinal))
+                {
+                    seen.Add(line["event: ".Length..]);
+                    var data = await reader.ReadLineAsync(timeout.Token) ?? "";
+                    if (line == "event: " + name.Split('|')[0] && data.Contains(name.Split('|')[^1], StringComparison.Ordinal))
+                    {
+                        return seen;
+                    }
+                }
+            }
+        }
+
+        using var onTablet = await ListenAsync(tablet);
+        using var onTv = await ListenAsync(tv);
+        using var publisher = new Flexarr.Api.Devices.NowPlayingPublisher(server.Services.GetRequiredService<Flexarr.Api.Devices.NowPlayingFeed>(),
+            server.Services.GetRequiredService<Flexarr.Api.Playback.PlaybackSessions>(), server.Services.GetRequiredService<Flexarr.Api.Devices.LiveActivities>(),
+            server.Services.GetRequiredService<Flexarr.Api.Devices.DeviceCommands>(), server.Services.GetRequiredService<Flexarr.Api.Authentication.SignIns>(),
+            server.Services.GetRequiredService<IServiceScopeFactory>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<Flexarr.Api.Devices.NowPlayingPublisher>.Instance);
+        await publisher.StartAsync(default);
+        server.Services.GetRequiredService<Flexarr.Api.Playback.PlaybackSessions>().Add(new Flexarr.Api.Playback.PlaybackSession
+        {
+            Id = Guid.NewGuid().ToString("N"), ItemId = items["paddington"], ProfileId = PlaybackState.DefaultUser, SignInId = tvId, FileId = Guid.NewGuid(), FilePath = "",
+            Container = null, DurationSeconds = 420, Method = Flexarr.Streaming.PlaybackMethod.DirectPlay, Subtitles = [], CreditsStart = null,
+        });
+
+        // The main profile's TV hears it (so it has been told to everyone listening); the tablet hears only its commands.
+        Assert.Contains("now-playing", await EventsUntilAsync(onTv, "now-playing|" + tvId));
+        await Task.Delay(200);
+        Assert.True((await Admin(server).PostAsJsonAsync(Api($"/devices/{tabletId}/pause"), new { })).IsSuccessStatusCode);
+        Assert.True((await Admin(server).PostAsJsonAsync(Api($"/devices/{tabletId}/resume"), new { })).IsSuccessStatusCode);
+        Assert.Equal(["command", "command"], await EventsUntilAsync(onTablet, "command|Resume"));
+        await publisher.StopAsync(default);
+    }
+
+    [Fact]
     public async Task ATeensAgeLimit_LeavesWhatFlexarrCantCheckEmpty_RatherThanRefused()
     {
         using var server = new FlexarrApiFactory();
