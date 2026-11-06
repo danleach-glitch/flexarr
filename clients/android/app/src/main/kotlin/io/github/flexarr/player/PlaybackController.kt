@@ -115,6 +115,11 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         private set
     var isBuffering by mutableStateOf(true)
         private set
+    /**
+     * Whether the screen is kept on ([screenStaysOn]): playing, the spinner is up, or the next episode is being
+     * counted down to over the last frame (nothing plays for those seconds, but something is about to).
+     */
+    val keepsScreenOn: Boolean get() = screenStaysOn(isPlaying, isBuffering || isOpening || countingDown, error != null)
     var position by mutableDoubleStateOf(0.0)
         private set
     var duration by mutableDoubleStateOf(0.0)

@@ -98,6 +98,8 @@ class LiveTvController(context: Context, private val model: AppModel, val client
         private set
     var isBuffering by mutableStateOf(true)
         private set
+    /** Whether the screen is kept on ([screenStaysOn]): playing, or the spinner is up. */
+    val keepsScreenOn: Boolean get() = screenStaysOn(isPlaying, isBuffering || startingChannel != null, error != null)
     /** Where the picture is in the rewind window, and how long the window is. */
     var position by mutableDoubleStateOf(0.0)
         private set
