@@ -212,6 +212,8 @@ struct PlaylistView: View {
                     .disabled(tracks.count < 2)
                 }
                 .disabled(tracks.isEmpty)
+                // Across the page, so moving up from anywhere along the tracks below comes back to the buttons.
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .focusSection()
                 .padding(.top, 8)
             }
