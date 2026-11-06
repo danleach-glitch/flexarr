@@ -105,6 +105,21 @@ class DownloadStoreTest {
     }
 
     @Test
+    fun `a short list is saved again a moment later, as it always was`() {
+        assertEquals(250L, DownloadStore.saveGapMillis(0))
+        assertEquals(250L, DownloadStore.saveGapMillis(5))
+        assertEquals(250L, DownloadStore.saveGapMillis(25))
+    }
+
+    @Test
+    fun `a list that takes long to write rests ten times as long before the next save, two seconds at most`() {
+        assertEquals(400L, DownloadStore.saveGapMillis(40))
+        assertEquals(1_000L, DownloadStore.saveGapMillis(100))
+        assertEquals(2_000L, DownloadStore.saveGapMillis(200))
+        assertEquals(2_000L, DownloadStore.saveGapMillis(5_000))
+    }
+
+    @Test
     fun `when the copy can't be made, it says so rather than failing`() {
         manifest.writeText("[1]")
         // Nothing can be written beside the list.

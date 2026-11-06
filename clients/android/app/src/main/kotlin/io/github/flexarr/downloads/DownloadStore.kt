@@ -56,11 +56,13 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import okhttp3.Request
 import java.io.File
 import java.time.Instant
+import kotlin.system.measureTimeMillis
 
 private val flexarrLog = FlexarrLog("downloads")
 
@@ -78,9 +80,16 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     private val work = WorkManager.getInstance(context)
     private val scope = model.scope
 
+    /** [all], with each download found at once by its id or its title: made again whenever the list changes. */
+    private var index by mutableStateOf(DownloadIndex(emptyList()))
+
     /** Every download on the phone, whoever's it is: empty for the moment it takes to read the saved list at launch. */
-    var all: List<LocalDownload> by mutableStateOf(emptyList())
-        private set
+    var all: List<LocalDownload>
+        get() = index.all
+        private set(value) {
+            // A list that's the same as before changes nothing, so nothing redraws.
+            if (value != index.all) index = DownloadIndex(value)
+        }
 
     /** Every album and playlist on the phone, whoever's it is (their tracks are downloads in [all]). */
     var collections: List<LocalCollection> by mutableStateOf(emptyList())
@@ -168,6 +177,12 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     private val saves = Channel<List<LocalDownload>>(Channel.CONFLATED)
     private val collectionSaves = Channel<List<LocalCollection>>(Channel.CONFLATED)
 
+    /**
+     * Downloads were deleted: the list is saved without the rest a long one's write is given, so a list on disk never
+     * names files that have gone for longer than it did.
+     */
+    private val hurry = Channel<Unit>(Channel.CONFLATED)
+
     /** Reads the saved lists off the main thread, then lets saves through. */
     private val loading: Job = scope.launch {
         val (saved, savedCollections) = withContext(Dispatchers.IO) {
@@ -189,8 +204,12 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         // Written one after another, a moment apart, so a burst of changes is one write.
         scope.launch(Dispatchers.IO) {
             for (list in saves) {
-                write(list, LocalDownload.serializer(), MANIFEST)
+                hurry.tryReceive() // asked for before this write, which is it
+                val took = measureTimeMillis { write(list, LocalDownload.serializer(), MANIFEST) }
                 delay(SAVE_GAP_MS)
+                // A long list takes a while to write: the longer it took, the longer before the next, unless files
+                // were deleted meanwhile.
+                withTimeoutOrNull(saveGapMillis(took) - SAVE_GAP_MS) { hurry.receive() }
             }
         }
         scope.launch(Dispatchers.IO) {
@@ -226,7 +245,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** This profile's albums and playlists, newest first. */
     val musicCollections: List<LocalCollection> get() = collections.filter { it.profileId == profileId }.sortedByDescending { it.createdAtMillis }
 
-    fun entry(itemId: String): LocalDownload? = all.firstOrNull { it.profileId == profileId && it.item.id == itemId }
+    fun entry(itemId: String): LocalDownload? = index.entry(profileId, itemId)
 
     fun collection(id: String): LocalCollection? = collections.firstOrNull { it.profileId == profileId && it.id == id }
 
@@ -246,7 +265,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** A saved picture, by the name a download or collection holds. */
     fun image(name: String?): File? = name?.let { fileIn(folder, it) }?.takeIf { it.exists() }
 
-    fun byId(id: String): LocalDownload? = all.firstOrNull { it.id == id }
+    fun byId(id: String): LocalDownload? = index.byId(id)
 
     val bytesUsed: Long get() = all.filter { it.isDownloaded }.sumOf { it.sizeBytes ?: 0 }
 
@@ -760,6 +779,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         fileIn(folder, "${safeName(id)}.part")?.delete()
         all = all.filterNot { it.id == id }
         save()
+        hurry.trySend(Unit)
         removeImageIfUnused(download.imageFileName)
         if (!tellServer) return
         // The server drops its copy (and won't offer a podcast episode again); out of reach, it's told later.
@@ -811,6 +831,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         collections = emptyList()
         transferring.clear()
         save()
+        hurry.trySend(Unit)
         saveCollections()
         profileId = null
         unsentDeletes = emptySet()
@@ -907,6 +928,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         private const val KEPT_FOR = "keptFor"
         private const val WORK_TAG = "flexarr-download"
         private const val SAVE_GAP_MS = 250L
+        private const val MOST_SAVE_GAP_MS = 2_000L
+        private const val SAVE_REST = 10
         private const val RECORDED_CATCH_UP_MS = 60_000L
 
         /**
@@ -926,6 +949,14 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             }
             return items
         }
+
+        /**
+         * How long to leave after a save of the downloads list that took [writeMillis] before the next. A short list is
+         * written in a few milliseconds and saved again a moment later, as it always was. A thousand tracks' takes long
+         * enough that saving it four times a second, as the tracks arrive, kept the phone's storage busy throughout: it
+         * rests ten times as long as the write took, up to two seconds.
+         */
+        internal fun saveGapMillis(writeMillis: Long): Long = (writeMillis * SAVE_REST).coerceIn(SAVE_GAP_MS, MOST_SAVE_GAP_MS)
 
         private fun reportUnreadable(count: Int, keptAs: File?) {
             flexarrLog.error("Couldn't read $count saved download entries; the file was kept as ${keptAs?.name ?: "nothing"}")
