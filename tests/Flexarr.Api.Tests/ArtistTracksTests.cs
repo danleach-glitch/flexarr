@@ -6,6 +6,8 @@ using Flexarr.Api.Endpoints;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
@@ -47,6 +49,68 @@ public class ArtistTracksTests(FlexarrApiFactory factory) : IClassFixture<Flexar
 
         Assert.Equal(HttpStatusCode.NotFound, (await Client().GetAsync(new Uri($"/api/v1/items/{track.Id}/tracks", UriKind.Relative))).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await Client().GetAsync(new Uri($"/api/v1/items/{Guid.NewGuid()}/tracks", UriKind.Relative))).StatusCode);
+    }
+
+    [Fact]
+    public async Task TracksStraightUnderTheArtist_Count_AndAnAlbumThatsGone_Doesnt()
+    {
+        var (artist, albums) = await SeedAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = db.MediaItems.Where(i => i.Id == artist).Select(i => i.LibraryId).Single();
+            // A track with no album, a track of another artist's, and an album whose files have gone (its tracks haven't been swept up yet).
+            db.Add(new MediaItem { LibraryId = library, ParentId = artist, Kind = MediaKind.Track, Title = "Loose Single", SortTitle = "loose single" });
+            var other = new MediaItem { LibraryId = library, Kind = MediaKind.Artist, Title = "The Notting Hillbillies", SortTitle = "notting hillbillies" };
+            var theirs = new MediaItem { LibraryId = library, ParentId = other.Id, Kind = MediaKind.Album, Title = "Missing...", SortTitle = "missing", Year = 1990 };
+            db.AddRange(other, theirs, new MediaItem { LibraryId = library, ParentId = theirs.Id, Kind = MediaKind.Track, Title = "Railroad Worksong", SortTitle = SortTitle.ForNumber(1001) });
+            db.MediaItems.Single(i => i.Id == albums["Making Movies"]).MissingSince = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+        }
+
+        var tracks = await Client().GetFromJsonAsync<List<ItemSummaryDto>>(new Uri($"/api/v1/items/{artist}/tracks", UriKind.Relative), Json);
+
+        // The loose track has no album to sort by, so it comes with the album that has no year, after the dated ones.
+        Assert.Equal(["Once Upon a Time in the West", "News", "Calling Elvis", "On Every Street", "Heavy Fuel", "Loose Single", "Early Demo"], tracks!.Select(t => t.Title));
+    }
+
+    [Fact]
+    public async Task TheTracks_AreFoundByTheirAlbum_NotByReadingEveryItem()
+    {
+        var (artist, albums) = await SeedAsync();
+        var sql = new Statements();
+        using var server = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.ConfigureDbContext<FlexarrDbContext>(o => o.AddInterceptors(sql))));
+        var client = server.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+
+        foreach (var id in new[] { artist, albums["On Every Street"] })
+        {
+            sql.Run.Clear();
+            Assert.NotEmpty((await client.GetFromJsonAsync<List<ItemSummaryDto>>(new Uri($"/api/v1/items/{id}/tracks", UriKind.Relative), Json))!);
+
+            // The statement that fetches the tracks names the albums they're in (one album, or an artist's several):
+            // SQLite goes to those by index. Asked for as "its album is this, or its album's artist is", it read every
+            // item in the database.
+            var fetch = Assert.Single(sql.Run, statement => statement.Contains("\"Kind\" = 'Track'", StringComparison.Ordinal));
+            Assert.Matches("""
+                "m"\."ParentId" (IN \(|= )@albums
+                """.Trim(), fetch);
+            Assert.DoesNotContain(" OR \"m1\".\"ParentId\"", fetch, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>Every statement the server sent the database.</summary>
+    private sealed class Statements : Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<string> Run { get; } = new();
+
+        public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+            System.Data.Common.DbCommand command, Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            Run.Enqueue(command.CommandText);
+            return ValueTask.FromResult(result);
+        }
     }
 
     private HttpClient Client()

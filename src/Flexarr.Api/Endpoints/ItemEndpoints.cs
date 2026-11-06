@@ -253,7 +253,16 @@ public static class ItemEndpoints
                 return Results.NotFound();
             }
 
-            var tracks = db.MediaItems.Where(i => i.Kind == MediaKind.Track && (i.ParentId == id || i.Parent!.ParentId == id));
+            // An artist's albums first, then the tracks in them (and any straight under the artist): each found by index.
+            // Asked for in one go, as tracks whose album is this or whose album's artist is, SQLite read every item
+            // in the database.
+            List<Guid> albums = [id];
+            if (kind == MediaKind.Artist)
+            {
+                albums.AddRange(await db.MediaItems.Where(i => i.ParentId == id).Select(i => i.Id).ToListAsync(ct));
+            }
+
+            var tracks = db.MediaItems.Where(i => i.Kind == MediaKind.Track && i.ParentId != null && albums.Contains(i.ParentId.Value));
             return Results.Ok(await tracks
                 .OrderBy(t => t.Parent!.Year == null).ThenBy(t => t.Parent!.Year).ThenBy(t => t.Parent!.SortTitle)
                 .ThenBy(t => t.SortTitle)
