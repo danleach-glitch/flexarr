@@ -61,6 +61,14 @@ public static partial class FeedParser
     /// </summary>
     public const int MaxEpisodes = 20_000;
 
+    /// <summary>
+    /// The most tags a feed's tag may have around it: a feed's own are three or four deep, and HTML written straight into
+    /// its show notes a dozen more. Tags inside tags by the ten thousand took minutes to hours to build into a document
+    /// (each one added checks all those around it), and reading the text of 30,000 ran the thread out of stack, which
+    /// ends the whole server.
+    /// </summary>
+    public const int MaxDepth = 100;
+
     /// <exception cref="FormatException">The document isn't an RSS feed.</exception>
     public static ParsedFeed Parse(Stream xml)
     {
@@ -68,6 +76,11 @@ public static partial class FeedParser
         XDocument document;
         try
         {
+            if (NestedDeeperThan(ref xml, MaxDepth))
+            {
+                throw new FormatException("This isn't a podcast feed: it isn't valid XML.");
+            }
+
             // No DTDs: a feed has no business declaring entities, and expanding them is how XML bombs work.
             using var reader = XmlReader.Create(xml, new XmlReaderSettings { DtdProcessing = DtdProcessing.Ignore, XmlResolver = null, IgnoreComments = true });
             document = XDocument.Load(reader);
@@ -120,6 +133,37 @@ public static partial class FeedParser
             Clean(Text(channel, Podcast + "guid")),
             WebUrl(Text(channel, ITunes + "new-feed-url")),
             episodes);
+    }
+
+    /// <summary>
+    /// Whether any tag in the document has more than <paramref name="limit"/> around it. It's read through once to find
+    /// out, then wound back to be read for real: it has to be known before the document is built, which is the slow part.
+    /// </summary>
+    /// <exception cref="XmlException">It isn't valid XML.</exception>
+    private static bool NestedDeeperThan(ref Stream xml, int limit)
+    {
+        if (!xml.CanSeek)
+        {
+            var copy = new MemoryStream();
+            xml.CopyTo(copy);
+            copy.Position = 0;
+            xml = copy;
+        }
+
+        var start = xml.Position;
+        using (var reader = XmlReader.Create(xml, new XmlReaderSettings { DtdProcessing = DtdProcessing.Ignore, XmlResolver = null, IgnoreComments = true }))
+        {
+            while (reader.Read())
+            {
+                if (reader.NodeType == XmlNodeType.Element && reader.Depth > limit)
+                {
+                    return true;
+                }
+            }
+        }
+
+        xml.Position = start;
+        return false;
     }
 
     private static ParsedEpisode? Episode(XElement item, bool showExplicit)

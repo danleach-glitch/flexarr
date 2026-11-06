@@ -128,6 +128,34 @@ public sealed class FeedParserTests
     }
 
     [Theory]
+    [InlineData("description")]
+    [InlineData("title")]
+    [InlineData("pubDate")]
+    public void AFeedOfTagsInsideTagsWithoutEnd_IsRefused_AndDoesntRunOutOfStack(string tag)
+    {
+        // Reading a tag's text went a call deeper for every tag inside it: 30,000 of them stopped the server. Before
+        // that, building the document checked every tag around each one added: these 200,000 took minutes of a core.
+        var deep = string.Concat(Enumerable.Repeat("<a>", 200_000)) + "hi" + string.Concat(Enumerable.Repeat("</a>", 200_000));
+        var item = $"<item><title>One</title><guid>1</guid><{tag}>{deep}</{tag}><enclosure url=\"https://cdn.example.com/1.mp3\" type=\"audio/mpeg\"/></item>";
+
+        Assert.Throws<FormatException>(() => Parse($"<rss><channel><title>Deep</title>{item}</channel></rss>"));
+        Assert.Throws<FormatException>(() => Parse($"<rss><channel><title>Deep</title><{tag}>{deep}</{tag}>{item}</channel></rss>"));
+    }
+
+    [Fact]
+    public void ShowNotesWrittenAsTagsInTheFeed_AreStillRead_HoweverManyOfThemSitSideBySide()
+    {
+        // As deep as is read at all, beside a thousand shallow ones: it's depth that's counted, not how many there are.
+        var inside = FeedParser.MaxDepth - 3; // the last has rss, channel, item, description and the rest around it
+        var nested = string.Concat(Enumerable.Repeat("<div>", inside)) + "Deep down" + string.Concat(Enumerable.Repeat("</div>", inside));
+        var wide = string.Concat(Enumerable.Repeat("<p><b>Wide</b></p>", 1000));
+        var feed = Parse($"<rss><channel><title>Notes</title><item><title>One</title><guid>1</guid><description>{wide}{nested}<p><b>After</b></p></description><enclosure url=\"https://cdn.example.com/1.mp3\" type=\"audio/mpeg\"/></item></channel></rss>");
+
+        Assert.EndsWith("WideDeep downAfter", Assert.Single(feed.Episodes).Description, StringComparison.Ordinal);
+        Assert.Throws<FormatException>(() => Parse($"<rss><channel><title>Notes</title><item><title>One</title><guid>1</guid><description><div>{nested}</div></description><enclosure url=\"https://cdn.example.com/1.mp3\" type=\"audio/mpeg\"/></item></channel></rss>"));
+    }
+
+    [Theory]
     [InlineData("3723", 3723.0)]
     [InlineData("62:03", 3723.0)]
     [InlineData("01:02:03", 3723.0)]
