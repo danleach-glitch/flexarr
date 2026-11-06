@@ -286,7 +286,27 @@ function routineReport(path: string, body: unknown) {
   return report?.paused === false && !report.ended
 }
 
+/**
+ * An id as one piece of a path. Ids can come from the page's address (a link someone sent), so nothing in one may add
+ * a slash, a query or a step up: the request goes where it was written to go, or nowhere.
+ */
+const seg = (id: string | number) => encodeURIComponent(id)
+
+/**
+ * Whether a path could reach somewhere other than where it was written to go: a step up (`.` or `..`, however
+ * spelt), a second `?`, or a character browsers drop or read as a slash. Ids go in through `seg`, so only a path built
+ * without it gets this far.
+ */
+function straysFromPath(path: string) {
+  if (/[\\#\t\n\r]/.test(path)) return true
+  const query = path.indexOf('?')
+  if (query >= 0 && path.includes('?', query + 1)) return true
+  return (query < 0 ? path : path.slice(0, query)).split('/').some((piece) => /^(\.|%2e){1,2}$/i.test(piece))
+}
+
 async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal, retried = false): Promise<T> {
+  // Refused here as the server would refuse an id it doesn't know, before anything is sent or forgotten.
+  if (straysFromPath(path)) throw new ApiError(404, 'Not Found', [])
   const headers = authHeaders()
   // Files (profile pictures) go up as they are; everything else is JSON.
   const file = body instanceof Blob
@@ -510,10 +530,10 @@ export const getLibraries = (signal?: AbortSignal) => apiGet<Library[]>('/librar
 /** Every library, including ones hidden from the current profile (Settings; main profile only). */
 export const getAllLibraries = (signal?: AbortSignal) => cachedGet<Library[]>('/libraries?all=true', signal)
 export const createLibrary = (library: LibraryRequest) => request<Library>('POST', '/libraries', library)
-export const updateLibrary = (id: string, library: LibraryRequest) => request<Library>('PUT', `/libraries/${id}`, library)
-export const deleteLibrary = (id: string) => request<void>('DELETE', `/libraries/${id}`)
+export const updateLibrary = (id: string, library: LibraryRequest) => request<Library>('PUT', `/libraries/${seg(id)}`, library)
+export const deleteLibrary = (id: string) => request<void>('DELETE', `/libraries/${seg(id)}`)
 export const scanLibrary = (id: string, refreshMetadata = false) =>
-  request<void>('POST', `/libraries/${id}/scan${refreshMetadata ? '?refreshMetadata=true' : ''}`)
+  request<void>('POST', `/libraries/${seg(id)}/scan${refreshMetadata ? '?refreshMetadata=true' : ''}`)
 
 export function getLibraryItems(
   id: string,
@@ -525,7 +545,7 @@ export function getLibraryItems(
     if (value !== undefined && value !== '' && value !== 0) params.set(key, String(value))
   }
   const query = params.size ? `?${params}` : ''
-  const path = `/libraries/${id}/items${query}`
+  const path = `/libraries/${seg(id)}/items${query}`
   // A letter jump's big pages go once, straight into the grid: caching them would only crowd out everything else.
   return (options.take ?? 0) > 200 ? timedGet<Paged<ItemSummary>>(path, signal) : cachedGet<Paged<ItemSummary>>(path, signal)
 }
@@ -541,7 +561,7 @@ export function getLibraryAlbums(
     if (value !== undefined && value !== '' && value !== 0) params.set(key, String(value))
   }
   const query = params.size ? `?${params}` : ''
-  const path = `/libraries/${id}/albums${query}`
+  const path = `/libraries/${seg(id)}/albums${query}`
   return (options.take ?? 0) > 200 ? timedGet<Paged<ItemSummary>>(path, signal) : cachedGet<Paged<ItemSummary>>(path, signal)
 }
 
@@ -550,11 +570,11 @@ export function getLibraryAlbums(
  * fanart, or without any, `covers`: up to three of its albums' (absent from servers before 0.59).
  */
 export const getLibraryAlbumGenres = (id: string, signal?: AbortSignal) =>
-  cachedGet<{ name: string; count: number; backdrop?: string | null; covers?: string[] | null }[]>(`/libraries/${id}/album-genres`, signal)
+  cachedGet<{ name: string; count: number; backdrop?: string | null; covers?: string[] | null }[]>(`/libraries/${seg(id)}/album-genres`, signal)
 
 /** Up to 200 of a genre's tracks in a music library, by artist and album, or shuffled by the server. */
 export const getGenreTracks = (id: string, genre: string, shuffle: boolean, signal?: AbortSignal) =>
-  apiGet<ItemSummary[]>(`/libraries/${id}/tracks?genre=${encodeURIComponent(genre)}${shuffle ? '&shuffle=true' : ''}`, signal)
+  apiGet<ItemSummary[]>(`/libraries/${seg(id)}/tracks?genre=${encodeURIComponent(genre)}${shuffle ? '&shuffle=true' : ''}`, signal)
 
 // ---------- Audiobooks
 
@@ -581,36 +601,36 @@ const queryString = (options: object) => {
   return params.size ? `?${params}` : ''
 }
 
-export const getBookShelves = (libraryId: string, signal?: AbortSignal) => cachedGet<BookShelves>(`/libraries/${libraryId}/book-shelves`, signal)
+export const getBookShelves = (libraryId: string, signal?: AbortSignal) => cachedGet<BookShelves>(`/libraries/${seg(libraryId)}/book-shelves`, signal)
 /** The languages a library's books are in, as their tags write them (the Language filter). */
-export const getBookLanguages = (libraryId: string, signal?: AbortSignal) => cachedGet<string[]>(`/libraries/${libraryId}/book-languages`, signal)
+export const getBookLanguages = (libraryId: string, signal?: AbortSignal) => cachedGet<string[]>(`/libraries/${seg(libraryId)}/book-languages`, signal)
 /** A library's book genres, A–Z, with how many books are in each. */
 /** `covers`: up to three of each genre's books' covers, newest first. */
 export const getBookGenres = (libraryId: string, signal?: AbortSignal) =>
-  cachedGet<{ name: string; count: number; covers?: string[] }[]>(`/libraries/${libraryId}/book-genres`, signal)
+  cachedGet<{ name: string; count: number; covers?: string[] }[]>(`/libraries/${seg(libraryId)}/book-genres`, signal)
 export const getLibraryBooks = (libraryId: string, filters: BookFilters, signal?: AbortSignal) =>
-  cachedGet<Paged<ItemSummary>>(`/libraries/${libraryId}/books${queryString(filters)}`, signal)
+  cachedGet<Paged<ItemSummary>>(`/libraries/${seg(libraryId)}/books${queryString(filters)}`, signal)
 export const getBookSeriesList = (libraryId: string, options: { search?: string; skip?: number; take?: number }, signal?: AbortSignal) =>
-  cachedGet<Paged<BookSeriesSummary>>(`/libraries/${libraryId}/book-series${queryString(options)}`, signal)
+  cachedGet<Paged<BookSeriesSummary>>(`/libraries/${seg(libraryId)}/book-series${queryString(options)}`, signal)
 export const getBookPeople = (libraryId: string, options: { role: 'author' | 'narrator'; search?: string; skip?: number; take?: number }, signal?: AbortSignal) =>
-  cachedGet<Paged<BookPerson>>(`/libraries/${libraryId}/book-people${queryString(options)}`, signal)
-export const getBookSeries = (id: string, signal?: AbortSignal) => cachedGet<BookSeries>(`/book-series/${id}`, signal)
+  cachedGet<Paged<BookPerson>>(`/libraries/${seg(libraryId)}/book-people${queryString(options)}`, signal)
+export const getBookSeries = (id: string, signal?: AbortSignal) => cachedGet<BookSeries>(`/book-series/${seg(id)}`, signal)
 /** "Start over" on a finished book: back to the start, no longer finished (when it was finished is kept). */
-export const listenAgain = (id: string) => request<void>('POST', `/items/${id}/listen-again`)
-export const getBookmarks = (id: string, signal?: AbortSignal) => apiGet<Bookmark[]>(`/items/${id}/bookmarks`, signal)
-export const addBookmark = (id: string, positionSeconds: number, note?: string) => request<Bookmark>('POST', `/items/${id}/bookmarks`, { positionSeconds, note })
-export const saveBookmarkNote = (bookmarkId: string, note: string | null) => request<Bookmark>('PUT', `/bookmarks/${bookmarkId}`, { note })
-export const deleteBookmark = (bookmarkId: string) => request<void>('DELETE', `/bookmarks/${bookmarkId}`)
+export const listenAgain = (id: string) => request<void>('POST', `/items/${seg(id)}/listen-again`)
+export const getBookmarks = (id: string, signal?: AbortSignal) => apiGet<Bookmark[]>(`/items/${seg(id)}/bookmarks`, signal)
+export const addBookmark = (id: string, positionSeconds: number, note?: string) => request<Bookmark>('POST', `/items/${seg(id)}/bookmarks`, { positionSeconds, note })
+export const saveBookmarkNote = (bookmarkId: string, note: string | null) => request<Bookmark>('PUT', `/bookmarks/${seg(bookmarkId)}`, { note })
+export const deleteBookmark = (bookmarkId: string) => request<void>('DELETE', `/bookmarks/${seg(bookmarkId)}`)
 /**
  * A book's place, sent without a playback session (its session expired while it sat paused): `recordedAt` lets the
  * newest place win, wherever it was heard.
  */
 export const recordBookProgress = (id: string, positionSeconds: number, ended: boolean, device: string) =>
-  request<unknown>('PUT', `/items/${id}/progress`, { positionSeconds, ended, device, recordedAt: new Date().toISOString() })
+  request<unknown>('PUT', `/items/${seg(id)}/progress`, { positionSeconds, ended, device, recordedAt: new Date().toISOString() })
 /** The same as the page goes, when an ordinary request may be cancelled. */
 export function beaconBookProgress(id: string, positionSeconds: number, device: string) {
   clearApiCache()
-  void fetch(`/api/v1/items/${id}/progress`, {
+  void fetch(`/api/v1/items/${seg(id)}/progress`, {
     method: 'PUT',
     keepalive: true,
     headers: { ...authHeaders(), 'Content-Type': 'application/json' },
@@ -621,11 +641,11 @@ export function beaconBookProgress(id: string, positionSeconds: number, device: 
 export const BOOK_LISTENING_CHANGED = 'flexarr:book-listening'
 /** Chapter tools (main profile only): each chapter runs to the next one's start. */
 export const saveChapters = (id: string, chapters: { title: string; startSeconds: number }[]) =>
-  request<BookChapter[]>('PUT', `/items/${id}/chapters`, { chapters })
+  request<BookChapter[]>('PUT', `/items/${seg(id)}/chapters`, { chapters })
 /** Moves every chapter but the first by `seconds` (up to ten minutes either way). */
-export const shiftChapters = (id: string, seconds: number) => request<BookChapter[]>('POST', `/items/${id}/chapters/shift`, { seconds })
+export const shiftChapters = (id: string, seconds: number) => request<BookChapter[]>('POST', `/items/${seg(id)}/chapters/shift`, { seconds })
 /** Audible's chapters for the book (it needs an ASIN), not saved: the editor fills its form with them. */
-export const audibleChapters = (id: string) => request<BookChapter[]>('GET', `/items/${id}/chapters/audible`)
+export const audibleChapters = (id: string) => request<BookChapter[]>('GET', `/items/${seg(id)}/chapters/audible`)
 
 /** A result of a book search for Fix match. */
 export interface BookMatch {
@@ -654,11 +674,11 @@ export interface BookEdit {
   year: number | null
   locked: boolean
 }
-export const editBook = (id: string, edit: BookEdit) => request<void>('PUT', `/items/${id}/book-details`, edit)
+export const editBook = (id: string, edit: BookEdit) => request<void>('PUT', `/items/${seg(id)}/book-details`, edit)
 export const searchBookMatches = (id: string, q: string, author?: string, signal?: AbortSignal) =>
-  apiGet<BookMatch[]>(`/items/${id}/book-match${queryString({ q, author })}`, signal)
+  apiGet<BookMatch[]>(`/items/${seg(id)}/book-match${queryString({ q, author })}`, signal)
 export const fixBookMatch = (id: string, match: { provider: string; id: string; query: string; author?: string }) =>
-  request<void>('POST', `/items/${id}/book-match`, match)
+  request<void>('POST', `/items/${seg(id)}/book-match`, match)
 
 /** How the server looks books up online (main profile only). */
 export interface BookMetadataSettings {
@@ -680,7 +700,7 @@ export async function saveBookListening(changes: Partial<BookListening>) {
 
 /** A library's genres, biggest first; `backdrop` (from one of its titles) is absent from servers before 0.54. */
 export const getLibraryGenres = (id: string, signal?: AbortSignal) =>
-  cachedGet<{ name: string; count: number; backdrop?: string | null; covers?: string[] | null }[]>(`/libraries/${id}/genres`, signal)
+  cachedGet<{ name: string; count: number; backdrop?: string | null; covers?: string[] | null }[]>(`/libraries/${seg(id)}/genres`, signal)
 
 /**
  * Home. `listening` says what this app can open from the continue row besides films and episodes (books and podcast
@@ -723,66 +743,66 @@ export const saveLayout = (layout: Layout) => {
   })
 }
 /** A library's own home page: hero and rows for just that library. */
-export const getLibraryBrowse = (id: string, signal?: AbortSignal) => cachedGet<Home>(`/libraries/${id}/browse`, signal)
-export const getItem = (id: string, signal?: AbortSignal) => cachedGet<ItemDetail>(`/items/${id}`, signal)
+export const getLibraryBrowse = (id: string, signal?: AbortSignal) => cachedGet<Home>(`/libraries/${seg(id)}/browse`, signal)
+export const getItem = (id: string, signal?: AbortSignal) => cachedGet<ItemDetail>(`/items/${seg(id)}`, signal)
 /** A title page's detail: a series also brings its Up Next episode and one season (`season`, else the first unwatched). */
 export const getItemPage = (id: string, season: string | null, signal?: AbortSignal) =>
-  cachedGet<ItemDetail>(`/items/${id}?includeSeason=true${season ? `&season=${encodeURIComponent(season)}` : ''}`, signal)
-export const getSimilar = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary[]>(`/items/${id}/similar`, signal)
+  cachedGet<ItemDetail>(`/items/${seg(id)}?includeSeason=true${season ? `&season=${encodeURIComponent(season)}` : ''}`, signal)
+export const getSimilar = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary[]>(`/items/${seg(id)}/similar`, signal)
 /** Every track of an artist (or album): albums oldest first, then disc and track order. */
-export const getTracks = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary[]>(`/items/${id}/tracks`, signal)
+export const getTracks = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary[]>(`/items/${seg(id)}/tracks`, signal)
 /** A track's lyrics, or null when it has none: the server answers 404, which here is an answer rather than a failure. */
 export const getLyrics = (id: string, signal?: AbortSignal) =>
-  cachedGet<Lyrics>(`/items/${id}/lyrics`, signal).catch((error: unknown) => {
+  cachedGet<Lyrics>(`/items/${seg(id)}/lyrics`, signal).catch((error: unknown) => {
     if (error instanceof ApiError && error.status === 404) return null
     throw error
   })
 /** A parent's Allow or Block on a film, show, artist or podcast for profiles with an age limit; its episodes follow it. */
-export const setKidsOverride = (id: string, override: KidsOverride) => request<void>('PUT', `/items/${id}/kids`, { override })
+export const setKidsOverride = (id: string, override: KidsOverride) => request<void>('PUT', `/items/${seg(id)}/kids`, { override })
 
 /** A track's ReplayGain, or null when the server has no file for it (404). Tags it lacks come back as nulls inside. */
 export const getLoudness = (id: string, signal?: AbortSignal) =>
-  cachedGet<Loudness>(`/items/${id}/loudness`, signal).catch((error: unknown) => {
+  cachedGet<Loudness>(`/items/${seg(id)}/loudness`, signal).catch((error: unknown) => {
     if (error instanceof ApiError && error.status === 404) return null
     throw error
   })
 
 /** Artist radio: about fifty tracks seeded from the artist. Not cached, so every press is a new station. */
-export const getRadio = (id: string, signal?: AbortSignal) => apiGet<ItemSummary[]>(`/items/${id}/radio`, signal)
-export const getNextUp = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary | undefined>(`/items/${id}/next-up`, signal)
-export const setWatched = (id: string, watched: boolean) => request<void>('POST', `/items/${id}/watched`, { watched })
+export const getRadio = (id: string, signal?: AbortSignal) => apiGet<ItemSummary[]>(`/items/${seg(id)}/radio`, signal)
+export const getNextUp = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary | undefined>(`/items/${seg(id)}/next-up`, signal)
+export const setWatched = (id: string, watched: boolean) => request<void>('POST', `/items/${seg(id)}/watched`, { watched })
 /** Marks a book finished (now) or not; not finished forgets the place too. */
-export const setBookFinished = (id: string, finished: boolean) => request<void>('POST', `/items/${id}/finished`, { finished })
+export const setBookFinished = (id: string, finished: boolean) => request<void>('POST', `/items/${seg(id)}/finished`, { finished })
 /** Takes a title out of Continue Watching without marking it watched; for an episode, its show stays out until another is played. */
-export const removeFromContinueWatching = (id: string) => request<void>('DELETE', `/home/continue/${id}`)
+export const removeFromContinueWatching = (id: string) => request<void>('DELETE', `/home/continue/${seg(id)}`)
 const deleted = new Set<string>()
 /** What deleting a title does: Radarr or Sonarr delete it, or when neither manages it, Flexarr deletes these files. */
 export interface DeletionPlan {
   managedBy: string | null
   files: string[]
 }
-export const getDeletion = (id: string, signal?: AbortSignal) => apiGet<DeletionPlan>(`/items/${id}/deletion`, signal)
+export const getDeletion = (id: string, signal?: AbortSignal) => apiGet<DeletionPlan>(`/items/${seg(id)}/deletion`, signal)
 /** Deletes a film, show or episode and its files, through Radarr or Sonarr when they manage it (main profile only). */
 export async function deleteItem(id: string) {
-  await request<void>('DELETE', `/items/${id}`)
+  await request<void>('DELETE', `/items/${seg(id)}`)
   deleted.add(id)
 }
 /** Whether `id` was deleted from this browser (a page kept for going back may still show it). */
 export const wasDeleted = (id: string) => deleted.has(id)
-export const analyzeItem = (id: string) => request<void>('POST', `/items/${id}/analyze`)
-export const getPerson = (id: string, signal?: AbortSignal) => cachedGet<Person>(`/people/${id}`, signal)
+export const analyzeItem = (id: string) => request<void>('POST', `/items/${seg(id)}/analyze`)
+export const getPerson = (id: string, signal?: AbortSignal) => cachedGet<Person>(`/people/${seg(id)}`, signal)
 /** Admin only. */
-export const getPersonCandidates = (id: string, signal?: AbortSignal) => timedGet<PersonCandidates>(`/people/${id}/candidates`, signal)
+export const getPersonCandidates = (id: string, signal?: AbortSignal) => timedGet<PersonCandidates>(`/people/${seg(id)}/candidates`, signal)
 /** Admin only. */
-export const updatePerson = (id: string, update: PersonUpdate) => request<Person>('PUT', `/people/${id}`, update)
+export const updatePerson = (id: string, update: PersonUpdate) => request<Person>('PUT', `/people/${seg(id)}`, update)
 /** Admin only: the image's own bytes (JPEG, PNG or WebP). */
-export const uploadPersonImage = (id: string, image: Blob) => request<Person>('PUT', `/people/${id}/image`, image)
+export const uploadPersonImage = (id: string, image: Blob) => request<Person>('PUT', `/people/${seg(id)}/image`, image)
 export const search = (q: string, signal?: AbortSignal) => apiGet<SearchResults>(`/search?q=${encodeURIComponent(q)}`, signal)
 export const getRecentSearches = (signal?: AbortSignal) => apiGet<RecentSearches>('/search/recent', signal)
 /** Remembers a search when something's picked from it (not as it's typed), with the item opened if it was one. */
 export const recordSearch = (query: string | null, itemId: string | null) => request<void>('POST', '/search/recent', { query, itemId })
 export const forgetSearch = (query: string) => request<void>('DELETE', `/search/recent?query=${encodeURIComponent(query)}`)
-export const forgetRecentItem = (itemId: string) => request<void>('DELETE', `/search/recent?itemId=${itemId}`)
+export const forgetRecentItem = (itemId: string) => request<void>('DELETE', `/search/recent?itemId=${encodeURIComponent(itemId)}`)
 export const clearRecentSearches = () => request<void>('DELETE', '/search/recent')
 export const getGenres = (signal?: AbortSignal) => cachedGet<Genre[]>('/genres', signal)
 
@@ -860,33 +880,33 @@ export interface ItemCollection {
 export type CollectionChanges = { name?: string; description?: string; personal?: boolean; rules?: SmartRules; showOnHome?: boolean; hidden?: boolean }
 
 export const getCollections = (signal?: AbortSignal, hidden = false) => cachedGet<CollectionSummary[]>(`/collections${hidden ? '?hidden=true' : ''}`, signal)
-export const getCollection = (id: string, signal?: AbortSignal) => cachedGet<CollectionDetail>(`/collections/${id}`, signal)
+export const getCollection = (id: string, signal?: AbortSignal) => cachedGet<CollectionDetail>(`/collections/${seg(id)}`, signal)
 export const getCollectionSuggestions = (signal?: AbortSignal) => apiGet<CollectionSuggestion[]>('/collections/suggestions', signal)
 export const createCollection = (changes: CollectionChanges & { name: string }) => request<CollectionSummary>('POST', '/collections', changes)
-export const updateCollection = (id: string, changes: CollectionChanges) => request<CollectionSummary>('PUT', `/collections/${id}`, changes)
-export const deleteCollection = (id: string) => request<void>('DELETE', `/collections/${id}`)
-export const addToCollection = (id: string, itemId: string) => request<void>('POST', `/collections/${id}/items`, { itemId })
-export const removeFromCollection = (id: string, itemId: string) => request<void>('DELETE', `/collections/${id}/items/${itemId}`)
-export const reorderCollection = (id: string, itemIds: string[]) => request<void>('PUT', `/collections/${id}/order`, { itemIds })
-export const getItemCollections = (itemId: string, signal?: AbortSignal) => cachedGet<ItemCollection[]>(`/items/${itemId}/collections`, signal)
+export const updateCollection = (id: string, changes: CollectionChanges) => request<CollectionSummary>('PUT', `/collections/${seg(id)}`, changes)
+export const deleteCollection = (id: string) => request<void>('DELETE', `/collections/${seg(id)}`)
+export const addToCollection = (id: string, itemId: string) => request<void>('POST', `/collections/${seg(id)}/items`, { itemId })
+export const removeFromCollection = (id: string, itemId: string) => request<void>('DELETE', `/collections/${seg(id)}/items/${seg(itemId)}`)
+export const reorderCollection = (id: string, itemIds: string[]) => request<void>('PUT', `/collections/${seg(id)}/order`, { itemIds })
+export const getItemCollections = (itemId: string, signal?: AbortSignal) => cachedGet<ItemCollection[]>(`/items/${seg(itemId)}/collections`, signal)
 // ---------- Playlists (music; each profile's own)
 
 export const getPlaylists = (signal?: AbortSignal) => cachedGet<PlaylistSummary[]>('/playlists', signal)
-export const getPlaylist = (id: string, signal?: AbortSignal) => cachedGet<PlaylistDetail>(`/playlists/${id}`, signal)
+export const getPlaylist = (id: string, signal?: AbortSignal) => cachedGet<PlaylistDetail>(`/playlists/${seg(id)}`, signal)
 /** Starts a playlist, with tracks, albums or artists in it if given (albums and artists bring all their tracks). */
 export const createPlaylist = (name: string, itemIds: string[] = []) => request<PlaylistSummary>('POST', '/playlists', { name, itemIds })
-export const renamePlaylist = (id: string, name: string) => request<PlaylistSummary>('PUT', `/playlists/${id}`, { name })
+export const renamePlaylist = (id: string, name: string) => request<PlaylistSummary>('PUT', `/playlists/${seg(id)}`, { name })
 /** An album's or track's cover for the playlist, or (null) back to the mosaic of its tracks' covers. */
 export const setPlaylistCover = (id: string, coverItemId: string | null) =>
-  request<PlaylistSummary>('PUT', `/playlists/${id}`, coverItemId ? { coverItemId } : { clearCover: true })
-export const deletePlaylist = (id: string) => request<void>('DELETE', `/playlists/${id}`)
+  request<PlaylistSummary>('PUT', `/playlists/${seg(id)}`, coverItemId ? { coverItemId } : { clearCover: true })
+export const deletePlaylist = (id: string) => request<void>('DELETE', `/playlists/${seg(id)}`)
 /** Appends tracks, albums or artists; `skipDuplicates` leaves out tracks the playlist already has. */
 export const addToPlaylist = (id: string, itemIds: string[], skipDuplicates = false) =>
-  request<{ added: number; summary: PlaylistSummary }>('POST', `/playlists/${id}/items`, { itemIds, skipDuplicates })
-export const removeFromPlaylist = (id: string, entryId: number) => request<void>('DELETE', `/playlists/${id}/items/${entryId}`)
+  request<{ added: number; summary: PlaylistSummary }>('POST', `/playlists/${seg(id)}/items`, { itemIds, skipDuplicates })
+export const removeFromPlaylist = (id: string, entryId: number) => request<void>('DELETE', `/playlists/${seg(id)}/items/${seg(entryId)}`)
 /** Moves an entry to `position` (from 0; past the end means last). */
 export const movePlaylistEntry = (id: string, entryId: number, position: number) =>
-  request<void>('PUT', `/playlists/${id}/items/${entryId}/position`, { position })
+  request<void>('PUT', `/playlists/${seg(id)}/items/${seg(entryId)}/position`, { position })
 
 // ---------- Made for you (daily music mixes, each profile's own, computed by the server)
 
@@ -894,7 +914,7 @@ export const getMixes = (signal?: AbortSignal) => cachedGet<MixSummary[]>('/musi
 export const getMix = (id: string, signal?: AbortSignal) => cachedGet<MixDetail>(`/music/mixes/${encodeURIComponent(id)}`, signal)
 
 export const getGenreItems = (name: string, kind?: string, signal?: AbortSignal) =>
-  apiGet<Paged<ItemSummary>>(`/genres/${encodeURIComponent(name)}/items?take=120${kind ? `&kind=${kind}` : ''}`, signal)
+  apiGet<Paged<ItemSummary>>(`/genres/${encodeURIComponent(name)}/items?take=120${kind ? `&kind=${encodeURIComponent(kind)}` : ''}`, signal)
 
 // ---------- Live TV
 
@@ -902,28 +922,28 @@ export const getLiveTvStatus = (signal?: AbortSignal) => cachedGet<LiveTvStatus>
 /** What's on now and next changes by the minute, so it's never served from the cache. */
 export const getLiveChannels = (signal?: AbortSignal) => apiGet<LiveChannel[]>('/livetv/channels', signal)
 /** Whether profiles with an age limit may watch a channel (the main profile picks them). */
-export const setChannelFineForKids = (id: string, fineForKids: boolean) => request<void>('PUT', `/livetv/channels/${id}/kids`, { fineForKids })
+export const setChannelFineForKids = (id: string, fineForKids: boolean) => request<void>('PUT', `/livetv/channels/${seg(id)}/kids`, { fineForKids })
 export const getLiveGuide = (from: Date, hours: number, signal?: AbortSignal) =>
   apiGet<LiveGuide>(`/livetv/guide?from=${encodeURIComponent(from.toISOString())}&hours=${hours}`, signal)
 /** Starts watching a channel; `replaces` is the viewer's previous channel, let go first so its connection is free. */
-export const watchLiveChannel = (id: string, replaces?: string) => request<LiveWatch>('POST', `/livetv/channels/${id}/watch`, { replaces })
+export const watchLiveChannel = (id: string, replaces?: string) => request<LiveWatch>('POST', `/livetv/channels/${seg(id)}/watch`, { replaces })
 
 // ---------- Recordings (the DVR): the household's, so anyone can schedule, stop or delete them
 
 export const getRecordings = (signal?: AbortSignal) => apiGet<Recordings>('/livetv/recordings', signal)
 export const recordProgramme = (programmeId: number) => request<Recording>('POST', '/livetv/recordings', { programmeId })
 /** A scheduled one comes off the list; one recording now stops (keeping what it has); a finished one is deleted. */
-export const removeRecording = (id: string) => request<void>('DELETE', `/livetv/recordings/${id}`)
+export const removeRecording = (id: string) => request<void>('DELETE', `/livetv/recordings/${seg(id)}`)
 export const recordSeries = (programmeId: number, options: { anyChannel?: boolean; newOnly?: boolean; keepLatest?: number } = {}) =>
   request<RecordingSeries>('POST', '/livetv/recordings/series', { programmeId, ...options })
 export const updateSeries = (id: string, changes: { anyChannel?: boolean; newOnly?: boolean; keepLatest?: number }) =>
-  request<RecordingSeries>('PUT', `/livetv/recordings/series/${id}`, changes)
+  request<RecordingSeries>('PUT', `/livetv/recordings/series/${seg(id)}`, changes)
 /** The series stops: its scheduled showings come off the list; what it recorded stays. */
-export const removeSeries = (id: string) => request<void>('DELETE', `/livetv/recordings/series/${id}`)
-export const liveHeartbeat = (viewer: string) => request<void>('POST', `/livetv/watch/${viewer}/heartbeat`)
-export const stopLiveChannel = (viewer: string) => request<void>('DELETE', `/livetv/watch/${viewer}/`)
+export const removeSeries = (id: string) => request<void>('DELETE', `/livetv/recordings/series/${seg(id)}`)
+export const liveHeartbeat = (viewer: string) => request<void>('POST', `/livetv/watch/${seg(viewer)}/heartbeat`)
+export const stopLiveChannel = (viewer: string) => request<void>('DELETE', `/livetv/watch/${seg(viewer)}/`)
 export const refreshLiveTv = () => request<void>('POST', '/livetv/refresh')
-export const setFavouriteChannel = (id: string, favourite: boolean) => request<void>(favourite ? 'PUT' : 'DELETE', `/livetv/channels/${id}/favourite`)
+export const setFavouriteChannel = (id: string, favourite: boolean) => request<void>(favourite ? 'PUT' : 'DELETE', `/livetv/channels/${seg(id)}/favourite`)
 /** An empty key tests the saved one. */
 export const testTmdb = (apiKey: string) => request<{ ok: boolean; error: string | null }>('POST', '/settings/tmdb/test', { apiKey })
 
@@ -934,14 +954,14 @@ export const testLiveTv = (source: { baseUrl: string; username: string; password
 export const getPodcastStatus = (signal?: AbortSignal) => cachedGet<PodcastStatus>('/podcasts/status', signal)
 /** The shows this profile follows, the most recently updated first. */
 export const getPodcasts = (signal?: AbortSignal) => cachedGet<Podcast[]>('/podcasts', signal)
-export const getPodcast = (id: string, signal?: AbortSignal) => cachedGet<Podcast>(`/podcasts/${id}`, signal)
+export const getPodcast = (id: string, signal?: AbortSignal) => cachedGet<Podcast>(`/podcasts/${seg(id)}`, signal)
 /** Adds a show to the library (nobody follows it by that): from Apple's directory, or by its feed's address. */
 export const addPodcast = (show: { iTunesId: number } | { feedUrl: string }) => request<Podcast>('POST', '/podcasts', show)
-export const deletePodcast = (id: string) => request<void>('DELETE', `/podcasts/${id}`)
-export const refreshPodcast = (id: string) => request<Podcast>('POST', `/podcasts/${id}/refresh`)
+export const deletePodcast = (id: string) => request<void>('DELETE', `/podcasts/${seg(id)}`)
+export const refreshPodcast = (id: string) => request<Podcast>('POST', `/podcasts/${seg(id)}/refresh`)
 /** Follows a show; `oldestFirst` sets the order it's heard in (left out, it stays as it was). */
-export const subscribePodcast = (id: string, changes: { oldestFirst?: boolean } = {}) => request<Podcast>('PUT', `/podcasts/${id}/subscription`, changes)
-export const unsubscribePodcast = (id: string) => request<void>('DELETE', `/podcasts/${id}/subscription`)
+export const subscribePodcast = (id: string, changes: { oldestFirst?: boolean } = {}) => request<Podcast>('PUT', `/podcasts/${seg(id)}/subscription`, changes)
+export const unsubscribePodcast = (id: string) => request<void>('DELETE', `/podcasts/${seg(id)}/subscription`)
 
 export function getPodcastEpisodes(
   id: string,
@@ -954,24 +974,24 @@ export function getPodcastEpisodes(
   if (options.sort === 'oldest') query.set('sort', 'oldest')
   if (options.unplayed) query.set('unplayed', 'true')
   if (options.q) query.set('q', options.q)
-  return cachedGet<Paged<PodcastEpisode>>(`/podcasts/${id}/episodes?${query}`, signal)
+  return cachedGet<Paged<PodcastEpisode>>(`/podcasts/${seg(id)}/episodes?${query}`, signal)
 }
 
-export const getPodcastEpisode = (id: string, signal?: AbortSignal) => cachedGet<PodcastEpisode>(`/podcasts/episodes/${id}`, signal)
+export const getPodcastEpisode = (id: string, signal?: AbortSignal) => cachedGet<PodcastEpisode>(`/podcasts/episodes/${seg(id)}`, signal)
 /** The episode's chapters, in order; none when it has none (or the server is from before chapters). */
 export const getPodcastChapters = (id: string, signal?: AbortSignal) =>
-  cachedGet<PodcastChapter[]>(`/podcasts/episodes/${id}/chapters`, signal).catch((e: unknown) => {
+  cachedGet<PodcastChapter[]>(`/podcasts/episodes/${seg(id)}/chapters`, signal).catch((e: unknown) => {
     if (e instanceof ApiError && e.status === 404) return []
     throw e
   })
 /** What auto-play goes on to after an episode: the show's next, else the newest unplayed of the shows followed. */
-export const getNextEpisode = (id: string) => apiGet<PodcastEpisode | undefined>(`/podcasts/episodes/${id}/next`)
+export const getNextEpisode = (id: string) => apiGet<PodcastEpisode | undefined>(`/podcasts/episodes/${seg(id)}/next`)
 /** Up Next: the podcast episodes to hear after this one, the same on every device. */
 export const getUpNext = (signal?: AbortSignal) => cachedGet<PodcastEpisode[]>('/podcasts/queue', signal)
 /** Puts an episode in Up Next: first (`next`), or after the rest. */
 export const addToUpNext = (episodeId: string, next = false) => request<PodcastEpisode[]>('POST', '/podcasts/queue', { episodeId, next })
 export const reorderUpNext = (episodeIds: string[]) => request<PodcastEpisode[]>('PUT', '/podcasts/queue', { episodeIds })
-export const removeFromUpNext = (episodeId: string) => request<void>('DELETE', `/podcasts/queue/${episodeId}`)
+export const removeFromUpNext = (episodeId: string) => request<void>('DELETE', `/podcasts/queue/${seg(episodeId)}`)
 export const getPodcastPreferences = (signal?: AbortSignal) => cachedGet<PodcastPreferences>('/podcasts/preferences', signal)
 export const savePodcastPreferences = (changes: Partial<PodcastPreferences>) => request<PodcastPreferences>('PUT', '/podcasts/preferences', changes)
 export const getNewEpisodes = (signal?: AbortSignal, unplayed = false) =>
@@ -994,33 +1014,33 @@ export const setPlaybackPreferences = (preferences: PlaybackPreferences) => requ
  * row, so that's left out (a PUT without it leaves it as it is) rather than put back as it was when playback started.
  */
 export const savePlayerPreferences = (preferences: PlaybackPreferences) => setPlaybackPreferences({ ...preferences, listeningInContinue: undefined })
-export const setSubtitleDelay = (itemId: string, seconds: number) => request<void>('PUT', `/items/${itemId}/subtitle-delay`, { seconds })
+export const setSubtitleDelay = (itemId: string, seconds: number) => request<void>('PUT', `/items/${seg(itemId)}/subtitle-delay`, { seconds })
 /** Moves the file's sound to match its picture, for the household. */
-export const setAudioDelay = (itemId: string, seconds: number) => request<void>('PUT', `/items/${itemId}/audio-delay`, { seconds })
+export const setAudioDelay = (itemId: string, seconds: number) => request<void>('PUT', `/items/${seg(itemId)}/audio-delay`, { seconds })
 /** The speed to watch an episode's show at from now on (1 forgets it); a film's isn't kept. */
-export const setPlaybackSpeed = (itemId: string, speed: number) => request<void>('PUT', `/items/${itemId}/playback-speed`, { speed })
+export const setPlaybackSpeed = (itemId: string, speed: number) => request<void>('PUT', `/items/${seg(itemId)}/playback-speed`, { speed })
 /** The subtitles the viewer picked in the player (a track's key, or null for off), remembered for the title and its show. */
-export const setSubtitleChoice = (sessionId: string, key: string | null) => request<void>('PUT', `/playback/${sessionId}/subtitle`, { key: key ?? 'off' })
+export const setSubtitleChoice = (sessionId: string, key: string | null) => request<void>('PUT', `/playback/${seg(sessionId)}/subtitle`, { key: key ?? 'off' })
 /** Whether Bazarr is set up for finding subtitles. */
 export const getSubtitleSearchStatus = (signal?: AbortSignal) => apiGet<{ configured: boolean; reachable: boolean }>('/subtitles/status', signal)
 /** Asks Bazarr's providers for subtitles to a title's file (the one playback would choose, without `fileId`). Slow: often 10–60 seconds. */
 export const searchSubtitles = (itemId: string, fileId?: string, signal?: AbortSignal) =>
-  apiGet<{ results: SubtitleResult[] }>(`/items/${itemId}/subtitles/search${fileId ? `?fileId=${fileId}` : ''}`, signal)
+  apiGet<{ results: SubtitleResult[] }>(`/items/${seg(itemId)}/subtitles/search${fileId ? `?fileId=${encodeURIComponent(fileId)}` : ''}`, signal)
 /** Downloads a search result (or, without one, the best match) beside the file; `key` is its track in a new playback session. */
 export const downloadSubtitles = (itemId: string, result: string | undefined, fileId?: string) =>
-  request<{ key: string; label: string }>('POST', `/items/${itemId}/subtitles/download`, { result, fileId })
+  request<{ key: string; label: string }>('POST', `/items/${seg(itemId)}/subtitles/download`, { result, fileId })
 /** Starts re-syncing a subtitle file beside the video to its audio, in the background. */
-export const startSubtitleSync = (itemId: string, key: string, fileId?: string) => request<void>('POST', `/items/${itemId}/subtitles/sync`, { key, fileId })
+export const startSubtitleSync = (itemId: string, key: string, fileId?: string) => request<void>('POST', `/items/${seg(itemId)}/subtitles/sync`, { key, fileId })
 export const getSubtitleSync = (itemId: string, fileId?: string, signal?: AbortSignal) =>
-  apiGet<SubtitleSync>(`/items/${itemId}/subtitles/sync${fileId ? `?fileId=${fileId}` : ''}`, signal)
+  apiGet<SubtitleSync>(`/items/${seg(itemId)}/subtitles/sync${fileId ? `?fileId=${encodeURIComponent(fileId)}` : ''}`, signal)
 export const reportProgress = (sessionId: string, positionSeconds: number, paused: boolean, ended = false) =>
-  request<void>('POST', `/playback/${sessionId}/progress`, { positionSeconds, paused, ended })
+  request<void>('POST', `/playback/${seg(sessionId)}/progress`, { positionSeconds, paused, ended })
 
 /** Fire-and-forget progress for page unloads, when fetch may be cancelled. */
 export function beaconProgress(sessionId: string, positionSeconds: number) {
   clearApiCache()
   const body = new Blob([JSON.stringify({ positionSeconds, paused: true })], { type: 'application/json' })
-  navigator.sendBeacon?.(`/api/v1/playback/${sessionId}/progress`, body)
+  navigator.sendBeacon?.(`/api/v1/playback/${seg(sessionId)}/progress`, body)
 }
 
 /**
@@ -1039,12 +1059,12 @@ export async function prepareStream(body: PlaybackRequest): Promise<PlaybackInfo
 
 /** Lets a stream got ready ahead of Play go (best effort, and it outlives the page), leaving the cache alone. */
 export function dropStream(sessionId: string) {
-  return fetch(`/api/v1/playback/${sessionId}`, { method: 'DELETE', headers: authHeaders(), keepalive: true }).catch(() => undefined)
+  return fetch(`/api/v1/playback/${seg(sessionId)}`, { method: 'DELETE', headers: authHeaders(), keepalive: true }).catch(() => undefined)
 }
 
 export function stopPlayback(sessionId: string) {
   clearApiCache()
-  return fetch(`/api/v1/playback/${sessionId}`, { method: 'DELETE', keepalive: true }).catch(() => undefined)
+  return fetch(`/api/v1/playback/${seg(sessionId)}`, { method: 'DELETE', keepalive: true }).catch(() => undefined)
 }
 
 export const getSettings = (signal?: AbortSignal) => cachedGet<Settings>('/settings', signal)
@@ -1207,11 +1227,11 @@ export const exportSettings = (confirmation: KeyConfirmation, passphrase?: strin
 export const restoreBackup = (name: string, confirmation: KeyConfirmation) =>
   request<void>('POST', `/backups/${encodeURIComponent(name)}/restore`, confirmation)
 export const uploadBackupFile = (file: Blob) => request<BackupUpload>('POST', '/backups/uploads', file.type ? file : new Blob([file], { type: 'application/octet-stream' }))
-export const openBackupFile = (id: string, passphrase: string) => request<BackupUpload>('POST', `/backups/uploads/${id}/open`, { passphrase })
-export const restoreBackupFile = (id: string, confirmation: KeyConfirmation) => request<void>('POST', `/backups/uploads/${id}/restore`, confirmation)
+export const openBackupFile = (id: string, passphrase: string) => request<BackupUpload>('POST', `/backups/uploads/${seg(id)}/open`, { passphrase })
+export const restoreBackupFile = (id: string, confirmation: KeyConfirmation) => request<void>('POST', `/backups/uploads/${seg(id)}/restore`, confirmation)
 export const importSettingsFile = (id: string, choice: { sections: string[]; libraries: { name: string; folders: string[] }[] } & KeyConfirmation) =>
-  request<SettingsImportResult>('POST', `/backups/uploads/${id}/import`, choice)
-export const forgetBackupFile = (id: string) => request<void>('DELETE', `/backups/uploads/${id}`)
+  request<SettingsImportResult>('POST', `/backups/uploads/${seg(id)}/import`, choice)
+export const forgetBackupFile = (id: string) => request<void>('DELETE', `/backups/uploads/${seg(id)}`)
 
 // ---------- Updates
 
@@ -1339,7 +1359,7 @@ export interface HeldFolder {
  * refused if a scan has found something different since.
  */
 export const confirmHeldRemoval = (f: HeldFolder) =>
-  request<void>('POST', `/library-health/held/${f.folderId}/confirm`, { since: f.since, missing: f.missing, known: f.known })
+  request<void>('POST', `/library-health/held/${seg(f.folderId)}/confirm`, { since: f.since, missing: f.missing, known: f.known })
 
 export const getLibraryHealth = (signal?: AbortSignal) => apiGet<LibraryHealth>('/library-health', signal)
 
@@ -1356,11 +1376,11 @@ export const startHealthCheck = () => request<void>('POST', '/library-health/che
 
 /** Deletes a title's spare copies from disk, keeping the best and the one Sonarr/Radarr use. */
 /** Deletes one chosen copy (never the one Sonarr/Radarr use, or a title's last copy). */
-export const deleteCopy = (fileId: string) => request<{ removed: number; freedBytes: number }>('DELETE', `/library-health/files/${fileId}`)
+export const deleteCopy = (fileId: string) => request<{ removed: number; freedBytes: number }>('DELETE', `/library-health/files/${seg(fileId)}`)
 
 export const removeDuplicates = (itemId: string) =>
-  request<{ removed: number; freedBytes: number; skipped: { path: string; reason: string }[] }>('POST', `/items/${itemId}/remove-duplicates`)
-export const searchAgain = (id: string) => request<void>('POST', `/items/${id}/search-again`)
+  request<{ removed: number; freedBytes: number; skipped: { path: string; reason: string }[] }>('POST', `/items/${seg(itemId)}/remove-duplicates`)
+export const searchAgain = (id: string) => request<void>('POST', `/items/${seg(id)}/search-again`)
 
 /** A show (TVDB id) or film (TMDB id) a library item could be, from Sonarr's or Radarr's search. */
 export interface MatchCandidate {
@@ -1380,14 +1400,14 @@ export interface MatchCandidate {
 }
 
 export const searchMatches = (itemId: string, q: string, signal?: AbortSignal) =>
-  apiGet<MatchCandidate[]>(`/items/${itemId}/match?q=${encodeURIComponent(q)}`, signal)
+  apiGet<MatchCandidate[]>(`/items/${seg(itemId)}/match?q=${encodeURIComponent(q)}`, signal)
 
 /** Matches the item to a show or film for good, adding it to Sonarr or Radarr (unmonitored, no search) if they don't have it. */
 export const fixMatch = (itemId: string, id: number) =>
-  request<{ instance: string; added: boolean; complete: boolean }>('POST', `/items/${itemId}/match`, { id })
+  request<{ instance: string; added: boolean; complete: boolean }>('POST', `/items/${seg(itemId)}/match`, { id })
 
 /** Back to automatic matching. */
-export const resetMatch = (itemId: string) => request<void>('DELETE', `/items/${itemId}/match`)
+export const resetMatch = (itemId: string) => request<void>('DELETE', `/items/${seg(itemId)}/match`)
 /** A film's or show's details as edited by hand. Blank fields clear; a blank sort title is worked out from the title. */
 export interface DetailsEdit {
   title: string
@@ -1408,10 +1428,10 @@ export interface AlbumEdit {
   locked: boolean
 }
 
-export const editDetails = (itemId: string, edit: DetailsEdit) => request<void>('PUT', `/items/${itemId}/details`, edit)
-export const editAlbum = (itemId: string, edit: AlbumEdit) => request<void>('PUT', `/items/${itemId}/album-details`, edit)
+export const editDetails = (itemId: string, edit: DetailsEdit) => request<void>('PUT', `/items/${seg(itemId)}/details`, edit)
+export const editAlbum = (itemId: string, edit: AlbumEdit) => request<void>('PUT', `/items/${seg(itemId)}/album-details`, edit)
 /** Back to automatic: the details come from the sources again. */
-export const resetDetails = (itemId: string) => request<void>('DELETE', `/items/${itemId}/details`)
+export const resetDetails = (itemId: string) => request<void>('DELETE', `/items/${seg(itemId)}/details`)
 
 /** An album or artist a library one could be (Fix match): one Lidarr has, or Deezer's. */
 export interface MusicMatch {
@@ -1435,18 +1455,18 @@ export interface MusicMatch {
 }
 
 export const searchMusicMatches = (itemId: string, q: string | undefined, signal?: AbortSignal) =>
-  apiGet<MusicMatch[]>(`/items/${itemId}/music-match${queryString({ q })}`, signal)
+  apiGet<MusicMatch[]>(`/items/${seg(itemId)}/music-match${queryString({ q })}`, signal)
 /** Cover: undefined for the match's own, 'current' to keep the one there, or a result's coverValue. */
 export const fixMusicMatch = (itemId: string, match: { provider: string; id: string; instance?: string | null; cover?: string | null }) =>
-  request<void>('POST', `/items/${itemId}/music-match`, match)
-export const resetMusicMatch = (itemId: string) => request<void>('DELETE', `/items/${itemId}/music-match`)
+  request<void>('POST', `/items/${seg(itemId)}/music-match`, match)
+export const resetMusicMatch = (itemId: string) => request<void>('DELETE', `/items/${seg(itemId)}/music-match`)
 
 /** Merge (Library health): everything of the others moves to the one kept, and they go. Files are left alone. */
 export const mergeArtists = (keep: string, merge: string[]) => request<void>('POST', '/library-health/merge-artists', { keep, merge })
 export const mergeAlbums = (keep: string, merge: string[]) => request<void>('POST', '/library-health/merge-albums', { keep, merge })
 
 /** Keeps the match a title search found (Library health's Ignore): refreshes leave it as it is. */
-export const keepMatch = (itemId: string) => request<void>('POST', `/items/${itemId}/match/keep`)
+export const keepMatch = (itemId: string) => request<void>('POST', `/items/${seg(itemId)}/match/keep`)
 
 export interface ExternalTitle {
   tmdbId: number
@@ -1573,7 +1593,7 @@ export interface ShowMissing {
 /** A show's gaps; null from a server too old to say. */
 export async function getShowMissing(id: string, signal?: AbortSignal): Promise<ShowMissing | null> {
   try {
-    return await apiGet<ShowMissing>(`/items/${id}/missing`, signal)
+    return await apiGet<ShowMissing>(`/items/${seg(id)}/missing`, signal)
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) return null
     throw e
@@ -1582,7 +1602,7 @@ export async function getShowMissing(id: string, signal?: AbortSignal): Promise<
 
 /** Asks Sonarr to look for a season's missing episodes (all of them, or just `episodeNumbers`). Main profile. */
 export const searchMissing = (id: string, seasonNumber: number, episodeNumbers?: number[]) =>
-  request<void>('POST', `/items/${id}/missing/search`, { seasonNumber, episodeNumbers })
+  request<void>('POST', `/items/${seg(id)}/missing/search`, { seasonNumber, episodeNumbers })
 
 /** A book of a series the library doesn't have, as Audible lists it. */
 export interface MissingBook {
@@ -1597,7 +1617,7 @@ export interface MissingBook {
 /** A series' books that the library lacks; null from a server too old to say. */
 export async function getBookSeriesMissing(id: string, signal?: AbortSignal): Promise<{ books: MissingBook[]; answered: boolean } | null> {
   try {
-    return await apiGet<{ books: MissingBook[]; answered: boolean }>(`/book-series/${id}/missing`, signal)
+    return await apiGet<{ books: MissingBook[]; answered: boolean }>(`/book-series/${seg(id)}/missing`, signal)
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) return null
     throw e
@@ -1704,12 +1724,12 @@ export const getMusicRequestStatus = async (signal?: AbortSignal) => {
 }
 export const getMusicDiscover = (signal?: AbortSignal) => apiGet<{ rows: MusicRow[]; genres: MusicGenre[] }>('/requests/music/discover', signal)
 export const getMusicGenre = (id: number | string, signal?: AbortSignal) =>
-  apiGet<{ id: number; name: string; artists: MusicExternal[] }>(`/requests/music/genres/${id}`, signal)
+  apiGet<{ id: number; name: string; artists: MusicExternal[] }>(`/requests/music/genres/${seg(id)}`, signal)
 export const searchMusic = (query: string, signal?: AbortSignal) =>
   apiGet<{ artists: MusicExternal[]; albums: MusicExternal[] }>(`/requests/music/search?q=${encodeURIComponent(query)}`, signal)
-export const getMusicArtist = (deezerId: number | string, signal?: AbortSignal) => apiGet<MusicArtistDetail>(`/requests/music/artist/${deezerId}`, signal)
-export const getMusicAlbum = (deezerId: number | string, signal?: AbortSignal) => apiGet<MusicAlbumDetail>(`/requests/music/album/${deezerId}`, signal)
-export const getMusicArtistExtras = (artistId: string, signal?: AbortSignal) => apiGet<MusicArtistExtras>(`/requests/music/library-artist/${artistId}`, signal)
+export const getMusicArtist = (deezerId: number | string, signal?: AbortSignal) => apiGet<MusicArtistDetail>(`/requests/music/artist/${seg(deezerId)}`, signal)
+export const getMusicAlbum = (deezerId: number | string, signal?: AbortSignal) => apiGet<MusicAlbumDetail>(`/requests/music/album/${seg(deezerId)}`, signal)
+export const getMusicArtistExtras = (artistId: string, signal?: AbortSignal) => apiGet<MusicArtistExtras>(`/requests/music/library-artist/${seg(artistId)}`, signal)
 export const requestMusic = (body: MusicRequest) => request<void>('POST', '/requests/music', body)
 
 /** Takes back a follow (an artist: artistId, deezerId or musicBrainzId) or a request (an album: musicBrainzId or deezerId). For the household. */
@@ -1744,7 +1764,7 @@ export const getMusicRequestStatusNow = (signal?: AbortSignal) => apiGet<{ confi
 export const getMusicDestinations = (signal?: AbortSignal) =>
   apiGet<{ id: string; name: string; isDefault: boolean }[]>('/requests/music/destinations', signal)
 export const setRequestMusicLibrary = (profileId: string, libraryId: string | null) =>
-  request<Profile>('PUT', `/profiles/${profileId}/request-music-library`, { libraryId })
+  request<Profile>('PUT', `/profiles/${seg(profileId)}/request-music-library`, { libraryId })
 
 /** A film or show you don't have, with what Seerr knows about it. */
 export interface ExternalDetail {
@@ -1781,7 +1801,7 @@ export interface ExternalDetail {
 }
 
 export const getExternalTitle = (mediaType: string, tmdbId: string, signal?: AbortSignal) =>
-  apiGet<ExternalDetail>(`/requests/title/${mediaType}/${tmdbId}`, signal)
+  apiGet<ExternalDetail>(`/requests/title/${seg(mediaType)}/${seg(tmdbId)}`, signal)
 
 /** Where a title on the watchlist has got to: in the library, requested or downloading, not out yet, or none of those. */
 export type WatchlistStatus = 'Ready' | 'OnItsWay' | 'Coming' | 'NotAvailable'
@@ -1846,7 +1866,7 @@ export const addToWatchlist = async (key: WatchlistKey) => {
   return added
 }
 export const removeFromWatchlist = async (key: WatchlistKey | { id: string }) => {
-  await request<void>('DELETE', 'id' in key ? `/watchlist/${key.id}` : `/watchlist?${watchlistQuery(key)}`)
+  await request<void>('DELETE', 'id' in key ? `/watchlist/${seg(key.id)}` : `/watchlist?${watchlistQuery(key)}`)
   watchlistChanged()
 }
 
@@ -1893,7 +1913,7 @@ export const asksPin = (profile: Profile) => profile.asksPin ?? profile.hasPin
 export const asksAdminPin = (profile: Profile) => profile.asksAdminPin ?? (profile.isMain && !profile.hasPin)
 
 /** Takes a forgotten PIN off a profile with the admin PIN, from the profile picker (servers from 0.57). */
-export const forgetPin = (id: string, adminPin: string) => request<Profile>('POST', `/profiles/${id}/forgot-pin`, { adminPin })
+export const forgetPin = (id: string, adminPin: string) => request<Profile>('POST', `/profiles/${seg(id)}/forgot-pin`, { adminPin })
 
 /** Changing or removing the admin PIN takes `currentPin`, or `apiKey` if it's forgotten. */
 type ProfileChanges = { name: string; color: string; pin?: string; removePin?: boolean; hiddenLibraryIds?: string[]; currentPin?: string; apiKey?: string }
@@ -1903,31 +1923,31 @@ export type AgeLimit = { maxRatingAge: number | null; isKids: boolean }
 
 export const getProfiles = (signal?: AbortSignal) => cachedGet<Profile[]>('/profiles', signal, 5 * 60_000)
 export const createProfile = (profile: Omit<ProfileChanges, 'removePin'> & Partial<AgeLimit>) => request<Profile>('POST', '/profiles', profile)
-export const setAgeLimit = (id: string, limit: AgeLimit) => request<Profile>('PUT', `/profiles/${id}/age-limit`, limit)
+export const setAgeLimit = (id: string, limit: AgeLimit) => request<Profile>('PUT', `/profiles/${seg(id)}/age-limit`, limit)
 export const updateProfile = (id: string, profile: ProfileChanges) =>
-  request<Profile>('PUT', `/profiles/${id}`, profile)
+  request<Profile>('PUT', `/profiles/${seg(id)}`, profile)
 /** Where a profile's requests go; null is wherever Seerr adds them by default. */
 export const setRequestLibraries = (id: string, libraries: { showsLibraryId: string | null; filmsLibraryId: string | null }) =>
-  request<Profile>('PUT', `/profiles/${id}/request-libraries`, libraries)
+  request<Profile>('PUT', `/profiles/${seg(id)}/request-libraries`, libraries)
 /** Whether a profile's watchlist requests what it adds (main profile only). */
-export const setWatchlistRequests = (id: string, autoRequest: boolean) => request<Profile>('PUT', `/profiles/${id}/watchlist-requests`, { autoRequest })
+export const setWatchlistRequests = (id: string, autoRequest: boolean) => request<Profile>('PUT', `/profiles/${seg(id)}/watchlist-requests`, { autoRequest })
 /** The order of a profile's libraries in every app's menu; /libraries lists them in it. */
-export const setLibraryOrder = (id: string, order: string[]) => request<Profile>('PUT', `/profiles/${id}/library-order`, { order })
+export const setLibraryOrder = (id: string, order: string[]) => request<Profile>('PUT', `/profiles/${seg(id)}/library-order`, { order })
 /** What a profile can leave out of its menu, beside its libraries. */
 export type NavigationItem = 'watchlist' | 'collections' | 'playlists' | 'live-tv' | 'discover' | 'upcoming'
-export const setHiddenNavigation = (id: string, hidden: NavigationItem[]) => request<Profile>('PUT', `/profiles/${id}/navigation`, { hidden })
+export const setHiddenNavigation = (id: string, hidden: NavigationItem[]) => request<Profile>('PUT', `/profiles/${seg(id)}/navigation`, { hidden })
 /** Sent when a profile's menu changes here, so the sidebar (and anything else reading the profiles) loads them again. */
 export const PROFILES_CHANGED = 'flexarr:profiles-changed'
-export const deleteProfile = (id: string) => request<void>('DELETE', `/profiles/${id}`)
-export const uploadProfileImage = (id: string, image: Blob) => request<Profile>('PUT', `/profiles/${id}/image`, image)
-export const removeProfileImage = (id: string) => request<Profile>('DELETE', `/profiles/${id}/image`)
+export const deleteProfile = (id: string) => request<void>('DELETE', `/profiles/${seg(id)}`)
+export const uploadProfileImage = (id: string, image: Blob) => request<Profile>('PUT', `/profiles/${seg(id)}/image`, image)
+export const removeProfileImage = (id: string) => request<Profile>('DELETE', `/profiles/${seg(id)}/image`)
 
 /**
  * Switches to a profile (checking its PIN) and remembers it on this device. Leaving a kids profile takes the admin
  * PIN as `parentPin`; without it the server says so (an ApiError whose problem has `parentPin`).
  */
 export async function selectProfile(id: string, pin?: string, parentPin?: string) {
-  const result = await request<{ token: string; profile: Profile }>('POST', `/profiles/${id}/select`, { pin, parentPin })
+  const result = await request<{ token: string; profile: Profile }>('POST', `/profiles/${seg(id)}/select`, { pin, parentPin })
   // The main profile needs no token: it's the default, and over Tailscale its PIN signs this browser in instead (an
   // HttpOnly cookie). Its token is the same in every browser, so it isn't kept where scripts can read it.
   saveProfileToken(result.profile.isMain ? null : result.token)
@@ -2159,9 +2179,9 @@ export interface SignIn {
 export type DeviceType = 'AppleTv' | 'IPhone' | 'IPad' | 'AndroidPhone' | 'AndroidTablet' | 'AndroidTv' | 'Mac'
 
 export const getSignIns = (signal?: AbortSignal) => apiGet<SignIn[]>('/sign-ins', signal)
-export const revokeSignIn = (id: string) => request<void>('DELETE', `/sign-ins/${id}`)
-export const renameSignIn = (id: string, name: string) => request<void>('PATCH', `/sign-ins/${id}`, { name })
-export const releaseSignInKidsLock = (id: string) => request<void>('POST', `/sign-ins/${id}/release-kids-lock`, {})
+export const revokeSignIn = (id: string) => request<void>('DELETE', `/sign-ins/${seg(id)}`)
+export const renameSignIn = (id: string, name: string) => request<void>('PATCH', `/sign-ins/${seg(id)}`, { name })
+export const releaseSignInKidsLock = (id: string) => request<void>('POST', `/sign-ins/${seg(id)}/release-kids-lock`, {})
 /** Signs out every browser and TV but this one; returns how many. */
 export const signOutOthers = () => request<{ signedOut: number }>('POST', '/sign-ins/sign-out-others', {})
 

@@ -16,6 +16,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A show's page opens with **Play** in focus, not **Shuffle**. Play is there from the start and fills in the episode once it's known.
 - Pressing down from a row of buttons onto **Play** (on Browse, say) lands on Play wherever you were along the row, rather than skipping to the row of titles below. Up from far along a row comes back to a page's buttons the same way.
 
+### Security
+- On the web, a link someone sends you can no longer make your browser change anything on your server just by being opened. A link to a channel, title or playlist only ever asks for that one thing.
+
 ## 0.62.1 · 5 November 2026
 
 ### Apple TV

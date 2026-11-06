@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi, movies } from '../test/mockApi'
-import { apiGet, clearApiCache, FETCH_TIMEOUT_MS, getLibraries, liveHeartbeat, reportProgress, getLibraryGenres, getLibraryItems, keepPage, keptPage, onAdminLapsed, onLockedChange, savePlayerPreferences, setWatched } from './client'
+import { apiGet, beaconBookProgress, clearApiCache, FETCH_TIMEOUT_MS, getLibraries, liveHeartbeat, reportProgress, getLibraryGenres, getLibraryItems, keepPage, keptPage, onAdminLapsed, onLockedChange, savePlayerPreferences, setWatched, stopPlayback, watchLiveChannel } from './client'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -170,5 +170,42 @@ describe('an admin read after the PIN ran out here', () => {
       stopAsking()
       stopListening()
     }
+  })
+})
+
+describe('ids in paths', () => {
+  // What the browser would make of each address asked for.
+  const asked = (fetchMock: ReturnType<typeof mockApi>) => fetchMock.mock.calls.map(([input]) => new URL(String(input), 'http://localhost').pathname)
+
+  it('keeps an id from a crafted address inside its own request', async () => {
+    const fetchMock = mockApi({ 'POST /pairing/code/ABC123/approve': undefined, 'PUT /settings': undefined, 'DELETE /settings': undefined })
+    const crafted = '%2E%2E/%2E%2E/pairing/code/ABC123/approve?'
+    await expect(watchLiveChannel(crafted)).rejects.toMatchObject({ status: 404 })
+    beaconBookProgress('../../settings?', 10, 'web')
+    await stopPlayback('../settings#')
+
+    const paths = asked(fetchMock)
+    expect(paths).toHaveLength(3)
+    expect(paths[0]).toBe(`/api/v1/livetv/channels/${encodeURIComponent(crafted)}/watch`)
+    expect(paths[1]).toMatch(/^\/api\/v1\/items\/[^/]+\/progress$/)
+    expect(paths[2]).toMatch(/^\/api\/v1\/playback\/[^/]+$/)
+  })
+
+  it('leaves an ordinary id as it is', async () => {
+    const fetchMock = mockApi({ 'POST /items/3f2b8c1e-5d4a-4c6b-9e7f-0a1b2c3d4e5f/watched': undefined })
+    await setWatched('3f2b8c1e-5d4a-4c6b-9e7f-0a1b2c3d4e5f', true)
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual(['/api/v1/items/3f2b8c1e-5d4a-4c6b-9e7f-0a1b2c3d4e5f/watched'])
+  })
+
+  it('sends nothing for a path with a step up, a second ?, or a character browsers drop or read as a slash', async () => {
+    const fetchMock = mockApi({})
+    const strays = ['/items/../settings', '/items/%2e%2E/settings', '/items/.%2e/settings', '/items/./x', '/items/a?b=1?c=2', '/items/a#b', '/items/..\\settings', '/items/.\t./settings']
+    for (const path of strays) await expect(apiGet(path)).rejects.toMatchObject({ status: 404 })
+    await expect(setWatched('..', true)).rejects.toMatchObject({ status: 404 })
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    // A dot in a name, or one question mark, is an ordinary path.
+    await expect(apiGet('/items/a.b/x..y?q=..')).rejects.toMatchObject({ status: 404 })
+    expect(asked(fetchMock)).toEqual(['/api/v1/items/a.b/x..y'])
   })
 })
