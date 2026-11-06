@@ -52,6 +52,13 @@ struct HomeProofTests {
         func raise() { lock.withLock { raised = true } }
     }
 
+    private final class Counter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+        var count: Int { lock.withLock { value } }
+        func add() { lock.withLock { value += 1 } }
+    }
+
     @Test func homeIsAskedWhoItIsOnceAndThenSentTheSignIn() async throws {
         let (client, home, _) = client(home: Self.status)
 
@@ -127,6 +134,62 @@ struct HomeProofTests {
 
         #expect(signedIn(home).isEmpty)
         #expect(signedIn(remote).count == 1)
+    }
+
+    @Test func awayWithTheRemoteAddressNotAnsweringAnotherServerAtHomeIsStillSentNothing() async {
+        // On the remote address, which stops answering: a GET, then a write, turn to the home address, where
+        // something else answers. The same turn a GET takes when the remote address is slow.
+        let refused = Flag()
+        let (client, home, remote) = client(home: .init(status: 401, body: Data()), whoIsHome: "someone-else", hasRemote: true) { refused.raise() }
+        client.addresses.reached(client.addresses.remote!)
+
+        await #expect(throws: (any Error).self) { try await client.systemStatus() }
+        await #expect(throws: (any Error).self) { try await client.setWatched("item-1", watched: true) }
+
+        #expect(signedIn(home).isEmpty)
+        #expect(!refused.isRaised)
+        #expect(client.addresses.isAway)
+        #expect(signedIn(remote).count == 2, "each was tried at the address in use first")
+    }
+
+    @Test func awayWithTheRemoteAddressNotAnsweringTheServerAtHomeIsAskedThenUsed() async throws {
+        // Home again with Tailscale off, the app still on its remote address: home says who it is, then gets the request.
+        let (client, home, _) = client(home: Self.status, hasRemote: true)
+        client.addresses.reached(client.addresses.remote!)
+
+        _ = try await client.systemStatus()
+
+        #expect(!client.addresses.isAway)
+        #expect(StubProtocol.recorded(host: home).map { $0.url?.path } == ["/api/v1/setup", "/api/v1/system/status"])
+        #expect(signedIn(home).count == 1)
+    }
+
+    @Test func oneRequestGivingUpDoesNotTakeTheAnswerFromTheRest() async {
+        let home = URL(string: "http://192.168.1.20:8383")!
+        let addresses = ServerAddresses(home: home, remote: nil, serverId: Self.id)
+        let asked = Flag()
+        let (gate, open) = AsyncStream<Void>.makeStream()
+        // Home takes its time to say who it is; counts how often it's asked.
+        let times = Counter()
+        let ask: @Sendable (URL, String) async -> Bool = { _, id in
+            times.add()
+            asked.raise()
+            for await _ in gate { break }
+            return id == Self.id
+        }
+        let first = Task { await addresses.proveHome(by: ask) }
+        while !asked.isRaised { await Task.yield() }
+        let second = Task { await addresses.proveHome(by: ask) }
+
+        // The first to ask is cancelled while home hasn't answered: it stops waiting, and isn't told home is there.
+        first.cancel()
+        #expect(!(await first.value))
+        #expect(addresses.needsProof(home), "nothing is trusted until home has answered")
+
+        open.yield()
+        #expect(await second.value)
+        #expect(times.count == 1)
+        #expect(!addresses.needsProof(home))
     }
 
     @Test func reachableMeansThisServerAnswers() async {
