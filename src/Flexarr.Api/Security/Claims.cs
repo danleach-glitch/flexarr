@@ -63,4 +63,19 @@ public static class RequestPeer
 
     /// <summary>The Host header as it arrived, which a proxy's (or a script's) X-Forwarded-Host can't change.</summary>
     public static HostString HostOf(HttpContext http) => http.Items[HostKey] is HostString host ? host : http.Request.Host;
+
+    /// <summary>
+    /// Whether the browser reached Flexarr over HTTPS, as far as anyone says: the connection itself, a trusted proxy
+    /// (forwarded headers have made the request HTTPS by now), or <c>X-Forwarded-Proto: https</c> from a proxy that
+    /// isn't listed in <c>TrustedProxies</c>, whose headers are otherwise left alone. Only for marking cookies Secure
+    /// and sending HSTS, where a false claim costs nobody but the one making it: their own cookie stops being sent over
+    /// plain HTTP, and browsers ignore HSTS that arrives over it.
+    /// </summary>
+    public static bool SaysHttps(HttpContext http)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        // The first value is the scheme the browser used; later ones are hops between proxies.
+        return http.Request.IsHttps
+            || string.Equals(http.Request.Headers["X-Forwarded-Proto"].ToString().Split(',')[0].Trim(), "https", StringComparison.OrdinalIgnoreCase);
+    }
 }

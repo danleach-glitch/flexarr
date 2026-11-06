@@ -649,7 +649,7 @@ public static partial class ProfileEndpoints
             http.Response.Cookies.Append(BrowserCookieName, browser, new CookieOptions
             {
                 HttpOnly = true,
-                Secure = http.Request.IsHttps,
+                Secure = RequestPeer.SaysHttps(http),
                 SameSite = SameSiteMode.Strict,
                 Path = "/",
                 MaxAge = TimeSpan.FromDays(400),

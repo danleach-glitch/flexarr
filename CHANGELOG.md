@@ -27,6 +27,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - One request can no longer fill the server's memory or disk by adding the same artist to a playlist thousands of times. A playlist holds up to 10,000 tracks, a book keeps up to 1,000 bookmarks for each profile, and a collection's description and rules have a length.
 - Other accounts on the server's machine can no longer read Flexarr's database, logs or cache. The server keeps them to its own account from the next start, as it already did its settings file, and a Mac install's `~/.flexarr` folder is closed to everyone else whole.
 - With a PIN on the main profile, removing another profile signs out the TVs, phones and browsers that were on it. They used to carry on as the main profile, without being asked for its PIN; connect them again to choose who's watching. Without a PIN on the main profile, nothing changes.
+- Behind an HTTPS reverse proxy that isn't listed in `trustedProxies`, a browser's sign-in is now only ever sent over HTTPS, and the browser is told to keep to HTTPS. Before, it could cross your network unencrypted the first time that browser asked for the `http://` address.
 
 ## 0.62.1 · 5 November 2026
 

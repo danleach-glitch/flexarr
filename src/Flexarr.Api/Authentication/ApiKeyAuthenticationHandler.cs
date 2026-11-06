@@ -164,7 +164,8 @@ public sealed class ApiKeyAuthenticationHandler(
         http.Response.Cookies.Append(SessionCookieName, token, new CookieOptions
         {
             HttpOnly = true,
-            Secure = http.Request.IsHttps,
+            // Also behind an HTTPS proxy that isn't in TrustedProxies, so the cookie never crosses the network in the clear.
+            Secure = RequestPeer.SaysHttps(http),
             SameSite = SameSiteMode.Strict,
             Path = "/",
             // The browser keeps it as long as it can; the server signs out browsers left unused for six months.
