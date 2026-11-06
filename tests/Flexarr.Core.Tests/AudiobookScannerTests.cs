@@ -308,12 +308,13 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
         File.SetLastWriteTimeUtc(cover, looked.AddDays(-1));
         await ScanAsync();
         await _db.MediaItems.ExecuteUpdateAsync(u => u.SetProperty(i => i.MetadataUpdatedAt, looked));
+        var found = (await _db.MediaItems.AsNoTracking().SingleAsync()).ArtworkChangedAt; // when the book was given its cover
 
         // The first stamp is only recorded, and a scan with nothing changed leaves it be.
         await ScanAsync();
         var book = await _db.MediaItems.AsNoTracking().SingleAsync();
         Assert.NotNull(book.ArtworkStamp);
-        Assert.Null(book.ArtworkChangedAt);
+        Assert.Equal(found, book.ArtworkChangedAt);
         Assert.Equal(looked, book.MetadataUpdatedAt);
 
         // A Finder copy keeps the file's own, older date.
@@ -322,6 +323,7 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
         await ScanAsync();
         book = await _db.MediaItems.AsNoTracking().SingleAsync();
         Assert.True(book.ArtworkChangedAt > looked);
+        Assert.True(found is null || book.ArtworkChangedAt > found);
         Assert.Equal(looked, book.MetadataUpdatedAt);
     }
 
@@ -331,6 +333,8 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
         Touch("A/One/01.mp3", "A/One/cover.jpg", "B/Two/01.mp3", "B/Two/cover.jpg");
         await ScanAsync();
         await ScanAsync();
+        // When each book was given its cover.
+        var found = await _db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Audiobook).ToDictionaryAsync(i => i.Title, i => i.ArtworkChangedAt);
 
         File.WriteAllText(Path.Combine(Books, "A/One/cover.jpg"), "a new picture");
         File.WriteAllText(Path.Combine(Books, "B/Two/cover.jpg"), "another new picture");
@@ -338,10 +342,13 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
 
         var books = await _db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Audiobook).ToDictionaryAsync(i => i.Title);
         Assert.NotNull(books["One"].ArtworkChangedAt);
-        Assert.Null(books["Two"].ArtworkChangedAt); // noticed at the next full scan
+        Assert.NotEqual(found["One"], books["One"].ArtworkChangedAt);
+        Assert.Equal(found["Two"], books["Two"].ArtworkChangedAt); // noticed at the next full scan
 
         await ScanAsync();
-        Assert.NotNull((await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Title == "Two")).ArtworkChangedAt);
+        var two = (await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Title == "Two")).ArtworkChangedAt;
+        Assert.NotNull(two);
+        Assert.NotEqual(found["Two"], two);
     }
 
     [Fact]
@@ -364,7 +371,9 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
         Touch("A/Book/01.m4b");
         _probe.CoverArt = true;
         await ScanAsync();
-        Assert.Null((await _db.MediaItems.AsNoTracking().SingleAsync()).ArtworkChangedAt);
+        var found = (await _db.MediaItems.AsNoTracking().SingleAsync()).ArtworkChangedAt; // when the book was given its cover
+        await ScanAsync();
+        Assert.Equal(found, (await _db.MediaItems.AsNoTracking().SingleAsync()).ArtworkChangedAt);
 
         var file = Path.Combine(Books, "A/Book/01.m4b");
         File.WriteAllText(file, "retagged");
@@ -374,6 +383,7 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
         var book = await _db.MediaItems.AsNoTracking().SingleAsync();
         Assert.StartsWith("embedded://", book.PosterUrl, StringComparison.Ordinal);
         Assert.NotNull(book.ArtworkChangedAt);
+        Assert.NotEqual(found, book.ArtworkChangedAt);
     }
 
     [Fact]

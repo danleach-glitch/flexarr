@@ -501,7 +501,8 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         try
         {
             var rated = Rate();
-            if (rated.Count == 0)
+            var redrawn = Redraw(out var redrawnAt);
+            if (rated.Count == 0 && redrawn.Count == 0)
             {
                 return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
             }
@@ -512,7 +513,16 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             await using (own)
             {
                 var saved = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
-                await PassDownRatingsAsync(rated, CancellationToken.None);
+                if (rated.Count > 0)
+                {
+                    await PassDownRatingsAsync(rated, CancellationToken.None);
+                }
+
+                if (redrawn.Count > 0)
+                {
+                    await PassDownArtworkChangeAsync(redrawn, redrawnAt, CancellationToken.None);
+                }
+
                 if (own is not null)
                 {
                     await own.CommitAsync(CancellationToken.None);
@@ -529,6 +539,69 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             {
                 CatalogVersion.Bump();
             }
+        }
+    }
+
+    /// <summary>
+    /// Keeps <see cref="MediaItem.ArtworkChangedAt"/>, which artwork addresses carry, to when a title's artwork last
+    /// changed: now for one whose poster, backdrop, logo or thumb is being pointed somewhere else, and for one that has
+    /// none yet, when it's looked up (<see cref="MediaItem.MetadataUpdatedAt"/>), that once. Looking a title up again
+    /// and finding the same artwork leaves it alone, so the weekly refresh doesn't give every picture in the library a
+    /// new address for apps and browsers to fetch afresh. Returns the saved titles whose artwork changed, so the
+    /// seasons, episodes and tracks that borrow it can be told once saved.
+    /// </summary>
+    private List<Guid> Redraw(out DateTime now)
+    {
+        now = DateTime.UtcNow;
+        var redrawn = new List<Guid>();
+        foreach (var entry in ChangeTracker.Entries<MediaItem>())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified))
+            {
+                continue;
+            }
+
+            // Set through the entry, which marks it changed without looking for changes all over again.
+            var changedAt = entry.Property(i => i.ArtworkChangedAt);
+            var modified = entry.State == EntityState.Modified;
+            // Moved under another parent, the artwork it borrows is another's.
+            var pictures = modified && (entry.Property(i => i.PosterUrl).IsModified || entry.Property(i => i.BackdropUrl).IsModified
+                || entry.Property(i => i.LogoUrl).IsModified || entry.Property(i => i.ThumbUrl).IsModified || entry.Property(i => i.ParentId).IsModified);
+            if (pictures && !changedAt.IsModified)
+            {
+                changedAt.CurrentValue = now;
+            }
+            else if (changedAt.CurrentValue is null && entry.Entity.MetadataUpdatedAt is { } lookedUp
+                && (!modified || entry.Property(i => i.MetadataUpdatedAt).IsModified))
+            {
+                // Its first: what its addresses carried anyway (see ArtworkUrls.Version), and now stay at.
+                changedAt.CurrentValue = lookedUp;
+                continue;
+            }
+
+            if (modified && changedAt.IsModified)
+            {
+                redrawn.Add(entry.Entity.Id);
+            }
+        }
+
+        return redrawn;
+    }
+
+    /// <summary>
+    /// Gives the children and grandchildren of <paramref name="ids"/> (seasons and episodes, albums and tracks, a
+    /// podcast's episodes) their <see cref="MediaItem.ArtworkChangedAt"/>: where they have no artwork of their own
+    /// they're shown with these titles', at an address of their own.
+    /// </summary>
+    private async Task PassDownArtworkChangeAsync(IReadOnlyCollection<Guid> ids, DateTime changedAt, CancellationToken ct)
+    {
+        var items = MediaItems.IgnoreQueryFilters();
+        foreach (var chunk in ids.Chunk(IdsPerStatement))
+        {
+            await items.Where(i => i.ParentId != null && chunk.Contains(i.ParentId.Value))
+                .ExecuteUpdateAsync(u => u.SetProperty(i => i.ArtworkChangedAt, changedAt), ct);
+            await items.Where(i => i.Parent!.ParentId != null && chunk.Contains(i.Parent.ParentId.Value))
+                .ExecuteUpdateAsync(u => u.SetProperty(i => i.ArtworkChangedAt, changedAt), ct);
         }
     }
 

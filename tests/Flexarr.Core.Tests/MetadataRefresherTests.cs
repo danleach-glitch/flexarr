@@ -199,6 +199,44 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
         Assert.Equal(("file:///data/person-images/anyone.jpg", "upload", true), (anyone.ImageUrl, anyone.PhotoSource, anyone.InfoLocked));
     }
 
+    [Fact]
+    public async Task LookingAFilmUpAgain_OnlyMovesItsArtworkOn_WhenTheArtworkChanged()
+    {
+        const string Radarrs = """[{"id":1,"title":"Dune","year":2021,"path":"/movies/Dune","images":[{"coverType":"poster","remoteUrl":"https://image.test/POSTER.jpg"}]}]""";
+        var lastMonth = DateTime.UtcNow.AddDays(-30);
+        await AddMovieAsync("Dune", lastMonth, poster: "https://image.test/dune.jpg", arrId: 1);
+        await _db.MediaItems.ExecuteUpdateAsync(u => u.SetProperty(i => i.ArtworkChangedAt, (DateTime?)null)); // as an earlier version left it
+        _db.ChangeTracker.Clear();
+        _radarr.Responses["/api/v3/movie"] = Radarrs.Replace("POSTER", "dune", StringComparison.Ordinal);
+        _radarr.DropArtwork = true;
+        async Task<MediaItem> RefreshedAsync()
+        {
+            Assert.Equal(1, (await Refresher().RefreshLibraryAsync(_library, force: false, default)).FromArr);
+            _db.ChangeTracker.Clear();
+            return await _db.MediaItems.AsNoTracking().SingleAsync();
+        }
+
+        // From before artwork had a time of its own: it's given one the first time the film is looked up.
+        var first = await RefreshedAsync();
+        Assert.True(first.MetadataUpdatedAt > DateTime.UtcNow.AddMinutes(-1));
+        Assert.Equal(first.MetadataUpdatedAt, first.ArtworkChangedAt);
+
+        // A week on (a month, here), looked up again and the same poster found: looked up now, the artwork as it was.
+        var lastWeek = DateTime.UtcNow.AddDays(-8);
+        await _db.MediaItems.ExecuteUpdateAsync(u => u.SetProperty(i => i.MetadataUpdatedAt, lastWeek).SetProperty(i => i.ArtworkChangedAt, lastWeek));
+        var again = await RefreshedAsync();
+        Assert.Equal("https://image.test/dune.jpg", again.PosterUrl);
+        Assert.True(again.MetadataUpdatedAt > DateTime.UtcNow.AddMinutes(-1));
+        Assert.Equal(lastWeek, again.ArtworkChangedAt);
+
+        // And when Radarr has a new poster for it, the artwork is as new as the look-up.
+        await _db.MediaItems.ExecuteUpdateAsync(u => u.SetProperty(i => i.MetadataUpdatedAt, lastWeek));
+        _radarr.Responses["/api/v3/movie"] = Radarrs.Replace("POSTER", "dune-part-two", StringComparison.Ordinal);
+        var redrawn = await RefreshedAsync();
+        Assert.Equal("https://image.test/dune-part-two.jpg", redrawn.PosterUrl);
+        Assert.True(redrawn.ArtworkChangedAt > DateTime.UtcNow.AddMinutes(-1));
+    }
+
     private async Task AddMovieAsync(string title, DateTime? updatedAt, string? poster, int? arrId = null, string? tmdbId = null)
     {
         _db.MediaItems.Add(new MediaItem

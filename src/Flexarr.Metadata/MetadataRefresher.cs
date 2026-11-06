@@ -1519,7 +1519,7 @@ public sealed partial class MetadataRefresher(
                 video.ThumbUrl = ArtworkUrl.Frame(file.Path, Math.Min(60, (file.DurationSeconds ?? 0) / 10));
             }
 
-            video.MetadataUpdatedAt = DateTime.UtcNow; // the still's ?v=, so a new one isn't hidden by a cached old one
+            video.MetadataUpdatedAt = DateTime.UtcNow;
         }
 
         foreach (var season in seasons)
@@ -1531,6 +1531,16 @@ public sealed partial class MetadataRefresher(
         if (series.PosterUrl is null && seasons.Select(s => s.PosterUrl).FirstOrDefault(p => p is not null) is { } first)
         {
             await SetArtworkAsync(series, first, series.BackdropUrl ?? first, series.LogoUrl, ct).ConfigureAwait(false);
+        }
+
+        // A still's address is its video's path, the same when the video is replaced: its ?v= moves on at every refresh
+        // (as every picture's used to), so a new still isn't hidden by a cached old one.
+        foreach (var shown in videos.Concat(seasons).Append(series))
+        {
+            if (new[] { shown.PosterUrl, shown.BackdropUrl, shown.ThumbUrl }.Any(url => ArtworkUrl.TryParseFrame(url, out _, out _)))
+            {
+                shown.ArtworkChangedAt = DateTime.UtcNow;
+            }
         }
     }
 
