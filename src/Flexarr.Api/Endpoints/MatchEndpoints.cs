@@ -8,6 +8,7 @@ using Flexarr.Core.Paths;
 using Flexarr.Integrations.Arr;
 using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Flexarr.Api.Localization;
 
@@ -38,10 +39,18 @@ public static partial class MatchEndpoints
 {
     private static readonly TimeSpan ArrReadTimeout = TimeSpan.FromSeconds(20);
 
+    /// <summary>
+    /// How long a search keeps the list of what Sonarr or Radarr manage (their whole catalogue, fetched only to mark
+    /// which results they have): the searches of one visit to the dialog. The choice itself always asks afresh.
+    /// </summary>
+    private static readonly TimeSpan ManagedFor = TimeSpan.FromMinutes(2);
+
+    private static string ManagedKey(ArrKind kind, List<ArrInstance> instances) => $"match-managed:{kind}:{string.Join('|', instances.Select(i => i.BaseUrl))}";
+
     public static RouteGroupBuilder MapMatchEndpoints(this RouteGroupBuilder api)
     {
         api.MapGet("/items/{id:guid}/match", async (Guid id, string? q, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, ArrClient arr,
-            TmdbClient tmdb, TvMazeClient tvmaze, CancellationToken ct) =>
+            TmdbClient tmdb, TvMazeClient tvmaze, IMemoryCache cache, CancellationToken ct) =>
         {
             var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series), ct);
             if (item is null)
@@ -60,7 +69,12 @@ public static partial class MatchEndpoints
 
             try
             {
-                var managed = await ManagedAsync(arr, instances, config.PathMappings, ct);
+                // Typing in the dialog searches again and again; the catalogue is fetched for the first of them.
+                var managed = (await cache.GetOrCreateAsync(ManagedKey(kind, instances), entry =>
+                {
+                    entry.AbsoluteExpirationRelativeToNow = ManagedFor;
+                    return ManagedAsync(arr, instances, config.PathMappings, ct);
+                }))!;
                 var current = item.Kind == MediaKind.Movie ? item.TmdbId : item.TvdbId;
                 var results = item.Kind == MediaKind.Movie
                     ? (await arr.LookupMoviesAsync(instances[0], term, ct)).Where(m => m.TmdbId > 0)
@@ -82,7 +96,7 @@ public static partial class MatchEndpoints
         }).WithTags("Match").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
         api.MapPost("/items/{id:guid}/match", async (Guid id, FixMatchRequest request, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, ArrClient arr,
-            MetadataRefresher refresher, ILoggerFactory logs, CancellationToken ct) =>
+            MetadataRefresher refresher, ILoggerFactory logs, IMemoryCache cache, CancellationToken ct) =>
         {
             var item = await db.MediaItems.Include(i => i.Genres).Include(i => i.Credits)
                 .FirstOrDefaultAsync(i => i.Id == id && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series), ct);
@@ -167,6 +181,8 @@ public static partial class MatchEndpoints
                     }
 
                     added = true;
+                    // The next search shows it as theirs.
+                    cache.Remove(ManagedKey(kind, instances));
                 }
             }
             catch (HttpRequestException ex) when (ex.StatusCode is System.Net.HttpStatusCode.BadRequest)
