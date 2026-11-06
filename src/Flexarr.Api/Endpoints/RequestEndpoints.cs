@@ -121,10 +121,11 @@ public static partial class RequestEndpoints
         api.MapMusicRequestEndpoints(group);
 
         // Whether requests are set up, so clients can hide the feature otherwise. To a profile with an age limit, they aren't.
-        api.MapGet("/requests/status", async (IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CancellationToken ct) =>
+        api.MapGet("/requests/status", async (IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db,
+            Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct) =>
         {
             var instance = db.IsLimited() ? null : options.CurrentValue.Seerr?.Instance;
-            return new { configured = instance is not null, reachable = instance is not null && await SafePingAsync(seerr, instance, ct) };
+            return new { configured = instance is not null, reachable = instance is not null && await SafePingAsync(seerr, instance, cache, ct) };
         }).WithTags("Requests");
 
         // The libraries this profile's requests could go to (every one, for the admin choosing for others).
@@ -547,17 +548,31 @@ public static partial class RequestEndpoints
         return map;
     }
 
-    private static async Task<bool> SafePingAsync(SeerrClient seerr, SeerrInstance instance, CancellationToken ct)
-    {
-        try
+    /// <summary>
+    /// Whether Seerr answers. Library pages, request buttons, the search palette and the apps' Discover all ask, so
+    /// the answer is remembered half a minute (for this address and key: new settings are asked about at once), and a
+    /// Seerr whose machine is off or asleep gets five seconds to say hello, not the fifteen a real question gets, and
+    /// then counts as not reachable rather than failing whoever asked.
+    /// </summary>
+    private static Task<bool> SafePingAsync(SeerrClient seerr, SeerrInstance instance, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct) =>
+        Microsoft.Extensions.Caching.Memory.CacheExtensions.GetOrCreateAsync(cache, ("seerr-ping", instance), async entry =>
         {
-            return await seerr.PingAsync(instance, ct);
-        }
-        catch (HttpRequestException)
-        {
-            return false;
-        }
-    }
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(30);
+            using var quick = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            quick.CancelAfter(TimeSpan.FromSeconds(5));
+            try
+            {
+                return await seerr.PingAsync(instance, quick.Token);
+            }
+            catch (HttpRequestException)
+            {
+                return false;
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                return false;
+            }
+        });
 }
 
 /// <summary>A title that can't be requested, and why, in words for whoever asked.</summary>

@@ -246,6 +246,50 @@ public sealed class RequestDiscoverTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task WhetherRequestsAreSetUp_IsRememberedForAWhile_NotAskedOfSeerrEveryTime()
+    {
+        _seerr.Responses["GET /api/v1/settings/main"] = "{}";
+
+        var first = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/status"));
+        var again = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/status"));
+
+        Assert.Equal((true, true), (first.GetProperty("configured").GetBoolean(), first.GetProperty("reachable").GetBoolean()));
+        Assert.Equal((true, true), (again.GetProperty("configured").GetBoolean(), again.GetProperty("reachable").GetBoolean()));
+        Assert.Equal(1, _seerr.Requests.Count(r => r == "GET /api/v1/settings/main"));
+    }
+
+    [Fact]
+    public async Task ASeerrThatRefusesOrIsntThere_IsNotReachable()
+    {
+        // No answer set up for the ping: Seerr says 404, as one with the wrong address would.
+        var status = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/status"));
+
+        Assert.Equal((true, false), (status.GetProperty("configured").GetBoolean(), status.GetProperty("reachable").GetBoolean()));
+    }
+
+    [Fact]
+    public async Task ASeerrThatDoesntAnswer_IsNotReachable_AfterFiveSeconds_AndIsntWaitedOnAgainStraightAway()
+    {
+        // Its machine is off or asleep: the connection just hangs.
+        _seerr.Before = (_, ct) => Task.Delay(Timeout.Infinite, ct);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
+        var response = await Client().GetAsync(Api("/requests/status"));
+        var waited = clock.Elapsed;
+        var status = await response.Content.ReadFromJsonAsync<JsonElement>();
+        clock.Restart();
+        var again = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/status"));
+
+        // It used to hang for the HTTP client's fifteen seconds and then fail with a server error.
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal((true, false), (status.GetProperty("configured").GetBoolean(), status.GetProperty("reachable").GetBoolean()));
+        Assert.InRange(waited, TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(12));
+        Assert.False(again.GetProperty("reachable").GetBoolean());
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(3), $"the second ask took {clock.Elapsed}");
+        Assert.Equal(1, _seerr.Requests.Count(r => r == "GET /api/v1/settings/main"));
+    }
+
     /// <summary>Every statement the server sent the database.</summary>
     private sealed class Statements : Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor
     {
