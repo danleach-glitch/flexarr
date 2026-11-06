@@ -127,29 +127,35 @@ public static class BackupArchive
     /// <returns>The file to back up: <paramref name="slim"/>, or the snapshot itself when it holds no guide.</returns>
     private static async Task<string> WithoutGuideAsync(string snapshot, string slim, DateTime now, CancellationToken ct)
     {
-        await using var db = Open(snapshot);
-        await db.OpenAsync(ct);
-        // A snapshot from before Live TV (kept before an upgrade) has no guide to look in.
-        if (await ScalarAsync<long>(db, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('LiveProgrammes', 'LiveChannels')", ct) != 2
-            || await ScalarAsync<long>(db, "SELECT EXISTS (SELECT 1 FROM LiveProgrammes)", ct) == 0)
+        await using (var db = Open(snapshot))
         {
-            return snapshot;
+            await db.OpenAsync(ct);
+            // A snapshot from before Live TV (kept before an upgrade) has no guide to look in.
+            if (await ScalarAsync<long>(db, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('LiveProgrammes', 'LiveChannels')", ct) != 2
+                || await ScalarAsync<long>(db, "SELECT EXISTS (SELECT 1 FROM LiveProgrammes)", ct) == 0)
+            {
+                return snapshot;
+            }
+
+            await using (var empty = db.CreateCommand())
+            {
+                empty.CommandText = "DELETE FROM LiveProgrammes; UPDATE LiveChannels SET UpdatedAt = $stale WHERE UpdatedAt > $stale";
+                empty.Parameters.AddWithValue("$stale", now - LiveTv.LiveTvGuideWorker.Every - TimeSpan.FromMinutes(1));
+                await empty.ExecuteNonQueryAsync(ct);
+            }
+
+            // Emptying a table leaves its pages in the file; copying once more leaves them behind. Into a file of its
+            // own beside the database, as the first copy was, rather than wherever SQLite keeps its temporary files.
+            await PrivateFiles.Create(slim).DisposeAsync();
+            await using var vacuum = db.CreateCommand();
+            vacuum.CommandText = "VACUUM INTO $path";
+            vacuum.Parameters.AddWithValue("$path", slim);
+            await vacuum.ExecuteNonQueryAsync(ct);
         }
 
-        await using (var empty = db.CreateCommand())
-        {
-            empty.CommandText = "DELETE FROM LiveProgrammes; UPDATE LiveChannels SET UpdatedAt = $stale WHERE UpdatedAt > $stale";
-            empty.Parameters.AddWithValue("$stale", now - LiveTv.LiveTvGuideWorker.Every - TimeSpan.FromMinutes(1));
-            await empty.ExecuteNonQueryAsync(ct);
-        }
-
-        // Emptying a table leaves its pages in the file; copying once more leaves them behind. Into a file of its own
-        // beside the database, as the first copy was, rather than wherever SQLite keeps its temporary files.
-        await PrivateFiles.Create(slim).DisposeAsync();
-        await using var vacuum = db.CreateCommand();
-        vacuum.CommandText = "VACUUM INTO $path";
-        vacuum.Parameters.AddWithValue("$path", slim);
-        await vacuum.ExecuteNonQueryAsync(ct);
+        // The first copy goes before the zip is written, so the two copies and the zip are never all on the drive at
+        // once: a backup needs no more room than it did.
+        File.Delete(snapshot);
         return slim;
     }
 
