@@ -39,4 +39,14 @@ class CommandPlayTest {
         assertEquals(CommandPlay.Switch to sam, commandPlays("sam", null, profiles, awaitsProfile = true))
         assertEquals(CommandPlay.AskWho to dan, commandPlays("dan", null, profiles, awaitsProfile = true))
     }
+
+    @Test
+    fun `with Who's watching up, whoever the server's list still marks isn't taken as watching`() {
+        // The app opened at "Who's watching?": the list marks whoever was here last, though nobody's been chosen. A
+        // command naming them chooses them like anyone else (their PIN asked for), rather than wait for a press here.
+        assertEquals(CommandPlay.Switch to sam, commandPlays("sam", "sam", profiles, awaitsProfile = true))
+        assertEquals(CommandPlay.AskWho to dan, commandPlays("dan", "dan", profiles, awaitsProfile = true))
+        // And one naming nobody still waits, never playing as the one marked.
+        assertEquals(CommandPlay.OnceChosen to null, commandPlays(null, "dan", profiles, awaitsProfile = true))
+    }
 }

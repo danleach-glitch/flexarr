@@ -234,9 +234,13 @@ internal enum class CommandPlay {
  * another profile switches to it, through "Who's watching?" if it has a PIN. One naming nobody, the one watching, or a
  * profile not among [profiles] plays as things are; but with nobody chosen on this device ([awaitsProfile]: "Who's
  * watching?" is up) that would be as whoever was here last, PIN or not, so it waits for someone to be chosen.
+ *
+ * With nobody chosen, nobody counts as watching: the list the server gave still marks whoever was here last as
+ * [current] (the app opened at "Who's watching?"), and a command naming them chooses them like anyone else, PIN and all.
  */
 internal fun commandPlays(profileId: String?, current: String?, profiles: List<io.github.flexarr.core.Profile>, awaitsProfile: Boolean): Pair<CommandPlay, io.github.flexarr.core.Profile?> {
-    val profile = profileId?.takeIf { it != current }?.let { id -> profiles.firstOrNull { it.id == id } }
+    val watching = current.takeUnless { awaitsProfile }
+    val profile = profileId?.takeIf { it != watching }?.let { id -> profiles.firstOrNull { it.id == id } }
         ?: return (if (awaitsProfile) CommandPlay.OnceChosen else CommandPlay.AsThingsAre) to null
     return (if (profile.takesPin) CommandPlay.AskWho else CommandPlay.Switch) to profile
 }
