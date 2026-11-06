@@ -27,6 +27,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Posters and other artwork are no longer downloaded again by every app and browser after each weekly look-up of your library: a picture keeps its address until it actually changes (a new poster, a cover you replaced), so screens of posters come from the device's own cache, which matters most away from home. Each picture is fetched once more after this update.
 - Rows and grids of titles load much faster on a server with audiobooks. Once a library held a few thousand books in series, every list (films, shows and episodes too, and each row of Home) took several times longer than it needed to.
 
+### Downloads
+- Downloading an album or a playlist no longer leaves it at **Getting ready** for three seconds a song (a minute for 20 songs, a quarter of an hour for 300). Files that are sent as they are, which is most music and any film your phone already plays, are all ready within a few seconds, even while a film is being converted for download or someone is watching.
+
 ### Search
 - Search answers sooner when what you've typed is part of someone's name ("tom", "ann"): finding the people in titles you can see took most of a second on a large library at every letter, and is now several times quicker.
 - Once you've typed enough to narrow things down, search finds episodes, albums, songs and audiobooks in one pass over your library instead of four, so results keep up with your typing on a big library or a slow server. One or two letters, and very common words, take as long as before.
