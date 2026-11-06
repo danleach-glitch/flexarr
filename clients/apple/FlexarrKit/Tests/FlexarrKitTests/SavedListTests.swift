@@ -126,6 +126,27 @@ struct SavedListTests {
         #expect(SavedList.load(Saved.self, from: url).items == [Saved(id: "a", size: 3)])
     }
 
+    @Test func whateverWasSavedLast_IsWhatsInTheFile_HoweverTheWritesFellOut() async throws {
+        let url = try emptyFile()
+        let writer = SavedList.Writer<Saved>(to: url, atMostEvery: 0.01)
+        // Ones that can wait and ones that can't, with writes landing in between (their time up, or asked for): an
+        // older list never ends up over a newer one, and the last is there once it's been asked for.
+        for size in 1...1000 {
+            writer.save([Saved(id: "a", size: size)], rightAway: size.isMultiple(of: 7))
+            if size.isMultiple(of: 100) { try await Task.sleep(for: .milliseconds(15)) }
+            if size.isMultiple(of: 250) { writer.flush() }
+        }
+        writer.flush()
+        #expect(SavedList.load(Saved.self, from: url).items == [Saved(id: "a", size: 1000)])
+        let written = writer.writes
+        #expect(written <= 1000)
+
+        // Writes still on their way for lists already written find nothing waiting, and write nothing.
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(writer.writes == written)
+        #expect(SavedList.load(Saved.self, from: url).items == [Saved(id: "a", size: 1000)])
+    }
+
     @Test func aListIsWrittenWithTheEncoderGiven_SoItsDatesReadBack() throws {
         struct Dated: Codable, Equatable, Sendable {
             let at: Date

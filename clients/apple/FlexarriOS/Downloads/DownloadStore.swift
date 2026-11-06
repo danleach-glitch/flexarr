@@ -303,9 +303,11 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         }
         monitor.start(queue: .main)
         // Leaving the front (or closing): whatever's waiting to be saved is written first, since the app can be
-        // suspended at any moment after.
+        // suspended at any moment after. Once more on reaching the background: something saved as the app was leaving
+        // the front (where a film watched offline had got to, say), after the first of these had run, would otherwise
+        // still be waiting its turn when the app is suspended, and lost if it's then closed to make room.
         #if canImport(UIKit)
-        let leaving = [UIApplication.willResignActiveNotification, UIApplication.willTerminateNotification]
+        let leaving = [UIApplication.willResignActiveNotification, UIApplication.didEnterBackgroundNotification, UIApplication.willTerminateNotification]
         #else
         let leaving = [NSApplication.didResignActiveNotification, NSApplication.willTerminateNotification]
         #endif
