@@ -11,7 +11,7 @@ import {
   type BookManifest,
   type ItemSummary,
 } from '../api/client'
-import { deviceName, fileAt, isBook, readLocalPlace, saveLocalPlace, smartRewindSeconds, startDecision, timelineAt, type StartDecision } from '../lib/books'
+import { deviceName, fileAt, isBook, localPlaceKey, readLocalPlace, saveLocalPlace, smartRewindSeconds, startDecision, timelineAt, type StartDecision } from '../lib/books'
 import { heardAsAlbum, replayGainScale } from '../lib/loudness'
 import type { MusicSettings } from '../lib/musicSettings'
 import { detectProfile } from '../lib/profile'
@@ -47,6 +47,8 @@ interface BookPlay {
   track: ItemSummary
   session: string
   manifest: BookManifest
+  /** Where this browser keeps its place in it: under the profile it was started for, whichever is chosen since. */
+  placeKey: string
   /** When it was last paused (a Date.now() time), for smart rewind; null while playing. */
   pausedAt: number | null
   /** When its place was last sent to the server, as a performance.now() time. */
@@ -236,7 +238,7 @@ export function createEngine(host: EngineHost): AudioEngine {
     const at = ended ? book.manifest.durationSeconds : bookTime()
     book.reportedAt = performance.now()
     markIfStale(book)
-    saveLocalPlace(book.track.id, ended ? 0 : at)
+    saveLocalPlace(book.track.id, ended ? 0 : at, Date.now(), book.placeKey)
     const b = book
     const direct = () => void recordBookProgress(b.track.id, at, ended, deviceName()).catch(() => undefined)
     if (b.expired) return direct()
@@ -307,7 +309,7 @@ export function createEngine(host: EngineHost): AudioEngine {
       throw new Error('Not a book this player can play')
     }
     const decision = startDecision(manifest.progress, readLocalPlace(track.id), startAt > 0 ? startAt : track.playFrom)
-    book = { track, session: info.sessionId, manifest, pausedAt: null, reportedAt: performance.now(), expired: false, heardAt: Date.now(), preloadFailed: null }
+    book = { track, session: info.sessionId, manifest, placeKey: localPlaceKey(track.id), pausedAt: null, reportedAt: performance.now(), expired: false, heardAt: Date.now(), preloadFailed: null }
     bookTiming = timing
     host.book?.({ manifest, session: info.sessionId, decision })
     host.duration(manifest.durationSeconds)
@@ -758,7 +760,7 @@ export function createEngine(host: EngineHost): AudioEngine {
         if (c?.session && isPodcast(c.track) && c.el.currentTime > 1 && !c.el.ended) beaconProgress(c.session, c.el.currentTime)
         return
       }
-      saveLocalPlace(book.track.id, bookTime())
+      saveLocalPlace(book.track.id, bookTime(), Date.now(), book.placeKey)
       markIfStale(book)
       if (book.expired) beaconBookProgress(book.track.id, bookTime(), deviceName())
       else beaconProgress(book.session, bookTime())

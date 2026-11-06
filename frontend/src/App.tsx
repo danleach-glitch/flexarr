@@ -34,7 +34,7 @@ import { errorReporter } from './lib/errorReporter'
 import { onDemand } from './lib/onDemand'
 import { deviceCode } from './lib/pairing'
 import { configureSentry } from './lib/sentry'
-import { forgetPlayed } from './lib/profileScope'
+import { forgetPlayed, startKeepingPlayed } from './lib/profileScope'
 import { session } from './lib/session'
 import './styles/tokens.generated.css'
 import './styles/tokens.css'
@@ -191,6 +191,8 @@ export default function App() {
     clearApiCache()
   }, [language])
   const [attempt, setAttempt] = useState(0)
+  // The last page in this tab signed out: nothing it left on its way out is here for this one, however it's signed in.
+  useEffect(() => startKeepingPlayed(), [])
   // Unlocking or locking to kids profiles asks who's watching straight away (see pickProfileWith).
   useEffect(() => {
     const again = () => setAttempt((n) => n + 1)

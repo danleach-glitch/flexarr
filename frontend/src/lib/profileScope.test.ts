@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { forgetPlayed, profileKey, storedKeys } from './profileScope'
+import { forgetPlayed, keepsPlayed, profileKey, startKeepingPlayed, storedKeys } from './profileScope'
 
 afterEach(() => {
   localStorage.clear()
@@ -37,5 +37,26 @@ describe('what this browser keeps for a profile', () => {
 
     expect(Object.keys(localStorage).sort()).toEqual(['flexarr.crossfade', 'flexarr.language.choice', 'flexarr.sound'])
     expect(Object.keys(sessionStorage)).toEqual(['flexarr.pickProfile'])
+    // Found not signed in, this page may be signed in again and carry on: it still keeps what's played.
+    expect(keepsPlayed()).toBe(true)
+  })
+
+  it('keeps nothing more on a page that signed out, and the next page in the tab forgets what that one left as it went', () => {
+    forgetPlayed({ signedOut: true })
+    expect(keepsPlayed()).toBe(false)
+
+    // Written all the same on the way out (by something that didn't ask), before the next page starts.
+    localStorage.setItem('flexarr.bookPlace.book-1', '{"position":600,"savedAt":1}')
+    sessionStorage.setItem('flexarr.musicQueue', '{"ids":["t1"]}')
+    startKeepingPlayed()
+
+    expect(Object.keys(localStorage)).toEqual([])
+    expect(Object.keys(sessionStorage)).toEqual([])
+    expect(keepsPlayed()).toBe(true)
+
+    // A page that follows no sign-out leaves everything as it is.
+    localStorage.setItem('flexarr.bookPlace.book-1', '{"position":600,"savedAt":1}')
+    startKeepingPlayed()
+    expect(Object.keys(localStorage)).toEqual(['flexarr.bookPlace.book-1'])
   })
 })

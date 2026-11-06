@@ -4,6 +4,7 @@ import type { ItemSummary } from '../api/types'
 import { detail, mockApi, summary } from '../test/mockApi'
 import { AudioPlayerProvider } from './audioPlayer'
 import { useAudioPlayer } from './audioPlayerContext'
+import { forgetPlayed } from '../lib/profileScope'
 import { queueStorageKey, queueTracksStorageKey } from './queue'
 
 beforeAll(() => {
@@ -263,6 +264,20 @@ describe('AudioPlayerProvider', () => {
     act(() => void window.dispatchEvent(new Event('pagehide')))
 
     expect(Object.keys(sessionStorage).sort()).toEqual(['flexarr.musicQueue', 'flexarr.musicQueueTracks'])
+  })
+
+  it('writes the queue no more once this browser has signed out, so the page going doesn’t put it back', async () => {
+    playbackApi()
+    const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+    act(() => result.current.play([one, two] as unknown as ItemSummary[], 0))
+    await waitFor(() => expect(stored()?.ids).toEqual(['t1', 't2']))
+
+    // "Sign out of this browser": forgotten, then the page reloads. At home the next page may open signed in anyway.
+    forgetPlayed({ signedOut: true })
+    act(() => result.current.next())
+    act(() => void window.dispatchEvent(new Event('pagehide')))
+
+    expect(Object.keys(sessionStorage).filter((key) => key.startsWith('flexarr.musicQueue'))).toEqual([])
   })
 
   it('leaves another profile’s queue as ids alone, taking away its tracks, once someone else is here', async () => {
@@ -828,6 +843,36 @@ describe('AudioPlayerProvider', () => {
       expect(beacon).not.toHaveBeenCalled()
       // This browser's own place is forgotten too, so the next start doesn't bring it back.
       expect(JSON.parse(localStorage.getItem('flexarr.bookPlace.b1') ?? 'null')).toMatchObject({ position: 0 })
+    })
+
+    it('keep their place for the profile they were started for, when another is chosen just before the page goes', async () => {
+      bookApi()
+      vi.stubGlobal('navigator', { ...navigator, sendBeacon: vi.fn(() => true) })
+      const { a } = await start()
+      tick(a, 40)
+
+      // "Switch to …": the new profile is saved, then the page reloads, keeping the book's place once more as it goes.
+      localStorage.setItem('flexarr.profile', 'kid-1.signature')
+      act(() => void window.dispatchEvent(new Event('pagehide')))
+
+      // The child doesn't find the parent's place under their own name, to start the book from.
+      expect(Object.keys(localStorage).filter((key) => key.startsWith('flexarr.bookPlace.'))).toEqual(['flexarr.bookPlace.b1'])
+      expect(JSON.parse(localStorage.getItem('flexarr.bookPlace.b1') ?? 'null')).toMatchObject({ position: 40 })
+    })
+
+    it('keep their place no more once this browser has signed out, so the page going doesn’t put it back', async () => {
+      bookApi()
+      vi.stubGlobal('navigator', { ...navigator, sendBeacon: vi.fn(() => true) })
+      const { result, a } = await start()
+      tick(a, 40)
+      act(() => result.current.toggle())
+      await waitFor(() => expect(localStorage.getItem('flexarr.bookPlace.b1')).not.toBeNull())
+
+      forgetPlayed({ signedOut: true })
+      act(() => void window.dispatchEvent(new Event('pagehide')))
+
+      expect(Object.keys(localStorage).filter((key) => key.startsWith('flexarr.bookPlace.'))).toEqual([])
+      expect(Object.keys(sessionStorage).filter((key) => key.startsWith('flexarr.musicQueue'))).toEqual([])
     })
 
     it('send the place to the book itself once the session has expired', async () => {

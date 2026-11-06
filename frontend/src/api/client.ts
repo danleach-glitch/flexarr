@@ -2218,12 +2218,13 @@ export const signOutOthers = () => request<{ signedOut: number }>('POST', '/sign
 
 /**
  * Signs this browser out: the server forgets its session, and the profile chosen here is forgotten too, with what was
- * played here (each book's place, the queue).
+ * played here (each book's place, the queue). The page is expected to go straight after: it keeps neither from here on,
+ * so what it would write on its way out doesn't put them back for a next page that opens signed in another way.
  */
 export async function signOut() {
   await request<void>('DELETE', '/session')
   saveProfileToken(null)
-  forgetPlayed()
+  forgetPlayed({ signedOut: true })
   try {
     session.remove('flexarr.profileChosen')
   } catch {

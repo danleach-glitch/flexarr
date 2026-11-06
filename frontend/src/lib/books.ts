@@ -1,6 +1,6 @@
 import type { BookChapter, BookFile, BookProgress, BookSeriesRef, ItemSummary } from '../api/types'
 import { formatClock } from './format'
-import { BOOK_PLACE_KEY, profileKey, storedKeys } from './profileScope'
+import { BOOK_PLACE_KEY, keepsPlayed, profileKey, storedKeys } from './profileScope'
 import { locale, t } from '../i18n'
 
 /** A book, rather than a film, track or episode. */
@@ -209,8 +209,8 @@ export function startDecision(progress: BookProgress, local: LocalPlace | null, 
   return { start: local.position, offer: { position: server, device: progress.device } }
 }
 
-/** This browser's place in a book, for the profile chosen here (a child never starts at a parent's place). */
-const placeKey = (bookId: string) => profileKey(`${BOOK_PLACE_KEY}${bookId}`)
+/** Where this browser keeps its place in a book, for the profile chosen here (a child never starts at a parent's place). */
+export const localPlaceKey = (bookId: string) => profileKey(`${BOOK_PLACE_KEY}${bookId}`)
 
 /**
  * How long this browser keeps its own place in a book it hasn't played since, in milliseconds. The server has the place
@@ -237,7 +237,7 @@ export function forgetOldPlaces(now = Date.now()) {
 
 export function readLocalPlace(bookId: string): LocalPlace | null {
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(placeKey(bookId)) ?? 'null')
+    const parsed: unknown = JSON.parse(localStorage.getItem(localPlaceKey(bookId)) ?? 'null')
     if (parsed && typeof parsed === 'object' && 'position' in parsed && 'savedAt' in parsed) {
       const { position, savedAt } = parsed as LocalPlace
       if (Number.isFinite(position) && Number.isFinite(savedAt)) return { position, savedAt }
@@ -248,9 +248,15 @@ export function readLocalPlace(bookId: string): LocalPlace | null {
   return null
 }
 
-export function saveLocalPlace(bookId: string, position: number, now = Date.now()) {
+/**
+ * Keeps this browser's place in a book. A book that's playing passes the `key` it started with (`localPlaceKey` then):
+ * "Switch to …" saves the new profile just before the page goes, and the place written on the way out is still the
+ * old profile's. Nothing is kept once this page has signed out.
+ */
+export function saveLocalPlace(bookId: string, position: number, now = Date.now(), key = localPlaceKey(bookId)) {
+  if (!keepsPlayed()) return
   try {
-    localStorage.setItem(placeKey(bookId), JSON.stringify({ position: Math.max(0, Math.floor(position)), savedAt: now }))
+    localStorage.setItem(key, JSON.stringify({ position: Math.max(0, Math.floor(position)), savedAt: now }))
   } catch {
     // Storage blocked: the next start just won't know where this browser was.
   }

@@ -19,7 +19,7 @@ import {
 import { authorsLine, chapterEnd, chapterIndexAt, clampSpeed, fadeLevel, forgetOldPlaces, isBook, nextChapterStart, previousChapterStart, saveLocalPlace, sleepReached } from '../lib/books'
 import { episodeAsTrack, PODCAST_PREFERENCES_CHANGED } from '../lib/podcasts'
 import { useMusicSettings } from '../lib/musicSettings'
-import { QUEUE_KEY, storedKeys } from '../lib/profileScope'
+import { keepsPlayed, QUEUE_KEY, storedKeys } from '../lib/profileScope'
 import { FADE_SECONDS } from '../lib/sleepTimer'
 import { createEngine, isPodcast, type AudioEngine } from './audioEngine'
 import { announceBookmarks, useBookmarkChanges } from './bookmarks'
@@ -136,6 +136,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const keptTracks = useRef<ItemSummary[] | null>(null)
   const persist = useCallback(
     (at: number) => {
+      // Signed out, and the page is about to go: the queue was just forgotten, and isn't written again on the way out.
+      if (!keepsPlayed()) return
       const s = stateRef.current
       try {
         // An untouched queue (epoch 0, nothing in it) is the state before a restore: leave what's stored for it to read.

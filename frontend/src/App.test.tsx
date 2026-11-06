@@ -503,6 +503,28 @@ describe('App', () => {
     }
   })
 
+  it('forgets what a page that signed out left on its way, when the next one opens signed in another way', async () => {
+    // Signed out with something queued, at home: the home network signs the next page in, and no sign-in form comes.
+    sessionStorage.setItem('flexarr.signedOut', '1')
+    sessionStorage.setItem('flexarr.musicQueue', '{"ids":["t1"],"albums":[],"index":0,"position":0}')
+    localStorage.setItem('flexarr.bookPlace.book-1', '{"position":600,"savedAt":1}')
+    localStorage.setItem('flexarr.sound', '{}')
+    const fetched = mockApi({ '/system/status': status, '/libraries': [], '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 } })
+
+    try {
+      render(<App />)
+      expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
+
+      expect(Object.keys(localStorage)).toEqual(['flexarr.sound'])
+      expect(Object.keys(sessionStorage).filter((key) => key === 'flexarr.signedOut' || key.startsWith('flexarr.musicQueue'))).toEqual([])
+      // The queue wasn't asked for either: there was none by the time the player looked.
+      expect(fetched.mock.calls.some(([input]) => String(input).includes('/items/t1'))).toBe(false)
+    } finally {
+      localStorage.clear()
+      sessionStorage.clear()
+    }
+  })
+
   it('sets up a new server from the first browser with its setup code, without a key', async () => {
     let claimed = false
     const sent: string[] = []

@@ -144,7 +144,8 @@ describe('Signing out of this browser', () => {
       mockApi({ 'DELETE /session': undefined })
       await signOut()
       expect(Object.keys(localStorage)).toEqual(['flexarr.sound'])
-      expect(sessionStorage.length).toBe(0)
+      // Only the note that this page signed out, so it keeps nothing more as it goes (see profileScope).
+      expect(Object.keys(sessionStorage)).toEqual(['flexarr.signedOut'])
     } finally {
       localStorage.clear()
       sessionStorage.clear()
