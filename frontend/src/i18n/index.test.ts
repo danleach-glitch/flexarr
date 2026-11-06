@@ -156,6 +156,22 @@ describe('beginLanguage', () => {
     expect(localStorage.getItem('flexarr.language.choice')).toBe('de')
   })
 
+  it('uses a list that took longer than the wait when it has come by the time it’s needed (a server slow to answer anything)', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('navigator', { languages: ['de-AT', 'en'], language: 'de-AT' })
+    const { answer } = server({ '/languages/de': pack })
+
+    const settle = beginLanguage()
+    await vi.advanceTimersByTimeAsync(LANGUAGE_WAIT_MS + 1_000)
+    answer('/languages', list)
+    await vi.advanceTimersByTimeAsync(0)
+
+    // Who's signed in is known only now: the list is here, so the browser's language is found as usual.
+    await settle(null)
+    expect(t('Play')).toBe('Abspielen')
+    expect(localStorage.getItem('flexarr.language.choice')).toBe('de')
+  })
+
   it('stops waiting for a pack the server is slow to send, and keeps it for next time without changing the screen', async () => {
     vi.useFakeTimers()
     const { answer } = server({ '/languages': list })

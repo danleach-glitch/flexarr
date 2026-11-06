@@ -339,13 +339,11 @@ function loadFor(waitMs: number, code: string | null, signal?: AbortSignal) {
  * would, or after LANGUAGE_WAIT_MS of the server not answering, when the first screen goes ahead in what's showing.
  */
 export function beginLanguage(signal?: AbortSignal, waitMs = LANGUAGE_WAIT_MS): (profileChoice: string | null | undefined) => Promise<void> {
-  // Undefined once the wait is up; null when the server couldn't be asked.
-  const offered = new Promise<LanguageInfo[] | null | undefined>((resolve) => {
-    const timer = setTimeout(() => resolve(undefined), waitMs)
-    void languagesOffered(signal).then((list) => {
-      clearTimeout(timer)
-      resolve(list)
-    })
+  // Null when the server couldn't be asked.
+  const offered = languagesOffered(signal)
+  const waitUp = new Promise<undefined>((resolve) => {
+    const timer = setTimeout(resolve, waitMs)
+    void offered.then(() => clearTimeout(timer))
   })
   const last = lastShown()?.code ?? null
   const early = last ? loadFor(waitMs, last, signal) : null
@@ -353,7 +351,9 @@ export function beginLanguage(signal?: AbortSignal, waitMs = LANGUAGE_WAIT_MS): 
   return async (profileChoice) => {
     let code = profileChoice ?? null
     if (!code) {
-      const list = await offered
+      // Undefined when the wait is up and there's still no list. One that has come by now is used, however long it
+      // took: a server slow to answer anything (just started) has often answered this by the time it says who's here.
+      const list = await Promise.race([offered, waitUp])
       if (!list) {
         // No telling what the browser's language would be here: what's showing stays, and stays remembered.
         await early?.shown

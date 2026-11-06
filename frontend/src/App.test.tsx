@@ -6,6 +6,7 @@ import { TrailerDialog } from './components/TrailerDialog'
 import { usePolling } from './hooks/usePolling'
 import { clearApiCache, deleteItem, getLibraries } from './api/client'
 import { WATCHED_CHANGED } from './hooks/watched'
+import { LANGUAGE_WAIT_MS, showLanguage } from './i18n'
 import { detail, mockApi, movies, status, summary } from './test/mockApi'
 
 // The player's tests wait for streams to be asked for again, which takes a slow CI runner more than the default 5 s.
@@ -76,6 +77,69 @@ describe('App', () => {
 
     answerStatus(status)
     expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
+  })
+
+  it('goes on to the first screen when the server never says which languages it has, once the wait is up', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      mockApi({
+        '/system/status': status,
+        '/profiles': [],
+        '/languages': () => new Promise(() => {}),
+        '/libraries': [],
+        '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+      })
+
+      render(<App />)
+      await act(() => vi.advanceTimersByTimeAsync(LANGUAGE_WAIT_MS - 100))
+      expect(screen.getByText('Connecting…')).toBeInTheDocument()
+
+      await act(() => vi.advanceTimersByTimeAsync(100))
+      vi.useRealTimers()
+      expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows the first screen in the profile’s language, asking for its pack once, and remembers it for next time', async () => {
+    const languages = [{ code: 'en', name: 'English', direction: 'ltr', version: 0 }, { code: 'de', name: 'Deutsch', direction: 'ltr', version: 3 }]
+    const german = { code: 'de', name: 'Deutsch', direction: 'ltr', version: 3, messages: { 'Nothing to watch yet': 'Noch nichts zu sehen' } }
+    try {
+      const fetched = mockApi({
+        '/system/status': status,
+        '/profiles': [],
+        '/me': { profileId: 'p1', method: 'local', zone: 'Local', isAdmin: false, tailscaleLogin: null, language: 'de' },
+        '/languages': { languages },
+        '/languages/de': () => new Response(JSON.stringify(german), { headers: { ETag: '"de-3-web"' } }),
+        '/libraries': [],
+        '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+      })
+
+      render(<App />)
+
+      expect(await screen.findByRole('heading', { name: 'Noch nichts zu sehen' })).toBeInTheDocument()
+      expect(document.documentElement.lang).toBe('de')
+      expect(localStorage.getItem('flexarr.language.choice')).toBe('de')
+      const asked = fetched.mock.calls.map(([input]) => new URL(String(input), 'http://localhost').pathname.replace('/api/v1', ''))
+      expect(asked.filter((path) => path.startsWith('/languages'))).toEqual(['/languages', '/languages/de'])
+    } finally {
+      await showLanguage(null)
+    }
+  })
+
+  it('shows the sign-in form, having asked once, when the server refuses everything the first screen asks for', async () => {
+    const refused = () => new Response('', { status: 401 })
+    const fetched = mockApi({ '/system/status': refused, '/profiles': refused, '/me': refused, '/setup': { open: false } })
+
+    render(<App />)
+
+    expect(await screen.findByLabelText('API key')).toBeInTheDocument()
+    // Three refusals at once, each saying this browser is signed out: it looks once, not once for each.
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    const asked = fetched.mock.calls.map(([input]) => new URL(String(input), 'http://localhost').pathname.replace('/api/v1', ''))
+    expect(asked.filter((path) => path === '/system/status')).toHaveLength(1)
+    expect(screen.getByLabelText('API key')).toBeInTheDocument()
   })
 
   it('says a library is empty when nothing in its folders was recognised, and keeps Coming soon', async () => {
