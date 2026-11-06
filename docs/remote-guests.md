@@ -133,7 +133,9 @@ have them). When they're turned on by default:
 - the Apple apps: `FLEXARR_GUEST_INVITES` defaults to `YES` in `clients/apple/project.yml` (or build with
   `FLEXARR_GUEST_INVITES=YES`, or launch with `-FlexarrGuestInvites YES` to try one);
 - Android: `flexarr.guestInvites` defaults to true in `clients/android/app/build.gradle.kts` (or build with
-  `-Pflexarr.guestInvites=true`);
+  `-Pflexarr.guestInvites=true`). The same switch packages the tunnel: a release build without it leaves the Go
+  library (`libgojni.so`, about 18 MB on each device) out and can't start a guest's tunnel, so the build in the
+  stores has to be one made with it on before invites are;
 
 - add `share-with-family` to `docs/guide/index.json` (after `away-from-home`), link it from `away-from-home.md` and the
   FAQ, and run `make guide`;
