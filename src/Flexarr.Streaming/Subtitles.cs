@@ -223,9 +223,10 @@ public static partial class Subtitles
             // The movie filter opens the file itself, past the input's whitelist: held to local files through its own
             // options where this FFmpeg has them.
             var local = FfmpegFilters.MovieTakesFormatOptions(settings.FfmpegPath) ? ":format_opts=protocol_whitelist=file" : "";
+            // Decoding a whole film takes every core for minutes: below anyone watching, whose stream is starting just now.
             var ok = await RunAsync(settings.FfmpegPath, ["-hide_banner", "-v", "error", "-nostdin", "-y", .. FfmpegCommand.LocalFile, "-f", "lavfi",
                 "-i", $"movie={link}{local}[out0+subcc]",
-                "-map", "0:1", "-c:s", "webvtt", "-f", "webvtt", partial], ct, folder).ConfigureAwait(false);
+                "-map", "0:1", "-c:s", "webvtt", "-f", "webvtt", partial], ct, folder, background: true).ConfigureAwait(false);
             if (ok && File.Exists(partial))
             {
                 File.Move(partial, target, overwrite: true);
@@ -295,7 +296,7 @@ public static partial class Subtitles
         _ => [],
     };
 
-    private static async Task<bool> RunAsync(string ffmpeg, IEnumerable<string> args, CancellationToken ct, string? workingDirectory = null)
+    private static async Task<bool> RunAsync(string ffmpeg, IEnumerable<string> args, CancellationToken ct, string? workingDirectory = null, bool background = false)
     {
         var start = new ProcessStartInfo(ffmpeg) { UseShellExecute = false, RedirectStandardError = true, WorkingDirectory = workingDirectory ?? "" };
         foreach (var arg in args)
@@ -304,6 +305,18 @@ public static partial class Subtitles
         }
 
         using var process = Process.Start(start)!;
+        if (background)
+        {
+            try
+            {
+                process.PriorityClass = ProcessPriorityClass.BelowNormal;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or PlatformNotSupportedException)
+            {
+                // Already finished, or not ours to change: it runs as it would have.
+            }
+        }
+
         try
         {
             await process.StandardError.ReadToEndAsync(ct).ConfigureAwait(false);

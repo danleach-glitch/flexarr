@@ -106,4 +106,47 @@ public class SubtitleTracksTests
             Directory.Delete(cache, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task CaptionsAreDecodedBelowNormalPriority_SoTheyGiveWayToTheStreamBeingWatched()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var cache = Directory.CreateTempSubdirectory("flexarr-captions-").FullName;
+        try
+        {
+            // Stands in for ffmpeg: once it has had time to be put in the background, notes how nice it's being, and
+            // writes the WebVTT it was asked for.
+            var ffmpeg = Path.Combine(cache, "fake-ffmpeg");
+            var nice = Path.Combine(cache, "nice");
+            System.IO.File.WriteAllText(ffmpeg, $"""
+                #!/bin/sh
+                case "$*" in *"filter=movie"*) exit 0;; esac
+                sleep 1
+                ps -o nice= -p $$ > '{nice}' 2>/dev/null
+                for last; do :; done
+                printf 'WEBVTT\n' > "$last"
+                """);
+            System.IO.File.SetUnixFileMode(ffmpeg, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            var settings = new TranscodeSettings { CacheDirectory = cache, FfmpegPath = ffmpeg };
+            var file = File(true, Stream(0, StreamType.Video, "h264"), Stream(1, StreamType.Audio, "ac3", "eng"));
+            var track = Assert.Single(Subtitles.For(file));
+
+            var converted = await Subtitles.ToWebVttAsync(file, [track], settings, CancellationToken.None);
+
+            Assert.Equal(Subtitles.CachePath(file, track, settings), converted[track.Key]);
+            // Where ps can say (not every container has one that can), it ran nicer than this process does.
+            if (int.TryParse(System.IO.File.ReadAllText(nice).Trim(), out var niceness))
+            {
+                Assert.True(niceness > 0, $"ffmpeg ran at niceness {niceness}");
+            }
+        }
+        finally
+        {
+            Directory.Delete(cache, recursive: true);
+        }
+    }
 }
