@@ -55,6 +55,12 @@ public static partial class FeedParser
     /// <summary>Transcript formats a player can show alongside the sound, best first.</summary>
     private static readonly string[] TranscriptTypes = ["application/x-subrip", "application/srt", "text/vtt", "text/srt"];
 
+    /// <summary>
+    /// The most episodes read from one feed: several times the longest-running daily shows. A feed can be 64 MB, which
+    /// is room for a million made-up episodes, each of them rows in the database.
+    /// </summary>
+    public const int MaxEpisodes = 20_000;
+
     /// <exception cref="FormatException">The document isn't an RSS feed.</exception>
     public static ParsedFeed Parse(Stream xml)
     {
@@ -92,6 +98,13 @@ public static partial class FeedParser
             {
                 episodes.Add(episode);
             }
+        }
+
+        if (episodes.Count > MaxEpisodes)
+        {
+            // The newest of them, whichever way round the feed lists them, still in the feed's order.
+            var newest = episodes.OrderByDescending(e => e.PublishedAt ?? DateTime.MinValue).Take(MaxEpisodes).ToHashSet<ParsedEpisode>(ReferenceEqualityComparer.Instance);
+            episodes.RemoveAll(e => !newest.Contains(e));
         }
 
         return new ParsedFeed(
@@ -259,6 +272,9 @@ public static partial class FeedParser
         return comma > 0 && comma < 10 ? Date(text[(comma + 1)..]) : null;
     }
 
+    /// <summary>The most of a description's HTML that's read.</summary>
+    public const int MaxHtmlLength = 200_000;
+
     /// <summary>
     /// A description as plain text: HTML tags dropped, paragraphs kept apart by a blank line, line breaks and list items
     /// on lines of their own, entities decoded.
@@ -269,6 +285,16 @@ public static partial class FeedParser
         if (string.IsNullOrWhiteSpace(html))
         {
             return null;
+        }
+
+        if (html.Length > MaxHtmlLength)
+        {
+            // Far more than any show notes, of which 20,000 characters are kept: cut it before a tag left half open.
+            html = html[..MaxHtmlLength];
+            if (html.LastIndexOf('<') is var open && open > html.LastIndexOf('>'))
+            {
+                html = html[..open];
+            }
         }
 
         var text = LineBreak().Replace(html, "\n");
@@ -300,16 +326,18 @@ public static partial class FeedParser
         return result.Length == 0 ? null : result.Length > 20_000 ? result[..20_000] : result;
     }
 
-    [GeneratedRegex(@"<\s*br\s*/?\s*>", RegexOptions.IgnoreCase)]
+    // These four read text a stranger's feed wrote, so they must take time in step with its length whatever it holds:
+    // matched by backtracking, a description that's all "<" and no ">" took hours.
+    [GeneratedRegex(@"<\s*br\s*/?\s*>", RegexOptions.IgnoreCase | RegexOptions.NonBacktracking)]
     private static partial Regex LineBreak();
 
-    [GeneratedRegex(@"<\s*(/p|/div|/h[1-6]|/ul|/ol|/blockquote)\s*>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<\s*(/p|/div|/h[1-6]|/ul|/ol|/blockquote)\s*>", RegexOptions.IgnoreCase | RegexOptions.NonBacktracking)]
     private static partial Regex BlockEnd();
 
-    [GeneratedRegex(@"<\s*li[^>]*>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<\s*li[^>]*>", RegexOptions.IgnoreCase | RegexOptions.NonBacktracking)]
     private static partial Regex ListItem();
 
-    [GeneratedRegex(@"<[^>]*>")]
+    [GeneratedRegex(@"<[^>]*>", RegexOptions.NonBacktracking)]
     private static partial Regex Tag();
 
     [GeneratedRegex(@"[ \t\r\f\v]+")]

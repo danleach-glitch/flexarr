@@ -23,6 +23,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - With kids profiles in the house, a browser that comes in over Tailscale on your own account without being signed in starts on a kids profile, and choosing the main profile there takes the admin PIN, as it already did at home. Before, any device logged in to your Tailscale account was the main profile straight away.
 - Wrong guesses at the admin PIN can no longer lock you out of it for the rest of the day. The day's limit on wrong guesses now only holds off callers with no sign-in; your signed-in devices, and a browser that has given the right PIN before, still get in. Each of them keeps its own lockout after a few wrong PINs.
 - A podcast episode a phone downloads is only converted when it really is a sound file (MP3, M4A, Ogg, Opus, FLAC, WAV and the like). A feed could have dressed something else up as an episode to have the server hand back sound from a library the profile can't see.
+- A podcast feed written to be slow to read can no longer keep the server busy for hours or hold up podcast updates. Show notes are read in time that keeps step with their length, only their first 200,000 characters count, and a feed's newest 20,000 episodes are kept.
 
 ## 0.62.1 · 5 November 2026
 
