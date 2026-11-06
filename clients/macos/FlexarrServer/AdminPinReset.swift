@@ -49,7 +49,7 @@ struct AdminPinReset {
     private func send(_ pin: String) async throws {
         let config = try JSONSerialization.jsonObject(with: Data(contentsOf: server.configFile)) as? [String: Any]
         guard let key = config?["apiKey"] as? String, !key.isEmpty else { throw ResetError(t("The server’s API key couldn’t be read.")) }
-        var request = URLRequest(url: server.address.appending(path: "api/v1/admin/pin"))
+        var request = URLRequest(url: server.loopbackAddress.appending(path: "api/v1/admin/pin"))
         request.httpMethod = "POST"
         request.setValue(key, forHTTPHeaderField: "X-Api-Key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

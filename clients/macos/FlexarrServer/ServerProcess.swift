@@ -38,6 +38,9 @@ final class ServerProcess {
     /// The port the server listens on. `defaults write <bundle id> Port 8484` changes it.
     let port: Int = UserDefaults.standard.integer(forKey: "Port").nonZero ?? 8383
     var address: URL { URL(string: "http://localhost:\(port)")! }
+    /// The same server by number, for what carries the API key: "localhost" is also ::1 and whatever the Mac's hosts
+    /// file says, one more place another program could be answering from.
+    var loopbackAddress: URL { URL(string: "http://127.0.0.1:\(port)")! }
     /// Where Open Flexarr goes: while the server isn't set up, with its code after the #, which the welcome page fills
     /// in by itself (browsers never send that part to the server, so it stays out of logs). Nobody hunts for the code.
     var openAddress: URL { setupCode.flatMap { URL(string: "http://localhost:\(port)/#setup=\($0)") } ?? address }
