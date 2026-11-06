@@ -21,6 +21,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Telling a device to play something as another profile no longer tells you how far that profile is into it, or which episode they're up to. The device still plays their next episode, and you're told all of it when the profile is your own.
 - Getting downloads ready for phones can no longer fill the server's disk. A converted copy isn't made unless the drive would still have room to spare; the download says the server is short of space instead, and can be tried again later.
 - With kids profiles in the house, a browser that comes in over Tailscale on your own account without being signed in starts on a kids profile, and choosing the main profile there takes the admin PIN, as it already did at home. Before, any device logged in to your Tailscale account was the main profile straight away.
+- Wrong guesses at the admin PIN can no longer lock you out of it for the rest of the day. The day's limit on wrong guesses now only holds off callers with no sign-in; your signed-in devices, and a browser that has given the right PIN before, still get in. Each of them keeps its own lockout after a few wrong PINs.
 
 ## 0.62.1 · 5 November 2026
 

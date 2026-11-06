@@ -318,6 +318,58 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
         Assert.Equal(PinCheck.Right, tomorrow.Result);
     }
 
+    [Fact]
+    public async Task OnceTheDaysAdminPinGuessesAreSpent_TheOwnersSignedInDevices_AndABrowserThatGaveItBefore_StillGetIn()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        // The owner's browser at home (no sign-in) has given the admin PIN before.
+        await guard.CheckAsync(PinGuard.AdminKey, "address:192.168.1.20", () => true, CancellationToken.None, browser: "owners-laptop");
+        for (var i = 0; i < PinGuard.AdminDailyAllowance; i++)
+        {
+            await guard.CheckAsync(PinGuard.AdminKey, $"address:10.1.{i / 250}.{i % 250}", () => false, CancellationToken.None);
+            clock.Now += PinGuard.ProfileThrottle;
+        }
+
+        // Neither may manage the server yet: the PIN is what would let them.
+        var phone = await guard.CheckAsync(PinGuard.AdminKey, "sign-in:owners-phone", () => true, CancellationToken.None);
+        var laptop = await guard.CheckAsync(PinGuard.AdminKey, "address:192.168.1.20", () => true, CancellationToken.None, browser: "owners-laptop");
+        var stranger = await guard.CheckAsync(PinGuard.AdminKey, "address:192.168.1.20", () => true, CancellationToken.None, browser: "someone-else");
+
+        Assert.Equal(PinCheck.Right, phone.Result);
+        Assert.Equal(PinCheck.Right, laptop.Result);
+        Assert.Equal(PinCheck.LockedOut, stranger.Result);
+    }
+
+    [Fact]
+    public async Task ASignedInDeviceGuessingTheAdminPin_IsLockedOutItself_WithoutSpendingTheDaysGuessesForOthers()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        // A household tablet paces itself: a few guesses, then a wait long enough for half its strikes to be forgotten.
+        var started = clock.Now;
+        var guesses = 0;
+        while (guesses < PinGuard.AdminDailyAllowance)
+        {
+            var (result, retryAfter) = await guard.CheckAsync(PinGuard.AdminKey, "sign-in:tablet", () => false, CancellationToken.None);
+            if (result == PinCheck.Wrong)
+            {
+                guesses++;
+            }
+
+            clock.Now += retryAfter + (retryAfter >= TimeSpan.FromMinutes(8) ? PinGuard.QuietPeriod : TimeSpan.Zero) + PinGuard.ProfileThrottle;
+        }
+
+        var tablet = await guard.CheckAsync(PinGuard.AdminKey, "sign-in:tablet", () => true, CancellationToken.None);
+        clock.Now += PinGuard.ProfileThrottle;
+        var owner = await guard.CheckAsync(PinGuard.AdminKey, "address:192.168.1.20", () => true, CancellationToken.None);
+
+        Assert.True(clock.Now - started < TimeSpan.FromHours(23)); // all within the day
+        Assert.Equal(PinCheck.LockedOut, tablet.Result);
+        Assert.True(tablet.RetryAfter <= TimeSpan.FromHours(1)); // its own lockout, not the day's
+        Assert.Equal(PinCheck.Right, owner.Result);
+    }
+
     private sealed class ManualClock : TimeProvider
     {
         public DateTimeOffset Now { get; set; } = DateTimeOffset.UtcNow;

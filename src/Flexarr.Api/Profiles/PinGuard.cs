@@ -32,8 +32,10 @@ public enum PinCheck
 /// </para>
 /// <para>
 /// A caller that keeps changing address starts afresh each time, so the admin PIN (which guards the API key) also has
-/// a daily allowance of wrong guesses from callers that can't manage the server: once it's spent, none of them may try
-/// the admin PIN until the day is out. Callers that may manage the server still get in.
+/// a daily allowance of wrong guesses from callers told apart only by address: once it's spent, none of them may try
+/// the admin PIN until the day is out. Callers that may manage the server still get in, and so do those with a count
+/// they can't shed (a browser or device with a sign-in, a browser that has given the right admin PIN before): they
+/// neither spend the allowance nor are held off by it, so a guesser can't use it to lock the owner out for the day.
 /// </para>
 /// </summary>
 public sealed class PinGuard(TimeProvider clock)
@@ -53,7 +55,7 @@ public sealed class PinGuard(TimeProvider clock)
     /// <summary>Once a profile has had several wrong PINs, from anyone: the most often it's tried.</summary>
     public static readonly TimeSpan ProfileThrottle = TimeSpan.FromSeconds(5);
 
-    /// <summary>Wrong admin PINs a day from callers that can't manage the server, after which none of them may try it.</summary>
+    /// <summary>Wrong admin PINs a day from callers told apart only by address, after which none of them may try it.</summary>
     public const int AdminDailyAllowance = 100;
 
     /// <summary>After this long without a wrong PIN (once any lockout is over), half the strikes are forgotten.</summary>
@@ -68,7 +70,7 @@ public sealed class PinGuard(TimeProvider clock)
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, Strikes> _strikes = new(StringComparer.Ordinal);
 
-    /// <summary>The day's wrong admin PINs from callers that can't manage the server (only touched inside the admin PIN's gate).</summary>
+    /// <summary>The day's wrong admin PINs from callers told apart only by address (only touched inside the admin PIN's gate).</summary>
     private (DateTime Since, int Count) _adminDaily;
 
     /// <summary>Browsers that have given the right admin PIN, and when they last did.</summary>
@@ -117,7 +119,9 @@ public sealed class PinGuard(TimeProvider clock)
             var wait = callerKeys.Select(k => HeldOff(k, now, throttleOnly: false)).Max();
             var shared = mayManage ? HeldOff(managersKey, now, throttleOnly: false) : HeldOff(profileKey, now, throttleOnly: true);
             wait = shared > wait ? shared : wait;
-            var daily = !mayManage && profileId == AdminKey;
+            // Only callers that could start afresh from another address: a sign-in, or a browser known by its right
+            // admin PIN, keeps its own count wherever it asks from.
+            var daily = !mayManage && profileId == AdminKey && !known && !callers.Any(c => c.StartsWith("sign-in:", StringComparison.Ordinal));
             if (daily && now - _adminDaily.Since >= TimeSpan.FromDays(1))
             {
                 _adminDaily = (now, 0);
