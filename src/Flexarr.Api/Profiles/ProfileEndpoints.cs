@@ -636,7 +636,10 @@ public static partial class ProfileEndpoints
     {
         if (current.SignInId is { } signIn)
         {
-            return ([$"sign-in:{signIn}"], null);
+            // A browser moved over from earlier versions' shared cookie could have another sign-in for the asking, so
+            // it goes by a second name that isn't a sign-in: the guard counts its admin PIN guesses in the day's allowance.
+            return (http.RequestServices.GetRequiredService<SignIns>().ById(signIn)?.FromSharedCookie == true
+                ? [$"sign-in:{signIn}", $"shared-cookie:{signIn}"] : [$"sign-in:{signIn}"], null);
         }
 
         var browser = http.Request.Cookies[BrowserCookieName];

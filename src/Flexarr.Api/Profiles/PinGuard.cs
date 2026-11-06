@@ -120,8 +120,9 @@ public sealed class PinGuard(TimeProvider clock)
             var shared = mayManage ? HeldOff(managersKey, now, throttleOnly: false) : HeldOff(profileKey, now, throttleOnly: true);
             wait = shared > wait ? shared : wait;
             // Only callers that could start afresh from another address: a sign-in, or a browser known by its right
-            // admin PIN, keeps its own count wherever it asks from.
-            var daily = !mayManage && profileId == AdminKey && !known && !callers.Any(c => c.StartsWith("sign-in:", StringComparison.Ordinal));
+            // admin PIN, keeps its own count wherever it asks from. A caller that also goes by a name that isn't a
+            // sign-in (a browser moved over from earlier versions' shared cookie, which could ask for another) doesn't.
+            var daily = !mayManage && profileId == AdminKey && !known && !(callers.Count > 0 && callers.All(c => c.StartsWith("sign-in:", StringComparison.Ordinal)));
             if (daily && now - _adminDaily.Since >= TimeSpan.FromDays(1))
             {
                 _adminDaily = (now, 0);

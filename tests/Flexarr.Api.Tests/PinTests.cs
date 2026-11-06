@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Flexarr.Api.Profiles;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
 
@@ -368,6 +370,46 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
         Assert.Equal(PinCheck.LockedOut, tablet.Result);
         Assert.True(tablet.RetryAfter <= TimeSpan.FromHours(1)); // its own lockout, not the day's
         Assert.Equal(PinCheck.Right, owner.Result);
+    }
+
+    [Fact]
+    public async Task BrowsersMovedOverFromEarlierVersionsCookie_SpendTheDaysAdminPinGuesses_HoweverManySignInsTheyAskFor()
+    {
+        // Whoever holds the cookie earlier versions gave every browser is given a sign-in for the asking (one for each
+        // browser name here), so such a sign-in is no count it can't shed: a guess from each must still run out.
+        var clock = new ManualClock();
+        using var factory = new FlexarrApiFactory();
+        using var server = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton(new PinGuard(clock))));
+        var admin = server.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        await admin.PostAsJsonAsync(Api("/admin/pin"), new { pin = "5319" });
+        // The owner's phone, signed in with the key, has been watching as someone else, so it can't manage the server.
+        var kid = (await (await admin.PostAsJsonAsync(Api("/profiles"), new { name = "Kid" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        var phone = server.CreateClient();
+        phone.DefaultRequestHeaders.Add("X-Api-Key", (await (await admin.PostAsJsonAsync(Api("/session/device"), new { deviceName = "Owner's phone" }))
+            .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString());
+        await phone.PostAsJsonAsync(Api($"/profiles/{kid}/select"), new { });
+        HttpClient Moved(int browser)
+        {
+            var client = server.CreateClient();
+            client.DefaultRequestHeaders.Add("Cookie",
+                $"{Authentication.ApiKeyAuthenticationHandler.SessionCookieName}={Authentication.ApiKeyAuthenticationHandler.LegacySessionValue(FlexarrApiFactory.ApiKey)}");
+            client.DefaultRequestHeaders.Add("User-Agent", $"Browser/{browser}");
+            client.DefaultRequestHeaders.Add("X-Requested-With", "flexarr");
+            return client;
+        }
+
+        for (var i = 0; i < PinGuard.AdminDailyAllowance; i++)
+        {
+            Assert.Equal(HttpStatusCode.Forbidden, (await Moved(i).PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = "0000" })).StatusCode);
+            clock.Now += PinGuard.ProfileThrottle;
+        }
+
+        var another = await Moved(PinGuard.AdminDailyAllowance).PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = "5319" });
+        var owner = await phone.PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = "5319" });
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, another.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, owner.StatusCode);
     }
 
     private sealed class ManualClock : TimeProvider

@@ -239,7 +239,7 @@ public sealed class ApiKeyAuthenticationHandler(
         {
             var pending = Upgrading.GetOrAdd(key, _ => new Lazy<(SignIn, string)>(() =>
                 signIns.Issue(SignInKind.Browser, BrowserName(Request), NetworkZones.Of(Context), Context.Connection.RemoteIpAddress?.ToString(),
-                    chosen == PlaybackState.DefaultUser ? null : chosen)));
+                    chosen == PlaybackState.DefaultUser ? null : chosen, fromSharedCookie: true)));
             (SignIn SignIn, string Token) issued;
             try
             {
