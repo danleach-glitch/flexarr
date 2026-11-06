@@ -614,9 +614,12 @@ function PodcastShow() {
   const [sortChosen, setSortChosen] = useState<'newest' | 'oldest'>()
   const [search, setSearch] = useState('')
   const [q, setQ] = useState('')
-  // How many pages the list runs to (Show more adds one), and which load of the list is the latest.
+  // How many pages the list runs to (Show more adds one), which load of the whole list is the latest, and whether
+  // it's still under way. `again` asks for the whole list once more (Show more, when adding a page won't do).
   const pages = useRef(1)
   const load = useRef(0)
+  const reloading = useRef(false)
+  const [again, setAgain] = useState(0)
   const [episodes, setEpisodes] = useState<{ total: number; items: PodcastEpisode[] }>()
   const [moreBusy, setMoreBusy] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -637,32 +640,47 @@ function PodcastShow() {
   useEffect(() => {
     if (!loaded) return
     const run = ++load.current
+    reloading.current = true
     const controller = new AbortController()
     const wanted = PAGE * pages.current
     const offsets = Array.from({ length: Math.ceil(wanted / MAX_PAGE) }, (_, i) => i * MAX_PAGE)
+    // The latest load over, either way: Show more may have been waiting on it.
+    const over = () => {
+      if (run !== load.current) return false
+      reloading.current = false
+      setMoreBusy(false)
+      return true
+    }
     Promise.all(
       offsets.map((offset) => getPodcastEpisodes(id, { offset, limit: Math.min(MAX_PAGE, wanted - offset), sort, unplayed: filter === 'unplayed', q }, controller.signal)),
     ).then((lists) => {
-      if (run === load.current) setEpisodes({ total: lists[0].total, items: appendEpisodes([], lists.flatMap((list) => list.items)) })
-    }, () => undefined)
+      if (over()) setEpisodes({ total: lists[0].total, items: appendEpisodes([], lists.flatMap((list) => list.items)) })
+    }, over)
     return () => controller.abort()
-  }, [id, sort, filter, q, version, loaded])
+  }, [id, sort, filter, q, version, loaded, again])
 
-  // Show more: just the next page, after the episodes already here.
+  // Show more: just the next page, after the episodes already here. It's asked for from the last episode here, so the
+  // answer says whether the server's list still lines up with this one: an episode heard to the end since (here or on
+  // a phone) or a new one moves every later episode along, and a page taken by count alone would skip or repeat one.
+  // When it doesn't line up, or the whole list is already on its way a page short, the whole list is asked for instead.
   async function showMore() {
     if (!episodes || moreBusy) return
-    const run = load.current
     setMoreBusy(true)
     pages.current += 1
+    if (reloading.current) return setAgain((n) => n + 1)
+    const run = load.current
+    const last = episodes.items.length ? episodes.items[episodes.items.length - 1] : undefined
     try {
-      const list = await getPodcastEpisodes(id, { offset: episodes.items.length, limit: PAGE, sort, unplayed: filter === 'unplayed', q })
-      // The list was loaded afresh meanwhile (a tick, a filter), this page included.
+      const list = await getPodcastEpisodes(id, { offset: Math.max(0, episodes.items.length - 1), limit: PAGE + 1, sort, unplayed: filter === 'unplayed', q })
+      // The list was loaded afresh meanwhile (a tick, a filter), this page included; that load ends the wait.
       if (run !== load.current) return
+      if (last && list.items[0]?.id !== last.id) return setAgain((n) => n + 1)
       setEpisodes((current) => current && { total: list.total, items: appendEpisodes(current.items, list.items) })
+      setMoreBusy(false)
     } catch {
       // Nothing more arrived: the button is there to press again.
-      if (run === load.current) pages.current -= 1
-    } finally {
+      if (run !== load.current) return
+      pages.current -= 1
       setMoreBusy(false)
     }
   }
