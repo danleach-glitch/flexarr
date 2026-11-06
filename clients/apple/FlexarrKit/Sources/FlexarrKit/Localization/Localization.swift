@@ -151,18 +151,40 @@ public final class Localization: @unchecked Sendable {
         return base?.appending(path: "Languages", directoryHint: .isDirectory)
     }
 
+    /// Whether `code` has the shape of a language's code (de, pt-BR, zh-Hans, es-419): letters, digits and hyphens
+    /// only. A code names its pack's file, and comes from the server, so anything else (a path, say) is no language.
+    static func isCode(_ code: String) -> Bool {
+        !code.isEmpty && code.count <= 35 && code.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }
+    }
+
+    /// The file a language's pack is kept in, in `folder`; nil for anything that isn't a language's code.
+    static func file(for code: String, in folder: URL) -> URL? {
+        isCode(code) ? folder.appending(path: "\(code).json", directoryHint: .notDirectory) : nil
+    }
+
     static func kept(_ code: String) -> Kept? {
-        guard let url = folder?.appending(path: "\(code).json"), let data = try? Data(contentsOf: url) else { return nil }
+        guard let url = folder.flatMap({ file(for: code, in: $0) }), let data = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(Kept.self, from: data)
     }
 
-    static func keep(_ pack: LanguagePack) {
-        guard let folder else { return }
+    /// Whether a pack the server sent when asked for `asked` is one to keep and show: it says it's that language (or
+    /// the wider one the server fell back to: de for de-AT), by a code of the right shape. The pack's own word for
+    /// what it is names its file, so one that says anything else is refused.
+    static func accepts(_ pack: LanguagePack, askedFor asked: String) -> Bool {
+        isCode(pack.code) && fallbacks(asked).contains(pack.code)
+    }
+
+    /// Keeps a pack downloaded for the language `asked`; false (and nothing kept) when it isn't one for that language.
+    @discardableResult
+    static func keep(_ pack: LanguagePack, askedFor asked: String) -> Bool {
+        guard accepts(pack, askedFor: asked) else { return false }
+        guard let folder, let file = file(for: pack.code, in: folder) else { return true }
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         if let data = try? JSONEncoder().encode(Kept(pack: pack)) {
-            try? data.write(to: folder.appending(path: "\(pack.code).json"), options: .atomic)
+            try? data.write(to: file, options: .atomic)
         }
         UserDefaults(suiteName: appGroup)?.set(pack.code, forKey: "flexarr.language")
+        return true
     }
 
     /// The newest pack on the device for a language: built in or kept from the server.

@@ -33,6 +33,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Security
 - On iPhone, iPad, Apple TV and Mac, away from home, your sign-in goes to your server's home address only after it has shown it's your server, so another network using the same address never receives it and can't sign the app out.
 - On iPhone, iPad, Apple TV and Mac, what your server tells the app (profiles, Home's rows, what each profile is part way through) is no longer kept in the app's picture cache on disk, where it could outlast a change of profile. Signing out empties that cache.
+- On iPhone, iPad, Apple TV and Mac, a language downloaded from a server is only kept when it's the language the app asked for, under that language's own name, so a server you've joined as a guest can't use it to damage the app's other saved files.
 
 ### Apple TV
 - On an Apple TV set to **Ask who's watching**, the Home screen's Top Shelf no longer shows a profile's titles when that profile asks for a PIN, and Play on the Top Shelf waits for **Who's watching?** rather than starting as whoever watched last.
