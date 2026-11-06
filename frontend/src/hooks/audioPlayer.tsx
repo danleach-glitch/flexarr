@@ -23,9 +23,24 @@ import { FADE_SECONDS } from '../lib/sleepTimer'
 import { createEngine, isPodcast, type AudioEngine } from './audioEngine'
 import { announceBookmarks, useBookmarkChanges } from './bookmarks'
 import { AudioActionsContext, AudioPlayerContext, AudioTimeContext, type AudioActions, type AudioPlayer, type SleepTimer } from './audioPlayerContext'
-import { emptyQueue, queueReducer, queueStorageKey, readStoredQueue, rebuildQueue, serializeQueue, type StoredQueue } from './queue'
+import {
+  emptyQueue,
+  keptTracksAreCurrent,
+  queueReducer,
+  queueStorageKey,
+  queueTracksStorageKey,
+  readStoredQueue,
+  readStoredTracks,
+  rebuildQueue,
+  serializeQueue,
+  serializeQueueTracks,
+  type StoredQueue,
+} from './queue'
 
 const speedKey = 'flexarr.podcastSpeed'
+
+/** The most the queue's kept tracks may take in sessionStorage, in characters (some 1,500 tracks). */
+const KEPT_TRACKS_LIMIT = 1_000_000
 
 /** How long the bar says a track couldn't be played, in milliseconds. */
 const FAILURE_SHOWN_FOR = 8000
@@ -48,7 +63,8 @@ function storedSpeed(): number {
  * so keyboard media keys and the OS "now playing" controls work. A book plays its files back to back the same way, on
  * one timeline, with chapters, its own speed, smart rewind and bookmarks.
  *
- * The queue is also kept in sessionStorage (as ids), so a reload brings it back paused where it was.
+ * The queue is also kept in sessionStorage (its order as ids, and its tracks), so a reload brings it back paused where
+ * it was.
  */
 export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   // The elements live for the app's lifetime, rendered below and only touched by the engine.
@@ -112,15 +128,39 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     podcastPreferencesRef.current = podcastPreferences
   }, [podcastPreferences])
 
+  // The tracks last written to storage: they're written again only when the queue itself changes, not with the position.
+  const keptTracks = useRef<ItemSummary[] | null>(null)
   const persist = useCallback((at: number) => {
     const s = stateRef.current
     try {
       // An untouched queue (epoch 0, nothing in it) is the state before a restore: leave what's stored for it to read.
       if (s.tracks.length === 0) {
-        if (s.epoch > 0) sessionStorage.removeItem(queueStorageKey())
-      } else sessionStorage.setItem(queueStorageKey(), JSON.stringify(serializeQueue(s, at)))
+        if (s.epoch > 0) {
+          keptTracks.current = null
+          sessionStorage.removeItem(queueStorageKey())
+          sessionStorage.removeItem(queueTracksStorageKey())
+        }
+        return
+      }
+      sessionStorage.setItem(queueStorageKey(), JSON.stringify({ ...serializeQueue(s, at), savedAt: Date.now() } satisfies StoredQueue))
     } catch {
       // Storage blocked: the queue just won't survive a reload.
+      return
+    }
+    if (keptTracks.current === s.tracks) return
+    keptTracks.current = s.tracks
+    try {
+      const tracks = JSON.stringify(serializeQueueTracks(s))
+      // A queue of thousands isn't kept (it would crowd everything else out of storage): a reload fetches it instead.
+      if (tracks.length <= KEPT_TRACKS_LIMIT) return sessionStorage.setItem(queueTracksStorageKey(), tracks)
+    } catch {
+      // Storage is full: the same.
+    }
+    try {
+      // A reload mustn't find an older queue's tracks.
+      sessionStorage.removeItem(queueTracksStorageKey())
+    } catch {
+      // Storage blocked altogether.
     }
   }, [])
 
@@ -291,22 +331,29 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('pagehide', save)
   }, [persist, engine])
 
-  // Bring back the queue a reload interrupted, paused: tracks are fetched by album (one request each).
+  // Bring back the queue a reload interrupted, paused, from the tracks kept beside it: no requests, however long it is.
+  // Only when those aren't all there (storage was full) or were kept long ago are the tracks fetched, by album (one
+  // request each).
   useEffect(() => {
     let stored: StoredQueue | null
+    let kept = new Map<string, ItemSummary>()
     try {
       stored = readStoredQueue(sessionStorage.getItem(queueStorageKey()))
+      if (stored && keptTracksAreCurrent(stored, Date.now())) kept = readStoredTracks(sessionStorage.getItem(queueTracksStorageKey()))
     } catch {
       stored = null
     }
     if (!stored) return
     let cancelled = false
-    const byId = new Map<string, ItemSummary>()
+    const complete = stored.ids.every((id) => kept.has(id))
+    const byId = complete ? kept : new Map<string, ItemSummary>()
     const keep = (track: ItemSummary) => byId.set(track.id, track)
     void (async () => {
-      await Promise.all(stored.albums.map((id) => getItem(id).then((album) => album.children.forEach(keep), () => undefined)))
-      const missing = [...new Set(stored.ids.filter((id) => !byId.has(id)))]
-      await Promise.all(missing.map((id) => getItem(id).then((detail) => keep(detail.item), () => undefined)))
+      if (!complete) {
+        await Promise.all(stored.albums.map((id) => getItem(id).then((album) => album.children.forEach(keep), () => undefined)))
+        const missing = [...new Set(stored.ids.filter((id) => !byId.has(id)))]
+        await Promise.all(missing.map((id) => getItem(id).then((detail) => keep(detail.item), () => undefined)))
+      }
       // Something was played in the meantime: that queue wins.
       if (cancelled || stateRef.current.epoch > 0) return
       const { tracks, index } = rebuildQueue(stored, byId)

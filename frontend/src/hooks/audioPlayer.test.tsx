@@ -4,7 +4,7 @@ import type { ItemSummary } from '../api/types'
 import { detail, mockApi, summary } from '../test/mockApi'
 import { AudioPlayerProvider } from './audioPlayer'
 import { useAudioPlayer } from './audioPlayerContext'
-import { queueStorageKey } from './queue'
+import { queueStorageKey, queueTracksStorageKey } from './queue'
 
 beforeAll(() => {
   // jsdom has no media playback: play/pause keep `paused` honest and fire their events, and nothing else.
@@ -29,7 +29,10 @@ beforeAll(() => {
   })
 })
 
-beforeEach(() => localStorage.clear())
+beforeEach(() => {
+  localStorage.clear()
+  sessionStorage.clear()
+})
 afterEach(() => vi.unstubAllGlobals())
 
 const track = (id: string, title: string, album = 'album-1') => summary({ id, kind: 'Track', title, parentId: album, seriesTitle: 'Artist', seriesId: 'artist-1', durationSeconds: 240 })
@@ -73,7 +76,13 @@ function playbackApi(extra: Record<string, unknown> = {}) {
   return { requests, stopped, ended }
 }
 
-const stored = () => JSON.parse(sessionStorage.getItem(queueStorageKey()) ?? 'null') as { ids: string[]; albums: string[]; index: number; position: number } | null
+/** The queue as it's kept for a reload, without when it was written. */
+const stored = () => {
+  const kept = JSON.parse(sessionStorage.getItem(queueStorageKey()) ?? 'null') as { ids: string[]; albums: string[]; index: number; position: number; savedAt?: number } | null
+  delete kept?.savedAt
+  return kept
+}
+const keptTracks = () => (JSON.parse(sessionStorage.getItem(queueTracksStorageKey()) ?? 'null') as { id: string }[] | null)?.map((t) => t.id) ?? null
 
 /** The two elements, as the provider renders them. */
 const elements = () => Array.from(document.querySelectorAll('audio'))
@@ -155,6 +164,45 @@ describe('AudioPlayerProvider', () => {
     act(() => result.current.stop())
     expect(result.current.current).toBeUndefined()
     expect(sessionStorage.getItem(queueStorageKey())).toBeNull()
+    expect(sessionStorage.getItem(queueTracksStorageKey())).toBeNull()
+  })
+
+  it('a reload brings a queue back from the tracks kept with it, without asking the server for any of them', async () => {
+    playbackApi()
+    const first = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+    act(() => first.result.current.play([one, two, three, one] as unknown as ItemSummary[], 0))
+    act(() => first.result.current.next())
+    await waitFor(() => expect(stored()?.index).toBe(1))
+    // Each track is kept once, however often it's queued, and only rewritten when the queue changes.
+    expect(keptTracks()).toEqual(['t1', 't2', 't3'])
+    first.unmount()
+
+    const fetched = mockApi({})
+    const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+    await waitFor(() => expect(result.current.queue.map((t) => t.id)).toEqual(['t1', 't2', 't3', 't1']))
+    expect(result.current.index).toBe(1)
+    expect(result.current.current?.title).toBe('Two')
+    expect(result.current.playing).toBe(false)
+    expect(fetched).not.toHaveBeenCalled()
+  })
+
+  it('fetches the queue as before when its tracks weren’t all kept, or were kept long ago', async () => {
+    const queue = { ids: ['t1', 't2'], albums: ['album-1'], index: 1, position: 42 }
+    const renamed = { ...album, children: [one, { ...two, title: 'Two (remastered)' }] }
+
+    // Storage ran out part-way: one of the tracks isn't there.
+    sessionStorage.setItem(queueStorageKey(), JSON.stringify({ ...queue, savedAt: Date.now() }))
+    sessionStorage.setItem(queueTracksStorageKey(), JSON.stringify([one]))
+    playbackApi({ '/items/album-1': renamed })
+    const partial = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+    await waitFor(() => expect(partial.result.current.current?.title).toBe('Two (remastered)'))
+    partial.unmount()
+
+    // A browser bringing back a tab from days ago: the library may have changed since.
+    sessionStorage.setItem(queueStorageKey(), JSON.stringify({ ...queue, savedAt: Date.now() - 3 * 24 * 60 * 60 * 1000 }))
+    sessionStorage.setItem(queueTracksStorageKey(), JSON.stringify([one, two]))
+    const old = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+    await waitFor(() => expect(old.result.current.current?.title).toBe('Two (remastered)'))
   })
 
   it('opens Now Playing for Play and Shuffle, not for a track picked from a list', async () => {
