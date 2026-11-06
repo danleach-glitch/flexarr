@@ -8,6 +8,15 @@ export function askedFrom(details: PairingDetails) {
   return details.requestedFrom ? t('{place} ({address})', { place, address: details.requestedFrom }) : place
 }
 
+/**
+ * A device's code as its link carries it (K7M-Q4X: six letters or digits, with or without the dash), or null for
+ * anything else. A link can say whatever its sender likes, so only this much of one is ever shown as a code.
+ */
+export function deviceCode(text: string | null | undefined): string | null {
+  const code = text?.trim() ?? ''
+  return /^[A-Za-z0-9]{3}-?[A-Za-z0-9]{3}$/.test(code) ? code : null
+}
+
 export const pairingError = (e: unknown) =>
   e instanceof ApiError && e.status === 403
     ? t('Only the main profile can connect a device.')

@@ -18,6 +18,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Security
 - On the web, a link someone sends you can no longer make your browser change anything on your server just by being opened. A link to a channel, title or playlist only ever asks for that one thing.
+- The page a device's QR code opens before you've signed in shows a device code and nothing else: a link can no longer put words of its sender's choosing there.
 
 ### Web
 - In an audiobook library of more than a few hundred books, jumping to a letter no longer leaves books out of the grid.

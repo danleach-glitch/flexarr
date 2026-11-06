@@ -453,6 +453,31 @@ describe('App', () => {
     expect(sent).toEqual(['ABCD-EFGH 2468'])
   })
 
+  it('shows a device’s code from its link before signing in, and never anything else the link says', async () => {
+    const signedOut = { '/system/status': new Response('', { status: 401 }) }
+    try {
+      mockApi(signedOut)
+      window.history.replaceState(null, '', '/link?code=K7M-Q4X')
+      const first = render(<App />)
+      expect(await screen.findByText('Type in this code:')).toBeInTheDocument()
+      expect(screen.getByText('K7M-Q4X', { selector: '.setup-code' })).toBeInTheDocument()
+      first.unmount()
+
+      // A link someone made up: its words aren't put on the page as a code, and the page is the ordinary sign-in.
+      for (const made of ['Call 0800 123 456 to finish setting up', 'ABC-DEF-GHJ', 'K7M Q4X', '<b>K7M</b>']) {
+        mockApi(signedOut)
+        window.history.replaceState(null, '', `/link?code=${encodeURIComponent(made)}`)
+        const next = render(<App />)
+        expect(await screen.findByLabelText('API key')).toBeInTheDocument()
+        expect(screen.queryByText('Type in this code:')).not.toBeInTheDocument()
+        expect(document.body).not.toHaveTextContent(made)
+        next.unmount()
+      }
+    } finally {
+      window.history.replaceState(null, '', '/')
+    }
+  })
+
   it('says so when the API key is wrong', async () => {
     mockApi({ '/session': new Response(null, { status: 401 }), '/system/status': new Response('', { status: 401 }) })
 

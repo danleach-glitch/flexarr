@@ -32,6 +32,7 @@ import { LibraryPage } from './pages/LibraryPage'
 import { PersonPage } from './pages/PersonPage'
 import { errorReporter } from './lib/errorReporter'
 import { onDemand } from './lib/onDemand'
+import { deviceCode } from './lib/pairing'
 import { configureSentry } from './lib/sentry'
 import { session } from './lib/session'
 import './styles/tokens.generated.css'
@@ -278,8 +279,9 @@ export default function App() {
     return () => controller.abort()
   }, [attempt])
 
-  // A TV's QR code opens /link?code=…; the code is worth showing even before this device signs in.
-  const tvCode = window.location.pathname === '/link' ? new URLSearchParams(window.location.search).get('code') : null
+  // A TV's QR code opens /link?code=…; the code is worth showing even before this device signs in. Only a code,
+  // though: anything else in its place would be shown large, in Flexarr's name, to whoever was sent the link.
+  const tvCode = window.location.pathname === '/link' ? deviceCode(new URLSearchParams(window.location.search).get('code')) : null
 
   function submitApiKey(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
