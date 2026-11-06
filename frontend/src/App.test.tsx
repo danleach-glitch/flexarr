@@ -57,6 +57,27 @@ describe('App', () => {
     expect(screen.getByText('Number 1: The Nice Guys')).toBeInTheDocument()
   })
 
+  it('asks for everything the first screen waits for together, not one after the other', async () => {
+    let answerStatus: (value: unknown) => void = () => {}
+    const fetched = mockApi({
+      '/system/status': () => new Promise((resolve) => (answerStatus = resolve)),
+      '/profiles': [],
+      '/languages': { languages: [{ code: 'en', name: 'English', direction: 'ltr', version: 0 }] },
+      '/libraries': [],
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+    const asked = () => fetched.mock.calls.map(([input]) => new URL(String(input), 'http://localhost').pathname.replace('/api/v1', ''))
+
+    render(<App />)
+
+    // The server hasn't answered the first of them yet, and the rest are already on their way.
+    await waitFor(() => expect(asked()).toEqual(expect.arrayContaining(['/system/status', '/profiles', '/me', '/languages'])))
+    expect(screen.getByText('Connecting…')).toBeInTheDocument()
+
+    answerStatus(status)
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
+  })
+
   it('says a library is empty when nothing in its folders was recognised, and keeps Coming soon', async () => {
     const upcoming = { id: 'u1', kind: 'Movie', title: 'Dune: Part Three', seriesTitle: null, seasonNumber: null, episodeNumber: null, date: '2026-12-18', when: 'Dec 18', overview: null, poster: null, still: null, libraryItemId: null, available: false, download: null }
     mockApi({

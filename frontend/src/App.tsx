@@ -19,7 +19,7 @@ import {
   type Profile,
 } from './api/client'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { currentLanguage, onLanguageChange, settleLanguage, t, Words } from './i18n'
+import { beginLanguage, currentLanguage, onLanguageChange, t, Words } from './i18n'
 import { ProfilePicker } from './components/ProfilePicker'
 import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
@@ -228,26 +228,31 @@ export default function App() {
 
   useEffect(() => {
     const controller = new AbortController()
+    // Everything the first screen waits for is asked for together, not one after the other. The languages need no
+    // sign-in, so they go first of all.
+    const language = beginLanguage(controller.signal)
     migrateStoredApiKey()
-      .then(() => getSystemStatus(controller.signal))
-      // Signed in from here: this browser's errors go to the server's log, as the version the server serves.
-      // And to Flexarr's developer too, only when the main profile has switched error reports on.
-      .then((status) => {
-        setServerTitle(status.serverName)
-        const version = status.version.split('+')[0]
-        errorReporter.enable(version)
-        configureSentry(status.errorReports, version)
-      })
-      // An older server without profiles still works: carry on as the main profile.
       .then(() =>
         Promise.all([
+          getSystemStatus(controller.signal),
+          // An older server without profiles still works: carry on as the main profile.
           getProfiles(controller.signal).catch((e: unknown) => (e instanceof UnauthorizedError ? Promise.reject(e) : [])),
           getMe(controller.signal).catch(() => null),
         ]),
       )
-      // The profile's language (or the browser's) before the first real screen, so it doesn't change under you.
+      // Signed in from here: this browser's errors go to the server's log, as the version the server serves.
+      // And to Flexarr's developer too, only when the main profile has switched error reports on.
+      .then(([status, profiles, me]) => {
+        setServerTitle(status.serverName)
+        const version = status.version.split('+')[0]
+        errorReporter.enable(version)
+        configureSentry(status.errorReports, version)
+        return [profiles, me] as const
+      })
+      // The profile's language (or the browser's) before the first real screen, so it doesn't change under you; a
+      // server slow to say which doesn't hold the screen up for long.
       .then(async ([profiles, me]) => {
-        await settleLanguage(me?.language ?? null, controller.signal)
+        await language(me?.language ?? null)
         return [profiles, me] as const
       })
       .then(([profiles, me]) => {
@@ -276,7 +281,7 @@ export default function App() {
         if (controller.signal.aborted) return
         if (error instanceof UnauthorizedError) {
           errorReporter.disable()
-          void settleLanguage(null, controller.signal)
+          void language(null)
           // A new server nobody has signed in to yet: this browser can set it up, no key needed.
           void setupStatus().then(({ open, install }) => {
             if (controller.signal.aborted) return
