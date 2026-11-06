@@ -25,7 +25,8 @@ die() { echo "release: $*" >&2; exit 1; }
 # signed with the update key. So the run is matched on its commit, event and repository, not on a name.
 find_run() {
   local workflow="$1" sha="$2" tag="${3:-}" found="" id head event from repo branch
-  gh api "repos/{owner}/{repo}/actions/workflows/$workflow/runs?head_sha=$sha&per_page=100" \
+  # Every page: a hundred newer runs at this commit (pull requests from forks pointing at it) mustn't hide the real one.
+  gh api --paginate "repos/{owner}/{repo}/actions/workflows/$workflow/runs?head_sha=$sha&per_page=100" \
     --jq '.workflow_runs[] | [.id, .head_sha, .event, .head_repository.full_name // "", .repository.full_name // "", .head_branch // ""] | join("|")' |
     while IFS='|' read -r id head event from repo branch; do
       [ -z "$found" ] || continue

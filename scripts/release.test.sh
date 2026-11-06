@@ -11,18 +11,24 @@ trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/bin"
 
 # The pretend gh: `gh api …/workflows/<file>/runs?…` prints $RUNS (every run, whatever the query asked for, so the
-# script's own checks are what's tested), and `gh run view <id> --json …` prints $work/run-<id>.json. Both through the
-# caller's --jq filter.
+# script's own checks are what's tested), then $RUNS.2 if there is one and --paginate asked for every page, and
+# `gh run view <id> --json …` prints $work/run-<id>.json. All through the caller's --jq filter.
 cat >"$work/bin/gh" <<'GH'
 #!/usr/bin/env bash
 set -euo pipefail
-filter=.
-args=("$@")
+filter=. pages=1
+args=()
+for a in "$@"; do
+  if [ "$a" = --paginate ]; then pages=all; else args+=("$a"); fi
+done
+set -- "${args[@]}"
 for i in "${!args[@]}"; do
   [ "${args[$i]}" = --jq ] && filter="${args[$((i + 1))]}"
 done
 case "$1 $2" in
-  "api repos/{owner}/{repo}/actions/workflows/"*) jq -r "$filter" "$RUNS" ;;
+  "api repos/{owner}/{repo}/actions/workflows/"*)
+    jq -r "$filter" "$RUNS"
+    if [ "$pages" = all ] && [ -f "$RUNS.2" ]; then jq -r "$filter" "$RUNS.2"; fi ;;
   "run view") jq -r "$filter" "$WORK/run-$3.json" ;;
   *) echo "pretend gh: unexpected: $*" >&2; exit 1 ;;
 esac
@@ -74,6 +80,13 @@ expect "only the push of the tag counts for a tag's workflow" "" "$(find_run mac
 # Two pushes of the same tag (deleted and pushed again): the newest, which is listed first.
 { run 41 "$sha" push "$us" "$tag"; run 40 "$sha" push "$us" "$tag"; } | runs
 expect "the newest of the tag's runs is picked" 41 "$(find_run macos.yml "$sha" "$tag")"
+
+# A hundred pull requests from forks pointing at the tag's commit fill the first page of runs; the tag's own is on the
+# next.
+for i in $(seq 1 100); do run "$((1000 + i))" "$sha" pull_request mallory/flexarr "$tag"; done | runs
+run 20 "$sha" push "$us" "$tag" | jq -s '{workflow_runs: .}' >"$RUNS.2"
+expect "the tag's run is found on a later page" 20 "$(find_run macos.yml "$sha" "$tag")"
+rm "$RUNS.2"
 
 # ci.yml is matched on the commit alone (it runs for the push to main), but still only from this repository.
 { run 50 "$sha" pull_request mallory/flexarr main; run 51 "$sha" push "$us" main; } | runs
