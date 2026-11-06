@@ -3,8 +3,12 @@
 import type { LiveProgramme } from '../api/client'
 import { dateFormat } from '../i18n'
 
-/** A programme's start or end, as the language shown writes times. One kept formatter writes them all: a guide has thousands. */
-export const clock = { format: (d: Date) => dateFormat({ hour: 'numeric', minute: '2-digit' }).format(d) }
+/**
+ * A programme's start or end, as the language shown writes times. One kept formatter writes them all: a guide has
+ * thousands. A time that isn't one reads "Invalid Date", as toLocaleTimeString has it: a formatter would throw, and
+ * one bad programme would take the page down.
+ */
+export const clock = { format: (d: Date) => (Number.isNaN(d.getTime()) ? String(d) : dateFormat({ hour: 'numeric', minute: '2-digit' }).format(d)) }
 
 export const programmeTime = (p: Pick<LiveProgramme, 'start' | 'end'>) => `${clock.format(new Date(p.start))} – ${clock.format(new Date(p.end))}`
 

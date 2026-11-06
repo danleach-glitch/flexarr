@@ -24,6 +24,12 @@ describe('programme times', () => {
     expect(programmeTime({ start: start.toISOString(), end: end.toISOString() })).toBe(`${written(start)} – ${written(end)}`)
   })
 
+  it('read as before, without throwing, for a time that isn’t one', () => {
+    const bad = new Date('not a time')
+    expect(clock.format(bad)).toBe(bad.toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' }))
+    expect(programmeTime({ start: '', end: '2026-11-06T09:00:00Z' })).toBe(`Invalid Date – ${clock.format(new Date('2026-11-06T09:00:00Z'))}`)
+  })
+
   it('build no formatter per time: a guide of thousands shares one', () => {
     const built = vi.spyOn(Intl, 'DateTimeFormat')
     const start = Date.UTC(2026, 10, 6, 9)
