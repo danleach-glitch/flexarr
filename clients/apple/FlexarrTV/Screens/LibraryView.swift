@@ -155,7 +155,9 @@ struct LibraryView: View {
         }
         .onChange(of: sort) { Task { await reload() } }
         .onChange(of: genre) { Task { await reload() } }
-        .onChange(of: model.refreshToken) { Task { await refreshLoaded() } }
+        // Only the grid on screen: one behind another page or tab catches up when it's next shown (the task above),
+        // once for however much changed meanwhile, rather than fetching everything it has loaded at each change.
+        .onChange(of: model.refreshToken) { if isVisible { Task { await refreshLoaded() } } }
     }
 
     private var header: some View {
