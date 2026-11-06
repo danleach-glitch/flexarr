@@ -341,6 +341,55 @@ public sealed class RequestUndoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ARequestHeadedForALibraryHiddenFromAProfile_IsntThatProfilesToUndo()
+    {
+        // The test server maps /data (as Radarr and Seerr see it) to /Volumes/Media/data.
+        var family = new Library { Name = "Family films", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = "/Volumes/Media/data/family" }], CreatedAt = DateTime.UtcNow.AddDays(-2) };
+        var parents = new Library { Name = "Parents' films", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = "/Volumes/Media/data/parents" }] };
+        await InDbAsync(async db =>
+        {
+            db.Libraries.AddRange(family, parents);
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 7201 });
+            return await db.SaveChangesAsync();
+        });
+        // In Radarr under the parents' folder; not in Radarr yet, but Seerr sent it there; and one for the family's.
+        _arr.Responses["GET /api/v1/movie/7201"] = """{"id":7201,"mediaInfo":{"id":61,"status":3,"requests":[{"id":21,"status":2,"type":"movie"}]}}""";
+        _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7201"] = """[{"id":31,"title":"Theirs","hasFile":false,"path":"/data/parents/Theirs (2026)"}]""";
+        _arr.Responses["GET /api/v1/movie/7202"] = """{"id":7202,"mediaInfo":{"id":62,"status":2,"requests":[{"id":22,"status":1,"type":"movie","rootFolder":"/data/parents"}]}}""";
+        _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7202"] = "[]";
+        _arr.Responses["GET /api/v1/movie/7203"] = """{"id":7203,"mediaInfo":{"id":63,"status":3,"requests":[{"id":23,"status":2,"type":"movie"}]}}""";
+        _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7203"] = """[{"id":33,"title":"Everyone's","hasFile":false,"path":"/data/family/Everyone's (2026)"}]""";
+        Deletes("/api/v3/movie/31?deleteFiles=false&addImportExclusion=false", "/api/v1/request/21", "/api/v1/media/61", "/api/v1/request/22", "/api/v1/media/62",
+            "/api/v3/movie/33?deleteFiles=false&addImportExclusion=false", "/api/v1/request/23", "/api/v1/media/63");
+        var id = (await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = "Teen", hiddenLibraryIds = new[] { parents.Id } })).Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("id").GetString();
+        var token = (await (await Client().PostAsJsonAsync(Api("/session/device"), new { deviceName = "Teen's phone" })).Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("token").GetString();
+        var teen = _server.CreateClient();
+        teen.DefaultRequestHeaders.Add("X-Api-Key", token);
+        Assert.True((await teen.PostAsJsonAsync(Api($"/profiles/{id}/select"), new { })).IsSuccessStatusCode);
+
+        // Answered as though there were nothing to take back, and nothing is touched.
+        var theirs = await teen.PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "movie", tmdbId = 7201 });
+        var sentThere = await teen.PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "movie", tmdbId = 7202 });
+
+        Assert.Equal(HttpStatusCode.NoContent, theirs.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, sentThere.StatusCode);
+        Assert.DoesNotContain(_arr.Requests, r => r.StartsWith("DELETE", StringComparison.Ordinal));
+        Assert.True(await InDbAsync(db => db.MediaRequests.AnyAsync(r => r.TmdbId == 7201 && r.FulfilledAt == null)));
+
+        // One headed for a library it sees is its to undo, as before; and the main profile undoes any.
+        var everyones = await teen.PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "movie", tmdbId = 7203 });
+        Assert.Equal(HttpStatusCode.NoContent, everyones.StatusCode);
+        Assert.Equal(["DELETE /api/v3/movie/33?deleteFiles=false&addImportExclusion=false", "DELETE /api/v1/request/23", "DELETE /api/v1/media/63"],
+            _arr.Requests.Where(r => r.StartsWith("DELETE", StringComparison.Ordinal)));
+        var mine = await Client().PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "movie", tmdbId = 7201 });
+        Assert.Equal(HttpStatusCode.NoContent, mine.StatusCode);
+        Assert.Contains("DELETE /api/v3/movie/31?deleteFiles=false&addImportExclusion=false", _arr.Requests);
+        Assert.Contains("DELETE /api/v1/request/21", _arr.Requests);
+    }
+
+    [Fact]
     public async Task Requested_ListsWhatsOpen_WithProgress_AndKeepsToALibrary()
     {
         var movies = new Library { Name = "Films", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = "/media/movies" }] };
