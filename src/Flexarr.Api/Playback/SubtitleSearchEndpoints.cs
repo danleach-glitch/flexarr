@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Flexarr.Api.Configuration;
@@ -68,7 +69,8 @@ public static partial class SubtitleSearchEndpoints
             try
             {
                 var results = await bazarr.SearchAsync(found.Bazarr!, found.Media!, ct);
-                return Results.Ok(new SubtitleSearchDto(results.Select(ToDto).ToList()));
+                var secret = options.CurrentValue.ImageSecret;
+                return Results.Ok(new SubtitleSearchDto(results.Select(r => ToDto(r, secret)).ToList()));
             }
             catch (HttpRequestException ex)
             {
@@ -88,7 +90,7 @@ public static partial class SubtitleSearchEndpoints
             BazarrSubtitleResult? chosen;
             if (request.Result is { } token)
             {
-                chosen = Decode(token);
+                chosen = Decode(token, options.CurrentValue.ImageSecret);
                 if (chosen is null)
                 {
                     return Problems.Of("That search result isn’t one Flexarr knows. Search again.", status: StatusCodes.Status400BadRequest);
@@ -343,8 +345,8 @@ public static partial class SubtitleSearchEndpoints
     /// <summary>The name of a file as Bazarr gives it, whichever way its slashes go.</summary>
     private static string FileName(string path) => path[(path.LastIndexOfAny(['/', '\\']) + 1)..];
 
-    private static SubtitleResultDto ToDto(BazarrSubtitleResult r) => new(
-        Encode(r),
+    private static SubtitleResultDto ToDto(BazarrSubtitleResult r, string? secret) => new(
+        Encode(r, secret),
         r.Provider,
         r.Language,
         Languages.Label(r.Language, r.HearingImpaired ? "SDH" : null, r.Forced),
@@ -356,15 +358,26 @@ public static partial class SubtitleSearchEndpoints
         r.Uploader);
 
     // A result travels to the client and back as its own id, so the server keeps nothing between search and download.
-    private static string Encode(BazarrSubtitleResult r) =>
-        Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(new Token(r.Provider, r.Subtitle, r.Language, r.HearingImpaired, r.Forced, r.OriginalFormat), Json))
+    // It's signed with the server's secret: what's in it is handed to Bazarr with Flexarr's key, so only a result
+    // this server was given by Bazarr may come back, never one a caller made up.
+    private static string Encode(BazarrSubtitleResult r, string? secret)
+    {
+        var payload = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(new Token(r.Provider, r.Subtitle, r.Language, r.HearingImpaired, r.Forced, r.OriginalFormat), Json))
             .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        return $"{payload}.{Convert.ToHexStringLower(Signature(payload, secret))}";
+    }
 
-    private static BazarrSubtitleResult? Decode(string id)
+    private static BazarrSubtitleResult? Decode(string id, string? secret)
     {
         try
         {
-            var base64 = id.Replace('-', '+').Replace('_', '/');
+            if (id.Split('.') is not [var payload, var signature]
+                || !CryptographicOperations.FixedTimeEquals(Convert.FromHexString(signature), Signature(payload, secret)))
+            {
+                return null;
+            }
+
+            var base64 = payload.Replace('-', '+').Replace('_', '/');
             var bytes = Convert.FromBase64String(base64.PadRight(base64.Length + ((4 - (base64.Length % 4)) % 4), '='));
             return JsonSerializer.Deserialize<Token>(bytes, Json) is { Provider.Length: > 0, Subtitle.Length: > 0 } t
                 ? new BazarrSubtitleResult(t.Provider, t.Subtitle, t.Language, t.Hi, t.Forced, t.OriginalFormat, 0, [], [], null)
@@ -375,6 +388,9 @@ public static partial class SubtitleSearchEndpoints
             return null;
         }
     }
+
+    private static byte[] Signature(string payload, string? secret) =>
+        HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret ?? throw new InvalidOperationException("No image secret.")), Encoding.UTF8.GetBytes($"subtitle:{payload}"))[..16];
 
     private sealed record Token(string Provider, string Subtitle, string Language, bool Hi, bool Forced, bool OriginalFormat);
 

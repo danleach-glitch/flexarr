@@ -84,6 +84,33 @@ public class SubtitleSearchTests : IClassFixture<FlexarrApiFactory>
     }
 
     [Fact]
+    public async Task AResultTheServerDidntHandOut_IsRefused_AndNeverReachesBazarr()
+    {
+        var bazarr = new FakeBazarr();
+        var (film, _) = await AddFilmAsync(radarrId: 13);
+        bazarr.Film(13, "/data/movies/Film (2020)/Film (2020).mkv", profileId: 1);
+        bazarr.Responses["GET /api/providers/movies?radarrid=13"] = Results;
+        bazarr.Responses["POST /api/providers/movies"] = "";
+        using var app = bazarr.Serve(factory);
+        var client = Client(app);
+        var search = await client.GetFromJsonAsync<Search>(new Uri($"/api/v1/items/{film}/subtitles/search", UriKind.Relative));
+        // A result made up by the caller, as results looked before they were signed, and a real one whose contents were swapped.
+        var madeUp = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(
+            """{"provider":"podnapisi","subtitle":"made-up","language":"en","hi":false,"forced":false,"originalFormat":false}""")).TrimEnd('=');
+        var real = search!.Results[1].Id;
+        var swapped = madeUp + real[real.IndexOf('.', StringComparison.Ordinal)..];
+
+        foreach (var result in new[] { madeUp, swapped, madeUp + ".", madeUp + ".zz", real + "0" })
+        {
+            var response = await client.PostAsJsonAsync(new Uri($"/api/v1/items/{film}/subtitles/download", UriKind.Relative), new { result });
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        Assert.DoesNotContain("POST /api/providers/movies", bazarr.Requests);
+    }
+
+    [Fact]
     public async Task LettingFlexarrPick_PrefersPlainSubtitles_OverHearingImpairedOnes()
     {
         var bazarr = new FakeBazarr();

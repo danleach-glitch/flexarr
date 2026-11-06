@@ -16,6 +16,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A show's page opens with **Play** in focus, not **Shuffle**. Play is there from the start and fills in the episode once it's known.
 - Pressing down from a row of buttons onto **Play** (on Browse, say) lands on Play wherever you were along the row, rather than skipping to the row of titles below. Up from far along a row comes back to a page's buttons the same way.
 
+### Security
+- Downloading a subtitle you picked from **Search for subtitles…** only sends Bazarr a result it found itself. With Bazarr 1.5.6 or older, a made-up result could have run code on the machine Bazarr runs on; Bazarr 1.6.0 and newer wasn't affected.
+
 ## 0.62.1 · 5 November 2026
 
 ### Apple TV
