@@ -21,6 +21,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Web
 - In an audiobook library of more than a few hundred books, jumping to a letter no longer leaves books out of the grid.
+- On a podcast's page, **Show more episodes** carries on past 200 episodes, and each press loads just the next ones rather than the whole list again.
 
 ## 0.62.1 · 5 November 2026
 

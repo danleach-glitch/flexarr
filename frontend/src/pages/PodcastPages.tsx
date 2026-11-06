@@ -44,6 +44,8 @@ import { episodeAsTrack, episodeDate, episodeLength, episodeProgress, looksLikeF
 import { locale, t, Words } from '../i18n'
 
 const PAGE = 50
+/** The most episodes the server gives in one answer. */
+const MAX_PAGE = 200
 
 /** A trailer or bonus episode's kind, as shown beside it. */
 const episodeKind = (type: PodcastEpisode['episodeType']) => (type === 'Trailer' ? t(Words.trailer) : type === 'Bonus' ? t('Bonus') : type)
@@ -582,6 +584,18 @@ function DirectoryCard({ podcast, rank }: { podcast: DirectoryPodcast; rank?: nu
 
 // ---------- A show
 
+/** Adds episodes to a list, skipping any it already has (a new episode, or one marked played, shifts what's on each page). */
+function appendEpisodes(loaded: PodcastEpisode[], more: PodcastEpisode[]) {
+  const seen = new Set(loaded.map((e) => e.id))
+  const all = [...loaded]
+  for (const episode of more) {
+    if (seen.has(episode.id)) continue
+    seen.add(episode.id)
+    all.push(episode)
+  }
+  return all
+}
+
 export function PodcastPage() {
   return (
     <PodcastsGate>
@@ -600,9 +614,11 @@ function PodcastShow() {
   const [sortChosen, setSortChosen] = useState<'newest' | 'oldest'>()
   const [search, setSearch] = useState('')
   const [q, setQ] = useState('')
-  const [pages, setPages] = useState(1)
-  const [pagesShown, setPagesShown] = useState(1)
+  // How many pages the list runs to (Show more adds one), and which load of the list is the latest.
+  const pages = useRef(1)
+  const load = useRef(0)
   const [episodes, setEpisodes] = useState<{ total: number; items: PodcastEpisode[] }>()
+  const [moreBusy, setMoreBusy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [marking, setMarking] = useState<'asking' | 'busy' | 'failed' | null>(null)
   const [expanded, setExpanded] = useState(false)
@@ -616,16 +632,40 @@ function PodcastShow() {
   const sort = sortChosen ?? (show.data?.subscription?.oldestFirst ? 'oldest' : 'newest')
   const loaded = show.data !== undefined
 
-  // Every page so far, fetched again when anything changes (a played tick, a filter), so the list stays as long as it was.
+  // Every page so far, fetched again when anything changes (a played tick, a filter), so the list stays as long as it
+  // was: in as few answers as the server allows. Show more doesn't come through here; it adds its own page below.
   useEffect(() => {
     if (!loaded) return
+    const run = ++load.current
     const controller = new AbortController()
-    getPodcastEpisodes(id, { limit: PAGE * pages, sort, unplayed: filter === 'unplayed', q }, controller.signal).then((list) => {
-      setEpisodes(list)
-      setPagesShown(pages)
+    const wanted = PAGE * pages.current
+    const offsets = Array.from({ length: Math.ceil(wanted / MAX_PAGE) }, (_, i) => i * MAX_PAGE)
+    Promise.all(
+      offsets.map((offset) => getPodcastEpisodes(id, { offset, limit: Math.min(MAX_PAGE, wanted - offset), sort, unplayed: filter === 'unplayed', q }, controller.signal)),
+    ).then((lists) => {
+      if (run === load.current) setEpisodes({ total: lists[0].total, items: appendEpisodes([], lists.flatMap((list) => list.items)) })
     }, () => undefined)
     return () => controller.abort()
-  }, [id, pages, sort, filter, q, version, loaded])
+  }, [id, sort, filter, q, version, loaded])
+
+  // Show more: just the next page, after the episodes already here.
+  async function showMore() {
+    if (!episodes || moreBusy) return
+    const run = load.current
+    setMoreBusy(true)
+    pages.current += 1
+    try {
+      const list = await getPodcastEpisodes(id, { offset: episodes.items.length, limit: PAGE, sort, unplayed: filter === 'unplayed', q })
+      // The list was loaded afresh meanwhile (a tick, a filter), this page included.
+      if (run !== load.current) return
+      setEpisodes((current) => current && { total: list.total, items: appendEpisodes(current.items, list.items) })
+    } catch {
+      // Nothing more arrived: the button is there to press again.
+      if (run === load.current) pages.current -= 1
+    } finally {
+      setMoreBusy(false)
+    }
+  }
 
   // A show only being looked at is checked for new episodes when opened: look again shortly for what that found.
   useEffect(() => {
@@ -775,7 +815,7 @@ function PodcastShow() {
         )}
         <EpisodeList episodes={items} onChanged={changed} onMarked={marked} />
         {episodes && episodes.items.length < episodes.total && (
-          <AsyncButton className="button quiet podcast-more" busy={pagesShown < pages} onClick={() => setPages(pages + 1)}>
+          <AsyncButton className="button quiet podcast-more" busy={moreBusy} onClick={showMore}>
             {t('Show more episodes')}
           </AsyncButton>
         )}
