@@ -37,6 +37,8 @@ import io.github.flexarr.core.PodcastPreferences
 import io.github.flexarr.core.PodcastStatus
 import io.github.flexarr.core.Profile
 import io.github.flexarr.core.ProfileSelection
+import io.github.flexarr.core.SharedAnswer
+import io.github.flexarr.core.SignInInfo
 import io.github.flexarr.core.SystemStatus
 import io.github.flexarr.core.WatchlistAdded
 import io.github.flexarr.core.WatchlistEntry
@@ -283,10 +285,25 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      *  (Settings doesn't offer it there), where turning it on takes the admin PIN. */
     val showsKidsPadlock: Boolean get() = kidsLock || canLockToKids || (hasOwnSignIn && isKids)
 
-    /** Asks whether this sign-in is the main profile (and may manage the server), and if so, which devices are waiting to connect. */
-    suspend fun loadSignIn() {
+    /**
+     * Who this sign-in is, as the profiles' load last asked (it asks afresh each time): the main screen opening straight
+     * after it takes that answer rather than ask the same again.
+     */
+    private val signInAnswers = SharedAnswer<Triple<String, String, String?>, SignInInfo>(scope)
+
+    /** The sign-in [signInAnswers] are kept for: the server, this device's token and who's watching. */
+    private fun signInKey(credentials: ServerCredentials) = Triple(credentials.address, credentials.apiKey, credentials.profileToken)
+
+    /**
+     * Asks whether this sign-in is the main profile (and may manage the server), and if so, which devices are waiting to
+     * connect. [mayShare]: the answer the profiles' load got a moment ago will do (the main screen, opening after it).
+     */
+    suspend fun loadSignIn(mayShare: Boolean = false) {
+        val credentials = credentials ?: return
         val client = client ?: return
-        val me = runCatching { client.me() }.getOrNull() ?: return
+        val me = runCatching {
+            if (mayShare) signInAnswers.get(signInKey(credentials), SIGN_IN_FRESH_MS) { client.me() } else client.me()
+        }.getOrNull() ?: return
         // Someone else may have been chosen meanwhile.
         if (client.profileToken != this.client?.profileToken) return
         isAdmin = me.isAdmin
@@ -302,6 +319,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     suspend fun unlock(pin: String) {
         val client = client ?: return
         client.unlockAdmin(pin)
+        signInAnswers.forget()
         if (client.profileToken != this.client?.profileToken) return
         isAdmin = true
         canUnlock = false
@@ -311,6 +329,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     suspend fun locked() {
         isAdmin = false
         canUnlock = true
+        signInAnswers.forget()
         loadSignIn()
     }
 
@@ -342,6 +361,29 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** How fast the video player's stream segments have come lately, sent with each start (docs/fast-start.md). */
     val linkSpeed = LinkSpeed()
 
+    /**
+     * The server's status, asked once for everything that wants it around the same time: starting up, that's the
+     * server's name, its error-report setting, its address for away from home and the version checks.
+     */
+    private val statusAnswers = SharedAnswer<Pair<String, String>, SystemStatus>(scope)
+
+    /**
+     * The server's status as [credentials]' sign-in (null when it can't be had): the answer being fetched now, or one
+     * asked for within the last [freshForMillis], else asked now.
+     */
+    private suspend fun serverStatus(credentials: ServerCredentials, freshForMillis: Long = STATUS_FRESH_MS): SystemStatus? =
+        runCatching {
+            statusAnswers.get(credentials.address to credentials.apiKey, freshForMillis) {
+                credentials.client(onUnauthorized = { checkSignIn(credentials) }).systemStatus()
+            }
+        }.getOrNull()
+
+    /**
+     * The server's version, null if it couldn't be asked. For what the server offers, which only changes when it's
+     * updated: the status asked for in the last few minutes will do, so a page needn't ask each time it opens.
+     */
+    suspend fun serverVersion(): String? = credentials?.let { serverStatus(it, VERSION_FRESH_MS) }?.version
+
     /** The server's version and the video profile the player asks with, worked out once per server (not on a failure). */
     private var serverInfo: Triple<String, String, DeviceProfile>? = null
 
@@ -353,7 +395,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         val client = client ?: return null
         val address = client.baseUrl.toString()
         serverInfo?.let { (forServer, version, profile) -> if (forServer == address) return version to profile }
-        val version = runCatching { client.systemStatus().version }.getOrNull()
+        val version = serverVersion()
         val profile = DeviceCapabilities.withServer(DeviceCapabilities.profile(context), version)
         if (version != null) serverInfo = Triple(address, version, profile)
         return version to profile
@@ -1116,7 +1158,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         scope.launch { notifications.checkTimeZone() }
         // A guest only ever reaches the server through its tunnel.
         if (credentials.isGuest) return
-        val status = runCatching { credentials.client().systemStatus() }.getOrNull() ?: return
+        val status = serverStatus(credentials) ?: return
         if (ServerSupport.isTooOld(status.version) && this.credentials?.address == credentials.address) serverUpdateNotice = ServerSupport.UPDATE_MESSAGE
         val remote = remoteAddress(status, credentials.address, kept = credentials.remoteAddress)
         // Who's watching may have been chosen meanwhile: what matters is that it's still the same sign-in.
@@ -1271,7 +1313,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         try {
             // All at once rather than one after another: the profiles, the sign-in, and whether the server answers.
             val listed = scope.async { runCatching { client.profiles() } }
-            val signIn = scope.async { runCatching { client.me() }.getOrNull() }
+            // Asked afresh each time, and shared with the main screen, which wants the same as it opens (loadSignIn).
+            val asking = credentials
+            val signIn = scope.async { runCatching { if (asking != null) signInAnswers.ask(signInKey(asking)) { client.me() } else client.me() }.getOrNull() }
             // No network, or no answer within a few seconds: offline mode now, not after each request's timeout.
             if (!serverAnswered && !serverAnswers(client)) {
                 signIn.cancel()
@@ -1350,6 +1394,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     suspend fun lockToKids(pin: String?): Boolean {
         val credentials = credentials ?: return false
         val selection = credentials.client().lockToKids(pin)
+        signInAnswers.forget()
         kidsLock = true
         chose(selection, profiles.filter { it.isKids })
         return profiles.size > 1
@@ -1359,6 +1404,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     suspend fun releaseKidsLock(pin: String) {
         val client = client ?: return
         client.releaseKidsLock(pin)
+        signInAnswers.forget()
         kidsLock = false
         heldParentPin = pin
         heldParentPinUntil = System.currentTimeMillis() + 60_000
@@ -1612,8 +1658,13 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             reportsServer = address
             // The name kept for this server (none for a new one), until it says its own.
             serverName = if (saved) store.savedServerName else null
-            val guest = credentials?.isGuest == true
-            scope.launch { ErrorReports.refresh(client, address)?.let { noteServerName(it, address, guest) } }
+            val now = credentials ?: return
+            // Error reports follow the server's setting, and its name is kept; best effort.
+            scope.launch {
+                val status = serverStatus(now) ?: return@launch
+                ErrorReports.apply(status.errorReports, address)
+                noteServerName(status, address, now.isGuest)
+            }
         }
     }
 
@@ -1636,14 +1687,11 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     /** Back in front: a guest's tunnel is started again if it stopped while the app was away. */
     fun cameToFront() {
-        // The connection to the server is set up again before Play needs it.
-        client?.let { scope.launch { it.warmConnection() } }
         tunnelIdle?.cancel()
         if (credentials?.isGuest == true) scope.launch(Dispatchers.IO) { tunnel.ensureRunning() }
-        // Renamed on the web while the app was away: the name follows.
-        credentials?.let { now ->
-            client?.let { scope.launch { runCatching { it.systemStatus() }.getOrNull()?.let { status -> noteServerName(status, now.address, now.isGuest) } } }
-        }
+        // One request does both: the connection to the server is set up again before Play needs it, and the server's
+        // name follows if it was renamed on the web while the app was away. Starting up, it's the status already asked for.
+        credentials?.let { now -> scope.launch { serverStatus(now)?.let { status -> noteServerName(status, now.address, now.isGuest) } } }
         // Offline mode ends (or starts) as soon as it's known whether the server answers now, and tries again while
         // the app's in front.
         scheduleRetry()
@@ -1809,6 +1857,15 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
         /** How long a guest's tunnel stays up with the app in the background and nothing using it. */
         private const val TUNNEL_IDLE_MS = 60_000L
+
+        /** How old the server's status may be for what follows it closely (its name, error reports, its address for away). */
+        private const val STATUS_FRESH_MS = 10_000L
+
+        /** How old it may be for its version alone. */
+        private const val VERSION_FRESH_MS = 5 * 60_000L
+
+        /** How long after the profiles' load its answer to who's signed in still does for the main screen. */
+        private const val SIGN_IN_FRESH_MS = 5_000L
 
         /**
          * The server's address for away from home, from its [status], as a base URL: every request there carries this
