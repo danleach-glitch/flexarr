@@ -27,6 +27,10 @@ fun TvRoot(model: AppModel) {
                         // Offline from the start: nothing to keep underneath.
                         model.serverUnreachable && !model.hasBeenOnline -> TvOfflineScreen(model)
                         !model.profilesLoaded -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = Flexarr.screen)
+                        // Offline at "Who's watching?", where it stays up rather than go on as a profile past its PIN
+                        // (AppModel.needsProfile): nobody can be chosen until the server's back, and a TV has nothing to
+                        // play meanwhile, so it says the server can't be reached, as it did before, and tries again.
+                        model.needsProfile && model.serverUnreachable -> TvOfflineScreen(model)
                         model.needsProfile -> TvProfilePicker(model)
                         else -> {
                             TvMainScreen(model)
