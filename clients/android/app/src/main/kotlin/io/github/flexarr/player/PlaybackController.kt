@@ -115,11 +115,14 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         private set
     var isBuffering by mutableStateOf(true)
         private set
+    /** The file has played to its end (the last frame is up). */
+    private var hasEnded by mutableStateOf(false)
     /**
      * Whether the screen is kept on ([screenStaysOn]): playing, the spinner is up, or the next episode is being
-     * counted down to over the last frame (nothing plays for those seconds, but something is about to).
+     * counted down to over the last frame (nothing plays for those seconds, but something is about to). A countdown
+     * that follows the picture (over the credits, or to a skip) holds while paused, so it keeps nothing on by itself.
      */
-    val keepsScreenOn: Boolean get() = screenStaysOn(isPlaying, isBuffering || isOpening || countingDown, error != null)
+    val keepsScreenOn: Boolean get() = screenStaysOn(isPlaying, isBuffering || isOpening, error != null, countingDown, hasEnded)
     var position by mutableDoubleStateOf(0.0)
         private set
     var duration by mutableDoubleStateOf(0.0)
@@ -295,6 +298,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
             override fun onPlaybackStateChanged(state: Int) {
                 isBuffering = state == Player.STATE_BUFFERING
+                hasEnded = state == Player.STATE_ENDED
                 // A stall soon after the first picture: its own entry beside the start's. Not a seek (Skip intro, say),
                 // which moves the place well past where playing alone would have got to.
                 if (state == Player.STATE_BUFFERING) firstFrame?.let { (at, position, playbackId) ->
