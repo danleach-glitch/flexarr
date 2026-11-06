@@ -22,7 +22,7 @@ import { useMusicSettings } from '../lib/musicSettings'
 import { FADE_SECONDS } from '../lib/sleepTimer'
 import { createEngine, isPodcast, type AudioEngine } from './audioEngine'
 import { announceBookmarks, useBookmarkChanges } from './bookmarks'
-import { AudioPlayerContext, AudioTimeContext, type AudioPlayer, type SleepTimer } from './audioPlayerContext'
+import { AudioActionsContext, AudioPlayerContext, AudioTimeContext, type AudioActions, type AudioPlayer, type SleepTimer } from './audioPlayerContext'
 import { emptyQueue, queueReducer, queueStorageKey, readStoredQueue, rebuildQueue, serializeQueue, type StoredQueue } from './queue'
 
 const speedKey = 'flexarr.podcastSpeed'
@@ -514,6 +514,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
   const analyser = useCallback(() => engineRef.current?.analyser() ?? null, [])
 
+  // Apart from the rest, and never changing: cards read these alone (see AudioActionsContext).
+  const actions = useMemo<AudioActions>(() => ({ play, enqueue, playNext }), [play, enqueue, playNext])
+
   const value = useMemo<AudioPlayer>(
     () => ({
       queue,
@@ -594,14 +597,16 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     ],
   )
   return (
-    <AudioPlayerContext value={value}>
-      <AudioTimeContext value={time}>
-        {children}
-        {/* preload="auto" so the next track buffers as soon as it has a source, before anyone presses anything. */}
-        <audio ref={audioA} hidden preload="auto" />
-        <audio ref={audioB} hidden preload="auto" />
-      </AudioTimeContext>
-    </AudioPlayerContext>
+    <AudioActionsContext value={actions}>
+      <AudioPlayerContext value={value}>
+        <AudioTimeContext value={time}>
+          {children}
+          {/* preload="auto" so the next track buffers as soon as it has a source, before anyone presses anything. */}
+          <audio ref={audioA} hidden preload="auto" />
+          <audio ref={audioB} hidden preload="auto" />
+        </AudioTimeContext>
+      </AudioPlayerContext>
+    </AudioActionsContext>
   )
 }
 

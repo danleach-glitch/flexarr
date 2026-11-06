@@ -26,6 +26,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The Live TV guide opens and responds to a click more quickly when it has hundreds of channels.
 - Flexarr opens a little sooner in a browser: it asks the server for everything the first screen needs at once, and a server that's slow to say which languages it has no longer holds the screen at **Connecting…**.
 - The first page has less to download: Now Playing, playlists, audiobook pages and the main profile's editors are fetched the first time you open them.
+- With music, a podcast or a book playing, a long grid of posters no longer redraws every card each time the track changes or pauses.
 
 ## 0.62.1 · 5 November 2026
 

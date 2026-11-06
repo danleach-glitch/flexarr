@@ -1,6 +1,6 @@
 import { Link } from 'react-router'
 import type { PodcastEpisode } from '../api/types'
-import { useAudioPlayer } from '../hooks/audioPlayerContext'
+import { useAudioActions } from '../hooks/audioPlayerContext'
 import { episodeAsTrack, episodeLength, episodeProgress } from '../lib/podcasts'
 import { Artwork } from './Artwork'
 import { icon } from './icons.generated'
@@ -8,7 +8,7 @@ import { t } from '../i18n'
 
 /** A podcast episode on a shelf: its artwork (with how far you got) and a play button over it, title and show beneath. */
 export function EpisodeCard({ episode }: { episode: PodcastEpisode }) {
-  const player = useAudioPlayer()
+  const player = useAudioActions()
   const progress = episodeProgress(episode)
   return (
     <article className="card card-shell poster-card podcast-card">
