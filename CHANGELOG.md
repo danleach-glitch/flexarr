@@ -33,6 +33,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Music
 - A long playlist's page no longer stutters as it plays or downloads, on iPhone, iPad, Mac and Apple TV, and on iPhone, iPad and Mac it opens without building every row first.
+- On Apple TV, the visualiser's light comes to rest a few seconds after you pause, and moves again when the music does. Paused music left on Now Playing no longer keeps the Apple TV drawing 30 times a second.
 
 ### Security
 - On iPhone, iPad, Apple TV and Mac, away from home, your sign-in goes to your server's home address only after it has shown it's your server, so another network using the same address never receives it and can't sign the app out.
