@@ -24,6 +24,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Downloading a long playlist no longer makes its page and the Downloads tab stutter while the tracks come in.
 - Live TV's guide on the phone uses less data: it's fetched again every five minutes rather than every two, and the channel list behind it as often. The line for now still moves each minute. An Android TV no longer holds the whole guide in memory after you've left Live TV.
 - While downloads wait for the server to convert them (a season at 720p can take hours), the phone asks after each one far less often than every three seconds, which is easier on the battery and on mobile data. A download still starts within half a minute of being ready.
+- The Android app takes about 18 MB less space on each phone and TV.
 
 ## 0.62.1 · 5 November 2026
 

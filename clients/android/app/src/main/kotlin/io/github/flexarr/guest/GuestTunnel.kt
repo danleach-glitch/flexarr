@@ -2,6 +2,7 @@ package io.github.flexarr.guest
 
 import android.content.Context
 import androidx.core.content.edit
+import io.github.flexarr.BuildConfig
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.LoopbackTunnel
 import io.github.flexarr.core.i18n.t
@@ -24,8 +25,11 @@ private val flexarrLog = FlexarrLog("tunnel")
  * download is still using it ([io.github.flexarr.AppModel.wentToBackground]). Requests made before it's up wait for it
  * ([FlexarrClient.loopbackTunnel]), and one that finds nothing listening starts it again. The node's identity is kept in a folder that isn't backed up; the invite's auth key
  * is used once, so losing that folder means needing a new invite.
+ *
+ * [available]: this build has family invites, and so the Go library. One without (a release build until invites are
+ * turned on, see app/build.gradle.kts) leaves the library out and never starts the node.
  */
-class GuestTunnel(context: Context) : LoopbackTunnel {
+class GuestTunnel(context: Context, private val available: Boolean = BuildConfig.GUEST_INVITES) : LoopbackTunnel {
     private val context = context.applicationContext
     private val lock = Any()
 
@@ -86,6 +90,8 @@ class GuestTunnel(context: Context) : LoopbackTunnel {
      */
     fun start(authKey: String = ""): Int = synchronized(lock) {
         val info = info ?: throw TunnelException("No guest sign-in", needsLogin = false)
+        // No library to load in a build without family invites: said as any other start that didn't work.
+        if (!available) throw TunnelException(t("The tunnel didn’t start"), needsLogin = false)
         listening?.let { port -> if (state() == "running") return port }
         loadLibrary()
         Tunnel.setPreferredPort(preferredPort.toLong())
