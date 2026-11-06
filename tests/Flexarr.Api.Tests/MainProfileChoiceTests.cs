@@ -110,6 +110,51 @@ public class MainProfileChoiceTests
         Assert.Equal(HttpStatusCode.OK, withAdminPin.StatusCode);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task OverTailscale_ABrowserWithNoSignIn_OnTheOwnersAccount_StartsOnAKidsProfile_WhenThereIsOne(bool kids)
+    {
+        using var server = new RemoteAccessFactory();
+        await SetUpAsync(server.Services, kids: kids, ownPin: false);
+        string? ada;
+        using (var scope = server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            (await db.Profiles.FindAsync(PlaybackState.DefaultUser))!.TailscaleLogin = "owner@example.com";
+            await db.SaveChangesAsync();
+            ada = db.Profiles.Where(p => p.IsKids).Select(p => p.Id).FirstOrDefault();
+        }
+
+        // A private window on any device logged in to the owner's Tailscale account: no cookie, no profile chosen.
+        var browser = Guest(server, "100.70.2.20", "owner@example.com");
+
+        var startsAs = await ProfileIdAsync(browser);
+        var freely = await ChooseMainAsync(browser, null);
+        var withAdminPin = await ChooseMainAsync(browser, AdminPin);
+
+        if (!kids)
+        {
+            // No kids profiles: the account's profile, as before.
+            Assert.Equal(PlaybackState.DefaultUser, startsAs);
+            Assert.Equal(HttpStatusCode.OK, freely.StatusCode);
+            return;
+        }
+
+        Assert.Equal(ada, startsAs);
+        Assert.Equal(HttpStatusCode.Forbidden, freely.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, withAdminPin.StatusCode);
+        // The admin PIN signed the browser in: with its cookie it is the main profile, and may manage the server.
+        var cookie = withAdminPin.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith("flexarr.session=", StringComparison.Ordinal)).Split(';')[0];
+        var signedIn = Guest(server, "100.70.2.20", "owner@example.com");
+        signedIn.DefaultRequestHeaders.Add("Cookie", cookie);
+        var me = await signedIn.GetFromJsonAsync<JsonElement>(Api("/me"));
+        Assert.Equal(PlaybackState.DefaultUser, me.GetProperty("profileId").GetString());
+        Assert.True(me.GetProperty("isAdmin").GetBoolean());
+        // Another window without the cookie is still a kids profile.
+        Assert.Equal(ada, await ProfileIdAsync(Guest(server, "100.70.2.20", "owner@example.com")));
+    }
+
     [Fact]
     public async Task OnTheOwnersDevice_TheAdminPinChoosesTheMainProfile_AgainAndAgain_WithoutLockingItOut()
     {

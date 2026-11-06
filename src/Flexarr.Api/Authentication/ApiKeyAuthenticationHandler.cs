@@ -315,8 +315,11 @@ public sealed class ApiKeyAuthenticationHandler(
             // At home with "only away from home", a browser without a profile chosen would be the main profile, so a
             // child could leave a kids profile by opening a private window. With kids profiles in the house, it starts
             // on one, and choosing the main profile there takes the admin PIN, which signs the browser in.
+            // The same over Tailscale for an account linked to the main profile: every device logged in to it, a child's
+            // tablet included, would otherwise be the main profile.
             // Only looked up where it matters: no profile chosen yet, or the main profile.
-            var kids = method == Methods.Local && (chosen is null || chosen == PlaybackState.DefaultUser) ? await FirstKidsProfileAsync(db) : null;
+            var mainUnasked = method == Methods.Local || (method == Methods.Tailscale && basis == PlaybackState.DefaultUser);
+            var kids = mainUnasked && (chosen is null || chosen == PlaybackState.DefaultUser) ? await FirstKidsProfileAsync(db) : null;
             kidsHome = kids is not null;
             // Where choosing the main profile takes the admin PIN (a Tailscale guest, that browser at home), it lives
             // on the sign-in the PIN gave. A main-profile token alone isn't enough: it's bound to the main profile's own
