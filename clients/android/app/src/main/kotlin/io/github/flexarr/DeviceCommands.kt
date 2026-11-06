@@ -127,6 +127,11 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
             }
             DeviceCommandKind.Watch -> {
                 val id = command.channelId ?: return
+                // Nobody chosen ("Who's watching?" is up): the channel opens once someone is, as a link would.
+                if (model.awaitsProfile) {
+                    model.pendingLink = AppLink.Live(id)
+                    return
+                }
                 val client = model.client ?: return
                 // Every channel to change through, favourites first.
                 scope.launch {
@@ -170,19 +175,23 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
     /**
      * A play command for another profile ([profileId]) switches to it first, as the iPhone does: straight away without
      * a PIN. One with a PIN goes back to "Who's watching?", and the title plays once it's chosen (as a link would). An
-     * unknown profile, or the one watching, plays as things are. False when the title isn't to be played now.
+     * unknown profile, or the one watching, plays as things are; unless nobody's watching ("Who's watching?" is up),
+     * when it waits for someone to be chosen too. False when the title isn't to be played now.
      */
     private suspend fun switchProfile(profileId: String?, itemId: String): Boolean {
-        if (profileId == null || profileId == model.currentProfile?.id) return true
-        val profile = model.profiles.firstOrNull { it.id == profileId } ?: return true
-        if (!profile.takesPin) {
-            return runCatching { model.chooseProfile(profile) }
+        val (how, profile) = commandPlays(profileId, model.currentProfile?.id, model.profiles, model.awaitsProfile)
+        when (how) {
+            CommandPlay.AsThingsAre -> return true
+            CommandPlay.Switch -> return runCatching { model.chooseProfile(profile!!) }
                 .onFailure { flexarrLog.warning("Couldn't switch to the profile a command asked for", it) }
                 .isSuccess
+            CommandPlay.OnceChosen -> model.pendingLink = AppLink.Play(itemId)
+            CommandPlay.AskWho -> {
+                active?.stop()
+                model.pendingLink = AppLink.Play(itemId)
+                model.switchProfile()
+            }
         }
-        active?.stop()
-        model.pendingLink = AppLink.Play(itemId)
-        model.switchProfile()
         return false
     }
 
@@ -203,4 +212,31 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
     private fun open(intent: Intent) {
         context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
+}
+
+/** How a play command from another device is taken here ([commandPlays]). */
+internal enum class CommandPlay {
+    /** As whoever's watching now. */
+    AsThingsAre,
+
+    /** As the profile it names, which has no PIN: switched to straight away. */
+    Switch,
+
+    /** The profile it names has a PIN: back to "Who's watching?", and the title plays once it's chosen. */
+    AskWho,
+
+    /** "Who's watching?" is up already: the title plays once someone's chosen. */
+    OnceChosen,
+}
+
+/**
+ * How a play command for [profileId] is taken while [current] is watching, and the profile to switch to. A command for
+ * another profile switches to it, through "Who's watching?" if it has a PIN. One naming nobody, the one watching, or a
+ * profile not among [profiles] plays as things are; but with nobody chosen on this device ([awaitsProfile]: "Who's
+ * watching?" is up) that would be as whoever was here last, PIN or not, so it waits for someone to be chosen.
+ */
+internal fun commandPlays(profileId: String?, current: String?, profiles: List<io.github.flexarr.core.Profile>, awaitsProfile: Boolean): Pair<CommandPlay, io.github.flexarr.core.Profile?> {
+    val profile = profileId?.takeIf { it != current }?.let { id -> profiles.firstOrNull { it.id == id } }
+        ?: return (if (awaitsProfile) CommandPlay.OnceChosen else CommandPlay.AsThingsAre) to null
+    return (if (profile.takesPin) CommandPlay.AskWho else CommandPlay.Switch) to profile
 }

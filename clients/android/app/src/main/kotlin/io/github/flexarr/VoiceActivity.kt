@@ -48,6 +48,9 @@ class VoiceActivity : ComponentActivity() {
 
     private fun play(said: String?, extras: Bundle?) {
         val model = appModel
+        // Nobody chosen ("Who's watching?" is up): the server would answer as whoever was here last, so nothing is
+        // looked up or played; the app opens for someone to be chosen.
+        if (model.awaitsProfile) return open(AppLink.Home)
         val client = model.client ?: return open(AppLink.Home)
         val trusted = fromAssistant
         lifecycleScope.launch {

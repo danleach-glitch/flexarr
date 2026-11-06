@@ -79,6 +79,13 @@ class CarLibrary(private val model: AppModel, private val context: Context) : Me
     private val searches = ConcurrentHashMap<String, List<MediaItem>>()
     private val voice = VoiceSearch(model)
 
+    /**
+     * The sign-in the car, the Assistant and the headset's button browse and play as. None while nobody has been chosen
+     * though someone has to be ("Who's watching?" is up in the app): the server would answer as whoever was here last,
+     * PIN or not, so until someone's chosen there's nothing to browse or play, as when signed out.
+     */
+    private val client: FlexarrClient? get() = if (model.awaitsProfile) null else model.client
+
     /** A playlist's tracks in order (`playlist-<id>`), or an artist's, albums oldest first (`artist-<id>`). */
     private suspend fun tracks(client: FlexarrClient, list: String): List<ItemSummary> {
         val id = list.substringAfter('-')
@@ -109,7 +116,7 @@ class CarLibrary(private val model: AppModel, private val context: Context) : Me
 
     override fun onGetItem(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, mediaId: String): ListenableFuture<LibraryResult<MediaItem>> =
         scope.future {
-            val client = model.client ?: return@future LibraryResult.ofError(LibraryResult.RESULT_ERROR_SESSION_AUTHENTICATION_EXPIRED)
+            val client = client ?: return@future LibraryResult.ofError(LibraryResult.RESULT_ERROR_SESSION_AUTHENTICATION_EXPIRED)
             val id = mediaId.substringAfter(':')
             runCatching {
                 when {
@@ -128,7 +135,7 @@ class CarLibrary(private val model: AppModel, private val context: Context) : Me
         pageSize: Int,
         params: LibraryParams?,
     ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> = scope.future {
-        val client = model.client ?: return@future LibraryResult.ofError(LibraryResult.RESULT_ERROR_SESSION_AUTHENTICATION_EXPIRED)
+        val client = client ?: return@future LibraryResult.ofError(LibraryResult.RESULT_ERROR_SESSION_AUTHENTICATION_EXPIRED)
         runCatching { children(client, parentId) }
             .onFailure { log.warning("Couldn't list $parentId for the car", it) }
             .fold({ LibraryResult.ofItemList(ImmutableList.copyOf(it), params) }, { LibraryResult.ofError(LibraryResult.RESULT_ERROR_IO) })
@@ -194,7 +201,7 @@ class CarLibrary(private val model: AppModel, private val context: Context) : Me
     /** Searching in the car: what matches is worked out now, and the car told how many there are. */
     override fun onSearch(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, query: String, params: LibraryParams?): ListenableFuture<LibraryResult<Void>> =
         scope.future {
-            val client = model.client ?: return@future LibraryResult.ofError(SessionError.ERROR_SESSION_AUTHENTICATION_EXPIRED)
+            val client = client ?: return@future LibraryResult.ofError(SessionError.ERROR_SESSION_AUTHENTICATION_EXPIRED)
             val found = runCatching { search(client, query) }
                 .onFailure { log.warning("Couldn't search for the car", it) }
                 .getOrElse { return@future LibraryResult.ofError(SessionError.ERROR_IO) }
@@ -211,7 +218,7 @@ class CarLibrary(private val model: AppModel, private val context: Context) : Me
         pageSize: Int,
         params: LibraryParams?,
     ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> = scope.future {
-        val client = model.client ?: return@future LibraryResult.ofError(SessionError.ERROR_SESSION_AUTHENTICATION_EXPIRED)
+        val client = client ?: return@future LibraryResult.ofError(SessionError.ERROR_SESSION_AUTHENTICATION_EXPIRED)
         val found = searches[query] ?: runCatching { search(client, query) }.getOrElse { return@future LibraryResult.ofError(SessionError.ERROR_IO) }
         LibraryResult.ofItemList(ImmutableList.copyOf(found.drop(page * pageSize).take(pageSize)), params)
     }
@@ -260,7 +267,7 @@ class CarLibrary(private val model: AppModel, private val context: Context) : Me
     override fun onAddMediaItems(mediaSession: MediaSession, controller: MediaSession.ControllerInfo, mediaItems: MutableList<MediaItem>): ListenableFuture<MutableList<MediaItem>> {
         if (mediaItems.none { it.mediaId.isEmpty() }) return Futures.immediateFuture(mediaItems)
         return scope.future {
-            val client = model.client ?: return@future mutableListOf()
+            val client = client ?: return@future mutableListOf()
             mediaItems.mapNotNull { item ->
                 if (item.mediaId.isNotEmpty()) return@mapNotNull item
                 val choice = runCatching { voice.choose(client, item.requestMetadata.searchQuery, item.requestMetadata.extras, video = false) }
@@ -288,7 +295,7 @@ class CarLibrary(private val model: AppModel, private val context: Context) : Me
 
     /** Plays what the car chose through the app's own players. */
     fun play(mediaId: String) {
-        val client = model.client ?: return
+        val client = client ?: return
         scope.launch {
             runCatching {
                 when {
@@ -324,7 +331,8 @@ class CarLibrary(private val model: AppModel, private val context: Context) : Me
         controller: MediaSession.ControllerInfo,
         isForPlayback: Boolean,
     ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
-        val heard = LastHeard.load(context)
+        // Nobody chosen ("Who's watching?" is up): whoever was here last isn't picked up again.
+        val heard = LastHeard.load(context)?.takeIf { !model.awaitsProfile }
             ?: return Futures.immediateFailedFuture(UnsupportedOperationException("Nothing to pick up again"))
         val type = if (heard.mediaId.startsWith("book:")) MediaMetadata.MEDIA_TYPE_AUDIO_BOOK else MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE
         val item = playable(heard.mediaId, heard.title, heard.subtitle, model.client?.imageUrl(heard.artwork, 400), type)

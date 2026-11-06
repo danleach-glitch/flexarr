@@ -939,9 +939,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         get() = profilesLoaded && (!serverUnreachable || offlineAsksWho) && credentials?.profileToken == null && profiles.size > 1
 
     /**
-     * [needsProfile] for what works without the app's screens (the home-screen widgets): nobody has been chosen on this
-     * device though someone has to be, so the server would answer as whoever was chosen last. Before the profiles have
-     * been asked for (the app started in the background), by the list last kept on the device.
+     * [needsProfile] for what works without the app's screens (the home-screen widgets, the car, the Assistant, the
+     * headset's button, commands from other devices): nobody has been chosen on this device though someone has to be,
+     * so the server would answer as whoever was chosen last. Before the profiles have been asked for (the app started
+     * in the background), by the list last kept on the device.
      */
     val awaitsProfile: Boolean
         get() = awaitsProfile(
@@ -1471,6 +1472,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         music.stop()
         podcasts.stop()
         books.stop()
+        // What they were casting stops too (its place is sent while the sign-in is still theirs), and the headset's play
+        // button has nothing of theirs to pick up again.
+        io.github.flexarr.cast.Casting.shared?.stop()
+        io.github.flexarr.audio.LastHeard.clear(context)
         upNext = emptyList()
         forgetWatchlist()
         if (saved) store.saveProfile(null)
