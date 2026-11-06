@@ -10,6 +10,9 @@ struct ShowGapsSection: View {
     /// The show's TMDB id, for requesting a season through Seerr.
     let tmdbId: Int?
     let gaps: ShowGaps
+    /// The library's own seasons' posters, by season number, for a season it has some of (else the show's poster).
+    var posters: [Int: String] = [:]
+    var showPoster: String?
     /// Seasons asked for or searched here, until the page next loads.
     @State private var asked: Set<Int> = []
     /// Whole seasons Sonarr was asked to search for here: those aren't Seerr's to take back.
@@ -25,27 +28,19 @@ struct ShowGapsSection: View {
             if gaps.hasMissing {
                 VStack(alignment: .leading, spacing: 0) {
                     RowHeading(title: t(Words.notInYourLibrary))
-                    if !gaps.seasons.isEmpty {
-                        ScrollView(.horizontal) {
-                            LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
-                                ForEach(gaps.seasons) { season in
-                                    seasonCard(season)
-                                }
+                    // One row: a season it has some of is a card beside those it has none of, saying how many are missing.
+                    ScrollView(.horizontal) {
+                        LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
+                            ForEach(gaps.row(posters: posters, showPoster: showPoster), id: \.season.seasonNumber) { entry in
+                                seasonCard(entry.season, partial: entry.partial)
                             }
-                            .padding(.horizontal, Layout.edge)
-                            .padding(.top, 28)
-                            .padding(.bottom, 40)
                         }
-                        .scrollClipDisabled()
-                        .focusSection()
+                        .padding(.horizontal, Layout.edge)
+                        .padding(.top, 28)
+                        .padding(.bottom, 40)
                     }
-                    VStack(alignment: .leading, spacing: 24) {
-                        ForEach(gaps.episodesBySeason, id: \.season) { group in
-                            missingEpisodes(season: group.season, episodes: group.episodes)
-                        }
-                    }
-                    .padding(.horizontal, Layout.edge)
-                    .padding(.top, gaps.seasons.isEmpty ? 24 : 0)
+                    .scrollClipDisabled()
+                    .focusSection()
                 }
             }
             if !gaps.upcoming.isEmpty {
@@ -78,8 +73,10 @@ struct ShowGapsSection: View {
         }
     }
 
-    private func state(_ season: MissingSeason) -> MissingSeasonAction {
+    private func state(_ season: MissingSeason, partial: Bool) -> MissingSeasonAction {
         let n = season.seasonNumber
+        // A season it has some of: Search for the rest (the main profile), Searching once asked, or nothing.
+        if partial { return asked.contains(-n) ? .requested : gaps.canSearch && gaps.source == "sonarr" ? .search : .none }
         if asked.contains(n) || searched.contains(n) { return .requested }
         if undone.contains(n), gaps.canRequest { return .request }
         let action = gaps.action(for: season)
@@ -93,23 +90,24 @@ struct ShowGapsSection: View {
         gaps.canRequest && tmdbId != nil && !searched.contains(season.seasonNumber) && season.availability != .partlyAvailable
     }
 
-    private func seasonCard(_ season: MissingSeason) -> some View {
-        let action = state(season)
+    private func seasonCard(_ season: MissingSeason, partial: Bool) -> some View {
+        let action = state(season, partial: partial)
         let width = Layout.posterWidth
-        let badge = status(action)
+        let badge = partial && action == .requested ? (title: t("Searching"), symbol: Symbol.search) : status(action)
+        let caption = caption(season, partial: partial)
         // Always a button, whatever it can do: one that's disabled while it has focus leaves nothing focused.
         // VoiceOver hears what the caption says, Request, Search or Requested among it, as the card is all it focuses.
         return ArtworkButton(ambient: .silver,
-                             accessibilityText: [season.title, caption(season), badge?.title].compactMap(\.self)
+                             accessibilityText: [season.title, caption, badge?.title].compactMap(\.self)
                                  .filter { !$0.isEmpty }.joined(separator: ", "),
-                             accessibilityHint: action == .requested && undoable(season) ? TitleWords.unrequestHint : nil,
+                             accessibilityHint: !partial && action == .requested && undoable(season) ? TitleWords.unrequestHint : nil,
                              isSelected: action == .requested) {
             // Pressing it does what it says, as on Android TV: no dialog in between.
             guard !busy else { return }
             switch action {
             case .request: Task { await request(season) }
-            case .search: Task { await search(season.seasonNumber) }
-            case .requested where undoable(season): undoing = season
+            case .search: Task { await search(season.seasonNumber, episodesOnly: partial) }
+            case .requested where !partial && undoable(season): undoing = season
             default: break
             }
         } artwork: {
@@ -124,14 +122,14 @@ struct ShowGapsSection: View {
                 }
             }
             .frame(width: width, height: width * 1.5)
-            .opacity(action == .requested ? 0.55 : 1)
+            .opacity(action == .requested && !partial ? 0.55 : 1)
             .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
                 Text(season.title)
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(focused ? Color.screen : Color.screen.opacity(0.8))
-                Text(caption(season))
+                Text(caption)
                     .font(.system(size: 21))
                     .foregroundStyle(Color.usher)
                 if let status = badge {
@@ -146,8 +144,9 @@ struct ShowGapsSection: View {
         }
     }
 
-    private func caption(_ season: MissingSeason) -> String {
-        [season.episodes > 0 ? t("{count, plural, one {# episode} other {# episodes}}", ["count": season.episodes]) : nil,
+    private func caption(_ season: MissingSeason, partial: Bool) -> String {
+        if partial { return t("{count, plural, one {# episode missing} other {# episodes missing}}", ["count": season.episodes]) }
+        return [season.episodes > 0 ? t("{count, plural, one {# episode} other {# episodes}}", ["count": season.episodes]) : nil,
          season.year.map(String.init)].compactMap(\.self).joined(separator: ", ")
     }
 
@@ -159,34 +158,6 @@ struct ShowGapsSection: View {
         case .requested: (TitleWords.requested, Symbol.requested)
         default: nil
         }
-    }
-
-    /// A season the library has some of: how many episodes it lacks, and Search (the main profile). The episodes
-    /// themselves aren't listed: the count says enough.
-    private func missingEpisodes(season: Int, episodes: [ShowEpisode]) -> some View {
-        let title = Text(t("Season {season}: {count, plural, one {# episode missing} other {# episodes missing}}", ["season": season, "count": episodes.count]))
-            .font(.system(size: 30, weight: .bold))
-        let canSearch = gaps.canSearch && gaps.source == "sonarr"
-        return VStack(alignment: .leading, spacing: 8) {
-            if canSearch {
-                title.foregroundStyle(Color.screen)
-            } else {
-                // Nothing else here takes focus: the line does, so the remote doesn't skip it on the way down.
-                listRow { title }
-            }
-            if canSearch {
-                Button {
-                    guard !busy, !asked.contains(-season) else { return }
-                    Task { await search(season, episodesOnly: true) }
-                } label: {
-                    Label(asked.contains(-season) ? t("Searching") : t(Words.search), systemImage: Symbol.search)
-                }
-                .buttonStyle(ActionButtonStyle())
-                .accessibilityLabel(t("Search for season {season}’s missing episodes", ["season": season]))
-                .padding(.top, 8)
-            }
-        }
-        .focusSection()
     }
 
     /// A focusable row that does nothing, as an outside album's tracks are: the remote scrolls only by moving focus, so

@@ -29,6 +29,21 @@ data class MissingSeason(
     val detail: String get() = listOfNotNull(if (episodes > 0) episodesLabel(episodes) else null, year?.toString()).joinToString(", ")
 }
 
+/** A card in a show's *Not in your library* row: a season the library has none of, or one it has part of. */
+sealed interface SeasonGap {
+    val seasonNumber: Int
+
+    data class Whole(val season: MissingSeason) : SeasonGap {
+        override val seasonNumber: Int get() = season.seasonNumber
+    }
+
+    /** A season the library has some of, and how many of its aired episodes it lacks. */
+    data class Part(override val seasonNumber: Int, val missing: Int) : SeasonGap {
+        val title: String get() = t("Season {season}", "season" to seasonNumber.toString())
+        val detail: String get() = t("{count, plural, one {# episode missing} other {# episodes missing}}", "count" to missing)
+    }
+}
+
 /** An episode: one that aired and the library lacks, or one still to air. */
 @Serializable
 data class ShowEpisode(
@@ -72,6 +87,14 @@ data class ShowMissing(
     /** The missing episodes, a season at a time. */
     val episodesBySeason: List<Pair<Int, List<ShowEpisode>>>
         get() = episodes.groupBy { it.seasonNumber }.toSortedMap().map { (season, list) -> season to list }
+
+    /** *Not in your library*'s one row: the seasons it has none of and those it has part of, by season number. */
+    val seasonGaps: List<SeasonGap>
+        get() = (seasons.map { SeasonGap.Whole(it) } + episodesBySeason.map { (season, list) -> SeasonGap.Part(season, list.size) })
+            .sortedBy { it.seasonNumber }
+
+    /** Whether Search can ask Sonarr for a partly-had season's missing episodes (the main profile, a Sonarr show). */
+    val canSearchEpisodes: Boolean get() = canSearch && source == "sonarr"
 
     companion object {
         val None = ShowMissing()

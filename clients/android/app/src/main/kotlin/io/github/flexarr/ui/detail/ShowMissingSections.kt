@@ -37,7 +37,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MissingSeason
+import io.github.flexarr.core.SeasonGap
 import io.github.flexarr.core.ShowEpisode
 import io.github.flexarr.core.ShowMissing
 import io.github.flexarr.ui.components.Edge
@@ -56,10 +58,15 @@ import io.github.flexarr.ui.theme.Tokens
 
 /**
  * What a show's page knows the library lacks, as music's artist page does: *Not in your library* (whole seasons with
- * Request, or Search for the main profile; how many episodes seasons it has are missing, with Search), then *Coming up*.
+ * Request, or Search for the main profile; and, in the same row, seasons it has part of, with how many episodes they
+ * lack and Search), then *Coming up*.
  */
 internal fun LazyListScope.showMissingSections(
     missing: ShowMissing,
+    /** The library's own seasons of the show, for a partly-had season's poster and name. */
+    librarySeasons: List<ItemSummary>,
+    /** The show's poster, for a partly-had season without one of its own. */
+    showPoster: String?,
     /** Seasons searched for here, ahead of the server's next answer. */
     asked: Set<Int>,
     /** Where a season's request stands (Request, Requested, Can't request…), counting what was done here. */
@@ -74,24 +81,17 @@ internal fun LazyListScope.showMissingSections(
         item(key = "missing") {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 SectionHeading(t(Words.notInYourLibrary))
-                if (missing.seasons.isNotEmpty()) {
+                val gaps = missing.seasonGaps
+                if (gaps.isNotEmpty()) {
                     LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
-                        items(missing.seasons, key = { "missing-season-${it.seasonNumber}" }) { season ->
-                            MissingSeasonCard(season, missing, season.seasonNumber in asked, requestState(season), canAsk, onRequest, onUnrequest, onSearch)
-                        }
-                    }
-                }
-                // A season the library has some of: how many episodes it lacks, not each one.
-                missing.episodesBySeason.forEach { (season, episodes) ->
-                    Row(Modifier.padding(horizontal = Edge), verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            t("Season {season}: {count, plural, one {# episode missing} other {# episodes missing}}", "season" to season, "count" to episodes.size),
-                            fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f),
-                        )
-                        if (missing.canSearch) {
-                            val searching = season in asked
-                            MissingChip(if (searching) t("Searching") else t(Words.search), FlexarrIcons.search, on = searching, enabled = !searching, description = t("Search for season {season}’s missing episodes", "season" to season)) {
-                                onSearch(season, null)
+                        items(gaps, key = { if (it is SeasonGap.Part) "part-season-${it.seasonNumber}" else "missing-season-${it.seasonNumber}" }) { gap ->
+                            when (gap) {
+                                is SeasonGap.Whole -> MissingSeasonCard(gap.season, missing, gap.seasonNumber in asked, requestState(gap.season), canAsk, onRequest, onUnrequest, onSearch)
+                                // A season the library has some of: how many episodes it lacks, not each one.
+                                is SeasonGap.Part -> {
+                                    val own = librarySeasons.firstOrNull { it.seasonNumber == gap.seasonNumber }
+                                    PartSeasonCard(gap, own?.artwork?.poster ?: showPoster, own?.title?.takeIf { it.isNotBlank() } ?: gap.title, missing.canSearchEpisodes, gap.seasonNumber in asked, onSearch)
+                                }
                             }
                         }
                     }
@@ -124,18 +124,7 @@ private fun MissingSeasonCard(
     onSearch: (Int, List<Int>?) -> Unit,
 ) {
     var confirming by remember { mutableStateOf(false) }
-    Column(Modifier.width(PosterWidth), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat)) {
-            RemoteImage(season.poster, 342, Modifier.fillMaxSize()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(season.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.padding(8.dp))
-                }
-            }
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(season.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            season.detail.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-        }
+    SeasonCardFrame(season.poster, season.title, season.detail) {
         when {
             // Requested through Seerr here: pressed, it asks, then takes back just this season.
             missing.canRequest -> when (state) {
@@ -151,6 +140,37 @@ private fun MissingSeasonCard(
         }
     }
     if (confirming) TitleUndoDialog(season.title, onConfirm = { onUnrequest(season) }, onDismiss = { confirming = false })
+}
+
+/** A season the library has part of: its poster, name and how many episodes it lacks, and Search under it (main profile). */
+@Composable
+private fun PartSeasonCard(gap: SeasonGap.Part, poster: String?, title: String, canSearch: Boolean, searching: Boolean, onSearch: (Int, List<Int>?) -> Unit) {
+    SeasonCardFrame(poster, title, gap.detail) {
+        if (canSearch) {
+            MissingChip(if (searching) t("Searching") else t(Words.search), FlexarrIcons.search, on = searching, enabled = !searching, description = t("Search for season {season}’s missing episodes", "season" to gap.seasonNumber)) {
+                onSearch(gap.seasonNumber, null)
+            }
+        }
+    }
+}
+
+/** A season card in *Not in your library*: poster (or its name on a plain tile), name and [detail], then [action]. */
+@Composable
+private fun SeasonCardFrame(poster: String?, title: String, detail: String, action: @Composable () -> Unit) {
+    Column(Modifier.width(PosterWidth), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat)) {
+            RemoteImage(poster, 342, Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.padding(8.dp))
+                }
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            detail.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        }
+        action()
+    }
 }
 
 /** An episode the library lacks or that's still to air: "S2E3 · Title", and what's known of it under. */

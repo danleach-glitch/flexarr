@@ -5,7 +5,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Shows
-- **Not in your library** on a show's page is shorter: a season you have part of shows how many episodes it's missing, with **Search**, instead of listing every one. On every app and the web.
+- **Not in your library** on a show's page is one row of seasons: a season you have none of, with **Request**, and a season you have part of, saying how many episodes it's missing, with **Search**. It no longer lists every missing episode. On every app and the web.
 - Missing seasons without their own poster show the show's poster instead of a blank tile.
 - On iPhone and iPad, **Requested** under a missing season stays on one line.
 

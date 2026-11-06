@@ -358,7 +358,8 @@ struct DetailView: View {
                 episodesRow(title: season.item.title, season: season)
             }
             if item.kind == .series, gaps.hasMissing || !gaps.upcoming.isEmpty {
-                ShowGapsSection(showId: item.id, tmdbId: detail.tmdbId.flatMap { Int($0) }, gaps: gaps)
+                ShowGapsSection(showId: item.id, tmdbId: detail.tmdbId.flatMap { Int($0) }, gaps: gaps,
+                                posters: ShowGaps.seasonPosters(detail.children), showPoster: item.artwork.poster)
             }
 
             let cast = detail.credits.sorted { rank($0.role) < rank($1.role) }
