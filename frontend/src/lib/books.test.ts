@@ -13,6 +13,7 @@ import {
   languageOptions,
   nextChapterStart,
   parseClock,
+  forgetOldPlaces,
   readLocalPlace,
   saveLocalPlace,
   previousChapterStart,
@@ -202,6 +203,26 @@ describe("this browser's place in a book", () => {
     }
     expect(readLocalPlace('b')).toEqual({ position: 600, savedAt: 1000 })
     localStorage.clear()
+  })
+
+  it('is forgotten a month after the book was last played here, whichever profile played it', () => {
+    const day = 24 * 60 * 60 * 1000
+    const now = Date.UTC(2026, 10, 6)
+    saveLocalPlace('lately', 600, now - 29 * day)
+    saveLocalPlace('long-ago', 600, now - 31 * day)
+    localStorage.setItem('flexarr.profile', 'kid-1.signature')
+    saveLocalPlace('lately', 30, now - day)
+    saveLocalPlace('long-ago', 30, now - 400 * day)
+    localStorage.setItem('flexarr.bookPlace.broken', 'not json')
+    localStorage.setItem('flexarr.sound', '{}')
+    try {
+      forgetOldPlaces(now)
+
+      expect(Object.keys(localStorage).sort()).toEqual(['flexarr.bookPlace.lately', 'flexarr.bookPlace.lately.p-kid-1', 'flexarr.profile', 'flexarr.sound'])
+      expect(readLocalPlace('lately')).toEqual({ position: 30, savedAt: now - day })
+    } finally {
+      localStorage.clear()
+    }
   })
 })
 

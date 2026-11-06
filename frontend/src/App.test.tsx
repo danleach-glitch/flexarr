@@ -450,6 +450,26 @@ describe('App', () => {
     expect(await screen.findByLabelText('API key')).toBeInTheDocument()
   })
 
+  it('forgets what was played here once this browser is no longer signed in, for whoever signs in next', async () => {
+    localStorage.setItem('flexarr.bookPlace.book-1', '{"position":600,"savedAt":1}')
+    localStorage.setItem('flexarr.bookPlace.book-2.p-kid-1', '{"position":30,"savedAt":2}')
+    localStorage.setItem('flexarr.sound', '{}')
+    sessionStorage.setItem('flexarr.musicQueue', '{"ids":["t1"],"albums":[],"index":0,"position":0}')
+    sessionStorage.setItem('flexarr.musicQueueTracks', '[]')
+    const refused = () => new Response('', { status: 401 })
+    mockApi({ '/system/status': refused, '/profiles': refused, '/me': refused, '/setup': { open: false } })
+
+    try {
+      render(<App />)
+      expect(await screen.findByLabelText('API key')).toBeInTheDocument()
+
+      expect(Object.keys(localStorage)).toEqual(['flexarr.sound'])
+      expect(sessionStorage.length).toBe(0)
+    } finally {
+      sessionStorage.clear()
+    }
+  })
+
   it('sets up a new server from the first browser with its setup code, without a key', async () => {
     let claimed = false
     const sent: string[] = []

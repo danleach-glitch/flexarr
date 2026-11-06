@@ -1,6 +1,6 @@
 import type { BookChapter, BookFile, BookProgress, BookSeriesRef, ItemSummary } from '../api/types'
 import { formatClock } from './format'
-import { profileKey } from './profileScope'
+import { BOOK_PLACE_KEY, profileKey, storedKeys } from './profileScope'
 import { locale, t } from '../i18n'
 
 /** A book, rather than a film, track or episode. */
@@ -210,7 +210,30 @@ export function startDecision(progress: BookProgress, local: LocalPlace | null, 
 }
 
 /** This browser's place in a book, for the profile chosen here (a child never starts at a parent's place). */
-const placeKey = (bookId: string) => profileKey(`flexarr.bookPlace.${bookId}`)
+const placeKey = (bookId: string) => profileKey(`${BOOK_PLACE_KEY}${bookId}`)
+
+/**
+ * How long this browser keeps its own place in a book it hasn't played since, in milliseconds. The server has the place
+ * too, and that's the one a book starts from once this is gone; kept for good, they'd list every book ever played here.
+ */
+const PLACE_KEPT_FOR = 30 * 24 * 60 * 60 * 1000
+
+/** Forgets the places kept here that are older than a month (or unreadable), whichever profile's they were. */
+export function forgetOldPlaces(now = Date.now()) {
+  try {
+    for (const key of storedKeys(localStorage, BOOK_PLACE_KEY)) {
+      let savedAt: unknown
+      try {
+        savedAt = (JSON.parse(localStorage.getItem(key) ?? 'null') as Partial<LocalPlace> | null)?.savedAt
+      } catch {
+        savedAt = undefined
+      }
+      if (typeof savedAt !== 'number' || !Number.isFinite(savedAt) || now - savedAt > PLACE_KEPT_FOR) localStorage.removeItem(key)
+    }
+  } catch {
+    // Storage blocked: nothing is kept there.
+  }
+}
 
 export function readLocalPlace(bookId: string): LocalPlace | null {
   try {

@@ -252,6 +252,33 @@ describe('AudioPlayerProvider', () => {
     }
   })
 
+  it('keeps the queue for the profile the page was opened for, when another is chosen just before the page goes', async () => {
+    playbackApi()
+    const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+    act(() => result.current.play([one, two] as unknown as ItemSummary[], 0))
+    await waitFor(() => expect(stored()?.ids).toEqual(['t1', 't2']))
+
+    // "Switch to …": the new profile is saved, then the page reloads, writing the queue once more on its way out.
+    localStorage.setItem('flexarr.profile', 'kid-1.signature')
+    act(() => void window.dispatchEvent(new Event('pagehide')))
+
+    expect(Object.keys(sessionStorage).sort()).toEqual(['flexarr.musicQueue', 'flexarr.musicQueueTracks'])
+  })
+
+  it('leaves another profile’s queue as ids alone, taking away its tracks, once someone else is here', async () => {
+    sessionStorage.setItem('flexarr.musicQueue', JSON.stringify({ ids: ['t1'], albums: ['album-1'], index: 0, position: 5, savedAt: Date.now() }))
+    sessionStorage.setItem('flexarr.musicQueueTracks', JSON.stringify([one]))
+    localStorage.setItem('flexarr.profile', 'kid-1.signature')
+    playbackApi()
+    const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    })
+
+    expect(result.current.queue).toEqual([])
+    expect(Object.keys(sessionStorage)).toEqual(['flexarr.musicQueue'])
+  })
+
   it('drops stored tracks that no longer exist and forgets a queue with none left', async () => {
     sessionStorage.setItem(queueStorageKey(), JSON.stringify({ ids: ['gone', 't2'], albums: ['album-1'], index: 0, position: 5 }))
     playbackApi({ '/items/album-1': album, '/items/gone': new Response('', { status: 404 }) })

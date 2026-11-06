@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi, movies } from '../test/mockApi'
-import { apiGet, parseAnswer, beaconBookProgress, clearApiCache, FETCH_TIMEOUT_MS, getLibraries, liveHeartbeat, reportProgress, getLibraryGenres, getLibraryItems, keepPage, keptPage, onAdminLapsed, onLockedChange, savePlayerPreferences, setWatched, stopPlayback, watchLiveChannel } from './client'
+import { apiGet, parseAnswer, beaconBookProgress, clearApiCache, FETCH_TIMEOUT_MS, getLibraries, liveHeartbeat, reportProgress, getLibraryGenres, getLibraryItems, keepPage, keptPage, onAdminLapsed, onLockedChange, savePlayerPreferences, setWatched, signOut, stopPlayback, watchLiveChannel } from './client'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -121,6 +121,34 @@ describe('API cache', () => {
     await getLibraryGenres('b')
     expect(sent(fetchMock, '/libraries/a/genres')).toBe(2)
     expect(sent(fetchMock, '/libraries/b/genres')).toBe(1)
+  })
+})
+
+describe('Signing out of this browser', () => {
+  it('forgets the profile chosen here and what was played here, once the server has let the session go', async () => {
+    const keep = () => {
+      localStorage.setItem('flexarr.profile', 'kid-1.signature')
+      localStorage.setItem('flexarr.bookPlace.book-1.p-kid-1', '{"position":600,"savedAt":1}')
+      localStorage.setItem('flexarr.sound', '{}')
+      sessionStorage.setItem('flexarr.musicQueue.p-kid-1', '{"ids":["t1"]}')
+      sessionStorage.setItem('flexarr.profileChosen', '1')
+    }
+    try {
+      // The server can't be reached: still signed in, so nothing is forgotten.
+      keep()
+      mockApi({ 'DELETE /session': new Response('', { status: 500 }) })
+      await expect(signOut()).rejects.toThrow()
+      expect(localStorage.length).toBe(3)
+      expect(sessionStorage.length).toBe(2)
+
+      mockApi({ 'DELETE /session': undefined })
+      await signOut()
+      expect(Object.keys(localStorage)).toEqual(['flexarr.sound'])
+      expect(sessionStorage.length).toBe(0)
+    } finally {
+      localStorage.clear()
+      sessionStorage.clear()
+    }
   })
 })
 

@@ -66,7 +66,7 @@ import type {
   SystemStatus,
   UpcomingItem,
 } from './types'
-import { PROFILE_STORAGE } from '../lib/profileScope'
+import { forgetPlayed, PROFILE_STORAGE } from '../lib/profileScope'
 import { session } from '../lib/session'
 
 export type * from './types'
@@ -2200,10 +2200,14 @@ export const releaseSignInKidsLock = (id: string) => request<void>('POST', `/sig
 /** Signs out every browser and TV but this one; returns how many. */
 export const signOutOthers = () => request<{ signedOut: number }>('POST', '/sign-ins/sign-out-others', {})
 
-/** Signs this browser out: the server forgets its session, and the profile chosen here is forgotten too. */
+/**
+ * Signs this browser out: the server forgets its session, and the profile chosen here is forgotten too, with what was
+ * played here (each book's place, the queue).
+ */
 export async function signOut() {
   await request<void>('DELETE', '/session')
   saveProfileToken(null)
+  forgetPlayed()
   try {
     session.remove('flexarr.profileChosen')
   } catch {

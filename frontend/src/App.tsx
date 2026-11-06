@@ -34,6 +34,7 @@ import { errorReporter } from './lib/errorReporter'
 import { onDemand } from './lib/onDemand'
 import { deviceCode } from './lib/pairing'
 import { configureSentry } from './lib/sentry'
+import { forgetPlayed } from './lib/profileScope'
 import { session } from './lib/session'
 import './styles/tokens.generated.css'
 import './styles/tokens.css'
@@ -267,6 +268,9 @@ export default function App() {
         if (controller.signal.aborted) return
         if (error instanceof UnauthorizedError) {
           errorReporter.disable()
+          // Not signed in (signed out here or from elsewhere, or the key changed): whoever signs in next finds nothing
+          // of what was played before. The page a sign-out leaves may write its queue once more as it goes; this is after.
+          forgetPlayed()
           void language(null)
           // A new server nobody has signed in to yet: this browser can set it up, no key needed.
           void setupStatus().then(({ open, install }) => {

@@ -1,5 +1,5 @@
 import type { ItemSummary } from '../api/types'
-import { profileKey } from '../lib/profileScope'
+import { profileKey, QUEUE_KEY } from '../lib/profileScope'
 
 /**
  * The play queue, kept as plain data so its rules can be tested without an <audio> element: the tracks in order,
@@ -124,13 +124,13 @@ export interface StoredQueue {
 }
 
 /** Kept per profile: Switch profile reloads the page, and the next profile mustn't find the last one's queue. */
-export const queueStorageKey = () => profileKey('flexarr.musicQueue')
+export const queueStorageKey = () => profileKey(QUEUE_KEY)
 
 /**
  * Where the queue's tracks are kept (each once, whatever its place), so a reload brings a long queue back without a
  * request per album.
  */
-export const queueTracksStorageKey = () => profileKey('flexarr.musicQueueTracks')
+export const queueTracksStorageKey = () => profileKey(`${QUEUE_KEY}Tracks`)
 
 /**
  * How long after the queue was last written its kept tracks are still taken as they are, in milliseconds. A reload is

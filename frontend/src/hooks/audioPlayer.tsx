@@ -16,9 +16,10 @@ import {
   type BookManifest,
   type ItemSummary,
 } from '../api/client'
-import { authorsLine, chapterEnd, chapterIndexAt, clampSpeed, fadeLevel, isBook, nextChapterStart, previousChapterStart, saveLocalPlace, sleepReached } from '../lib/books'
+import { authorsLine, chapterEnd, chapterIndexAt, clampSpeed, fadeLevel, forgetOldPlaces, isBook, nextChapterStart, previousChapterStart, saveLocalPlace, sleepReached } from '../lib/books'
 import { episodeAsTrack, PODCAST_PREFERENCES_CHANGED } from '../lib/podcasts'
 import { useMusicSettings } from '../lib/musicSettings'
+import { QUEUE_KEY, storedKeys } from '../lib/profileScope'
 import { FADE_SECONDS } from '../lib/sleepTimer'
 import { createEngine, isPodcast, type AudioEngine } from './audioEngine'
 import { announceBookmarks, useBookmarkChanges } from './bookmarks'
@@ -128,41 +129,47 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     podcastPreferencesRef.current = podcastPreferences
   }, [podcastPreferences])
 
+  // Where this page keeps its queue: under the profile it was opened for, even after another is chosen. "Switch to …"
+  // saves the new profile just before the page goes, and the queue written on the way out is still the old profile's.
+  const [storageKeys] = useState(() => ({ queue: queueStorageKey(), tracks: queueTracksStorageKey() }))
   // The tracks last written to storage: they're written again only when the queue itself changes, not with the position.
   const keptTracks = useRef<ItemSummary[] | null>(null)
-  const persist = useCallback((at: number) => {
-    const s = stateRef.current
-    try {
-      // An untouched queue (epoch 0, nothing in it) is the state before a restore: leave what's stored for it to read.
-      if (s.tracks.length === 0) {
-        if (s.epoch > 0) {
-          keptTracks.current = null
-          sessionStorage.removeItem(queueStorageKey())
-          sessionStorage.removeItem(queueTracksStorageKey())
+  const persist = useCallback(
+    (at: number) => {
+      const s = stateRef.current
+      try {
+        // An untouched queue (epoch 0, nothing in it) is the state before a restore: leave what's stored for it to read.
+        if (s.tracks.length === 0) {
+          if (s.epoch > 0) {
+            keptTracks.current = null
+            sessionStorage.removeItem(storageKeys.queue)
+            sessionStorage.removeItem(storageKeys.tracks)
+          }
+          return
         }
+        sessionStorage.setItem(storageKeys.queue, JSON.stringify({ ...serializeQueue(s, at), savedAt: Date.now() } satisfies StoredQueue))
+      } catch {
+        // Storage blocked: the queue just won't survive a reload.
         return
       }
-      sessionStorage.setItem(queueStorageKey(), JSON.stringify({ ...serializeQueue(s, at), savedAt: Date.now() } satisfies StoredQueue))
-    } catch {
-      // Storage blocked: the queue just won't survive a reload.
-      return
-    }
-    if (keptTracks.current === s.tracks) return
-    keptTracks.current = s.tracks
-    try {
-      const tracks = JSON.stringify(serializeQueueTracks(s))
-      // A queue of thousands isn't kept (it would crowd everything else out of storage): a reload fetches it instead.
-      if (tracks.length <= KEPT_TRACKS_LIMIT) return sessionStorage.setItem(queueTracksStorageKey(), tracks)
-    } catch {
-      // Storage is full: the same.
-    }
-    try {
-      // A reload mustn't find an older queue's tracks.
-      sessionStorage.removeItem(queueTracksStorageKey())
-    } catch {
-      // Storage blocked altogether.
-    }
-  }, [])
+      if (keptTracks.current === s.tracks) return
+      keptTracks.current = s.tracks
+      try {
+        const tracks = JSON.stringify(serializeQueueTracks(s))
+        // A queue of thousands isn't kept (it would crowd everything else out of storage): a reload fetches it instead.
+        if (tracks.length <= KEPT_TRACKS_LIMIT) return sessionStorage.setItem(storageKeys.tracks, tracks)
+      } catch {
+        // Storage is full: the same.
+      }
+      try {
+        // A reload mustn't find an older queue's tracks.
+        sessionStorage.removeItem(storageKeys.tracks)
+      } catch {
+        // Storage blocked altogether.
+      }
+    },
+    [storageKeys],
+  )
 
   // The engine drives the elements and reports back. Made on first use, from effects and handlers only.
   const engineRef = useRef<AudioEngine>(null)
@@ -331,6 +338,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('pagehide', save)
   }, [persist, engine])
 
+  // A book's place is kept in this browser for a month after it was last played here, not for good.
+  useEffect(() => forgetOldPlaces(), [])
+
   // Bring back the queue a reload interrupted, paused, from the tracks kept beside it: no requests, however long it is.
   // Only when those aren't all there (storage was full) or were kept long ago are the tracks fetched, by album (one
   // request each).
@@ -338,8 +348,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     let stored: StoredQueue | null
     let kept = new Map<string, ItemSummary>()
     try {
-      stored = readStoredQueue(sessionStorage.getItem(queueStorageKey()))
-      if (stored && keptTracksAreCurrent(stored, Date.now())) kept = readStoredTracks(sessionStorage.getItem(queueTracksStorageKey()))
+      // Another profile's queue stays as its ids (it comes back, fetched, if that profile does), without its tracks:
+      // those say what was playing to whoever is here now.
+      for (const key of storedKeys(sessionStorage, `${QUEUE_KEY}Tracks`)) if (key !== storageKeys.tracks) sessionStorage.removeItem(key)
+      stored = readStoredQueue(sessionStorage.getItem(storageKeys.queue))
+      if (stored && keptTracksAreCurrent(stored, Date.now())) kept = readStoredTracks(sessionStorage.getItem(storageKeys.tracks))
     } catch {
       stored = null
     }
@@ -367,7 +380,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [storageKeys])
 
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false)
   const play = useCallback((tracks: ItemSummary[], start = 0, options?: { openNowPlaying?: boolean; at?: number }) => {
