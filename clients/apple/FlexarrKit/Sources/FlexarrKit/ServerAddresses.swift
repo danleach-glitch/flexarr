@@ -51,6 +51,8 @@ public final class ServerAddresses: @unchecked Sendable {
         self.remote = remote == home ? nil : remote
         self.serverId = serverId?.isEmpty == false ? serverId : nil
         self.memory = memory
+        // The same server at either address: its artwork is kept once, under its home address (see `atHome`).
+        if let remote = self.remote { Self.pair(remote: remote, home: home) }
         // Away last time: most likely still away, and a launch needn't wait on home to find that out again.
         if let remote = self.remote, memory?.string(forKey: Self.memoryKey) == remote.absoluteString {
             _current = remote
