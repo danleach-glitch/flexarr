@@ -74,6 +74,7 @@ public struct FlexarrClient: Sendable {
     public let apiKey: String?
     /// The chosen profile's token (from `selectProfile`); nil acts as the main profile.
     public let profileToken: String?
+    /// The session asked for. The shared one (the default) stands for "this client's own": see `requests`.
     private let session: URLSession
     /// Called whenever the server answers 401, so an app can notice its saved sign-in has stopped working.
     private let onUnauthorized: (@Sendable () -> Void)?
@@ -219,6 +220,22 @@ public struct FlexarrClient: Sendable {
               (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
         return (try? decoder.decode(SetupStatus.self, from: data))?.serverId
     }
+
+    /// API requests' own connections. Artwork loads on the shared session, and a session opens only a handful of
+    /// connections to one server: after a fast scroll through posters not yet cached, a tap on a title or on Play
+    /// would otherwise wait in line behind the pictures still coming. Set up as the shared session is (its cache,
+    /// cookies and timeouts), so nothing else about a request changes.
+    private static let apiSession = URLSession(configuration: .default)
+
+    /// The command stream's own connection: it stays open for as long as the app is in front, and would otherwise
+    /// hold one of the few that requests have for all that time.
+    private static let eventSession = URLSession(configuration: .default)
+
+    /// What API requests go over: the session given, or this client's own rather than the shared one.
+    var requests: URLSession { session === URLSession.shared ? Self.apiSession : session }
+
+    /// What the command stream is read over (see `eventSession`).
+    var events: URLSession { session === URLSession.shared ? Self.eventSession : session }
 
     /// The reachability check's own connections.
     private static let probeSession: URLSession = {
@@ -771,7 +788,7 @@ public struct FlexarrClient: Sendable {
         if let profileToken, !profileToken.isEmpty { request.setValue(profileToken, forHTTPHeaderField: "X-Flexarr-Profile") }
         if let deviceType = Self.deviceType { request.setValue(deviceType, forHTTPHeaderField: "X-Flexarr-Device") }
         let prepared = request
-        let session = self.session
+        let session = events
         let onUnauthorized = self.onUnauthorized
         return AsyncThrowingStream { continuation in
             let task = Task {
@@ -915,7 +932,7 @@ public struct FlexarrClient: Sendable {
     public func warmConnection() async {
         var request = URLRequest(url: baseURL.appending(path: "health"))
         request.timeoutInterval = 5
-        _ = try? await session.data(for: request)
+        _ = try? await requests.data(for: request)
     }
 
     /// Artwork URL with a width hint for the server's image cache. Image endpoints are anonymous.
@@ -1080,7 +1097,7 @@ public struct FlexarrClient: Sendable {
     private func exchange(_ request: URLRequest, at base: URL) async throws -> Answer {
         if Self.simulatesOffline { throw URLError(.notConnectedToInternet) }
         guard await provesItself(base) else { throw URLError(Task.isCancelled ? .cancelled : .cannotConnectToHost) }
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await requests.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw FlexarrClientError.invalidResponse }
         addresses.answered(from: base)
         return (data, http)
@@ -1161,7 +1178,7 @@ public struct FlexarrClient: Sendable {
         }
         var probe = request("GET", "system/status", query: [], bodyData: nil, at: home)
         probe.timeoutInterval = 5
-        guard let (_, response) = try? await session.data(for: probe), (response as? HTTPURLResponse)?.statusCode == 200 else { return }
+        guard let (_, response) = try? await requests.data(for: probe), (response as? HTTPURLResponse)?.statusCode == 200 else { return }
         addresses.reached(home)
     }
 

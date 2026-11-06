@@ -100,6 +100,24 @@ private final class Counter: @unchecked Sendable {
 }
 
 struct FlexarrClientTests {
+    @Test func requestsAndTheCommandStream_HaveConnectionsOfTheirOwn_NotArtworks() {
+        let client = FlexarrClient(baseURL: URL(string: "http://flexarr.local:8383")!)
+        // Artwork loads on the shared session, whose few connections to the server a scroll through posters fills:
+        // a request (Play) never waits behind those, and the always-open command stream doesn't hold one of its own.
+        #expect(client.requests !== URLSession.shared)
+        #expect(client.events !== URLSession.shared)
+        #expect(client.events !== client.requests)
+        // Every client shares them (the app makes a new client per profile and address), so connections are reused.
+        let another = FlexarrClient(baseURL: URL(string: "http://flexarr.local:8383")!, apiKey: "secret", profileToken: "token")
+        #expect(another.requests === client.requests)
+        #expect(another.events === client.events)
+        // A session handed over is used for everything, as before.
+        let own = URLSession(configuration: .ephemeral)
+        let given = FlexarrClient(baseURL: URL(string: "http://flexarr.local:8383")!, session: own)
+        #expect(given.requests === own)
+        #expect(given.events === own)
+    }
+
     @Test func sendsApiKeyHeaderAndDecodesStatus() async throws {
         let (client, host) = stubbedClient(.init(status: 200, body: try Fixture.data("system-status")))
 
