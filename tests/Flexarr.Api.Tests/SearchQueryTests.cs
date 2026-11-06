@@ -106,7 +106,7 @@ public sealed class SearchQueryTests : IAsyncLifetime
         [.. results.GetProperty("people").EnumerateArray().Select(p => (p.GetProperty("id").GetGuid(), p.GetProperty("credits").GetInt32()))];
 
     /// <summary>A list of every title's id that a row's id is then looked for in: SQLite builds the whole list first.</summary>
-    private static readonly Regex ListOfEveryTitle = new("""IN \(\s*SELECT "m\d*"\."Id"\s+FROM "MediaItems" AS "m\d*"\s+WHERE (?!.*"Id" (=|IN))""", RegexOptions.Singleline);
+    private static readonly Regex ListOfEveryTitle = new("""IN \(\s*SELECT "m\d*"\."Id"\s+FROM "MediaItems" """);
 
     [Fact]
     public async Task People_AreThoseInTitlesTheProfileCanSee_NamesThatStartWithTheWordFirst_ThenTheMostCredits()
