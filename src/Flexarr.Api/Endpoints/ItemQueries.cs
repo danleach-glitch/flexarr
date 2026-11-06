@@ -26,14 +26,21 @@ public static class ItemQueries
                 SeriesId = i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track ? i.Parent!.ParentId
                     : i.Kind == MediaKind.Season || i.Kind == MediaKind.Album || i.Kind == MediaKind.PodcastEpisode ? i.ParentId : null,
                 PodcastDuration = i.Enclosure != null ? i.Enclosure.DurationSeconds : null,
-                // A book's: its authors (two at most), first narrator and a series, and its whole length.
+                // A book's smallest series (the sub-series rather than its universe), its name and the book's number in
+                // it read as two single values, for books only. Read as one row of two inside Book below, the database
+                // numbered every book's series entries before picking this book's, once for each place Book is used,
+                // in every list of anything: most of the time a row of films took once a library had audiobooks.
+                SeriesName = i.Kind != MediaKind.Audiobook ? null
+                    : i.SeriesEntries.OrderBy(e => e.Series!.Entries.Count).Select(e => e.Series!.Name).FirstOrDefault(),
+                SeriesSequence = i.Kind != MediaKind.Audiobook ? null
+                    : i.SeriesEntries.OrderBy(e => e.Series!.Entries.Count).Select(e => e.Sequence).FirstOrDefault(),
+                // A book's: its authors (two at most), first narrator, and its whole length.
                 Book = i.Kind != MediaKind.Audiobook ? null : new
                 {
                     Author1 = i.Credits.Where(c => c.Role == CreditRole.Author).OrderBy(c => c.Order).Select(c => c.Person!.Name).FirstOrDefault(),
                     Author2 = i.Credits.Where(c => c.Role == CreditRole.Author).OrderBy(c => c.Order).Skip(1).Select(c => c.Person!.Name).FirstOrDefault(),
                     Authors = i.Credits.Count(c => c.Role == CreditRole.Author),
                     Narrator = i.Credits.Where(c => c.Role == CreditRole.Narrator).OrderBy(c => c.Order).Select(c => c.Person!.Name).FirstOrDefault(),
-                    Series = i.SeriesEntries.OrderBy(e => e.Series!.Entries.Count).Select(e => new { e.Series!.Name, e.Sequence }).FirstOrDefault(),
                     Duration = i.Book != null ? i.Book.DurationSeconds : 0,
                     FinishedAt = i.PlaybackStates.Where(p => p.UserId == profileId).Select(p => p.FinishedAt).FirstOrDefault(),
                 },
@@ -78,7 +85,7 @@ public static class ItemQueries
                 x.HomeVideo,
                 x.Book == null ? null : new Books.BookSummaryDto(
                     x.Book.Author2 == null ? x.Book.Author1 : x.Book.Author1 + ", " + x.Book.Author2, x.Book.Authors, x.Book.Narrator,
-                    x.Book.Series == null ? null : x.Book.Series.Name, x.Book.Series == null ? null : x.Book.Series.Sequence,
+                    x.SeriesName, x.SeriesSequence,
                     x.Book.Duration, x.Book.FinishedAt),
                 x.Item.ImdbRating,
                 RottenTomatoesDto.Of(x.Item.CriticRating, x.Item.CriticCertified)));
