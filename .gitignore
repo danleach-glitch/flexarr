@@ -29,6 +29,10 @@ clients/apple/FlexarrMac/Info.plist
 DerivedData/
 xcuserdata/
 
+# Python (the caches scripts/ leaves when its tools and tests run)
+__pycache__/
+*.pyc
+
 # Local dev stack
 /dev/
 
