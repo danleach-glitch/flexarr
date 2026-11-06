@@ -144,8 +144,18 @@ export function keptTracksAreCurrent(stored: StoredQueue, now: number): boolean 
   return stored.savedAt !== undefined && now >= stored.savedAt && now - stored.savedAt < KEPT_TRACKS_GOOD_FOR
 }
 
+/**
+ * The queue's tracks as they're kept: each once, and as the server gave them. Where an entry was asked to start
+ * (`playFrom`, a chapter chosen or "from the start") is this page's own and isn't kept, so a reload brings a track back
+ * as fetching it again would.
+ */
 export function serializeQueueTracks(state: QueueState): ItemSummary[] {
-  return [...new Map(state.tracks.map((t) => [t.id, t])).values()]
+  const asGiven = (track: ItemSummary) => {
+    const kept = { ...track }
+    delete kept.playFrom
+    return kept
+  }
+  return [...new Map(state.tracks.map((t) => [t.id, asGiven(t)])).values()]
 }
 
 /** The kept tracks by id; none when there's nothing kept or it can't be read. */
@@ -157,8 +167,9 @@ export function readStoredTracks(raw: string | null): Map<string, ItemSummary> {
     if (!Array.isArray(parsed)) return byId
     for (const track of parsed as unknown[]) {
       if (typeof track !== 'object' || track === null) continue
-      const { id, kind, title } = track as Record<string, unknown>
-      if (typeof id === 'string' && typeof kind === 'string' && typeof title === 'string') byId.set(id, track as ItemSummary)
+      // What the player draws straight away: without it (kept by some other version, or damaged) the queue is fetched.
+      const { id, kind, title, artwork } = track as Record<string, unknown>
+      if (typeof id === 'string' && typeof kind === 'string' && typeof title === 'string' && typeof artwork === 'object' && artwork !== null) byId.set(id, track as ItemSummary)
     }
   } catch {
     // Unreadable: the queue is fetched instead.

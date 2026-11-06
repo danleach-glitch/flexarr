@@ -230,6 +230,14 @@ describe('queue storage', () => {
     expect(readStoredTracks('not json').size).toBe(0)
     expect(readStoredTracks(JSON.stringify({ a })).size).toBe(0)
     expect([...readStoredTracks(JSON.stringify([null, 'a', { id: 1 }, { id: 'x' }, c])).keys()]).toEqual(['c'])
+    // Without its artwork (which the player draws at once) it isn't a track as this version knows them.
+    expect([...readStoredTracks(JSON.stringify([{ id: 'x', kind: 'Track', title: 'X' }, { ...d, artwork: null }, c])).keys()]).toEqual(['c'])
+  })
+
+  it('keeps tracks as the server gave them, without where this page was asked to start one', () => {
+    const kept = serializeQueueTracks(playing({ ...a, playFrom: 0 }, { ...b, playFrom: 90 }))
+    expect(kept).toEqual([a, b])
+    expect(kept.some((t) => 'playFrom' in t)).toBe(false)
   })
 
   it('takes kept tracks as they are for a day after the queue was written, and never without knowing when', () => {
