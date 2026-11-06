@@ -316,6 +316,7 @@
  "Background work": "Background work",
  "Backup & restore": "Backup & restore",
  "Backups": "Backups",
+ "Backups can’t be kept in the folder Flexarr’s web app is served from.": "Backups can’t be kept in the folder Flexarr’s web app is served from.",
  "Backups folder": "Backups folder",
  "Bazarr can only re-sync subtitles whose language it knows.": "Bazarr can only re-sync subtitles whose language it knows.",
  "Bazarr can’t be reached: {message}": "Bazarr can’t be reached: {message}",

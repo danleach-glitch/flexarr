@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Flexarr.Api.Backups;
 using Flexarr.Api.Configuration;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.Sqlite;
 
 namespace Flexarr.Api.Tests;
@@ -473,6 +474,51 @@ public class BackupTests
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.False(Directory.Exists(share));
+    }
+
+    [Fact]
+    public async Task BackupsCantBeKept_WhereTheWebAppIsServedFrom()
+    {
+        await using var factory = new FlexarrApiFactory();
+        var webRoot = Directory.CreateDirectory(Path.Combine(factory.DataDirectory, "web-app")).FullName;
+        await File.WriteAllTextAsync(Path.Combine(webRoot, "hello.txt"), "served to anyone");
+        using var app = factory.WithWebHostBuilder(b => b.UseWebRoot(webRoot));
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var anyone = app.CreateClient();
+        Assert.Equal("served to anyone", await anyone.GetStringAsync(new Uri("/hello.txt", UriKind.Relative)));
+
+        // Chosen in Settings: refused, by any name, and no folder is made there.
+        var aliases = new List<string> { webRoot, Path.Combine(webRoot, "assets", "backups"), Path.Combine(webRoot, "..", "web-app", "x") };
+        if (!OperatingSystem.IsWindows())
+        {
+            var link = Path.Combine(factory.DataDirectory, "another-name");
+            Directory.CreateSymbolicLink(link, webRoot);
+            aliases.Add(Path.Combine(link, "y"));
+        }
+
+        foreach (var folder in aliases)
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync(Api("/backups/settings"), new { folder })).StatusCode);
+        }
+
+        Assert.Equal(["hello.txt"], Directory.EnumerateFileSystemEntries(webRoot).Select(Path.GetFileName));
+
+        // Written into config.json by hand: no backup is made there either.
+        ServerConfigStore.Update(factory.DataDirectory, config => config["backups"] = new JsonObject { ["folder"] = webRoot });
+        for (var i = 0; i < 50 && (await client.GetFromJsonAsync<JsonElement>(Api("/backups"))).GetProperty("folderSetting").GetString() != webRoot; i++)
+        {
+            await Task.Delay(100);
+        }
+
+        Assert.Equal(webRoot, (await client.GetFromJsonAsync<JsonElement>(Api("/backups"))).GetProperty("folderSetting").GetString());
+        Assert.Equal(HttpStatusCode.InternalServerError, (await client.PostAsync(Api("/backups"), null)).StatusCode);
+        Assert.Equal(["hello.txt"], Directory.EnumerateFileSystemEntries(webRoot).Select(Path.GetFileName));
+
+        // Anywhere else still works.
+        var elsewhere = Path.Combine(factory.DataDirectory, "elsewhere");
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync(Api("/backups/settings"), new { folder = elsewhere })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync(Api("/backups"), null)).StatusCode);
     }
 
     [Fact]

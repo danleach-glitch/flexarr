@@ -53,7 +53,8 @@ public static class BackupEndpoints
         {
             var current = options.CurrentValue;
             var folder = update.Folder is null ? current.Backups.Folder : update.Folder.Trim() is { Length: > 0 } chosen ? chosen : null;
-            if (folder is not null && WritableFolder.Problem(folder, PrivateFiles.CreateFolder) is { } problem)
+            // Checked before the folder is made: nothing of Flexarr's goes where the web app is served from.
+            if (folder is not null && ((Path.IsPathFullyQualified(folder) ? store.ServedProblem(folder) : null) ?? WritableFolder.Problem(folder, PrivateFiles.CreateFolder)) is { } problem)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["folder"] = [problem] });
             }

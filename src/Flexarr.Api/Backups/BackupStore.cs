@@ -12,7 +12,7 @@ public sealed record BackupInfo(string Name, BackupKind Kind, DateTime CreatedAt
 /// The backups folder: making backups (one at a time), listing them, and keeping only so many of each automatic kind.
 /// Backups are named flexarr-backup-yyyyMMdd-HHmmss-kind.zip, so the list needn't open every zip to sort or prune.
 /// </summary>
-public sealed partial class BackupStore(IOptionsMonitor<FlexarrOptions> options, TimeProvider time, ILogger<BackupStore> logger) : IDisposable
+public sealed partial class BackupStore(IOptionsMonitor<FlexarrOptions> options, TimeProvider time, ILogger<BackupStore> logger, IWebHostEnvironment environment) : IDisposable
 {
     /// <summary>How many of the safety copies taken before an upgrade or a restore are kept.</summary>
     public const int KeepSafetyCopies = 3;
@@ -84,6 +84,49 @@ public sealed partial class BackupStore(IOptionsMonitor<FlexarrOptions> options,
         return new BackupInfo(Path.GetFileName(path), kind, createdAt, size, version);
     }
 
+    /// <summary>
+    /// Why backups can't be kept in <paramref name="folder"/> wherever it is: it's in the folder the web app is served
+    /// from, where a backup (every key, PIN hash and sign-in) could be fetched as a plain file without signing in.
+    /// Null when it isn't. Links along either path are followed, so another name for the same folder doesn't pass.
+    /// </summary>
+    public string? ServedProblem(string folder)
+    {
+        if (environment.WebRootPath is not { Length: > 0 } webRoot)
+        {
+            return null;
+        }
+
+        var served = Path.TrimEndingDirectorySeparator(RealPath(webRoot));
+        var real = Path.TrimEndingDirectorySeparator(RealPath(folder));
+        return real.Equals(served, StringComparison.OrdinalIgnoreCase) || real.StartsWith(served + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            ? Loc.T("Backups can’t be kept in the folder Flexarr’s web app is served from.")
+            : null;
+    }
+
+    /// <summary>The path with every link along it followed, as far as it exists.</summary>
+    private static string RealPath(string path, int depth = 0)
+    {
+        var full = Path.GetFullPath(path);
+        var real = Path.GetPathRoot(full) ?? "";
+        foreach (var part in full[real.Length..].Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries))
+        {
+            real = Path.Combine(real, part);
+            try
+            {
+                if (depth < 16 && Directory.ResolveLinkTarget(real, returnFinalTarget: true) is { } target)
+                {
+                    real = RealPath(target.FullName, depth + 1);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Not there (yet), or not ours to read: the rest of the path stands as written.
+            }
+        }
+
+        return real;
+    }
+
     public async Task<BackupInfo> CreateAsync(BackupKind kind, CancellationToken ct)
     {
         await _gate.WaitAsync(ct);
@@ -91,6 +134,12 @@ public sealed partial class BackupStore(IOptionsMonitor<FlexarrOptions> options,
         {
             var folder = Folder;
             var data = options.CurrentValue.DataDirectory;
+            if (ServedProblem(folder) is { } served)
+            {
+                // However the folder came to be set (Settings refuses it; config.json could still say so).
+                throw new IOException(served);
+            }
+
             if (options.CurrentValue.Backups.Folder is not null && !Directory.Exists(folder))
             {
                 // A chosen folder that isn't there is usually a drive or share that isn't mounted. Making it would put
