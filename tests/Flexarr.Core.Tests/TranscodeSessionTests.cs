@@ -189,6 +189,67 @@ public sealed class TranscodeSessionTests : IDisposable
     }
 
     [Fact]
+    public async Task AViewerAtNormalSpeedOrSlower_WhoCatchesUpWithTheStream_JustWaitsForIt_AsBefore()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var runs = Path.Combine(_cache, "runs");
+        var settings = new TranscodeSettings { CacheDirectory = _cache, FfmpegPath = PacedFfmpeg(runs, 40) };
+        await using var session = new TranscodeSession("normal", "/in.mkv", 3600, Plan, settings, NullLogger.Instance);
+
+        Assert.NotNull(await session.GetSegmentAsync(0, CancellationToken.None));
+        Assert.NotNull(await session.GetSegmentAsync(39, CancellationToken.None));
+
+        // Past the head start and at the end of what's made: the next segment is waited for, never a reason to start again.
+        using (var soon = new CancellationTokenSource(TimeSpan.FromMilliseconds(500)))
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.GetSegmentAsync(40, soon.Token));
+        }
+
+        session.Speed = 0.5;
+        using (var soon = new CancellationTokenSource(TimeSpan.FromMilliseconds(500)))
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.GetSegmentAsync(40, soon.Token));
+        }
+
+        Assert.Contains("-readrate 1.0 ", Assert.Single(File.ReadAllLines(runs)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AViewerWhoSlowsDownAgain_KeepsTheStreamTheyHave()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var runs = Path.Combine(_cache, "runs");
+        var settings = new TranscodeSettings { CacheDirectory = _cache, FfmpegPath = PacedFfmpeg(runs, 40) };
+        await using var session = new TranscodeSession("slower", "/in.mkv", 3600, Plan, settings, NullLogger.Instance) { Speed = 2 };
+
+        Assert.NotNull(await session.GetSegmentAsync(0, CancellationToken.None));
+        Assert.NotNull(await session.GetSegmentAsync(39, CancellationToken.None));
+
+        // Back to normal speed, then up again to what the stream is already made at: neither starts it again.
+        session.Speed = 1;
+        using (var soon = new CancellationTokenSource(TimeSpan.FromMilliseconds(500)))
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.GetSegmentAsync(40, soon.Token));
+        }
+
+        session.Speed = 2;
+        using (var soon = new CancellationTokenSource(TimeSpan.FromMilliseconds(500)))
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.GetSegmentAsync(40, soon.Token));
+        }
+
+        Assert.Contains("-readrate 2 ", Assert.Single(File.ReadAllLines(runs)), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SpeedingUpInsideTheHeadStart_DoesntStartTheStreamAgain()
     {
         if (OperatingSystem.IsWindows())

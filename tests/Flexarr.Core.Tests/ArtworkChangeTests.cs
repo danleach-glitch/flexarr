@@ -152,4 +152,58 @@ public sealed class ArtworkChangeTests : IAsyncLifetime
         Assert.True((await ReadAsync(season.Id)).ArtworkChangedAt >= before); // moved on, so its address is a new one
         Assert.Equal("file:///shows/Home/poster.jpg", (await ReadAsync(show.Id)).PosterUrl);
     }
+
+    [Fact]
+    public async Task ASeasonMovedToAnotherShow_MovesOn_WithItsEpisodes_AsTheArtworkTheyBorrowIsAnothers()
+    {
+        var show = Item(MediaKind.Series, "Severance");
+        (show.PosterUrl, show.MetadataUpdatedAt) = ("https://image.test/severance.jpg", LastMonth);
+        var other = Item(MediaKind.Series, "Slow Horses");
+        (other.PosterUrl, other.MetadataUpdatedAt) = ("https://image.test/slow-horses.jpg", LastMonth);
+        var season = Item(MediaKind.Season, "Season 1", show.Id);
+        season.MetadataUpdatedAt = LastMonth;
+        var episode = Item(MediaKind.Episode, "Failure's Contagious", season.Id);
+        episode.MetadataUpdatedAt = LastMonth;
+        _db.AddRange(show, other, season, episode);
+        await _db.SaveChangesAsync();
+
+        var before = DateTime.UtcNow;
+        season.ParentId = other.Id;
+        await _db.SaveChangesAsync();
+
+        var moved = (await ReadAsync(season.Id)).ArtworkChangedAt;
+        Assert.True(moved >= before);
+        Assert.True((await ReadAsync(episode.Id)).ArtworkChangedAt >= before);
+        // The shows' own pictures are what they were.
+        Assert.Equal(LastMonth, (await ReadAsync(show.Id)).ArtworkChangedAt);
+        Assert.Equal(LastMonth, (await ReadAsync(other.Id)).ArtworkChangedAt);
+    }
+
+    [Fact]
+    public async Task AnEpisodeLookedUpAfterItsShowsArtworkChanged_StillHasANewAddress()
+    {
+        // As the weekly refresh goes: the show is saved with a new poster, then its episodes, from the same context,
+        // whose copies of them are from before the change was handed down.
+        var show = Item(MediaKind.Series, "Severance");
+        show.PosterUrl = "https://image.test/severance.jpg";
+        var season = Item(MediaKind.Season, "Season 1", show.Id);
+        var episode = Item(MediaKind.Episode, "Good News About Hell", season.Id);
+        _db.AddRange(show, season, episode);
+        await _db.SaveChangesAsync();
+        await _db.MediaItems.ExecuteUpdateAsync(u => u.SetProperty(i => i.MetadataUpdatedAt, LastMonth)); // as an earlier version left them
+        _db.ChangeTracker.Clear();
+        var tracked = await _db.MediaItems.ToDictionaryAsync(i => i.Kind);
+        var address = ((await ReadAsync(episode.Id)).ArtworkChangedAt ?? LastMonth).Ticks;
+
+        (tracked[MediaKind.Series].PosterUrl, tracked[MediaKind.Series].MetadataUpdatedAt) = ("https://image.test/severance-season-2.jpg", DateTime.UtcNow);
+        await _db.SaveChangesAsync();
+        tracked[MediaKind.Episode].MetadataUpdatedAt = DateTime.UtcNow;
+        tracked[MediaKind.Episode].Overview = "Mark is promoted.";
+        await _db.SaveChangesAsync();
+
+        var saved = await ReadAsync(episode.Id);
+        Assert.NotNull(saved.ArtworkChangedAt);
+        Assert.NotEqual(address, saved.ArtworkChangedAt!.Value.Ticks);
+        Assert.True(saved.ArtworkChangedAt > LastWeek);
+    }
 }

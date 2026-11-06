@@ -103,4 +103,55 @@ public sealed class SubtitleCacheTests : IDisposable
         Assert.Equal(3, reads.Length);
         Assert.DoesNotContain("-map 0:2 ", reads[2], StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task CaptionsThatCouldntBeDecoded_ArentDecodedAgainAtEveryPlay_OnlyWhenTheyreChosen()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        // Stands in for ffmpeg: notes each decode of the film for its captions, which fails.
+        var ffmpeg = Path.Combine(_cache, "fake-ffmpeg");
+        var asked = Path.Combine(_cache, "asked");
+        File.WriteAllText(ffmpeg, $"""
+            #!/bin/sh
+            case "$*" in *-filters*|*"filter=movie"*) exit 0;; esac
+            echo "$*" >> '{asked}'
+            exit 1
+            """);
+        File.SetUnixFileMode(ffmpeg, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var cache = new SubtitleCache(new StaticOptions(new FlexarrOptions { FfmpegPath = ffmpeg, CacheDirectory = _cache }));
+        var settings = PlaybackEndpoints.TranscodeSettingsFor(new FlexarrOptions { FfmpegPath = ffmpeg, CacheDirectory = _cache });
+        var file = new MediaFile
+        {
+            Id = Guid.NewGuid(),
+            Path = "/nowhere/Recording.ts",
+            ClosedCaptions = true,
+            Streams =
+            [
+                new MediaStream { Index = 0, Type = StreamType.Video, Codec = "mpeg2video" },
+                new MediaStream { Index = 1, Type = StreamType.Audio, Codec = "ac3", Language = "eng" },
+            ],
+        };
+        var tracks = Subtitles.For(file);
+        var captions = Assert.Single(tracks);
+        Assert.True(captions.InVideo);
+
+        // The first play decodes the film once, and it fails.
+        Assert.Null(await cache.GetAsync(file, tracks, captions, CancellationToken.None));
+        Assert.Single(File.ReadAllLines(asked));
+        Assert.True(Subtitles.Failed(file, captions, settings));
+
+        // Later plays leave it alone.
+        cache.Prefetch(file, tracks);
+        cache.Prefetch(file, tracks);
+        await Task.Delay(500);
+        Assert.Single(File.ReadAllLines(asked));
+
+        // Choosing the captions tries once more.
+        Assert.Null(await cache.GetAsync(file, tracks, captions, CancellationToken.None));
+        Assert.Equal(2, File.ReadAllLines(asked).Length);
+    }
 }
