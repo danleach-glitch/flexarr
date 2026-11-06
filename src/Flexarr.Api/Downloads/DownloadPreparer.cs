@@ -14,12 +14,21 @@ namespace Flexarr.Api.Downloads;
 /// Gets downloads ready, one at a time and at low priority: it waits while anyone is watching something that's being
 /// converted, so it never slows a stream down. Films and episodes become MP4s, tracks stay as they are or become M4As.
 /// Downloads whose file is sent as it is have nothing to wait for: they're made ready together, on a clock of their own.
-/// Downloads not fetched within a week are deleted.
+/// Downloads not fetched within a week are deleted. With nothing queued it asks the database nothing: queueing a download
+/// wakes it, and it looks once an hour for downloads whose week is up.
 /// </summary>
 public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptionsMonitor<FlexarrOptions> options, TranscodeManager transcodes,
     ILogger<DownloadPreparer> logger) : BackgroundService
 {
     private static readonly TimeSpan Tick = TimeSpan.FromSeconds(3);
+
+    /// <summary>How often it looks with nothing queued: only to delete the downloads nobody fetched in their week.</summary>
+    private static readonly TimeSpan IdleTick = TimeSpan.FromHours(1);
+
+    private TaskCompletionSource _queued = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>A download was queued: both clocks look now, rather than when they next would.</summary>
+    public void Wake() => Interlocked.Exchange(ref _queued, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
     public static readonly TimeSpan KeptFor = TimeSpan.FromDays(7);
 
     /// <summary>
@@ -45,21 +54,44 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
 
         // Two clocks: a round of RunOnceAsync lasts as long as the film it converts, and the downloads that need no
         // converting mustn't wait behind it.
-        await Task.WhenAll(EveryTickAsync(RunOnceAsync, stoppingToken), EveryTickAsync(SendAsIsAsync, stoppingToken));
+        // A round of SendAsIsAsync leaves nothing for its next: what it didn't make ready waits for the other clock.
+        await Task.WhenAll(EveryTickAsync(RunOnceAsync, stoppingToken), EveryTickAsync(async ct =>
+        {
+            await SendAsIsAsync(ct);
+            return false;
+        }, stoppingToken));
     }
 
-    private async Task EveryTickAsync(Func<CancellationToken, Task> round, CancellationToken stoppingToken)
+    /// <param name="round">One look; true when downloads are still waiting, so it looks again in a few seconds.</param>
+    private async Task EveryTickAsync(Func<CancellationToken, Task<bool>> round, CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(Tick);
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        while (!stoppingToken.IsCancellationRequested)
         {
+            // Taken before looking, so a download queued while this round looks isn't left until the next idle look.
+            var queued = Volatile.Read(ref _queued).Task;
+            var waiting = true;
             try
             {
-                await round(stoppingToken);
+                waiting = await round(stoppingToken);
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {
                 LogFailed(ex);
+            }
+
+            if (waiting)
+            {
+                await Task.Delay(Tick, stoppingToken);
+                continue;
+            }
+
+            try
+            {
+                await queued.WaitAsync(IdleTick, stoppingToken);
+            }
+            catch (TimeoutException)
+            {
+                // Nothing was queued this hour: time to look for downloads that have run out.
             }
         }
     }
@@ -110,14 +142,18 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             .SetProperty(d => d.ReadyAt, DateTime.UtcNow), ct);
 
     /// <summary>One round: expire what's been waiting too long, then prepare the next download unless someone's watching.</summary>
-    internal async Task RunOnceAsync(CancellationToken ct)
+    /// <returns>True when a download was queued (it may not be the last, or it's waiting for whoever's watching): another round is due.</returns>
+    internal async Task<bool> RunOnceAsync(CancellationToken ct)
     {
         await ExpireAsync(ct);
         // Someone's watching something being converted: they come first.
         if (transcodes.ActiveCount == 0)
         {
-            await PrepareNextAsync(ct);
+            return await PrepareNextAsync(ct);
         }
+
+        await using var scope = scopes.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().Downloads.IgnoreQueryFilters().AnyAsync(d => d.Status == DownloadStatus.Queued, ct);
     }
 
     /// <summary>A preparation the server stopped in the middle of (a restart) starts again, from scratch.</summary>
@@ -189,21 +225,22 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         download.FilePath = null;
     }
 
-    private async Task PrepareNextAsync(CancellationToken ct)
+    /// <returns>False when nothing was queued.</returns>
+    private async Task<bool> PrepareNextAsync(CancellationToken ct)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
         var download = await db.Downloads.IgnoreQueryFilters().Where(d => d.Status == DownloadStatus.Queued).OrderBy(d => d.CreatedAt).FirstOrDefaultAsync(ct);
         if (download is null)
         {
-            return;
+            return false;
         }
 
         var file = await BestFileAsync(db, download.MediaItemId, ct);
         if (file is null && await db.PodcastEpisodes.AsNoTracking().FirstOrDefaultAsync(e => e.MediaItemId == download.MediaItemId, ct) is { } enclosure)
         {
             await PreparePodcastAsync(scope.ServiceProvider, db, download, enclosure, ct);
-            return;
+            return true;
         }
 
         var plan = file is null ? null : DownloadPlanner.Plan(file, download.Quality, Subtitles.For(file));
@@ -216,13 +253,13 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
                     ? "This track's file has no sound in it that can be played."
                     : "This file can't be kept on a phone as it is. Choose another size.";
             await db.SaveChangesAsync(ct);
-            return;
+            return true;
         }
 
         if (plan.SendAsIs)
         {
             await SentAsItIsAsync(db, download.Id, file, ct);
-            return;
+            return true;
         }
 
         download.Status = DownloadStatus.Preparing;
@@ -245,6 +282,8 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             TryDelete(partial);
             await MarkFailedAsync(download.Id, CancellationToken.None);
         }
+
+        return true;
     }
 
     private async Task ConvertAsync(FlexarrDbContext db, Download download, MediaFile file, DownloadPlan plan, string folder, string partial, string extension,

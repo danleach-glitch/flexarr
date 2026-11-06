@@ -87,7 +87,8 @@ public static class DownloadEndpoints
             return list;
         });
 
-        group.MapPost("/", async (DownloadRequest request, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
+        group.MapPost("/", async (DownloadRequest request, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, DownloadPreparer preparer,
+            CancellationToken ct) =>
         {
             var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == request.ItemId, ct);
             if (item is null || item.Kind is not (MediaKind.Movie or MediaKind.Episode or MediaKind.Track or MediaKind.PodcastEpisode)
@@ -111,6 +112,7 @@ public static class DownloadEndpoints
                 existing = new Download { ProfileId = profile.Id, MediaItemId = item.Id, Quality = quality, Status = DownloadStatus.Queued };
                 db.Downloads.Add(existing);
                 await db.SaveChangesAsync(ct);
+                preparer.Wake();
             }
 
             return Results.Ok(await ToDtoAsync(db, playback, profile, existing.Id, ct));

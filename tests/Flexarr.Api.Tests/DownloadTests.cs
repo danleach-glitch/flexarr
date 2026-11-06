@@ -5,6 +5,7 @@ using System.Text.Json;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -353,6 +354,77 @@ public sealed class DownloadTests : IDisposable
         finally
         {
             await preparer.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task WithNothingQueued_ThePreparerAsksTheDatabaseNothing_UntilADownloadWakesIt()
+    {
+        var sql = new Statements();
+        using var server = _factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.ConfigureDbContext<FlexarrDbContext>(o => o.AddInterceptors(sql))));
+        var client = server.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var (_, tracks) = await AddAlbumAsync(("mp3", "mp3", ".mp3", 3_000_000));
+
+        var preparer = server.Services.GetRequiredService<Downloads.DownloadPreparer>();
+        await preparer.StartAsync(CancellationToken.None);
+        try
+        {
+            // Its first look (there's nothing), then longer than the three seconds it used to look again after.
+            await Task.Delay(500);
+            sql.Run.Clear();
+            await Task.Delay(4000);
+            Assert.Empty(sql.Run);
+
+            // A download queued now isn't left for the next hourly look: queueing it wakes the preparer.
+            var id = (await (await client.PostAsJsonAsync(new Uri("/api/v1/offline", UriKind.Relative), new { itemId = tracks[0].Id, quality = "Original" }))
+                .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+            async Task<string?> StatusAsync() =>
+                (await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/offline/{id}", UriKind.Relative))).GetProperty("status").GetString();
+            for (var i = 0; i < 100 && await StatusAsync() != "Ready"; i++)
+            {
+                await Task.Delay(100);
+            }
+
+            Assert.Equal("Ready", await StatusAsync());
+
+            // And with that one ready it goes quiet again (one more look finds nothing left).
+            await Task.Delay(3500);
+            sql.Run.Clear();
+            await Task.Delay(4000);
+            Assert.Empty(sql.Run);
+        }
+        finally
+        {
+            await preparer.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task ARound_SaysWhetherDownloadsAreStillWaiting()
+    {
+        var preparer = _factory.Services.GetRequiredService<Downloads.DownloadPreparer>();
+        Assert.False(await preparer.RunOnceAsync(CancellationToken.None));
+
+        var (_, tracks) = await AddAlbumAsync(("mp3", "mp3", ".mp3", 3_000_000));
+        (await Client().PostAsJsonAsync(new Uri("/api/v1/offline", UriKind.Relative), new { itemId = tracks[0].Id, quality = "Original" })).EnsureSuccessStatusCode();
+
+        // It found one to make ready, so another round is due; that one finds nothing, and the clock can stop.
+        Assert.True(await preparer.RunOnceAsync(CancellationToken.None));
+        Assert.False(await preparer.RunOnceAsync(CancellationToken.None));
+    }
+
+    /// <summary>Every statement the server sent the database.</summary>
+    private sealed class Statements : Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<string> Run { get; } = new();
+
+        public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+            System.Data.Common.DbCommand command, Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            Run.Enqueue(command.CommandText);
+            return ValueTask.FromResult(result);
         }
     }
 
