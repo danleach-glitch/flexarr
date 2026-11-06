@@ -18,6 +18,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Live TV
 - On iPhone, iPad and Mac, the guide draws faster with a long channel list, and tapping a channel's logo no longer redraws the whole grid.
 
+### Music
+- A long playlist's page no longer stutters as it plays or downloads, on iPhone, iPad, Mac and Apple TV, and on iPhone, iPad and Mac it opens without building every row first.
+
 ### Security
 - On iPhone, iPad, Apple TV and Mac, away from home, your sign-in goes to your server's home address only after it has shown it's your server, so another network using the same address never receives it and can't sign the app out.
 

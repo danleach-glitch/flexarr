@@ -358,6 +358,16 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         entry(for: trackId)?.isDownloaded == true
     }
 
+    /// The ids of this profile's downloads that are here to play, for a long list to look its rows up in: one pass
+    /// over the downloads rather than a search of them all per row. Says what `isDownloaded(trackId:)` says.
+    var downloadedIds: Set<String> {
+        var seen = Set<String>(), here = Set<String>()
+        for download in all where download.profileId == profileId {
+            if seen.insert(download.item.id).inserted, download.isDownloaded { here.insert(download.item.id) }
+        }
+        return here
+    }
+
     /// Every track of this album (or playlist) is here.
     func isDownloaded(collectionId: String) -> Bool {
         collection(for: collectionId).map { status(of: $0) == .downloaded } ?? false
