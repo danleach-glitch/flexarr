@@ -42,6 +42,10 @@ struct DetailView: View {
     /// Play has focus: after a moment, what it starts is got ready (docs/fast-start.md). Told by Play's own focus
     /// binding (`takesFocusFromLink`), so the button has only one.
     @State private var playFocused = false
+    /// A show's Play is there from the start, saying just Play until its episode is known, so focus lands on it
+    /// rather than on Shuffle beside it. Set once loading has had its say; pressed before then, it plays on arrival.
+    @State private var playSettled = false
+    @State private var playWhenReady = false
 
     private var item: ItemSummary? { detail?.item ?? (preview?.kind == .season ? nil : preview) }
     /// What Play would start here, got ready once Play has had focus for a moment.
@@ -110,11 +114,17 @@ struct DetailView: View {
         .onAppear { isVisible = true }
         .onDisappear {
             isVisible = false
+            playWhenReady = false
             if let warmTarget { model.dropReady(warmTarget) }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, isVisible, Freshness.isStale(loadedAt) { Task { await load() } }
             if phase == .background, let warmTarget { model.dropReady(warmTarget) }
+        }
+        .onChange(of: warmTarget?.id) {
+            guard playWhenReady, let warmTarget else { return }
+            playWhenReady = false
+            model.play(warmTarget, from: pageToken)
         }
         .onChange(of: playFocused) { _, focused in
             if !focused, let warmTarget { model.dropReady(warmTarget) }
@@ -213,6 +223,8 @@ struct DetailView: View {
                     actionButton(button, item: item, playable: playable, menu: actions.menu)
                 }
             }
+            // Across the page, so moving up from anywhere along a row below comes back to the buttons.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .focusSection()
 
             // The focused round button's name; the line keeps its height so nothing jumps.
@@ -230,9 +242,11 @@ struct DetailView: View {
         let watched = isWatched(item)
         switch button {
         case .play:
-            if let playable {
-                Button { model.play(playable, from: pageToken) } label: {
-                    Label(playLabel(playable, container: item), systemImage: Symbol.play)
+            if playable != nil || (item.kind == .series && !playSettled) {
+                Button {
+                    if let playable { model.play(playable, from: pageToken) } else { playWhenReady = true }
+                } label: {
+                    Label(playable.map { playLabel($0, container: item) } ?? t(Words.play), systemImage: Symbol.play)
                 }
                 .buttonStyle(ActionButtonStyle(ambient: item.ambientColor ?? series?.ambientColor, prominent: true))
                 .monospacedDigit()
@@ -578,8 +592,11 @@ struct DetailView: View {
                 break
             }
             await loadSelectedSeason(force: true)
+            playSettled = true
             if let shown = await shownSimilar { similar = shown }
         } catch {
+            playSettled = true
+            playWhenReady = false
             if detail == nil { self.error = ConnectionError(error).message }
         }
     }

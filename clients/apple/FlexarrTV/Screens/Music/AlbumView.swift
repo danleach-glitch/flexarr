@@ -79,6 +79,8 @@ struct AlbumView: View {
                         }
                     }
                     .disabled(tracks.isEmpty)
+                    // Across the page, so moving up from anywhere along the tracks below comes back to the buttons.
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .focusSection()
                     FocusedActionName(name: focusedAction == .shuffle ? t(Words.shuffle) : focusedAction == .more ? t("More") : nil)
                 }

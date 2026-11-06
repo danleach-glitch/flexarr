@@ -234,9 +234,11 @@ struct HomeHero: View {
             }
             .padding(.leading, Layout.edge)
             .padding(.bottom, 40)
-            // The focusable part of the hero is this corner. Coming in from the sidebar (or down from the switch above)
-            // the focus engine looks for a section beside it; one spanning the whole hero isn't, and the rows' second
-            // poster was winning.
+            // The focusable part of the hero is this band along its foot. Coming in from the sidebar (or down from the
+            // switch above) the focus engine looks for a section beside it; one spanning the whole hero isn't, and the
+            // rows' second poster was winning. It runs the full width so down from any of the switch's buttons, however
+            // far along, lands here (on Play) rather than skipping to the row below.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .focusSection()
 
             if let top {

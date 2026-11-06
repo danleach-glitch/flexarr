@@ -125,6 +125,8 @@ struct ArtistView: View {
                             ProgressView().scaleEffect(1.2)
                         }
                     }
+                    // Across the page, so moving up from anywhere along the albums below comes back to the buttons.
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .focusSection()
                     FocusedActionName(name: focusedName)
                 }
