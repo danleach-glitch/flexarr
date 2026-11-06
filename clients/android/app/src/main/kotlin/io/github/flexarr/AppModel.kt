@@ -1631,7 +1631,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             } catch (_: FlexarrException.Unauthorized) {
                 if (credentials == refused) {
                     // A guest's address is the same loopback one whoever's Flexarr it joins, so its downloads can't wait for it.
-                    val kept = if (refused.isGuest) false.also { downloads.signedOut(null) } else downloads.signedOutByServer(refused.address)
+                    val kept = if (refused.isGuest) false.also { deleteDownloads() } else downloads.signedOutByServer(refused.address)
                     notifications.forget()
                     forget()
                     signedOutNotice = if (kept) {
@@ -1654,11 +1654,21 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         val server = guestServerNaming(credentials.guest)
         // Not kept for coming back: every guest's address is this phone's own loopback one, so another host's Flexarr
         // joined later would look like the same server and take them on.
-        downloads.signedOut(null)
+        deleteDownloads()
         notifications.forget()
         forget()
         signedOutNotice = t("{kind, select, named {You no longer have access to {server}.} owner {You no longer have access to {owner}’s Flexarr.} other {You no longer have access to this Flexarr.}}", *server.values)
         signedOutAsGuest = true
+    }
+
+    /**
+     * Every download goes with a sign-in that isn't coming back (a guest's, refused or removed by its host): films,
+     * episodes and music, and whole audiobooks, which are kept apart. Nothing is sent first: the sign-in no longer works.
+     */
+    private fun deleteDownloads() {
+        downloads.signedOut(null)
+        books.stop()
+        bookDownloads.deleteAll(null)
     }
 
     /**

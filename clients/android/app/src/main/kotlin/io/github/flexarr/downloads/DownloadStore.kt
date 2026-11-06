@@ -330,7 +330,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     /**
      * Signed in to [address] (again, or another profile chosen). Downloads kept from a sign-in the server refused stay
-     * if it's the same server, and catch up from where they were; for another server they go, as signing out would.
+     * if it's the same server, and catch up from where they were; for another server they go, as signing out would,
+     * whole audiobooks with them (the main profile has the same id on every server, so they'd show as this server's).
      */
     fun signingIn(address: String) {
         val keptFor = prefs.getString(KEPT_FOR, null) ?: return
@@ -338,21 +339,24 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         if (keptFor == address) return
         flexarrLog.info("Signed in to another server: deleting the downloads kept from the last one")
         signedOut(null)
+        model.bookDownloads.deleteAll(null)
     }
 
     /**
      * The server refused this device's sign-in (signed out from the web's Sign-ins list, or a new key). The downloads
      * stay, with what was watched offline and not yet sent, for when the device signs in to [address] again; transfers
-     * stop until then. True when there was anything to keep.
+     * stop until then. True when there was anything to keep: whole audiobooks count, so that with only books here a
+     * sign-in to another server still clears them ([signingIn]).
      */
     fun signedOutByServer(address: String): Boolean {
         work.cancelAllWorkByTag(WORK_TAG)
         UserInitiatedTransfers.cancelAll(context)
         transferring.clear()
         client = null
-        if (all.isEmpty()) return false
+        val books = model.bookDownloads.all.size
+        if (all.isEmpty() && books == 0) return false
         prefs.edit { putString(KEPT_FOR, address) }
-        flexarrLog.info("Signed out by the server: keeping ${all.size} downloads for when it's signed in again")
+        flexarrLog.info("Signed out by the server: keeping ${all.size + books} downloads for when it's signed in again")
         return true
     }
 

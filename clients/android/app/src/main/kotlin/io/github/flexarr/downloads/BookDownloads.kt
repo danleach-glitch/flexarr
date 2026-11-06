@@ -324,6 +324,14 @@ class BookDownloads(private val context: Context, private val model: AppModel) {
 
     /** Signing out, or Delete all: what was heard offline is sent first while it can be, then every book goes. */
     fun deleteAll(client: FlexarrClient? = model.client) {
+        // Not read from the phone yet (the app has only just started): once it has been, or they'd come back.
+        if (!loaded) {
+            scope.launch {
+                loading.join()
+                if (loaded) deleteAll(client)
+            }
+            return
+        }
         val pending = all.mapNotNull { book -> book.unsent?.let { book.itemId to it } }
         work.cancelAllWorkByTag(WORK_TAG)
         transferring.clear()
