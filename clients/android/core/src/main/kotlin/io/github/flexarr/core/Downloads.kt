@@ -216,6 +216,24 @@ object DownloadRules {
         DownloadStatus.Unknown -> ServerAnswer.None
     }
 
+    /**
+     * How long a transfer waits before asking the server after a download again, having heard the same [status]
+     * [heard] times running. Every three seconds at first, the server's own pace: a file that needs no converting is
+     * ready in a moment. After that, one being converted is asked after every ten seconds, which keeps how far it's got
+     * moving on screen; one only waiting its turn (behind the rest of a season, for hours) less and less often, up to
+     * every half minute. It was every three seconds throughout, for every download waiting, for as long as it took.
+     */
+    fun pollMillis(status: DownloadStatus, heard: Int): Long = when {
+        heard <= QUICK_POLLS -> QUICK_POLL_MS
+        status == DownloadStatus.Preparing -> PREPARING_POLL_MS
+        else -> (QUICK_POLL_MS shl (heard - QUICK_POLLS).coerceAtMost(8)).coerceAtMost(WAITING_POLL_MS)
+    }
+
+    private const val QUICK_POLLS = 5
+    private const val QUICK_POLL_MS = 3_000L
+    private const val PREPARING_POLL_MS = 10_000L
+    private const val WAITING_POLL_MS = 30_000L
+
     /** Fetched by itself while automatic downloads are kept to Wi-Fi: it never comes over mobile data. */
     fun isWiFiOnly(download: LocalDownload, automaticOnWiFiOnly: Boolean): Boolean = automaticOnWiFiOnly && download.automatic
 
