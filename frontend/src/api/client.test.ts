@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi, movies } from '../test/mockApi'
-import { apiGet, parseAnswer, beaconBookProgress, clearApiCache, FETCH_TIMEOUT_MS, getLibraries, liveHeartbeat, reportProgress, getLibraryGenres, getLibraryItems, keepPage, keptPage, onAdminLapsed, onLockedChange, savePlayerPreferences, setWatched, signOut, stopPlayback, watchLiveChannel } from './client'
+import { apiGet, backdropSources, parseAnswer, beaconBookProgress, clearApiCache, FETCH_TIMEOUT_MS, getLibraries, liveHeartbeat, reportProgress, getLibraryGenres, getLibraryItems, keepPage, keptPage, onAdminLapsed, onLockedChange, savePlayerPreferences, setWatched, signOut, stopPlayback, watchLiveChannel } from './client'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -166,6 +166,17 @@ describe('Playback preferences', () => {
     await savePlayerPreferences({ autoPlayNext: true, skipIntros: false, skipRecaps: false, skipCredits: false, subtitleSize: 'Large', listeningInContinue: true })
 
     expect(sent).toEqual([{ autoPlayNext: true, skipIntros: false, skipRecaps: false, skipCredits: false, subtitleSize: 'Large' }])
+  })
+})
+
+describe('A backdrop across the page', () => {
+  it('is offered in three widths for the browser to choose from by the screen’s, with the widest as the fallback', () => {
+    expect(backdropSources('/api/v1/images/items/m1/backdrop?v=3')).toEqual({
+      src: '/api/v1/images/items/m1/backdrop?v=3&w=1920',
+      srcSet: '/api/v1/images/items/m1/backdrop?v=3&w=780 780w, /api/v1/images/items/m1/backdrop?v=3&w=1280 1280w, /api/v1/images/items/m1/backdrop?v=3&w=1920 1920w',
+      sizes: '100vw',
+    })
+    expect(backdropSources(null)).toEqual({ src: undefined, srcSet: undefined, sizes: '100vw' })
   })
 })
 

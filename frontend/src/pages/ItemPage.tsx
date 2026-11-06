@@ -5,6 +5,7 @@ import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } 
 import {
   analyzeItem,
   getItem,
+  backdropSources,
   getItemPage,
   getSimilar,
   getShowMissing,
@@ -195,7 +196,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
     <article className="detail" style={accent ? ({ '--ambient': accent } as CSSProperties) : undefined}>
       <section className="detail-hero">
         <div className="detail-art" aria-hidden="true">
-          {backdrop && <img src={imageUrl(backdrop, 1920)} alt="" />}
+          {backdrop && <img {...backdropSources(backdrop)} alt="" />}
         </div>
         <div className="detail-hero-content">
           {/* Moved on from the episode just watched: said, since the page changed under the reader. */}

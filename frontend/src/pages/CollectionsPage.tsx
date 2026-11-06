@@ -7,6 +7,7 @@ import {
   deleteCollection,
   getCollection,
   getCollections,
+  backdropSources,
   getCollectionSuggestions,
   imageUrl,
   removeFromCollection,
@@ -218,7 +219,7 @@ export function CollectionPage() {
     <article className="collection-page">
       {data.backdrop && (
         <div className="collection-backdrop" aria-hidden="true">
-          <img src={imageUrl(data.backdrop, 1920)} alt="" />
+          <img {...backdropSources(data.backdrop)} alt="" />
         </div>
       )}
       <header className="collection-header">

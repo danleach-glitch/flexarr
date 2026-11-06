@@ -709,6 +709,19 @@ describe('Library page', () => {
 })
 
 describe('Series page', () => {
+  it('offers a title’s backdrop in sizes for the screen, not only the widest', async () => {
+    const film = summary({ id: 'm1', title: 'The Nice Guys', artwork: { poster: null, backdrop: '/api/v1/images/items/m1/backdrop?v=1', logo: null, thumb: null } })
+    mockApi({ '/libraries': [], '/items/m1': detail(film), '/items/m1/similar': [] })
+
+    const { container } = renderAt('/item/m1')
+    await screen.findByRole('heading', { level: 1, name: 'The Nice Guys' })
+
+    const backdrop = container.querySelector('.detail-art img')
+    expect(backdrop).toHaveAttribute('src', '/api/v1/images/items/m1/backdrop?v=1&w=1920')
+    expect(backdrop?.getAttribute('srcset')?.split(', ').map((s) => s.split(' ')[1])).toEqual(['780w', '1280w', '1920w'])
+    expect(backdrop).toHaveAttribute('sizes', '100vw')
+  })
+
   it('shows seasons as tabs and the selected season’s episodes with overviews', async () => {
     const series = summary({ id: 's', kind: 'Series', title: '30 Rock', childCount: 1 })
     const season = summary({ id: 'season-1', kind: 'Season', parentId: 's', title: 'Season 1', seasonNumber: 1, childCount: 1 })

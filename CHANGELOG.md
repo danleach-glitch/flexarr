@@ -33,6 +33,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Reloading the page with a long music queue brings the queue back at once, rather than asking your server for every album in it ahead of the page itself.
 - A film or episode whose styled subtitles come with dozens of fonts no longer fetches them all at once, so the picture isn't kept waiting behind them.
 - For the main profile, going back to Home from a title shows it at once, as it does for everyone else, rather than after one more answer from your server.
+- On a phone or a small window, the page of a film, show, episode or collection (in your library or in Discover) downloads its backdrop at a size that fits the screen, as Home already did, rather than always the largest.
 
 ## 0.62.1 · 5 November 2026
 

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { PageError } from '../components/PageStatus'
 import { Link, Navigate, useParams } from 'react-router'
-import { getExternalTitle, imageUrl, type ExternalDetail } from '../api/client'
+import { backdropSources, getExternalTitle, type ExternalDetail } from '../api/client'
 import { Artwork } from '../components/Artwork'
 import { ExternalCard } from '../components/ExternalCard'
 import { Film } from '../components/icons'
@@ -44,7 +44,7 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
     <article className="detail">
       <section className="detail-hero">
         <div className="detail-art" aria-hidden="true">
-          {title.backdrop && <img src={imageUrl(title.backdrop, 1920)} alt="" />}
+          {title.backdrop && <img {...backdropSources(title.backdrop)} alt="" />}
         </div>
         <div className="detail-hero-content">
           <h1 className="detail-title">{title.title}</h1>

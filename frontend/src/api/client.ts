@@ -1164,6 +1164,17 @@ export function imageWidths(url: string | null | undefined, widths: number[]): s
   return widths.map((w) => `${imageUrl(url, w)} ${w}w`).join(', ')
 }
 
+/** The widths a full-width backdrop is offered in; the browser takes the smallest that fills the screen it's on. */
+const BACKDROP_WIDTHS = [780, 1280, 1920]
+
+/**
+ * What an <img> takes to draw a backdrop across the page, as Home's hero does: a phone downloads it 780 or 1280 wide
+ * rather than 1920. A browser without srcset still gets the widest.
+ */
+export function backdropSources(url: string | null | undefined): { src: string | undefined; srcSet: string | undefined; sizes: string } {
+  return { src: imageUrl(url, 1920), srcSet: imageWidths(url, BACKDROP_WIDTHS), sizes: '100vw' }
+}
+
 // ---------- Backups
 
 export type BackupKind = 'Manual' | 'Nightly' | 'PreUpgrade' | 'PreRestore'
