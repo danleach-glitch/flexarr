@@ -497,12 +497,21 @@ public class BackupTests
             aliases.Add(Path.Combine(link, "y"));
         }
 
+        // macOS reaches every folder by a second name that no link shows (the temp folder is under /private there).
+        var dataVolume = "/System/Volumes/Data/private" + webRoot;
+        if (OperatingSystem.IsMacOS() && Directory.Exists(dataVolume))
+        {
+            aliases.AddRange([dataVolume, Path.Combine(dataVolume, "z")]);
+        }
+
         foreach (var folder in aliases)
         {
             Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync(Api("/backups/settings"), new { folder })).StatusCode);
         }
 
         Assert.Equal(["hello.txt"], Directory.EnumerateFileSystemEntries(webRoot).Select(Path.GetFileName));
+        // A path no folder can have is still told so, not an error.
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync(Api("/backups/settings"), new { folder = Path.Combine(webRoot, "a\0b") })).StatusCode);
 
         // Written into config.json by hand: no backup is made there either.
         ServerConfigStore.Update(factory.DataDirectory, config => config["backups"] = new JsonObject { ["folder"] = webRoot });

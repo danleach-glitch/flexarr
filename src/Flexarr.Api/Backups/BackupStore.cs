@@ -87,11 +87,13 @@ public sealed partial class BackupStore(IOptionsMonitor<FlexarrOptions> options,
     /// <summary>
     /// Why backups can't be kept in <paramref name="folder"/> wherever it is: it's in the folder the web app is served
     /// from, where a backup (every key, PIN hash and sign-in) could be fetched as a plain file without signing in.
-    /// Null when it isn't. Links along either path are followed, so another name for the same folder doesn't pass.
+    /// Null when it isn't. Links along either path are followed, so another name for the same folder doesn't pass; nor
+    /// does a name no link shows (see <see cref="ServedByAnotherName"/>), once the folder is there.
     /// </summary>
     public string? ServedProblem(string folder)
     {
-        if (environment.WebRootPath is not { Length: > 0 } webRoot)
+        ArgumentNullException.ThrowIfNull(folder);
+        if (environment.WebRootPath is not { Length: > 0 } webRoot || folder.Contains('\0', StringComparison.Ordinal))
         {
             return null;
         }
@@ -99,8 +101,43 @@ public sealed partial class BackupStore(IOptionsMonitor<FlexarrOptions> options,
         var served = Path.TrimEndingDirectorySeparator(RealPath(webRoot));
         var real = Path.TrimEndingDirectorySeparator(RealPath(folder));
         return real.Equals(served, StringComparison.OrdinalIgnoreCase) || real.StartsWith(served + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            || ServedByAnotherName(webRoot, folder)
             ? Loc.T("Backups can’t be kept in the folder Flexarr’s web app is served from.")
             : null;
+    }
+
+    /// <summary>
+    /// Whether a file put in <paramref name="folder"/> turns up in the web app's folder. The same folder can go by a
+    /// name that no link along the path shows (on a Mac every folder is also under /System/Volumes/Data; a disk can be
+    /// mounted twice), so the paths alone can't say. Only a folder that's there can be asked.
+    /// </summary>
+    private static bool ServedByAnotherName(string webRoot, string folder)
+    {
+        try
+        {
+            if (!Directory.Exists(folder) || !Directory.Exists(webRoot))
+            {
+                return false;
+            }
+
+            var name = $".flexarr-served-test-{Guid.NewGuid():N}";
+            var probe = Path.Combine(folder, name);
+            File.WriteAllText(probe, "");
+            try
+            {
+                return Directory.EnumerateFiles(webRoot, name,
+                    new EnumerationOptions { RecurseSubdirectories = true, MaxRecursionDepth = 16, AttributesToSkip = 0, IgnoreInaccessible = true }).Any();
+            }
+            finally
+            {
+                File.Delete(probe);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            // Not ours to write in or look through: a backup couldn't be put there either.
+            return false;
+        }
     }
 
     /// <summary>The path with every link along it followed, as far as it exists.</summary>
