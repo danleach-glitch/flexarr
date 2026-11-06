@@ -12,6 +12,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### iPhone, iPad and Apple TV
 - While an episode plays, the lock screen and Control Center show the show's poster instead of the episode's still.
 
+### CarPlay
+- Lists appear as soon as your server answers, with covers filling in as they arrive, instead of staying on "Nothing here yet." until every cover had loaded one by one. The four tabs load together.
+
 ### iPhone, iPad, Apple TV and Mac
 - Tapping a title or **Play** straight after a fast scroll no longer waits behind the posters still loading: the app's requests to your server have connections of their own.
 
