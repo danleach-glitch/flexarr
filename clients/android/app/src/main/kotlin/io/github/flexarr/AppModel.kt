@@ -931,8 +931,18 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         return client.offersAlbums(libraryId).also { albumsByServer[address] = it }
     }
 
-    /** Someone has to choose who's watching: more than one profile, and none chosen on this device yet. */
-    val needsProfile: Boolean get() = profilesLoaded && !serverUnreachable && credentials?.profileToken == null && profiles.size > 1
+    /**
+     * Someone has to choose who's watching: more than one profile, and none chosen on this device yet. Offline the app
+     * goes on as the profile last chosen instead, unless that would be a way past its PIN ([offlineAsksWho]).
+     */
+    val needsProfile: Boolean
+        get() = profilesLoaded && (!serverUnreachable || offlineAsksWho) && credentials?.profileToken == null && profiles.size > 1
+
+    /**
+     * Offline, left at "Who's watching?" by a profile that takes a PIN, with no child's profile to fall to: the picker
+     * stays up (nobody can be chosen until the server's back) rather than open that profile's downloads without its PIN.
+     */
+    private var offlineAsksWho by mutableStateOf(false)
 
     /** This device's name, as the server's list of signed-in devices shows it. */
     val deviceName: String
@@ -1721,17 +1731,15 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     }
 
     /**
-     * Who's watching offline: the list as last known, with the profile last chosen. With nobody chosen, or a device
-     * locked to kids profiles, a child if the household has one: offline is never a way out of the kids app.
+     * Who's watching offline: the list as last known, with the profile last chosen, as [offlineProfiles] settles it
+     * (never a way out of the kids app, nor past a PIN from "Who's watching?").
      */
     private fun settleOfflineProfile() {
-        if (saved && profiles.none { it.isCurrent }) store.savedProfiles().takeIf { it.isNotEmpty() }?.let { profiles = it }
+        val known = if (saved && profiles.none { it.isCurrent }) store.savedProfiles().takeIf { it.isNotEmpty() } ?: profiles else profiles
         if (saved && store.savedKidsLock()) kidsLock = true
-        val current = currentProfile
-        if (current != null && (current.isKids || !kidsLock)) return
-        if (current == null && profiles.size <= 1) return
-        val child = profiles.firstOrNull { it.isKids } ?: return
-        profiles = profiles.map { it.copy(isCurrent = it.id == child.id) }
+        val settled = offlineProfiles(known, chosenHere = credentials?.profileToken != null, kidsLock = kidsLock)
+        if (settled.profiles != profiles) profiles = settled.profiles
+        offlineAsksWho = settled.asksWho
     }
 
     /** While in front, tries again after 15 seconds, then less and less often, up to every 5 minutes. */
@@ -1751,6 +1759,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         offlineRetry?.cancel()
         offlineRetry = null
         serverUnreachable = false
+        offlineAsksWho = false
         retryAttempt = 0
     }
 
@@ -1903,6 +1912,27 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             return remote
         }
     }
+}
+
+/** Who's watching offline ([offlineProfiles]); [asksWho]: nobody, and "Who's watching?" stays up until the server's back. */
+internal data class OfflineProfiles(val profiles: List<Profile>, val asksWho: Boolean = false)
+
+/**
+ * Who's watching offline, from the list as [known] (its current profile the one last chosen): that profile, as offline
+ * goes on where it was. Two exceptions. A device locked to kids profiles ([kidsLock]) goes to a child if the household
+ * has one: offline is never a way out of the kids app. And with nobody chosen on this device ([chosenHere] false: it
+ * was left at "Who's watching?", where the server still answers as whoever was last), a profile that takes a PIN isn't
+ * gone back to, since its PIN can't be checked offline: a child without one instead, else nobody.
+ */
+internal fun offlineProfiles(known: List<Profile>, chosenHere: Boolean, kidsLock: Boolean): OfflineProfiles {
+    // One profile is the only one there is: nobody's ever asked who's watching.
+    val withheld = !chosenHere && known.size > 1 && known.any { it.isCurrent && it.takesPin }
+    val list = if (withheld) known.map { it.copy(isCurrent = false) } else known
+    val current = list.firstOrNull { it.isCurrent }
+    if (current != null && (current.isKids || !kidsLock)) return OfflineProfiles(list)
+    if (current == null && list.size <= 1) return OfflineProfiles(list)
+    val child = list.firstOrNull { it.isKids && !(withheld && it.takesPin) } ?: return OfflineProfiles(list, asksWho = withheld)
+    return OfflineProfiles(list.map { it.copy(isCurrent = it.id == child.id) })
 }
 
 /** Choosing [chosen] while [current] is watching changes who's watching (choosing at first sign-in doesn't). */

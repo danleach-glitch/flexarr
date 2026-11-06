@@ -26,6 +26,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - While downloads wait for the server to convert them (a season at 720p can take hours), the phone asks after each one far less often than every three seconds, which is easier on the battery and on mobile data. A download still starts within half a minute of being ready.
 - The Android app takes about 18 MB less space on each phone and TV.
 - Opening the Android app, or coming back to it, asks the server the same small questions once rather than several times, so Home has less to wait behind on mobile data.
+- A phone or tablet left on **Who’s watching?** no longer opens the last profile’s downloads when it goes offline, if that profile has a PIN. A child’s profile takes over if there is one; otherwise **Who’s watching?** stays until the server can be reached again.
 
 ## 0.62.1 · 5 November 2026
 
