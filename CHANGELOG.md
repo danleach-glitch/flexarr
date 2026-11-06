@@ -20,6 +20,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Away from home, the Android app checks that it's your server answering at its home address before it listens for commands from other devices or carries on a download there, as it already did for everything else. Until then it uses the server's remote address, or waits.
 - A paused film, episode or Live TV channel no longer keeps the screen on for ever: the phone's screen times out as usual, and an Android TV's screensaver starts. The screen still stays on while something plays or loads.
 - On Android TV sticks and phones that give an app little memory, the player holds less of a high-bitrate film in memory at once, so playing one directly is less likely to stutter or close the app. Other devices buffer as before.
+- Opening a title or pressing **Play** no longer waits behind posters that are still loading, which showed after scrolling a long grid on a slow connection.
 
 ## 0.62.1 · 5 November 2026
 

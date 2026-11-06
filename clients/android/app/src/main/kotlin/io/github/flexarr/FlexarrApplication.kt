@@ -62,10 +62,10 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         else -> "AndroidPhone"
     }
 
-    /** Artwork comes over the same connections as the API. */
+    /** Artwork comes over the same connections as the API, in a queue of its own so it never holds the API up. */
     override fun newImageLoader(context: PlatformContext): ImageLoader =
         ImageLoader.Builder(context)
-            .components { add(OkHttpNetworkFetcherFactory(callFactory = { FlexarrClient.sharedHttp })) }
+            .components { add(OkHttpNetworkFetcherFactory(callFactory = { FlexarrClient.artworkHttp })) }
             .build()
 }
 

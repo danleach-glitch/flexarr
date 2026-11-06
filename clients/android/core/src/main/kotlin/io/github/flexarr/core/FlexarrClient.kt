@@ -728,6 +728,13 @@ class FlexarrClient(
             .build()
 
         /**
+         * [sharedHttp] with a queue of its own, for artwork. OkHttp sends one server five requests at a time and
+         * keeps the rest waiting in turn, so on the shared queue a screenful of posters still loading held up the
+         * next API call and the player's requests behind them. The connections are still the shared ones.
+         */
+        val artworkHttp: OkHttpClient by lazy { sharedHttp.newBuilder().dispatcher(okhttp3.Dispatcher()).build() }
+
+        /**
          * Whether [id], from outside the app (a link), looks like one of the server's: letters, digits, `-` and `_`
          * (a GUID, say). Anything else could reach another of the server's paths once put in one.
          */
