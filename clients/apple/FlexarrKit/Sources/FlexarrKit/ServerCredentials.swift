@@ -14,15 +14,21 @@ public struct ServerCredentials: Sendable, Equatable {
     /// address on this device (127.0.0.1), and there's never a home or away address: a guest's network might have
     /// something else at the host's home address, which mustn't be sent this sign-in.
     public var guest: GuestTunnelInfo?
+    /// The server's own id (`SystemStatus.serverId`), kept from the first time it gives it, so the home address can be
+    /// asked who it is before it's sent this sign-in (see `ServerAddresses`). Nil for servers before 0.55, until the
+    /// server has said, and for a guest (whose address is its own tunnel).
+    public var serverId: String?
 
     public var isGuest: Bool { guest != nil }
 
-    public init(address: URL, apiKey: String, profileToken: String? = nil, remoteAddress: URL? = nil, guest: GuestTunnelInfo? = nil) {
+    public init(address: URL, apiKey: String, profileToken: String? = nil, remoteAddress: URL? = nil, guest: GuestTunnelInfo? = nil,
+                serverId: String? = nil) {
         self.address = address
         self.apiKey = apiKey
         self.profileToken = profileToken
         self.guest = guest
         self.remoteAddress = guest != nil || remoteAddress == address ? nil : remoteAddress
+        self.serverId = guest != nil ? nil : serverId
     }
 
     public var client: FlexarrClient { client() }
@@ -30,7 +36,7 @@ public struct ServerCredentials: Sendable, Equatable {
     /// A client for this sign-in; `onUnauthorized` hears about every 401 it gets. Clients for the same sign-in share
     /// which address is answering (see `ServerAddresses`).
     public func client(onUnauthorized: (@Sendable () -> Void)? = nil) -> FlexarrClient {
-        FlexarrClient(addresses: ServerAddresses.shared(home: address, remote: remoteAddress),
+        FlexarrClient(addresses: ServerAddresses.shared(home: address, remote: remoteAddress, serverId: isGuest ? nil : serverId),
                       apiKey: apiKey.isEmpty ? nil : apiKey, profileToken: profileToken, onUnauthorized: onUnauthorized)
     }
 }
@@ -110,7 +116,8 @@ public struct CredentialStore: Sendable {
         return ServerCredentials(address: url, apiKey: readKey(account: text) ?? "",
                                  profileToken: defaults.string(forKey: "\(addressKey).profile"),
                                  remoteAddress: defaults.string(forKey: "\(addressKey).remote").flatMap(URL.init(string:)),
-                                 guest: defaults.data(forKey: "\(addressKey).guest").flatMap { try? JSONDecoder().decode(GuestTunnelInfo.self, from: $0) })
+                                 guest: defaults.data(forKey: "\(addressKey).guest").flatMap { try? JSONDecoder().decode(GuestTunnelInfo.self, from: $0) },
+                                 serverId: defaults.string(forKey: "\(addressKey).serverId"))
     }
 
     /// The last address used, kept after sign-out so the connect screen can prefill it.
@@ -128,6 +135,7 @@ public struct CredentialStore: Sendable {
         if credentials.guest == nil { defaults.set(account, forKey: "\(addressKey).last") }
         saveProfile(credentials.profileToken)
         saveRemoteAddress(credentials.remoteAddress)
+        saveServerId(credentials.isGuest ? nil : credentials.serverId)
         defaults.set(credentials.guest.flatMap { try? JSONEncoder().encode($0) }, forKey: "\(addressKey).guest")
     }
 
@@ -135,6 +143,11 @@ public struct CredentialStore: Sendable {
     public func saveRemoteAddress(_ url: URL?) {
         guard url == nil || defaults.data(forKey: "\(addressKey).guest") == nil else { return }
         defaults.set(url?.absoluteString, forKey: "\(addressKey).remote")
+    }
+
+    /// Remembers the server's id (nil forgets it), which the home address is asked for before it's sent the sign-in.
+    public func saveServerId(_ id: String?) {
+        defaults.set(id?.isEmpty == false ? id : nil, forKey: "\(addressKey).serverId")
     }
 
     /// Remembers who's watching. The token only works alongside the API key, so it needn't be in the Keychain.
@@ -176,6 +189,7 @@ public struct CredentialStore: Sendable {
         defaults.removeObject(forKey: addressKey)
         defaults.removeObject(forKey: "\(addressKey).profile")
         defaults.removeObject(forKey: "\(addressKey).remote")
+        defaults.removeObject(forKey: "\(addressKey).serverId")
         defaults.removeObject(forKey: "\(addressKey).guest")
         defaults.removeObject(forKey: "\(addressKey).name")
     }

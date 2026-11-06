@@ -192,6 +192,7 @@ final class AppModel {
            case .signedIn(var saved) = phase {
             saved.address = url
             saved.remoteAddress = nil
+            saved.serverId = nil
             phase = .signedIn(saved)
             upgradeChecked = true
             remoteChecked = true
@@ -436,6 +437,8 @@ final class AppModel {
         guard !ServerSupport.isTooOld(status.version) else { throw ServerTooOld() }
         // The server's address for away from home comes with its status; it's kept beside this one.
         credentials.remoteAddress = await Self.remoteAddress(for: status, address: url)
+        // So is its id: from now on this address is asked for it before it's sent the sign-in (see `ServerAddresses`).
+        credentials.serverId = status.serverId
         let typed = credentials
         credentials = await withOwnToken(credentials)
         do {
@@ -570,19 +573,25 @@ final class AppModel {
     private var remoteChecked = false
 
     /// Keeps the saved address for away from home in step with the server's (remote access turned on or off since,
-    /// or a sign-in from before the app kept one). Best effort, once per launch, after the profiles are up.
+    /// or a sign-in from before the app kept one), and keeps the server's id the first time it gives it (a sign-in
+    /// from before the app kept that), so the home address can be asked who it is before it's sent the sign-in. Best
+    /// effort, once per launch, after the profiles are up.
     private func refreshRemoteAddress() async {
         // A guest only ever reaches its host through the tunnel.
         guard !remoteChecked, let credentials, !credentials.isGuest else { return }
         remoteChecked = true
         guard let status = try? await credentials.client.systemStatus() else { return }
         let remote = await Self.remoteAddress(for: status, address: credentials.address, kept: credentials.remoteAddress)
+        // Never swapped for another: a server whose id has changed is a different server, to be connected to afresh.
+        let id = credentials.serverId ?? status.serverId
         // Who's watching may have been chosen meanwhile: what matters is that it's still the same sign-in.
-        guard let now = self.credentials, remote != now.remoteAddress,
+        guard let now = self.credentials, remote != now.remoteAddress || id != now.serverId,
               now.address == credentials.address, now.apiKey == credentials.apiKey else { return }
         var updated = now
         updated.remoteAddress = remote
+        updated.serverId = id
         store.saveRemoteAddress(remote)
+        store.saveServerId(id)
         phase = .signedIn(updated)
     }
 

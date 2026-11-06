@@ -18,6 +18,11 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
         lock.withLock { stubs[host] = stub }
     }
 
+    /// What `host` answers at one path ("/api/v1/setup"), whatever it answers elsewhere.
+    static func register(host: String, path: String, _ stub: Stub) {
+        lock.withLock { stubs[host + path] = stub }
+    }
+
     static func recorded(host: String) -> [URLRequest] {
         lock.withLock { requests[host] ?? [] }
     }
@@ -43,7 +48,7 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
         }
         let stub = Self.lock.withLock { () -> Stub? in
             Self.requests[host, default: []].append(captured)
-            return Self.stubs[host]
+            return Self.stubs[host + (request.url?.path ?? "")] ?? Self.stubs[host]
         }
         guard let stub else {
             client?.urlProtocol(self, didFailWithError: URLError(.cannotConnectToHost))

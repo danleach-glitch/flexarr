@@ -117,8 +117,9 @@ public struct FlexarrClient: Sendable {
     /// later (or as soon as the first can't connect), as ordinary requests do, so a phone at home stays on its home
     /// address; whichever answers becomes the address in use. Asked without the sign-in, so nothing is given away to
     /// whatever is at the home address on someone else's network: Flexarr answers `system/status` with a 401, which
-    /// counts, while a web page or a redirect (a hotel's sign-in page) doesn't. Used at launch and while offline, so a
-    /// missing server shows in seconds rather than after every request's own timeout.
+    /// counts, while a web page or a redirect (a hotel's sign-in page) doesn't. A home address that has to say who it
+    /// is (see `ServerAddresses`) is asked that instead: another server there isn't this one being reachable. Used at
+    /// launch and while offline, so a missing server shows in seconds rather than after every request's own timeout.
     public func isReachable(within limit: Duration = .seconds(4)) async -> Bool {
         if Self.simulatesOffline { return false }
         let seconds = Double(limit.components.seconds) + Double(limit.components.attoseconds) / 1e18
@@ -126,17 +127,21 @@ public struct FlexarrClient: Sendable {
         let alternate = addresses.alternate(to: primary)
         // Its own session, so it never waits in line behind artwork for the same server.
         let session = session === URLSession.shared ? Self.probeSession : session
-        func probe(_ url: URL) -> URLRequest {
+        @Sendable func probe(_ url: URL) -> URLRequest {
             var request = URLRequest(url: url.appending(path: "api/v1/system/status"))
             request.timeoutInterval = seconds
             request.setValue("application/json", forHTTPHeaderField: "Accept")
             return request
         }
+        @Sendable func answers(_ url: URL) async -> Bool {
+            if addresses.asksProof(of: url) { return await provesItself(url, fresh: true) }
+            return await Self.answersAsFlexarr(probe(url), session: session)
+        }
         enum Outcome: Sendable { case reached(URL), failed(URL), timeUp }
         let firstFailed = AsyncStream<Void>.makeStream()
         let reached: URL? = await withTaskGroup(of: Outcome.self) { group in
             group.addTask {
-                let answered = await Self.answersAsFlexarr(probe(primary), session: session)
+                let answered = await answers(primary)
                 if !answered { firstFailed.continuation.yield() }
                 return answered ? .reached(primary) : .failed(primary)
             }
@@ -150,7 +155,7 @@ public struct FlexarrClient: Sendable {
                         wait.cancelAll()
                     }
                     if Task.isCancelled { return .failed(alternate) }
-                    return await Self.answersAsFlexarr(probe(alternate), session: session) ? .reached(alternate) : .failed(alternate)
+                    return await answers(alternate) ? .reached(alternate) : .failed(alternate)
                 }
             }
             // The time limit itself: URLSession's timeout is between bytes, not for the whole request.
@@ -188,6 +193,31 @@ public struct FlexarrClient: Sendable {
               let http = response as? HTTPURLResponse else { return false }
         if (300..<400).contains(http.statusCode) { return false }
         return http.value(forHTTPHeaderField: "Content-Type")?.contains("text/html") != true
+    }
+
+    /// Whether `url` may be sent this sign-in: always, unless it's a home address that has to say who it is first
+    /// (see `ServerAddresses`), which is then asked for the server's id, without the sign-in, if it hasn't said lately
+    /// (or `fresh`: now, whatever it said before).
+    func provesItself(_ url: URL, fresh: Bool = false) async -> Bool {
+        guard addresses.asksProof(of: url) else { return true }
+        if Self.simulatesOffline { return false }
+        // Its own connections, as the reachability check's: never in line behind artwork.
+        let session = session === URLSession.shared ? Self.probeSession : session
+        return await addresses.proveHome(fresh: fresh) { home, id in
+            await Self.idAnswering(at: home, session: session) == id
+        }
+    }
+
+    /// The id of the server answering at `url` (GET /setup, which anyone may ask), asked without any sign-in and
+    /// without following a redirect; nil when nothing answered, or what did gave none. Waits as long as a request
+    /// would, so a server that's slow to wake is still found.
+    private static func idAnswering(at url: URL, session: URLSession) async -> String? {
+        var request = URLRequest(url: url.appending(path: "api/v1/setup"))
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        guard let (data, response) = try? await session.data(for: request, delegate: NoRedirects.shared),
+              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return (try? decoder.decode(SetupStatus.self, from: data))?.serverId
     }
 
     /// The reachability check's own connections.
@@ -728,7 +758,8 @@ public struct FlexarrClient: Sendable {
     /// `accepts`: the commands beyond the basic ones this device takes, for remotes to offer. `nowPlaying`: hear what
     /// every device is playing as it changes too (`.nowPlaying`), for a remote. Servers before 0.56 ignore both.
     public func deviceEvents(accepts: [DeviceCommandKind] = [], nowPlaying: Bool = false) -> AsyncThrowingStream<DeviceEvent, Error> {
-        var url = baseURL.appending(path: "api/v1/devices/commands")
+        let base = baseURL
+        var url = base.appending(path: "api/v1/devices/commands")
         var query: [URLQueryItem] = []
         if !accepts.isEmpty { query.append(URLQueryItem(name: "accepts", value: accepts.map(\.rawValue).joined(separator: ","))) }
         if nowPlaying { query.append(URLQueryItem(name: "nowPlaying", value: "true")) }
@@ -745,6 +776,8 @@ public struct FlexarrClient: Sendable {
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
+                    // Home says who it is before it's sent the sign-in, as for any request (see `ServerAddresses`).
+                    guard await provesItself(base) else { throw URLError(Task.isCancelled ? .cancelled : .cannotConnectToHost) }
                     let (bytes, response) = try await session.bytes(for: prepared)
                     guard let http = response as? HTTPURLResponse else { throw FlexarrClientError.invalidResponse }
                     switch http.statusCode {
@@ -1019,7 +1052,7 @@ public struct FlexarrClient: Sendable {
         let primary = addresses.current
         let first = request(method, path, query: query, bodyData: bodyData, at: primary, contentType: contentType, timeout: timeout)
         guard let alternate = addresses.alternate(to: primary) else {
-            return try await exchange(first)
+            return try await exchange(first, at: primary)
         }
 
         let second = request(method, path, query: query, bodyData: bodyData, at: alternate, contentType: contentType, timeout: timeout)
@@ -1029,10 +1062,10 @@ public struct FlexarrClient: Sendable {
             (answer, reached) = try await race(first, at: primary, then: second, at: alternate)
         } else {
             do {
-                answer = try await exchange(first)
+                answer = try await exchange(first, at: primary)
                 reached = primary
             } catch let error where Self.couldNotConnect(error) {
-                guard let other = try? await exchange(second) else { throw FlexarrClientError.unreachable }
+                guard let other = try? await exchange(second, at: alternate) else { throw FlexarrClientError.unreachable }
                 answer = other
                 reached = alternate
             }
@@ -1042,10 +1075,14 @@ public struct FlexarrClient: Sendable {
         return answer
     }
 
-    private func exchange(_ request: URLRequest) async throws -> Answer {
+    /// Sends `request` (to `base`, one of the server's addresses). A home address that has to say who it is first (see
+    /// `ServerAddresses`) and doesn't is as good as not there: nothing signed in is sent, and it "can't connect".
+    private func exchange(_ request: URLRequest, at base: URL) async throws -> Answer {
         if Self.simulatesOffline { throw URLError(.notConnectedToInternet) }
+        guard await provesItself(base) else { throw URLError(Task.isCancelled ? .cancelled : .cannotConnectToHost) }
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw FlexarrClientError.invalidResponse }
+        addresses.answered(from: base)
         return (data, http)
     }
 
@@ -1057,14 +1094,14 @@ public struct FlexarrClient: Sendable {
         let delay = Task { try? await Task.sleep(for: ServerAddresses.alternateDelay) }
         return try await withThrowingTaskGroup(of: Attempt.self) { group in
             group.addTask {
-                let result = await Self.attempt { try await self.exchange(first) }
+                let result = await Self.attempt { try await self.exchange(first, at: primary) }
                 if case .failure(let error) = result, Self.couldNotConnect(error) { delay.cancel() }
                 return (primary, result)
             }
             group.addTask {
                 _ = await delay.value
                 if Task.isCancelled { return (alternate, .failure(CancellationError())) }
-                return (alternate, await Self.attempt { try await self.exchange(second) })
+                return (alternate, await Self.attempt { try await self.exchange(second, at: alternate) })
             }
 
             for try await attempt in group {
@@ -1110,14 +1147,22 @@ public struct FlexarrClient: Sendable {
     /// While away, sees every few minutes whether home answers again, and goes back to it when it does.
     private func checkHomeIfDue() {
         guard addresses.shouldCheckHome() else { return }
-        var probe = request("GET", "system/status", query: [], bodyData: nil, at: addresses.home)
-        probe.timeoutInterval = 5
-        let session = session
-        let addresses = addresses
-        Task.detached {
-            guard let (_, response) = try? await session.data(for: probe), (response as? HTTPURLResponse)?.statusCode == 200 else { return }
-            addresses.reached(addresses.home)
+        Task.detached { await checkHome() }
+    }
+
+    /// Whether home answers again, going back to it if so. A home address that has to say who it is (see
+    /// `ServerAddresses`) is asked that, without the sign-in: on someone else's network, whatever is at the same
+    /// address is given nothing and can't call the app over.
+    func checkHome() async {
+        let home = addresses.home
+        if addresses.asksProof(of: home) {
+            if await provesItself(home, fresh: true) { addresses.reached(home) }
+            return
         }
+        var probe = request("GET", "system/status", query: [], bodyData: nil, at: home)
+        probe.timeoutInterval = 5
+        guard let (_, response) = try? await session.data(for: probe), (response as? HTTPURLResponse)?.statusCode == 200 else { return }
+        addresses.reached(home)
     }
 
     func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
