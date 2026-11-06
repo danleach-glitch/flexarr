@@ -11,6 +11,9 @@ struct ShowGapsSection: View {
     /// The show's TMDB id, for requesting a season through Seerr.
     let tmdbId: Int?
     @Binding var gaps: ShowGaps
+    /// The library's own seasons' posters, by season number, for a season it has some of (else the show's poster).
+    var posters: [Int: String] = [:]
+    var showPoster: String?
     /// Seasons asked for here, until the page next loads.
     @State private var asked: Set<Int> = []
     /// Seasons whose request was taken back here, until the page next loads.
@@ -18,6 +21,8 @@ struct ShowGapsSection: View {
     /// The season whose Requested was pressed: asked about before it's taken back.
     @State private var undoing: MissingSeason?
     @State private var searched: Set<Int> = []
+    /// Seasons it has some of whose missing episodes Sonarr was asked to search for here.
+    @State private var searchedEpisodes: Set<Int> = []
     @State private var busy = false
     @State private var said: String?
 
@@ -26,20 +31,16 @@ struct ShowGapsSection: View {
             if gaps.hasMissing {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionHeading(title: t(Words.notInYourLibrary))
-                    if !gaps.seasons.isEmpty {
-                        ScrollView(.horizontal) {
-                            LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
-                                ForEach(gaps.seasons) { season in
-                                    seasonCard(season)
-                                }
+                    // One row: a season it has some of is a card beside those it has none of, saying how many are missing.
+                    ScrollView(.horizontal) {
+                        LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
+                            ForEach(gaps.row(posters: posters, showPoster: showPoster), id: \.season.seasonNumber) { entry in
+                                seasonCard(entry.season, partial: entry.partial)
                             }
-                            .padding(.horizontal, Layout.edge)
                         }
-                        .scrollIndicators(.hidden)
+                        .padding(.horizontal, Layout.edge)
                     }
-                    ForEach(gaps.episodesBySeason, id: \.season) { group in
-                        missingEpisodes(season: group.season, episodes: group.episodes)
-                    }
+                    .scrollIndicators(.hidden)
                 }
             }
             if !gaps.upcoming.isEmpty {
@@ -62,8 +63,10 @@ struct ShowGapsSection: View {
         }
     }
 
-    private func state(_ season: MissingSeason) -> MissingSeasonAction {
+    private func state(_ season: MissingSeason, partial: Bool) -> MissingSeasonAction {
         let n = season.seasonNumber
+        // A season it has some of: Search for the rest (the main profile), Searching once asked, or nothing.
+        if partial { return searchedEpisodes.contains(n) ? .requested : gaps.canSearch && gaps.source == "sonarr" ? .search : .none }
         if asked.contains(n) || searched.contains(n) { return .requested }
         if undone.contains(n), gaps.canRequest { return .request }
         let action = gaps.action(for: season)
@@ -78,9 +81,9 @@ struct ShowGapsSection: View {
     }
 
     /// Poster, name and episodes, with Request (or Search) under it, as on the web.
-    private func seasonCard(_ season: MissingSeason) -> some View {
+    private func seasonCard(_ season: MissingSeason, partial: Bool) -> some View {
         let width = Layout.posterWidth(sizeClass)
-        let action = state(season)
+        let action = state(season, partial: partial)
         return VStack(alignment: .leading, spacing: 6) {
             Color.seat
                 .aspectRatio(2 / 3, contentMode: .fit)
@@ -99,7 +102,7 @@ struct ShowGapsSection: View {
                 Text(season.title)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(Color.screen.opacity(0.9))
-                Text(caption(season))
+                Text(caption(season, partial: partial))
                     .font(.caption)
                     .foregroundStyle(Color.usher)
             }
@@ -108,9 +111,14 @@ struct ShowGapsSection: View {
             switch action {
             case .request:
                 actionButton(TitleWords.request, symbol: Symbol.request, label: t("Request {season}", ["season": season.title])) { await request(season) }
+            case .search where partial:
+                actionButton(t(Words.search), symbol: Symbol.search,
+                             label: t("Search for season {season}’s missing episodes", ["season": season.seasonNumber])) {
+                    await search(season.seasonNumber, episodesOnly: true)
+                }
             case .search:
                 actionButton(t(Words.search), symbol: Symbol.search, label: t("Search for {season}", ["season": season.title])) { await search(season.seasonNumber) }
-            case .requested where undoable(season):
+            case .requested where !partial && undoable(season):
                 Button { undoing = season } label: { Label(TitleWords.requested, systemImage: Symbol.requested).oneLine() }
                     .buttonStyle(.borderedProminent)
                     .tint(Color.seat)
@@ -121,7 +129,7 @@ struct ShowGapsSection: View {
                     .accessibilityHint(TitleWords.unrequestHint)
                     .accessibilityAddTraits(.isSelected)
             case .requested:
-                Text(searched.contains(season.seasonNumber) ? t("Searching") : TitleWords.requested)
+                Text(partial || searched.contains(season.seasonNumber) ? t("Searching") : TitleWords.requested)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(Color.usher)
             default:
@@ -140,33 +148,10 @@ struct ShowGapsSection: View {
             .accessibilityLabel(label)
     }
 
-    private func caption(_ season: MissingSeason) -> String {
-        [season.episodes > 0 ? t("{count, plural, one {# episode} other {# episodes}}", ["count": season.episodes]) : nil,
+    private func caption(_ season: MissingSeason, partial: Bool) -> String {
+        if partial { return t("{count, plural, one {# episode missing} other {# episodes missing}}", ["count": season.episodes]) }
+        return [season.episodes > 0 ? t("{count, plural, one {# episode} other {# episodes}}", ["count": season.episodes]) : nil,
          season.year.map(String.init)].compactMap(\.self).joined(separator: ", ")
-    }
-
-    /// A season the library has some of: how many episodes it lacks, and Search (the main profile). The episodes
-    /// themselves aren't listed: the count says enough, and a long show's list ran on for screens.
-    private func missingEpisodes(season: Int, episodes: [ShowEpisode]) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(t("Season {season}: {count, plural, one {# episode missing} other {# episodes missing}}", ["season": season, "count": episodes.count]))
-                .font(.headline)
-                .foregroundStyle(Color.screen)
-            Spacer()
-            if gaps.canSearch && gaps.source == "sonarr" {
-                if searched.contains(season) {
-                    Text(t("Searching")).font(.subheadline.weight(.semibold)).foregroundStyle(Color.usher)
-                } else {
-                    Button { Task { await search(season) } } label: { Label(t(Words.search), systemImage: Symbol.search) }
-                        .buttonStyle(.bordered)
-                        .tint(Color.screen)
-                        .controlSize(.small)
-                        .disabled(busy)
-                        .accessibilityLabel(t("Search for season {season}’s missing episodes", ["season": season]))
-                }
-            }
-        }
-        .padding(.horizontal, Layout.edge)
     }
 
     /// "S2E3  Title  12 Nov": the code, the title (or "Episode 3") and a date, as on the web.
@@ -214,13 +199,13 @@ struct ShowGapsSection: View {
         }
     }
 
-    private func search(_ season: Int) async {
+    private func search(_ season: Int, episodesOnly: Bool = false) async {
         guard let client = model.client else { return }
         busy = true
         defer { busy = false }
         do {
             try await client.searchMissing(showId: showId, season: season)
-            searched.insert(season)
+            if episodesOnly { searchedEpisodes.insert(season) } else { searched.insert(season) }
             said = t("Sonarr is searching")
         } catch {
             model.requestError = ConnectionError(error).message

@@ -28,7 +28,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
+import androidx.compose.ui.graphics.vector.ImageVector
+import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MissingSeason
+import io.github.flexarr.core.SeasonGap
 import io.github.flexarr.core.ShowEpisode
 import io.github.flexarr.core.ShowMissing
 import io.github.flexarr.ui.components.RemoteImage
@@ -39,14 +42,19 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.FlexarrIcons
 
 /**
- * A show's gaps on the TV, as the phone's: *Not in your library* (seasons it has none of, then how many
- * episodes each partly-had season is missing) and *Coming up*. Pressing a season requests it (or, for the main profile without Seerr,
- * searches); pressing a requested one asks, then takes back just that season; Search beside a season's count asks Sonarr for all its missing episodes (main profile). The coming-up
- * episode cards have nothing to do but still take focus, so the page scrolls to them.
+ * A show's gaps on the TV, as the phone's: *Not in your library* (one row of the seasons it has none of and those it
+ * has part of, with how many episodes they lack) and *Coming up*. Pressing a season requests it (or, for the main
+ * profile without Seerr, searches); pressing a requested one asks, then takes back just that season; pressing a
+ * partly-had season asks Sonarr for all its missing episodes (main profile). Cards with nothing to do (and the
+ * coming-up episode cards) still take focus, so the page scrolls to them.
  */
 @Composable
 internal fun TvShowMissing(
     missing: ShowMissing,
+    /** The library's own seasons of the show, for a partly-had season's poster and name. */
+    librarySeasons: List<ItemSummary>,
+    /** The show's poster, for a partly-had season without one of its own. */
+    showPoster: String?,
     /** Seasons searched for here, ahead of the server's next answer. */
     asked: Set<Int>,
     /** Where a season's request stands (Request, Requested, Can't request…), counting what was done here. */
@@ -63,51 +71,49 @@ internal fun TvShowMissing(
     if (!missing.isEmpty) {
         Column {
             TvRowHeading(t(Words.notInYourLibrary))
-            if (missing.seasons.isNotEmpty()) {
+            val gaps = missing.seasonGaps
+            if (gaps.isNotEmpty()) {
                 LazyRow(contentPadding = PaddingValues(horizontal = TvLayout.Edge, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(TvLayout.RowSpacing)) {
-                    items(missing.seasons, key = { "missing-season-${it.seasonNumber}" }) { season ->
-                        val state = if (missing.canRequest) requestState(season) else null
-                        val requested = state == TitleRequestState.Requested || state == TitleRequestState.Undoing || state == TitleRequestState.Sending ||
-                            (state == null && (season.requested || season.seasonNumber in asked))
-                        val (status, action) = when {
-                            state == TitleRequestState.Requested -> state.label() to { if (canAsk) confirming = season }
-                            state == TitleRequestState.Refused -> state.label() to null
-                            state != null && requested -> state.label() to null
-                            requested -> t(Words.requested) to null
-                            missing.canRequest -> t(Words.request) to { if (canAsk) onRequest(season) }
-                            missing.canSearch -> t(Words.search) to { onSearch(season.seasonNumber, null) }
-                            else -> null to null
+                    items(gaps, key = { if (it is SeasonGap.Part) "part-season-${it.seasonNumber}" else "missing-season-${it.seasonNumber}" }) { gap ->
+                        if (gap is SeasonGap.Part) {
+                            // A season the library has some of: how many episodes it lacks, and Search for them (main profile).
+                            val own = librarySeasons.firstOrNull { it.seasonNumber == gap.seasonNumber }
+                            val title = own?.title?.takeIf { it.isNotBlank() } ?: gap.title
+                            val searched = gap.seasonNumber in asked
+                            val canSearch = missing.canSearchEpisodes
+                            SeasonCard(
+                                poster = own?.artwork?.poster ?: showPoster,
+                                title = title,
+                                detail = gap.detail,
+                                status = if (!canSearch) null else if (searched) t("Searching") else t(Words.search),
+                                statusIcon = FlexarrIcons.search,
+                                action = if (canSearch && !searched) { { onSearch(gap.seasonNumber, null) } } else null,
+                                dimmed = canSearch && searched,
+                                description = if (canSearch && !searched) t("Search for season {season}’s missing episodes", "season" to gap.seasonNumber) else null,
+                            )
+                        } else {
+                            val season = (gap as SeasonGap.Whole).season
+                            val state = if (missing.canRequest) requestState(season) else null
+                            val requested = state == TitleRequestState.Requested || state == TitleRequestState.Undoing || state == TitleRequestState.Sending ||
+                                (state == null && (season.requested || season.seasonNumber in asked))
+                            val (status, action) = when {
+                                state == TitleRequestState.Requested -> state.label() to { if (canAsk) confirming = season }
+                                state == TitleRequestState.Refused -> state.label() to null
+                                state != null && requested -> state.label() to null
+                                requested -> t(Words.requested) to null
+                                missing.canRequest -> t(Words.request) to { if (canAsk) onRequest(season) }
+                                missing.canSearch -> t(Words.search) to { onSearch(season.seasonNumber, null) }
+                                else -> null to null
+                            }
+                            // Request or Requested that can't be pressed now (a kids profile, or Seerr not answering): greyed, as on the phones.
+                            val blocked = !canAsk && missing.canRequest && (state == TitleRequestState.Requested || (!requested && state != TitleRequestState.Refused))
+                            val icon = if (requested) FlexarrIcons.requested else if (status == t(Words.search)) FlexarrIcons.search else FlexarrIcons.request
+                            SeasonCard(season.poster, season.title, season.detail, status, icon, action, dimmed = blocked)
                         }
-                        // Request or Requested that can't be pressed now (a kids profile, or Seerr not answering): greyed, as on the phones.
-                        val blocked = !canAsk && missing.canRequest && (state == TitleRequestState.Requested || (!requested && state != TitleRequestState.Refused))
-                        SeasonCard(season, status, requested, action, dimmed = blocked)
                     }
                 }
-                if (missing.canRequest && seerrNotAnswering) {
+                if (missing.seasons.isNotEmpty() && missing.canRequest && seerrNotAnswering) {
                     Text(SeerrNotAnswering, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, modifier = Modifier.padding(horizontal = TvLayout.Edge))
-                }
-            }
-            missing.episodesBySeason.forEach { (season, episodes) ->
-                val searched = season in asked
-                Row(
-                    modifier = Modifier.padding(start = TvLayout.Edge, end = TvLayout.Edge, top = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        t("Season {season}: {count, plural, one {# episode missing} other {# episodes missing}}", "season" to season, "count" to episodes.size),
-                        fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher,
-                    )
-                    // The whole season's missing episodes, as on the web and the phones.
-                    if (missing.canSearch) {
-                        TvActionButton(
-                            if (searched) t("Searching") else t(Words.search),
-                            onClick = { onSearch(season, null) },
-                            icon = FlexarrIcons.search,
-                            enabled = !searched,
-                            contentDescription = t("Search for season {season}’s missing episodes", "season" to season),
-                        )
-                    }
                 }
             }
         }
@@ -125,30 +131,43 @@ internal fun TvShowMissing(
     }
 }
 
+/**
+ * A season card: poster (or its name on a plain tile), name, [detail], and [status] with [statusIcon] under them.
+ * TalkBack reads [description] when given, else the name and status.
+ */
 @Composable
-private fun SeasonCard(season: MissingSeason, status: String?, requested: Boolean, action: (() -> Unit)?, dimmed: Boolean = false) {
+private fun SeasonCard(
+    poster: String?,
+    title: String,
+    detail: String,
+    status: String?,
+    statusIcon: ImageVector,
+    action: (() -> Unit)?,
+    dimmed: Boolean = false,
+    description: String? = null,
+) {
     val width = 150.dp
     TvArtworkButton(
         ambient = Flexarr.silver,
         onClick = { action?.invoke() },
         modifier = Modifier.width(width),
-        contentDescription = listOfNotNull(season.title, status).joinToString(", "),
+        contentDescription = description ?: listOfNotNull(title, detail.takeIf { it.isNotEmpty() }, status).joinToString(", "),
         artwork = {
             Box(Modifier.size(width, width * 1.5f)) {
-                RemoteImage(season.poster, 342, Modifier.fillMaxSize()) {
+                RemoteImage(poster, 342, Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().background(Flexarr.seat), contentAlignment = Alignment.Center) {
-                        Text(season.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
+                        Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
                     }
                 }
             }
         },
         caption = { focused ->
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(season.title, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.88f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                season.detail.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 11.sp, color = Flexarr.usher, maxLines = 1) }
+                Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.88f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                detail.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 11.sp, color = Flexarr.usher, maxLines = 1) }
                 status?.let {
                     Row(Modifier.alpha(if (dimmed) 0.5f else 1f), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(if (requested) FlexarrIcons.requested else if (it == t(Words.search)) FlexarrIcons.search else FlexarrIcons.request, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(13.dp))
+                        Icon(statusIcon, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(13.dp))
                         Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
                     }
                 }

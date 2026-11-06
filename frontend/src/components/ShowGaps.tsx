@@ -31,14 +31,23 @@ function SearchButton({ showId, season, label }: { showId: string; season: numbe
 }
 
 /**
- * Below a show's seasons: the episodes coming next, then what Sonarr (or Seerr) knows that the library doesn't, with
- * Request for a whole season (Seerr) and, for a season it has some of, how many episodes are missing and Search for
- * them (Sonarr, main profile).
+ * Below a show's seasons: the episodes coming next, then what Sonarr (or Seerr) knows that the library doesn't, in one
+ * row of seasons: one it has none of, with Request (Seerr), and one it has some of, with how many episodes are missing
+ * and Search for them (Sonarr, main profile). `posters` are the library's own seasons' posters, by number, for the latter.
  */
-export function ShowGaps({ showId, tmdbId, gaps }: { showId: string; tmdbId: number | null; gaps: ShowMissing }) {
+export function ShowGaps({ showId, tmdbId, gaps, posters = new Map(), showPoster = null }: {
+  showId: string
+  tmdbId: number | null
+  gaps: ShowMissing
+  posters?: Map<number, string | null>
+  showPoster?: string | null
+}) {
   const bySeason = new Map<number, ShowEpisode[]>()
   for (const e of gaps.episodes) bySeason.set(e.seasonNumber, [...(bySeason.get(e.seasonNumber) ?? []), e])
-  const hasMissing = gaps.seasons.length > 0 || gaps.episodes.length > 0
+  const cards = [
+    ...gaps.seasons.map((s) => ({ season: s.seasonNumber, missing: s, episodes: 0 })),
+    ...[...bySeason].map(([season, episodes]) => ({ season, missing: null, episodes: episodes.length })),
+  ].sort((a, b) => a.season - b.season)
 
   return (
     <>
@@ -56,44 +65,52 @@ export function ShowGaps({ showId, tmdbId, gaps }: { showId: string; tmdbId: num
           </ul>
         </section>
       )}
-      {hasMissing && (
+      {cards.length > 0 && (
         <section className="show-gaps" aria-labelledby="show-missing">
           <h2 id="show-missing">{t(Words.notInYourLibrary)}</h2>
-          {gaps.seasons.length > 0 && (
-            <div className="poster-grid gap-seasons">
-              {gaps.seasons.map((s) => {
-                const name = s.name ?? t('Season {season}', { season: s.seasonNumber })
+          <div className="poster-grid gap-seasons">
+            {cards.map(({ season, missing: s, episodes }) => {
+              if (!s) {
+                const name = t('Season {season}', { season })
+                const poster = posters.get(season) ?? showPoster
                 return (
-                  <div key={s.seasonNumber} className="card external-card">
+                  <div key={season} className="card external-card">
                     <div className="card-frame">
                       <div className="artwork artwork-poster">
-                        {s.poster ? <img src={imageUrl(s.poster, 342)} alt="" loading="lazy" /> : <span className="artwork-fallback">{name}</span>}
+                        {poster ? <img src={imageUrl(poster, 342)} alt="" loading="lazy" /> : <span className="artwork-fallback">{name}</span>}
                       </div>
                     </div>
                     <span className="card-title">{name}</span>
-                    <span className="card-subtitle">{s.year ? t('{count, plural, one {# episode} other {# episodes}}, {year}', { count: s.episodes, year: String(s.year) }) : t('{count, plural, one {# episode} other {# episodes}}', { count: s.episodes })}</span>
+                    <span className="card-subtitle">{t('{count, plural, one {# episode missing} other {# episodes missing}}', { count: episodes })}</span>
                     <div className="external-card-actions">
-                      {gaps.canRequest && tmdbId != null ? (
-                        <RequestButton title={{ mediaType: 'tv', tmdbId, availability: s.availability, libraryItemId: null }} seasons={[s.seasonNumber]} label={t('Request {name}', { name })} name={name} />
-                      ) : s.availability === 'Requested' ? (
-                        <span className="external-state">{t(Words.requested)}</span>
-                      ) : gaps.canSearch ? (
-                        <SearchButton showId={showId} season={s.seasonNumber} label={t('Search for {name}', { name })} />
-                      ) : null}
+                      {gaps.canSearch && <SearchButton showId={showId} season={season} label={t('Search for season {season}’s missing episodes', { season })} />}
                     </div>
                   </div>
                 )
-              })}
-            </div>
-          )}
-          {[...bySeason].map(([season, episodes]) => (
-            <div key={season} className="gap-season">
-              <div className="gap-season-head">
-                <h3>{t('Season {season}: {count, plural, one {# episode missing} other {# episodes missing}}', { season, count: episodes.length })}</h3>
-                {gaps.canSearch && <SearchButton showId={showId} season={season} label={t('Search for season {season}’s missing episodes', { season })} />}
-              </div>
-            </div>
-          ))}
+              }
+              const name = s.name ?? t('Season {season}', { season: s.seasonNumber })
+              return (
+                <div key={s.seasonNumber} className="card external-card">
+                  <div className="card-frame">
+                    <div className="artwork artwork-poster">
+                      {s.poster ? <img src={imageUrl(s.poster, 342)} alt="" loading="lazy" /> : <span className="artwork-fallback">{name}</span>}
+                    </div>
+                  </div>
+                  <span className="card-title">{name}</span>
+                  <span className="card-subtitle">{s.year ? t('{count, plural, one {# episode} other {# episodes}}, {year}', { count: s.episodes, year: String(s.year) }) : t('{count, plural, one {# episode} other {# episodes}}', { count: s.episodes })}</span>
+                  <div className="external-card-actions">
+                    {gaps.canRequest && tmdbId != null ? (
+                      <RequestButton title={{ mediaType: 'tv', tmdbId, availability: s.availability, libraryItemId: null }} seasons={[s.seasonNumber]} label={t('Request {name}', { name })} name={name} />
+                    ) : s.availability === 'Requested' ? (
+                      <span className="external-state">{t(Words.requested)}</span>
+                    ) : gaps.canSearch ? (
+                      <SearchButton showId={showId} season={s.seasonNumber} label={t('Search for {name}', { name })} />
+                    ) : null}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </section>
       )}
     </>

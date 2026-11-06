@@ -351,7 +351,8 @@ struct DetailView: View {
                 seasonsSection(detail.children)
             }
             if item.kind == .series, gaps.hasMissing || !gaps.upcoming.isEmpty {
-                ShowGapsSection(showId: item.id, tmdbId: detail.tmdbId.flatMap { Int($0) }, gaps: $gaps)
+                ShowGapsSection(showId: item.id, tmdbId: detail.tmdbId.flatMap { Int($0) }, gaps: $gaps,
+                                posters: ShowGaps.seasonPosters(detail.children), showPoster: item.artwork.poster)
             }
             if item.kind == .episode, let season = selectedSeason, season.children.count > 1 {
                 VStack(alignment: .leading, spacing: 10) {

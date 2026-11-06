@@ -256,7 +256,9 @@ fun DetailScreen(model: AppModel, id: String) {
                         if (item.kind == MediaKind.Series) {
                             showMissingSections(
                                 missing,
-                                asked,
+                                librarySeasons = loaded.children,
+                                showPoster = item.artwork.poster,
+                                asked = asked,
                                 requestState = { season ->
                                     val tmdb = loaded.tmdbId?.toIntOrNull()
                                     if (tmdb == null) TitleRequestState.None

@@ -291,7 +291,13 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
 
       <div className="detail-body">
         {item.kind === 'Series' && <Seasons series={detail} counts={gaps.data?.counts} onChange={onChange} />}
-        {item.kind === 'Series' && gaps.data && <ShowGaps showId={item.id} tmdbId={detail.tmdbId ? Number(detail.tmdbId) : null} gaps={gaps.data} />}
+        {item.kind === 'Series' && gaps.data && <ShowGaps
+            showId={item.id}
+            tmdbId={detail.tmdbId ? Number(detail.tmdbId) : null}
+            gaps={gaps.data}
+            posters={new Map(detail.children.filter((s) => s.seasonNumber != null).map((s) => [s.seasonNumber!, s.artwork.poster]))}
+            showPoster={item.artwork.poster}
+          />}
         {detail.credits.length > 0 && <Cast credits={detail.credits} studio={detail.studio} />}
         {similar.data && similar.data.length > 0 && (
           <Row title={t(Words.moreLikeThis)}>

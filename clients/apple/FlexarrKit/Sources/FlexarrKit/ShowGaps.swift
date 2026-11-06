@@ -124,6 +124,22 @@ public struct ShowGaps: Codable, Sendable, Hashable {
         Dictionary(grouping: episodes, by: \.seasonNumber).sorted { $0.key < $1.key }.map { ($0.key, $0.value) }
     }
 
+    /// *Not in your library*'s one row, by season number: the seasons the library has none of, and (`partial`) those it
+    /// has some of, whose `episodes` is then how many of theirs are missing. A partial season's poster is the library's
+    /// own (`posters`, by season number), else the show's.
+    public func row(posters: [Int: String] = [:], showPoster: String? = nil) -> [(season: MissingSeason, partial: Bool)] {
+        let partial = episodesBySeason.map { group in
+            (season: MissingSeason(seasonNumber: group.season, name: nil, episodes: group.episodes.count, year: nil,
+                                   poster: posters[group.season] ?? showPoster, availability: .none), partial: true)
+        }
+        return (seasons.map { (season: $0, partial: false) } + partial).sorted { $0.season.seasonNumber < $1.season.seasonNumber }
+    }
+
+    /// The library's seasons' posters by season number, for `row(posters:)`.
+    public static func seasonPosters(_ seasons: [ItemSummary]) -> [Int: String] {
+        Dictionary(seasons.compactMap { s in s.seasonNumber.flatMap { n in s.artwork.poster.map { (n, $0) } } }, uniquingKeysWith: { a, _ in a })
+    }
+
     /// What a missing season's button does for this profile.
     public func action(for season: MissingSeason) -> MissingSeasonAction {
         if season.availability == .requested || season.availability == .partlyAvailable { return .requested }

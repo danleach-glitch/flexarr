@@ -41,7 +41,10 @@ describe('ShowGaps', () => {
   it('offers neither to a profile that can’t request or search', () => {
     render(<ShowGaps showId="show" tmdbId={99} gaps={{ ...gaps, canRequest: false, canSearch: false }} />)
 
-    expect(screen.getByRole('heading', { name: 'Season 1: 1 episode missing' })).toBeInTheDocument()
+    // A season it has some of is a card in the row, beside the ones it has none of, saying how many are missing.
+    const titles = [...document.querySelectorAll('.card-title')].map((e) => e.textContent)
+    expect(titles).toEqual(['Season 1', 'Season 2', 'Season 3'])
+    expect(screen.getByText('1 episode missing')).toBeInTheDocument()
     expect(screen.queryByText('The Fourth')).not.toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })

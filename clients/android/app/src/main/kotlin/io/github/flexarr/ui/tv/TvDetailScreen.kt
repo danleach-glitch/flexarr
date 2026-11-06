@@ -222,7 +222,9 @@ fun TvDetailScreen(model: AppModel, id: String) {
                         if (item.kind == MediaKind.Series) {
                             TvShowMissing(
                                 missing,
-                                asked,
+                                librarySeasons = loaded.children,
+                                showPoster = item.artwork.poster,
+                                asked = asked,
                                 requestState = { season ->
                                     val tmdb = loaded.tmdbId?.toIntOrNull()
                                     if (tmdb == null) TitleRequestState.None

@@ -50,6 +50,10 @@ class ShowMissingTest {
         assertEquals("8 episodes, 2021", season.detail)
         assertTrue(season.requested)
         assertEquals(listOf(1 to listOf("S1E3 · Three", "S1E5")), gaps.episodesBySeason.map { (s, list) -> s to list.map { it.label } })
+        // One row: season 1 (two episodes missing) before season 2 (none had).
+        assertEquals(listOf(SeasonGap.Part(1, 2), SeasonGap.Whole(season)), gaps.seasonGaps)
+        assertEquals("2 episodes missing", (gaps.seasonGaps.first() as SeasonGap.Part).detail)
+        assertEquals(false, gaps.canSearchEpisodes)
         assertEquals("8 of 10", gaps.countLabel(1))
         assertNull(gaps.countLabel(3))
         assertEquals("Airs 12 Nov", ShowMissing.airsLabel(gaps.upcoming.single().airDate!!, ZoneOffset.UTC, Instant.parse("2026-11-02T12:00:00Z")))
