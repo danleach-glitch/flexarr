@@ -219,6 +219,55 @@ class ServerAddressesTest {
     }
 
     @Test
+    fun `away, the command stream and a download's file go to the remote address and home isn't asked`() = runTest {
+        val elsewhere = MockWebServer().apply { start() }
+        try {
+            val addresses = ServerAddresses(elsewhere.url("/"), away.url("/")).apply { serverId = "abc" }
+            addresses.reached(away.url("/"))
+            away.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/event-stream").body(": hello\n\n").build())
+            val client = FlexarrClient(addresses, apiKey = "token")
+
+            client.deviceEvents().toList()
+            val film = client.downloadFileRequest("abc")
+            val book = client.bookFileRequest("/api/v1/items/book/files/0?convert=aac")!!
+
+            assertEquals(0, elsewhere.requestCount)
+            assertEquals(1, away.requestCount)
+            assertEquals("/api/v1/devices/commands", away.takeRequest().url.encodedPath)
+            assertEquals(away.port, film.url.port)
+            assertEquals(away.port, book.url.port)
+            // The file's own question (convert it) goes with it.
+            assertEquals("aac", book.url.queryParameter("convert"))
+        } finally {
+            elsewhere.close()
+        }
+    }
+
+    @Test
+    fun `on another network, a download's file asks home again before it's sent the sign-in`() = runTest {
+        val atHome = MockWebServer().apply { start() }
+        try {
+            val addresses = ServerAddresses(atHome.url("/"), away.url("/")).apply { serverId = "abc" }
+            val client = FlexarrClient(addresses, apiKey = "token")
+            atHome.enqueue(json("""{"open":false,"serverId":"abc"}"""))
+            assertEquals(atHome.port, client.downloadFileRequest("abc").url.port)
+            assertEquals(atHome.port, client.bookFileRequest("/api/v1/items/book/files/0")!!.url.port)
+
+            // The phone moved: the same private address is someone else's there.
+            addresses.networkChanged()
+            atHome.enqueue(json("""{"open":false,"serverId":"someone-else"}"""))
+            atHome.enqueue(json("""{"open":false,"serverId":"someone-else"}"""))
+
+            assertEquals(away.port, client.downloadFileRequest("abc").url.port)
+            assertEquals(away.port, client.bookFileRequest("/api/v1/items/book/files/0")!!.url.port)
+            assertEquals(3, atHome.requestCount)
+            repeat(3) { assertEquals(null, atHome.takeRequest().headers["X-Api-Key"]) }
+        } finally {
+            atHome.close()
+        }
+    }
+
+    @Test
     fun `a new network asks home again`() {
         val addresses = ServerAddresses("http://192.168.1.2:8383/".toHttpUrl(), away.url("/")).apply { serverId = "abc" }
         assertFalse(addresses.homeTrustedNow)
