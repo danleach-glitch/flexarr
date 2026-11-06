@@ -26,7 +26,12 @@ public sealed partial class MarkerDetector(string ffmpegPath, string ffprobePath
     private static readonly TimeSpan RunLimit = TimeSpan.FromMinutes(5);
 
     /// <summary>Markers for each file of one season, in episode order. Files with nothing found map to an empty list.</summary>
-    public async Task<Dictionary<Guid, List<DetectedMarker>>> DetectSeasonAsync(IReadOnlyList<MediaFile> episodes, CancellationToken ct)
+    /// <param name="giveWay">
+    /// Awaited before each episode's sound is decoded and fingerprinted, which is where the time goes: the caller waits
+    /// there for people watching, rather than a whole season being worked through in one go.
+    /// </param>
+    public async Task<Dictionary<Guid, List<DetectedMarker>>> DetectSeasonAsync(IReadOnlyList<MediaFile> episodes, CancellationToken ct,
+        Func<CancellationToken, Task>? giveWay = null)
     {
         ArgumentNullException.ThrowIfNull(episodes);
 
@@ -55,12 +60,18 @@ public sealed partial class MarkerDetector(string ffmpegPath, string ffprobePath
             var tails = new Dictionary<Guid, uint[]>();
             foreach (var file in episodes)
             {
+                var hasTail = needsCredits.Count >= 2 && file.DurationSeconds is > CreditsWindow * 2;
+                if (giveWay is not null && (needsIntro.Count >= 2 || hasTail))
+                {
+                    await giveWay(ct).ConfigureAwait(false);
+                }
+
                 if (needsIntro.Count >= 2)
                 {
                     heads[file.Id] = AudioFingerprint.Compute(await PcmAsync(file.Path, fromEnd: false, IntroWindow, ct).ConfigureAwait(false));
                 }
 
-                if (needsCredits.Count >= 2 && file.DurationSeconds is > CreditsWindow * 2)
+                if (hasTail)
                 {
                     tails[file.Id] = AudioFingerprint.Compute(await PcmAsync(file.Path, fromEnd: true, CreditsWindow, ct).ConfigureAwait(false));
                 }
@@ -178,6 +189,16 @@ public sealed partial class MarkerDetector(string ffmpegPath, string ffprobePath
         }
 
         using var process = Process.Start(start)!;
+        try
+        {
+            // Below anyone watching.
+            process.PriorityClass = ProcessPriorityClass.BelowNormal;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or PlatformNotSupportedException)
+        {
+            // Already finished, or not ours to change: it runs as it would have.
+        }
+
         using var buffer = new MemoryStream();
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
         limit.CancelAfter(RunLimit);

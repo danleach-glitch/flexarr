@@ -24,9 +24,48 @@ public sealed partial class MarkerDetectionWorker(
     IServiceScopeFactory scopes,
     MarkerQueue queue,
     PlaybackSessions sessions,
+    Flexarr.Streaming.TranscodeManager transcodes,
     IOptionsMonitor<FlexarrOptions> options,
     ILogger<MarkerDetectionWorker> logger) : BackgroundService
 {
+    /// <summary>How long analysis stops for at a time, while people are watching.</summary>
+    private static readonly TimeSpan Pause = TimeSpan.FromSeconds(20);
+
+    /// <summary>
+    /// The most <see cref="Pause"/>s in a row before the next episode is analysed anyway (ten minutes), so a server that
+    /// is always converting something still gets its intros found, an episode at a time.
+    /// </summary>
+    private const int MostPauses = 30;
+
+    private bool Watched => sessions.Playing.Any(s => DateTime.UtcNow - s.LastSeen < TimeSpan.FromMinutes(2));
+
+    /// <summary>
+    /// Waits before an episode is analysed (two decodes of its sound and their fingerprints, seconds of a whole core)
+    /// while that would get in the way: one pause while anyone is watching, and for as long as a stream is being
+    /// converted, up to <paramref name="most"/> pauses. A season someone <paramref name="asked"/> for (the one they
+    /// just started watching, so skip intro is there for the next episode) only ever waits the one pause an episode.
+    /// Returns how many pauses it took.
+    /// </summary>
+    internal static async Task<int> GiveWayAsync(Func<bool> converting, Func<bool> watching, bool asked, TimeSpan pause, int most, CancellationToken ct)
+    {
+        for (var pauses = 0; pauses < most; pauses++)
+        {
+            var busy = converting();
+            if (!busy && (pauses > 0 || !watching()))
+            {
+                return pauses;
+            }
+
+            await Task.Delay(pause, ct);
+            if (asked || !busy)
+            {
+                return pauses + 1;
+            }
+        }
+
+        return most;
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken); // Let startup scans go first.
@@ -46,8 +85,8 @@ public sealed partial class MarkerDetectionWorker(
             {
                 var worked = await RunOnceAsync(detector, stoppingToken);
                 // Give way to viewers: analysis competes with playback (and subtitle extraction) for the disk.
-                var busy = sessions.Playing.Any(s => DateTime.UtcNow - s.LastSeen < TimeSpan.FromMinutes(2));
-                await Task.Delay(!worked ? TimeSpan.FromMinutes(10) : busy ? TimeSpan.FromSeconds(20) : TimeSpan.FromSeconds(1), stoppingToken);
+                var busy = Watched;
+                await Task.Delay(!worked ? TimeSpan.FromMinutes(10) : busy ? Pause : TimeSpan.FromSeconds(1), stoppingToken);
             }
             // Only shutdown ends the loop: a timeout inside (a TaskCanceledException) is just a failed pass.
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
@@ -64,7 +103,8 @@ public sealed partial class MarkerDetectionWorker(
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
 
-        Guid? seasonId = queue.TryNext(out var prioritized) ? prioritized : null;
+        var asked = queue.TryNext(out var prioritized);
+        Guid? seasonId = asked ? prioritized : null;
         if (seasonId is null)
         {
             // Seasons of shows being watched first, then the most recently added.
@@ -78,7 +118,7 @@ public sealed partial class MarkerDetectionWorker(
 
         if (seasonId is { } id)
         {
-            await AnalyseSeasonAsync(db, detector, id, ct);
+            await AnalyseSeasonAsync(db, detector, id, asked, ct);
             return true;
         }
 
@@ -94,7 +134,7 @@ public sealed partial class MarkerDetectionWorker(
         return movies.Count > 0;
     }
 
-    private async Task AnalyseSeasonAsync(FlexarrDbContext db, MarkerDetector detector, Guid seasonId, CancellationToken ct)
+    private async Task AnalyseSeasonAsync(FlexarrDbContext db, MarkerDetector detector, Guid seasonId, bool asked, CancellationToken ct)
     {
         // A folder of home videos isn't a season of a show: its videos share no intro or credits to find.
         if (await db.MediaItems.AnyAsync(s => s.Id == seasonId && db.Libraries.Any(l => l.Id == s.LibraryId && l.Type == LibraryType.HomeVideos), ct))
@@ -114,7 +154,9 @@ public sealed partial class MarkerDetectionWorker(
             return;
         }
 
-        var found = await detector.DetectSeasonAsync(files, ct);
+        // Giving way to viewers between episodes, not only between seasons: a season is minutes of a core on a small server.
+        var found = await detector.DetectSeasonAsync(files, ct,
+            giveWay: wait => GiveWayAsync(() => transcodes.ActiveCount > 0, () => Watched, asked, Pause, MostPauses, wait));
         foreach (var file in files)
         {
             await SaveAsync(db, file, found[file.Id], ct);
