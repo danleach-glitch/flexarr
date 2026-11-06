@@ -19,22 +19,50 @@ cd "$(git rev-parse --show-toplevel)"
 
 die() { echo "release: $*" >&2; exit 1; }
 
-# Waits for the run of <workflow file> for <full sha> (or a tag's push), prints every job's result, fails unless all
-# succeeded or were skipped. gh needs the FULL sha: a short one silently matches nothing. Leaves the run's id in $run_id.
+# Prints the id of the newest run of <workflow file> for <full sha> that this repository itself started, or nothing.
+# With a <tag>, only the run the push of that tag started. Never a pull request from a fork: its branch can be named
+# like the tag, its workflow and files are whatever its author made, and the Mac builds from the run picked here get
+# signed with the update key. So the run is matched on its commit, event and repository, not on a name.
+find_run() {
+  local workflow="$1" sha="$2" tag="${3:-}" found="" id head event from repo branch
+  gh api "repos/{owner}/{repo}/actions/workflows/$workflow/runs?head_sha=$sha&per_page=100" \
+    --jq '.workflow_runs[] | [.id, .head_sha, .event, .head_repository.full_name // "", .repository.full_name // "", .head_branch // ""] | join("|")' |
+    while IFS='|' read -r id head event from repo branch; do
+      [ -z "$found" ] || continue
+      [ "$head" = "$sha" ] && [ -n "$repo" ] && [ "$from" = "$repo" ] || continue
+      if [ -n "$tag" ]; then
+        [ "$event" = push ] && [ "$branch" = "$tag" ] || continue
+      fi
+      found=1
+      echo "$id"
+    done
+}
+
+# Prints every job's result of run <id> and fails unless all succeeded or were skipped and at least one succeeded: a run
+# with no jobs (one still waiting for approval, say) built nothing.
+check_jobs() {
+  local workflow="$1" id="$2" bad good
+  gh run view "$id" --json jobs --jq '.jobs[] | "    \(.conclusion)\t\(.name)"'
+  bad=$(gh run view "$id" --json jobs --jq '[.jobs[].conclusion | select(. != "success" and . != "skipped")] | length')
+  good=$(gh run view "$id" --json jobs --jq '[.jobs[].conclusion | select(. == "success")] | length')
+  [ "$bad" = 0 ] && [ -n "$good" ] && [ "$good" != 0 ] \
+    || die "$workflow run $id is not green: https://github.com/danleach-glitch/flexarr/actions/runs/$id"
+}
+
+# Waits for the run of <workflow file> for <full sha> (with a <tag>, the one that tag's push started; see find_run),
+# prints every job's result, fails unless it is green. A short sha matches nothing. Leaves the run's id in $run_id.
 run_id=""
 wait_for_run() {
-  local workflow="$1" filter="$2" value="$3" id="" status conclusion
+  local workflow="$1" sha="$2" tag="${3:-}" id=""
   for _ in $(seq 1 60); do
-    id=$(gh run list --workflow "$workflow" "$filter" "$value" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+    id=$(find_run "$workflow" "$sha" "$tag")
     [ -n "$id" ] && break
-    sleep 5
+    sleep "${FLEXARR_RELEASE_POLL:-5}"
   done
-  [ -n "$id" ] || die "no $workflow run found for $value"
-  echo "==> Waiting for $workflow run $id ($value)"
+  [ -n "$id" ] || die "no $workflow run found for ${tag:-$sha}"
+  echo "==> Waiting for $workflow run $id (${tag:-$sha})"
   until [ "$(gh run view "$id" --json status --jq .status)" = completed ]; do sleep 15; done
-  gh run view "$id" --json jobs --jq '.jobs[] | "    \(.conclusion)\t\(.name)"'
-  conclusion=$(gh run view "$id" --json jobs --jq '[.jobs[].conclusion | select(. != "success" and . != "skipped")] | length')
-  [ "$conclusion" = 0 ] || die "$workflow run $id is not green: https://github.com/danleach-glitch/flexarr/actions/runs/$id"
+  check_jobs "$workflow" "$id"
   run_id="$id"
 }
 
@@ -67,7 +95,7 @@ prepare() {
   git rev-parse -q --verify "refs/tags/v$version" >/dev/null && die "v$version already exists"
 
   echo "==> Releasing $version (main at ${sha:0:8}, was $current)"
-  wait_for_run ci.yml --commit "$sha"
+  wait_for_run ci.yml "$sha"
 
   today=$(LC_ALL=en_GB.UTF-8 date '+%-d %B %Y')
   sed -i '' "s|^## Unreleased\$|## $version · $today|" CHANGELOG.md
@@ -96,10 +124,10 @@ publish() {
   version="${tag#v}"
   git fetch -q origin main --tags
   sha=$(git rev-list -n 1 "$tag") || die "no tag $tag"
-  wait_for_run ci.yml --commit "$sha"
-  wait_for_run docker.yml --branch "$tag"
+  wait_for_run ci.yml "$sha"
+  wait_for_run docker.yml "$sha" "$tag"
   # The Mac builds Settings › Updates installs on a Mac (.github/workflows/macos.yml).
-  wait_for_run macos.yml --branch "$tag"
+  wait_for_run macos.yml "$sha" "$tag"
   builds="$(mktemp -d)"
   gh run download "$run_id" --name mac-builds --dir "$builds"
   for rid in osx-arm64 osx-x64; do
@@ -134,9 +162,12 @@ signing_key_create() {
   openssl ec -in "$signing_key" -pubout 2>/dev/null
 }
 
-case "${1:-}" in
-  prepare) shift; prepare "$@" ;;
-  publish) shift; publish "$@" ;;
-  signing-key) signing_key_create ;;
-  *) echo "usage: $0 prepare minor|patch|<x.y.z>  |  $0 publish v<x.y.z>  |  $0 signing-key" >&2; exit 2 ;;
-esac
+# Only when run, not when sourced (scripts/release.test.sh sources this for the functions above).
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  case "${1:-}" in
+    prepare) shift; prepare "$@" ;;
+    publish) shift; publish "$@" ;;
+    signing-key) signing_key_create ;;
+    *) echo "usage: $0 prepare minor|patch|<x.y.z>  |  $0 publish v<x.y.z>  |  $0 signing-key" >&2; exit 2 ;;
+  esac
+fi
