@@ -224,6 +224,13 @@ public sealed class PlaybackService(
         if (transcode is not null)
         {
             transcode.StartSeconds = Math.Max(0, start);
+            if (item.Kind == MediaKind.Episode)
+            {
+                // The player opens at the speed kept for the show (below): the stream is made that fast from the start.
+                transcode.Speed = await db.ShowPlaybackSpeeds.AsNoTracking()
+                    .Where(s => s.ProfileId == profile.Id && db.MediaItems.Any(season => season.Id == item.ParentId && season.ParentId == s.SeriesId))
+                    .Select(s => (double?)s.Speed).FirstOrDefaultAsync(ct) ?? 1;
+            }
         }
 
         if (transcode is { } warming)

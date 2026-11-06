@@ -256,6 +256,34 @@ public class FfmpegCommandTests
         Assert.Contains("-map 1:1 -c:a copy", args, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AStreamWatchedFaster_IsMadeThatFast_AndNeverSlowerThanRealTime()
+    {
+        string Made(TranscodePlan plan, double speed) => string.Join(' ', FfmpegCommand.Hls("/in.mkv", plan, 10, "/out", Settings(HardwareAcceleration.None), speed: speed));
+
+        // Nothing said, normal speed, slower, or nonsense: real time, written as it always was.
+        Assert.Contains("-readrate 1.0 -readrate_initial_burst 180 ", string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 10, "/out", Settings(HardwareAcceleration.None))), StringComparison.Ordinal);
+        Assert.Contains("-readrate 1.0 -readrate_initial_burst 180 ", Made(Plan, 1), StringComparison.Ordinal);
+        Assert.Contains("-readrate 1.0 -readrate_initial_burst 180 ", Made(Plan, 0.5), StringComparison.Ordinal);
+        Assert.Contains("-readrate 1.0 -readrate_initial_burst 180 ", Made(Plan, double.NaN), StringComparison.Ordinal);
+
+        Assert.Contains("-readrate 1.5 -readrate_initial_burst 180 ", Made(Plan, 1.5), StringComparison.Ordinal);
+        Assert.Contains("-readrate 1.25 -readrate_initial_burst 180 ", Made(Plan, 1.25), StringComparison.Ordinal);
+        Assert.Contains("-readrate 2 -readrate_initial_burst 180 ", Made(Plan, 2), StringComparison.Ordinal);
+        Assert.Contains("-readrate 4 -readrate_initial_burst 180 ", Made(Plan, 9), StringComparison.Ordinal); // no faster than players play
+
+        // The sound's own input, when it's out of sync, keeps pace with the picture's.
+        var shifted = Made(Plan with { AudioDelaySeconds = 0.5 }, 1.5);
+        Assert.Contains("-readrate 1.5 -readrate_initial_burst 180 -ss 48 ", shifted, StringComparison.Ordinal);
+        Assert.Contains("-itsoffset 0 -readrate 1.5 -readrate_initial_burst 180 -ss 47.5 ", shifted, StringComparison.Ordinal);
+        Assert.DoesNotContain("-readrate 1.0", shifted, StringComparison.Ordinal);
+
+        // A video repackaged as it is, too.
+        var repackage = new Repackage([0, 4, 8.5], "hvc1", "hvc1.2.4.L150.B0", null, "PQ", StripDolbyVision: false);
+        var copied = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { Repackage = repackage, CopyAudio = true }, 2, "/out", Settings(HardwareAcceleration.None), speed: 2));
+        Assert.Contains("-readrate 2 -readrate_initial_burst 180 -ss 8.5 ", copied, StringComparison.Ordinal);
+    }
+
     private static TranscodeSettings Settings(HardwareAcceleration hw) => new() { CacheDirectory = "/cache", HardwareAcceleration = hw };
 }
 

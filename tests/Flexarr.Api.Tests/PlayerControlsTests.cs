@@ -70,6 +70,45 @@ public class PlayerControlsTests(FlexarrApiFactory factory) : IClassFixture<Flex
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync(Api($"/items/{episodes[0]}/playback-speed"), new { speed = 8 })).StatusCode);
     }
 
+    [Fact]
+    public async Task AStreamBeingConverted_IsMadeAsFastAsItsWatched()
+    {
+        var (_, episodes) = await AddShowAsync(2);
+        var client = Client();
+        var sessions = factory.Services.GetRequiredService<Flexarr.Api.Playback.PlaybackSessions>();
+        async Task<Flexarr.Streaming.TranscodeSession> ConvertAsync(Guid episode)
+        {
+            var response = await client.PostAsJsonAsync(Api("/playback"), new { itemId = episode, profile = new { }, forceTranscode = true });
+            response.EnsureSuccessStatusCode();
+            var id = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("sessionId").GetString()!;
+            return sessions.Get(id)!.Transcode!;
+        }
+
+        // No speed kept for the show: real time.
+        var first = await ConvertAsync(episodes[0]);
+        Assert.Equal(1, first.Speed);
+
+        // Sped up while it plays: the stream being made for it follows, and the next episode starts that fast.
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync(Api($"/items/{episodes[0]}/playback-speed"), new { speed = 1.5 })).StatusCode);
+        Assert.Equal(1.5, first.Speed);
+        var second = await ConvertAsync(episodes[1]);
+        Assert.Equal(1.5, second.Speed);
+        Assert.Equal(1.5, first.Speed);
+
+        // A player that reports its speed (the Apple apps) is followed too; one that doesn't say changes nothing.
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync(Api($"/playback/{second.Id}/progress"), new { positionSeconds = 30, rate = 2.0 })).StatusCode);
+        Assert.Equal(2, second.Speed);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync(Api($"/playback/{second.Id}/progress"), new { positionSeconds = 40 })).StatusCode);
+        Assert.Equal(2, second.Speed);
+        // Slower than normal is still made at real time.
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync(Api($"/playback/{second.Id}/progress"), new { positionSeconds = 50, rate = 0.5 })).StatusCode);
+        Assert.Equal(1, second.Speed);
+
+        await client.DeleteAsync(Api($"/playback/{first.Id}"));
+        await client.DeleteAsync(Api($"/playback/{second.Id}"));
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync(Api($"/items/{episodes[0]}/playback-speed"), new { speed = 1 })).StatusCode);
+    }
+
     private async Task<double[]> DelaysAsync(List<Guid> episodes)
     {
         using var scope = factory.Services.CreateScope();
