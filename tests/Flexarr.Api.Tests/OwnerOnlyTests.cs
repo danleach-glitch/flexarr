@@ -99,6 +99,29 @@ public sealed class OwnerOnlyTests : IDisposable
     }
 
     [Fact]
+    public void ACacheFolderSetToNothing_OrToTheDataFolderItself_DoesntStopTheServerOrCloseTheDataFolder()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var data = Folder("data");
+        var database = FileIn(data, "flexarr.db");
+
+        // "CacheDirectory": "" in the settings is a cache in the folder the server runs from: nothing of the data folder's.
+        OwnerOnly.Apply(data, Path.Combine(data, "logs"), "", null);
+        OwnerOnly.Apply(data, Path.Combine(data, "logs"), " ", null);
+        // And one set to the data folder, however it's written, isn't a folder inside it.
+        OwnerOnly.Apply(data, Path.Combine(data, "logs"), data + Path.DirectorySeparatorChar, null);
+        OwnerOnly.Apply(data + Path.DirectorySeparatorChar, Path.Combine(data, "logs"), Path.Combine(data, "cache", "..") + Path.DirectorySeparatorChar, null);
+
+        Assert.Equal(OpenFolder, File.GetUnixFileMode(data));
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(database));
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute, File.GetUnixFileMode(Path.Combine(data, "logs")));
+    }
+
+    [Fact]
     public void AStartedServer_KeepsItsDatabaseAndLogsToItsOwnAccount()
     {
         if (OperatingSystem.IsWindows())

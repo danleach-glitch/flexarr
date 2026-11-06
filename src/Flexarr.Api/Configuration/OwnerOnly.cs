@@ -30,7 +30,10 @@ public static class OwnerOnly
         }
 
         var data = Path.TrimEndingDirectorySeparator(Path.GetFullPath(dataDirectory)) + Path.DirectorySeparatorChar;
-        foreach (var folder in new[] { logDirectory, cacheDirectory }.Where(f => Path.GetFullPath(f).StartsWith(data, StringComparison.Ordinal)))
+        // A folder set to nothing ("CacheDirectory": "") is the one the server runs from, and one set to the data folder
+        // itself (with a slash on the end, say) isn't inside it: neither is Flexarr's own to close, nor a reason not to start.
+        foreach (var folder in new[] { logDirectory, cacheDirectory }.Where(f => !string.IsNullOrWhiteSpace(f)
+            && Path.TrimEndingDirectorySeparator(Path.GetFullPath(f)).StartsWith(data, StringComparison.Ordinal)))
         {
             try
             {
