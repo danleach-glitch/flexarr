@@ -6,7 +6,9 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Flexarr.Api.Backups;
 using Flexarr.Api.Configuration;
+using Flexarr.Core.Data;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
 
@@ -110,6 +112,77 @@ public class BackupTests
         {
             Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(Path.Combine(factory.DataDirectory, "backups", name)));
         }
+    }
+
+    [Fact]
+    public async Task ABackup_LeavesTheLiveTvGuideOut_AndARestoredServerFetchesItAsItStarts()
+    {
+        await using var factory = new FlexarrApiFactory();
+        var client = Client(factory);
+        var channel = new Flexarr.Core.LiveTv.LiveChannel { SourceId = 7, Name = "BBC One", GuideId = "bbc1" };
+        var refreshed = channel.UpdatedAt;
+        string profile;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            profile = db.Profiles.Select(p => p.Id).First();
+            db.LiveChannels.Add(channel);
+            db.LiveFavourites.Add(new Flexarr.Core.LiveTv.LiveFavourite { ProfileId = profile, ChannelId = channel.Id });
+            var start = DateTime.UtcNow.Date;
+            // A guide of 13 MB: most of this database, as a big channel list's is of a real one.
+            db.LiveProgrammes.AddRange(Enumerable.Range(0, 2000).Select(n => new Flexarr.Core.LiveTv.LiveProgramme
+            {
+                ChannelId = channel.Id, Start = start.AddMinutes(30 * n), End = start.AddMinutes(30 * (n + 1)), Title = $"Programme {n}",
+                Description = string.Concat(Enumerable.Range(0, 200).Select(i => $"{Guid.NewGuid():N} ")),
+            }));
+            await db.SaveChangesAsync();
+        }
+
+        var backup = await NewBackupAsync(client);
+        var made = BackupArchive.ReadManifest(Directory.EnumerateFiles(Path.Combine(factory.DataDirectory, "backups"), "*.zip").Single())!.CreatedAt;
+        var folder = Directory.CreateTempSubdirectory("flexarr-guide-").FullName;
+        try
+        {
+            using (var zip = new ZipArchive(new MemoryStream(backup)))
+            {
+                zip.GetEntry("flexarr.db")!.ExtractToFile(Path.Combine(folder, "flexarr.db"));
+            }
+
+            await using var saved = new SqliteConnection($"Data Source={Path.Combine(folder, "flexarr.db")};Pooling=False");
+            await saved.OpenAsync();
+            async Task<T> ScalarAsync<T>(string sql)
+            {
+                await using var command = saved.CreateCommand();
+                command.CommandText = sql;
+                return (T)(await command.ExecuteScalarAsync())!;
+            }
+
+            // The guide is gone and so is the room it took; the channels, and who starred them, are all there.
+            Assert.Equal(0L, await ScalarAsync<long>("SELECT COUNT(*) FROM LiveProgrammes"));
+            Assert.InRange(new FileInfo(Path.Combine(folder, "flexarr.db")).Length, 1, 4 * 1024 * 1024);
+            Assert.Equal("BBC One", await ScalarAsync<string>("SELECT Name FROM LiveChannels"));
+            Assert.Equal(profile, await ScalarAsync<string>("SELECT ProfileId FROM LiveFavourites"));
+            Assert.Equal("ok", await ScalarAsync<string>("PRAGMA integrity_check"));
+
+            // Restored, the server reads the channels' stamp to decide whether the guide is due: it is, at once.
+            var stamp = DateTime.Parse(await ScalarAsync<string>("SELECT UpdatedAt FROM LiveChannels"), System.Globalization.CultureInfo.InvariantCulture);
+            Assert.True(made - stamp > Flexarr.Api.LiveTv.LiveTvGuideWorker.Every, $"{stamp:o} is within a refresh of {made:o}");
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+
+        // The backup restores like any other, and the server it was made from still has its guide and its stamp.
+        var upload = await UploadAsync(client, backup);
+        Assert.Equal(JsonValueKind.Null, upload.GetProperty("backup").GetProperty("problem").ValueKind);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            Assert.Equal(2000, db.LiveProgrammes.Count());
+            Assert.Equal(refreshed, db.LiveChannels.Select(c => c.UpdatedAt).Single());
+        }
+        Assert.Empty(Directory.EnumerateFiles(factory.DataDirectory, ".backup-snapshot-*"));
     }
 
     [Fact]

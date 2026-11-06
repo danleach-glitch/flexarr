@@ -30,6 +30,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Downloads
 - Downloading an album or a playlist no longer leaves it at **Getting ready** for three seconds a song (a minute for 20 songs, a quarter of an hour for 300). Files that are sent as they are, which is most music and any film your phone already plays, are all ready within a few seconds, even while a film is being converted for download or someone is watching.
 
+### Backups
+- Backups no longer carry the Live TV guide, which a big channel list makes most of the database: they're smaller and quicker to make. A server restored from one fetches its guide again as it starts. Channels, favourites and recordings are kept as before.
+
 ### Search
 - Search answers sooner when what you've typed is part of someone's name ("tom", "ann"): finding the people in titles you can see took most of a second on a large library at every letter, and is now several times quicker.
 - Once you've typed enough to narrow things down, search finds episodes, albums, songs and audiobooks in one pass over your library instead of four, so results keep up with your typing on a big library or a slow server. One or two letters, and very common words, take as long as before.
