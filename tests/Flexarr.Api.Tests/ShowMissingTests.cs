@@ -52,6 +52,23 @@ public sealed class ShowMissingTests : IAsyncLifetime
         new(episodes.ToHashSet(), episodes.Select(e => e.Season).ToHashSet());
 
     [Fact]
+    public void SeasonsWithoutAPoster_GetTheShows()
+    {
+        var show = new MediaItem { Id = Guid.NewGuid(), Kind = MediaKind.Series, Title = "Show", SortTitle = "Show", PosterUrl = "https://example.test/poster.jpg" };
+        IReadOnlyList<MissingSeasonDto> seasons =
+        [
+            new(2, null, 10, 2021, null, AvailabilityDto.None),
+            new(3, null, 8, 2023, "/api/v1/images/remote?url=own", AvailabilityDto.None),
+        ];
+
+        var filled = ShowMissingEndpoints.WithShowPoster(seasons, show);
+
+        Assert.StartsWith($"/api/v1/images/items/{show.Id}/poster", filled[0].Poster);
+        Assert.Equal("/api/v1/images/remote?url=own", filled[1].Poster);
+        Assert.Null(ShowMissingEndpoints.WithShowPoster(seasons, new MediaItem { Id = Guid.NewGuid(), Kind = MediaKind.Series, Title = "Bare", SortTitle = "Bare" })[0].Poster);
+    }
+
+    [Fact]
     public void WholeSeasons_AndPartlyHadSeasonsEpisodes_AreMissing_WithCounts()
     {
         var aired = Now.AddYears(-1);

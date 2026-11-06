@@ -56,7 +56,7 @@ import io.github.flexarr.ui.theme.Tokens
 
 /**
  * What a show's page knows the library lacks, as music's artist page does: *Not in your library* (whole seasons with
- * Request, or Search for the main profile; missing episodes of seasons it has, with Search), then *Coming up*.
+ * Request, or Search for the main profile; how many episodes seasons it has are missing, with Search), then *Coming up*.
  */
 internal fun LazyListScope.showMissingSections(
     missing: ShowMissing,
@@ -81,18 +81,19 @@ internal fun LazyListScope.showMissingSections(
                         }
                     }
                 }
+                // A season the library has some of: how many episodes it lacks, not each one.
                 missing.episodesBySeason.forEach { (season, episodes) ->
-                    Column(Modifier.padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(t("Season {season}", "season" to season), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f))
-                            if (missing.canSearch) {
-                                val searching = season in asked
-                                MissingChip(if (searching) t("Searching") else t(Words.search), FlexarrIcons.search, on = searching, enabled = !searching, description = t("Search for season {season}’s missing episodes", "season" to season)) {
-                                    onSearch(season, null)
-                                }
+                    Row(Modifier.padding(horizontal = Edge), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            t("Season {season}: {count, plural, one {# episode missing} other {# episodes missing}}", "season" to season, "count" to episodes.size),
+                            fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f),
+                        )
+                        if (missing.canSearch) {
+                            val searching = season in asked
+                            MissingChip(if (searching) t("Searching") else t(Words.search), FlexarrIcons.search, on = searching, enabled = !searching, description = t("Search for season {season}’s missing episodes", "season" to season)) {
+                                onSearch(season, null)
                             }
                         }
-                        episodes.forEach { EpisodeLine(it, detail = it.airDate?.let { aired -> ShowMissing.airedLabel(aired) }) }
                     }
                 }
             }

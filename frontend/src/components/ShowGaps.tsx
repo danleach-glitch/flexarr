@@ -32,7 +32,8 @@ function SearchButton({ showId, season, label }: { showId: string; season: numbe
 
 /**
  * Below a show's seasons: the episodes coming next, then what Sonarr (or Seerr) knows that the library doesn't, with
- * Request for a whole season (Seerr) and Search for a season's missing episodes (Sonarr, main profile).
+ * Request for a whole season (Seerr) and, for a season it has some of, how many episodes are missing and Search for
+ * them (Sonarr, main profile).
  */
 export function ShowGaps({ showId, tmdbId, gaps }: { showId: string; tmdbId: number | null; gaps: ShowMissing }) {
   const bySeason = new Map<number, ShowEpisode[]>()
@@ -88,18 +89,9 @@ export function ShowGaps({ showId, tmdbId, gaps }: { showId: string; tmdbId: num
           {[...bySeason].map(([season, episodes]) => (
             <div key={season} className="gap-season">
               <div className="gap-season-head">
-                <h3>{t('Season {season}: {count, plural, one {# episode} other {# episodes}}', { season, count: episodes.length })}</h3>
+                <h3>{t('Season {season}: {count, plural, one {# episode missing} other {# episodes missing}}', { season, count: episodes.length })}</h3>
                 {gaps.canSearch && <SearchButton showId={showId} season={season} label={t('Search for season {season}’s missing episodes', { season })} />}
               </div>
-              <ul className="gap-episodes">
-                {episodes.map((e) => (
-                  <li key={code(e)}>
-                    <span className="gap-code">{code(e)}</span>
-                    <span className="gap-title">{e.title ?? t('Episode {episode}', { episode: e.episodeNumber })}</span>
-                    {e.airDate && <span className="muted">{airDay(e.airDate)}</span>}
-                  </li>
-                ))}
-              </ul>
             </div>
           ))}
         </section>

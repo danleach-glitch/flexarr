@@ -2165,7 +2165,7 @@
   "Season {season} · {count, plural, one {# episode} other {# episodes}}": "s",
   "Season {season}, Episode {episode}": "wans",
   "Season {season}, Episodes {episode}–{last}": "w",
-  "Season {season}: {count, plural, one {# episode} other {# episodes}}": "wan",
+  "Season {season}: {count, plural, one {# episode missing} other {# episodes missing}}": "wan",
   "Seasons": "w",
   "Seasons {list} and {last}": "w",
   "Seconds": "a",

@@ -1,7 +1,7 @@
 import FlexarrKit
 import SwiftUI
 
-/// A show's *Not in your library* (seasons it has none of, and the missing episodes of seasons it has some of) and
+/// A show's *Not in your library* (seasons it has none of, and how many episodes are missing from seasons it has some of) and
 /// *Coming up* (the next episodes Sonarr has dates for). Requests go to Seerr for just that season; Search asks Sonarr
 /// (the main profile).
 struct ShowGapsSection: View {
@@ -111,7 +111,7 @@ struct ShowGapsSection: View {
             case .search:
                 actionButton(t(Words.search), symbol: Symbol.search, label: t("Search for {season}", ["season": season.title])) { await search(season.seasonNumber) }
             case .requested where undoable(season):
-                Button { undoing = season } label: { Label(TitleWords.requested, systemImage: Symbol.requested) }
+                Button { undoing = season } label: { Label(TitleWords.requested, systemImage: Symbol.requested).oneLine() }
                     .buttonStyle(.borderedProminent)
                     .tint(Color.seat)
                     .foregroundStyle(Color.screen)
@@ -132,7 +132,7 @@ struct ShowGapsSection: View {
     }
 
     private func actionButton(_ title: String, symbol: String, label: String, run: @escaping () async -> Void) -> some View {
-        Button { Task { await run() } } label: { Label(title, systemImage: symbol) }
+        Button { Task { await run() } } label: { Label(title, systemImage: symbol).oneLine() }
             .buttonStyle(.bordered)
             .tint(Color.screen)
             .controlSize(.small)
@@ -145,28 +145,25 @@ struct ShowGapsSection: View {
          season.year.map(String.init)].compactMap(\.self).joined(separator: ", ")
     }
 
+    /// A season the library has some of: how many episodes it lacks, and Search (the main profile). The episodes
+    /// themselves aren't listed: the count says enough, and a long show's list ran on for screens.
     private func missingEpisodes(season: Int, episodes: [ShowEpisode]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(t("Season {season}: {count, plural, one {# episode} other {# episodes}}", ["season": season, "count": episodes.count]))
-                    .font(.headline)
-                    .foregroundStyle(Color.screen)
-                Spacer()
-                if gaps.canSearch && gaps.source == "sonarr" {
-                    if searched.contains(season) {
-                        Text(t("Searching")).font(.subheadline.weight(.semibold)).foregroundStyle(Color.usher)
-                    } else {
-                        Button { Task { await search(season) } } label: { Label(t(Words.search), systemImage: Symbol.search) }
-                            .buttonStyle(.bordered)
-                            .tint(Color.screen)
-                            .controlSize(.small)
-                            .disabled(busy)
-                            .accessibilityLabel(t("Search for season {season}’s missing episodes", ["season": season]))
-                    }
+        HStack(alignment: .firstTextBaseline) {
+            Text(t("Season {season}: {count, plural, one {# episode missing} other {# episodes missing}}", ["season": season, "count": episodes.count]))
+                .font(.headline)
+                .foregroundStyle(Color.screen)
+            Spacer()
+            if gaps.canSearch && gaps.source == "sonarr" {
+                if searched.contains(season) {
+                    Text(t("Searching")).font(.subheadline.weight(.semibold)).foregroundStyle(Color.usher)
+                } else {
+                    Button { Task { await search(season) } } label: { Label(t(Words.search), systemImage: Symbol.search) }
+                        .buttonStyle(.bordered)
+                        .tint(Color.screen)
+                        .controlSize(.small)
+                        .disabled(busy)
+                        .accessibilityLabel(t("Search for season {season}’s missing episodes", ["season": season]))
                 }
-            }
-            ForEach(episodes) { episode in
-                episodeLine(episode, detail: episode.aired())
             }
         }
         .padding(.horizontal, Layout.edge)
@@ -228,5 +225,12 @@ struct ShowGapsSection: View {
         } catch {
             model.requestError = ConnectionError(error).message
         }
+    }
+}
+
+private extension View {
+    /// Keeps a card's button on one line in a poster's width ("Requested" broke as "Reques-ted"): smaller before it wraps.
+    func oneLine() -> some View {
+        lineLimit(1).minimumScaleFactor(0.7)
     }
 }

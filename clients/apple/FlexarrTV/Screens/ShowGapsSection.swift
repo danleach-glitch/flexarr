@@ -1,7 +1,7 @@
 import FlexarrKit
 import SwiftUI
 
-/// A show's *Not in your library* (seasons it has none of, and the missing episodes of seasons it has some of) and
+/// A show's *Not in your library* (seasons it has none of, and how many episodes are missing from seasons it has some of) and
 /// *Coming up* (the next episodes Sonarr has dates for). Requests go to Seerr for just that season; Search asks Sonarr
 /// (the main profile). Pressing a season requested through Seerr asks (Keep first), then takes back just that season.
 struct ShowGapsSection: View {
@@ -161,18 +161,20 @@ struct ShowGapsSection: View {
         }
     }
 
+    /// A season the library has some of: how many episodes it lacks, and Search (the main profile). The episodes
+    /// themselves aren't listed: the count says enough.
     private func missingEpisodes(season: Int, episodes: [ShowEpisode]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(t("Season {season}: {count, plural, one {# episode} other {# episodes}}", ["season": season, "count": episodes.count]))
-                .font(.system(size: 30, weight: .bold))
-                .foregroundStyle(Color.screen)
-            listRow {
-                Text(episodes.map { [$0.code, $0.title].compactMap(\.self).joined(separator: " ") }.joined(separator: "   "))
-                    .font(.system(size: 24))
-                    .lineLimit(2)
-                    .frame(maxWidth: 1400, alignment: .leading)
+        let title = Text(t("Season {season}: {count, plural, one {# episode missing} other {# episodes missing}}", ["season": season, "count": episodes.count]))
+            .font(.system(size: 30, weight: .bold))
+        let canSearch = gaps.canSearch && gaps.source == "sonarr"
+        return VStack(alignment: .leading, spacing: 8) {
+            if canSearch {
+                title.foregroundStyle(Color.screen)
+            } else {
+                // Nothing else here takes focus: the line does, so the remote doesn't skip it on the way down.
+                listRow { title }
             }
-            if gaps.canSearch && gaps.source == "sonarr" {
+            if canSearch {
                 Button {
                     guard !busy, !asked.contains(-season) else { return }
                     Task { await search(season, episodesOnly: true) }

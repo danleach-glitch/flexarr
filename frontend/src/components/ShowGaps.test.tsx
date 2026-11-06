@@ -41,7 +41,8 @@ describe('ShowGaps', () => {
   it('offers neither to a profile that can’t request or search', () => {
     render(<ShowGaps showId="show" tmdbId={99} gaps={{ ...gaps, canRequest: false, canSearch: false }} />)
 
-    expect(screen.getByText('The Fourth')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Season 1: 1 episode missing' })).toBeInTheDocument()
+    expect(screen.queryByText('The Fourth')).not.toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 })

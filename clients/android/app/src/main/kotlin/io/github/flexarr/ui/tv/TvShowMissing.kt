@@ -39,10 +39,10 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.FlexarrIcons
 
 /**
- * A show's gaps on the TV, as the phone's: *Not in your library* (seasons it has none of, then each partly-had
- * season's missing episodes) and *Coming up*. Pressing a season requests it (or, for the main profile without Seerr,
- * searches); pressing a requested one asks, then takes back just that season; Search beside a season's missing episodes asks Sonarr for all of them (main profile). Episode cards have
- * nothing to do but still take focus, so the page scrolls to them.
+ * A show's gaps on the TV, as the phone's: *Not in your library* (seasons it has none of, then how many
+ * episodes each partly-had season is missing) and *Coming up*. Pressing a season requests it (or, for the main profile without Seerr,
+ * searches); pressing a requested one asks, then takes back just that season; Search beside a season's count asks Sonarr for all its missing episodes (main profile). The coming-up
+ * episode cards have nothing to do but still take focus, so the page scrolls to them.
  */
 @Composable
 internal fun TvShowMissing(
@@ -95,7 +95,7 @@ internal fun TvShowMissing(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        t("Season {season}: {count, plural, one {# episode} other {# episodes}}", "season" to season, "count" to episodes.size),
+                        t("Season {season}: {count, plural, one {# episode missing} other {# episodes missing}}", "season" to season, "count" to episodes.size),
                         fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher,
                     )
                     // The whole season's missing episodes, as on the web and the phones.
@@ -107,11 +107,6 @@ internal fun TvShowMissing(
                             enabled = !searched,
                             contentDescription = t("Search for season {season}’s missing episodes", "season" to season),
                         )
-                    }
-                }
-                LazyRow(contentPadding = PaddingValues(horizontal = TvLayout.Edge, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                    items(episodes, key = { "missing-${it.code}" }) { episode ->
-                        EpisodeCard(episode, detail = episode.airDate?.let { ShowMissing.airedLabel(it) }, onClick = {})
                     }
                 }
             }

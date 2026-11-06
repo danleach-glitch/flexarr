@@ -83,7 +83,7 @@ public static class ShowMissingEndpoints
                 if (await EpisodesAsync(managed.Instance, managed.Series.Id, arr, cache, ct) is { } episodes)
                 {
                     var gaps = Gaps(episodes, managed.Series.Seasons, have, DateTime.UtcNow);
-                    return Results.Ok(gaps with { CanRequest = canRequest, CanSearch = current.IsMainProfile });
+                    return Results.Ok(gaps with { CanRequest = canRequest, CanSearch = current.IsMainProfile, Seasons = WithShowPoster(gaps.Seasons, show) });
                 }
             }
 
@@ -95,7 +95,8 @@ public static class ShowMissingEndpoints
                     quick.CancelAfter(CallTimeout);
                     if (await seerr.GetAsync(seerrInstance, $"tv/{tmdbId}", quick.Token) is { } title)
                     {
-                        return Results.Ok(new ShowMissingDto("seerr", canRequest, false, SeerrSeasons(title, have.Seasons, DateOnly.FromDateTime(DateTime.UtcNow)), [], [], []));
+                        return Results.Ok(new ShowMissingDto("seerr", canRequest, false,
+                            WithShowPoster(SeerrSeasons(title, have.Seasons, DateOnly.FromDateTime(DateTime.UtcNow)), show), [], [], []));
                     }
                 }
                 catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException && !ct.IsCancellationRequested)
@@ -148,6 +149,20 @@ public static class ShowMissingEndpoints
         }).WithTags("Items").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
         return api;
+    }
+
+    /// <summary>
+    /// Seasons with no poster of their own (Sonarr often has none) get the show's, so the card isn't a blank tile.
+    /// </summary>
+    internal static IReadOnlyList<MissingSeasonDto> WithShowPoster(IReadOnlyList<MissingSeasonDto> seasons, MediaItem show)
+    {
+        if (show.PosterUrl is null || seasons.All(s => s.Poster is not null))
+        {
+            return seasons;
+        }
+
+        var poster = ArtworkUrls.For(show.Id, ArtworkUrls.Version(show.MetadataUpdatedAt, show.ArtworkChangedAt), true, false, false, false).Poster;
+        return [.. seasons.Select(s => s.Poster is null ? s with { Poster = poster } : s)];
     }
 
     /// <summary>The episodes and seasons the library has of a show.</summary>
