@@ -939,6 +939,19 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         get() = profilesLoaded && (!serverUnreachable || offlineAsksWho) && credentials?.profileToken == null && profiles.size > 1
 
     /**
+     * [needsProfile] for what works without the app's screens (the home-screen widgets): nobody has been chosen on this
+     * device though someone has to be, so the server would answer as whoever was chosen last. Before the profiles have
+     * been asked for (the app started in the background), by the list last kept on the device.
+     */
+    val awaitsProfile: Boolean
+        get() = awaitsProfile(
+            chosenHere = credentials?.profileToken != null,
+            loaded = profilesLoaded,
+            needsProfile = needsProfile,
+            keptProfiles = { if (saved && credentials != null) store.savedProfiles().size else 0 },
+        )
+
+    /**
      * Offline, left at "Who's watching?" by a profile that takes a PIN, with no child's profile to fall to: the picker
      * stays up (nobody can be chosen until the server's back) rather than open that profile's downloads without its PIN.
      */
@@ -1461,8 +1474,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         forgetSignIn()
         phase = Phase.SignedIn(credentials.copy(profileToken = null))
         profiles = profiles.map { it.copy(isCurrent = false) }
-        // The widget showed someone else's list: it's dropped, and asks who's watching until someone's chosen.
-        scope.launch { WatchlistWidget.forget(context) }
+        // The widgets showed someone else's titles: they're dropped, and ask who's watching until someone's chosen.
+        scope.launch {
+            WatchlistWidget.forget(context)
+            ContinueWatchingWidget.refresh(context)
+            PodcastWidgets.refresh(context)
+        }
     }
 
     /**
@@ -1913,6 +1930,14 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         }
     }
 }
+
+/**
+ * Nobody has been chosen on this device though someone has to be ([AppModel.awaitsProfile]): once the profiles are
+ * [loaded], whether "Who's watching?" is up ([needsProfile]); before that, whether the list last kept on the device
+ * ([keptProfiles]) has more than one to choose from.
+ */
+internal fun awaitsProfile(chosenHere: Boolean, loaded: Boolean, needsProfile: Boolean, keptProfiles: () -> Int): Boolean =
+    !chosenHere && if (loaded) needsProfile else keptProfiles() > 1
 
 /** Who's watching offline ([offlineProfiles]); [asksWho]: nobody, and "Who's watching?" stays up until the server's back. */
 internal data class OfflineProfiles(val profiles: List<Profile>, val asksWho: Boolean = false)

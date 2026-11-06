@@ -27,6 +27,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The Android app takes about 18 MB less space on each phone and TV.
 - Opening the Android app, or coming back to it, asks the server the same small questions once rather than several times, so Home has less to wait behind on mobile data.
 - A phone or tablet left on **Who’s watching?** no longer opens the last profile’s downloads when it goes offline, if that profile has a PIN. A child’s profile takes over if there is one; otherwise **Who’s watching?** stays until the server can be reached again.
+- While the app is on **Who’s watching?**, the Continue Watching, Continue listening and Up Next widgets ask you to open Flexarr and choose, rather than go on showing the last profile’s titles. The Watchlist widget already did.
 
 ## 0.62.1 · 5 November 2026
 
