@@ -153,6 +153,10 @@ public class MainProfileChoiceTests
         Assert.True(me.GetProperty("isAdmin").GetBoolean());
         // Another window without the cookie is still a kids profile.
         Assert.Equal(ada, await ProfileIdAsync(Guest(server, "100.70.2.20", "owner@example.com")));
+        // So is one sending the main profile's token without it: the sign-in is what the PIN gave, not the token.
+        var tokenOnly = Guest(server, "100.70.2.20", "owner@example.com");
+        tokenOnly.DefaultRequestHeaders.Add("X-Flexarr-Profile", (await withAdminPin.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString());
+        Assert.Equal(ada, await ProfileIdAsync(tokenOnly));
     }
 
     [Fact]
