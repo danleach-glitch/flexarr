@@ -571,6 +571,9 @@ struct AddToUpNextIntent: AppIntent {
 struct AddToWatchlistIntent: AppIntent {
     static let title: LocalizedStringResource = "Add to watchlist"
     static let description = IntentDescription("Puts a movie or show on your watchlist, to watch later, whether you have it yet or not.", categoryName: "Watchlist")
+    /// Not from a locked phone: for many profiles a title added here is also requested (and so downloaded) by the
+    /// server, which whoever picks the phone up shouldn't be able to ask for.
+    static let authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
 
     @Parameter(title: "Movie or show", requestValueDialog: "What would you like to add?")
     var title: WatchlistTitleEntity
