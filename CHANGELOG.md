@@ -40,6 +40,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Discover, searching everything and the page of a title you don't have are a little quicker on a big library, most of all while you type a search: marking what you already have looks up just the titles on screen instead of every film and show.
 
 ### Requests
+- A library's **Requested** view opens sooner when many titles are waiting: Radarr and Sonarr are asked about four at a time instead of one after another, and only the requested titles are looked up in your library rather than every film and show.
 - When Seerr's machine is off or asleep, the pages that offer requests (libraries, search, Discover on the apps) no longer wait fifteen seconds for it and then get an error. Seerr gets five seconds to answer, counts as away if it doesn't, and is asked again half a minute later.
 
 ### Backups
