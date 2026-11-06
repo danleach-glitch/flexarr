@@ -28,6 +28,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Search
 - Search answers sooner when what you've typed is part of someone's name ("tom", "ann"): finding the people in titles you can see took most of a second on a large library at every letter, and is now several times quicker.
+- Once you've typed enough to narrow things down, search finds episodes, albums, songs and audiobooks in one pass over your library instead of four, so results keep up with your typing on a big library or a slow server. One or two letters, and very common words, take as long as before.
 
 ## 0.62.1 · 5 November 2026
 

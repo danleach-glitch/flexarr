@@ -3,6 +3,7 @@ using System.Data.Common;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Flexarr.Api.Search;
 using Flexarr.Core.Books;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
@@ -199,5 +200,162 @@ public sealed class SearchQueryTests : IAsyncLifetime
         Assert.Equal([(series.Id, 2)], found);
         Assert.Empty(some.GetProperty("bookSeries").EnumerateArray());
         Assert.DoesNotContain(sql, s => ListOfEveryTitle.IsMatch(s));
+    }
+
+    /// <summary>
+    /// Episodes, albums, tracks and books as the query each kind has finds them: what a search gave before one pass
+    /// found all four, and still gives when too many names match.
+    /// </summary>
+    private async Task<(List<Guid> Episodes, List<Guid> Albums, List<Guid> Tracks, List<Guid> Books)> EachKindsOwnQueryAsync(string term, params Guid[] hidden)
+    {
+        using var scope = _server.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        db.HiddenLibraryIds = hidden;
+        var contains = $"%{term}%";
+        var prefix = $"{term}%";
+        var episodes = await db.MediaItems.Where(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains))
+            .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).Take(8).Select(i => i.Id).ToListAsync();
+        var albums = await db.MediaItems.Where(i => i.Kind == MediaKind.Album && EF.Functions.Like(i.Title, contains))
+            .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenByDescending(i => i.Year).Take(8).Select(i => i.Id).ToListAsync();
+        var tracks = await db.MediaItems.Where(i => i.Kind == MediaKind.Track && EF.Functions.Like(i.Title, contains))
+            .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenBy(i => i.SortTitle).Take(8).Select(i => i.Id).ToListAsync();
+        var books = await db.MediaItems.Where(i => i.Kind == MediaKind.Audiobook && i.MissingSince == null
+                && (EF.Functions.Like(i.Title, contains) || (i.Book!.Subtitle != null && EF.Functions.Like(i.Book.Subtitle, contains))))
+            .OrderByDescending(i => EF.Functions.Like(i.Title, prefix) || EF.Functions.Like(i.SortTitle, prefix)).ThenBy(i => i.SortTitle)
+            .Take(8).Select(i => i.Id).ToListAsync();
+        return (episodes, albums, tracks, books);
+    }
+
+    private static List<Guid> Ids(JsonElement results, string group) =>
+        [.. results.GetProperty(group).EnumerateArray().Select(i => (group == "tracks" ? i.GetProperty("item") : i).GetProperty("id").GetGuid())];
+
+    /// <summary>The statements that looked through the items for a name with the words in it.</summary>
+    private static int PassesOverTitles(List<string> sql) => sql.Count(s => s.Contains("\"Title\" LIKE @contains", StringComparison.Ordinal));
+
+    /// <summary>A show with episodes, an artist with albums and tracks, and books, with names that tie every way the orders can.</summary>
+    private async Task<(Library Tv, Library Music, Library Books)> SeedNamedAsync(string word, int extraTracks = 0)
+    {
+        var tv = new Library { Name = $"TV {word}", Type = LibraryType.TvShows };
+        var music = new Library { Name = $"Music {word}", Type = LibraryType.Music };
+        var books = new Library { Name = $"Books {word}", Type = LibraryType.Audiobooks };
+        var show = new MediaItem { LibraryId = tv.Id, Kind = MediaKind.Series, Title = "A Show", SortTitle = "show" };
+        var season = new MediaItem { LibraryId = tv.Id, Kind = MediaKind.Season, Title = "Season 1", SortTitle = "1", SeasonNumber = 1, ParentId = show.Id };
+        var artist = new MediaItem { LibraryId = music.Id, Kind = MediaKind.Artist, Title = "An Artist", SortTitle = "artist" };
+        var album = new MediaItem { LibraryId = music.Id, Kind = MediaKind.Album, Title = "Their Album", SortTitle = "their album", ParentId = artist.Id };
+        await SeedAsync(db => db.AddRange(tv, music, books, show, season, artist, album));
+        // In a few saves, so the order the database holds them in isn't just the order of their ids.
+        for (var batch = 0; batch < 3; batch++)
+        {
+            await SeedAsync(db =>
+            {
+                for (var n = 0; n < 5; n++)
+                {
+                    var starts = (n + batch) % 2 == 0;
+                    db.Add(new MediaItem
+                    {
+                        LibraryId = tv.Id, Kind = MediaKind.Episode, ParentId = season.Id, SeasonNumber = 1, EpisodeNumber = batch * 5 + n,
+                        Title = starts ? $"{word} Part {batch}{n}" : $"The {word} {batch}{n}", SortTitle = $"{batch}{n}",
+                    });
+                    db.Add(new MediaItem
+                    {
+                        LibraryId = music.Id, Kind = MediaKind.Album, ParentId = artist.Id, Title = starts ? $"{word} Sessions {batch}{n}" : $"Live {word} {batch}{n}",
+                        SortTitle = $"album {batch}{n}", Year = n == 4 ? null : 2000 + ((n + batch) % 3),
+                    });
+                    // Sort titles that repeat, and ones only the database's order (by code point) puts right: a
+                    // fullwidth letter comes before an emoji there, after it in .NET's ordinal order.
+                    db.Add(new MediaItem
+                    {
+                        LibraryId = music.Id, Kind = MediaKind.Track, ParentId = album.Id, Title = starts ? $"{word} Song {batch}{n}" : $"My {word} {batch}{n}",
+                        SortTitle = n switch { 0 => "\uFF21 song", 1 => "\U0001F600 song", 2 => "same", _ => $"song {(batch * 7 + n * 3) % 5}" },
+                    });
+                    var book = new MediaItem
+                    {
+                        LibraryId = books.Id, Kind = MediaKind.Audiobook,
+                        Title = n switch { 0 => $"{word} Rising {batch}", 1 => $"The {word} Road {batch}", 2 => $"Nothing To See {batch}", _ => $"A {word} Tale {batch}{n}" },
+                        SortTitle = n switch { 1 => $"{word} road {batch}", _ => $"book {(batch * 3 + n) % 4}" },
+                        MissingSince = n == 4 && batch == 2 ? DateTime.UtcNow : null,
+                    };
+                    db.Add(book);
+                    db.Add(new BookDetails { MediaItemId = book.Id, Subtitle = n == 2 ? $"A {word} Story" : n == 3 ? null : "Unabridged" });
+                }
+            });
+        }
+
+        if (extraTracks > 0)
+        {
+            await SeedAsync(db => db.AddRange(Enumerable.Range(0, extraTracks).Select(n => new MediaItem
+            {
+                LibraryId = music.Id, Kind = MediaKind.Track, ParentId = album.Id, Title = $"Filler {word} {n}", SortTitle = $"filler {n % 50:D2}",
+            })));
+        }
+
+        return (tv, music, books);
+    }
+
+    [Fact]
+    public async Task EpisodesAlbumsTracksAndBooks_AreWhatTheirOwnQueriesFind_InOnePassOverTheItems()
+    {
+        var word = Unique();
+        var (tv, _, books) = await SeedNamedAsync(word);
+        var hides = await ProfileAsync("Hides", tv.Id, books.Id);
+
+        var (everything, sql) = await SearchAsync(word);
+        var (some, _) = await SearchAsync(word, hides);
+
+        var expected = await EachKindsOwnQueryAsync(word);
+        Assert.Equal((8, 8, 8, 8), (expected.Episodes.Count, expected.Albums.Count, expected.Tracks.Count, expected.Books.Count));
+        Assert.Equal(expected.Episodes, Ids(everything, "episodes"));
+        Assert.Equal(expected.Albums, Ids(everything, "albums"));
+        Assert.Equal(expected.Tracks, Ids(everything, "tracks"));
+        Assert.Equal(expected.Books, Ids(everything, "books"));
+        Assert.All(everything.GetProperty("tracks").EnumerateArray(), t => Assert.Equal("Their Album", t.GetProperty("album").GetString()));
+        // One pass for the top-level titles, one for these four kinds.
+        Assert.Equal(2, PassesOverTitles(sql));
+
+        var seen = await EachKindsOwnQueryAsync(word, tv.Id, books.Id);
+        Assert.Empty(Ids(some, "episodes"));
+        Assert.Empty(Ids(some, "books"));
+        Assert.Equal(seen.Albums, Ids(some, "albums"));
+        Assert.Equal(seen.Tracks, Ids(some, "tracks"));
+    }
+
+    [Fact]
+    public async Task WordsInTooManyNames_AreStillFoundKindByKind()
+    {
+        var word = Unique();
+        await SeedNamedAsync(word, extraTracks: NamedItems.AtOnce);
+
+        var (everything, sql) = await SearchAsync(word);
+
+        var expected = await EachKindsOwnQueryAsync(word);
+        Assert.Equal(expected.Episodes, Ids(everything, "episodes"));
+        Assert.Equal(expected.Albums, Ids(everything, "albums"));
+        Assert.Equal(expected.Tracks, Ids(everything, "tracks"));
+        Assert.Equal(expected.Books, Ids(everything, "books"));
+        // The top-level titles, the pass that gave up, and a query for each of the four kinds.
+        Assert.Equal(6, PassesOverTitles(sql));
+    }
+
+    [Fact]
+    public void Picks_KeepTiesInTheOrderTheyCame_AndSortTextAsTheDatabaseDoes()
+    {
+        static NamedItems.Named Item(MediaKind kind, bool starts, string sortTitle = "", int? year = null, bool sortStarts = false) =>
+            new(Guid.NewGuid(), kind, starts, sortStarts, year, sortTitle);
+        var episodes = new[] { Item(MediaKind.Episode, false), Item(MediaKind.Episode, true), Item(MediaKind.Episode, false), Item(MediaKind.Episode, true) };
+        var albums = new[] { Item(MediaKind.Album, true, year: null), Item(MediaKind.Album, true, year: 1999), Item(MediaKind.Album, false, year: 2024), Item(MediaKind.Album, true, year: 2005), Item(MediaKind.Album, true, year: 1999) };
+        var tracks = new[] { Item(MediaKind.Track, true, "\U0001F600"), Item(MediaKind.Track, true, "\uFF21"), Item(MediaKind.Track, true, "b"), Item(MediaKind.Track, false, "a"), Item(MediaKind.Track, true, "B"), Item(MediaKind.Track, true, "b") };
+        var books = new[] { Item(MediaKind.Audiobook, false, "c"), Item(MediaKind.Audiobook, false, "b", sortStarts: true), Item(MediaKind.Audiobook, true, "d"), Item(MediaKind.Audiobook, false, "a") };
+
+        var picks = NamedItems.Pick([.. episodes, .. albums, .. tracks, .. books]);
+
+        Assert.Equal(new[] { 1, 3, 0, 2 }.Select(n => episodes[n].Id), picks.Episodes);
+        Assert.Equal(new[] { 3, 1, 4, 0, 2 }.Select(n => albums[n].Id), picks.Albums);
+        Assert.Equal(new[] { 4, 2, 5, 1, 0, 3 }.Select(n => tracks[n].Id), picks.Tracks);
+        Assert.Equal(new[] { 1, 2, 3, 0 }.Select(n => books[n].Id), picks.Books);
+        Assert.True(NamedItems.DatabaseOrder.Instance.Compare("\uFF21", "\U0001F600") < 0);
+        Assert.True(string.CompareOrdinal("\uFF21", "\U0001F600") > 0);
+        Assert.True(NamedItems.DatabaseOrder.Instance.Compare("ab", "abc") < 0);
+        Assert.Equal(0, NamedItems.DatabaseOrder.Instance.Compare("\U0001F600x", "\U0001F600x"));
+        Assert.True(NamedItems.DatabaseOrder.Instance.Compare("\U0001F600", "\U0001F601") < 0);
     }
 }

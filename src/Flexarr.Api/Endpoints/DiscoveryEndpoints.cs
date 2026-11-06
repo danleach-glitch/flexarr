@@ -435,7 +435,11 @@ public static partial class DiscoveryEndpoints
                 .OrderByDescending(i => EF.Functions.Like(i.Title, prefix) || EF.Functions.Like(i.SortTitle, prefix))
                 .ThenByDescending(i => i.Popularity ?? i.CommunityRating)
                 .Take(limit).Summaries(profile.Id).ToListAsync(ct);
-            var episodes = await db.MediaItems.Where(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains))
+            // Episodes, albums, tracks and books by name: in one pass over the items when few names match, else with
+            // the query each has below (each of which reads every item).
+            var named = await Search.NamedItems.FindAsync(db, contains, prefix, ct);
+            var episodes = named is not null ? await MusicDiscovery.InOrderAsync(db, named.Episodes, profile.Id, ct)
+                : await db.MediaItems.Where(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains))
                 .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).Take(8).Summaries(profile.Id).ToListAsync(ct);
             // People in titles this profile may see: not those only in a hidden library, or only above its age limit.
             // Each credit's title is looked up by its id. Asking whether the id is in the list of every visible title
@@ -450,16 +454,20 @@ public static partial class DiscoveryEndpoints
             var genres = await db.Genres.Where(g => EF.Functions.Like(g.Name, contains)).Select(g => g.Name).Take(5).ToListAsync(ct);
 
             // Albums and tracks by name; their summaries carry the artist and borrow the album's cover.
-            var albums = await db.MediaItems.Where(i => i.Kind == MediaKind.Album && EF.Functions.Like(i.Title, contains))
+            var albums = named is not null ? await MusicDiscovery.InOrderAsync(db, named.Albums, profile.Id, ct)
+                : await db.MediaItems.Where(i => i.Kind == MediaKind.Album && EF.Functions.Like(i.Title, contains))
                 .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenByDescending(i => i.Year).Take(8).Summaries(profile.Id).ToListAsync(ct);
-            var trackIds = await db.MediaItems.Where(i => i.Kind == MediaKind.Track && EF.Functions.Like(i.Title, contains))
+            var trackIds = named is not null
+                ? await db.MediaItems.Where(i => named.Tracks.Contains(i.Id)).Select(i => new { i.Id, Album = i.Parent!.Title }).ToListAsync(ct)
+                : await db.MediaItems.Where(i => i.Kind == MediaKind.Track && EF.Functions.Like(i.Title, contains))
                 .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenBy(i => i.SortTitle).Take(8)
                 .Select(i => new { i.Id, Album = i.Parent!.Title }).ToListAsync(ct);
-            var trackItems = await MusicDiscovery.InOrderAsync(db, trackIds.Select(t => t.Id), profile.Id, ct);
+            var trackItems = await MusicDiscovery.InOrderAsync(db, named?.Tracks ?? trackIds.Select(t => t.Id), profile.Id, ct);
             var tracks = trackItems.Select(t => new SearchTrackDto(t, trackIds.First(x => x.Id == t.Id).Album)).ToList();
 
             // Books by their title or subtitle, and series by name, in libraries this profile can see.
-            var books = await db.MediaItems.Where(i => i.Kind == MediaKind.Audiobook && i.MissingSince == null
+            var books = named is not null ? await MusicDiscovery.InOrderAsync(db, named.Books, profile.Id, ct)
+                : await db.MediaItems.Where(i => i.Kind == MediaKind.Audiobook && i.MissingSince == null
                     && (EF.Functions.Like(i.Title, contains) || (i.Book!.Subtitle != null && EF.Functions.Like(i.Book.Subtitle, contains))))
                 .OrderByDescending(i => EF.Functions.Like(i.Title, prefix) || EF.Functions.Like(i.SortTitle, prefix)).ThenBy(i => i.SortTitle)
                 .Take(8).Summaries(profile.Id).ToListAsync(ct);
