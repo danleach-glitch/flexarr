@@ -337,7 +337,7 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   if (response.status === 202 || response.status === 204) {
     return undefined as T
   }
-  return JSON.parse(await response.text(), asUtc) as T
+  return parseAnswer(await response.text()) as T
 }
 
 /** Why a request was refused: not signed in, or the server's problem with it. */
@@ -378,6 +378,21 @@ const zoneless = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/
 
 /** Reads zoneless times as UTC, so "scanned 4 h ago" isn't out by the browser's time zone. */
 const asUtc = (_key: string, value: unknown) => (typeof value === 'string' && zoneless.test(value) ? `${value}Z` : value)
+
+/**
+ * Whether an answer's text could hold a zoneless time at all: one written out between quotes, or one of a time's
+ * characters (a digit, `:`, `-`, `.`, `T`) written as an escape. A value is only a zoneless time when it's made of
+ * nothing else, so an answer with neither has none.
+ */
+const mayHoldZoneless = /"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?"|\\u00(?:3[0-9aA]|2[dDeE]|54)/
+
+/**
+ * An answer's JSON, with zoneless times read as UTC. Checking every value as it's parsed makes parsing a big page
+ * several times slower, and servers now say the zone, so that's kept for an answer whose text might hold one.
+ */
+export function parseAnswer(text: string): unknown {
+  return mayHoldZoneless.test(text) ? JSON.parse(text, asUtc) : JSON.parse(text)
+}
 
 export const apiGet = <T>(path: string, signal?: AbortSignal) => request<T>('GET', path, undefined, signal)
 
@@ -1054,7 +1069,7 @@ export async function prepareStream(body: PlaybackRequest): Promise<PlaybackInfo
     body: JSON.stringify({ measuredBitrate: linkSpeed(), ...body, prepare: true }),
   })
   if (!response.ok) throw await failure(response)
-  return JSON.parse(await response.text(), asUtc) as PlaybackInfo
+  return parseAnswer(await response.text()) as PlaybackInfo
 }
 
 /** Lets a stream got ready ahead of Play go (best effort, and it outlives the page), leaving the cache alone. */

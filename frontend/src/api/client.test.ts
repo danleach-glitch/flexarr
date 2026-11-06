@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi, movies } from '../test/mockApi'
-import { apiGet, beaconBookProgress, clearApiCache, FETCH_TIMEOUT_MS, getLibraries, liveHeartbeat, reportProgress, getLibraryGenres, getLibraryItems, keepPage, keptPage, onAdminLapsed, onLockedChange, savePlayerPreferences, setWatched, stopPlayback, watchLiveChannel } from './client'
+import { apiGet, parseAnswer, beaconBookProgress, clearApiCache, FETCH_TIMEOUT_MS, getLibraries, liveHeartbeat, reportProgress, getLibraryGenres, getLibraryItems, keepPage, keptPage, onAdminLapsed, onLockedChange, savePlayerPreferences, setWatched, stopPlayback, watchLiveChannel } from './client'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -151,6 +151,47 @@ describe('Times', () => {
     expect(library.created).toBe('2026-10-27T01:53:49Z')
     expect(library.aired).toBe('2026-10-27')
     expect(library.name).toBe('2026-10-27T01:53:49 notes')
+  })
+})
+
+describe('Parsing an answer', () => {
+  /** What every answer went through before: each value checked as it's parsed. */
+  const checkingEveryValue = (text: string) =>
+    JSON.parse(text, (_key, value: unknown) => (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(value) ? `${value}Z` : value)) as unknown
+
+  it('only checks each value when the text could hold a time without a zone', async () => {
+    const parse = vi.spyOn(JSON, 'parse')
+    try {
+      mockApi({ '/libraries': [{ ...movies, lastScannedAt: '2026-10-27T01:53:49.215901Z', aired: '2026-10-27' }] })
+      await apiGet('/libraries')
+      expect(parse).toHaveBeenCalledTimes(1)
+      expect(parse.mock.calls[0]).toHaveLength(1)
+
+      mockApi({ '/libraries': [{ ...movies, lastScannedAt: '2026-10-27T01:53:49.215901' }] })
+      const [library] = await apiGet<{ lastScannedAt: string }[]>('/libraries')
+      expect(parse.mock.calls[1][1]).toBeTypeOf('function')
+      expect(library.lastScannedAt).toBe('2026-10-27T01:53:49.215901Z')
+    } finally {
+      parse.mockRestore()
+    }
+  })
+
+  it.each([
+    ['a time with no zone', '{"at":"2026-10-27T01:53:49"}'],
+    ['one with fractions of a second', '{"at":"2026-10-27T01:53:49.215901"}'],
+    ['one deep inside lists', '{"a":[{"b":[null,1,"2026-10-27T01:53:49",{"c":"2026-10-27T01:53:50"}]}]}'],
+    ['one that is the whole answer', '"2026-10-27T01:53:49"'],
+    ['one written with an escaped digit', '{"at":"\\u0032026-10-27T01:53:49"}'],
+    ['one written with an escaped colon, dash, dot and T', '{"at":"2026\\u002d10-27\\u005401\\u003A53:49\\u002E5"}'],
+    ['a zoned time', '{"at":"2026-10-27T01:53:49Z","other":"2026-10-27T01:53:49+01:00"}'],
+    ['a date', '{"aired":"2026-10-27"}'],
+    ['a time inside a sentence', '{"note":"2026-10-27T01:53:49 notes","more":"at 2026-10-27T01:53:49"}'],
+    ['a time in quotes inside a sentence', '{"note":"she said \\"2026-10-27T01:53:49\\" twice","end":"x\\"2026-10-27T01:53:49"}'],
+    ['a time as a name, not a value', '{"2026-10-27T01:53:49":1}'],
+    ['other escapes', '{"title":"Tom \\u0026 Jerry\\u0027s \\u003Cb\\u003E caf\\u00E9","n":12.5,"ok":true,"none":null}'],
+    ['nothing at all', '[]'],
+  ])('reads %s exactly as checking every value would', (_what, text) => {
+    expect(parseAnswer(text)).toEqual(checkingEveryValue(text))
   })
 })
 
