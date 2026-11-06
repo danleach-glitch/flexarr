@@ -118,6 +118,14 @@ struct FlexarrClientTests {
         #expect(given.events === own)
     }
 
+    @Test func answersAndTheSignInSentForThem_AreNotKeptInTheSharedCacheOnDisk() {
+        let client = FlexarrClient(baseURL: URL(string: "http://flexarr.local:8383")!, apiKey: "secret", profileToken: "token")
+        // The shared cache is a file (hundreds of megabytes, for artwork) that keeps each request's headers beside
+        // its answer: nothing signed in is written there.
+        #expect(client.requests.configuration.urlCache == nil)
+        #expect(client.events.configuration.urlCache == nil)
+    }
+
     @Test func sendsApiKeyHeaderAndDecodesStatus() async throws {
         let (client, host) = stubbedClient(.init(status: 200, body: try Fixture.data("system-status")))
 

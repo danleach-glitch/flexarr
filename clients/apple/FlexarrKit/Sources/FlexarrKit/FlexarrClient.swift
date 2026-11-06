@@ -223,13 +223,21 @@ public struct FlexarrClient: Sendable {
 
     /// API requests' own connections. Artwork loads on the shared session, and a session opens only a handful of
     /// connections to one server: after a fast scroll through posters not yet cached, a tap on a title or on Play
-    /// would otherwise wait in line behind the pictures still coming. Set up as the shared session is (its cache,
-    /// cookies and timeouts), so nothing else about a request changes.
-    private static let apiSession = URLSession(configuration: .default)
+    /// would otherwise wait in line behind the pictures still coming. Set up as the shared session is (its cookies
+    /// and timeouts), but keeping no answers: the shared cache is a file on disk, sized for artwork, that isn't
+    /// emptied when someone else is chosen, and what it keeps of a request includes the headers it was sent with
+    /// (the sign-in among them). Only artwork, which needs no sign-in, goes there.
+    private static let apiSession = URLSession(configuration: uncached)
 
     /// The command stream's own connection: it stays open for as long as the app is in front, and would otherwise
     /// hold one of the few that requests have for all that time.
-    private static let eventSession = URLSession(configuration: .default)
+    private static let eventSession = URLSession(configuration: uncached)
+
+    private static var uncached: URLSessionConfiguration {
+        let configuration = URLSessionConfiguration.default
+        configuration.urlCache = nil
+        return configuration
+    }
 
     /// What API requests go over: the session given, or this client's own rather than the shared one.
     var requests: URLSession { session === URLSession.shared ? Self.apiSession : session }

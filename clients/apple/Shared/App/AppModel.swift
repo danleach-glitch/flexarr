@@ -514,6 +514,9 @@ final class AppModel {
         serverUpdateNotice = nil
         leaveOfflineMode()
         store.clear()
+        // Nothing of this server stays in the cache on disk: its artwork, and whatever an earlier version of the app
+        // kept of its answers there (requests no longer keep any: see `FlexarrClient.apiSession`).
+        URLCache.shared.removeAllCachedResponses()
         serverName = nil
         libraries = []
         resetProfiles()
