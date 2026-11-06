@@ -87,8 +87,8 @@ public static class EventEndpoints
                     if (playback.Item is { } item && (hidden.Contains(item.LibraryId)
                         || db.IsLimited() && item.Id != Guid.Empty && !await LibraryVisibility.CanSeeAsync(db, item.LibraryId, item.Id, ct)))
                     {
-                        // Its length could say what it is as surely as its name.
-                        playback = playback with { Item = item.Private(), DurationSeconds = 0 };
+                        // Its length, or the chapter of a book being heard, could say what it is as surely as its name.
+                        playback = playback with { Item = item.Private(), DurationSeconds = 0, Chapter = null };
                     }
 
                     await http.Response.WriteAsync($"event: playback\ndata: {JsonSerializer.Serialize(playback, Json)}\n\n", ct);

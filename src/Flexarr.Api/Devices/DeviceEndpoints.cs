@@ -382,11 +382,15 @@ public static class DeviceEndpoints
     }
 
     /// <summary>
-    /// A title the listener mayn't see, told as playing and nothing more: its tracks, the button over the picture and
-    /// its length could say what it is as surely as its name.
+    /// A title the listener mayn't see, told as playing and nothing more: its tracks, the button over the picture, its
+    /// length and the chapter of a book being heard could say what it is as surely as its name.
     /// </summary>
     private static NowPlayingDto Private(NowPlayingDto playing) =>
-        playing with { Item = playing.Item.Id == Guid.Empty ? playing.Item : playing.Item.Private(), DurationSeconds = 0, Tracks = null, Prompt = null, HasNext = null, Sound = null };
+        playing with
+        {
+            Item = playing.Item.Id == Guid.Empty ? playing.Item : playing.Item.Private(), DurationSeconds = 0, Tracks = null, Prompt = null, HasNext = null, Sound = null,
+            Chapter = null,
+        };
 
     /// <summary>How often a device's stream looks again at which libraries its profile hides (tests make it every time).</summary>
     internal static TimeSpan HiddenRecheck { get; set; } = TimeSpan.FromSeconds(5);
