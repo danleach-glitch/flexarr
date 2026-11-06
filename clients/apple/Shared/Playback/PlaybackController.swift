@@ -1653,11 +1653,13 @@ final class PlaybackController: NSObject {
         return parts.isEmpty ? nil : parts.joined(separator: "   ")
     }
 
-    /// The poster for the lock screen and Now Playing.
+    /// The poster for the lock screen and Now Playing: an episode shows its show's (a still was too small to tell
+    /// one show from another), and the still only when the show has no poster.
     private func loadArtwork(for info: PlaybackInfo, into screen: PlayerViewController) {
         guard let client, !info.isOffline else { return }
         let summary = info.item
-        let path = summary.kind == .episode ? (summary.artwork.thumb ?? info.ancestors.first?.artwork.poster) : summary.artwork.poster
+        let show = info.ancestors.first { $0.kind == .series } ?? info.ancestors.first
+        let path = summary.kind == .episode ? (show?.artwork.poster ?? summary.artwork.thumb) : summary.artwork.poster
         guard let url = client.imageURL(path, width: 600) else { return }
         Task {
             let image = await ImageLoader.shared.load(url)

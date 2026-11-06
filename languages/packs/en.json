@@ -2164,7 +2164,7 @@
  "Season {season} · {count, plural, one {# episode} other {# episodes}}": "Season {season} · {count, plural, one {# episode} other {# episodes}}",
  "Season {season}, Episode {episode}": "Season {season}, Episode {episode}",
  "Season {season}, Episodes {episode}–{last}": "Season {season}, Episodes {episode}–{last}",
- "Season {season}: {count, plural, one {# episode} other {# episodes}}": "Season {season}: {count, plural, one {# episode} other {# episodes}}",
+ "Season {season}: {count, plural, one {# episode missing} other {# episodes missing}}": "Season {season}: {count, plural, one {# episode missing} other {# episodes missing}}",
  "Seasons": "Seasons",
  "Seasons {list} and {last}": "Seasons {list} and {last}",
  "Seconds": "Seconds",

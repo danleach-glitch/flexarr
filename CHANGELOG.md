@@ -2,6 +2,16 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Shows
+- **Not in your library** on a show's page is shorter: a season you have part of shows how many episodes it's missing, with **Search**, instead of listing every one. On every app and the web.
+- Missing seasons without their own poster show the show's poster instead of a blank tile.
+- On iPhone and iPad, **Requested** under a missing season stays on one line.
+
+### iPhone, iPad and Apple TV
+- While an episode plays, the lock screen and Control Center show the show's poster instead of the episode's still.
+
 ## 0.62.1 · 5 November 2026
 
 ### Apple TV
