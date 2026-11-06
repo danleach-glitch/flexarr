@@ -48,4 +48,12 @@ object StartBuffer {
         // Sound alone (a book) never gets near either size: its 50 seconds come first.
         .apply { targetBufferBytes(maxHeapBytes)?.let { setTargetBufferBytes(it) } }
         .build()
+
+    /**
+     * For a player that keeps ExoPlayer's own timings (Live TV): those, with the buffer capped as [targetBufferBytes]
+     * says, or null where there's nothing to cap, so the player is built exactly as it was. A channel watched from
+     * back in its rewind window buffers ahead like a film does.
+     */
+    fun cappedDefault(maxHeapBytes: Long = Runtime.getRuntime().maxMemory()): LoadControl? =
+        targetBufferBytes(maxHeapBytes)?.let { DefaultLoadControl.Builder().setTargetBufferBytes(it).build() }
 }

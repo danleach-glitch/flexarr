@@ -59,6 +59,8 @@ class LiveTvController(context: Context, private val model: AppModel, val client
 
     val player: ExoPlayer = ExoPlayer.Builder(context, shaper.renderers(context))
         .setMediaSourceFactory(mediaSources(context))
+        // ExoPlayer's own buffering, held to what a low-memory device can spare (as the film player's is).
+        .apply { StartBuffer.cappedDefault()?.let { setLoadControl(it) } }
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         .setHandleAudioBecomingNoisy(true)
         .setSeekBackIncrementMs(skipSeconds * 1000L)
