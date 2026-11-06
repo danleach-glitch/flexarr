@@ -235,6 +235,30 @@ public class AudiobookPlaybackTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task ABook_KeepsUpTo1000BookmarksForAProfile()
+    {
+        var book = await SeedAsync(("book.m4b", "aac", 3600));
+        var first = await (await Client().PostAsJsonAsync(Url($"/api/v1/items/{book}/bookmarks"), new { positionSeconds = 1 })).Content.ReadFromJsonAsync<BookmarkDto>(Json);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var mine = db.Bookmarks.Single(b => b.Id == first!.Id).ProfileId;
+            db.Bookmarks.AddRange(Enumerable.Range(2, Flexarr.Api.Books.BookEndpoints.MaxBookmarksPerBook - 1)
+                .Select(i => new Flexarr.Core.Books.Bookmark { ProfileId = mine, MediaItemId = book, PositionSeconds = i }));
+            await db.SaveChangesAsync();
+        }
+
+        var full = await Client().PostAsJsonAsync(Url($"/api/v1/items/{book}/bookmarks"), new { positionSeconds = 2000 });
+        Assert.Equal(HttpStatusCode.BadRequest, full.StatusCode);
+        Assert.Contains("up to 1,000 bookmarks", await full.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        // Removing one makes room for one.
+        Assert.Equal(HttpStatusCode.NoContent, (await Client().DeleteAsync(Url($"/api/v1/bookmarks/{first!.Id}"))).StatusCode);
+        (await Client().PostAsJsonAsync(Url($"/api/v1/items/{book}/bookmarks"), new { positionSeconds = 2000 })).EnsureSuccessStatusCode();
+        Assert.Equal(Flexarr.Api.Books.BookEndpoints.MaxBookmarksPerBook, (await GetAsync<List<BookmarkDto>>($"/api/v1/items/{book}/bookmarks")).Count);
+    }
+
+    [Fact]
     public async Task ABookCanBePinnedAt1x_WhenTheProfilesDefaultIsFaster()
     {
         var book = await SeedAsync(("book.m4b", "aac", 3600));

@@ -24,6 +24,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Wrong guesses at the admin PIN can no longer lock you out of it for the rest of the day. The day's limit on wrong guesses now only holds off callers with no sign-in; your signed-in devices, and a browser that has given the right PIN before, still get in. Each of them keeps its own lockout after a few wrong PINs.
 - A podcast episode a phone downloads is only converted when it really is a sound file (MP3, M4A, Ogg, Opus, FLAC, WAV and the like). A feed could have dressed something else up as an episode to have the server hand back sound from a library the profile can't see.
 - A podcast feed written to be slow to read can no longer keep the server busy for hours, stop it, or hold up podcast updates. Show notes are read in time that keeps step with their length, only their first 200,000 characters count, and a feed's newest 20,000 episodes are kept.
+- One request can no longer fill the server's memory or disk by adding the same artist to a playlist thousands of times. A playlist holds up to 10,000 tracks, a book keeps up to 1,000 bookmarks for each profile, and a collection's description and rules have a length.
 
 ## 0.62.1 · 5 November 2026
 

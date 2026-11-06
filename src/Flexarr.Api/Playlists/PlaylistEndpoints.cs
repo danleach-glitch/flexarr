@@ -48,6 +48,12 @@ public static class PlaylistEndpoints
 {
     public const string HomeRowId = "music-playlists";
 
+    /// <summary>The most tracks, albums and artists one request may name (the apps send one).</summary>
+    public const int MaxIdsPerRequest = 500;
+
+    /// <summary>The most tracks a playlist holds: one request naming an artist over and over could otherwise make millions of rows.</summary>
+    public const int MaxTracks = 10_000;
+
     public static RouteGroupBuilder MapPlaylistEndpoints(this RouteGroupBuilder api)
     {
         var group = api.MapGroup("/playlists").WithTags("Playlists");
@@ -72,10 +78,20 @@ public static class PlaylistEndpoints
                 return Problems.Field("Give the playlist a name.", field: "name");
             }
 
-            var tracks = await TracksOfAsync(db, request.ItemIds ?? [], ct);
+            if (request.ItemIds?.Count > MaxIdsPerRequest)
+            {
+                return Problems.Of("Add up to 500 tracks, albums or artists at a time.", status: 400);
+            }
+
+            var tracks = await TracksOfAsync(db, request.ItemIds ?? [], null, MaxTracks, ct);
             if (tracks is null)
             {
                 return Problems.Of("Only tracks, albums and artists can go in a playlist.", status: 400);
+            }
+
+            if (tracks.Count > MaxTracks)
+            {
+                return Problems.Of("A playlist can hold up to 10,000 tracks.", status: 400);
             }
 
             var playlist = new Playlist { ProfileId = profile.Id, Name = name };
@@ -137,17 +153,22 @@ public static class PlaylistEndpoints
                 return Results.NotFound();
             }
 
-            var tracks = await TracksOfAsync(db, request.ItemIds, ct);
+            if (request.ItemIds.Count > MaxIdsPerRequest)
+            {
+                return Problems.Of("Add up to 500 tracks, albums or artists at a time.", status: 400);
+            }
+
+            var existing = await db.PlaylistItems.Where(i => i.PlaylistId == id).Select(i => new { i.MediaItemId, i.Position }).ToListAsync(ct);
+            var room = Math.Max(0, MaxTracks - existing.Count);
+            var tracks = await TracksOfAsync(db, request.ItemIds, request.SkipDuplicates ? existing.Select(e => e.MediaItemId).ToHashSet() : null, room, ct);
             if (tracks is null)
             {
                 return Problems.Of("Only tracks, albums and artists can go in a playlist.", status: 400);
             }
 
-            var existing = await db.PlaylistItems.Where(i => i.PlaylistId == id).Select(i => new { i.MediaItemId, i.Position }).ToListAsync(ct);
-            if (request.SkipDuplicates)
+            if (tracks.Count > room)
             {
-                var had = existing.Select(e => e.MediaItemId).ToHashSet();
-                tracks = tracks.Where(had.Add).ToList();
+                return Problems.Of("A playlist can hold up to 10,000 tracks.", status: 400);
             }
 
             var next = existing.Count == 0 ? 0 : existing.Max(e => e.Position) + 1;
@@ -238,7 +259,9 @@ public static class PlaylistEndpoints
     /// The tracks <paramref name="ids"/> stand for, in the order asked: a track is itself, an album its tracks in
     /// order, an artist every track they have (albums oldest first). Null when an id isn't a track, album or artist.
     /// </summary>
-    private static async Task<List<Guid>?> TracksOfAsync(FlexarrDbContext db, IReadOnlyList<Guid> ids, CancellationToken ct)
+    /// <param name="had">Tracks to leave out (the playlist's own, when duplicates are skipped), and then any named twice.</param>
+    /// <param name="room">How many fit. It stops once there are more, so more than <paramref name="room"/> back means they don't.</param>
+    private static async Task<List<Guid>?> TracksOfAsync(FlexarrDbContext db, IReadOnlyList<Guid> ids, HashSet<Guid>? had, int room, CancellationToken ct)
     {
         var wanted = ids.Distinct().ToList();
         if (wanted.Count == 0)
@@ -261,12 +284,16 @@ public static class PlaylistEndpoints
         var result = new List<Guid>();
         foreach (var id in ids)
         {
-            result.AddRange(kinds[id] switch
+            result.AddRange((kinds[id] switch
             {
                 MediaKind.Track => inOrder.Where(t => t.Id == id).Select(t => t.Id),
                 MediaKind.Album => inOrder.Where(t => t.AlbumId == id).Select(t => t.Id),
                 _ => inOrder.Where(t => t.ArtistId == id).Select(t => t.Id),
-            });
+            }).Where(t => had is null || had.Add(t)));
+            if (result.Count > room)
+            {
+                break;
+            }
         }
 
         return result;
