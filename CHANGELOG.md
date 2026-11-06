@@ -26,6 +26,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Libraries
 - Posters and other artwork are no longer downloaded again by every app and browser after each weekly look-up of your library: a picture keeps its address until it actually changes (a new poster, a cover you replaced), so screens of posters come from the device's own cache, which matters most away from home. Each picture is fetched once more after this update.
 
+### Search
+- Search answers sooner when what you've typed is part of someone's name ("tom", "ann"): finding the people in titles you can see took most of a second on a large library at every letter, and is now several times quicker.
+
 ## 0.62.1 · 5 November 2026
 
 ### Apple TV

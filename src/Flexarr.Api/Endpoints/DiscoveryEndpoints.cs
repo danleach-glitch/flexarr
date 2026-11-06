@@ -438,11 +438,14 @@ public static partial class DiscoveryEndpoints
             var episodes = await db.MediaItems.Where(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains))
                 .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).Take(8).Summaries(profile.Id).ToListAsync(ct);
             // People in titles this profile may see: not those only in a hidden library, or only above its age limit.
-            var visible = db.MediaItems.Select(i => i.Id);
-            var people = await db.People.Where(p => EF.Functions.Like(p.Name, contains) && p.Credits.Any(c => visible.Contains(c.MediaItemId)))
-                .OrderByDescending(p => EF.Functions.Like(p.Name, prefix)).ThenByDescending(p => p.Credits.Count(c => visible.Contains(c.MediaItemId)))
+            // Each credit's title is looked up by its id. Asking whether the id is in the list of every visible title
+            // (visible.Contains) had SQLite build that whole list first, once for each place it was asked.
+            var people = await db.People.Where(p => EF.Functions.Like(p.Name, contains))
+                .Select(p => new { Person = p, Credits = p.Credits.Count(c => db.MediaItems.Any(i => i.Id == c.MediaItemId)) })
+                .Where(p => p.Credits > 0)
+                .OrderByDescending(p => EF.Functions.Like(p.Person.Name, prefix)).ThenByDescending(p => p.Credits)
                 .Take(8)
-                .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null, p.ImageChangedAt), p.Credits.Count(c => visible.Contains(c.MediaItemId))))
+                .Select(p => new SearchPersonDto(p.Person.Id, p.Person.Name, ArtworkUrls.Person(p.Person.Id, p.Person.ImageUrl != null, p.Person.ImageChangedAt), p.Credits))
                 .ToListAsync(ct);
             var genres = await db.Genres.Where(g => EF.Functions.Like(g.Name, contains)).Select(g => g.Name).Take(5).ToListAsync(ct);
 
@@ -460,9 +463,9 @@ public static partial class DiscoveryEndpoints
                     && (EF.Functions.Like(i.Title, contains) || (i.Book!.Subtitle != null && EF.Functions.Like(i.Book.Subtitle, contains))))
                 .OrderByDescending(i => EF.Functions.Like(i.Title, prefix) || EF.Functions.Like(i.SortTitle, prefix)).ThenBy(i => i.SortTitle)
                 .Take(8).Summaries(profile.Id).ToListAsync(ct);
-            var series = await db.BookSeries.Where(s => EF.Functions.Like(s.Name, contains) && s.Entries.Any(e => visible.Contains(e.BookId)))
+            var series = await db.BookSeries.Where(s => EF.Functions.Like(s.Name, contains) && s.Entries.Any(e => db.MediaItems.Any(i => i.Id == e.BookId)))
                 .OrderByDescending(s => EF.Functions.Like(s.Name, prefix)).ThenBy(s => s.SortName).Take(5)
-                .Select(s => new Books.BookSeriesSearchDto(s.Id, s.Name, s.Entries.Count(e => visible.Contains(e.BookId))))
+                .Select(s => new Books.BookSeriesSearchDto(s.Id, s.Name, s.Entries.Count(e => db.MediaItems.Any(i => i.Id == e.BookId))))
                 .ToListAsync(ct);
 
             // The database only finds the words as typed; top up with near misses ("breking bad", "amelie", "spiderman").
@@ -473,8 +476,8 @@ public static partial class DiscoveryEndpoints
             {
                 var close = await index.FindAsync(db, term, Search.SearchIndex.Group.Person, 8 - people.Count, people.Select(p => p.Id).ToHashSet(), ct);
                 var ids = close.Select(m => m.Id).ToList();
-                var found = await db.People.Where(p => ids.Contains(p.Id) && p.Credits.Any(c => visible.Contains(c.MediaItemId)))
-                    .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null, p.ImageChangedAt), p.Credits.Count(c => visible.Contains(c.MediaItemId))))
+                var found = await db.People.Where(p => ids.Contains(p.Id) && p.Credits.Any(c => db.MediaItems.Any(i => i.Id == c.MediaItemId)))
+                    .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null, p.ImageChangedAt), p.Credits.Count(c => db.MediaItems.Any(i => i.Id == c.MediaItemId))))
                     .ToListAsync(ct);
                 people.AddRange(found.OrderBy(p => ids.IndexOf(p.Id)));
             }
