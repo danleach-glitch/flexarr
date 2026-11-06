@@ -22,9 +22,13 @@ public enum SharedSignIn {
     /// none on an Apple TV that asks who's watching each time it starts when `watching` (the profile whose titles the
     /// Top Shelf would show) is behind a PIN, or isn't known: the Home screen would show, and Play would start, what
     /// "Who's watching?" keeps for whoever has the PIN. A profile without one can be chosen by anyone at the TV anyway.
-    public static func forTopShelf(_ credentials: ServerCredentials?, asksWhoIsWatching: Bool, watching: Profile?) -> Value? {
+    /// The same while nobody has been chosen here yet in a household with `severalProfiles`: "Who's watching?" is up
+    /// then too, and the server would answer as the main profile.
+    public static func forTopShelf(_ credentials: ServerCredentials?, asksWhoIsWatching: Bool, watching: Profile?,
+                                   severalProfiles: Bool = false) -> Value? {
         guard let credentials, !credentials.isGuest else { return nil }
-        if asksWhoIsWatching, watching?.needsPinToChoose != false { return nil }
+        let nobodyChosen = severalProfiles && credentials.profileToken == nil
+        if asksWhoIsWatching || nobodyChosen, watching?.needsPinToChoose != false { return nil }
         return Value(address: credentials.address, apiKey: credentials.apiKey, profileToken: credentials.profileToken)
     }
 

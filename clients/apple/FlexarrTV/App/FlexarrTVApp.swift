@@ -54,13 +54,14 @@ struct RootView: View {
         let credentials: ServerCredentials?
         let asksWhoIsWatching: Bool
         let profilesLoaded: Bool
+        let severalProfiles: Bool
         let watching: String?
         let behindPin: Bool?
     }
 
     private var topShelf: TopShelfKey {
         TopShelfKey(credentials: model.credentials, asksWhoIsWatching: model.asksWhoIsWatchingHere, profilesLoaded: model.profilesLoaded,
-                    watching: watching?.id, behindPin: watching?.needsPinToChoose)
+                    severalProfiles: model.profiles.count > 1, watching: watching?.id, behindPin: watching?.needsPinToChoose)
     }
 
     var body: some View {
@@ -125,12 +126,15 @@ struct RootView: View {
         .task(id: model.credentials?.address) { await model.loadProfiles() }
         // Top Shelf follows whoever's signed in here; after watching, its Continue Watching is refreshed.
         .task(id: topShelf) {
-            // An Apple TV that asks who's watching first hears who watched last: until then the Top Shelf keeps what it had.
-            if topShelf.asksWhoIsWatching, model.credentials != nil, !model.profilesLoaded { return }
+            // An Apple TV that asks who's watching (or where nobody has been chosen yet) first hears who the profiles
+            // are and who watched last: until then the Top Shelf keeps what it had.
+            if let credentials = model.credentials, topShelf.asksWhoIsWatching || credentials.profileToken == nil,
+               !model.profilesLoaded { return }
             // A family guest's Top Shelf stays empty (the extension runs apart from the app, so it can't reach the
-            // tunnel), and so does a profile's with a PIN on an Apple TV that asks who's watching: the Home screen
-            // would show, and play, what the PIN keeps for its owner.
-            SharedSignIn.save(SharedSignIn.forTopShelf(model.credentials, asksWhoIsWatching: topShelf.asksWhoIsWatching, watching: watching))
+            // tunnel), and so does a profile's with a PIN while "Who's watching?" stands before it (an Apple TV that
+            // asks each time, or nobody chosen yet): the Home screen would show, and play, what the PIN keeps for its owner.
+            SharedSignIn.save(SharedSignIn.forTopShelf(model.credentials, asksWhoIsWatching: topShelf.asksWhoIsWatching, watching: watching,
+                                                       severalProfiles: topShelf.severalProfiles))
             TVTopShelfContentProvider.topShelfContentDidChange()
         }
         .onChange(of: model.refreshToken) { TVTopShelfContentProvider.topShelfContentDidChange() }

@@ -24,6 +24,19 @@ struct TopShelfSignInTests {
         #expect(SharedSignIn.forTopShelf(credentials, asksWhoIsWatching: true, watching: nil) == nil)
     }
 
+    @Test func nobodyChosenYetAmongSeveralIsWhoIsWatchingToo() {
+        // Just connected, or the profile last chosen has been removed: the server would answer as the main profile.
+        let nobody = ServerCredentials(address: credentials.address, apiKey: "key")
+        #expect(SharedSignIn.forTopShelf(nobody, asksWhoIsWatching: false, watching: parent, severalProfiles: true) == nil)
+        #expect(SharedSignIn.forTopShelf(nobody, asksWhoIsWatching: false, watching: nil, severalProfiles: true) == nil)
+        // A main profile anyone here may choose gives nothing away.
+        let open = Profile(id: "dan", name: "Dan", color: "#a9c2ec", isMain: true)
+        #expect(SharedSignIn.forTopShelf(nobody, asksWhoIsWatching: false, watching: open, severalProfiles: true) != nil)
+        // One profile is never asked for, PIN or not; nor is anyone once a profile has been chosen.
+        #expect(SharedSignIn.forTopShelf(nobody, asksWhoIsWatching: false, watching: parent, severalProfiles: false) != nil)
+        #expect(SharedSignIn.forTopShelf(credentials, asksWhoIsWatching: false, watching: parent, severalProfiles: true) != nil)
+    }
+
     @Test func theServerSaysWhetherChoosingAProfileHereAsksForItsPin() throws {
         // The main profile on its owner's own Apple TV: a PIN, but choosing it here doesn't ask for it.
         let own = ##"{"id":"dan","name":"Dan","color":"#a9c2ec","hasPin":true,"isMain":true,"isCurrent":true,"hiddenLibraryIds":[],"image":null,"asksPin":false}"##
