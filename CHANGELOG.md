@@ -54,6 +54,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Home, a music library's Browse and the playlists page open sooner when you have long playlists: a playlist's track count, length and covers are worked out by the server's database instead of reading every song in every playlist each time.
 - Moving or removing a song in a long playlist is quicker: only the songs between its old place and its new one are renumbered, instead of every song in the playlist.
 
+### Libraries
+
+- The Apple TV's Top Shelf cards for titles whose artwork is kept beside the media no longer wake a sleeping drive once the server has made them, as covers already didn't, and a cover the server already has a copy of is served without looking at the drive again when the title is looked up afresh.
+
 ### Playback
 
 - In the web player, styled subtitles for a file with many attached fonts (as anime releases often have) appear sooner: the server reads all of its fonts out in one go instead of one at a time, and the browser keeps them for the rest of the film or episode.

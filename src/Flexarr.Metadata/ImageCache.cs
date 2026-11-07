@@ -89,18 +89,26 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     /// <param name="localStamp">
     /// For a file:// or embedded:// URL, the scan's stamp of the title's local artwork (its files' dates and sizes),
     /// which a replaced file changes: the cached copy is found by it, without looking at the file. Null to look.
+    /// A stamped file is only read when it isn't a link (which could lead anywhere from inside the library), looked
+    /// at then rather than on every request.
     /// </param>
     public async Task<string?> GetAsync(string remoteUrl, string? localStamp, int? width, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(remoteUrl);
 
         var snapped = ArtworkUrl.Snap(width);
-        var key = Hash(localStamp is not null && ArtworkUrl.IsLocal(remoteUrl) ? $"{remoteUrl}\nstamp\n{localStamp}" : Versioned(remoteUrl));
+        var stamped = localStamp is not null && ArtworkUrl.IsLocal(remoteUrl);
+        var key = Hash(stamped ? $"{remoteUrl}\nstamp\n{localStamp}" : Versioned(remoteUrl));
         var target = Path.Combine(Directory, key[..2], $"{key}_w{snapped}.jpg");
         if (Cached(target) is { } hit)
         {
             Touch(hit);
             return hit;
+        }
+
+        if (stamped && (ArtworkUrl.LocalPath(remoteUrl) is not { Length: > 0 } local || (File.Exists(local) && new FileInfo(local).LinkTarget is not null)))
+        {
+            return null;
         }
 
         Job? job;
@@ -390,13 +398,19 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     /// </summary>
     /// <returns>The cached image's path, or null if the backdrop can't be fetched.</returns>
     /// <exception cref="ImageCacheBusyException">As <see cref="GetAsync"/>.</exception>
-    public async Task<string?> GetWideAsync(string backdropUrl, string? logoUrl, int? width, CancellationToken ct)
+    public Task<string?> GetWideAsync(string backdropUrl, string? logoUrl, int? width, CancellationToken ct) =>
+        GetWideAsync(backdropUrl, null, logoUrl, null, width, ct);
+
+    /// <inheritdoc cref="GetWideAsync(string, string?, int?, CancellationToken)"/>
+    /// <param name="backdropStamp">As <see cref="GetAsync(string, string?, int?, CancellationToken)"/>'s stamp, for the backdrop.</param>
+    /// <param name="logoStamp">The same for the logo.</param>
+    public async Task<string?> GetWideAsync(string backdropUrl, string? backdropStamp, string? logoUrl, string? logoStamp, int? width, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(backdropUrl);
 
         var snapped = ArtworkUrl.Snap(width);
-        var backdrop = await GetAsync(backdropUrl, snapped, ct).ConfigureAwait(false);
-        var logo = backdrop is null || logoUrl is null ? null : await GetAsync(logoUrl, 780, ct).ConfigureAwait(false);
+        var backdrop = await GetAsync(backdropUrl, backdropStamp, snapped, ct).ConfigureAwait(false);
+        var logo = backdrop is null || logoUrl is null ? null : await GetAsync(logoUrl, logoStamp, 780, ct).ConfigureAwait(false);
         if (backdrop is null || logo is null)
         {
             return backdrop;

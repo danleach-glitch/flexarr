@@ -62,13 +62,13 @@ public static class ImageEndpoints
             // "wide": the backdrop with the title's logo on it (the Apple TV's Top Shelf), at the backdrop's ?v=.
             if (kind == "wide")
             {
-                if (await SourceAsync(db, memory, id, "backdrop", v, ct) is not { Url: { } backdrop })
+                if (await SourceAsync(db, memory, id, "backdrop", v, ct) is not { Url: { } backdrop } backdropSource)
                 {
                     return Results.NotFound();
                 }
 
-                var logo = (await SourceAsync(db, memory, id, "logo", v, ct))?.Url;
-                return await ServeAsync(() => cache.GetWideAsync(backdrop, logo, w, ct), http);
+                var logo = await SourceAsync(db, memory, id, "logo", v, ct);
+                return await ServeAsync(() => cache.GetWideAsync(backdrop, backdropSource.Stamp, logo?.Url, logo?.Stamp, w, ct), http);
             }
 
             if (kind is not ("poster" or "backdrop" or "logo" or "thumb"))
@@ -164,7 +164,8 @@ public static class ImageEndpoints
                 return new ImageSource(null, version);
             }
 
-            if (ArtworkUrl.IsLocal(url) && !await InLibraryAsync(db, item.LibraryId, item.Kind, url!, ct))
+            // Stamped artwork is checked for being a link when the cache reads it, not here on every look-up.
+            if (ArtworkUrl.IsLocal(url) && !await InLibraryAsync(db, item.LibraryId, item.Kind, url!, checkLink: item.ArtworkStamp is null, ct))
             {
                 return new ImageSource(null, version);
             }
@@ -246,7 +247,8 @@ public static class ImageEndpoints
     /// Whether local artwork is a file in one of the library's folders (and, for art inside a media file, music's or a
     /// book's: the scanner takes a book's cover from its first file when the folder has none).
     /// </summary>
-    private static async Task<bool> InLibraryAsync(FlexarrDbContext db, Guid libraryId, MediaKind kind, string url, CancellationToken ct)
+    /// <param name="checkLink">Look at the file for being a link now; false when the image cache will before reading it.</param>
+    private static async Task<bool> InLibraryAsync(FlexarrDbContext db, Guid libraryId, MediaKind kind, string url, bool checkLink, CancellationToken ct)
     {
         if (url.StartsWith("embedded://", StringComparison.Ordinal) && kind is not (MediaKind.Artist or MediaKind.Album or MediaKind.Track or MediaKind.Audiobook))
         {
@@ -254,7 +256,7 @@ public static class ImageEndpoints
         }
 
         // Not a link, which could lead anywhere from inside the library.
-        if (ArtworkUrl.LocalPath(url) is not { Length: > 0 } path || (File.Exists(path) && new FileInfo(path).LinkTarget is not null))
+        if (ArtworkUrl.LocalPath(url) is not { Length: > 0 } path || (checkLink && File.Exists(path) && new FileInfo(path).LinkTarget is not null))
         {
             return false;
         }
