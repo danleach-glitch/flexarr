@@ -34,6 +34,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On phones with Android 11 or older, a notification about a device asking to connect no longer has an **Allow** button, which worked without unlocking the phone. Tap the notification to allow it in the app; **Don’t allow** is still there.
 - On Android 12 and later, **Download** on a new-episode notification asks for the phone to be unlocked first, as **Allow** on a device asking to connect already did.
 - When the Android app signs in to a different server, the log it keeps on the phone, and the warnings waiting to be sent, are cleared first, so the new server never gets the old one’s titles or address, by itself or in **Send diagnostics**.
+- The first title you look at or play after opening the Android app no longer pauses the screen while the app works out which formats the device can play: it finds out as the app opens, in the background.
 
 ## 0.62.1 · 5 November 2026
 

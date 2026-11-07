@@ -6,6 +6,7 @@ import android.media.MediaCodecList
 import android.view.Display
 import io.github.flexarr.core.DeviceProfile
 import io.github.flexarr.core.ServerVersion
+import kotlin.concurrent.thread
 
 /**
  * What this device plays as it is, sent with every playback request so the server knows whether to send the file or
@@ -20,6 +21,15 @@ object DeviceCapabilities {
             .flatMap { it.supportedTypes.asList() }
             .map { it.lowercase() }
             .toSet()
+    }
+
+    /**
+     * Asks the system for [decoders] off the main thread, at launch, so the first warm-up or Play doesn't pause the
+     * screen for it (going through every codec takes a moment, longer on slow TV boxes). Asked for before it's done,
+     * [decoders] waits for this rather than asking again.
+     */
+    fun warm() {
+        thread(name = "flexarr-codecs", isDaemon = true) { runCatching { decoders } }
     }
 
     fun profile(context: Context): DeviceProfile {

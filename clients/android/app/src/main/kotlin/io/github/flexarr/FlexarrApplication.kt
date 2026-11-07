@@ -17,6 +17,7 @@ import io.github.flexarr.data.CredentialStore
 import io.github.flexarr.logging.ErrorReports
 import io.github.flexarr.logging.LogHub
 import io.github.flexarr.notifications.FlexarrMessagingService
+import io.github.flexarr.player.DeviceCapabilities
 import io.github.flexarr.ui.tv.TvGuideCache
 
 class FlexarrApplication : Application(), SingletonImageLoader.Factory {
@@ -31,6 +32,7 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         io.github.flexarr.core.i18n.Localization.deviceLanguages = android.os.LocaleList.getDefault().toLanguageTags().split(',')
         io.github.flexarr.core.i18n.Localization.startWithLastShown()
         FlexarrClient.deviceType = deviceType()
+        DeviceCapabilities.warm()
         LogHub.start(this)
         // Read once (decrypting it takes a moment) for both.
         val signIn = CredentialStore(this).load()
