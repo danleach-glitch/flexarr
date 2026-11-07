@@ -75,13 +75,26 @@ public sealed partial class LoudnessBackfill(
         ArgumentNullException.ThrowIfNull(sweep);
         ArgumentNullException.ThrowIfNull(busy);
 
-        var after = sweep.After;
-        var skip = sweep.Skipped.ToList();
-        var tracks = await Candidates(db, after, skip).Select(f => new { f.Id, f.Path, f.ModifiedAt }).Take(BatchSize).ToListAsync(ct);
-        if (tracks.Count == 0)
+        // Files skipped before are passed over here rather than in the query: a drive that isn't there skips every
+        // track on it, far more ids than SQLite takes as parameters. Pages of only those are walked past without a rest.
+        List<(Guid Id, string Path, DateTime ModifiedAt)> tracks;
+        while (true)
         {
-            sweep.After = null;
-            return false;
+            var after = sweep.After;
+            var page = await Candidates(db, after).Select(f => new { f.Id, f.Path, f.ModifiedAt }).Take(BatchSize).ToListAsync(ct);
+            if (page.Count == 0)
+            {
+                sweep.After = null;
+                return false;
+            }
+
+            tracks = page.Where(t => !sweep.Skipped.Contains(t.Id)).Select(t => (t.Id, t.Path, t.ModifiedAt)).ToList();
+            if (tracks.Count > 0)
+            {
+                break;
+            }
+
+            sweep.After = page[^1].Path;
         }
 
         foreach (var track in tracks)
@@ -129,7 +142,7 @@ public sealed partial class LoudnessBackfill(
     }
 
     /// <summary>Tracks whose files have no ReplayGain kept, in path order after <paramref name="after"/>.</summary>
-    internal static IQueryable<MediaFile> Candidates(FlexarrDbContext db, string? after, List<Guid> skip)
+    internal static IQueryable<MediaFile> Candidates(FlexarrDbContext db, string? after)
     {
         var files = db.MediaFiles.IgnoreQueryFilters().AsNoTracking();
         if (after is not null)
@@ -139,7 +152,7 @@ public sealed partial class LoudnessBackfill(
 #pragma warning restore CA1309
         }
 
-        return files.Where(f => f.Loudness == null && f.ProbeError == null && f.MissingSince == null && f.MediaItem!.Kind == MediaKind.Track && !skip.Contains(f.Id))
+        return files.Where(f => f.Loudness == null && f.ProbeError == null && f.MissingSince == null && f.MediaItem!.Kind == MediaKind.Track)
             .OrderBy(f => f.Path);
     }
 
