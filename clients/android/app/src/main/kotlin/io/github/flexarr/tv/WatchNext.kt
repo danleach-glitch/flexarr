@@ -202,11 +202,18 @@ object WatchNext {
         .setIntent(card.link.launcherIntent(context))
         .build()
 
-    /** The program a [TvContractCompat.ACTION_WATCH_NEXT_PROGRAM_BROWSABLE_DISABLED] broadcast names, as the title's id. */
+    /**
+     * The program a [TvContractCompat.ACTION_WATCH_NEXT_PROGRAM_BROWSABLE_DISABLED] broadcast names, as the title's
+     * id: only once the system has really taken it out of the row (no longer browsable), which no other app can do,
+     * so a made-up broadcast changes nothing.
+     */
     @SuppressLint("RestrictedApi")
     internal fun titleOf(context: Context, programId: Long): String? =
         context.contentResolver.query(ContentUris.withAppendedId(TvContractCompat.WatchNextPrograms.CONTENT_URI, programId), WatchNextProgram.PROJECTION, null, null, null)
-            ?.use { cursor -> if (cursor.moveToFirst()) WatchNextProgram.fromCursor(cursor).internalProviderId else null }
+            ?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                WatchNextProgram.fromCursor(cursor).takeIf { !it.isBrowsable }?.internalProviderId
+            }
 
     /** When [item] was last played: the server's time (UTC, sometimes without its zone). */
     internal fun playedAt(item: ItemSummary): Long? {

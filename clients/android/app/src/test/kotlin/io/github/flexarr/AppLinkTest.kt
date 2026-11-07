@@ -109,6 +109,10 @@ class AppLinkTest {
         // A made-up token is someone else's link.
         val forged = Intent(Intent.ACTION_VIEW, AppLink.Play(id).uri).putExtra("io.github.flexarr.fromLauncher", "guess")
         assertEquals(AppLink.Item(id), AppLink.received(context, forged))
+        // The token gets a card's own kinds of link through, and nothing else.
+        val token = intent.getStringExtra("io.github.flexarr.fromLauncher")
+        val pairing = Intent(Intent.ACTION_VIEW, AppLink.Pairing("ABC-DEF").uri).putExtra("io.github.flexarr.fromLauncher", token)
+        assertNull(AppLink.received(context, pairing))
     }
 
     @Test

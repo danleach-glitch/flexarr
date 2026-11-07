@@ -124,7 +124,8 @@ sealed interface AppLink {
         fun received(context: Context, intent: Intent): AppLink? {
             val link = parse(intent.data) ?: return null
             if (intent.getStringExtra(FROM_APP) == secret(context)) return link
-            if (intent.getStringExtra(FROM_LAUNCHER)?.let { it == kept(context, LAUNCHER) } == true) return link
+            // A home-screen card only ever plays a title or opens an album: nothing else gets past [fromOutside] with it.
+            if ((link is Play || link is Album) && intent.getStringExtra(FROM_LAUNCHER)?.let { it == kept(context, LAUNCHER) } == true) return link
             return fromOutside(link)
         }
 
