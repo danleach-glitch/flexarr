@@ -171,7 +171,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         if (saved) store.saveServerName(name)
     }
 
-    /** What to call the server: its name when it has given one, else its address's host ("192.168.1.106"). */
+    /** What to call the server: its name when it has given one, else its address's host ("192.168.1.50"). */
     val serverTitle: String
         get() = credentials?.guest?.let { guestServerTitle(it) }
             ?: serverName ?: credentials?.address?.let { runCatching { java.net.URI(it).host }.getOrNull() } ?: "Flexarr"

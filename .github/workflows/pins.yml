@@ -40,3 +40,26 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PINS_TOKEN }}
         run: node scripts/pins/check.mjs
+
+  # The tunnel both phone apps carry (clients/tunnel) brings in Tailscale and everything it needs, mostly not named by
+  # the tunnel itself, so Dependabot leaves those alone. This fails when Go's vulnerability database lists a fault in
+  # code the tunnel can reach, checked as each phone builds it (needs no token).
+  tunnel:
+    name: Check the tunnel for known faults
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/tunnel
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: clients/tunnel/go.mod
+          cache-dependency-path: clients/tunnel/go.sum
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          for os in android ios; do
+            echo "== $os"
+            GOOS=$os GOARCH=arm64 CGO_ENABLED=0 "$(go env GOPATH)/bin/govulncheck" -tags "$(sh tags.sh)" .
+          done

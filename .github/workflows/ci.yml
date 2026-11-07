@@ -32,6 +32,7 @@ jobs:
       tokens: ${{ steps.diff.outputs.tokens }}
       relay: ${{ steps.diff.outputs.relay }}
       tunnel: ${{ steps.diff.outputs.tunnel }}
+      release: ${{ steps.diff.outputs.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -58,6 +59,7 @@ jobs:
           echo "tokens=$(has '^(design/|scripts/design/|frontend/src/styles/tokens\.generated\.css|frontend/src/components/(icons(\.generated\.ts|\.tsx)|scoreMarks\.generated\.ts)|clients/apple/Shared/Design/(Tokens|Icons|ScoreMarks)\.swift|clients/android/app/src/main/kotlin/io/github/flexarr/ui/theme/(Tokens|FlexarrIcons|ScoreMarks)\.kt)')" >>"$GITHUB_OUTPUT"
           echo "relay=$(has '^relay/')" >>"$GITHUB_OUTPUT"
           echo "tunnel=$(has '^clients/tunnel/')" >>"$GITHUB_OUTPUT"
+          echo "release=$(has '^scripts/release')" >>"$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
   server:
@@ -179,6 +181,16 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
 
+  # scripts/release.sh signs the Mac builds of the CI run it picks; this checks it only ever picks the tag's own run.
+  release:
+    name: Release script
+    needs: changes
+    if: needs.changes.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: bash scripts/release.test.sh
+
   apple:
     name: Apple (${{ matrix.name }})
     needs: changes
@@ -297,7 +309,7 @@ jobs:
   # skipped matrix job never reports under its real name, so requiring them directly would block every merge.
   passed:
     name: CI passed
-    needs: [changes, server, web, guide, apps, tokens, strings, relay, tunnel, apple, android]
+    needs: [changes, server, web, guide, apps, tokens, strings, relay, tunnel, release, apple, android]
     if: always()
     runs-on: ubuntu-latest
     steps:

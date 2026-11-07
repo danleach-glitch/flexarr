@@ -284,7 +284,7 @@ public class LoggingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     [InlineData("Couldn't open '/Volumes/Media/data/movies/Dune (2021)/Dune.mkv'", "Couldn't open \"…\"")]
     [InlineData("Probe failed for /Volumes/Media/data/movies/Dune (2021)/Dune Part Two.mkv: timeout", "Probe failed for <path> Part <file>: timeout")]
     [InlineData("Could not find a part of the path /Users/dan/.flexarr/data/cache/x", "Could not find a part of the path <path>")]
-    [InlineData("Sonarr at http://192.168.1.106:8989/api/v3/series failed", "Sonarr at <server>/api/v3/series failed")]
+    [InlineData("Sonarr at http://192.168.1.50:8989/api/v3/series failed", "Sonarr at <server>/api/v3/series failed")]
     [InlineData("connect to 10.0.0.12 refused", "connect to <ip> refused")]
     [InlineData("No match for “The Bear” in TVmaze", "No match for \"…\" in TVmaze")]
     [InlineData("mail dan@example.com about it", "mail <email> about it")]

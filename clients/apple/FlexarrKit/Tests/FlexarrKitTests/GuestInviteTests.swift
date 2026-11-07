@@ -36,7 +36,7 @@ struct GuestInviteTests {
 
     @Test func refusesAnythingThatCouldPointElsewhere() {
         #expect(GuestInvite.parse("https://evil.example/join#\(payload([:]))") == nil)
-        #expect(GuestInvite.parse(payload(["a": "192.168.1.106:8383"])) == nil) // not a tailnet address
+        #expect(GuestInvite.parse(payload(["a": "192.168.1.50:8383"])) == nil) // not a tailnet address
         #expect(GuestInvite.parse(payload(["a": "100.101.102.103"])) == nil) // no port
         #expect(GuestInvite.parse(payload(["k": "not-a-key"])) == nil)
         #expect(GuestInvite.parse(payload(["v": 2])) == nil)

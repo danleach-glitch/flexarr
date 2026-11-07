@@ -178,6 +178,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android TV, a kids profile no longer has **Settings** in the sidebar (so no **Sign out** either), as on the phone. A kids profile that's the only one on the server keeps it.
 - The Android app checks each language pack a server sends before keeping it, and forgets the packs it kept when it signs out, so another server's words don't follow it to the next one.
 
+### Security
+- The Tailscale connection built into the apps for family invites takes in a fix for a fault that could crash an app while it's connected that way.
+
 ## 0.62.1 · 5 November 2026
 
 ### Apple TV

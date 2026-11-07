@@ -898,7 +898,7 @@ public sealed class PodcastTests : IDisposable
     [InlineData("127.0.0.1", false)]
     [InlineData("10.1.2.3", false)]
     [InlineData("172.20.0.5", false)]
-    [InlineData("192.168.1.106", false)]
+    [InlineData("192.168.1.50", false)]
     [InlineData("100.101.102.103", false)] // a tailnet
     [InlineData("169.254.169.254", false)] // cloud metadata
     [InlineData("::1", false)]

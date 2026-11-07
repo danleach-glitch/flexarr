@@ -95,7 +95,7 @@ class ClientLogsTest {
     @Test
     fun scrubberTakesOutAddressesPathsAndTitles() {
         val scrubber = ErrorReportScrubber()
-        assertEquals("<email> at http://<server>/x", scrubber.scrub("dan@example.com at http://192.168.1.106:8383/x"))
+        assertEquals("<email> at http://<server>/x", scrubber.scrub("dan@example.com at http://192.168.1.50:8383/x"))
         assertEquals("open <path> failed", scrubber.scrub("open /data/user/0/com.danleach.flexarr/files/a.mp4 failed"))
         assertEquals("couldn't play <quoted>", scrubber.scrub("couldn't play \"The Matrix\""))
         assertEquals("reach <server>", scrubber.scrub("reach mini.local:8383"))
