@@ -34,6 +34,12 @@ public sealed class PodcastFeed
 
     public string? LastModified { get; set; }
 
+    /// <summary>
+    /// The server's version and a hash of the feed's bytes when its episodes were last applied: the same again means
+    /// nothing in it changed, so its episodes aren't read and compared again.
+    /// </summary>
+    public string? ContentHash { get; set; }
+
     public DateTime? CheckedAt { get; set; }
 
     /// <summary>When the feed last had a new episode, which sets how often it's checked.</summary>

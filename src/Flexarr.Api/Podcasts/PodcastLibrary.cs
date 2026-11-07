@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Reflection;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
@@ -95,6 +96,7 @@ public sealed partial class PodcastLibrary(FlexarrDbContext db, PodcastFetcher f
         db.PodcastFeeds.Add(feed);
         Apply(podcast, feed, parsed, artworkUrl, now);
         await ApplyEpisodesAsync(podcast, feed, parsed, now, ct);
+        feed.ContentHash = Stamp(fetch.ContentHash);
         await AccentAsync(podcast, ct);
         feed.CheckedAt = now;
         feed.NextCheckAt = now + NextCheckIn(feed, now);
@@ -168,8 +170,19 @@ public sealed partial class PodcastLibrary(FlexarrDbContext db, PodcastFetcher f
             feed.LastModified = fetch.LastModified ?? feed.LastModified;
             if (fetch.Feed is { } parsed)
             {
-                Apply(podcast, feed, parsed, null, now);
-                added = await ApplyEpisodesAsync(podcast, feed, parsed, now, ct);
+                // Many hosts never answer 304: the same bytes as last time have nothing new to apply.
+                var stamp = Stamp(fetch.ContentHash);
+                if (stamp is null || stamp != feed.ContentHash)
+                {
+                    Apply(podcast, feed, parsed, null, now);
+                    added = await ApplyEpisodesAsync(podcast, feed, parsed, now, ct);
+                    feed.ContentHash = stamp;
+                }
+                else
+                {
+                    NoteNewest(feed, parsed, now);
+                }
+
                 if (FeedParser.WebUrl(parsed.NewFeedUrl) is { } newUrl && newUrl != feed.Url && !await db.PodcastFeeds.AnyAsync(f => f.Url == newUrl, ct))
                 {
                     feed.Url = newUrl;
@@ -286,14 +299,27 @@ public sealed partial class PodcastLibrary(FlexarrDbContext db, PodcastFetcher f
             added++;
         }
 
+        NoteNewest(feed, parsed, now);
+        return added;
+    }
+
+    private static void NoteNewest(PodcastFeed feed, ParsedFeed parsed, DateTime now)
+    {
         var newest = parsed.Episodes.Select(e => e.PublishedAt).Max();
         if (newest is { } latest && (feed.NewEpisodeAt is null || latest > feed.NewEpisodeAt))
         {
             feed.NewEpisodeAt = latest < now ? latest : now;
         }
-
-        return added;
     }
+
+    /// <summary>
+    /// What <see cref="PodcastFeed.ContentHash"/> keeps: the feed's hash with this server's version, so an update that
+    /// reads feeds differently applies each one again once.
+    /// </summary>
+    private static string? Stamp(string? hash) => hash is null ? null : $"{ServerVersion}:{hash}";
+
+    private static readonly string ServerVersion =
+        typeof(PodcastLibrary).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0";
 
     private static void Apply(MediaItem item, PodcastEpisode enclosure, ParsedEpisode episode, DateTime now)
     {

@@ -329,6 +329,46 @@ public sealed class PodcastTests : IDisposable
     }
 
     [Fact]
+    public async Task Refreshing_AFeedWhoseHostNeverSays304_SkipsTheEpisodesWhenItsBytesAreTheSame()
+    {
+        await AddLibraryAsync();
+        var client = Client();
+        var id = Guid.Parse((await AddPodcastAsync(client)).GetProperty("id").GetString()!);
+
+        // A host without ETags or dates: every refresh downloads the feed. An episode changed here (as if by the feed
+        // earlier) shows whether the episodes were applied again.
+        async Task ForgetValidatorsAndRenameAsync(string? title)
+        {
+            using var scope = _server.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            await db.PodcastFeeds.ExecuteUpdateAsync(u => u.SetProperty(f => f.ETag, (string?)null).SetProperty(f => f.LastModified, (string?)null));
+            if (title is not null)
+            {
+                await db.MediaItems.Where(i => i.ParentId == id && i.Title == "Episode 1").ExecuteUpdateAsync(u => u.SetProperty(i => i.Title, title));
+            }
+        }
+
+        async Task<List<string>> TitlesAsync() => (await GetAsync(client, $"podcasts/{id}/episodes")).GetProperty("items").EnumerateArray()
+            .Select(e => e.GetProperty("title").GetString()!).ToList();
+
+        await ForgetValidatorsAndRenameAsync("Renamed");
+        var before = _host.Requests.Count;
+        var refreshed = await (await client.PostAsync(Api($"podcasts/{id}/refresh"), null)).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains(_host.Requests.Skip(before), r => r.RequestUri!.AbsoluteUri == FeedUrl && !r.Headers.Contains("If-None-Match"));
+        Assert.Equal(4, refreshed.GetProperty("episodeCount").GetInt32());
+        Assert.Contains("Renamed", await TitlesAsync()); // the same bytes: not applied again
+
+        // Different bytes: applied, the old episode put right and the new one added.
+        _host.Feed(FeedUrl, Feed(4));
+        await ForgetValidatorsAndRenameAsync(null);
+        refreshed = await (await client.PostAsync(Api($"podcasts/{id}/refresh"), null)).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(5, refreshed.GetProperty("episodeCount").GetInt32());
+        var titles = await TitlesAsync();
+        Assert.DoesNotContain("Renamed", titles);
+        Assert.Equal(["Episode 4", "Episode 3", "Episode 2", "Episode 1", "Trailer"], titles);
+    }
+
+    [Fact]
     public async Task AutoPlay_GoesOnToTheShowsNextEpisode_ThenTheNewestFromFollowedShows()
     {
         await AddLibraryAsync();

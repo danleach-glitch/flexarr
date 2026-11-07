@@ -2001,6 +2001,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<DateTime?>("CheckedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ContentHash")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ETag")
                         .HasColumnType("TEXT");
 
