@@ -301,6 +301,8 @@ fun SettingsScreen(
         if (model.isGuest) {
             LeaveDialog(model, onDismiss = { confirmSignOut = false })
         } else {
+            // Child lock may have been turned on from the web since the app last looked: asked again as the dialog opens.
+            LaunchedEffect(Unit) { model.refreshKidsLock() }
             // With child lock on, the server keeps the sign-in: says so in place of Sign out.
             val refusal = signOutRefusal(model.kidsLock)
             AlertDialog(

@@ -211,6 +211,8 @@ private fun MainPage(
 
     if (confirmSignOut) {
         val cancel = remember { FocusRequester() }
+        // Child lock may have been turned on from the web since the app last looked: asked again as the dialog opens.
+        LaunchedEffect(Unit) { if (!model.isGuest) model.refreshKidsLock() }
         Dialog(onDismissRequest = { confirmSignOut = false }) {
             Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 val guest = model.isGuest
