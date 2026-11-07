@@ -4,6 +4,7 @@ import type {
   Activity,
   LiveChannel,
   LiveGuide,
+  LiveProgramme,
   LiveTvStatus,
   LiveTvTest,
   LiveWatch,
@@ -940,8 +941,20 @@ export const getLiveTvStatus = (signal?: AbortSignal) => cachedGet<LiveTvStatus>
 export const getLiveChannels = (signal?: AbortSignal) => apiGet<LiveChannel[]>('/livetv/channels', signal)
 /** Whether profiles with an age limit may watch a channel (the main profile picks them). */
 export const setChannelFineForKids = (id: string, fineForKids: boolean) => request<void>('PUT', `/livetv/channels/${seg(id)}/kids`, { fineForKids })
-export const getLiveGuide = (from: Date, hours: number, signal?: AbortSignal) =>
-  apiGet<LiveGuide>(`/livetv/guide?from=${encodeURIComponent(from.toISOString())}&hours=${hours}`, signal)
+/**
+ * The guide from `from` for `hours`, without programmes' descriptions (getLiveProgramme has one), and with `favourites`
+ * only the profile's favourite channels. Servers before the release after 0.62.1 ignore both, sending every channel
+ * with descriptions, so a caller still picks out the favourites itself. Ask with the same `from` (on the half hour) for
+ * the browser to have an unchanged guide confirmed by its ETag rather than sent again.
+ */
+export const getLiveGuide = (from: Date, hours: number, signal?: AbortSignal, { favourites = false } = {}) =>
+  apiGet<LiveGuide>(`/livetv/guide?from=${encodeURIComponent(from.toISOString())}&hours=${hours}&descriptions=false${favourites ? '&favourites=true' : ''}`, signal)
+/** One programme, with its description; null when there's no such programme, or on a server before the endpoint (404). */
+export const getLiveProgramme = (id: number, signal?: AbortSignal) =>
+  apiGet<LiveProgramme>(`/livetv/programmes/${seg(id)}`, signal).catch((e: unknown) => {
+    if (e instanceof ApiError && e.status === 404) return null
+    throw e
+  })
 /** Starts watching a channel; `replaces` is the viewer's previous channel, let go first so its connection is free. */
 export const watchLiveChannel = (id: string, replaces?: string) => request<LiveWatch>('POST', `/livetv/channels/${seg(id)}/watch`, { replaces })
 
