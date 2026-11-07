@@ -13,5 +13,6 @@ afterEach(() => {
   // Cached answers would carry one test's server into the next.
   clearApiCache()
   clearKeptPages()
-  sessionStorage.clear()
+  // A file that runs in the node environment has no sessionStorage before Node 25.
+  globalThis.sessionStorage?.clear()
 })
