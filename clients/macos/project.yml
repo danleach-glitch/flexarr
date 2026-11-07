@@ -35,8 +35,8 @@ targets:
         CODE_SIGN_STYLE: Manual
         # The app itself, so nothing set for every app on this Mac (DYLD_INSERT_LIBRARIES) is loaded into it and its
         # sandbox. It needs none of the runtime's exceptions. The server and FFmpeg in Contents/Helpers are signed
-        # without it (Tools/embed-server.sh): .NET's JIT needs an exception there, to try on a signed build first. They
-        # get a fixed environment from the app instead (ServerProcess.inherited).
+        # with it too when signed by a team (Tools/embed-server.sh), the server with .NET's JIT as its one exception,
+        # and get a fixed environment from the app (ServerProcess.inherited).
         ENABLE_HARDENED_RUNTIME: YES
         GENERATE_INFOPLIST_FILE: NO
         # Made from the iPhone app's artwork by Tools/make-app-icon.swift.

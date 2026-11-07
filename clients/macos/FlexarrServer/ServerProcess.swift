@@ -103,10 +103,17 @@ final class ServerProcess {
         environment["Flexarr__FfmpegPath"] = executable.deletingLastPathComponent().appending(path: "ffmpeg").path
         environment["Flexarr__FfprobePath"] = executable.deletingLastPathComponent().appending(path: "ffprobe").path
         environment["Flexarr__MacApp__Port"] = String(requestsPort)
-        environment["Flexarr__MacApp__Token"] = requests.token
+        // The token goes on standard input, not here: another program can read what's in a process's environment.
+        environment["Flexarr__MacApp__TokenOnInput"] = "true"
         // The sandbox leaves the server no way to ask for this Mac's Bonjour name, its default name.
         if let host = SCDynamicStoreCopyLocalHostName(nil).map({ String($0) }) { environment["Flexarr__MacApp__HostName"] = host }
         process.environment = environment
+        // Written before the server starts, while this end of the pipe is still open, so the write can't fail on a
+        // server that has already gone; it reads the line at its start (MacAppHost.ReadTokenFromInput).
+        let input = Pipe()
+        try? input.fileHandleForWriting.write(contentsOf: Data((requests.token + "\n").utf8))
+        try? input.fileHandleForWriting.close()
+        process.standardInput = input
 
         let console = logDirectory.appending(path: "console.log")
         if !FileManager.default.fileExists(atPath: console.path) {

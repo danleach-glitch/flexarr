@@ -38,6 +38,8 @@ using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+// In the Mac app, the token for its channel to the app comes on standard input (see MacAppHost).
+MacAppHost.ReadTokenFromInput(builder.Configuration, Console.In);
 
 var dataDirectory = builder.Configuration[$"{FlexarrOptions.SectionName}:{nameof(FlexarrOptions.DataDirectory)}"] ?? "data";
 Directory.CreateDirectory(dataDirectory);

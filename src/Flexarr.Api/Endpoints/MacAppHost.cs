@@ -25,6 +25,29 @@ public sealed class MacAppHost(IConfiguration configuration)
 
     public bool IsAvailable => port is not null && !string.IsNullOrEmpty(token);
 
+    /// <summary>Set ("true") by the app when it writes the token on the server's standard input rather than in its environment.</summary>
+    public const string TokenOnInputKey = "Flexarr:MacApp:TokenOnInput";
+
+    /// <summary>
+    /// The app writes the token, and a newline, on standard input before the server starts, where other programs can't
+    /// read it as they could the environment. Read once, at the start, and only when the app says it sent it there;
+    /// Flexarr:MacApp:Token in the environment, as earlier builds of the app pass it, works too.
+    /// </summary>
+    public static void ReadTokenFromInput(ConfigurationManager configuration, TextReader input)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(input);
+        if (!string.Equals(configuration[TokenOnInputKey], "true", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (input.ReadLine()?.Trim() is { Length: > 0 } token)
+        {
+            configuration.AddInMemoryCollection([new KeyValuePair<string, string?>("Flexarr:MacApp:Token", token)]);
+        }
+    }
+
     /// <summary>Shows the folder window on the Mac and waits for the person there. Null when they cancel.</summary>
     public Task<string?> ChooseFolderAsync(string? start, CancellationToken cancellationToken) =>
         SendAsync("choose", start, cancellationToken);
