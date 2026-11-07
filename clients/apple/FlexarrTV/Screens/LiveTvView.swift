@@ -172,7 +172,7 @@ struct LiveTvView: View {
         guard let client = model.client else { return }
         if !model.hasAgeLimit { upcoming = try? await client.recordings().upcoming.count }
         if onlyIfDue, let guide, !guide.isDue(fetchedAt: guideLoadedAt) { return }
-        if let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: 24) {
+        if let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: 24, descriptions: false) {
             guide = loaded
             guideLoadedAt = Date()
         }

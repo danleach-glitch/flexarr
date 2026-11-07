@@ -89,6 +89,12 @@ struct LiveGuideGrid: View {
                 Text(describe(details))
             }
         }
+        // The guide comes without descriptions: the one shown is fetched as its details open.
+        .task(id: details?.id) {
+            guard let shown = details, shown.description == nil, let client else { return }
+            let full = await client.programmeWithDescription(shown)
+            if !Task.isCancelled, details?.id == full.id { details = full }
+        }
         .alert(t("Recording"), isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
             Button(t("OK"), role: .cancel) {}
         } message: {

@@ -92,6 +92,12 @@ struct LiveGuideView: View {
         } message: {
             if let programme = details?.programme { Text(describe(programme)) }
         }
+        // The guide comes without descriptions: the one shown is fetched as its details open.
+        .task(id: details?.programme.id) {
+            guard let shown = details, shown.programme.description == nil, let client = model.client else { return }
+            let full = await client.programmeWithDescription(shown.programme)
+            if !Task.isCancelled, details?.programme.id == full.id { details = (full, shown.channel) }
+        }
         .banner($notice, systemImage: "record.circle")
     }
 
@@ -231,7 +237,7 @@ struct LiveGuideView: View {
 
     private func load() async {
         if let client = model.client,
-           let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: Int(Self.hours) + 2) {
+           let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: Int(Self.hours) + 2, descriptions: false) {
             guide = loaded
             guideLoadedAt = Date()
         }
