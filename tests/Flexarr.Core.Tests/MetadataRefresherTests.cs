@@ -90,6 +90,12 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
         Assert.Equal(1, full.FromArr + full.FromLookup + full.Unmatched + full.FromLocal);
         Assert.Equal(month, (await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Title == "Stale")).MetadataUpdatedAt);
 
+        // Set to be refreshed on the next scan (a new connection or mapping may link it): the scan takes it.
+        await _db.MediaItems.Where(i => i.Title == "Stale").ExecuteUpdateAsync(u => u.SetProperty(i => i.MetadataUpdatedAt, DateTime.UnixEpoch));
+        var rematch = await Refresher().RefreshScannedAsync(_library, false, [], null, null, default);
+        Assert.Equal(1, rematch.FromArr + rematch.FromLookup + rematch.Unmatched + rematch.FromLocal);
+        Assert.True((await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Title == "Stale")).MetadataUpdatedAt > month);
+
         // Asked to refresh everything, it still does.
         var forced = await Refresher().RefreshScannedAsync(_library, true, [], null, null, default);
         Assert.Equal(4, forced.FromArr + forced.FromLookup + forced.Unmatched + forced.FromLocal);

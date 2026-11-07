@@ -1756,7 +1756,11 @@ public sealed partial class MetadataRefresher(
     {
         if (_scannedOnly && !force)
         {
-            return db.MediaItems.Where(i => i.LibraryId == libraryId && i.Kind == kind && (also.Contains(i.Id) || i.MetadataUpdatedAt == null));
+            // Never refreshed, or set to be on the next scan (PathMappingFinder.RematchAsync: a new mapping or connection
+            // may link them).
+            var rematch = DateTime.UnixEpoch;
+            return db.MediaItems.Where(i => i.LibraryId == libraryId && i.Kind == kind
+                && (also.Contains(i.Id) || i.MetadataUpdatedAt == null || i.MetadataUpdatedAt <= rematch));
         }
 
         if (_dueAtMost is { } atMost)

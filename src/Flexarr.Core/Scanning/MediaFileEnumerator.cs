@@ -97,38 +97,6 @@ public static partial class MediaFileEnumerator
         }
     }
 
-    /// <summary>
-    /// Every folder <see cref="Enumerate"/> would look in under <paramref name="root"/> (the root first), with the
-    /// same folders left out; a folder that can't be listed is given, but not what's in it.
-    /// </summary>
-    public static IEnumerable<DirectoryInfo> Folders(string root, bool everything = false)
-    {
-        var pending = new Stack<DirectoryInfo>();
-        pending.Push(new DirectoryInfo(root));
-        while (pending.TryPop(out var directory))
-        {
-            yield return directory;
-            List<string> children;
-            try
-            {
-                children = Directory.EnumerateDirectories(directory.FullName, "*", Options).ToList();
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                continue;
-            }
-
-            foreach (var child in children)
-            {
-                var depth = Path.GetRelativePath(root, child).Count(c => c == Path.DirectorySeparatorChar) + 1;
-                if (everything || depth <= 1 || !ExtrasFolder().IsMatch(Path.GetFileName(child)))
-                {
-                    pending.Push(new DirectoryInfo(child));
-                }
-            }
-        }
-    }
-
     private static bool IsMedia(string path, IReadOnlySet<string> extensions) =>
         extensions.Contains(Path.GetExtension(path)) && !Path.GetFileName(path).StartsWith("._", StringComparison.Ordinal);
 
