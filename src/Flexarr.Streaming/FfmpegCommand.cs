@@ -152,7 +152,8 @@ public static class FfmpegCommand
         var inputs = 1;
         if (burn?.ExternalPath is { } subtitleFile)
         {
-            args.AddRange(["-ss", start, .. LocalFile, "-i", subtitleFile]);
+            // Read strictly as the subtitle it says it is, as for streaming (see Subtitles.SidecarFormat).
+            args.AddRange(["-ss", start, .. LocalFile, .. Subtitles.SidecarFormat(subtitleFile), "-i", subtitleFile]);
             inputs++;
         }
 
@@ -245,7 +246,8 @@ public static class FfmpegCommand
         var sidecars = textSubtitles.Where(t => t.ExternalPath is not null).ToList();
         foreach (var sidecar in sidecars)
         {
-            args.AddRange([.. LocalFile, "-i", sidecar.ExternalPath!]);
+            // Read strictly as the subtitle it says it is, so a sidecar can't pass itself off as a playlist of other files.
+            args.AddRange([.. LocalFile, .. Subtitles.SidecarFormat(sidecar.ExternalPath!), "-i", sidecar.ExternalPath!]);
         }
 
         if (plan is not null)

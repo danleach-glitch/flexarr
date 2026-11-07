@@ -43,6 +43,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - An audiobook whose title or grouping tag is absurdly long can no longer hold up library scans for hours. Titles that long are kept as they are, without looking for a series number in them.
 - A broken language pack can no longer stop the server when it's downloaded. Messages nested too deeply are left out, and the English is shown for them.
 - Artwork of more than 40 million pixels (a podcast cover made enormous, say) is left out instead of being drawn, so a feed of them can no longer use up the server's memory. Real covers and posters are far smaller.
+- Downloads for phones, and subtitles burned into a stream, read a subtitle file beside a film strictly as a subtitle, as streaming already did. One that's really something else is no longer opened as what it is.
 - The log and the diagnostics bundle no longer keep the key of a private podcast feed, or a password written into an address (`https://user:password@host`). A podcast that can't be refreshed is logged by its title and host.
 - Family guests can no longer move a title's sound earlier or later. Audio sync is kept on the file for the whole household, so only the household's own profiles change it.
 - On a home network with IPv6, a podcast feed or its artwork can no longer point the server at the router, a NAS or the server itself by their IPv6 addresses. Anything on the networks the server is connected to counts as home, not the internet.

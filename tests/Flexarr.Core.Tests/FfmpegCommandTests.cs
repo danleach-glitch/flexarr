@@ -74,6 +74,21 @@ public class FfmpegCommandTests
     }
 
     [Fact]
+    public void SidecarSubtitles_AreReadAsSubtitles_InDownloadsAndBurnedIn()
+    {
+        var sidecar = new SubtitleTrack("x0", null, "/media/in.fr.srt", "subrip", "fre", null, false, false);
+        var styled = new SubtitleTrack("x1", null, "/media/in.en.ass", "ass", "eng", null, false, false);
+
+        var mp4 = string.Join(' ', FfmpegCommand.Mp4("/in.mkv", Plan, 0, null, null, [sidecar, styled], "/out.mp4", Settings(HardwareAcceleration.None)));
+        var burned = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { BurnSubtitle = styled }, 0, "/out", Settings(HardwareAcceleration.None)));
+
+        // Not left to ffmpeg to guess: a "subtitle" that's really a playlist or another container isn't opened as one.
+        Assert.Contains("-f srt -i /media/in.fr.srt", mp4, StringComparison.Ordinal);
+        Assert.Contains("-f ass -i /media/in.en.ass", mp4, StringComparison.Ordinal);
+        Assert.Contains("-f ass -i /media/in.en.ass", burned, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Hdr_IsMappedToSdr_InSoftware_AndOnTheCpuForNvencAndQuickSync()
     {
         var software = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 0, "/out", Settings(HardwareAcceleration.None)));
