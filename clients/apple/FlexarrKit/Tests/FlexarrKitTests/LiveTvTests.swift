@@ -15,6 +15,30 @@ struct LiveTvTests {
         #expect(bbc.groupName == "UK GENERAL")
     }
 
+    @Test func theTitleFetchesOnlyOnceWhatsShownHasEnded() {
+        let start = Date(timeIntervalSince1970: 0)
+        func programme(_ id: Int64, from: Double, to: Double) -> LiveProgramme {
+            LiveProgramme(id: id, start: start.addingTimeInterval(from), end: start.addingTimeInterval(to), title: "P\(id)", subtitle: nil,
+                          description: nil, category: nil, season: nil, episode: nil, isNew: false, recording: nil, series: nil)
+        }
+        let news = programme(1, from: -600, to: 1800)
+        let film = programme(2, from: 1800, to: 9000)
+        func step(_ at: Double, showing: LiveProgramme?, next: LiveProgramme?, checked: Double = 0) -> LiveTitleRefresh.Step {
+            LiveTitleRefresh.step(showing: showing, next: next, checkedAt: start.addingTimeInterval(checked), now: start.addingTimeInterval(at))
+        }
+        // Still on: nothing fetched, however long it's been.
+        #expect(step(1500, showing: news, next: film) == .keep)
+        // Ended, and the next one (already known) covers now: shown without a fetch.
+        #expect(step(1815, showing: news, next: film) == .show(film))
+        // Ended with nothing known after it: fetched, but no more than once a minute.
+        #expect(step(9015, showing: film, next: nil) == .fetch)
+        #expect(step(9030, showing: film, next: nil, checked: 9015) == .keep)
+        #expect(step(9080, showing: film, next: nil, checked: 9015) == .fetch)
+        // No guide for the channel: every half hour.
+        #expect(step(600, showing: nil, next: nil) == .keep)
+        #expect(step(1800, showing: nil, next: nil) == .fetch)
+    }
+
     @Test func programmeProgressAndTitle() {
         let start = Date(timeIntervalSince1970: 0)
         let programme = LiveProgramme(id: 1, start: start, end: start.addingTimeInterval(3600), title: "Doctor Who", subtitle: "The Star Beast",

@@ -43,6 +43,12 @@ final class LiveTvController: NSObject {
 
     private static let heartbeatInterval: Duration = .seconds(15)
 
+    /// The programme the title shows and the one after it, and when the channel list was last asked what's on
+    /// (`LiveTitleRefresh`).
+    @ObservationIgnored private var titleProgramme: LiveProgramme?
+    @ObservationIgnored private var titleNext: LiveProgramme?
+    @ObservationIgnored private var titleCheckedAt = Date()
+
     /// Plays `channel`; `channels` is the order Previous and Next go through (favourites first, as listed).
     func watch(_ channel: LiveChannel, among channels: [LiveChannel], client: FlexarrClient) {
         self.client = client
@@ -137,6 +143,8 @@ final class LiveTvController: NSObject {
     }
 
     private func showTitle(for channel: LiveChannel, programme: LiveProgramme?) {
+        titleProgramme = programme
+        titleNext = channel.next
         let times = programme.map { "   " + Self.timeRange($0) } ?? ""
         screen?.setTitle(programme?.displayTitle ?? channel.name, subtitle: "\(channel.numberText) \(channel.name)\(times)")
     }
@@ -144,8 +152,8 @@ final class LiveTvController: NSObject {
     /// Paused players fetch nothing, so the server is told the viewer is still here. What's on is refreshed with it.
     private func keepAlive(viewer: String) {
         heartbeat?.cancel()
+        titleCheckedAt = Date()
         heartbeat = Task { [weak self] in
-            var beats = 0
             while !Task.isCancelled {
                 try? await Task.sleep(for: Self.heartbeatInterval)
                 guard let self, !Task.isCancelled, let client = self.client, self.watching?.viewer == viewer else { return }
@@ -158,10 +166,18 @@ final class LiveTvController: NSObject {
                 } catch {
                     // A missed beat; the next one will do.
                 }
-                beats += 1
-                if beats % 4 == 0, let fresh = try? await client.liveChannels(), let id = self.watching?.channel.id,
-                   let channel = fresh.first(where: { $0.id == id }) {
-                    self.showTitle(for: channel, programme: channel.now)
+                // The whole channel list is fetched only once what's shown has ended (`LiveTitleRefresh`).
+                switch LiveTitleRefresh.step(showing: self.titleProgramme, next: self.titleNext, checkedAt: self.titleCheckedAt) {
+                case .keep:
+                    break
+                case .show(let programme):
+                    if let channel = self.watching?.channel { self.showTitle(for: channel, programme: programme) }
+                case .fetch:
+                    self.titleCheckedAt = Date()
+                    if let fresh = try? await client.liveChannels(), !Task.isCancelled, self.watching?.viewer == viewer,
+                       let id = self.watching?.channel.id, let channel = fresh.first(where: { $0.id == id }) {
+                        self.showTitle(for: channel, programme: channel.now)
+                    }
                 }
             }
         }

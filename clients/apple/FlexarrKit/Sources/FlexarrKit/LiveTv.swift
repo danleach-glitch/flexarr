@@ -86,6 +86,34 @@ public struct LiveChannel: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
+/// When the title over a live picture needs the channel list fetched again to say what's on. Rather than every
+/// minute, only once the programme shown has ended (and the one after it, which the channel already gave, doesn't
+/// cover now), or, for a channel with no guide, every half hour in case one has come. Never more than once a minute.
+public enum LiveTitleRefresh {
+    public static let withoutGuide: TimeInterval = 30 * 60
+    public static let atMost: TimeInterval = 60
+
+    public enum Step: Equatable, Sendable {
+        /// What's shown is still on.
+        case keep
+        /// The programme after it has started: show it, no fetch needed.
+        case show(LiveProgramme)
+        /// Ask the server what's on now.
+        case fetch
+    }
+
+    /// `showing` and `next`: the programme shown and the one after it; `checkedAt`: when the server was last asked.
+    public static func step(showing: LiveProgramme?, next: LiveProgramme?, checkedAt: Date, now: Date = Date()) -> Step {
+        let since = now.timeIntervalSince(checkedAt)
+        // A clock put back counts as time having passed.
+        let mayFetch = since < 0 || since >= atMost
+        guard let showing else { return since < 0 || since >= withoutGuide ? .fetch : .keep }
+        if now < showing.end { return .keep }
+        if let next, next.start <= now, now < next.end, next != showing { return .show(next) }
+        return mayFetch ? .fetch : .keep
+    }
+}
+
 /// A channel being watched. `playlist` is a live HLS playlist whose address is the viewer's capability.
 public struct LiveWatch: Codable, Sendable, Hashable {
     public let viewer: String
