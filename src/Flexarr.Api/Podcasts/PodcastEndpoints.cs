@@ -688,6 +688,12 @@ public static class Opml
         XDocument document;
         try
         {
+            // Outlines inside outlines without end: refused before the document is built, as a feed's are (FeedParser.MaxDepth).
+            if (FeedParser.NestedDeeperThan(ref opml, FeedParser.MaxDepth))
+            {
+                throw new FormatException(Loc.Mark("That file isn’t OPML: it isn’t valid XML."));
+            }
+
             using var reader = System.Xml.XmlReader.Create(opml, new System.Xml.XmlReaderSettings { DtdProcessing = System.Xml.DtdProcessing.Ignore, XmlResolver = null });
             document = XDocument.Load(reader);
         }
