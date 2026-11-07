@@ -321,8 +321,9 @@ struct ProfilePickerView: View {
 
     private func release(_ pin: String) async {
         do {
+            // The admin PIN is kept by the app for the next profile chosen, for a minute (`recentParentPin`), not
+            // for as long as this stays open.
             try await model.releaseKidsLock(pin: pin)
-            knownParentPin = pin
             kidsLockPin = nil
         } catch {
             self.error = ConnectionError(error).message
