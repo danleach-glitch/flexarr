@@ -445,6 +445,7 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
 }
 
 /** The picture, filling the screen at its own shape, kept awake while it's up. The phone's players and the TV's. */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 internal fun VideoSurface(player: androidx.media3.common.Player) {
     var matcher by remember { mutableStateOf<FrameRateMatcher?>(null) }
