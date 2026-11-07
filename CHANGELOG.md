@@ -86,6 +86,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - One app or browser can no longer push the server's own record of what happened out of its log by reporting long messages over and over. Each device's reports may add up to 1 MB to the log an hour.
 - On a server without an admin PIN yet, only a browser you signed in with the API key can choose the first one. A paired TV or tablet could choose the main profile without a PIN and set one itself, locking you out of the settings.
 - A device asking to connect over and over keeps the code it's showing, and your phones are told about it once rather than every time it asks. Phones hear about at most 20 devices asking to connect in an hour; any more still wait to be allowed in Flexarr itself.
+- One device can now hold at most two of the ten places for devices waiting to connect, and your phones hear about a new one from it at most once a minute, so a few devices can't fill every place or keep prompting you.
 - An audiobook whose title or grouping tag is absurdly long can no longer hold up library scans for hours. Titles that long are kept as they are, without looking for a series number in them.
 - A broken language pack can no longer stop the server when it's downloaded. Messages nested too deeply are left out, and the English is shown for them.
 - Artwork of more than 40 million pixels (a podcast cover made enormous, say) is left out instead of being drawn, so a feed of them can no longer use up the server's memory. Real covers and posters are far smaller.

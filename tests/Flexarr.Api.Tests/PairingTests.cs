@@ -109,14 +109,15 @@ public class PairingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     {
         var tv = Tv("192.168.1.71");
         var results = new List<HttpStatusCode>();
-        for (var i = 0; i < 4; i++)
+        for (var i = 0; i < 3; i++)
         {
             results.Add((await tv.PostAsJsonAsync(Api("/pairing"), new { deviceName = $"TV {i}" })).StatusCode);
         }
 
         var someoneElse = await Tv("192.168.1.72").PostAsJsonAsync(Api("/pairing"), new { deviceName = "Bedroom" });
 
-        Assert.Equal([HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.TooManyRequests], results);
+        // Two of the ten places from one address, so five addresses are needed to fill them all, not four.
+        Assert.Equal([HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.TooManyRequests], results);
         Assert.Equal(HttpStatusCode.OK, someoneElse.StatusCode);
     }
 
@@ -295,6 +296,33 @@ public class PairingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
 
         Assert.Equal(20, announced.Count(a => a));
         Assert.False(announced[^1]);
+    }
+
+    [Fact]
+    public void OneAddress_HasANewCodeAnnounced_AtMostOnceAMinute_UnlessTheOwnerTurnedOneAway()
+    {
+        var clock = new Clock();
+        using var server = new FlexarrApiFactory();
+        using var app = server.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<TimeProvider>(clock)));
+        var pairings = app.Services.GetRequiredService<Pairings>();
+        const string address = "192.168.5.7";
+
+        var first = pairings.Start("Living room TV", NetworkZone.Local, address, out var firstTold)!;
+        var second = pairings.Start("Kitchen TV", NetworkZone.Local, address, out var secondTold)!;
+        clock.Now += TimeSpan.FromMinutes(1);
+        pairings.Start("Kitchen TV", NetworkZone.Local, address, out var secondLater);
+
+        // Turned away: after the device's own quiet retry, trying again from there is announced at once, however soon.
+        pairings.Decline(first.Code);
+        pairings.Decline(second.Code);
+        pairings.Start("Kitchen TV", NetworkZone.Local, address, out var ownRetry);
+        pairings.Start("Kitchen TV", NetworkZone.Local, address, out var tryAgain);
+
+        Assert.NotNull(firstTold);
+        Assert.Null(secondTold);
+        Assert.NotNull(secondLater);
+        Assert.Null(ownRetry);
+        Assert.NotNull(tryAgain);
     }
 
     [Fact]
