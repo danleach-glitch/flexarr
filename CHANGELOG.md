@@ -45,6 +45,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone, iPad, Apple TV and Mac, when your server's away-from-home address changes, the app only takes the new one once the server there shows it's the server this device signed in to. Before, something on your home network that altered one answer could point the app at a Tailscale address of its own.
 - On a locked iPhone or iPad, **Play on Apple TV** and **Download** on a Flexarr notification, and asking Siri to add a title to your watchlist, now ask for Face ID or your passcode first.
 - On iPhone, iPad and Mac, **Copy code and open Trakt** only opens a web page. Whatever else a server's answer gives there, such as another app's link or a phone number, is no longer opened.
+- On iPhone, iPad, Apple TV and Mac, signing in to a different server empties the app's own log and the warnings still waiting to be sent, so what you played on one server never goes to the next one's log or its **Send diagnostics**.
 
 ### Apple TV
 - On an Apple TV set to **Ask who's watching**, the Home screen's Top Shelf no longer shows a profile's titles when that profile asks for a PIN, and Play on the Top Shelf waits for **Who's watching?** rather than starting as whoever watched last.

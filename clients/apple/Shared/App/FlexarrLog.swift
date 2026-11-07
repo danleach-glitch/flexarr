@@ -128,9 +128,14 @@ final class LogHub: Sendable {
         redactor.withLock { redactor in
             redactor.secrets = [client?.apiKey, client?.profileToken].compactMap { $0 }.filter { !$0.isEmpty }
         }
-        guard client != nil else { return }
+        guard let client else { return }
+        // Another server than the log was written for: what it holds, and the warnings still waiting, aren't sent there.
+        let other = file.claim(for: client.addresses.home.absoluteString)
         let uploader = uploader
-        Task.detached(priority: .utility) { await uploader.kick() }
+        Task.detached(priority: .utility) {
+            if other { await uploader.clear() }
+            await uploader.kick()
+        }
     }
 
     /// Sends the whole log, with a few lines about this device on top, and returns the server's id for it.
