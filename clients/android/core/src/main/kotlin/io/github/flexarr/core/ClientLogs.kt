@@ -443,6 +443,18 @@ class ClientLogOwner(private val file: File) {
         }
         return kept != null
     }
+
+    /**
+     * Signed out with nothing kept yet (as on the first launch after an update): what's in the log is about a server
+     * no longer known, so the next sign-in, wherever it is, starts afresh.
+     */
+    fun signedOut() {
+        if (runCatching { file.exists() }.getOrDefault(true)) return
+        runCatching {
+            file.parentFile?.mkdirs()
+            file.writeText("")
+        }
+    }
 }
 
 // Diagnostics

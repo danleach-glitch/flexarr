@@ -151,6 +151,8 @@ object LogHub {
                 early.clear()
                 uploader?.clear() ?: run { clearWhenMade = true }
             }
+        } else if (client == null && ::owner.isInitialized) {
+            owner.signedOut()
         }
         this.client = client
         redactor = redactor.copy(secrets = listOfNotNull(client?.apiKey, client?.profileToken).filter { it.isNotEmpty() })

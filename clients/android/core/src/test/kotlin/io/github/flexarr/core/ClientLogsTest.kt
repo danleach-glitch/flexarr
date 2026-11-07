@@ -136,6 +136,23 @@ class ClientLogsTest {
             assertFalse(owner.signedIn("https://home.example"))
             assertTrue(owner.signedIn("https://other.example"))
             assertFalse(ClientLogOwner(java.io.File(directory, "server.txt")).signedIn("https://other.example"))
+            // Signing out keeps it about that server.
+            owner.signedOut()
+            assertFalse(owner.signedIn("https://other.example"))
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun aLogFromBeforeTheOwnerWasKeptGoesAtTheFirstSignInAfterSigningOut() {
+        val directory = java.nio.file.Files.createTempDirectory("logs").toFile()
+        try {
+            // Updated while signed out: whichever server is signed in to next gets a fresh log.
+            val owner = ClientLogOwner(java.io.File(directory, "server.txt"))
+            owner.signedOut()
+            assertTrue(owner.signedIn("https://new.example"))
+            assertFalse(owner.signedIn("https://new.example"))
         } finally {
             directory.deleteRecursively()
         }
