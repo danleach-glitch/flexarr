@@ -38,7 +38,9 @@ import io.github.flexarr.core.LocalCollection
 import io.github.flexarr.core.LocalDownload
 import io.github.flexarr.core.LocalPhase
 import io.github.flexarr.core.MediaKind
+import io.github.flexarr.core.OfflineCheck
 import io.github.flexarr.core.OfflineDownload
+import io.github.flexarr.core.checkOffline
 import io.github.flexarr.core.PlaylistSummary
 import io.github.flexarr.core.ServerAnswer
 import io.github.flexarr.core.deleteDownload
@@ -475,12 +477,40 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             val remote = runCatching { client.offlineDownload(download.id) }.getOrNull() ?: continue
             if (remote.item.kind != MediaKind.Unknown) update(download.id) { it.copy(item = remote.item) }
         }
+        removeKeptFromProfile(client)
         // A transfer for everything still to come (one that's running already is left alone).
         all.filter { it.isPending }.forEach { enqueue(it, replace = false) }
         downloads.forEach { fetchNext(after = it) }
         reconcilePodcasts()
         // Whole books are kept apart, and catch up with the rest.
         model.bookDownloads.catchUp()
+    }
+
+    /**
+     * Titles kept here that the profile may no longer see (a parent blocked one, lowered its age limit or hid its library
+     * since), or that the server no longer has: the server says which ([checkOffline]) and they go, books too. One whose
+     * file is only missing on the server stays, and nothing goes with a server up to 0.62.1 or one out of reach.
+     */
+    private suspend fun removeKeptFromProfile(client: FlexarrClient) {
+        // Asked only as the profile the downloads are kept for (not, say, on Who's watching).
+        val profile = profileId?.takeIf { it == model.currentProfile?.id } ?: return
+        val asked = (downloads.map { it.item.id } + model.bookDownloads.books.map { it.itemId }).distinct()
+        if (asked.isEmpty()) return
+        val gone = HashSet<String>()
+        for (chunk in asked.chunked(OfflineCheck.MOST_IDS)) {
+            val check = try {
+                client.checkOffline(chunk)
+            } catch (_: FlexarrException) {
+                return // out of reach, or an answer not to act on
+            } ?: return
+            gone += check.toRemove(chunk)
+        }
+        if (gone.isEmpty()) return
+        // Someone else chosen meanwhile: the answer was about the profile asked for.
+        if (profileId != profile || model.currentProfile?.id != profile || currentClient !== client) return
+        flexarrLog.info("Taking off ${gone.size} downloads this profile may no longer play")
+        downloads.filter { it.item.id in gone }.forEach { remove(it.id, tellServer = true) }
+        model.bookDownloads.books.filter { it.itemId in gone }.forEach { model.bookDownloads.remove(it.itemId) }
     }
 
     // Downloading

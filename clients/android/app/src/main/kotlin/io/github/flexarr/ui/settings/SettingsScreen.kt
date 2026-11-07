@@ -84,6 +84,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.BuildConfig
+import io.github.flexarr.signOutRefusal
 import io.github.flexarr.core.DownloadQuality
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.bytes
@@ -300,11 +301,15 @@ fun SettingsScreen(
         if (model.isGuest) {
             LeaveDialog(model, onDismiss = { confirmSignOut = false })
         } else {
+            // Child lock may have been turned on from the web since the app last looked: asked again as the dialog opens.
+            LaunchedEffect(Unit) { model.refreshKidsLock() }
+            // With child lock on, the server keeps the sign-in: says so in place of Sign out.
+            val refusal = signOutRefusal(model.kidsLock)
             AlertDialog(
                 onDismissRequest = { confirmSignOut = false },
                 title = { Text(t("Sign out of this server?")) },
-                text = { Text(t("This device will need to connect again to use the server, and its downloads will be deleted.")) },
-                confirmButton = { TextButton(onClick = model::signOut) { Text(t("Sign out"), color = Flexarr.danger) } },
+                text = { Text(refusal ?: t("This device will need to connect again to use the server, and its downloads will be deleted.")) },
+                confirmButton = { if (refusal == null) TextButton(onClick = model::signOut) { Text(t("Sign out"), color = Flexarr.danger) } },
                 dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text(t(Words.cancel), color = Flexarr.screen) } },
                 containerColor = Flexarr.seat,
             )

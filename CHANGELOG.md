@@ -194,6 +194,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Opening a title or pressing **Play** no longer waits behind posters that are still loading, which showed after scrolling a long grid on a slow connection.
 - Downloading a long playlist no longer makes its page and the Downloads tab stutter while the tracks come in.
 - Live TV's guide on the phone uses less data: it's fetched again every five minutes rather than every two, and the channel list behind it as often. The line for now still moves each minute. An Android TV no longer holds the whole guide in memory after you've left Live TV.
+- With an up-to-date server, the phone's Live TV guide asks only for the channels on screen (just your favourites, say) and the hours it shows, and isn't sent again when nothing in it has changed. On the phone and Android TV the guide comes without each programme's description, which arrives when you open the programme, so a big channel line-up is a fraction of the download.
 - While downloads wait for the server to convert them (a season at 720p can take hours), the phone asks after each one far less often than every three seconds, which is easier on the battery and on mobile data. A download still starts within half a minute of being ready.
 - The Android app takes about 18 MB less space on each phone and TV.
 - Opening the Android app, or coming back to it, asks the server the same small questions once rather than several times, so Home has less to wait behind on mobile data.
@@ -210,7 +211,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - An audiobook with hundreds of chapters no longer makes its chapter list stutter while it plays, and the list opens straight away.
 - **Copy code and open Trakt** only ever opens a page on trakt.tv. If the server names anywhere else, the Android app opens trakt.tv/activate instead.
 - On Android TV, a kids profile no longer has **Settings** in the sidebar (so no **Sign out** either), as on the phone. A kids profile that's the only one on the server keeps it.
+- An Android TV or phone with child lock on no longer signs out, online or offline: it says child lock must be turned off first. It used to forget its sign-in anyway, leaving the TV disconnected until a parent connected it again, and without child lock.
+- When a parent blocks a title, lowers a profile's age limit or hides a library, the Android app takes the downloads that profile may no longer watch or hear (books too) off the phone the next time it reaches your server, and so it does for titles deleted from the server. A title whose drive is only unplugged for now stays.
 - The Android app checks each language pack a server sends before keeping it, and forgets the packs it kept when it signs out, so another server's words don't follow it to the next one.
+- The code an Android TV or phone shows for a family invite is now made from its own key, so your server can tell the invite is sealed for the device showing the code and no one else, even if Flexarr's relay were tampered with.
 
 ## 0.62.1 · 5 November 2026
 

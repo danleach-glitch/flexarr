@@ -439,7 +439,7 @@
   "Checking…": "wan",
   "Child lock": "wan",
   "Child lock is on for this device.": "ans",
-  "Child lock is on for this device. Turn it off first.": "s",
+  "Child lock is on for this device. Turn it off first.": "ns",
   "Child lock needs a browser or device that’s signed in.": "s",
   "Child lock on": "w",
   "Choose Plex’s folder on the Mac…": "w",

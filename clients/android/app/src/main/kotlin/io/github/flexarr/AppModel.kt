@@ -1202,7 +1202,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         phase = Phase.SignedIn(now.copy(remoteAddress = remote, serverId = serverId))
     }
 
+    /**
+     * Signs out, unless child lock is on here ([signOutRefusal]): the server keeps a locked device's sign-in, so
+     * forgetting it here would only leave the device disconnected, and connected again without the lock.
+     */
     fun signOut() {
+        if (signOutRefusal(kidsLock) != null) return
         dropAllReady()
         // The headset's play button has nothing of this sign-in's to pick up again.
         io.github.flexarr.audio.LastHeard.clear(context)
@@ -1962,6 +1967,13 @@ internal fun awaitsProfile(chosenHere: Boolean, loaded: Boolean, needsProfile: B
 
 /** Who's watching offline ([offlineProfiles]); [asksWho]: nobody, and "Who's watching?" stays up until the server's back. */
 internal data class OfflineProfiles(val profiles: List<Profile>, val asksWho: Boolean = false)
+
+/**
+ * Why this device can't sign out, or null when it can: child lock is on ([AppModel.kidsLock], remembered offline too),
+ * which the server refuses to sign out of (409 `kidsLock`) until the admin PIN turns it off. As the server says it.
+ */
+internal fun signOutRefusal(kidsLock: Boolean): String? =
+    if (kidsLock) t("Child lock is on for this device. Turn it off first.") else null
 
 /**
  * Who's watching offline, from the list as [known] (its current profile the one last chosen): that profile, as offline

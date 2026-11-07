@@ -370,6 +370,17 @@ class FlexarrClient(
         http: OkHttpClient = this.http,
     ): String = withContext(Dispatchers.IO) { exchange(method, path, query, body?.toRequestBody(jsonType), racesAlternate, http) }
 
+    /**
+     * As [send] for a GET, with [headers] of its own on the request (`If-None-Match`, say), handing [answered] the
+     * answer's headers when it's a success. A 304 is [FlexarrException.Http] with that status.
+     */
+    internal suspend fun sendWithHeaders(
+        path: String,
+        query: Map<String, String>,
+        headers: Map<String, String>,
+        answered: (okhttp3.Headers) -> Unit,
+    ): String = withContext(Dispatchers.IO) { exchange("GET", path, query, null, racesAlternate = true, http = http, headers = headers, answered = answered) }
+
     /** As [send], with a body of any type (a plain-text log, say) and its own time limit for the whole call. */
     internal suspend fun sendBody(
         method: String,
@@ -382,7 +393,7 @@ class FlexarrClient(
         exchange(method, path, query, body, racesAlternate = false, http = slow)
     }
 
-    private fun request(method: String, path: String, query: Map<String, String>, body: RequestBody?, base: HttpUrl): Request {
+    private fun request(method: String, path: String, query: Map<String, String>, body: RequestBody?, base: HttpUrl, headers: Map<String, String> = emptyMap()): Request {
         // An id from outside the app (a link, say) mustn't climb out of the path it was put in: OkHttp would resolve
         // `..` against the segments before it, and splits on a backslash as well as a slash. Ids never are one.
         if (path.split('/', '\\').any { isDotSegment(it) }) throw FlexarrException.Http(404, null)
@@ -392,6 +403,7 @@ class FlexarrClient(
             query.forEach { (name, value) -> addQueryParameter(name, value) }
         }.build()
         return Request.Builder().url(url).header("Accept", "application/json").apply {
+            headers.forEach { (name, value) -> header(name, value) }
             signIn()
             val requestBody = body ?: if (method == "POST") ByteArray(0).toRequestBody(null) else null
             method(method, requestBody)
@@ -414,10 +426,12 @@ class FlexarrClient(
         body: RequestBody?,
         racesAlternate: Boolean,
         http: OkHttpClient,
+        headers: Map<String, String> = emptyMap(),
+        answered: ((okhttp3.Headers) -> Unit)? = null,
     ): String {
         val response = try {
             if (simulatesOffline) throw ConnectException("No network (simulated)")
-            reach(method, path, query, body, racesAlternate, http).also {
+            reach(method, path, query, body, racesAlternate, http, headers).also {
                 lastAnsweredAtMs = System.currentTimeMillis()
                 onAnswered?.invoke()
             }
@@ -432,6 +446,7 @@ class FlexarrClient(
                 it.isSuccessful -> {
                     // Unknown paths fall through to the web app's index.html; don't try to decode that.
                     if (it.header("Content-Type")?.contains("text/html") == true) throw FlexarrException.UnexpectedResponse()
+                    answered?.invoke(it.headers)
                     text
                 }
                 it.code == 401 -> {
@@ -520,6 +535,7 @@ class FlexarrClient(
         body: RequestBody?,
         racesAlternate: Boolean,
         http: OkHttpClient,
+        headers: Map<String, String> = emptyMap(),
     ): Response {
         val primary = addresses.current
         var alternate = addresses.alternate(primary)
@@ -527,19 +543,19 @@ class FlexarrClient(
         // server, on this network. Until then, away it is.
         if (primary == addresses.home && !homeTrusted(http)) {
             val remote = alternate ?: throw ConnectException("Something else answers at the server's home address on this network.")
-            val response = http.newCall(request(method, path, query, body, remote)).await()
+            val response = http.newCall(request(method, path, query, body, remote, headers)).await()
             addresses.reached(remote)
             return response
         }
         // Away, home is asked about separately (checkHomeIfDue) rather than sent the sign-in on a hunch.
         if (alternate == addresses.home && !addresses.homeTrustedNow) alternate = null
-        val first = request(method, path, query, body, primary)
+        val first = request(method, path, query, body, primary, headers)
         if (alternate == null) {
             val response = http.newCall(first).await()
             checkHomeIfDue(http)
             return response
         }
-        val second = request(method, path, query, body, alternate)
+        val second = request(method, path, query, body, alternate, headers)
         val (response, reached) = if (method == "GET" && racesAlternate) {
             race(http, first to primary, second to alternate)
         } else {
