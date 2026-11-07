@@ -245,6 +245,7 @@
  "As it is": "As it is",
  "As the file is": "As the file is",
  "Ask ${applicationName} to ${action}": "Ask ${applicationName} to ${action}",
+ "Ask about 5000 titles at most.": "Ask about 5000 titles at most.",
  "Ask for it": "Ask for it",
  "Ask the server how it is now.": "Ask the server how it is now.",
  "Ask whoever runs this Flexarr to connect Dispatcharr in Settings › Connections.": "Ask whoever runs this Flexarr to connect Dispatcharr in Settings › Connections.",
