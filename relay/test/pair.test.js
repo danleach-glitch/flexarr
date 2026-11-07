@@ -68,6 +68,33 @@ test('a code already showing on another TV is refused', async () => {
   assert.equal((await call({ method: 'POST', body: { code: 'JKMNPQRS', publicKey: publicKey(), secret } })).status, 409);
 });
 
+// The same vectors as the server's RemoteGuestTests and docs/remote-guests.md.
+const VECTORS = [
+  ['BAabxf2q9hMu/dxG+nGp5nYWsRDth260mBqx6U/8TU9miOPz86o/f4xuMSzrZ/YVxS1EHcdBY/JxFPKujcWATRA=', 'P5GSPMQP'],
+  ['BJeO6XNfhIDBbIdQxtPpYlj3Cjk7nlUzjg+xJFmk20ChvzfI1jdWs2T5CgsWu1MmBW4iXHxrMfK9/MTDb9Nb1mM=', 'VFAZC453'],
+  ['BBikfwYmLGipShyfrqxMWA/kv+NWBDrgrZotgMESONlNQfZ0um1pjfF8J+1iarUDMOzmd5+F9czYFE5xxV+pIvo=', '7EAR565J'],
+];
+
+test('a TV key makes its code, ending in a check character', () => {
+  for (const [key, code] of VECTORS) {
+    assert.equal(pair.codeFor(key), code);
+    assert.equal(pair.isKeyCode(code), true);
+  }
+  assert.equal(pair.isKeyCode('ABCDEFGH'), false);
+});
+
+test('a code made from a key is kept only with that key; an older TV\'s random code with any', async () => {
+  pair._memory.clear();
+  const [[key, code], [otherKey]] = VECTORS;
+  // CodeTaken, so an older TV whose random code ends in its check character by chance makes another.
+  const refused = await call({ method: 'POST', body: { code, publicKey: otherKey, secret } });
+  assert.equal(refused.status, 409);
+  assert.equal(refused.body.reason, 'CodeTaken');
+  assert.equal(pair._memory.has(`pair:${code}`), false);
+  assert.equal((await call({ method: 'POST', body: { code, publicKey: key, secret } })).status, 201);
+  assert.equal((await call({ method: 'POST', body: { code: 'ABCDEFGH', publicKey: otherKey, secret } })).status, 201);
+});
+
 test('codes last ten minutes', async () => {
   pair._memory.clear();
   const now = Date.now();
@@ -127,10 +154,11 @@ function statuses(answers) {
   return counts;
 }
 
-/** An eight-character code nobody is showing, different for each n. */
+/** An eight-character code nobody is showing, different for each n: an older TV's kind, so any key may take it. */
 function unknownCode(n) {
   const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  return `ZZZZZZ${alphabet[Math.floor(n / alphabet.length)]}${alphabet[n % alphabet.length]}`;
+  const first = `ZZZZZ${alphabet[Math.floor(n / alphabet.length)]}${alphabet[n % alphabet.length]}`;
+  return [...alphabet].map((last) => first + last).find((code) => !pair.isKeyCode(code));
 }
 
 /** Runs work against a stand-in for the Upstash store's /pipeline: just the commands pair.js sends. */

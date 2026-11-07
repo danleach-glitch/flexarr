@@ -584,6 +584,43 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         Assert.Equal(HttpStatusCode.OK, (await RedeemAsync(RemoteGuestFactory.Guest, payload.T)).StatusCode);
     }
 
+    // The same vectors as relay/test/pair.test.js and docs/remote-guests.md, so the TV apps can match them byte for byte.
+    [Theory]
+    [InlineData("BAabxf2q9hMu/dxG+nGp5nYWsRDth260mBqx6U/8TU9miOPz86o/f4xuMSzrZ/YVxS1EHcdBY/JxFPKujcWATRA=", "P5GSPMQP")]
+    [InlineData("BJeO6XNfhIDBbIdQxtPpYlj3Cjk7nlUzjg+xJFmk20ChvzfI1jdWs2T5CgsWu1MmBW4iXHxrMfK9/MTDb9Nb1mM=", "VFAZC453")]
+    [InlineData("BBikfwYmLGipShyfrqxMWA/kv+NWBDrgrZotgMESONlNQfZ0um1pjfF8J+1iarUDMOzmd5+F9czYFE5xxV+pIvo=", "7EAR565J")]
+    public void A_tv_key_makes_its_code(string publicKey, string code)
+    {
+        Assert.Equal(code, GuestTvCodes.CodeFor(publicKey));
+        Assert.True(GuestTvCodes.IsKeyCode(code));
+    }
+
+    [Fact]
+    public async Task A_code_made_from_a_key_takes_only_that_key_but_older_tvs_random_codes_still_work()
+    {
+        var gran = await factory.AddProfileAsync("Gran45");
+        using var admin = factory.Admin();
+        var before = (await admin.GetFromJsonAsync<List<GuestInviteDto>>("/api/v1/remote/guests/invites", Web))!.Count;
+        const string tvKey = "BAabxf2q9hMu/dxG+nGp5nYWsRDth260mBqx6U/8TU9miOPz86o/f4xuMSzrZ/YVxS1EHcdBY/JxFPKujcWATRA=";
+        const string someoneElsesKey = "BJeO6XNfhIDBbIdQxtPpYlj3Cjk7nlUzjg+xJFmk20ChvzfI1jdWs2T5CgsWu1MmBW4iXHxrMfK9/MTDb9Nb1mM=";
+
+        // A relay answering the TV's code with another key: nothing is sealed to it.
+        factory.PairRelay.Keys["P5GSPMQP"] = someoneElsesKey;
+        var swapped = await admin.PostAsJsonAsync("/api/v1/remote/guests/tv-code", new { code = "P5GS-PMQP", name = "x", profileId = gran });
+        Assert.Equal(HttpStatusCode.BadGateway, swapped.StatusCode);
+        Assert.False(factory.PairRelay.Invites.ContainsKey("P5GSPMQP"));
+        Assert.Equal(before, (await admin.GetFromJsonAsync<List<GuestInviteDto>>("/api/v1/remote/guests/invites", Web))!.Count);
+
+        // The TV's own key.
+        factory.PairRelay.Keys["P5GSPMQP"] = tvKey;
+        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync("/api/v1/remote/guests/tv-code", new { code = "P5GS-PMQP", name = "x", profileId = gran })).StatusCode);
+
+        // An older TV's random code (no check character) takes whatever key the relay has, as before.
+        Assert.False(GuestTvCodes.IsKeyCode("JKMNPQRS"));
+        factory.PairRelay.Keys["JKMNPQRS"] = someoneElsesKey;
+        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync("/api/v1/remote/guests/tv-code", new { code = "JKMN-PQRS", name = "y", profileId = gran })).StatusCode);
+    }
+
     [Fact]
     public async Task An_unknown_or_malformed_tv_code_says_so_and_makes_no_invite()
     {

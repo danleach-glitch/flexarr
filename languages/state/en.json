@@ -2555,6 +2555,7 @@
   "That Trakt account is connected to another profile.": "wan",
   "That address answered, but not like a Flexarr server. Check the host name and port.": "an",
   "That change couldn’t be saved on the server, so it’s been put back.": "an",
+  "That code doesn’t match the device showing it. Check the one on their screen now, and try again.": "s",
   "That code has been used. Check the one on their screen now.": "s",
   "That code has run out. The device shows a new one; open Flexarr to allow it.": "n",
   "That code is taken.": "n",
