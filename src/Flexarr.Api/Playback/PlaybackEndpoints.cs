@@ -446,7 +446,7 @@ public static partial class PlaybackEndpoints
         });
 
         group.MapGet("/fonts/{index:int}", async (string sid, int index, PlaybackSessions sessions, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options,
-            CancellationToken ct) =>
+            HttpContext http, CancellationToken ct) =>
         {
             if (sessions.Get(sid) is not { } session)
             {
@@ -454,12 +454,15 @@ public static partial class PlaybackEndpoints
             }
 
             var file = await db.MediaFiles.AsNoTracking().FirstAsync(f => f.Id == session.FileId, ct);
-            if ((await SubtitleFonts.ListAsync(file, options.CurrentValue.FfprobePath, ct)).FirstOrDefault(f => f.StreamIndex == index) is not { } font
-                || await SubtitleFonts.ExtractAsync(file, font, TranscodeSettingsFor(options.CurrentValue), ct) is not { } path)
+            var fonts = await SubtitleFonts.ListAsync(file, options.CurrentValue.FfprobePath, ct);
+            if (fonts.FirstOrDefault(f => f.StreamIndex == index) is not { } font
+                || await SubtitleFonts.ExtractAsync(file, font, fonts, TranscodeSettingsFor(options.CurrentValue), ct) is not { } path)
             {
                 return Results.NotFound();
             }
 
+            // A session plays one file for good, and its address names the attachment: what it gives never changes.
+            http.Response.Headers[HeaderNames.CacheControl] = "private, max-age=31536000, immutable";
             return Results.File(path, font.ContentType, font.Name);
         });
 

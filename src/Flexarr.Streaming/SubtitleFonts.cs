@@ -103,6 +103,94 @@ public static class SubtitleFonts
         return fonts;
     }
 
+    /// <summary>Files whose fonts are being saved together, by path and time: the requests for each of them wait on one FFmpeg run.</summary>
+    private static readonly ConcurrentDictionary<string, Task> Extracting = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// One attached font's bytes, saved in the cache the first time. A player asks for every font of a file at once:
+    /// the first ask saves all of <paramref name="all"/> not saved yet with one FFmpeg run, which the others wait on,
+    /// rather than each running its own. A font that run didn't give is then tried on its own, as before.
+    /// </summary>
+    public static async Task<string?> ExtractAsync(MediaFile file, AttachedFont font, IReadOnlyList<AttachedFont> all, TranscodeSettings settings, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentNullException.ThrowIfNull(font);
+        ArgumentNullException.ThrowIfNull(all);
+        ArgumentNullException.ThrowIfNull(settings);
+
+        if (File.Exists(Target(file, font, settings)))
+        {
+            return Target(file, font, settings);
+        }
+
+        var key = $"{file.Path}|{File.GetLastWriteTimeUtc(file.Path).Ticks}";
+        var saving = Extracting.GetOrAdd(key, _ => ExtractAllAsync(file, all, settings));
+        try
+        {
+            // Saved without the caller's token, so one player leaving doesn't fail the others waiting on the same run.
+            await saving.WaitAsync(ct).ConfigureAwait(false);
+        }
+        catch (Exception) when (!ct.IsCancellationRequested)
+        {
+            // Tried below on its own.
+        }
+        finally
+        {
+            if (saving.IsCompleted)
+            {
+                Extracting.TryRemove(new KeyValuePair<string, Task>(key, saving));
+            }
+        }
+
+        return File.Exists(Target(file, font, settings)) ? Target(file, font, settings) : await ExtractAsync(file, font, settings, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Saves each of <paramref name="fonts"/> not saved yet, in one FFmpeg run.</summary>
+    private static async Task ExtractAllAsync(MediaFile file, IReadOnlyList<AttachedFont> fonts, TranscodeSettings settings)
+    {
+        var wanted = fonts.DistinctBy(f => f.StreamIndex).Select(f => (Font: f, Target: Target(file, f, settings))).Where(f => !File.Exists(f.Target)).ToList();
+        if (wanted.Count == 0)
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(Path.Combine(settings.CacheDirectory, "subtitles"));
+        var run = Guid.NewGuid().ToString("N");
+        var args = new List<string> { "-hide_banner", "-v", "error", "-nostdin", "-y", "-protocol_whitelist", "file" };
+        foreach (var (font, target) in wanted)
+        {
+            args.Add($"-dump_attachment:{font.StreamIndex}");
+            args.Add($"{target}.{run}.tmp");
+        }
+
+        args.AddRange(["-i", file.Path]);
+        try
+        {
+            await RunAsync(settings.FfmpegPath, args, null, CancellationToken.None).ConfigureAwait(false);
+        }
+        finally
+        {
+            foreach (var (_, target) in wanted)
+            {
+                var partial = $"{target}.{run}.tmp";
+                if (File.Exists(partial) && new FileInfo(partial).Length > 0)
+                {
+                    File.Move(partial, target, overwrite: true);
+                }
+                else
+                {
+                    File.Delete(partial);
+                }
+            }
+        }
+    }
+
+    private static string Target(MediaFile file, AttachedFont font, TranscodeSettings settings)
+    {
+        var key = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{file.Path}|font{font.StreamIndex}|{File.GetLastWriteTimeUtc(file.Path).Ticks}")))[..32];
+        return Path.Combine(settings.CacheDirectory, "subtitles", $"{key}.font");
+    }
+
     /// <summary>One attached font's bytes, saved in the cache the first time (FFmpeg writes attachments out only to a file).</summary>
     public static async Task<string?> ExtractAsync(MediaFile file, AttachedFont font, TranscodeSettings settings, CancellationToken ct)
     {
@@ -110,8 +198,7 @@ public static class SubtitleFonts
         ArgumentNullException.ThrowIfNull(font);
         ArgumentNullException.ThrowIfNull(settings);
 
-        var key = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{file.Path}|font{font.StreamIndex}|{File.GetLastWriteTimeUtc(file.Path).Ticks}")))[..32];
-        var target = Path.Combine(settings.CacheDirectory, "subtitles", $"{key}.font");
+        var target = Target(file, font, settings);
         if (File.Exists(target))
         {
             return target;

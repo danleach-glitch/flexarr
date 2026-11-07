@@ -54,6 +54,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Home, a music library's Browse and the playlists page open sooner when you have long playlists: a playlist's track count, length and covers are worked out by the server's database instead of reading every song in every playlist each time.
 - Moving or removing a song in a long playlist is quicker: only the songs between its old place and its new one are renumbered, instead of every song in the playlist.
 
+### Playback
+
+- In the web player, styled subtitles for a file with many attached fonts (as anime releases often have) appear sooner: the server reads all of its fonts out in one go instead of one at a time, and the browser keeps them for the rest of the film or episode.
+
 ### Security
 
 - On iPhone, iPad, Apple TV and Mac, away from home, your sign-in goes to your server's home address only after it has shown it's your server, so another network using the same address never receives it and can't sign the app out.
