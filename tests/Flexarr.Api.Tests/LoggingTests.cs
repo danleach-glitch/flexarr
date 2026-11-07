@@ -203,6 +203,35 @@ public class LoggingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     }
 
     [Fact]
+    public async Task DiagnosticsWithNoLineBreaks_AreKeptInPiecesUpToTheLimit()
+    {
+        var device = await DeviceAsync("Unbroken TV");
+        using var body = new StringContent("started\r\n" + new string('z', 8 * 1024 * 1024) + "\npassword=hunter2", Encoding.UTF8, "text/plain");
+
+        var sent = await device.PostAsync(Api("/logs/client/diagnostics?platform=tvos"), body);
+        var id = (await sent.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        var text = await Admin().GetStringAsync(Api($"/logs/uploads/{id}"));
+
+        Assert.Equal(HttpStatusCode.Created, sent.StatusCode);
+        Assert.StartsWith("started\n" + new string('z', 1000), text, StringComparison.Ordinal);
+        Assert.InRange(text.Length, 4 * 1024 * 1024, ClientLogs.MaxUploadBytes + 1024);
+        Assert.Contains("cut short", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DiagnosticsKeepTheirLines()
+    {
+        var device = await DeviceAsync("Lines TV");
+        using var body = new StringContent("one\r\ntwo\rthree\n\nfour", Encoding.UTF8, "text/plain");
+
+        var sent = await device.PostAsync(Api("/logs/client/diagnostics?platform=tvos"), body);
+        var id = (await sent.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        var text = await Admin().GetStringAsync(Api($"/logs/uploads/{id}"));
+
+        Assert.Equal(["one", "two", "three", "", "four", ""], text.Split(Environment.NewLine));
+    }
+
+    [Fact]
     public async Task ADevice_SendsDiagnosticsAFewTimesAnHour_NotWithoutEnd()
     {
         var device = await DeviceAsync("Chatty TV");

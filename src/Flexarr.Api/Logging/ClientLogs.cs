@@ -27,6 +27,9 @@ public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILogg
     public const int MaxBatch = 100;
     public const int MaxUploadBytes = 5 * 1024 * 1024;
 
+    /// <summary>Longest line of diagnostics kept whole; a longer one is kept in pieces this long.</summary>
+    private const int MaxUploadLine = 64 * 1024;
+
     /// <summary>Per device, per minute. A browser stuck in a render loop mustn't fill the disk.</summary>
     private const int MaxPerMinute = 300;
 
@@ -135,22 +138,72 @@ public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILogg
         var id = $"{now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}"[..24];
         var path = Path.Combine(paths.UploadsDirectory, id + ".log");
 
-        // Redacted line by line on the way in: the app does its best, but this file goes into bug reports.
+        // Redacted line by line on the way in: the app does its best, but this file goes into bug reports. Read in
+        // blocks, so a body with no line breaks is never held whole: a line longer than MaxUploadLine is cut into pieces.
         long size = 0;
+        long read = 0;
+        var cut = false;
         using (var reader = new StreamReader(body))
         await using (var writer = new StreamWriter(path))
         {
-            while (await reader.ReadLineAsync(ct) is { } line)
+            var buffer = new char[16 * 1024];
+            var line = new System.Text.StringBuilder();
+            var afterReturn = false;
+
+            async Task WriteAsync()
             {
-                var clean = Redactor.Redact(line);
+                var clean = Redactor.Redact(line.ToString());
+                line.Clear();
                 size += clean.Length + 1;
                 if (size > MaxUploadBytes)
                 {
                     await writer.WriteLineAsync("… (cut short: diagnostics are limited to 5 MB)");
-                    break;
+                    cut = true;
+                    return;
                 }
 
                 await writer.WriteLineAsync(clean);
+            }
+
+            int count;
+            while (!cut && (count = await reader.ReadAsync(buffer, ct)) > 0)
+            {
+                read += count;
+                for (var i = 0; i < count && !cut; i++)
+                {
+                    var c = buffer[i];
+                    if (c == '\n' && afterReturn)
+                    {
+                        afterReturn = false;
+                        continue;
+                    }
+
+                    afterReturn = c == '\r';
+                    if (c is '\n' or '\r')
+                    {
+                        await WriteAsync();
+                    }
+                    else
+                    {
+                        line.Append(c);
+                        if (line.Length >= MaxUploadLine)
+                        {
+                            await WriteAsync();
+                        }
+                    }
+                }
+
+                // Redaction can shorten what's kept; what's read is held to a limit too.
+                if (!cut && read > 2L * MaxUploadBytes)
+                {
+                    await writer.WriteLineAsync("… (cut short: diagnostics are limited to 5 MB)");
+                    cut = true;
+                }
+            }
+
+            if (!cut && line.Length > 0)
+            {
+                await WriteAsync();
             }
         }
 
