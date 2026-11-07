@@ -1,5 +1,6 @@
 package io.github.flexarr.downloads
 
+import java.util.concurrent.TimeUnit
 import android.Manifest
 import android.content.pm.PackageManager
 import io.github.flexarr.core.i18n.t
@@ -22,6 +23,7 @@ import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import io.github.flexarr.AppModel
@@ -571,13 +573,28 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             return
         }
         if (replace) UserInitiatedTransfers.cancel(context, download.id)
+        work.enqueueUniqueWork(workName(download.id), if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP, request(download))
+    }
+
+    private fun request(download: LocalDownload, waits: Int = 0): OneTimeWorkRequest {
         val network = if (DownloadNetwork.needsUnmetered(isWiFiOnly(download), download.automatic, dataSaver)) NetworkType.UNMETERED else NetworkType.CONNECTED
-        val request = OneTimeWorkRequestBuilder<DownloadWorker>()
-            .setInputData(workDataOf(DownloadWorker.ID to download.id))
+        return OneTimeWorkRequestBuilder<DownloadWorker>()
+            .setInputData(workDataOf(DownloadWorker.ID to download.id, DownloadWorker.WAITS to waits))
             .setConstraints(Constraints.Builder().setRequiredNetworkType(network).setRequiresStorageNotLow(true).build())
+            .apply { if (waits > 0) setInitialDelay(DownloadRules.laterMillis(waits - 1), TimeUnit.MILLISECONDS) }
             .addTag(WORK_TAG)
             .build()
-        work.enqueueUniqueWork(workName(download.id), if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP, request)
+    }
+
+    /**
+     * A transfer WorkManager ran ended with [id] still waiting its turn on the server, having come back [waits] times
+     * before: it comes back in a few minutes ([DownloadRules.laterMillis]), in place of the one ending. Not if the
+     * download's gone, arrived, or a user-initiated job has it now.
+     */
+    internal fun later(id: String, waits: Int) {
+        val download = byId(id)?.takeIf { it.isPending } ?: return
+        if (UserInitiatedTransfers.isScheduled(context, id)) return
+        work.enqueueUniqueWork(workName(id), ExistingWorkPolicy.REPLACE, request(download, waits + 1))
     }
 
     /** What the server says about a download; true when its file should be fetched now. Called by the transfers too. */
