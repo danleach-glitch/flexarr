@@ -68,6 +68,65 @@ public sealed class RepackageSessionTests : IDisposable
         Assert.True(started.Elapsed < TimeSpan.FromSeconds(20), $"second session took {started.Elapsed}");
     }
 
+    [Fact]
+    public async Task WhenFfmpegIsInstalled_ACopiedStreamGotReadyAheadOfPlay_MakesOnlyItsOpening_AndCarriesOnUnbrokenOnceTakenUp()
+    {
+        if (!await HasFfmpegAsync())
+        {
+            return;
+        }
+
+        var clip = Path.Combine(_dir, "long.mkv");
+        await RunAsync("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=24", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
+            "-t", "300", "-c:v", "libx264", "-preset", "ultrafast", "-g", "48", "-keyint_min", "48", "-sc_threshold", "0", "-pix_fmt", "yuv420p", "-c:a", "aac", clip);
+        var keyframes = MatroskaCues.Read(clip)!;
+        var facts = RemuxIndex.ParseFacts(await RunAsync("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_streams", "-of", "json", clip))!;
+        var file = new MediaFile
+        {
+            Path = clip, Container = "mkv", VideoCodec = "h264", Width = 640, Height = 360, DurationSeconds = 300, Bitrate = 1_000_000,
+            Streams =
+            [
+                new MediaStream { Index = 0, Type = StreamType.Video, Codec = "h264", Width = 640, Height = 360 },
+                new MediaStream { Index = 1, Type = StreamType.Audio, Codec = "aac", Channels = 2, IsDefault = true },
+            ],
+        };
+        var profile = new DeviceProfile { Containers = ["mp4"], VideoCodecs = ["h264", "hevc"], AudioCodecs = ["aac"], Hdr = true, MaxAudioChannels = 8, Fmp4 = true };
+        var converting = PlaybackDecider.Decide(file, profile, [], new PlaybackOptions()).Transcode!;
+        var plan = PlaybackDecider.Repackaged(converting, file, profile, new PlaybackOptions(), new RemuxInfo(keyframes, facts))!;
+        var settings = new TranscodeSettings { CacheDirectory = _dir, FfmpegPath = "ffmpeg", HardwareAcceleration = HardwareAcceleration.None };
+        await using var session = new TranscodeSession("warm", clip, 300, plan, settings, NullLogger.Instance) { Warming = true };
+
+        // Got ready ahead of Play: the opening, then real time. With the full burst, copying makes three minutes at once.
+        Assert.NotNull(await session.GetSegmentAsync(0, CancellationToken.None));
+        var init = await File.ReadAllBytesAsync(Path.Combine(session.Directory, "init.mp4"));
+        await Task.Delay(TimeSpan.FromSeconds(3));
+        var made = SecondsListed(session);
+        Assert.InRange(made, FfmpegCommand.WarmingRunAheadSeconds - 2, FfmpegCommand.WarmingRunAheadSeconds + 20);
+
+        // Taken up: it carries on with the full head start (two and a half minutes in seconds, not at real time),
+        // and what the player gets, on the init segment it already has, is every frame with no gap or repeat.
+        session.Warming = false;
+        var started = Stopwatch.StartNew();
+        var joined = new List<byte>(init);
+        for (var i = 0; i <= session.SegmentAt(150); i++)
+        {
+            joined.AddRange(await File.ReadAllBytesAsync((await session.GetSegmentAsync(i, CancellationToken.None))!));
+        }
+
+        Assert.True(started.Elapsed < TimeSpan.FromSeconds(30), $"taken up, two and a half minutes took {started.Elapsed}");
+        var (codec, times) = await FramesAsync([.. joined]);
+        Assert.Equal("h264", codec);
+        Assert.Equal(0, times[0], 2);
+        Assert.True(times[^1] > 149, $"ended at {times[^1]}");
+        Assert.All(times.Zip(times.Skip(1)), pair => Assert.InRange(pair.Second - pair.First, 0.01, 0.05));
+    }
+
+    /// <summary>How many seconds ffmpeg's own playlist lists: what the current run has made.</summary>
+    private static double SecondsListed(TranscodeSession session) =>
+        File.ReadAllLines(Path.Combine(session.Directory, "ffmpeg.m3u8"))
+            .Where(l => l.StartsWith("#EXTINF:", StringComparison.Ordinal))
+            .Sum(l => double.Parse(l.AsSpan(8).TrimEnd(','), CultureInfo.InvariantCulture));
+
     private async Task<(string Codec, List<double> Times)> FramesAsync(byte[] mp4)
     {
         var path = Path.Combine(_dir, "joined.mp4");

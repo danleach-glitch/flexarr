@@ -48,6 +48,9 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     private double _speed = 1;
     private double _pace = 1;
 
+    // The head start the ffmpeg now running was started with: short for a copied stream got ready ahead of Play.
+    private int _burst = FfmpegCommand.RunAheadSeconds;
+
     // What ffmpeg's playlist listed when it was last read, and its size and time then (it's polled every 100 ms).
     private HashSet<int> _completed = [];
 
@@ -246,6 +249,13 @@ public sealed partial class TranscodeSession : IAsyncDisposable
                 // it: it starts again here at their speed, with a new head start, rather than every segment from now
                 // on being waited for.
                 if (coming && Speed > _pace && MadeSeconds() >= FfmpegCommand.RunAheadSeconds)
+                {
+                    coming = false;
+                }
+
+                // A copied stream got ready ahead of Play runs with only a short head start: taken up by a player, it
+                // starts again here with the full one.
+                if (coming && !Warming && _burst < FfmpegCommand.RunAheadSeconds)
                 {
                     coming = false;
                 }
@@ -554,14 +564,18 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 
         var start = new ProcessStartInfo(_settings.FfmpegPath) { UseShellExecute = false, RedirectStandardError = true, RedirectStandardInput = false };
         // The full burst even when got ready ahead of Play: the sweep stops that run once it has enough to open on (see
-        // StopWarmRunAsync), and one taken up while it's still going keeps the whole run-ahead.
+        // StopWarmRunAsync), and one taken up while it's still going keeps the whole run-ahead. Not a copied stream's:
+        // copying gets through the whole burst before the sweep comes round, reading and writing minutes of the film for
+        // a page looked at, so it starts with just enough to open on, and again with the full burst once taken up.
         var pace = Speed;
-        foreach (var arg in FfmpegCommand.Hls(Input, Plan, segment, Directory, _settings, Opening, FfmpegCommand.RunAheadSeconds, pace))
+        var burst = Warming && Plan.Repackage is not null ? FfmpegCommand.WarmingRunAheadSeconds : FfmpegCommand.RunAheadSeconds;
+        foreach (var arg in FfmpegCommand.Hls(Input, Plan, segment, Directory, _settings, Opening, burst, pace))
         {
             start.ArgumentList.Add(arg);
         }
 
         _pace = pace;
+        _burst = burst;
 
         _lastError = null;
         StartedAt = DateTime.UtcNow;

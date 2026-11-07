@@ -66,7 +66,8 @@ public static class FfmpegCommand
     /// A stream got ready ahead of Play makes this much, then stops until a player takes it up: enough to open on,
     /// without encoding minutes of a title nobody may play. It starts with the full <see cref="RunAheadSeconds"/> burst,
     /// so a player that takes it up while it's still going gets the whole run-ahead (see
-    /// <see cref="TranscodeSession.StopWarmRunAsync"/>).
+    /// <see cref="TranscodeSession.StopWarmRunAsync"/>). A copied (repackaged) stream starts with this as its burst
+    /// instead, and starts again with the full one once a player takes it up.
     /// </summary>
     public const int WarmingRunAheadSeconds = 30;
 

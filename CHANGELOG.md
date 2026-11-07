@@ -94,6 +94,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - In the web player, styled subtitles start showing as soon as their lines are here, in a plainer face, and each line takes on its own font when that font arrives, instead of showing nothing until every font had downloaded.
 - On iPhone, iPad and Apple TV, the first play of a film or episode after the server restarts starts a moment sooner when its stream is sent as it is: when its sound begins is remembered with the rest of what the server knows about the file, instead of being read from the file again.
 - Pressing Play on an episode gets its answer from the server a little sooner: the show, the season and the episodes either side are looked up together instead of one after another, and on iPhone, iPad and Apple TV the two quick checks of a file sent as it is run side by side.
+- On iPhone, iPad and Apple TV, just opening the page of a film or episode whose picture is sent as it is no longer copies minutes of it (gigabytes for a 4K film) into the server's cache: it gets the first half-minute ready, and the rest once you press Play.
 
 ### Backups
 
