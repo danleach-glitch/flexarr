@@ -685,12 +685,28 @@ function PodcastShow() {
     }
   }
 
-  // A show only being looked at is checked for new episodes when opened: look again shortly for what that found.
+  // A show only being looked at is checked for new episodes when opened: look again shortly for what that found. Once
+  // per show (the second look loads the show afresh, which would otherwise start the wait over), and not in a hidden
+  // tab: then it waits until the page is seen again.
+  const lookedAgain = useRef<string>(undefined)
+  const notFollowed = show.data !== undefined && !show.data.subscription
   useEffect(() => {
-    if (!show.data || show.data.subscription) return
-    const timer = setTimeout(changed, 70_000)
-    return () => clearTimeout(timer)
-  }, [show.data, changed])
+    if (!notFollowed || lookedAgain.current === id) return
+    const look = () => {
+      if (document.visibilityState === 'hidden') return
+      lookedAgain.current = id
+      document.removeEventListener('visibilitychange', look)
+      changed()
+    }
+    const timer = setTimeout(() => {
+      look()
+      if (lookedAgain.current !== id) document.addEventListener('visibilitychange', look)
+    }, 70_000)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('visibilitychange', look)
+    }
+  }, [id, notFollowed, changed])
 
   if (show.error) return <PageError error={show.error} message={show.error instanceof ApiError && show.error.status === 404 ? t('This podcast is no longer here.') : undefined} onRetry={show.reload} />
   if (!show.data) return <PageLoading />

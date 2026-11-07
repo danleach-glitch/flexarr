@@ -168,3 +168,52 @@ describe('a podcast’s episodes', () => {
     expect(moreButton(container)).toBeInTheDocument()
   }, 20_000)
 })
+
+describe('a podcast not followed', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' })
+  })
+
+  const showAsks = (fetchMock: ReturnType<typeof mockApi>) =>
+    fetchMock.mock.calls.filter(([input]) => new URL(String(input), 'http://localhost').pathname === '/api/v1/podcasts/p1').length
+
+  function followless() {
+    return mockApi({
+      '/podcasts/status': { available: true, needsLibrary: false },
+      '/podcasts/p1': podcast,
+      '/podcasts/p1/episodes': { total: 3, items: episodes.slice(0, 3) },
+    })
+  }
+
+  it('looks once more for new episodes after a while, and only once', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const fetchMock = followless()
+    const { container } = show()
+    await waitFor(() => expect(rows(container)).toHaveLength(3))
+    expect(showAsks(fetchMock)).toBe(1)
+
+    await act(() => vi.advanceTimersByTimeAsync(70_000))
+    await waitFor(() => expect(showAsks(fetchMock)).toBe(2))
+    await act(() => vi.advanceTimersByTimeAsync(300_000))
+    expect(showAsks(fetchMock)).toBe(2)
+    expect(rows(container)).toHaveLength(3)
+  })
+
+  it('waits for a hidden tab to be seen again before looking', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const fetchMock = followless()
+    const { container } = show()
+    await waitFor(() => expect(rows(container)).toHaveLength(3))
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })
+    await act(() => vi.advanceTimersByTimeAsync(140_000))
+    expect(showAsks(fetchMock)).toBe(1)
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' })
+    act(() => void document.dispatchEvent(new Event('visibilitychange')))
+    await waitFor(() => expect(showAsks(fetchMock)).toBe(2))
+    await act(() => vi.advanceTimersByTimeAsync(300_000))
+    expect(showAsks(fetchMock)).toBe(2)
+  })
+})
