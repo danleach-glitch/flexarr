@@ -36,6 +36,25 @@ production.
    - Audio passthrough (AC-3, E-AC-3 with Atmos, DTS, TrueHD) when the TV or amplifier takes it.
    - `DeviceCapabilities` reports the TV's real HDR10, HDR10+, Dolby Vision and 4K support, so more titles play
      without converting.
+
+   How (decided 7 November 2026, with no server change and no new API field):
+   - **Watch Next only.** Google TV ignores apps' preview channels and shows only the Watch Next row, so there's
+     no Flexarr channel for now. The row holds the last profile's Continue Watching (films and episodes from
+     `home/continue`, with progress), the next episode of a show (as *Next*), then recently played albums. It's
+     cleared on sign-out, for family guests, and while the profile has a PIN, since anyone at the TV sees it. It
+     refreshes when playback stops, the profile changes, the app opens or comes back online, and every 6 hours.
+     A card resumes playback through a launch token of its own (never `AppLink`'s in-app secret). Removing a card
+     on the home screen calls `DELETE /home/continue/{id}` (servers 0.51 on).
+   - **Frame rate follows the TV's own setting** (*Match content frame rate*), as the Apple TV follows Match
+     Content: the player asks for the film's frame rate before its first frame and the TV decides. No Flexarr
+     setting.
+   - **Passthrough is *Lossless surround*** (Settings › Playback › This TV, the Apple TV's wording), on by default
+     when the HDMI output takes a format. The profile lists `dts` and `truehd` only for formats the output takes,
+     and the server then plays those files directly (HLS can't carry them). Dialogue boost, Night mode and Speakers
+     work on decoded sound, so while one is on surround is decoded, as on the Apple TV.
+   - **Real capabilities:** HDR types from the display, Dolby Vision only with its decoder, 4K from the decoders
+     rather than the screen (a 1080p TV scales a 4K file itself). HDR10+ needs no profile field: it rides on HDR10.
+     Settings › Diagnostics shows all of it, since the emulator has no HDR screen or amplifier.
 5. **Release.** Done ahead of stage 4, for Google Play's closed test: the manifest offers the app to TVs, the TV
    screenshots and banner are in the listing (`app/src/main/play`), and release builds still refuse sign-in from
    launch arguments (`LAUNCH_ARGUMENTS` off), since any app on a shared TV could send them. Still to come: opt in to
