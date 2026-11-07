@@ -22,6 +22,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 - Tapping a title or **Play** straight after a fast scroll no longer waits behind the posters still loading: the app's requests to your server have connections of their own.
 - After you watch or mark something, only the library grid on screen fetches its titles again. Grids left open behind other pages or tabs used to do so every time, and now catch up once, when you go back to them.
+- In a long library, watching or marking something fetches again only the titles around where you are in the grid, rather than every title you've scrolled past.
 - Flexarr opens a little sooner on a slow connection: it asks your server for its languages once rather than twice before the first screen, asks for podcasts, Live TV and the watchlist alongside your libraries rather than one after another, and reuses the server's version it already knows.
 - Scrubbing through a film or episode no longer fills the app's memory with preview sheets and pushes out the posters, which used to load again after the film. Only the few sheets around where you're scrubbing are kept.
 
