@@ -292,6 +292,77 @@ public sealed class WatchlistTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AProfile_CanAskForOnlySoManyFilmsAndShowsADay_AndAWatchlistIsntAWayRound()
+    {
+        SeerrKnows("movie", 4101, "One More", "2023-06-01");
+        SeerrKnows("movie", 4102, "One Too Many", "2023-06-01");
+        SeerrKnows("movie", 4103, "On The Watchlist", "2023-06-01");
+        var id = (await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = "Teen" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        await Client().PutAsJsonAsync(Api($"/profiles/{id}/watchlist-requests"), new { autoRequest = true });
+        var device = (await (await Client().PostAsJsonAsync(Api("/session/device"), new { deviceName = "Teen's phone" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+        var teen = _server.CreateClient();
+        teen.DefaultRequestHeaders.Add("X-Api-Key", device);
+        Assert.True((await teen.PostAsJsonAsync(Api($"/profiles/{id}/select"), new { })).IsSuccessStatusCode);
+        // One short of the day's worth already, a mix of films and shows; music and yesterday's don't count.
+        await SeedAsync(db =>
+        {
+            for (var i = 0; i < Flexarr.Api.Endpoints.RequestEndpoints.DailyLimit - 1; i++)
+            {
+                db.MediaRequests.Add(new Flexarr.Core.Notifications.MediaRequest { ProfileId = id, Kind = i % 2 == 0 ? MediaKind.Movie : MediaKind.Series, TmdbId = 90_000 + i });
+            }
+
+            db.MediaRequests.Add(new Flexarr.Core.Notifications.MediaRequest { ProfileId = id, Kind = MediaKind.Album, MusicBrainzId = "album", Title = "An album" });
+            db.MediaRequests.Add(new Flexarr.Core.Notifications.MediaRequest { ProfileId = id, Kind = MediaKind.Movie, TmdbId = 80_000, RequestedAt = DateTime.UtcNow.AddDays(-2) });
+        });
+
+        var last = await teen.PostAsJsonAsync(Api("/requests"), new { mediaType = "movie", tmdbId = 4101 });
+        var tooMany = await teen.PostAsJsonAsync(Api("/requests"), new { mediaType = "movie", tmdbId = 4102 });
+        var listed = await (await teen.PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 4103 })).Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(HttpStatusCode.Accepted, last.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, tooMany.StatusCode);
+        Assert.Contains("Try again tomorrow", await tooMany.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        // It goes on the watchlist, but isn't requested.
+        Assert.False(listed.GetProperty("requested").GetBoolean());
+        Assert.Equal(1, Requests());
+
+        // The main profile, which manages Sonarr and Radarr anyway, isn't counted, whatever it has asked for.
+        await SeedAsync(db =>
+        {
+            for (var i = 0; i < Flexarr.Api.Endpoints.RequestEndpoints.DailyLimit + 5; i++)
+            {
+                db.MediaRequests.Add(new Flexarr.Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Movie, TmdbId = 70_000 + i });
+            }
+        });
+        Assert.Equal(HttpStatusCode.Accepted, (await Client().PostAsJsonAsync(Api("/requests"), new { mediaType = "movie", tmdbId = 4102 })).StatusCode);
+
+        // A day on, the profile can ask again.
+        await InDbAsync(async db => await db.MediaRequests.Where(r => r.ProfileId == id).ExecuteUpdateAsync(u => u.SetProperty(r => r.RequestedAt, DateTime.UtcNow.AddDays(-2))));
+        Assert.Equal(HttpStatusCode.Accepted, (await teen.PostAsJsonAsync(Api("/requests"), new { mediaType = "movie", tmdbId = 4102 })).StatusCode);
+    }
+
+    [Fact]
+    public async Task FilmsAskedForAllAtOnce_StillStopAtTheDaysLimit()
+    {
+        var id = (await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = "Script" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        var device = (await (await Client().PostAsJsonAsync(Api("/session/device"), new { deviceName = "A script" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+        var script = _server.CreateClient();
+        script.DefaultRequestHeaders.Add("X-Api-Key", device);
+        Assert.True((await script.PostAsJsonAsync(Api($"/profiles/{id}/select"), new { })).IsSuccessStatusCode);
+        var limit = Flexarr.Api.Endpoints.RequestEndpoints.DailyLimit;
+        // One that's refused (a show Sonarr can't add) doesn't use up any of the day.
+        _seerr.Responses["GET /api/v1/tv/339754"] = """{"id": 339754, "name": "LOL Halloween", "externalIds": {"tvdbId": null, "imdbId": null}}""";
+        Assert.Equal(HttpStatusCode.Conflict, (await script.PostAsJsonAsync(Api("/requests"), new { mediaType = "tv", tmdbId = 339754 })).StatusCode);
+
+        // Sent together, so none has been counted by the time the others are checked.
+        var answers = await Task.WhenAll(Enumerable.Range(0, limit + 30).Select(i => script.PostAsJsonAsync(Api("/requests"), new { mediaType = "movie", tmdbId = 60_000 + i })));
+
+        Assert.Equal(limit, answers.Count(a => a.StatusCode == HttpStatusCode.Accepted));
+        Assert.Equal(30, answers.Count(a => a.StatusCode == HttpStatusCode.TooManyRequests));
+        Assert.Equal(limit, Requests());
+    }
+
+    [Fact]
     public async Task OnlyTheAdmin_TurnsOnAutoRequest()
     {
         // A TV on the main profile, locked: it watches, but doesn't manage the server.

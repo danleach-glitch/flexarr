@@ -31,6 +31,7 @@ public static partial class Redactor
             }
         }
 
+        text = UserInfo().Replace(text, "$1***@");
         text = Named().Replace(text, m => $"{m.Groups[1].Value}***");
         text = Bearer().Replace(text, "$1***");
 
@@ -43,8 +44,12 @@ public static partial class Redactor
     public static string ShortHash(string token) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token.ToLowerInvariant())))[..8];
 
-    [GeneratedRegex(@"\b((?:api[_-]?key|apikey|(?<=[?&])key|access[_-]?token|token|password|passwd|secret|sig|signature)[""']?\s*[=:]\s*[""']?)[^&\s""',;\\]+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b((?:api[_-]?key|apikey|(?<=[?&])key|(?<=[?&])auth|access[_-]?token|token|password|passwd|secret|sig|signature)[""']?\s*[=:]\s*[""']?)[^&\s""',;\\]+", RegexOptions.IgnoreCase)]
     private static partial Regex Named();
+
+    /// <summary>The user name and password in an address (<c>https://user:pass@host</c>).</summary>
+    [GeneratedRegex(@"\b([a-z][a-z0-9+.\-]*://)[^/\s@?#""'<>]+@", RegexOptions.IgnoreCase)]
+    private static partial Regex UserInfo();
 
     [GeneratedRegex(@"\b(Bearer\s+)[^\s""\\]+", RegexOptions.IgnoreCase)]
     private static partial Regex Bearer();

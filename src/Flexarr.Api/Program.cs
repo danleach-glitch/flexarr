@@ -143,6 +143,9 @@ builder.Services.AddScoped<PodcastLibrary>();
 // Live TV from Dispatcharr's Xtream Codes API. Every address it calls carries the password, so the client's request
 // logging is off; the guide can be tens of megabytes, hence the long timeout.
 builder.Services.AddHttpClient<XtreamClient>(c => c.Timeout = TimeSpan.FromMinutes(5)).RemoveAllLoggers();
+// Its channel logos: redirects are followed by hand, only while they stay on the source (XtreamClient.GetLogoAsync).
+builder.Services.AddHttpClient(XtreamClient.LogoClientName, c => c.Timeout = TimeSpan.FromSeconds(30))
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false }).RemoveAllLoggers();
 // Current channel logos from the community collection on GitHub (its file list, fetched weekly).
 builder.Services.AddHttpClient(CommunityLogoIndex.ClientName, c =>
 {
@@ -382,6 +385,12 @@ using (var scope = app.Services.CreateScope())
     // Readers (the web app, players) don't wait on a scan's writes, or the other way round. Stored in the file, but
     // a database created or restored elsewhere may not have it.
     await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
+    // The database is there now, whether new, restored or migrated: it, the logs and the cache are this account's alone.
+    OwnerOnly.Apply(
+        app.Services.GetRequiredService<IOptions<FlexarrOptions>>().Value.DataDirectory,
+        app.Services.GetRequiredService<LogPaths>().Directory,
+        app.Services.GetRequiredService<IOptions<FlexarrOptions>>().Value.ResolvedCacheDirectory,
+        app.Services.GetRequiredService<IInstallEnvironment>() is { Kind: InstallKind.MacLaunchAgent, Root: { } root } ? root : null);
     await PodcastLibrary.EnsureLibraryAsync(db, app.Services.GetRequiredService<IOptions<FlexarrOptions>>().Value, CancellationToken.None);
     // Age limits read each title's age: work them out for titles saved before, or rated by an older table of ratings.
     // Saving a title works out its own, so otherwise there's nothing to do.

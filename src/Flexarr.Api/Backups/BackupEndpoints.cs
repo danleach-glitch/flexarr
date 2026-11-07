@@ -53,8 +53,17 @@ public static class BackupEndpoints
         {
             var current = options.CurrentValue;
             var folder = update.Folder is null ? current.Backups.Folder : update.Folder.Trim() is { Length: > 0 } chosen ? chosen : null;
-            if (folder is not null && WritableFolder.Problem(folder, PrivateFiles.CreateFolder) is { } problem)
+            // Checked before the folder is made: nothing of Flexarr's goes where the web app is served from. And again once
+            // it's there, when a file in it can show what its path didn't: that it's the same folder by another name.
+            var there = folder is not null && Directory.Exists(folder);
+            if (folder is not null && ((Path.IsPathFullyQualified(folder) ? store.ServedProblem(folder) : null) ?? WritableFolder.Problem(folder, PrivateFiles.CreateFolder)
+                ?? store.ServedProblem(folder)) is { } problem)
             {
+                if (!there && Path.IsPathFullyQualified(folder))
+                {
+                    RemoveIfEmpty(folder);
+                }
+
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["folder"] = [problem] });
             }
 
@@ -433,6 +442,19 @@ public static class BackupEndpoints
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
         {
             return "";
+        }
+    }
+
+    /// <summary>Takes away a folder made a moment ago for a setting that was then refused, unless something is in it.</summary>
+    private static void RemoveIfEmpty(string folder)
+    {
+        try
+        {
+            Directory.Delete(folder);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            // Not there, not empty, or not ours to remove: left as it is.
         }
     }
 

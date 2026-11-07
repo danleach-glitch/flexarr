@@ -27,8 +27,17 @@ public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILogg
     public const int MaxBatch = 100;
     public const int MaxUploadBytes = 5 * 1024 * 1024;
 
+    /// <summary>Longest line of diagnostics kept whole; a longer one is kept in pieces this long.</summary>
+    private const int MaxUploadLine = 64 * 1024;
+
     /// <summary>Per device, per minute. A browser stuck in a render loop mustn't fill the disk.</summary>
     private const int MaxPerMinute = 300;
+
+    /// <summary>
+    /// What one device's reports may add to the server's log in an hour. Lines can be long, so lines a minute alone
+    /// would let one device push the record of what the server did out of the log's allowance within the hour.
+    /// </summary>
+    public const long MaxBytesPerHour = 1024 * 1024;
 
     /// <summary>Diagnostics from one device in an hour: plenty for someone sending them by hand.</summary>
     public const int MaxUploadsPerHour = 6;
@@ -49,6 +58,7 @@ public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILogg
 
     private readonly ConcurrentDictionary<string, (long Minute, int Count)> _rates = new();
     private readonly ConcurrentDictionary<string, (long Hour, int Count)> _uploadRates = new();
+    private readonly ConcurrentDictionary<string, (long Hour, long Bytes)> _byteRates = new();
 
     /// <summary>Reports go through the server's own logging, so they're filtered, redacted and stored like the rest.</summary>
     private readonly ILogger _log = loggers.CreateLogger(LogAreas.ClientSource);
@@ -60,6 +70,20 @@ public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILogg
         var rate = _rates.AddOrUpdate(who.Key, _ => (minute, batch.Entries.Count),
             (_, r) => r.Minute == minute ? (minute, r.Count + batch.Entries.Count) : (minute, batch.Entries.Count));
         if (rate.Count > MaxPerMinute)
+        {
+            return false;
+        }
+
+        var hour = minute / 60;
+        var weight = batch.Entries.Take(MaxBatch).Sum(Weight) + Math.Min(batch.Platform.Length, 16) + Math.Min(batch.AppVersion?.Length ?? 0, 200);
+        var refused = false;
+        _byteRates.AddOrUpdate(who.Key, _ => (refused = weight > MaxBytesPerHour) ? (hour, 0) : (hour, weight), (_, r) =>
+        {
+            var used = r.Hour == hour ? r.Bytes : 0;
+            refused = used + weight > MaxBytesPerHour;
+            return (hour, refused ? used : used + weight);
+        });
+        if (refused)
         {
             return false;
         }
@@ -114,22 +138,72 @@ public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILogg
         var id = $"{now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}"[..24];
         var path = Path.Combine(paths.UploadsDirectory, id + ".log");
 
-        // Redacted line by line on the way in: the app does its best, but this file goes into bug reports.
+        // Redacted line by line on the way in: the app does its best, but this file goes into bug reports. Read in
+        // blocks, so a body with no line breaks is never held whole: a line longer than MaxUploadLine is cut into pieces.
         long size = 0;
+        long read = 0;
+        var cut = false;
         using (var reader = new StreamReader(body))
         await using (var writer = new StreamWriter(path))
         {
-            while (await reader.ReadLineAsync(ct) is { } line)
+            var buffer = new char[16 * 1024];
+            var line = new System.Text.StringBuilder();
+            var afterReturn = false;
+
+            async Task WriteAsync()
             {
-                var clean = Redactor.Redact(line);
+                var clean = Redactor.Redact(line.ToString());
+                line.Clear();
                 size += clean.Length + 1;
                 if (size > MaxUploadBytes)
                 {
                     await writer.WriteLineAsync("… (cut short: diagnostics are limited to 5 MB)");
-                    break;
+                    cut = true;
+                    return;
                 }
 
                 await writer.WriteLineAsync(clean);
+            }
+
+            int count;
+            while (!cut && (count = await reader.ReadAsync(buffer, ct)) > 0)
+            {
+                read += count;
+                for (var i = 0; i < count && !cut; i++)
+                {
+                    var c = buffer[i];
+                    if (c == '\n' && afterReturn)
+                    {
+                        afterReturn = false;
+                        continue;
+                    }
+
+                    afterReturn = c == '\r';
+                    if (c is '\n' or '\r')
+                    {
+                        await WriteAsync();
+                    }
+                    else
+                    {
+                        line.Append(c);
+                        if (line.Length >= MaxUploadLine)
+                        {
+                            await WriteAsync();
+                        }
+                    }
+                }
+
+                // Redaction can shorten what's kept; what's read is held to a limit too.
+                if (!cut && read > 2L * MaxUploadBytes)
+                {
+                    await writer.WriteLineAsync("… (cut short: diagnostics are limited to 5 MB)");
+                    cut = true;
+                }
+            }
+
+            if (!cut && line.Length > 0)
+            {
+                await WriteAsync();
             }
         }
 
@@ -196,6 +270,11 @@ public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILogg
         id.Length == 24 && id.All(c => char.IsAsciiDigit(c) || c == '-' || char.IsAsciiHexDigitLower(c))
             ? Path.Combine(paths.UploadsDirectory, id + ".log")
             : null;
+
+    /// <summary>About how much of the log a line takes, as it's clipped on the way in.</summary>
+    private static long Weight(ClientLogLine line) =>
+        Math.Min(line.Message.Length, MaxText) + Math.Min(line.Error?.Length ?? 0, MaxText) + Math.Min(line.Category?.Length ?? 0, 200)
+        + (line.Properties ?? []).Take(MaxProperties).Sum(p => Math.Min(p.Key.Length, 40) + Math.Min(p.Value?.Length ?? 0, 200));
 
     private static LogLevel Level(LogEventLevel level) => level switch
     {

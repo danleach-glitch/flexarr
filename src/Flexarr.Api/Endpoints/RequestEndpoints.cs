@@ -282,6 +282,11 @@ public static partial class RequestEndpoints
                 return Problems.Field("Use \"movie\" or \"tv\".", field: "mediaType");
             }
 
+            if (!await TakeAskAsync(db, cache, current.Id, ct))
+            {
+                return Problems.Of("That’s a lot of requests for one day. Try again tomorrow.", status: 429);
+            }
+
             try
             {
                 var seasons = request.MediaType == "tv" && request.Seasons is { Count: > 0 } chosen ? chosen.Where(n => n > 0).Distinct().Order().ToList() : null;
@@ -301,10 +306,12 @@ public static partial class RequestEndpoints
             }
             catch (HttpRequestException ex)
             {
+                ReturnAsk(cache, current.Id);
                 return Problems.Of("Seerr didn’t accept the request ({status}). It may already be requested.", new { status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
             catch (NotRequestableException ex)
             {
+                ReturnAsk(cache, current.Id);
                 return Results.Problem(ex.Message, statusCode: 409);
             }
         });
@@ -376,6 +383,79 @@ public static partial class RequestEndpoints
         });
 
         return api;
+    }
+
+    /// <summary>
+    /// The most films and shows one profile can ask for in a day (music has its own,
+    /// <see cref="MusicRequestEndpoints.DailyLimit"/>): Seerr approves them with Flexarr's key, and Radarr and Sonarr
+    /// download what it approves, so without one a guest's device or a teenager's profile could fill the disk.
+    /// </summary>
+    internal const int DailyLimit = 50;
+
+    /// <summary>
+    /// Takes one of <paramref name="profileId"/>'s day's worth of film and show requests, or false when it has none
+    /// left: its requests in the last day, or what it has asked since (asking again for the same title reuses its
+    /// request but still reaches Seerr). Taken before Seerr is asked, so requests sent all at once can't each find
+    /// room before any is counted; one Seerr then refuses is given back (<see cref="ReturnAsk"/>), but not one given
+    /// up on part way (the asker went away), which Seerr may have taken all the same.
+    /// Never the main profile, which manages Sonarr and Radarr anyway.
+    /// </summary>
+    internal static async Task<bool> TakeAskAsync(FlexarrDbContext db, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, string profileId, CancellationToken ct)
+    {
+        if (profileId == PlaybackState.DefaultUser)
+        {
+            return true;
+        }
+
+        var since = DateTime.UtcNow.AddDays(-1);
+        if (await db.MediaRequests.CountAsync(r => r.ProfileId == profileId && (r.Kind == MediaKind.Movie || r.Kind == MediaKind.Series) && r.RequestedAt > since, ct)
+            >= DailyLimit)
+        {
+            return false;
+        }
+
+        var asked = AskCount(cache, profileId);
+        if (Interlocked.Increment(ref asked.Value) > DailyLimit)
+        {
+            Interlocked.Decrement(ref asked.Value);
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>Gives back what <see cref="TakeAskAsync"/> took for a film or show request that Seerr refused, or was never sent.</summary>
+    internal static void ReturnAsk(Microsoft.Extensions.Caching.Memory.IMemoryCache cache, string profileId)
+    {
+        if (profileId == PlaybackState.DefaultUser)
+        {
+            return;
+        }
+
+        // Never below nothing: the day's count may have started afresh since it was taken.
+        var asked = AskCount(cache, profileId);
+        for (var now = asked.Value; now > 0; now = asked.Value)
+        {
+            if (Interlocked.CompareExchange(ref asked.Value, now - 1, now) == now)
+            {
+                return;
+            }
+        }
+    }
+
+    private static readonly Lock AskCounts = new();
+
+    private static System.Runtime.CompilerServices.StrongBox<int> AskCount(Microsoft.Extensions.Caching.Memory.IMemoryCache cache, string profileId)
+    {
+        // One at a time: two requests arriving together would otherwise each make, and count in, a box of their own.
+        lock (AskCounts)
+        {
+            return Microsoft.Extensions.Caching.Memory.CacheExtensions.GetOrCreate(cache, $"title-ask:{profileId}", entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(1);
+                return new System.Runtime.CompilerServices.StrongBox<int>();
+            })!;
+        }
     }
 
     /// <summary>

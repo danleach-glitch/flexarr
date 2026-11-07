@@ -14,6 +14,9 @@ public static class BookEndpoints
 {
     private const int MaxPage = 200;
 
+    /// <summary>The most bookmarks one profile keeps in one book.</summary>
+    public const int MaxBookmarksPerBook = 1000;
+
     public static RouteGroupBuilder MapBookEndpoints(this RouteGroupBuilder api)
     {
         var library = api.MapGroup("/libraries/{id:guid}").WithTags("Audiobooks");
@@ -143,6 +146,11 @@ public static class BookEndpoints
             if (!double.IsFinite(request.PositionSeconds) || request.PositionSeconds < 0 || request.Note?.Length > 2000)
             {
                 return Problems.Field("A place in the book, and a note of up to 2,000 characters.", field: "bookmark");
+            }
+
+            if (await db.Bookmarks.CountAsync(b => b.MediaItemId == id && b.ProfileId == profile.Id, ct) >= MaxBookmarksPerBook)
+            {
+                return Problems.Of("A book can have up to 1,000 bookmarks.", status: 400);
             }
 
             var bookmark = new Core.Books.Bookmark { ProfileId = profile.Id, MediaItemId = id, PositionSeconds = request.PositionSeconds, Note = Note(request.Note) };

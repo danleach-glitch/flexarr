@@ -193,6 +193,86 @@ public class PlaylistTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApi
         Assert.Equal(summary, (await Client().GetFromJsonAsync<PlaylistDetailDto>(Api($"/playlists/{full}"), Json))!.Summary with { Covers = summary.Covers });
     }
 
+    [Fact]
+    public async Task ARequest_NamesUpTo500ThingsAtATime()
+    {
+        var music = await SeedAsync();
+        var client = Client();
+        var name = $"Over and over {Guid.NewGuid():N}";
+
+        var tooMany = await client.PostAsJsonAsync(Api("/playlists"), new { name, itemIds = Enumerable.Repeat(music.Pulp, PlaylistEndpoints.MaxIdsPerRequest + 1) });
+        Assert.Equal(HttpStatusCode.BadRequest, tooMany.StatusCode);
+        Assert.Contains("up to 500", await tooMany.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.DoesNotContain(await client.GetFromJsonAsync<List<PlaylistSummaryDto>>(Api("/playlists"), Json) ?? [], p => p.Name == name);
+
+        // 500 is fine, and a playlist may still repeat: Pulp's three tracks, 500 times.
+        var created = await (await client.PostAsJsonAsync(Api("/playlists"), new { name, itemIds = Enumerable.Repeat(music.Pulp, PlaylistEndpoints.MaxIdsPerRequest) }))
+            .Content.ReadFromJsonAsync<PlaylistSummaryDto>(Json);
+        Assert.Equal(1500, created!.TrackCount);
+
+        var more = await client.PostAsJsonAsync(Api($"/playlists/{created.Id}/items"), new { itemIds = Enumerable.Repeat(music.Tender, PlaylistEndpoints.MaxIdsPerRequest + 1) });
+        Assert.Equal(HttpStatusCode.BadRequest, more.StatusCode);
+        Assert.Contains("up to 500", await more.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(1500, (await client.GetFromJsonAsync<PlaylistDetailDto>(Api($"/playlists/{created.Id}"), Json))!.Summary.TrackCount);
+    }
+
+    [Fact]
+    public async Task APlaylist_HoldsUpTo10000Tracks_HoweverTheyreAsked()
+    {
+        var music = await SeedAsync();
+        var prolific = await SeedArtistAsync(music.Library, tracks: 25);
+        var client = Client();
+        var name = $"Everything {Guid.NewGuid():N}";
+
+        // One artist named 500 times is 12,500 tracks: refused whole, with nothing made.
+        var tooMany = await client.PostAsJsonAsync(Api("/playlists"), new { name, itemIds = Enumerable.Repeat(prolific, 500) });
+        Assert.Equal(HttpStatusCode.BadRequest, tooMany.StatusCode);
+        Assert.Contains("up to 10,000 tracks", await tooMany.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.DoesNotContain(await client.GetFromJsonAsync<List<PlaylistSummaryDto>>(Api("/playlists"), Json) ?? [], p => p.Name == name);
+
+        // 400 times is 10,000 exactly, which fits.
+        var created = await (await client.PostAsJsonAsync(Api("/playlists"), new { name, itemIds = Enumerable.Repeat(prolific, 400) })).Content.ReadFromJsonAsync<PlaylistSummaryDto>(Json);
+        Assert.Equal(PlaylistEndpoints.MaxTracks, created!.TrackCount);
+
+        // Full: one more track doesn't go in, nor does an album.
+        foreach (var id in new[] { music.Tender, music.DifferentClass })
+        {
+            var full = await client.PostAsJsonAsync(Api($"/playlists/{created.Id}/items"), new { itemIds = new[] { id } });
+            Assert.Equal(HttpStatusCode.BadRequest, full.StatusCode);
+            Assert.Contains("up to 10,000 tracks", await full.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+
+        // Adding what it already has, skipping duplicates, is still nothing to add rather than an error.
+        var skipped = await (await client.PostAsJsonAsync(Api($"/playlists/{created.Id}/items"), new { itemIds = Enumerable.Repeat(prolific, 500), skipDuplicates = true }))
+            .Content.ReadFromJsonAsync<PlaylistAddedDto>(Json);
+        Assert.Equal(0, skipped!.Added);
+        Assert.Equal(PlaylistEndpoints.MaxTracks, skipped.Summary.TrackCount);
+
+        // With one taken out there's room for one, and not for two.
+        var entry = (await client.GetFromJsonAsync<PlaylistDetailDto>(Api($"/playlists/{created.Id}"), Json))!.Tracks[0].EntryId;
+        (await client.DeleteAsync(Api($"/playlists/{created.Id}/items/{entry}"))).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(Api($"/playlists/{created.Id}/items"), new { itemIds = new[] { music.DifferentClass } })).StatusCode);
+        var one = await (await client.PostAsJsonAsync(Api($"/playlists/{created.Id}/items"), new { itemIds = new[] { music.Tender } })).Content.ReadFromJsonAsync<PlaylistAddedDto>(Json);
+        Assert.Equal((1, PlaylistEndpoints.MaxTracks), (one!.Added, one.Summary.TrackCount));
+    }
+
+    /// <summary>An artist with one album of <paramref name="tracks"/> tracks.</summary>
+    private async Task<Guid> SeedArtistAsync(Guid library, int tracks)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var artist = new MediaItem { LibraryId = library, Kind = MediaKind.Artist, Title = "Prolific", SortTitle = "prolific" };
+        var album = new MediaItem { LibraryId = library, ParentId = artist.Id, Kind = MediaKind.Album, Title = "Box Set", SortTitle = "box set", Year = 2001 };
+        db.AddRange(artist, album);
+        for (var i = 1; i <= tracks; i++)
+        {
+            db.Add(new MediaItem { LibraryId = library, ParentId = album.Id, Kind = MediaKind.Track, Title = $"Track {i}", SortTitle = SortTitle.ForNumber(i), TrackNumber = i });
+        }
+
+        await db.SaveChangesAsync();
+        return artist.Id;
+    }
+
     private HttpClient Client(string? profileToken = null)
     {
         var client = factory.CreateClient();

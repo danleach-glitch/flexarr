@@ -55,6 +55,20 @@ public static partial class FeedParser
     /// <summary>Transcript formats a player can show alongside the sound, best first.</summary>
     private static readonly string[] TranscriptTypes = ["application/x-subrip", "application/srt", "text/vtt", "text/srt"];
 
+    /// <summary>
+    /// The most episodes read from one feed: several times the longest-running daily shows. A feed can be 64 MB, which
+    /// is room for a million made-up episodes, each of them rows in the database.
+    /// </summary>
+    public const int MaxEpisodes = 20_000;
+
+    /// <summary>
+    /// The most tags a feed's tag may have around it: a feed's own are three or four deep, and HTML written straight into
+    /// its show notes a dozen more. Tags inside tags by the ten thousand took minutes to hours to build into a document
+    /// (each one added checks all those around it), and reading the text of 30,000 ran the thread out of stack, which
+    /// ends the whole server.
+    /// </summary>
+    public const int MaxDepth = 100;
+
     /// <exception cref="FormatException">The document isn't an RSS feed.</exception>
     public static ParsedFeed Parse(Stream xml)
     {
@@ -62,6 +76,11 @@ public static partial class FeedParser
         XDocument document;
         try
         {
+            if (NestedDeeperThan(ref xml, MaxDepth))
+            {
+                throw new FormatException("This isn't a podcast feed: it isn't valid XML.");
+            }
+
             // No DTDs: a feed has no business declaring entities, and expanding them is how XML bombs work.
             using var reader = XmlReader.Create(xml, new XmlReaderSettings { DtdProcessing = DtdProcessing.Ignore, XmlResolver = null, IgnoreComments = true });
             document = XDocument.Load(reader);
@@ -94,6 +113,13 @@ public static partial class FeedParser
             }
         }
 
+        if (episodes.Count > MaxEpisodes)
+        {
+            // The newest of them, whichever way round the feed lists them, still in the feed's order.
+            var newest = episodes.OrderByDescending(e => e.PublishedAt ?? DateTime.MinValue).Take(MaxEpisodes).ToHashSet<ParsedEpisode>(ReferenceEqualityComparer.Instance);
+            episodes.RemoveAll(e => !newest.Contains(e));
+        }
+
         return new ParsedFeed(
             title,
             Clean(Text(channel, ITunes + "author")) ?? Clean(Text(channel, ITunes + "owner", ITunes + "name")),
@@ -107,6 +133,37 @@ public static partial class FeedParser
             Clean(Text(channel, Podcast + "guid")),
             WebUrl(Text(channel, ITunes + "new-feed-url")),
             episodes);
+    }
+
+    /// <summary>
+    /// Whether any tag in the document has more than <paramref name="limit"/> around it. It's read through once to find
+    /// out, then wound back to be read for real: it has to be known before the document is built, which is the slow part.
+    /// </summary>
+    /// <exception cref="XmlException">It isn't valid XML.</exception>
+    private static bool NestedDeeperThan(ref Stream xml, int limit)
+    {
+        if (!xml.CanSeek)
+        {
+            var copy = new MemoryStream();
+            xml.CopyTo(copy);
+            copy.Position = 0;
+            xml = copy;
+        }
+
+        var start = xml.Position;
+        using (var reader = XmlReader.Create(xml, new XmlReaderSettings { DtdProcessing = DtdProcessing.Ignore, XmlResolver = null, IgnoreComments = true }))
+        {
+            while (reader.Read())
+            {
+                if (reader.NodeType == XmlNodeType.Element && reader.Depth > limit)
+                {
+                    return true;
+                }
+            }
+        }
+
+        xml.Position = start;
+        return false;
     }
 
     private static ParsedEpisode? Episode(XElement item, bool showExplicit)
@@ -231,7 +288,9 @@ public static partial class FeedParser
     };
 
     /// <summary>An RFC 822 date as feeds write them (names for zones, "+0000" offsets, missing weekdays), in UTC.</summary>
-    public static DateTime? Date(string? value)
+    public static DateTime? Date(string? value) => Date(value, weekdayDropped: false);
+
+    private static DateTime? Date(string? value, bool weekdayDropped)
     {
         var text = Clean(value);
         if (text is null)
@@ -254,10 +313,14 @@ public static partial class FeedParser
             return exact.UtcDateTime;
         }
 
-        // A weekday that doesn't match the date ("Mon, 3 Jan 2024") makes the formats above refuse it: drop it.
+        // A weekday that doesn't match the date ("Mon, 3 Jan 2024") makes the formats above refuse it: drop it. Once
+        // only: a "date" that was pages of commas went a call deeper for each, until the stack ran out.
         var comma = text.IndexOf(',', StringComparison.Ordinal);
-        return comma > 0 && comma < 10 ? Date(text[(comma + 1)..]) : null;
+        return !weekdayDropped && comma > 0 && comma < 10 ? Date(text[(comma + 1)..], weekdayDropped: true) : null;
     }
+
+    /// <summary>The most of a description's HTML that's read.</summary>
+    public const int MaxHtmlLength = 200_000;
 
     /// <summary>
     /// A description as plain text: HTML tags dropped, paragraphs kept apart by a blank line, line breaks and list items
@@ -269,6 +332,16 @@ public static partial class FeedParser
         if (string.IsNullOrWhiteSpace(html))
         {
             return null;
+        }
+
+        if (html.Length > MaxHtmlLength)
+        {
+            // Far more than any show notes, of which 20,000 characters are kept: cut it before a tag left half open.
+            html = html[..MaxHtmlLength];
+            if (html.LastIndexOf('<') is var open && open > html.LastIndexOf('>'))
+            {
+                html = html[..open];
+            }
         }
 
         var text = LineBreak().Replace(html, "\n");
@@ -300,16 +373,18 @@ public static partial class FeedParser
         return result.Length == 0 ? null : result.Length > 20_000 ? result[..20_000] : result;
     }
 
-    [GeneratedRegex(@"<\s*br\s*/?\s*>", RegexOptions.IgnoreCase)]
+    // These four read text a stranger's feed wrote, so they must take time in step with its length whatever it holds:
+    // matched by backtracking, a description that's all "<" and no ">" took hours.
+    [GeneratedRegex(@"<\s*br\s*/?\s*>", RegexOptions.IgnoreCase | RegexOptions.NonBacktracking)]
     private static partial Regex LineBreak();
 
-    [GeneratedRegex(@"<\s*(/p|/div|/h[1-6]|/ul|/ol|/blockquote)\s*>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<\s*(/p|/div|/h[1-6]|/ul|/ol|/blockquote)\s*>", RegexOptions.IgnoreCase | RegexOptions.NonBacktracking)]
     private static partial Regex BlockEnd();
 
-    [GeneratedRegex(@"<\s*li[^>]*>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<\s*li[^>]*>", RegexOptions.IgnoreCase | RegexOptions.NonBacktracking)]
     private static partial Regex ListItem();
 
-    [GeneratedRegex(@"<[^>]*>")]
+    [GeneratedRegex(@"<[^>]*>", RegexOptions.NonBacktracking)]
     private static partial Regex Tag();
 
     [GeneratedRegex(@"[ \t\r\f\v]+")]

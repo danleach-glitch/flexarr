@@ -34,6 +34,30 @@ public class ApiTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
         Assert.True(status.ContainsKey("remoteUrl"));
     }
 
+    [Theory]
+    [InlineData("https", true)]
+    [InlineData("https, http", true)] // the browser's scheme comes first; the rest are hops between proxies
+    [InlineData("http", false)]
+    [InlineData(null, false)]
+    public async Task BehindAnHttpsProxyThatIsntTrusted_TheSessionCookieIsStillSecure(string? forwardedProto, bool secure)
+    {
+        var client = factory.CreateClient();
+        using var signIn = new HttpRequestMessage(HttpMethod.Post, new Uri("/api/v1/session", UriKind.Relative));
+        signIn.Headers.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        signIn.Headers.Add("X-Test-Peer", "192.168.1.2"); // a reverse proxy on another machine, not in trustedProxies
+        if (forwardedProto is not null)
+        {
+            signIn.Headers.Add("X-Forwarded-Proto", forwardedProto);
+        }
+
+        var response = await client.SendAsync(signIn);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        var cookie = Assert.Single(response.Headers.GetValues("Set-Cookie"));
+        Assert.Equal(secure, cookie.Split(';').Any(part => part.Trim().Equals("secure", StringComparison.OrdinalIgnoreCase)));
+        Assert.Equal(secure, response.Headers.Contains("Strict-Transport-Security"));
+    }
+
     [Fact]
     public async Task Session_TradesTheKeyForAnHttpOnlyCookie()
     {

@@ -36,6 +36,18 @@ public class FfmpegCommandTests
     }
 
     [Fact]
+    public void APodcastEpisode_IsReadOnlyAsASoundFile_WhateverItSaysItIs()
+    {
+        var episode = string.Join(' ', FfmpegCommand.M4a("/in.part.m3u8", 0, 2, "/out/x.part.m4a", soundFileOnly: true));
+        var track = string.Join(' ', FfmpegCommand.M4a("/in.ogg", 0, 2, "/out/x.part.m4a"));
+
+        // No playlists (hls, concat) among them: those name other files for ffmpeg to read.
+        Assert.Contains("-protocol_whitelist file -format_whitelist aac,aiff,asf,flac,matroska,mov,mp3,ogg,wav -i /in.part.m3u8", episode, StringComparison.Ordinal);
+        // A library's own tracks come in more kinds of file than that, and are the owner's.
+        Assert.DoesNotContain("-format_whitelist", track, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Software_UsesLibx264()
     {
         var args = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { ToneMap = false }, 0, "/out", Settings(HardwareAcceleration.None)));
@@ -59,6 +71,21 @@ public class FfmpegCommandTests
 
         var sdr = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { BurnSubtitle = burn, ToneMap = false }, 0, "/out", Settings(HardwareAcceleration.VideoToolbox)));
         Assert.Contains("-filter_complex [0:3][0:0]scale2ref=w=oh*mdar:h=rh[sub][base];[base][sub]overlay=(W-w)/2:(H-h)/2,scale=1920:1080,format=yuv420p[v] -map [v]", sdr, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SidecarSubtitles_AreReadAsSubtitles_InDownloadsAndBurnedIn()
+    {
+        var sidecar = new SubtitleTrack("x0", null, "/media/in.fr.srt", "subrip", "fre", null, false, false);
+        var styled = new SubtitleTrack("x1", null, "/media/in.en.ass", "ass", "eng", null, false, false);
+
+        var mp4 = string.Join(' ', FfmpegCommand.Mp4("/in.mkv", Plan, 0, null, null, [sidecar, styled], "/out.mp4", Settings(HardwareAcceleration.None)));
+        var burned = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { BurnSubtitle = styled }, 0, "/out", Settings(HardwareAcceleration.None)));
+
+        // Not left to ffmpeg to guess: a "subtitle" that's really a playlist or another container isn't opened as one.
+        Assert.Contains("-f srt -i /media/in.fr.srt", mp4, StringComparison.Ordinal);
+        Assert.Contains("-f ass -i /media/in.en.ass", mp4, StringComparison.Ordinal);
+        Assert.Contains("-f ass -i /media/in.en.ass", burned, StringComparison.Ordinal);
     }
 
     [Fact]

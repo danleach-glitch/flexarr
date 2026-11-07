@@ -460,6 +460,12 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
             return false; // Already asked for, partly in, or Seerr isn't answering (so it can't say).
         }
 
+        // The day's worth of requests counts here too: a long watchlist isn't a way round it. The title stays on the list.
+        if (!await RequestEndpoints.TakeAskAsync(db, cache, profileId, ct))
+        {
+            return false;
+        }
+
         try
         {
             await RequestEndpoints.PlaceAsync(seerr, instance, options.CurrentValue, db, profileId, mediaType, tmdbId, ct);
@@ -468,6 +474,7 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         }
         catch (Exception ex) when (SeerrFailed(ex, ct))
         {
+            RequestEndpoints.ReturnAsk(cache, profileId);
             return false;
         }
     }

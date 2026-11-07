@@ -69,6 +69,20 @@ public sealed class ImageCacheWideTests : IDisposable
         Assert.Equal(backdrop, await cache.GetWideAsync(Backdrop, Logo, 780, default)); // logo missing
     }
 
+    [Fact]
+    public async Task AnEnormousPicture_IsntDrawn_OrHandedOn()
+    {
+        if (!await HasFfmpegAsync())
+        {
+            return;
+        }
+
+        // A few hundred kilobytes as a file, but 81 million pixels: over a gigabyte for ffmpeg to draw.
+        var cache = Cache(new Dictionary<string, byte[]> { [Logo] = await DrawAsync("color=white:s=9000x9000", "huge.png") });
+
+        Assert.Null(await cache.GetAsync(Logo, 780, default));
+    }
+
     private ImageCache Cache(Dictionary<string, byte[]> images) =>
         new(new HttpClient(new Artwork(images)), new Settings(Path.Combine(_dir, "cache")), NullLogger<ImageCache>.Instance);
 

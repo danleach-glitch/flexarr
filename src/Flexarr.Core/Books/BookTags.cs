@@ -10,6 +10,12 @@ namespace Flexarr.Core.Books;
 /// </summary>
 public static partial class BookTags
 {
+    /// <summary>
+    /// The longest title or grouping the patterns below are tried on: some take the square of the text's length, so a
+    /// tag of a megabyte would hold the scan for an hour. No real title comes near it; a longer one is kept as it is.
+    /// </summary>
+    internal const int MaxParsed = 1000;
+
     /// <param name="tags">The first file's tags, case-insensitive.</param>
     /// <param name="singleFile">The book is one file, so its title tag is the book's (in a book of many files it's a chapter's).</param>
     public static BookInfo Read(IReadOnlyDictionary<string, string> tags, bool singleFile)
@@ -24,7 +30,7 @@ public static partial class BookTags
         {
             series.Add(new SeriesPart(name, Get("series-part", "seriespart", "series_part", "mvin", "movement", "©mvi", "seriesindex") is { } part ? Sequence(part) : null));
         }
-        else if (Get("grouping", "contentgroup", "tit1") is { } grouping && GroupingSeries().Match(grouping) is { Success: true } g)
+        else if (Get("grouping", "contentgroup", "tit1") is { } grouping && grouping.Length <= MaxParsed && GroupingSeries().Match(grouping) is { Success: true } g)
         {
             series.Add(new SeriesPart(g.Groups["name"].Value.Trim(), g.Groups["n"].Value));
         }
@@ -63,6 +69,11 @@ public static partial class BookTags
     public static (string Title, string? Sequence) SplitSeriesNumber(string title)
     {
         ArgumentNullException.ThrowIfNull(title);
+        if (title.Length > MaxParsed)
+        {
+            return (title, null);
+        }
+
         if (CodePrefix().Match(title) is { Success: true } code)
         {
             return (title[code.Length..].Trim(), code.Groups["n"].Value.TrimStart('0') is { Length: > 0 } n ? n : "0");
@@ -93,7 +104,7 @@ public static partial class BookTags
         SequenceNumber().Match(value) is { Success: true } m ? m.Value.Replace(',', '.') : value.Trim();
 
     /// <summary>"Dune (Unabridged)" → "Dune": Audible's titles say it, the book's name doesn't.</summary>
-    private static string StripUnabridged(string title) => Unabridged().Replace(title, "").Trim();
+    private static string StripUnabridged(string title) => title.Length > MaxParsed ? title : Unabridged().Replace(title, "").Trim();
 
     [GeneratedRegex(@"^(?<name>.+?)(?:,\s*|\s+)(?:book|bk\.?|vol\.?|volume|#)\s*(?<n>\d+(?:\.\d+)?)\s*$", RegexOptions.IgnoreCase)]
     private static partial Regex GroupingSeries();

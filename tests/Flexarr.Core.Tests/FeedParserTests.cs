@@ -117,6 +117,44 @@ public sealed class FeedParserTests
     public void ReadsDatesAsFeedsWriteThem(string text, string expected) =>
         Assert.Equal(DateTime.Parse(expected, System.Globalization.CultureInfo.InvariantCulture), FeedParser.Date(text));
 
+    [Fact]
+    public void ADateThatsPagesOfCommas_IsNoDate_AndDoesntRunOutOfStack()
+    {
+        // Each comma near the start was taken for a weekday to drop, one call deeper: 60,000 characters of this stopped the server.
+        Assert.Null(FeedParser.Date(string.Concat(Enumerable.Repeat("a,", 200_000))));
+        Assert.Null(FeedParser.Date("Mon, " + new string('x', 200)));
+        // Padded with spaces is still a date.
+        Assert.Equal(new DateTime(2024, 9, 3, 10, 0, 0, DateTimeKind.Utc), FeedParser.Date("Tue,   03 Sep 2024" + new string(' ', 200) + "10:00:00 GMT"));
+    }
+
+    [Theory]
+    [InlineData("description")]
+    [InlineData("title")]
+    [InlineData("pubDate")]
+    public void AFeedOfTagsInsideTagsWithoutEnd_IsRefused_AndDoesntRunOutOfStack(string tag)
+    {
+        // Reading a tag's text went a call deeper for every tag inside it: 30,000 of them stopped the server. Before
+        // that, building the document checked every tag around each one added: these 200,000 took minutes of a core.
+        var deep = string.Concat(Enumerable.Repeat("<a>", 200_000)) + "hi" + string.Concat(Enumerable.Repeat("</a>", 200_000));
+        var item = $"<item><title>One</title><guid>1</guid><{tag}>{deep}</{tag}><enclosure url=\"https://cdn.example.com/1.mp3\" type=\"audio/mpeg\"/></item>";
+
+        Assert.Throws<FormatException>(() => Parse($"<rss><channel><title>Deep</title>{item}</channel></rss>"));
+        Assert.Throws<FormatException>(() => Parse($"<rss><channel><title>Deep</title><{tag}>{deep}</{tag}>{item}</channel></rss>"));
+    }
+
+    [Fact]
+    public void ShowNotesWrittenAsTagsInTheFeed_AreStillRead_HoweverManyOfThemSitSideBySide()
+    {
+        // As deep as is read at all, beside a thousand shallow ones: it's depth that's counted, not how many there are.
+        var inside = FeedParser.MaxDepth - 3; // the last has rss, channel, item, description and the rest around it
+        var nested = string.Concat(Enumerable.Repeat("<div>", inside)) + "Deep down" + string.Concat(Enumerable.Repeat("</div>", inside));
+        var wide = string.Concat(Enumerable.Repeat("<p><b>Wide</b></p>", 1000));
+        var feed = Parse($"<rss><channel><title>Notes</title><item><title>One</title><guid>1</guid><description>{wide}{nested}<p><b>After</b></p></description><enclosure url=\"https://cdn.example.com/1.mp3\" type=\"audio/mpeg\"/></item></channel></rss>");
+
+        Assert.EndsWith("WideDeep downAfter", Assert.Single(feed.Episodes).Description, StringComparison.Ordinal);
+        Assert.Throws<FormatException>(() => Parse($"<rss><channel><title>Notes</title><item><title>One</title><guid>1</guid><description><div>{nested}</div></description><enclosure url=\"https://cdn.example.com/1.mp3\" type=\"audio/mpeg\"/></item></channel></rss>"));
+    }
+
     [Theory]
     [InlineData("3723", 3723.0)]
     [InlineData("62:03", 3723.0)]
@@ -150,6 +188,67 @@ public sealed class FeedParserTests
         catch (FormatException)
         {
         }
+    }
+
+    [Theory]
+    [InlineData("<")] // every one the start of a tag that never ends
+    [InlineData("<li")]
+    [InlineData("< ")]
+    [InlineData("<br ")]
+    public async Task ADescriptionOfTagsThatNeverEnd_IsReadInStepWithItsLength(string piece)
+    {
+        // 5 MB of it took about 18 minutes when the tags were matched by backtracking.
+        var html = string.Concat(Enumerable.Repeat(piece, 5_000_000 / piece.Length));
+
+        var reading = Task.Run(() => FeedParser.PlainText(html));
+
+        Assert.Same(reading, await Task.WhenAny(reading, Task.Delay(TimeSpan.FromSeconds(30))));
+        Assert.True((await reading)?.Length <= 20_000);
+    }
+
+    [Fact]
+    public async Task AFeedWhoseEveryDescriptionIsTagsThatNeverEnd_IsReadInStepWithItsLength()
+    {
+        // Each description is as long as is read at all, so it's the matching that has to keep up: 40 of these took over
+        // a minute by backtracking.
+        var notes = new string('<', FeedParser.MaxHtmlLength);
+        var items = string.Concat(Enumerable.Range(1, 40).Select(i =>
+            $"<item><title>Episode {i}</title><guid>ep-{i}</guid><description><![CDATA[{notes}]]></description><enclosure url=\"https://cdn.example.com/ep{i}.mp3\" type=\"audio/mpeg\"/></item>"));
+
+        var reading = Task.Run(() => Parse($"<rss><channel><title>Slow</title>{items}</channel></rss>"));
+
+        Assert.Same(reading, await Task.WhenAny(reading, Task.Delay(TimeSpan.FromSeconds(30))));
+        Assert.Equal(40, (await reading).Episodes.Count);
+    }
+
+    [Fact]
+    public void ADescriptionLongerThanIsRead_IsCutBeforeATagLeftHalfOpen()
+    {
+        var link = "<a href=\"https://example.com/somewhere\">a link</a>";
+        var html = "<p>Kept</p>" + new string(' ', FeedParser.MaxHtmlLength - "<p>Kept</p>".Length - 10) + link;
+
+        Assert.Equal("Kept", FeedParser.PlainText(html));
+        // Within the length, it's all read as before.
+        Assert.Equal("Kept\n\na link", FeedParser.PlainText("<p>Kept</p>" + link));
+    }
+
+    [Fact]
+    public void AFeedOfMoreEpisodesThanAnyShowHas_KeepsTheNewest_InItsOwnOrder()
+    {
+        // Oldest first, a day apart, five more than are read.
+        var first = new DateTime(1960, 1, 1, 9, 0, 0, DateTimeKind.Utc);
+        var items = new StringBuilder();
+        for (var i = 1; i <= FeedParser.MaxEpisodes + 5; i++)
+        {
+            items.Append(System.Globalization.CultureInfo.InvariantCulture,
+                $"<item><title>Episode {i}</title><guid>ep-{i}</guid><pubDate>{first.AddDays(i):R}</pubDate><enclosure url=\"https://cdn.example.com/ep{i}.mp3\" type=\"audio/mpeg\"/></item>");
+        }
+
+        var feed = Parse($"<rss><channel><title>Endless</title>{items}</channel></rss>");
+
+        Assert.Equal(FeedParser.MaxEpisodes, feed.Episodes.Count);
+        Assert.Equal("ep-6", feed.Episodes[0].EpisodeGuid);
+        Assert.Equal($"ep-{FeedParser.MaxEpisodes + 5}", feed.Episodes[^1].EpisodeGuid);
     }
 
     [Fact]

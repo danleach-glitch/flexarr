@@ -160,7 +160,8 @@ public sealed partial class PodcastLibrary(FlexarrDbContext db, PodcastFetcher f
         {
             feed.Error = error;
             feed.Failures++;
-            LogRefreshFailed(feed.Url, error);
+            // By its title and host: a private feed's address carries its key.
+            LogRefreshFailed(podcast.Title, Uri.TryCreate(feed.Url, UriKind.Absolute, out var feedUrl) ? feedUrl.Host : "", error);
         }
         else
         {
@@ -356,6 +357,6 @@ public sealed partial class PodcastLibrary(FlexarrDbContext db, PodcastFetcher f
     [LoggerMessage(Level = LogLevel.Information, Message = "Added podcast {Title} ({Episodes} episodes)")]
     private partial void LogAdded(string title, int episodes);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Couldn't refresh podcast feed {Url}: {Error}")]
-    private partial void LogRefreshFailed(string url, string error);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Couldn't refresh podcast feed {Title} ({Host}): {Error}")]
+    private partial void LogRefreshFailed(string title, string host, string error);
 }

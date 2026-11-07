@@ -508,7 +508,7 @@ function FileInfo({ files, itemId, kind }: { files: MediaFile[]; itemId: string;
       <summary>{files.length > 1 ? t('{count} versions on disk', { count: files.length }) : t('File and stream details')}</summary>
       {files.map((file) => (
         <div key={file.id} className="file">
-          <code>{file.path}</code>
+          {file.path && <code>{file.path}</code>}
           {file.probeError && <p className="error">{t('This file couldn’t be read: {reason}', { reason: file.probeError })}</p>}
           <dl>
             <dt>{t('Video')}</dt>

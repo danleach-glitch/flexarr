@@ -428,6 +428,35 @@ public sealed class DownloadTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task ACopyThatWouldLeaveTheDriveWithoutRoomToSpare_IsntMade_AndSaysWhy_WhileAFileSentAsItIsStillComes()
+    {
+        // Were it run, this "ffmpeg" would fail the download another way.
+        using var server = _factory.WithWebHostBuilder(b => b.UseSetting("Flexarr:FfmpegPath", Path.Combine(_factory.DataDirectory, "no-such-ffmpeg")));
+        var preparer = server.Services.GetRequiredService<Downloads.DownloadPreparer>();
+        var asked = new List<string>();
+        preparer.FreeBytes = folder =>
+        {
+            asked.Add(folder);
+            return Downloads.DownloadPreparer.SpareBytes + 1000; // room to spare, but not after a ten-minute film
+        };
+        var (convert, _) = await AddMovieAsync("matroska,webm", "mpeg2video", "aac");
+        var (asIs, _) = await AddMovieAsync("mov,mp4,m4a,3gp,3g2,mj2", "h264", "aac");
+        var client = server.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+
+        var refused = await (await client.PostAsJsonAsync(new Uri("/api/v1/offline", UriKind.Relative), new { itemId = convert, quality = "Medium" }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        var failed = await WaitForAsync(client, refused.GetProperty("id").GetString()!, "Failed", server.Services);
+        var sent = await (await client.PostAsJsonAsync(new Uri("/api/v1/offline", UriKind.Relative), new { itemId = asIs, quality = "Original" }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        await WaitForAsync(client, sent.GetProperty("id").GetString()!, "Ready", server.Services);
+
+        Assert.Contains("short of space", failed.GetProperty("error").GetString(), StringComparison.Ordinal);
+        Assert.Equal(Downloads.DownloadPreparer.Folder(
+            server.Services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>().CurrentValue), Assert.Single(asked));
+    }
+
     private async Task<double> PositionAsync(Guid item)
     {
         using var scope = _factory.Services.CreateScope();

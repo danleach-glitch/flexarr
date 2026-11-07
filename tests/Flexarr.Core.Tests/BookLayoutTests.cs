@@ -175,6 +175,23 @@ public sealed class BookLayoutTests
     }
 
     [Fact]
+    public void AnEndlessTitleOrGrouping_IsReadAtOnce()
+    {
+        // Text these patterns take the square of its length to try: a tagger's mistake, or a book made to stall the scan.
+        var endless = string.Concat(Enumerable.Repeat("-b", 20_000));
+        var spaces = "x" + new string(' ', 40_000) + "x";
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+
+        var read = BookTags.Read(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["album"] = spaces, ["grouping"] = endless + " " + endless }, true);
+        var split = BookTags.SplitSeriesNumber(endless);
+
+        Assert.Equal(spaces, read.Title);
+        Assert.Empty(read.Series);
+        Assert.Equal((endless, null), split);
+        Assert.True(timer.Elapsed < TimeSpan.FromSeconds(2), $"took {timer.Elapsed}");
+    }
+
+    [Fact]
     public void NamesLoseStraySpaces()
     {
         Assert.Equal(["Héctor García", "Francesc Miralles"], BookTags.Read(new Dictionary<string, string> { ["artist"] = "Héctor García, Francesc   Miralles" }, true).Authors);

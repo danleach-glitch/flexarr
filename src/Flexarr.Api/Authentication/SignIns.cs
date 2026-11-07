@@ -80,6 +80,13 @@ public sealed class SignIn
     public string? TailscaleLogin { get; init; }
 
     /// <summary>
+    /// A browser moved over from the cookie earlier versions gave every browser (see
+    /// <see cref="FlexarrOptions.LegacySignInsUntil"/>). Whoever holds that cookie is given one of these for the asking,
+    /// so for wrong admin PINs it isn't a caller with a count it can't shed (see <see cref="Profiles.PinGuard"/>).
+    /// </summary>
+    public bool FromSharedCookie { get; init; }
+
+    /// <summary>
     /// Locked to kids profiles: only they can be chosen on it, until the admin PIN releases it (there, or
     /// from Settings › Devices).
     /// </summary>
@@ -135,7 +142,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
 
     /// <summary>Creates a sign-in and returns its token, which is shown once and never stored.</summary>
     public (SignIn SignIn, string Token) Issue(SignInKind kind, string name, NetworkZone zone, string? address, string? profileId = null, bool pinVerified = false,
-        string? tailscaleLogin = null, DeviceType? deviceType = null)
+        string? tailscaleLogin = null, DeviceType? deviceType = null, bool fromSharedCookie = false)
     {
         var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         var now = clock.GetUtcNow().UtcDateTime;
@@ -153,6 +160,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             PinVerified = pinVerified,
             TailscaleLogin = tailscaleLogin,
             DeviceType = deviceType,
+            FromSharedCookie = fromSharedCookie,
         };
 
         lock (_lock)

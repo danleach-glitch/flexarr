@@ -348,20 +348,22 @@ public static class ItemEndpoints
             ? await db.MediaItems.Where(i => i.ParentId == id).Select(i => new { i.Id, i.Overview }).ToDictionaryAsync(i => i.Id, i => i.Overview, ct)
             : new Dictionary<Guid, string?>();
 
+        // Where things are on the server's disk is the main profile's to know: the fields stay (apps read them), empty.
+        var paths = profile.IsMainProfile;
         return new ItemDetailDto(
-            item, entity.Path, entity.OriginalTitle, entity.Overview ?? (entity.Kind == MediaKind.Season ? series.Overview : null),
+            item, paths ? entity.Path : null, entity.OriginalTitle, entity.Overview ?? (entity.Kind == MediaKind.Season ? series.Overview : null),
             entity.Studio ?? series.Studio, series.Status, entity.TrailerYouTubeId,
             series.Genres.Select(g => g.Name).Order().ToList(),
             series.TvdbId, entity.TmdbId ?? series.TmdbId, entity.ImdbId ?? series.ImdbId,
-            ancestors, children, credits, files.Select(ToDto).ToList(), childOverviews, entity.MatchLocked,
+            ancestors, children, credits, files.Select(f => ToDto(f, paths)).ToList(), childOverviews, entity.MatchLocked,
             CanSearchSubtitles: bazarr && entity.Kind is (MediaKind.Movie or MediaKind.Episode) && entity.ArrId is not null && files.Count > 0,
             RatingAge: entity.RatingAge, KidsOverride: profile.IsMainProfile ? entity.KidsOverride : null,
             Book: entity.Kind == MediaKind.Audiobook ? await Books.BookQueries.DetailAsync(db, entity, profile.Id, ct) : null,
             DetailsLocked: entity.DetailsLocked, SortTitle: entity.SortTitle, ArtworkLocked: entity.ArtworkLocked);
     }
 
-    private static FileDto ToDto(MediaFile f) => new(
-        f.Id, f.Path, f.Size, f.Container, f.DurationSeconds, f.Bitrate, f.VideoCodec, f.Width, f.Height, f.VideoRange,
+    private static FileDto ToDto(MediaFile f, bool path) => new(
+        f.Id, path ? f.Path : "", f.Size, f.Container, f.DurationSeconds, f.Bitrate, f.VideoCodec, f.Width, f.Height, f.VideoRange,
         f.AudioCodec, f.AudioChannels, f.ProbeError,
         f.Streams.OrderBy(s => s.Index)
             .Select(s => new StreamDto(s.Index, s.Type, s.Codec, s.Profile, s.Language, s.Title, s.IsDefault, s.IsForced, s.Width, s.Height, s.Channels))

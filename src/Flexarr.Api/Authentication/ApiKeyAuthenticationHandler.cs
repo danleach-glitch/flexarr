@@ -164,7 +164,8 @@ public sealed class ApiKeyAuthenticationHandler(
         http.Response.Cookies.Append(SessionCookieName, token, new CookieOptions
         {
             HttpOnly = true,
-            Secure = http.Request.IsHttps,
+            // Also behind an HTTPS proxy that isn't in TrustedProxies, so the cookie never crosses the network in the clear.
+            Secure = RequestPeer.SaysHttps(http),
             SameSite = SameSiteMode.Strict,
             Path = "/",
             // The browser keeps it as long as it can; the server signs out browsers left unused for six months.
@@ -239,7 +240,7 @@ public sealed class ApiKeyAuthenticationHandler(
         {
             var pending = Upgrading.GetOrAdd(key, _ => new Lazy<(SignIn, string)>(() =>
                 signIns.Issue(SignInKind.Browser, BrowserName(Request), NetworkZones.Of(Context), Context.Connection.RemoteIpAddress?.ToString(),
-                    chosen == PlaybackState.DefaultUser ? null : chosen)));
+                    chosen == PlaybackState.DefaultUser ? null : chosen, fromSharedCookie: true)));
             (SignIn SignIn, string Token) issued;
             try
             {
@@ -300,6 +301,13 @@ public sealed class ApiKeyAuthenticationHandler(
                 // Locked to kids profiles and its own has gone: another of them, never one without a limit.
                 (profile, admin) = (kids, false);
             }
+            else if (await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash != null, Context.RequestAborted))
+            {
+                // Its profile has been removed, and the main profile has a PIN of its own that was never given here:
+                // becoming the main profile would get round it, so it's signed out instead.
+                signIns.Revoke(signIn.Id);
+                return AuthenticateResult.Fail("This sign-in's profile has been removed");
+            }
             else
             {
                 // Its profile has been removed: it watches as the main profile, but only manages the server once the
@@ -315,8 +323,11 @@ public sealed class ApiKeyAuthenticationHandler(
             // At home with "only away from home", a browser without a profile chosen would be the main profile, so a
             // child could leave a kids profile by opening a private window. With kids profiles in the house, it starts
             // on one, and choosing the main profile there takes the admin PIN, which signs the browser in.
+            // The same over Tailscale for an account linked to the main profile: every device logged in to it, a child's
+            // tablet included, would otherwise be the main profile.
             // Only looked up where it matters: no profile chosen yet, or the main profile.
-            var kids = method == Methods.Local && (chosen is null || chosen == PlaybackState.DefaultUser) ? await FirstKidsProfileAsync(db) : null;
+            var mainUnasked = method == Methods.Local || (method == Methods.Tailscale && basis == PlaybackState.DefaultUser);
+            var kids = mainUnasked && (chosen is null || chosen == PlaybackState.DefaultUser) ? await FirstKidsProfileAsync(db) : null;
             kidsHome = kids is not null;
             // Where choosing the main profile takes the admin PIN (a Tailscale guest, that browser at home), it lives
             // on the sign-in the PIN gave. A main-profile token alone isn't enough: it's bound to the main profile's own

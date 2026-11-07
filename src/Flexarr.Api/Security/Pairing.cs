@@ -71,6 +71,9 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
     private const int MaxWaiting = 10;
     private const int MaxWaitingPerAddress = 3;
     private const int MaxApprovedPerHour = 10;
+
+    /// <summary>Codes the main profile's phones are notified of in an hour; more are still listed, but not pushed.</summary>
+    private const int MaxAnnouncedPerHour = 20;
     private static readonly TimeSpan ApprovalWindow = TimeSpan.FromHours(1);
 
     /// <summary>With this little left, a code still being shown is given longer (see <see cref="Status"/>).</summary>
@@ -84,6 +87,7 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
 
     private readonly ConcurrentDictionary<string, Pending> _pending = new(StringComparer.Ordinal);
     private readonly Queue<DateTime> _approvedAt = new();
+    private readonly Queue<DateTime> _announcedAt = new();
     private readonly ConcurrentDictionary<Listener, byte> _listeners = new();
 
     /// <summary>Addresses just turned away, and until when the next code from each is its own retry.</summary>
@@ -150,6 +154,9 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
 
         /// <summary>A device's own retry just after "Don't allow": listed, but not asked about.</summary>
         public bool Quiet { get; } = quiet;
+
+        /// <summary>The main profile's phones were sent a notification of this code.</summary>
+        public bool Announced { get; set; }
         public NetworkZone Zone { get; } = zone;
         public string? Address { get; } = address;
         public bool Approved { get; set; }
@@ -157,7 +164,9 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
 
     /// <summary>
     /// A device asking for a code. One it asked for before, still waiting, is dropped: a device shows one code at a time,
-    /// and asking again (Back, then choosing the server again) mustn't use up its address's places.
+    /// and asking again (Back, then choosing the server again) mustn't use up its address's places. It keeps that code,
+    /// and the phones aren't notified again: the notification they have still matches, and asking in a loop doesn't
+    /// send a prompt each time.
     /// </summary>
     /// <param name="announced">The details to notify the main profile's phones of, or null for a device's own retry just after "Don't allow".</param>
     /// <param name="stopsWhenDeclined">From an app that says "Not allowed" itself: never its own retry, so always asked about.</param>
@@ -167,21 +176,36 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         Sweep();
         announced = null;
         var name = Name(deviceName) ?? "A TV";
+        Pending? kept = null;
         foreach (var earlier in _pending.Values.Where(p => !p.Approved && p.Address == address && p.DeviceName == name && p.DeviceType == deviceType))
         {
             if (_pending.TryRemove(earlier.Id, out _))
             {
-                Tell(new PairingNotice(null, Format(earlier.Code)));
+                if (kept is null && address is not null)
+                {
+                    kept = earlier;
+                }
+                else
+                {
+                    Tell(new PairingNotice(null, Format(earlier.Code)));
+                }
             }
         }
 
         if (_pending.Count >= MaxWaiting || _pending.Values.Count(p => p.Address == address) >= MaxWaitingPerAddress)
         {
+            if (kept is not null)
+            {
+                Tell(new PairingNotice(null, Format(kept.Code)));
+            }
+
             return null;
         }
 
         var now = clock.GetUtcNow().UtcDateTime;
-        var code = address is not null && _declinedCodes.TryRemove(DeviceKey(address, name, deviceType), out var declined) && declined.Until > now
+        var code = kept is not null && !_pending.Values.Any(p => p.Code == kept.Code)
+            ? kept.Code
+            : address is not null && _declinedCodes.TryRemove(DeviceKey(address, name, deviceType), out var declined) && declined.Until > now
             && !_pending.Values.Any(p => p.Code == declined.Code)
                 ? declined.Code
                 : new string(Enumerable.Range(0, 6).Select(_ => Alphabet[RandomNumberGenerator.GetInt32(Alphabet.Length)]).ToArray());
@@ -190,13 +214,42 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         var pending = new Pending(Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16)), code, name,
             now + Lifetime, zone, address, deviceType, quiet);
         _pending[pending.Id] = pending;
+        if (kept is not null && kept.Code != code)
+        {
+            Tell(new PairingNotice(null, Format(kept.Code)));
+        }
+
         Tell(new PairingNotice(Details(pending), null));
-        if (!quiet)
+        // Already announced with this code: the phones' notification still matches. One the hourly limit held back
+        // is announced when it asks again, if the limit allows by then.
+        pending.Announced = kept is not null && kept.Code == code && kept.Announced;
+        if (!quiet && !pending.Announced && MayAnnounce(now))
         {
             announced = Details(pending);
+            pending.Announced = true;
         }
 
         return new PairingStartDto(pending.Id, Format(code), pending.ExpiresAt);
+    }
+
+    /// <summary>Counts one announcement, unless as many as an hour allows have been sent.</summary>
+    private bool MayAnnounce(DateTime now)
+    {
+        lock (_announcedAt)
+        {
+            while (_announcedAt.TryPeek(out var oldest) && now - oldest >= ApprovalWindow)
+            {
+                _announcedAt.Dequeue();
+            }
+
+            if (_announcedAt.Count >= MaxAnnouncedPerHour)
+            {
+                return false;
+            }
+
+            _announcedAt.Enqueue(now);
+            return true;
+        }
     }
 
     /// <summary>

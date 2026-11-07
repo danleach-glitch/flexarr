@@ -40,6 +40,30 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
     /// <summary>Where prepared downloads are kept until they're fetched.</summary>
     public static string Folder(FlexarrOptions options) => Path.Combine(options.ResolvedCacheDirectory, "downloads");
 
+    /// <summary>The room the downloads folder's drive keeps to spare once a copy is made.</summary>
+    internal const long SpareBytes = 2L << 30;
+
+    /// <summary>How much room the drive holding a folder has (tests say).</summary>
+    internal Func<string, long> FreeBytes { get; set; } = folder => new DriveInfo(folder).AvailableFreeSpace;
+
+    /// <summary>
+    /// Whether a copy of about <paramref name="bytes"/> would leave the downloads folder's drive without room to spare.
+    /// Copies wait there up to a week for a device to fetch them, and anyone may ask for as many as they like, so this
+    /// is what stops them filling the disk the server runs on. A drive that won't say how full it is isn't held back.
+    /// </summary>
+    private bool ShortOfSpace(string folder, long bytes)
+    {
+        try
+        {
+            Directory.CreateDirectory(folder);
+            return FreeBytes(folder) - bytes < SpareBytes;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return false;
+        }
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
@@ -262,12 +286,21 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             return true;
         }
 
+        var folder = Folder(options.CurrentValue);
+        if (ShortOfSpace(folder, DownloadPlanner.EstimateBytes(file, download.Quality)))
+        {
+            download.Status = DownloadStatus.Failed;
+            download.Error = "The server is too short of space to get this ready. Try again later.";
+            await db.SaveChangesAsync(ct);
+            LogShortOfSpace(download.Id, folder);
+            return;
+        }
+
         download.Status = DownloadStatus.Preparing;
         download.Progress = 0;
         await db.SaveChangesAsync(ct);
         LogPreparing(download.Id, download.Quality.ToString());
 
-        var folder = Folder(options.CurrentValue);
         var extension = plan.IsAudioOnly ? "m4a" : "mp4";
         var partial = Path.Combine(folder, $"{download.Id:N}.part.{extension}");
         try
@@ -398,6 +431,16 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         var root = await db.Libraries.IgnoreQueryFilters().Where(l => l.Type == Core.Libraries.LibraryType.Podcasts).OrderBy(l => l.CreatedAt)
             .SelectMany(l => l.Folders).Select(f => f.Path).FirstOrDefaultAsync(ct);
         var folder = root is not null && Directory.Exists(root) ? Path.Combine(root, SafeName(show)) : Folder(options.CurrentValue);
+        // A fetched episode waits there for the phone as a converted copy does, so it's kept to the same room to spare.
+        if (ShortOfSpace(folder, Math.Clamp(enclosure.LengthBytes ?? 0, 0, MaxPodcastBytes)))
+        {
+            download.Status = DownloadStatus.Failed;
+            download.Error = "The server is too short of space to get this ready. Try again later.";
+            await db.SaveChangesAsync(ct);
+            LogShortOfSpace(download.Id, folder);
+            return;
+        }
+
         Directory.CreateDirectory(folder);
 
         var extension = Path.GetExtension(new Uri(enclosure.AudioUrl).AbsolutePath).ToLowerInvariant() is { Length: > 1 and <= 5 } fromUrl ? fromUrl
@@ -416,7 +459,8 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             finished = Path.Combine(folder, $"{download.Id:N}.m4a");
             var converting = Path.Combine(folder, $"{download.Id:N}.part.m4a");
             var settings = PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue);
-            error = await RunAsync(settings.FfmpegPath, FfmpegCommand.M4a(partial, 0, 2, converting), enclosure.DurationSeconds ?? 0, download.Id, ct);
+            // The file is whatever a stranger's feed pointed at: read as a sound file, or not at all.
+            error = await RunAsync(settings.FfmpegPath, FfmpegCommand.M4a(partial, 0, 2, converting, soundFileOnly: true), enclosure.DurationSeconds ?? 0, download.Id, ct);
             File.Delete(partial);
             if (error is null)
             {
@@ -621,6 +665,9 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Preparing download {Id} ({Quality})")]
     private partial void LogPreparing(Guid id, string quality);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Download {Id} wasn't prepared: too little room left on the drive holding {Folder}")]
+    private partial void LogShortOfSpace(Guid id, string folder);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Converting download {Id} failed: {Errors}")]
     private partial void LogFfmpegFailed(Guid id, string errors);

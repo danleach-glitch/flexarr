@@ -105,13 +105,19 @@ public static class CollectionEndpoints
                 return Problems.Of("Only the main profile can make collections for the whole household.", status: 403);
             }
 
+            var rules = request.Rules is null ? null : JsonSerializer.Serialize(request.Rules, FranchiseSync.Json);
+            if (TooLong(request.Description, rules) is { } tooLong)
+            {
+                return tooLong;
+            }
+
             var collection = new Collection
             {
                 Name = request.Name.Trim()[..Math.Min(request.Name.Trim().Length, 120)],
                 Description = request.Description?.Trim(),
                 Kind = request.Rules is null ? CollectionKind.Manual : CollectionKind.Smart,
                 OwnerProfileId = personal ? profile.Id : null,
-                RulesJson = request.Rules is null ? null : JsonSerializer.Serialize(request.Rules, FranchiseSync.Json),
+                RulesJson = rules,
                 ShowOnHome = request.ShowOnHome ?? false,
             };
             db.Collections.Add(collection);
@@ -126,6 +132,12 @@ public static class CollectionEndpoints
                 return Results.NotFound();
             }
 
+            var rules = request.Rules is not null && collection.Kind == CollectionKind.Smart ? JsonSerializer.Serialize(request.Rules, FranchiseSync.Json) : null;
+            if (TooLong(request.Description, rules) is { } tooLong)
+            {
+                return tooLong;
+            }
+
             // Franchises follow Radarr, and Trakt lists Trakt: their names and titles aren't edited here.
             if (collection.Kind is not (CollectionKind.Franchise or CollectionKind.TraktList) && !string.IsNullOrWhiteSpace(request.Name))
             {
@@ -137,9 +149,9 @@ public static class CollectionEndpoints
                 collection.Description = request.Description.Trim().Length == 0 ? null : request.Description.Trim();
             }
 
-            if (request.Rules is not null && collection.Kind == CollectionKind.Smart)
+            if (rules is not null)
             {
-                collection.RulesJson = JsonSerializer.Serialize(request.Rules, FranchiseSync.Json);
+                collection.RulesJson = rules;
             }
 
             collection.ShowOnHome = request.ShowOnHome ?? collection.ShowOnHome;
@@ -369,6 +381,15 @@ public static class CollectionEndpoints
         c.Id, c.Name, c.Description, c.Kind, c.OwnerProfileId != null, CanEdit(profile, c), count, watched, missing,
         posters, Remote(c.PosterUrl), c.ShowOnHome, c.Hidden);
 
+
+    /// <summary>The longest description kept, and the longest a smart collection's rules as they're stored (naming every genre and library comes to a fraction of it).</summary>
+    public const int MaxDescriptionLength = 20_000, MaxRulesLength = 10_000;
+
+    /// <summary>What to answer when a description or rules are longer than is kept; null when they're fine.</summary>
+    private static IResult? TooLong(string? description, string? rules) =>
+        description?.Length > MaxDescriptionLength ? Problems.Field("A description of up to 20,000 characters.", field: "description")
+        : rules?.Length > MaxRulesLength ? Problems.Field("Those rules are too long.", field: "rules")
+        : null;
 
     private static SmartRules? Rules(Collection c) => c.RulesJson is null ? null : JsonSerializer.Deserialize<SmartRules>(c.RulesJson, FranchiseSync.Json);
 
