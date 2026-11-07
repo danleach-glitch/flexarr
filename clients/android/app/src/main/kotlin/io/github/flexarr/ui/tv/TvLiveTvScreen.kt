@@ -71,12 +71,14 @@ import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.LiveChannel
 import io.github.flexarr.core.LiveGuide
 import io.github.flexarr.core.LiveProgramme
 import io.github.flexarr.core.Recording
 import io.github.flexarr.core.RecordingSeries
 import io.github.flexarr.core.liveChannels
+import io.github.flexarr.core.GuideFilter
 import io.github.flexarr.core.liveGuide
 import io.github.flexarr.core.recordings
 import io.github.flexarr.core.removeRecording
@@ -150,7 +152,11 @@ internal open class GuideKeeper(private val scope: CoroutineScope) {
      * one profile ([profile]): another profile may not see the same channels.
      */
     suspend fun guide(client: FlexarrClient, hours: Int, profile: String?, fresh: Boolean = false): LiveGuide =
-        guide("${client.baseUrl} $profile", hours, fresh) { client.liveGuide(Instant.now().minusSeconds(3600), hours) }
+        guide("${client.baseUrl} $profile", hours, fresh) {
+            // Without descriptions, the bulk of it: a programme's comes when it's opened. (No ETag: nothing's kept to reuse.)
+            client.liveGuide(Instant.now().minusSeconds(3600), hours, GuideFilter.Everything, descriptions = false, etag = null).guide
+                ?: throw FlexarrException.UnexpectedResponse()
+        }
 
     /** The guide kept for [sign] if it'll do, or else what [fetch] brings, kept in its place. */
     internal suspend fun guide(sign: String, hours: Int, fresh: Boolean, fetch: suspend () -> LiveGuide): LiveGuide {
@@ -533,7 +539,8 @@ fun TvLiveGuideGrid(
     }
 
     details?.let { (programme, channel) ->
-        GuideDialog(programme.displayTitle, describe(programme, ::time), onDismiss = { details = null }, actions = buildList {
+        val description = io.github.flexarr.ui.livetv.rememberDescription(client, programme)
+        GuideDialog(programme.displayTitle, describe(programme.copy(description = description), ::time), onDismiss = { details = null }, actions = buildList {
             add(MenuAction(t("Watch {channel} now", "channel" to channel.name)) { onWatch(channel) })
             if (programme.end > now) {
                 add(MenuAction(recordLabel(programme)) { act { toggleRecording(client, programme, channel.id) } })
