@@ -26,10 +26,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -382,10 +383,11 @@ private fun Scrubber(player: BookPlayer, chapters: List<BookChapter>, scrubbing:
 @Composable
 private fun ChaptersAndBookmarks(player: BookPlayer, modifier: Modifier, close: () -> Unit) {
     val current = player.chapterIndex
-    Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    // Lazy, as a book can have hundreds of chapters: only the rows on screen are built.
+    LazyColumn(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         if (player.chapters.isNotEmpty()) {
-            Heading(t("Chapters"))
-            player.chapters.forEachIndexed { index, chapter ->
+            item { Heading(t("Chapters")) }
+            itemsIndexed(player.chapters) { index, chapter ->
                 Row(
                     Modifier.fillMaxWidth().pressable({ player.seek(chapter.startSeconds); close() }).padding(horizontal = 12.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -402,8 +404,8 @@ private fun ChaptersAndBookmarks(player: BookPlayer, modifier: Modifier, close: 
             }
         }
         if (player.bookmarks.isNotEmpty()) {
-            Heading(t("Bookmarks"))
-            player.bookmarks.forEach { bookmark ->
+            item { Heading(t("Bookmarks")) }
+            items(player.bookmarks) { bookmark ->
                 BookmarkRow(bookmark, onPlay = { player.seek(bookmark.positionSeconds); close() }, onDelete = { player.deleteBookmark(bookmark) })
             }
         }

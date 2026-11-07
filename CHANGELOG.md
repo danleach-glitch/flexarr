@@ -36,6 +36,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - When the Android app signs in to a different server, the log it keeps on the phone, and the warnings waiting to be sent, are cleared first, so the new server never gets the old one’s titles or address, by itself or in **Send diagnostics**.
 - The first title you look at or play after opening the Android app no longer pauses the screen while the app works out which formats the device can play: it finds out as the app opens, in the background.
 - Watching a Live TV channel uses less data: the player fetches what’s on when the programme on screen ends (and every ten minutes in case the guide changes), rather than the whole channel list every minute.
+- An audiobook with hundreds of chapters no longer makes its chapter list stutter while it plays, and the list opens straight away.
 
 ## 0.62.1 · 5 November 2026
 
