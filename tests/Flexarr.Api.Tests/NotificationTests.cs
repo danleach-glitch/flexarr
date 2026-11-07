@@ -410,6 +410,45 @@ public sealed class NotificationTests : IAsyncLifetime
         Assert.NotNull((await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaRequests.SingleAsync()).FulfilledAt);
     }
 
+    [Fact]
+    public async Task ShowRequests_AreAnsweredOnlyByAnEpisodeSinceTheirOwnRequest()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var library = OldLibrary(LibraryType.TvShows);
+        MediaItem Show(string title, string tmdb) => new() { LibraryId = library.Id, Kind = MediaKind.Series, Title = title, SortTitle = title.ToLowerInvariant(), TmdbId = tmdb, AddedAt = _clock.Now.AddDays(-30) };
+        MediaItem Season(MediaItem show, int n) => new() { LibraryId = library.Id, Kind = MediaKind.Season, Title = $"Season {n}", SortTitle = $"season {n}", ParentId = show.Id, SeasonNumber = n, AddedAt = show.AddedAt };
+        MediaItem Episode(MediaItem season, int n, DateTime added) => new()
+        {
+            LibraryId = library.Id, Kind = MediaKind.Episode, Title = $"Episode {n}", SortTitle = $"episode {n}", ParentId = season.Id, SeasonNumber = season.SeasonNumber,
+            EpisodeNumber = n, AddedAt = added,
+        };
+        var severance = Show("Severance", "95396");
+        var slowHorses = Show("Slow Horses", "95480");
+        var (s2, sh1) = (Season(severance, 2), Season(slowHorses, 1));
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.MediaItems.AddRange(severance, slowHorses, s2, sh1);
+            // Asked for before Slow Horses' episode came in, and answered by Severance's new one.
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Series, TmdbId = 95396, RequestedAt = _clock.Now.AddDays(-3) });
+            // Asked for after its latest episode: still waiting.
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Series, TmdbId = 95480, RequestedAt = _clock.Now.AddDays(-1) });
+            // A film nobody has yet.
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 1, RequestedAt = _clock.Now.AddDays(-1) });
+            db.MediaItems.Add(Episode(sh1, 1, _clock.Now.AddDays(-2)));
+            db.MediaItems.Add(Episode(s2, 1, _clock.Now.AddMinutes(1)));
+        });
+
+        var sent = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(5)), m => m.GetProperty("t").GetString() == "Your request is ready");
+
+        Assert.Equal("Severance S2 E1 is in the library.", sent.GetProperty("b").GetString());
+        using var scope = _server.Services.CreateScope();
+        var open = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaRequests.Where(r => r.FulfilledAt == null).Select(r => r.TmdbId).OrderBy(t => t).ToListAsync();
+        Assert.Equal([1, 95480], open);
+    }
+
     private static (MediaItem Artist, MediaItem Album) Album(Library library, string artist, string title, DateTime added, string? releaseGroup = null, string? artistMbid = null)
     {
         var a = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Artist, Title = artist, SortTitle = artist.ToLowerInvariant(), AddedAt = added, MusicBrainzId = artistMbid };

@@ -394,10 +394,34 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         var answered = new List<Answered>();
         var open = await db.MediaRequests.Where(r => r.FulfilledAt == null).ToListAsync(ct);
         answered.AddRange(await MusicAnsweredAsync(db, languages, open.Where(r => r.Kind is MediaKind.Album or MediaKind.Artist).ToList(), from, settled, now, ct));
-        foreach (var request in open.Where(r => r.Kind is not (MediaKind.Album or MediaKind.Artist)))
+        var videos = open.Where(r => r.Kind is not (MediaKind.Album or MediaKind.Artist)).ToList();
+        if (videos.Count == 0)
+        {
+            return answered;
+        }
+
+        // One look for all of them first (most minutes, none has come in), then the full look only for those that may have.
+        var filmIds = videos.Where(r => r.Kind == MediaKind.Movie).Select(r => r.TmdbId.ToString(CultureInfo.InvariantCulture)).Distinct().ToList();
+        var filmsIn = filmIds.Count == 0 ? []
+            : (await db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Movie && i.TmdbId != null && filmIds.Contains(i.TmdbId) && i.AddedAt <= settled)
+                .Select(i => i.TmdbId!).Distinct().ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
+        var shows = videos.Where(r => r.Kind != MediaKind.Movie).ToList();
+        var showIds = shows.Select(r => r.TmdbId.ToString(CultureInfo.InvariantCulture)).Distinct().ToList();
+        var earliest = shows.Count == 0 ? settled : shows.Min(r => r.RequestedAt);
+        var latestEpisode = showIds.Count == 0 ? []
+            : (await db.MediaItems.AsNoTracking()
+                .Where(i => i.Kind == MediaKind.Episode && i.Parent!.Parent!.TmdbId != null && showIds.Contains(i.Parent.Parent.TmdbId) && i.AddedAt > earliest && i.AddedAt <= settled)
+                .GroupBy(i => i.Parent!.Parent!.TmdbId!).Select(g => new { TmdbId = g.Key, Latest = g.Max(i => i.AddedAt) }).ToListAsync(ct))
+            .ToDictionary(e => e.TmdbId, e => e.Latest, StringComparer.Ordinal);
+        foreach (var request in videos)
         {
 
             var tmdb = request.TmdbId.ToString(CultureInfo.InvariantCulture);
+            if (request.Kind == MediaKind.Movie ? !filmsIn.Contains(tmdb) : !(latestEpisode.TryGetValue(tmdb, out var latest) && latest > request.RequestedAt))
+            {
+                continue;
+            }
+
             if (request.Kind == MediaKind.Movie)
             {
                 var film = await db.MediaItems.AsNoTracking()
