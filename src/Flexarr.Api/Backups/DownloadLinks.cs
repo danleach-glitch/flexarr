@@ -12,10 +12,13 @@ public sealed class DownloadLinks(TimeProvider clock)
 {
     public static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(1);
 
-    private readonly ConcurrentDictionary<string, (string Name, DateTimeOffset Expires)> _links = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, (string Name, DateTimeOffset Expires, string? Passphrase)> _links = new(StringComparer.Ordinal);
 
-    /// <summary>A new link's ticket for backup <paramref name="name"/>.</summary>
-    public string Issue(string name)
+    /// <summary>
+    /// A new link's ticket for backup <paramref name="name"/>; with <paramref name="passphrase"/>, the link downloads
+    /// it protected by that passphrase (kept in memory with the ticket, for its minute at most).
+    /// </summary>
+    public string Issue(string name, string? passphrase = null)
     {
         var now = clock.GetUtcNow();
         foreach (var (ticket, link) in _links)
@@ -27,11 +30,23 @@ public sealed class DownloadLinks(TimeProvider clock)
         }
 
         var issued = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
-        _links[issued] = (name, now + Lifetime);
+        _links[issued] = (name, now + Lifetime, passphrase);
         return issued;
     }
 
     /// <summary>Uses up <paramref name="ticket"/>: true if it was issued for <paramref name="name"/> and hasn't expired.</summary>
-    public bool Redeem(string? ticket, string name) =>
-        ticket is not null && _links.TryRemove(ticket, out var link) && link.Name == name && link.Expires > clock.GetUtcNow();
+    public bool Redeem(string? ticket, string name) => Redeem(ticket, name, out _);
+
+    /// <summary>As <see cref="Redeem(string?, string)"/>, also giving the passphrase the link was issued with, if any.</summary>
+    public bool Redeem(string? ticket, string name, out string? passphrase)
+    {
+        passphrase = null;
+        if (ticket is null || !_links.TryRemove(ticket, out var link) || link.Name != name || link.Expires <= clock.GetUtcNow())
+        {
+            return false;
+        }
+
+        passphrase = link.Passphrase;
+        return true;
+    }
 }

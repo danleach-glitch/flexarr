@@ -27,8 +27,15 @@ public sealed record BackupSettingsUpdate(string? Folder, bool? Nightly);
 /// <param name="Confirm">The person said yes, when the main profile has no admin PIN.</param>
 public sealed record DownloadRequest(string? Passphrase, string? Pin = null, bool Confirm = false);
 
-/// <param name="Url">Downloads the backup as it is, once, within a minute.</param>
+/// <param name="Url">Downloads the backup as it is (or protected, when the link was asked for with a passphrase), once, within a minute.</param>
 public sealed record DownloadLinkDto(string Url);
+
+/// <summary>
+/// download-link's request: the admin PIN or confirmation as <see cref="KeyRequest"/>, and (new in the release after
+/// 0.62.1, audit perf-68) an optional <paramref name="Passphrase"/>: the link then downloads the backup protected by it,
+/// as POST /{name}/download with a passphrase does, but straight to the browser's downloads. Without it, as before.
+/// </summary>
+public sealed record DownloadLinkRequest(string? Pin = null, bool Confirm = false, bool SignOutOthers = false, string? Passphrase = null);
 
 public sealed record BackupContentsDto(DateTime CreatedAt, BackupKind Kind, string FlexarrVersion, int Profiles, int Libraries, int Titles, string? Problem);
 
@@ -108,12 +115,19 @@ public static class BackupEndpoints
                 return Results.NotFound();
             }
 
-            return http.User.FindFirst(FlexarrClaims.Method)?.Value == Authentication.ApiKeyAuthenticationHandler.Methods.ApiKey || links.Redeem(ticket, name)
+            // A link bought with a passphrase gives the backup protected by it.
+            var redeemed = links.Redeem(ticket, name, out var passphrase);
+            if (redeemed && passphrase is not null)
+            {
+                return Encrypted(path, name, passphrase);
+            }
+
+            return http.User.FindFirst(FlexarrClaims.Method)?.Value == Authentication.ApiKeyAuthenticationHandler.Methods.ApiKey || redeemed
                 ? Results.File(path, "application/zip", name)
                 : Problems.Of("That download link has expired. Download the backup again.", status: 403);
         });
 
-        group.MapPost("/{name}/download-link", async (string name, KeyRequest? request, HttpContext http, BackupStore store, DownloadLinks links, FlexarrDbContext db,
+        group.MapPost("/{name}/download-link", async (string name, DownloadLinkRequest? request, HttpContext http, BackupStore store, DownloadLinks links, FlexarrDbContext db,
             CurrentProfile current, PinGuard guard, CancellationToken ct) =>
         {
             if (store.PathFor(name) is null)
@@ -121,12 +135,19 @@ public static class BackupEndpoints
                 return Results.NotFound();
             }
 
-            if (await SettingsEndpoints.ConfirmKeyAsync(request, http, db, current, guard, ct, Loc.Mark("download a backup")) is { } refused)
+            var key = request is null ? null : new KeyRequest(request.Pin, request.Confirm, request.SignOutOthers);
+            if (await SettingsEndpoints.ConfirmKeyAsync(key, http, db, current, guard, ct, Loc.Mark("download a backup")) is { } refused)
             {
                 return refused;
             }
 
-            return Results.Ok(new DownloadLinkDto($"/api/v1/backups/{Uri.EscapeDataString(name)}/download?ticket={links.Issue(name)}"));
+            var passphrase = string.IsNullOrEmpty(request?.Passphrase) ? null : request.Passphrase;
+            if (passphrase is { Length: < BackupCrypto.MinPassphraseLength })
+            {
+                return ShortPassphrase();
+            }
+
+            return Results.Ok(new DownloadLinkDto($"/api/v1/backups/{Uri.EscapeDataString(name)}/download?ticket={links.Issue(name, passphrase)}"));
         });
 
         // A POST, as it may carry a passphrase.
@@ -457,6 +478,14 @@ public static class BackupEndpoints
             // Not there, not empty, or not ours to remove: left as it is.
         }
     }
+
+    /// <summary>The backup at <paramref name="path"/> protected by <paramref name="passphrase"/>, streamed as it's encrypted.</summary>
+    private static IResult Encrypted(string path, string name, string passphrase) =>
+        Results.Stream(async output =>
+        {
+            await using var input = File.OpenRead(path);
+            await BackupCrypto.EncryptAsync(input, output, passphrase, CancellationToken.None);
+        }, "application/octet-stream", Path.ChangeExtension(name, ".flexarr-backup"));
 
     private static IResult ShortPassphrase() =>
         Problems.Field("Use a passphrase of at least {minPassphraseLength} characters.", field: "passphrase", args: new { minPassphraseLength = BackupCrypto.MinPassphraseLength });
