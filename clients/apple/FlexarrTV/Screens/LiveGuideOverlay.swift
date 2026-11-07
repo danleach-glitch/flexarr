@@ -33,7 +33,7 @@ struct LiveGuideOverlay: View {
     }
 
     private func load() async {
-        if let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: 24) { guide = loaded }
+        if let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: 24, descriptions: false) { guide = loaded }
     }
 
     /// The screen the player presents, over itself.

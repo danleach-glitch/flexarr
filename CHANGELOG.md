@@ -42,6 +42,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 - On iPhone, iPad and Mac, the guide draws faster with a long channel list, and tapping a channel's logo no longer redraws the whole grid.
 - The apps on iPhone, iPad, Mac and Apple TV download the guide again every half hour instead of every two to five minutes, which saves data away from home. Setting or cancelling a recording still updates it at once, and a recording starting or finishing still shows within a few minutes.
+- On iPhone, iPad, Mac and Apple TV, the guide downloads without each programme's description, so it's much smaller; the description is fetched when you open a programme. With a server before this release, the guide comes as before.
 - While you watch a channel on iPhone, iPad, Mac or Apple TV, the title over the picture no longer downloads the whole channel list every minute: it moves on to the next programme by itself, and asks your server only when it doesn't know what comes next.
 - When the Live TV source stops sending the guide part-way (its machine sleeps, or the network drops), the refresh gives up after two minutes and says so in Settings, instead of waiting until the server is restarted with no more guide or channel updates.
 - On the web, the guide opens sooner on Favourites: it downloads only your favourite channels while that's what's shown, leaves out programme descriptions until you open one, and an unchanged guide isn't downloaded again.
@@ -89,6 +90,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Security
 
 - On iPhone, iPad, Apple TV and Mac, away from home, your sign-in goes to your server's home address only after it has shown it's your server, so another network using the same address never receives it and can't sign the app out.
+- The code an Apple TV or iPhone shows to join someone's Flexarr is now made from that device's own key, so the invite it brings can only be opened by the device showing it, whatever happens at Flexarr's relay on the way.
+- On iPhone, iPad and Mac, a film, episode, song, podcast episode or book downloaded before a parent blocked it, lowered the profile's age limit or hid its library is taken off the device the next time the app reaches your server, as is one the server no longer has. A title whose drive is just offline stays.
 - On iPhone, iPad, Apple TV and Mac, what your server tells the app (profiles, Home's rows, what each profile is part way through) is no longer kept in the app's picture cache on disk, where it could outlast a change of profile. Updating empties that cache once, to clear what earlier versions kept there, and so does signing out.
 - On iPhone, iPad, Apple TV and Mac, a language downloaded from a server is only kept when it's the language the app asked for, under that language's own name, so a server you've joined as a guest can't use it to damage the app's other saved files.
 - On iPhone, iPad, Apple TV and Mac, when your server's away-from-home address changes, the app only takes the new one once the server there shows it's the server this device signed in to. Before, something on your home network that altered one answer could point the app at a Tailscale address of its own.

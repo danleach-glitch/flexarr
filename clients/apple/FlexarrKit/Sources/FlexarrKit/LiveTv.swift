@@ -295,12 +295,29 @@ extension FlexarrClient {
         }
     }
 
-    /// Every channel's programmes from `from` for `hours` (at most a day).
-    public func liveGuide(from: Date, hours: Int) async throws -> LiveGuide {
-        try await get("livetv/guide", query: [
+    /// Every channel's programmes from `from` for `hours` (at most a day). `descriptions: false` leaves each
+    /// programme's description out, the bulk of a day's guide; `programmeWithDescription` fetches one when its details
+    /// open. Servers before the release after 0.62.1 ignore it and send descriptions as before.
+    public func liveGuide(from: Date, hours: Int, descriptions: Bool = true) async throws -> LiveGuide {
+        var query: [URLQueryItem] = [
             .init(name: "from", value: ISO8601DateFormatter().string(from: from)),
             .init(name: "hours", value: String(hours)),
-        ])
+        ]
+        if !descriptions { query.append(.init(name: "descriptions", value: "false")) }
+        return try await get("livetv/guide", query: query)
+    }
+
+    /// One programme as the guide gives it, with its description. Absent from servers before the release after 0.62.1
+    /// (404), as is a programme that has gone from the guide.
+    public func liveProgramme(_ id: Int64) async throws -> LiveProgramme {
+        try await get("livetv/programmes/\(id)")
+    }
+
+    /// The programme with its description, for its details: as it is when it has one (a guide from a server that
+    /// sends them), otherwise fetched; when that can't be had (an older server, a programme with none), as it is.
+    public func programmeWithDescription(_ programme: LiveProgramme) async -> LiveProgramme {
+        guard programme.description == nil, let full = try? await liveProgramme(programme.id), full.id == programme.id else { return programme }
+        return full
     }
 
     /// Every channel in number order, with what's on now and next.

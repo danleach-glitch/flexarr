@@ -113,6 +113,39 @@ struct LiveTvTests {
         #expect(first.channel(at: now).now == first.programmes.first)
     }
 
+    @Test func aGuideWithoutDescriptionsSaysSo_AndADetailsSheetFetchesTheOneItShows() async throws {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        func programme(_ description: String?) -> LiveProgramme {
+            LiveProgramme(id: 42, start: start, end: start.addingTimeInterval(3600), title: "News", subtitle: nil, description: description,
+                          category: nil, season: nil, episode: nil, isNew: false, recording: nil, series: nil)
+        }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let full = try encoder.encode(programme("The day's stories."))
+        let (client, host) = stubbedClient(.init(status: 200, body: full))
+
+        _ = try? await client.liveGuide(from: start, hours: 8, descriptions: false)
+        let asked = try #require(StubProtocol.recorded(host: host).last?.url)
+        #expect(asked.path == "/api/v1/livetv/guide")
+        #expect(URLComponents(url: asked, resolvingAgainstBaseURL: false)?.queryItems?.contains(.init(name: "descriptions", value: "false")) == true)
+        _ = try? await client.liveGuide(from: start, hours: 8)
+        #expect(StubProtocol.recorded(host: host).last?.url?.query()?.contains("descriptions") == false)
+
+        // Without one, its details fetch it.
+        let fetched = await client.programmeWithDescription(programme(nil))
+        #expect(fetched.description == "The day's stories.")
+        #expect(StubProtocol.recorded(host: host).last?.url?.path == "/api/v1/livetv/programmes/42")
+
+        // With one (an older server sent it in the guide), nothing is fetched.
+        let before = StubProtocol.recorded(host: host).count
+        #expect(await client.programmeWithDescription(programme("Kept.")).description == "Kept.")
+        #expect(StubProtocol.recorded(host: host).count == before)
+
+        // An older server has no such endpoint: the programme stays as it was.
+        let (older, _) = stubbedClient(.init(status: 404, body: Data()))
+        #expect(await older.programmeWithDescription(programme(nil)) == programme(nil))
+    }
+
     @Test func recordings() throws {
         let list = try Fixture.decode(Recordings.self, "recordings")
         #expect(list.streams == 1)
