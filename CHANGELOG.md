@@ -53,7 +53,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Apple TV, the visualiser's light comes to rest a few seconds after you pause, and moves again when the music does. Paused music left on Now Playing no longer keeps the Apple TV drawing 30 times a second.
 - Music, podcasts and books use a little less battery while they play on iPhone, iPad, Mac and Apple TV: the app no longer hands the lock screen its playing time every second, only when it has changed from what the lock screen counts by itself.
 - **Play** and **Shuffle** on an artist or an album start sooner on a big library, most of all on a slower server: gathering the tracks no longer reads through every title you have.
-- A song's volume levelling (ReplayGain) is read when the library scans the file, not the first time the song is played, so the first play of music added from now on starts a touch sooner, most of all from a drive that was asleep. Music already in your library works as before.
+- A song's volume levelling (ReplayGain) is read when the library scans the file, not the first time the song is played, so a song's first play starts a touch sooner, most of all from a drive that was asleep. Music already in your library has it read a few songs at a time in the background, while nothing is playing.
 - Home, a music library's Browse and the playlists page open sooner when you have long playlists: a playlist's track count, length and covers are worked out by the server's database instead of reading every song in every playlist each time.
 - Moving or removing a song in a long playlist is quicker: only the songs between its old place and its new one are renumbered, instead of every song in the playlist.
 
