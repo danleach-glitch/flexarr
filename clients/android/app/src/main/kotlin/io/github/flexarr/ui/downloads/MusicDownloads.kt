@@ -117,8 +117,9 @@ fun MusicDownloadButton(model: AppModel, source: MusicDownloadSource) {
     val status = collection?.let(store::status)
     var removing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
-    // An album's size (or a playlist's first track's) is what servers from before music downloads didn't know.
-    val offered by produceState(initialValue = true, source.id, model.client) {
+    // An album's size (or a playlist's first track's) is what servers from before music downloads didn't know. Keyed on
+    // the sign-in, not model.client: that's a new object at every read, so every progress tick would ask again.
+    val offered by produceState(initialValue = true, source.id, model.credentials) {
         val client = model.client ?: return@produceState
         val probe = (source as? MusicDownloadSource.Album)?.album?.id ?: source.tracks.firstOrNull()?.id ?: return@produceState
         value = try {
