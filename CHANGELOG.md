@@ -38,6 +38,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A Live TV source can no longer redirect a channel logo to somewhere else, such as a device on your home network, and have the server hand back what it found there. Logos only follow redirects that stay on the source.
 - Asking for a language the server hasn't downloaded yet no longer starts a new download every time while flexarr.io can't be reached. A pack downloads once at a time, and one that failed waits an hour before it's tried again.
 - One app or browser can no longer push the server's own record of what happened out of its log by reporting long messages over and over. Each device's reports may add up to 1 MB to the log an hour.
+- The log and the diagnostics bundle no longer keep the key of a private podcast feed, or a password written into an address (`https://user:password@host`). A podcast that can't be refreshed is logged by its title and host.
 
 ## 0.62.1 · 5 November 2026
 

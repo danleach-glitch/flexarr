@@ -26,6 +26,11 @@ public class LoggingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     [InlineData("{\"password\":\"hunter2\"}", "{\"password\":\"***\"}")]
     [InlineData("GET https://www.googleapis.com/books/v1/volumes?q=dune&key=AIzaSyabc", "GET https://www.googleapis.com/books/v1/volumes?q=dune&key=***")]
     [InlineData("the sort key=title stays", "the sort key=title stays")]
+    [InlineData("GET https://www.patreon.com/rss/show?auth=Zx9kQ2pLmN", "GET https://www.patreon.com/rss/show?auth=***")]
+    [InlineData("feed https://dan:hunter2@feeds.example.com/rss failed", "feed https://***@feeds.example.com/rss failed")]
+    [InlineData("\"url\": \"http://admin:pw@192.168.1.5:8989\"", "\"url\": \"http://***@192.168.1.5:8989\"")]
+    [InlineData("mail dan@example.com about https://example.com/a@b", "mail dan@example.com about https://example.com/a@b")]
+    [InlineData("the author= field stays", "the author= field stays")]
     [InlineData("nothing secret here", "nothing secret here")]
     public void RedactsNamedSecrets(string line, string expected) => Assert.Equal(expected, Redactor.Redact(line));
 
