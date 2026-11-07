@@ -23,6 +23,10 @@ struct ShowGapsTests {
         #expect(gaps.countLabel(season: 2) == nil)
         #expect(gaps.episodesBySeason.map(\.season) == [1, 2])
         #expect(gaps.upcoming.first?.code == "S5E1")
+        // A season it has some of is Requested when Sonarr's already looking for every missing episode (season 1), else not.
+        let row = gaps.row()
+        #expect(row.map(\.season.seasonNumber) == [1, 2, 3, 4])
+        #expect(row.map(\.season.availability) == [.requested, .none, .none, .requested])
 
         let searchOnly = ShowGaps(source: "sonarr", canRequest: false, canSearch: true, seasons: gaps.seasons, episodes: [], upcoming: [], counts: [])
         #expect(searchOnly.action(for: gaps.seasons[0]) == .search)

@@ -58,8 +58,8 @@ import io.github.flexarr.ui.theme.Tokens
 
 /**
  * What a show's page knows the library lacks, as music's artist page does: *Not in your library* (whole seasons with
- * Request, or Search for the main profile; and, in the same row, seasons it has part of, with how many episodes they
- * lack and Search), then *Coming up*.
+ * Request (through Seerr, or Sonarr for the main profile); and, in the same row, seasons it has part of, with how many
+ * episodes they lack and Request or Requested), then *Coming up*.
  */
 internal fun LazyListScope.showMissingSections(
     missing: ShowMissing,
@@ -90,7 +90,7 @@ internal fun LazyListScope.showMissingSections(
                                 // A season the library has some of: how many episodes it lacks, not each one.
                                 is SeasonGap.Part -> {
                                     val own = librarySeasons.firstOrNull { it.seasonNumber == gap.seasonNumber }
-                                    PartSeasonCard(gap, own?.artwork?.poster ?: showPoster, own?.title?.takeIf { it.isNotBlank() } ?: gap.title, missing.canSearchEpisodes, gap.seasonNumber in asked, onSearch)
+                                    PartSeasonCard(gap, own?.artwork?.poster ?: showPoster, own?.title?.takeIf { it.isNotBlank() } ?: gap.title, missing.canSearchEpisodes, gap.requested || gap.seasonNumber in asked, onSearch)
                                 }
                             }
                         }
@@ -136,18 +136,24 @@ private fun MissingSeasonCard(
                 else -> MissingChip(t(Words.request), FlexarrIcons.request, on = false, enabled = canAsk, description = t("Request {season}", "season" to season.title)) { onRequest(season) }
             }
             season.requested || asked -> MissingChip(t(Words.requested), FlexarrIcons.requested, on = true, enabled = false) {}
-            missing.canSearch -> MissingChip(t(Words.search), FlexarrIcons.search, on = false, enabled = true, description = t("Search for {season}", "season" to season.title)) { onSearch(season.seasonNumber, null) }
+            // Sonarr (the main profile): it monitors and searches, which is a request as far as anyone's concerned.
+            missing.canSearch -> MissingChip(t(Words.request), FlexarrIcons.request, on = false, enabled = true, description = t("Request {season}", "season" to season.title)) { onSearch(season.seasonNumber, null) }
         }
     }
     if (confirming) TitleUndoDialog(season.title, onConfirm = { onUnrequest(season) }, onDismiss = { confirming = false })
 }
 
-/** A season the library has part of: its poster, name and how many episodes it lacks, and Search under it (main profile). */
+/**
+ * A season the library has part of: its poster, name and how many episodes it lacks, and under it Request (Sonarr's
+ * search, main profile), or Requested once asked or when Sonarr's already looking for them.
+ */
 @Composable
-private fun PartSeasonCard(gap: SeasonGap.Part, poster: String?, title: String, canSearch: Boolean, searching: Boolean, onSearch: (Int, List<Int>?) -> Unit) {
+private fun PartSeasonCard(gap: SeasonGap.Part, poster: String?, title: String, canSearch: Boolean, requested: Boolean, onSearch: (Int, List<Int>?) -> Unit) {
     SeasonCardFrame(poster, title, gap.detail) {
-        if (canSearch) {
-            MissingChip(if (searching) t("Searching") else t(Words.search), FlexarrIcons.search, on = searching, enabled = !searching, description = t("Search for season {season}’s missing episodes", "season" to gap.seasonNumber)) {
+        if (requested) {
+            MissingChip(t(Words.requested), FlexarrIcons.requested, on = true, enabled = false) {}
+        } else if (canSearch) {
+            MissingChip(t(Words.request), FlexarrIcons.request, on = false, enabled = true, description = t("Request season {season}’s missing episodes", "season" to gap.seasonNumber)) {
                 onSearch(gap.seasonNumber, null)
             }
         }

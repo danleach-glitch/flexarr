@@ -75,8 +75,12 @@ struct ShowGapsSection: View {
 
     private func state(_ season: MissingSeason, partial: Bool) -> MissingSeasonAction {
         let n = season.seasonNumber
-        // A season it has some of: Search for the rest (the main profile), Searching once asked, or nothing.
-        if partial { return asked.contains(-n) ? .requested : gaps.canSearch && gaps.source == "sonarr" ? .search : .none }
+        // A season it has some of: Request the rest from Sonarr (the main profile), Requested once asked or when Sonarr's
+        // already looking for them, or nothing.
+        if partial {
+            if asked.contains(-n) || season.availability == .requested { return .requested }
+            return gaps.canSearch && gaps.source == "sonarr" ? .search : .none
+        }
         if asked.contains(n) || searched.contains(n) { return .requested }
         if undone.contains(n), gaps.canRequest { return .request }
         let action = gaps.action(for: season)
@@ -93,10 +97,10 @@ struct ShowGapsSection: View {
     private func seasonCard(_ season: MissingSeason, partial: Bool) -> some View {
         let action = state(season, partial: partial)
         let width = Layout.posterWidth
-        let badge = partial && action == .requested ? (title: t("Searching"), symbol: Symbol.search) : status(action)
+        let badge = status(action)
         let caption = caption(season, partial: partial)
         // Always a button, whatever it can do: one that's disabled while it has focus leaves nothing focused.
-        // VoiceOver hears what the caption says, Request, Search or Requested among it, as the card is all it focuses.
+        // VoiceOver hears what the caption says, Request or Requested among it, as the card is all it focuses.
         return ArtworkButton(ambient: .silver,
                              accessibilityText: [season.title, caption, badge?.title].compactMap(\.self)
                                  .filter { !$0.isEmpty }.joined(separator: ", "),
@@ -122,7 +126,7 @@ struct ShowGapsSection: View {
                 }
             }
             .frame(width: width, height: width * 1.5)
-            .opacity(action == .requested && !partial ? 0.55 : 1)
+            .opacity(action == .requested ? 0.55 : 1)
             .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
@@ -150,11 +154,11 @@ struct ShowGapsSection: View {
          season.year.map(String.init)].compactMap(\.self).joined(separator: ", ")
     }
 
-    /// What pressing the card does, or that it's done: Request, Search or Requested.
+    /// What pressing the card does, or that it's done: Request (Seerr, or Sonarr's search for the main profile) or Requested.
     private func status(_ action: MissingSeasonAction) -> (title: String, symbol: String)? {
         switch action {
         case .request: (TitleWords.request, Symbol.request)
-        case .search: (t(Words.search), Symbol.search)
+        case .search: (TitleWords.request, Symbol.request)
         case .requested: (TitleWords.requested, Symbol.requested)
         default: nil
         }

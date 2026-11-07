@@ -65,8 +65,12 @@ struct ShowGapsSection: View {
 
     private func state(_ season: MissingSeason, partial: Bool) -> MissingSeasonAction {
         let n = season.seasonNumber
-        // A season it has some of: Search for the rest (the main profile), Searching once asked, or nothing.
-        if partial { return searchedEpisodes.contains(n) ? .requested : gaps.canSearch && gaps.source == "sonarr" ? .search : .none }
+        // A season it has some of: Request the rest from Sonarr (the main profile), Requested once asked or when Sonarr's
+        // already looking for them, or nothing.
+        if partial {
+            if searchedEpisodes.contains(n) || season.availability == .requested { return .requested }
+            return gaps.canSearch && gaps.source == "sonarr" ? .search : .none
+        }
         if asked.contains(n) || searched.contains(n) { return .requested }
         if undone.contains(n), gaps.canRequest { return .request }
         let action = gaps.action(for: season)
@@ -80,7 +84,7 @@ struct ShowGapsSection: View {
         gaps.canRequest && tmdbId != nil && !searched.contains(season.seasonNumber) && season.availability != .partlyAvailable
     }
 
-    /// Poster, name and episodes, with Request (or Search) under it, as on the web.
+    /// Poster, name and episodes, with Request (Seerr, or Sonarr for the main profile) or Requested under it, as on the web.
     private func seasonCard(_ season: MissingSeason, partial: Bool) -> some View {
         let width = Layout.posterWidth(sizeClass)
         let action = state(season, partial: partial)
@@ -111,13 +115,16 @@ struct ShowGapsSection: View {
             switch action {
             case .request:
                 actionButton(TitleWords.request, symbol: Symbol.request, label: t("Request {season}", ["season": season.title])) { await request(season) }
+            // Sonarr (the main profile): monitors and searches, which is a request as far as anyone's concerned.
             case .search where partial:
-                actionButton(t(Words.search), symbol: Symbol.search,
-                             label: t("Search for season {season}’s missing episodes", ["season": season.seasonNumber])) {
+                actionButton(TitleWords.request, symbol: Symbol.request,
+                             label: t("Request season {season}’s missing episodes", ["season": season.seasonNumber])) {
                     await search(season.seasonNumber, episodesOnly: true)
                 }
             case .search:
-                actionButton(t(Words.search), symbol: Symbol.search, label: t("Search for {season}", ["season": season.title])) { await search(season.seasonNumber) }
+                actionButton(TitleWords.request, symbol: Symbol.request, label: t("Request {season}", ["season": season.title])) {
+                    await search(season.seasonNumber)
+                }
             case .requested where !partial && undoable(season):
                 Button { undoing = season } label: { Label(TitleWords.requested, systemImage: Symbol.requested).oneLine() }
                     .buttonStyle(.borderedProminent)
@@ -129,9 +136,14 @@ struct ShowGapsSection: View {
                     .accessibilityHint(TitleWords.unrequestHint)
                     .accessibilityAddTraits(.isSelected)
             case .requested:
-                Text(partial || searched.contains(season.seasonNumber) ? t("Searching") : TitleWords.requested)
+                // Looks like the Requested that takes a request back, but nothing to press: Sonarr's search can't be.
+                Label(TitleWords.requested, systemImage: Symbol.requested).oneLine()
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Color.usher)
+                    .foregroundStyle(Color.screen)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.seat, in: Capsule())
+                    .accessibilityLabel(t("Requested, {season}", ["season": season.title]))
             default:
                 EmptyView()
             }

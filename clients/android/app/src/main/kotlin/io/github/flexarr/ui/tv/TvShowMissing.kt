@@ -44,7 +44,7 @@ import io.github.flexarr.ui.theme.FlexarrIcons
 /**
  * A show's gaps on the TV, as the phone's: *Not in your library* (one row of the seasons it has none of and those it
  * has part of, with how many episodes they lack) and *Coming up*. Pressing a season requests it (or, for the main
- * profile without Seerr, searches); pressing a requested one asks, then takes back just that season; pressing a
+ * profile without Seerr, asks Sonarr to search); pressing a requested one asks, then takes back just that season; pressing a
  * partly-had season asks Sonarr for all its missing episodes (main profile). Cards with nothing to do (and the
  * coming-up episode cards) still take focus, so the page scrolls to them.
  */
@@ -76,20 +76,21 @@ internal fun TvShowMissing(
                 LazyRow(contentPadding = PaddingValues(horizontal = TvLayout.Edge, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(TvLayout.RowSpacing)) {
                     items(gaps, key = { if (it is SeasonGap.Part) "part-season-${it.seasonNumber}" else "missing-season-${it.seasonNumber}" }) { gap ->
                         if (gap is SeasonGap.Part) {
-                            // A season the library has some of: how many episodes it lacks, and Search for them (main profile).
+                            // A season the library has some of: how many episodes it lacks, and Request them from Sonarr (main
+                            // profile), or Requested once asked or when Sonarr's already looking for them.
                             val own = librarySeasons.firstOrNull { it.seasonNumber == gap.seasonNumber }
                             val title = own?.title?.takeIf { it.isNotBlank() } ?: gap.title
-                            val searched = gap.seasonNumber in asked
+                            val requested = gap.requested || gap.seasonNumber in asked
                             val canSearch = missing.canSearchEpisodes
                             SeasonCard(
                                 poster = own?.artwork?.poster ?: showPoster,
                                 title = title,
                                 detail = gap.detail,
-                                status = if (!canSearch) null else if (searched) t("Searching") else t(Words.search),
-                                statusIcon = FlexarrIcons.search,
-                                action = if (canSearch && !searched) { { onSearch(gap.seasonNumber, null) } } else null,
-                                dimmed = canSearch && searched,
-                                description = if (canSearch && !searched) t("Search for season {season}’s missing episodes", "season" to gap.seasonNumber) else null,
+                                status = if (requested) t(Words.requested) else if (canSearch) t(Words.request) else null,
+                                statusIcon = if (requested) FlexarrIcons.requested else FlexarrIcons.request,
+                                action = if (canSearch && !requested) { { onSearch(gap.seasonNumber, null) } } else null,
+                                dimmed = requested,
+                                description = if (canSearch && !requested) t("Request season {season}’s missing episodes", "season" to gap.seasonNumber) else null,
                             )
                         } else {
                             val season = (gap as SeasonGap.Whole).season
@@ -102,12 +103,12 @@ internal fun TvShowMissing(
                                 state != null && requested -> state.label() to null
                                 requested -> t(Words.requested) to null
                                 missing.canRequest -> t(Words.request) to { if (canAsk) onRequest(season) }
-                                missing.canSearch -> t(Words.search) to { onSearch(season.seasonNumber, null) }
+                                missing.canSearch -> t(Words.request) to { onSearch(season.seasonNumber, null) }
                                 else -> null to null
                             }
                             // Request or Requested that can't be pressed now (a kids profile, or Seerr not answering): greyed, as on the phones.
                             val blocked = !canAsk && missing.canRequest && (state == TitleRequestState.Requested || (!requested && state != TitleRequestState.Refused))
-                            val icon = if (requested) FlexarrIcons.requested else if (status == t(Words.search)) FlexarrIcons.search else FlexarrIcons.request
+                            val icon = if (requested) FlexarrIcons.requested else FlexarrIcons.request
                             SeasonCard(season.poster, season.title, season.detail, status, icon, action, dimmed = blocked)
                         }
                     }
