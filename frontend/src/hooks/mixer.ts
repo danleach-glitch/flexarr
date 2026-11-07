@@ -17,13 +17,45 @@ export interface Mixer {
   resume(): void
   /** What everything sounds like together, for the visualiser; null until a channel is made, or without Web Audio. */
   analyser(): AnalyserNode | null
+  /** Lets the sound device go for good: the player is going (signing out, switching profile). */
+  close(): void
 }
+
+/**
+ * How long everything stays paused or stopped before the audio clock is suspended. A running clock holds the sound
+ * device open, which costs battery and can keep a laptop awake, hours after the last song; playing resumes it.
+ */
+export const SUSPEND_AFTER_MS = 10_000
 
 export function createMixer(): Mixer {
   const channels = new Map<HTMLMediaElement, Channel>()
   let context: AudioContext | null | undefined
   // Every channel feeds one bus, so the visualiser hears the mix (both tracks, mid-crossfade) after their levels.
   let bus: AnalyserNode | null = null
+  let idle: ReturnType<typeof setTimeout> | undefined
+  // A browser's clock that can't do this (or throws doing it) carries on as it was.
+  const attempt = (step: () => Promise<void>) => {
+    try {
+      void step().catch(() => undefined)
+    } catch {
+      // Left as it is.
+    }
+  }
+
+  const quiet = () => [...channels.keys()].every((el) => el.paused)
+  // Everything paused or stopped: the clock is suspended a while later, if nothing has played since.
+  const settle = () => {
+    clearTimeout(idle)
+    idle = setTimeout(() => {
+      const ctx = context
+      if (ctx?.state === 'running' && quiet()) attempt(() => ctx.suspend())
+    }, SUSPEND_AFTER_MS)
+  }
+  const wake = () => {
+    clearTimeout(idle)
+    const ctx = context
+    if (ctx?.state === 'suspended') attempt(() => ctx.resume())
+  }
 
   // Made on first use rather than at startup: browsers only let an AudioContext run once the page has been touched.
   const audioContext = () => {
@@ -53,6 +85,11 @@ export function createMixer(): Mixer {
       const gain = ctx.createGain()
       ctx.createMediaElementSource(el).connect(gain)
       gain.connect(bus ?? ctx.destination)
+      // Whatever starts the element (the player, a crossfade, the next file of a book) wakes the clock it plays through.
+      el.addEventListener('play', wake)
+      el.addEventListener('pause', settle)
+      el.addEventListener('ended', settle)
+      el.addEventListener('emptied', settle)
       return {
         set(value) {
           gain.gain.cancelScheduledValues(ctx.currentTime)
@@ -87,9 +124,12 @@ export function createMixer(): Mixer {
       }
       return channel
     },
-    resume() {
-      if (context?.state === 'suspended') void context.resume().catch(() => undefined)
-    },
+    resume: wake,
     analyser: () => bus,
+    close() {
+      clearTimeout(idle)
+      const ctx = context
+      if (ctx && ctx.state !== 'closed') attempt(() => ctx.close())
+    },
   }
 }

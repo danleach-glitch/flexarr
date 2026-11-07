@@ -145,6 +145,8 @@ export interface AudioEngine {
   stop(report?: boolean): void
   /** The mix, for the visualiser: null before anything has played, or without Web Audio. */
   analyser(): AnalyserNode | null
+  /** Lets the sound device go for good, as the player goes (signing out, switching profile). */
+  close(): void
   /** Sets how loud the current book plays, from 1 (as it is) to 0, for the sleep timer's fade. */
   volume(level: number): void
   /** Sends the book's place without waiting (the page is going). */
@@ -746,6 +748,8 @@ export function createEngine(host: EngineHost): AudioEngine {
     },
 
     analyser: () => mixer.analyser(),
+
+    close: () => mixer.close(),
 
     volume(next) {
       fade = Math.min(1, Math.max(0, next))

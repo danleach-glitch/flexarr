@@ -247,6 +247,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => engine().attach([audioA.current, audioB.current].filter((el): el is HTMLAudioElement => el !== null)), [engine])
+  // The player going (signing out, switching profile) lets the sound device go; its elements go with it.
+  useEffect(() => () => engineRef.current?.close(), [])
 
   // Start the current track whenever the queue asks for it (epoch); a restored queue (epoch 0) waits for Play.
   // The reducer bumps epoch exactly when playback should (re)start; other changes to the queue leave the track alone.
