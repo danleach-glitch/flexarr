@@ -27,6 +27,8 @@ import io.github.flexarr.core.LiveProgramme
 import io.github.flexarr.core.LiveWatch
 import io.github.flexarr.core.RecordingInTheWay
 import io.github.flexarr.core.liveChannels
+import java.time.Instant
+import io.github.flexarr.core.LiveNowRefresh
 import io.github.flexarr.core.liveHeartbeat
 import io.github.flexarr.core.removeRecording
 import io.github.flexarr.core.stopLiveChannel
@@ -178,6 +180,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
         position = 0.0
         duration = 0.0
         isBehind = false
+        nowAsked = null
         showTitle(channel, channel.now)
         starting = scope.launch {
             try {
@@ -226,7 +229,12 @@ class LiveTvController(context: Context, private val model: AppModel, val client
         keepTicking()
     }
 
+    /** When the programme shown ends, and when the server was last asked what's on ([LiveNowRefresh]). */
+    private var shownEnd: Instant? = null
+    private var nowAsked: Instant? = null
+
     private fun showTitle(channel: LiveChannel, programme: LiveProgramme?) {
+        shownEnd = programme?.end
         title = programme?.displayTitle ?: channel.name
         subtitle = "${channel.numberText} ${channel.name}" + (programme?.let { "   " + timeRange(it) } ?: "")
     }
@@ -249,8 +257,9 @@ class LiveTvController(context: Context, private val model: AppModel, val client
                     // A missed beat; the next one will do.
                 }
                 beats++
-                if (beats % 4 == 0) {
+                if (beats % 4 == 0 && LiveNowRefresh.isDue(shownEnd, nowAsked, Instant.now())) {
                     val id = watching?.channel?.id ?: continue
+                    nowAsked = Instant.now()
                     runCatching { client.liveChannels() }.getOrNull()?.firstOrNull { it.id == id }?.let { showTitle(it, it.now) }
                 }
             }

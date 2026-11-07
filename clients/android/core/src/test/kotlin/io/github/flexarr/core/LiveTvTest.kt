@@ -2,6 +2,7 @@ package io.github.flexarr.core
 
 import kotlinx.serialization.serializer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -18,6 +19,26 @@ class LiveTvTest {
         assertTrue(channels.isNotEmpty())
         assertNotNull(fixture<LiveGuide>("live-guide").channels.firstOrNull())
         fixture<Recordings>("recordings")
+    }
+
+    @Test
+    fun `the live player asks what's on again once the programme ends, not every minute`() {
+        val end = Instant.parse("2026-11-07T20:00:00Z")
+        val asked = Instant.parse("2026-11-07T19:30:00Z")
+        // Mid-programme, a minute or nine after asking: nothing to fetch.
+        assertFalse(LiveNowRefresh.isDue(end, asked, asked.plusSeconds(60)))
+        assertFalse(LiveNowRefresh.isDue(end, asked, asked.plusSeconds(540)))
+        // It ended: once.
+        assertTrue(LiveNowRefresh.isDue(end, asked, end))
+        assertFalse(LiveNowRefresh.isDue(end, end.plusSeconds(1), end.plusSeconds(61)))
+        // Still the old programme (the guide ran out): every ten minutes, as with no guide at all.
+        assertTrue(LiveNowRefresh.isDue(end, end.plusSeconds(1), end.plusSeconds(601)))
+        assertFalse(LiveNowRefresh.isDue(null, asked, asked.plusSeconds(60)))
+        assertTrue(LiveNowRefresh.isDue(null, asked, asked.plusSeconds(600)))
+        // Shown from the channel list it was picked from: asked at the first chance if it's ended or there's none.
+        assertFalse(LiveNowRefresh.isDue(end, null, asked))
+        assertTrue(LiveNowRefresh.isDue(end, null, end))
+        assertTrue(LiveNowRefresh.isDue(null, null, asked))
     }
 
     @Test

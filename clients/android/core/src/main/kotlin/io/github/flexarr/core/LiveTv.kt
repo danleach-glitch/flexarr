@@ -84,6 +84,23 @@ data class LiveProgramme(
         get() = if (subtitle == null || subtitle == title || subtitle.length >= 60) title else "$title: $subtitle"
 }
 
+/**
+ * When the live player asks again what's on the channel it shows. The answer is the whole channel list, large with a big
+ * IPTV line-up, so not every minute: once the programme shown has ended ([shownEnd]), and otherwise every
+ * [EVERY_MS] (the guide may fill in, or change). [lastAsked] is when the server was last asked, null when what's shown
+ * came from elsewhere (the channel list the channel was picked from), which may be older.
+ */
+object LiveNowRefresh {
+    const val EVERY_MS = 600_000L
+
+    fun isDue(shownEnd: Instant?, lastAsked: Instant?, now: Instant): Boolean {
+        val ended = shownEnd != null && !now.isBefore(shownEnd)
+        if (lastAsked == null) return shownEnd == null || ended
+        if (ended && lastAsked.isBefore(shownEnd)) return true
+        return now.toEpochMilli() - lastAsked.toEpochMilli() >= EVERY_MS
+    }
+}
+
 @Serializable
 data class LiveChannel(
     val id: String,
