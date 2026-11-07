@@ -26,6 +26,7 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Continue Watching in the Watch Next row on the Google TV (and Android TV) home screen, as the Apple TV's Top Shelf:
@@ -100,12 +101,22 @@ object WatchNext {
         return (videos.take(MAX_VIDEOS) + music).sortedByDescending { it.lastEngagement }
     }
 
-    /** Asks the server again and puts the row right (or clears it). Quietly does nothing off a TV. */
+    /** A refresh waiting its turn, which then reads everything afresh: so more asked for meanwhile add nothing. */
+    private val waiting = AtomicBoolean(false)
+
+    /**
+     * Asks the server again and puts the row right (or clears it). Quietly does nothing off a TV. Asked for often
+     * (whenever watch state changes), so asks while one is already waiting are dropped.
+     */
     suspend fun refresh(context: Context) {
-        if (!context.isTelevision) return
+        if (!context.isTelevision || !waiting.compareAndSet(false, true)) return
         withContext(Dispatchers.IO) {
-            runCatching { writing.withLock { sync(context.applicationContext) } }
-                .onFailure { log.info("Couldn't update Watch Next", it) }
+            runCatching {
+                writing.withLock {
+                    waiting.set(false)
+                    sync(context.applicationContext)
+                }
+            }.onFailure { waiting.set(false); log.info("Couldn't update Watch Next", it) }
         }
     }
 
