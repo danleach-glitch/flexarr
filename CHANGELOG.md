@@ -61,10 +61,22 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - New episodes, films and albums no longer wait behind a whole library's weekly refresh of details. Titles that are out of date are refreshed in the background, 25 at a time every ten minutes, the longest due first; a scan only fetches details for new titles and for the folder it was told about.
 - A library scan holds much less in the server's memory: of the files it already knows, it keeps only the ones that changed, not every file of the library, which matters on a NAS or a small Docker host.
 - The Apple TV's Top Shelf cards for titles whose artwork is kept beside the media no longer wake a sleeping drive once the server has made them, as covers already didn't, and a cover the server already has a copy of is served without looking at the drive again when the title is looked up afresh.
+- Posters and other artwork are no longer downloaded again by every app and browser after each weekly look-up of your library: a picture keeps its address until it actually changes (a new poster, a cover you replaced), so screens of posters come from the device's own cache, which matters most away from home. Each picture is fetched once more after this update.
+- Rows and grids of titles load much faster on a server with audiobooks. Once a library held a few thousand books in series, every list (films, shows and episodes too, and each row of Home) took several times longer than it needed to.
+- **Fix match** answers sooner as you change what you're searching for: with a few thousand films or shows in Radarr or Sonarr, every search after the first no longer waits several seconds for their whole list again.
+- Covers kept beside your media (a cover.jpg, the artwork inside an album's or a book's files) no longer wake a sleeping drive each time a page shows them: once the server has a copy, it serves it without looking at the original. A cover you replace is picked up at the next library scan.
 
 ### Playback
 
 - In the web player, styled subtitles for a file with many attached fonts (as anime releases often have) appear sooner: the server reads all of its fonts out in one go instead of one at a time, and the browser keeps them for the rest of the film or episode.
+- Reading the closed captions out of a recording no longer competes with the stream you've just started: it runs in the background and gives way to playback.
+- Subtitles inside a very large file (a 60 GB film on a network share, say) are given up to an hour to be read instead of ten minutes, so they arrive rather than never turning up.
+- When a file's subtitles or captions can't be read, the server remembers it instead of reading the whole file again at every play; choosing the track tries it again. One bad subtitle track no longer stops a file's other tracks from working.
+- Watching a show at 1.5× or 2× no longer freezes every few seconds when the server is converting it: the stream is made as fast as you're watching. For films this works on iPhone, iPad and Apple TV for now.
+- Finding intros and credits gives way to people watching: it pauses before each episode while anything is playing, and holds off while the server is converting a stream for someone (the season you've just started is still done first). It used to work through a whole season at a time whatever else was going on.
+- Finding intros and credits no longer goes through a season again when its episodes were just done (after you change the audio track or quality, or start it on a second screen), and an episode that makes it hang no longer has the same season tried over and over: it moves on to the rest of the library and comes back to that season a day later.
+- Styled subtitles (the signs and songs of anime, say) appear sooner in the web player for a file with many fonts attached: the server lists a file's fonts once instead of once for every font the player asks for.
+- On iPhone, iPad and Apple TV, the first play of a film or episode after the server restarts starts a moment sooner when its stream is sent as it is: when its sound begins is remembered with the rest of what the server knows about the file, instead of being read from the file again.
 
 ### Security
 
@@ -120,24 +132,6 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A show's page opens with **Play** in focus, not **Shuffle**. Play is there from the start and fills in the episode once it's known.
 - Pressing down from a row of buttons onto **Play** (on Browse, say) lands on Play wherever you were along the row, rather than skipping to the row of titles below. Up from far along a row comes back to a page's buttons the same way.
 - Moving around a big library's grid feels less sticky after jumping to a late letter: the A to Z rail is no longer worked out again from every loaded title at each press of the remote.
-
-### Playback
-
-- Reading the closed captions out of a recording no longer competes with the stream you've just started: it runs in the background and gives way to playback.
-- Subtitles inside a very large file (a 60 GB film on a network share, say) are given up to an hour to be read instead of ten minutes, so they arrive rather than never turning up.
-- When a file's subtitles or captions can't be read, the server remembers it instead of reading the whole file again at every play; choosing the track tries it again. One bad subtitle track no longer stops a file's other tracks from working.
-- Watching a show at 1.5× or 2× no longer freezes every few seconds when the server is converting it: the stream is made as fast as you're watching. For films this works on iPhone, iPad and Apple TV for now.
-- Finding intros and credits gives way to people watching: it pauses before each episode while anything is playing, and holds off while the server is converting a stream for someone (the season you've just started is still done first). It used to work through a whole season at a time whatever else was going on.
-- Finding intros and credits no longer goes through a season again when its episodes were just done (after you change the audio track or quality, or start it on a second screen), and an episode that makes it hang no longer has the same season tried over and over: it moves on to the rest of the library and comes back to that season a day later.
-- Styled subtitles (the signs and songs of anime, say) appear sooner in the web player for a file with many fonts attached: the server lists a file's fonts once instead of once for every font the player asks for.
-- On iPhone, iPad and Apple TV, the first play of a film or episode after the server restarts starts a moment sooner when its stream is sent as it is: when its sound begins is remembered with the rest of what the server knows about the file, instead of being read from the file again.
-
-### Libraries
-
-- Posters and other artwork are no longer downloaded again by every app and browser after each weekly look-up of your library: a picture keeps its address until it actually changes (a new poster, a cover you replaced), so screens of posters come from the device's own cache, which matters most away from home. Each picture is fetched once more after this update.
-- Rows and grids of titles load much faster on a server with audiobooks. Once a library held a few thousand books in series, every list (films, shows and episodes too, and each row of Home) took several times longer than it needed to.
-- **Fix match** answers sooner as you change what you're searching for: with a few thousand films or shows in Radarr or Sonarr, every search after the first no longer waits several seconds for their whole list again.
-- Covers kept beside your media (a cover.jpg, the artwork inside an album's or a book's files) no longer wake a sleeping drive each time a page shows them: once the server has a copy, it serves it without looking at the original. A cover you replace is picked up at the next library scan.
 
 ### Downloads
 
