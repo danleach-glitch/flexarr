@@ -45,6 +45,15 @@ class GuideFetchTest {
     }
 
     @Test
+    fun `the guide over the picture asks for its channels by id when there are few enough`() {
+        val all = (1..150).map { channel("c$it") }
+        assertEquals(mapOf("channels" to "c1,c2"), GuideFilter.byIds(all.take(2)).query)
+        assertEquals("c100", GuideFilter.byIds(all.take(100)).query["channels"]!!.split(",").last())
+        assertEquals(GuideFilter.Everything, GuideFilter.byIds(all.take(101)))
+        assertEquals(GuideFilter.Everything, GuideFilter.byIds(emptyList()))
+    }
+
+    @Test
     fun `the guide comes without descriptions, and not again while it hasn't changed`() = runTest {
         val client = FlexarrClient(server.url("/"), apiKey = "key")
         server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json").addHeader("ETag", "W/\"abc\"").body(guide).build())

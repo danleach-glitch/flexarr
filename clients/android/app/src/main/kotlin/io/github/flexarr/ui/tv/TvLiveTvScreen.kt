@@ -43,6 +43,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,6 +79,7 @@ import io.github.flexarr.core.LiveProgramme
 import io.github.flexarr.core.Recording
 import io.github.flexarr.core.RecordingSeries
 import io.github.flexarr.core.liveChannels
+import io.github.flexarr.core.GuideFetch
 import io.github.flexarr.core.GuideFilter
 import io.github.flexarr.core.liveGuide
 import io.github.flexarr.core.recordings
@@ -123,7 +125,7 @@ private sealed interface Category {
 /**
  * The guide as last fetched, shared by Live TV and the guide over the picture so opening one after the other doesn't
  * fetch it again. Fetched a few hours at a time ([hours]), more as the guide is moved on; kept four minutes, so the
- * five-minute refresh always fetches.
+ * five-minute refresh always asks (with the ETag of the guide on screen, so an unchanged one isn't sent again).
  */
 internal object TvGuideCache : GuideKeeper(CoroutineScope(SupervisorJob() + Dispatchers.Main)) {
     /** The guide's first fetch, and how much more each move past its end asks for, up to a day. */
@@ -133,12 +135,24 @@ internal object TvGuideCache : GuideKeeper(CoroutineScope(SupervisorJob() + Disp
 }
 
 /**
+ * A guide as a screen holds it: what it was asked for ([filter]; [ask], every part of the question, from the server
+ * and profile to the hours), and the ETag it came with, to ask again with.
+ */
+internal class KeptGuide(val guide: LiveGuide, val filter: GuideFilter, val ask: String, val etag: String?) {
+    /** The channels in it, for whether it has every one a screen shows. */
+    val ids: Set<String> by lazy(LazyThreadSafetyMode.NONE) { guide.channels.mapTo(HashSet()) { it.id } }
+
+    /** It has the programmes of every channel in [ids] (or was asked for [filter], which has them). */
+    fun covers(filter: GuideFilter, ids: Collection<String>): Boolean = filter == this.filter || this.filter == GuideFilter.Everything || (ids.isNotEmpty() && this.ids.containsAll(ids))
+}
+
+/**
  * What [TvGuideCache] does. A guide is let go once it's too old to be given again, or when Android asks for memory
  * back ([clear]): every channel's programmes for up to a day is tens of megabytes for a big line-up, which a TV stick
  * was holding for as long as the app ran. The wait to let it go runs in [scope].
  */
 internal open class GuideKeeper(private val scope: CoroutineScope) {
-    private class Entry(val sign: String, val guide: LiveGuide, val fetched: Instant, val hours: Int)
+    private class Entry(val owner: String, val kept: KeptGuide, val fetched: Instant, val hours: Int)
 
     // Read and changed on the main thread, where the screens ask and [scope] waits.
     private var entry: Entry? = null
@@ -148,28 +162,58 @@ internal open class GuideKeeper(private val scope: CoroutineScope) {
     val holds: Boolean get() = entry != null
 
     /**
-     * At least [hours] from an hour ago; [fresh] after something changed it (a recording set). Kept for one server and
-     * one profile ([profile]): another profile may not see the same channels.
+     * At least [hours] from an hour ago (from the half hour, so asking again within it is the same question) of
+     * [filter]'s channels; [fresh] after something changed it (a recording set). Kept for one server and one profile
+     * ([profile]): another profile may not see the same channels. A kept guide with every channel of [covers] does
+     * for any [filter]. [have], the guide the screen shows: asked again with its ETag, and given back when it hasn't
+     * changed.
      */
-    suspend fun guide(client: FlexarrClient, hours: Int, profile: String?, fresh: Boolean = false): LiveGuide =
-        guide("${client.baseUrl} $profile", hours, fresh) {
-            // Without descriptions, the bulk of it: a programme's comes when it's opened. (No ETag: nothing's kept to reuse.)
-            client.liveGuide(Instant.now().minusSeconds(3600), hours, GuideFilter.Everything, descriptions = false, etag = null).guide
-                ?: throw FlexarrException.UnexpectedResponse()
+    suspend fun guide(
+        client: FlexarrClient,
+        hours: Int,
+        profile: String?,
+        filter: GuideFilter,
+        covers: Collection<String>,
+        have: KeptGuide?,
+        fresh: Boolean = false,
+    ): KeptGuide {
+        val from = GuideWindow.halfHourBefore(Instant.now().minusSeconds(3600))
+        val owner = "${client.baseUrl} $profile"
+        val ask = "$owner $from $hours ${filter.query}"
+        return guide(owner, ask, filter, hours, fresh, covers, have) { etag ->
+            // Without descriptions, the bulk of it: a programme's comes when it's opened.
+            client.liveGuide(from, hours, filter, descriptions = false, etag = etag)
         }
+    }
 
-    /** The guide kept for [sign] if it'll do, or else what [fetch] brings, kept in its place. */
-    internal suspend fun guide(sign: String, hours: Int, fresh: Boolean, fetch: suspend () -> LiveGuide): LiveGuide {
-        entry?.takeIf { !fresh && it.sign == sign && it.hours >= hours && Duration.between(it.fetched, Instant.now()) < MAX_AGE }?.let { return it.guide }
-        val guide = fetch()
-        val kept = Entry(sign, guide, Instant.now(), hours)
-        entry = kept
+    /**
+     * The guide kept for [owner] if it'll do, or else what [fetch] brings (given [have]'s ETag when it was the same
+     * [ask]; a null guide back is [have] unchanged), kept in its place.
+     */
+    internal suspend fun guide(
+        owner: String,
+        ask: String,
+        filter: GuideFilter,
+        hours: Int,
+        fresh: Boolean,
+        covers: Collection<String>,
+        have: KeptGuide?,
+        fetch: suspend (etag: String?) -> GuideFetch,
+    ): KeptGuide {
+        entry?.takeIf {
+            !fresh && it.owner == owner && it.hours >= hours && Duration.between(it.fetched, Instant.now()) < MAX_AGE && it.kept.covers(filter, covers)
+        }?.let { return it.kept }
+        val same = have?.takeIf { !fresh && it.ask == ask && it.etag != null }
+        val fetched = fetch(same?.etag)
+        val kept = fetched.guide?.let { KeptGuide(it, filter, ask, fetched.etag) } ?: same ?: throw FlexarrException.UnexpectedResponse()
+        val next = Entry(owner, kept, Instant.now(), hours)
+        entry = next
         letGo?.cancel()
         letGo = scope.launch {
             delay(MAX_AGE.toMillis())
-            if (entry === kept) entry = null
+            if (entry === next) entry = null
         }
-        return guide
+        return kept
     }
 
     /** Lets the kept guide go now; the next asked for is fetched. */
@@ -202,7 +246,8 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     val scope = rememberCoroutineScope()
     var channels by remember { mutableStateOf<List<LiveChannel>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var guide by remember { mutableStateOf<LiveGuide?>(null) }
+    // The guide on screen, with what it was asked for and its ETag.
+    var kept by remember { mutableStateOf<KeptGuide?>(null) }
     var upcoming by remember { mutableStateOf<Int?>(null) }
     var chosen by remember { mutableStateOf<Category?>(null) }
     // The category focus is on: shown once it rests there, so holding Down through the list doesn't build each guide.
@@ -220,14 +265,8 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
             if (channels == null) error = e.message
         }
     }
-    suspend fun loadGuide(fresh: Boolean = false) {
-        upcoming = runCatching { client.recordings().upcoming.size }.getOrNull() ?: upcoming
-        runCatching { TvGuideCache.guide(client, guideHours, model.currentProfile?.id, fresh) }.onSuccess { guide = it }
-    }
-    // What's on moves on: fetched again each minute while the screen is up; the guide (a few hours of it) every five,
-    // and more of it as the guide's moved on.
+    // What's on moves on: fetched again each minute while the screen is up.
     RepeatWhileShowing(60_000, model.credentials) { load() }
-    RepeatWhileShowing(300_000, model.credentials, guideHours) { loadGuide() }
     LaunchedEffect(focusedCategory) {
         val resting = focusedCategory ?: return@LaunchedEffect
         delay(250)
@@ -248,10 +287,47 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
         Category.Recordings -> emptyList()
     }
 
+    // The guide is asked only for the channels the category shows (a big line-up isn't sent whole for a few
+    // favourites), once they're known; Recordings and an empty Favourites show none.
+    val showsGuide = channels != null && category != Category.Recordings && !(category == Category.Favourites && favourites.isEmpty())
+    val shown = if (showsGuide) channelsIn(category) else emptyList()
+    val shownIds = remember(shown) { shown.map { it.id } }
+    val ask = remember(shown, all, category) { GuideFilter.forShown(shown, all, category == Category.Favourites) }
+    // What the screen shows now, for a load launched before it changed (a recording set, a favourite starred).
+    val currentAsk by rememberUpdatedState(ask)
+    val currentIds by rememberUpdatedState(shownIds)
+    val currentShowsGuide by rememberUpdatedState(showsGuide)
+    suspend fun loadUpcoming() {
+        upcoming = runCatching { client.recordings().upcoming.size }.getOrNull() ?: upcoming
+    }
+    suspend fun loadGuide(fresh: Boolean = false) {
+        if (fresh) loadUpcoming()
+        if (!currentShowsGuide) {
+            // Changed with no guide up: the kept one's out of date.
+            if (fresh) TvGuideCache.clear()
+            return
+        }
+        val asking = currentAsk
+        runCatching { TvGuideCache.guide(client, guideHours, model.currentProfile?.id, asking, currentIds, kept, fresh) }.onSuccess {
+            // A slower answer to an earlier question doesn't replace the guide of a category chosen since.
+            if (asking == currentAsk || kept?.covers(currentAsk, currentIds) != true) kept = it
+        }
+    }
+    // The count of what's set to record every five minutes, on its own: not again for each category moved onto.
+    RepeatWhileShowing(300_000, model.credentials) { loadUpcoming() }
+    // The guide (a few hours of it) every five minutes, and more of it as the guide's moved on or another category's
+    // chosen (kept, it's given again at once).
+    RepeatWhileShowing(300_000, model.credentials, guideHours, ask, showsGuide) { loadGuide() }
+    // Another category chosen, its channels not in the guide yet: loading, rather than "No listings" for each.
+    val guide = kept?.takeIf { it.covers(ask, shownIds) }?.guide
+
     fun setFavourite(channel: LiveChannel, favourite: Boolean) {
         channels = channels?.map { if (it.id == channel.id) it.copy(isFavourite = favourite) else it }
         scope.launch {
-            runCatching { client.setFavouriteChannel(channel.id, favourite) }.onFailure {
+            runCatching { client.setFavouriteChannel(channel.id, favourite) }.onSuccess {
+                // A guide of the favourites, as the server has them: asked again for the one starred or unstarred.
+                if (currentAsk.query.containsKey("favourites")) loadGuide(fresh = true)
+            }.onFailure {
                 channels = channels?.map { if (it.id == channel.id) it.copy(isFavourite = !favourite) else it }
             }
         }
@@ -298,9 +374,9 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                         category == Category.Favourites && favourites.isEmpty() -> NoFavourites()
                         else -> TvLiveGuideGrid(
                             client,
-                            channelsIn(category),
+                            shown,
                             guide,
-                            onWatch = { navigator.watch(it, channelsIn(category)) },
+                            onWatch = { navigator.watch(it, shown) },
                             onFavourite = { setFavourite(it, !it.isFavourite) },
                             onRecordingsChanged = { scope.launch { loadGuide(fresh = true) } },
                             onNeedLater = { if (guideHours < TvGuideCache.MOST_HOURS) guideHours = minOf(TvGuideCache.MOST_HOURS, guideHours + TvGuideCache.MORE_HOURS) },
