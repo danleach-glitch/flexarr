@@ -23,6 +23,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Watching a show at 1.5× or 2× no longer freezes every few seconds when the server is converting it: the stream is made as fast as you're watching. For films this works on iPhone, iPad and Apple TV for now.
 - Finding intros and credits gives way to people watching: it pauses before each episode while anything is playing, and holds off while the server is converting a stream for someone (the season you've just started is still done first). It used to work through a whole season at a time whatever else was going on.
 - Finding intros and credits no longer goes through a season again when its episodes were just done (after you change the audio track or quality, or start it on a second screen), and an episode that makes it hang no longer has the same season tried over and over: it moves on to the rest of the library and comes back to that season a day later.
+- Styled subtitles (the signs and songs of anime, say) appear sooner in the web player for a file with many fonts attached: the server lists a file's fonts once instead of once for every font the player asks for.
 
 ### Libraries
 - Posters and other artwork are no longer downloaded again by every app and browser after each weekly look-up of your library: a picture keeps its address until it actually changes (a new poster, a cover you replaced), so screens of posters come from the device's own cache, which matters most away from home. Each picture is fetched once more after this update.

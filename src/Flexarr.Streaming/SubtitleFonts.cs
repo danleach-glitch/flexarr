@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
@@ -24,15 +25,53 @@ public static class SubtitleFonts
         [".woff2"] = "font/woff2",
     };
 
-    /// <summary>The attachments that are fonts, read from the file's header with ffprobe.</summary>
+    /// <summary>Files' fonts as last read, by path and time: a player asks for each font of a file at once, and each needs the list.</summary>
+    private static readonly ConcurrentDictionary<string, Task<IReadOnlyList<AttachedFont>?>> Known = new(StringComparer.Ordinal);
+
+    private const int MostKnown = 256;
+
+    /// <summary>
+    /// The attachments that are fonts, read from the file's header with ffprobe once for the file as it is now (a file
+    /// that changes is read again), however many of its fonts are asked for together.
+    /// </summary>
     public static async Task<IReadOnlyList<AttachedFont>> ListAsync(MediaFile file, string ffprobePath, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(file);
+        var key = $"{file.Path}|{File.GetLastWriteTimeUtc(file.Path).Ticks}";
+        if (Known.Count > MostKnown)
+        {
+            Known.Clear();
+        }
+
+        // Read without the caller's token, so one player leaving doesn't fail the others waiting on the same read.
+        var reading = Known.GetOrAdd(key, _ => ReadAsync(file, ffprobePath));
+        try
+        {
+            var fonts = await reading.WaitAsync(ct).ConfigureAwait(false);
+            if (fonts is null)
+            {
+                // ffprobe failed: not remembered, so the next ask tries again.
+                Known.TryRemove(new KeyValuePair<string, Task<IReadOnlyList<AttachedFont>?>>(key, reading));
+            }
+
+            return fonts ?? [];
+        }
+        catch (Exception) when (!ct.IsCancellationRequested)
+        {
+            Known.TryRemove(new KeyValuePair<string, Task<IReadOnlyList<AttachedFont>?>>(key, reading));
+            throw;
+        }
+    }
+
+    /// <summary>The fonts as ffprobe lists them; null when it couldn't.</summary>
+    private static async Task<IReadOnlyList<AttachedFont>?> ReadAsync(MediaFile file, string ffprobePath)
+    {
+        var ct = CancellationToken.None;
         var json = await RunAsync(ffprobePath, ["-v", "error", "-protocol_whitelist", "file", "-select_streams", "t",
             "-show_entries", "stream=index:stream_tags=filename,mimetype", "-print_format", "json", "-i", file.Path], null, ct).ConfigureAwait(false);
         if (json is null)
         {
-            return [];
+            return null;
         }
 
         using var doc = JsonDocument.Parse(json);
