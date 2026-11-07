@@ -414,6 +414,37 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task A_series_finds_its_showings_whatever_their_case_and_spacing_and_nothing_else()
+    {
+        var now = DateTime.UtcNow;
+        _dispatcharr.Guide = $"""
+            <?xml version="1.0" encoding="UTF-8"?><tv>
+            <programme start="{Xmltv(now.AddMinutes(10))}" stop="{Xmltv(now.AddMinutes(70))}" channel="101"><title>Doctor Who</title><sub-title>The Star Beast</sub-title><desc>One</desc><new/></programme>
+            <programme start="{Xmltv(now.AddDays(1))}" stop="{Xmltv(now.AddDays(1).AddHours(1))}" channel="101"><title>  DOCTOR WHO </title><sub-title>Wild Blue Yonder</sub-title><desc>Two</desc><new/></programme>
+            <programme start="{Xmltv(now.AddDays(2))}" stop="{Xmltv(now.AddDays(2).AddHours(1))}" channel="101"><title>Doctor Who Confidential</title><new/></programme>
+            <programme start="{Xmltv(now.AddDays(9))}" stop="{Xmltv(now.AddDays(9).AddHours(1))}" channel="101"><title>Doctor Who</title><sub-title>Too far ahead</sub-title><new/></programme>
+            </tv>
+            """;
+        var client = Client();
+        await ConnectAsync(client);
+        var doctorWho = (await GuideProgrammeAsync(client, "Doctor Who")).GetProperty("id").GetInt64();
+        (await client.PostAsJsonAsync(Api("livetv/recordings/series"), new { programmeId = doctorWho, newOnly = true })).EnsureSuccessStatusCode();
+
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var scheduler = new DvrScheduler(services.GetRequiredService<IServiceScopeFactory>(), services.GetRequiredService<DvrService>(),
+                services.GetRequiredService<DvrSignal>(), services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Flexarr.Api.Configuration.FlexarrOptions>>(),
+                TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<DvrScheduler>.Instance);
+            await scheduler.RunOnceAsync(CancellationToken.None);
+        }
+
+        var list = await client.GetFromJsonAsync<JsonElement>(Api("livetv/recordings"));
+        Assert.Equal(["The Star Beast", "Wild Blue Yonder"],
+            list.GetProperty("upcoming").EnumerateArray().OrderBy(u => u.GetProperty("start").GetDateTime()).Select(u => u.GetProperty("subtitle").GetString()).ToList());
+    }
+
+    [Fact]
     public async Task The_dvr_settings_are_kept_with_the_connection()
     {
         var client = Client();
