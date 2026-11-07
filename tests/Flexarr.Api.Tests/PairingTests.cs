@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Flexarr.Api.Security;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -257,6 +258,43 @@ public class PairingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
         var waiting = await Admin().GetFromJsonAsync<JsonElement>(Api("/pairing/waiting"));
         var hall = Assert.Single(waiting.EnumerateArray(), p => p.GetProperty("deviceName").GetString() == "Hall");
         await Admin().PostAsJsonAsync(Api($"/pairing/code/{hall.GetProperty("code").GetString()}/decline"), new { }); // frees its place for the other tests
+    }
+
+    [Fact]
+    public void ADeviceAskingInALoop_KeepsItsCode_AndThePhonesAreToldOnce()
+    {
+        using var server = new FlexarrApiFactory();
+        var pairings = server.Services.GetRequiredService<Pairings>();
+
+        var first = pairings.Start("Living room TV", NetworkZone.Local, "192.168.1.95", out var told)!;
+        var again = new List<PairingDetailsDto?>();
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.Equal(first.Code, pairings.Start("Living room TV", NetworkZone.Local, "192.168.1.95", out var announced)!.Code);
+            again.Add(announced);
+        }
+
+        Assert.NotNull(told);
+        Assert.All(again, Assert.Null);
+        Assert.Single(pairings.Waiting());
+    }
+
+    [Fact]
+    public void ThePhones_AreToldOfAtMostTwentyCodesAnHour()
+    {
+        using var server = new FlexarrApiFactory();
+        var pairings = server.Services.GetRequiredService<Pairings>();
+
+        var announced = new List<bool>();
+        for (var i = 0; i < 22; i++)
+        {
+            var started = pairings.Start($"TV {i}", NetworkZone.Local, $"192.168.2.{i + 1}", out var told)!;
+            announced.Add(told is not null);
+            pairings.Decline(started.Code); // frees its place
+        }
+
+        Assert.Equal(20, announced.Count(a => a));
+        Assert.False(announced[^1]);
     }
 
     [Fact]
