@@ -284,6 +284,10 @@ data class GuideFilter(val query: Map<String, String>) {
         /** The most channels asked for by id: their ids fill about 3.7 kB of the address. */
         const val MOST_IDS = 100
 
+        /** [shown] by id, when there are few enough; otherwise every channel, and the screen picks out its own. */
+        fun byIds(shown: List<LiveChannel>): GuideFilter =
+            if (shown.isEmpty() || shown.size > MOST_IDS) Everything else GuideFilter(mapOf("channels" to shown.joinToString(",") { it.id }))
+
         /**
          * The question for [shown], out of [all] the channels: nothing narrower when it's every one; their ids when
          * there are few enough; a [favouritesOnly] view's favourites; or the one group (as the source names it) they
