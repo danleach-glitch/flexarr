@@ -413,9 +413,14 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     /// Signed in to a server (it can be asked for downloads).
     var isAttached: Bool { client != nil }
 
+    /// The profile the attached sign-in is known to act as (nil until it's known): the server's check of what may
+    /// still be played is asked only for that profile's downloads.
+    @ObservationIgnored private var attachedProfileId: String?
+
     /// The signed-in server and profile, as they change (nil when signed out or not known yet).
     func attach(client: FlexarrClient?, profileId: String?) {
         self.client = client
+        attachedProfileId = client == nil ? nil : profileId
         if let profileId, profileId != self.profileId {
             self.profileId = profileId
             UserDefaults.standard.set(profileId, forKey: "downloads.profile")
@@ -512,6 +517,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         }
         deleteFinished() // podcast episodes whose play was waiting to be sent
         await deletePlayedPodcasts()
+        await removeWithdrawn()
         // A title saved by an app that didn't know its kind (a podcast episode, kept by an older version) was saved as
         // "unknown" and would stay so, filed under Films: what the server says now puts it right.
         for download in all where download.profileId == profileId && download.item.kind == .unknown {
@@ -526,6 +532,25 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         poll()
         resumeBooks()
         await reconcilePodcasts()
+    }
+
+    /// Downloads this profile may no longer play: a title a parent has since blocked, put above a lowered age limit or
+    /// hidden the library of, and one the server no longer has. The server says which (`OfflineCheck`), and they go,
+    /// books too, unless one's playing or has a play here still to send (the next catch-up tries again). One whose
+    /// file the server can't find just now (a drive offline) stays. A server before the check, or out of reach, leaves
+    /// them all.
+    private func removeWithdrawn() async {
+        guard let client, isOnline, let profileId, attachedProfileId == profileId else { return }
+        let kept = downloads.filter { $0.isDownloaded || $0.book != nil }
+        guard !kept.isEmpty, let answer = try? await client.offlineCheck(itemIds: kept.map(\.item.id)) else { return }
+        // The profile may have changed while the server answered: the answer is only for the one asked about.
+        guard self.client != nil, self.profileId == profileId, attachedProfileId == profileId else { return }
+        let remove = answer.toRemove(asked: kept.map(\.item.id))
+        for download in kept where remove.contains(download.item.id.lowercased()) {
+            guard let now = all.first(where: { $0.id == download.id }), now.unsent == nil, !isPlaying(now.item.id) else { continue }
+            log.info("Removing a download this profile may no longer play: \(now.item.title)")
+            delete(now.id)
+        }
     }
 
     /// Films, episodes and tracks shown as downloading with no transfer behind them (the system dropped it with the
