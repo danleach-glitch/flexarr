@@ -198,6 +198,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - An audiobook with hundreds of chapters no longer makes its chapter list stutter while it plays, and the list opens straight away.
 - **Copy code and open Trakt** only ever opens a page on trakt.tv. If the server names anywhere else, the Android app opens trakt.tv/activate instead.
 - On Android TV, a kids profile no longer has **Settings** in the sidebar (so no **Sign out** either), as on the phone. A kids profile that's the only one on the server keeps it.
+- An Android TV or phone with child lock on no longer signs out, online or offline: it says child lock must be turned off first. It used to forget its sign-in anyway, leaving the TV disconnected until a parent connected it again, and without child lock.
 - The Android app checks each language pack a server sends before keeping it, and forgets the packs it kept when it signs out, so another server's words don't follow it to the next one.
 - The code an Android TV or phone shows for a family invite is now made from its own key, so your server can tell the invite is sealed for the device showing the code and no one else, even if Flexarr's relay were tampered with.
 

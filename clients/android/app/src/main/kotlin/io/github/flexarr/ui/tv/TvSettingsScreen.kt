@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
+import io.github.flexarr.signOutRefusal
 import io.github.flexarr.BuildConfig
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.TraktStatus
@@ -218,11 +219,13 @@ private fun MainPage(
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                 )
-                Text(if (guest) t("Joining again takes a new code.") else t("This TV will need to connect again to use the server."), fontSize = 14.sp, color = Flexarr.usher)
+                // With child lock on, the server keeps the sign-in: says so in place of Sign out.
+                val refusal = if (guest) null else signOutRefusal(model.kidsLock)
+                Text(refusal ?: if (guest) t("Joining again takes a new code.") else t("This TV will need to connect again to use the server."), fontSize = 14.sp, color = Flexarr.usher)
                 // As the Apple TV: Cancel first, and where focus starts; Leave (or Sign out) after it.
                 Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     TvActionButton(t(Words.cancel), onClick = { confirmSignOut = false }, prominent = true, modifier = Modifier.focusRequester(cancel))
-                    TvActionButton(if (guest) t("Leave") else t("Sign out"), onClick = {
+                    if (refusal == null) TvActionButton(if (guest) t("Leave") else t("Sign out"), onClick = {
                         confirmSignOut = false
                         model.signOut()
                     }, ambient = Flexarr.danger)
