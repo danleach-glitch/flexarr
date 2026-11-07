@@ -453,6 +453,7 @@ app.UseAuthentication();
 app.UseFlexarrRequestLanguage();
 app.UseFlexarrRequestForgeryGuard();
 app.UseAuthorization();
+app.UseFlexarrProfileChoiceGate();
 
 // The API description is for development; a public server needn't hand out a map of itself.
 if (app.Environment.IsDevelopment())

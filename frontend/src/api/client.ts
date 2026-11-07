@@ -211,7 +211,8 @@ export async function migrateStoredApiKey() {
 /** The chosen profile, plus the header that lets the session cookie make changes (another site can't send it). */
 export function authHeaders(): Record<string, string> {
   // The server answers in the language shown here (the profile's own choice wins over it, server side).
-  const headers: Record<string, string> = { 'X-Requested-With': 'flexarr', 'Accept-Language': currentLanguage().code }
+  // X-Flexarr-Profile-Choice: this app asks who's watching when nobody has chosen here yet (see Me.chooseProfile).
+  const headers: Record<string, string> = { 'X-Requested-With': 'flexarr', 'Accept-Language': currentLanguage().code, 'X-Flexarr-Profile-Choice': '1' }
   const profile = profileToken()
   if (profile) headers['X-Flexarr-Profile'] = profile
   return headers
@@ -336,7 +337,15 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
     throw new ApiError(403, 'Forbidden', [t('Settings are locked here. Unlock them to see this.')])
   }
   if (response.status === 401) signedOut(path)
-  if (!response.ok) throw await failure(response)
+  if (!response.ok) {
+    const error = await failure(response)
+    // Nobody has chosen who's watching here (the main profile's own PIN wasn't given): ask, as the first screen does.
+    if (response.status === 403 && error instanceof ApiError && error.problem?.chooseProfile === true) {
+      clearApiCache()
+      window.dispatchEvent(new Event(PICK_PROFILE_EVENT))
+    }
+    throw error
+  }
   if (response.status === 202 || response.status === 204) {
     return undefined as T
   }
@@ -2116,6 +2125,8 @@ export interface Me {
   isGuest?: boolean
   /** The profile's chosen language (a BCP 47 code); null follows the browser. Absent from servers before 0.61. */
   language?: string | null
+  /** Nobody has chosen who's watching here, and being the main profile takes its own PIN: ask. Absent from servers before 0.63. */
+  chooseProfile?: boolean
 }
 
 export interface RemoteAccess {

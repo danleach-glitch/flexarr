@@ -298,7 +298,8 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
             return new PairingStatusDto("expired", null);
         }
 
-        var (_, token) = signIns.Issue(SignInKind.Device, pending.DeviceName, pending.Zone, pending.Address, deviceType: pending.DeviceType);
+        // Nobody has chosen who's watching on it yet: the app asks, where it can (see SignIn.AwaitsProfile).
+        var (_, token) = signIns.Issue(SignInKind.Device, pending.DeviceName, pending.Zone, pending.Address, deviceType: pending.DeviceType, awaitsProfile: true);
         return new PairingStatusDto("approved", token);
     }
 
