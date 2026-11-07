@@ -115,9 +115,15 @@ public static partial class PlaybackEndpoints
             return Results.NoContent();
         }).WithTags("Playback");
 
-        // A fault of the file, so fixed for the household: whoever nudges it fixes it for everyone.
-        api.MapPut("/items/{id:guid}/audio-delay", async (Guid id, AudioDelayRequest request, FlexarrDbContext db, CancellationToken ct) =>
+        // A fault of the file, so fixed for the household: whoever nudges it fixes it for everyone. A family guest isn't
+        // the household's, so doesn't.
+        api.MapPut("/items/{id:guid}/audio-delay", async (Guid id, AudioDelayRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
+            if (profile.IsGuest)
+            {
+                return Problems.Of("Guests can’t change a title’s audio sync.", status: 403);
+            }
+
             if (!double.IsFinite(request.Seconds) || Math.Abs(request.Seconds) > MaxAudioDelaySeconds)
             {
                 return Problems.Of("The sound can be moved up to two seconds either way.", status: 400);
