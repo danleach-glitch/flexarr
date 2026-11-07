@@ -1693,7 +1693,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     private fun signInChanged() {
         val client = client
-        LogHub.signedIn(client)
+        // A guest's address is the tunnel's loopback port, which can change; the server behind it is the tunnel's target.
+        LogHub.signedIn(client, credentials?.let { it.guest?.target ?: it.address })
         val address = credentials?.address
         address?.let(downloads::signingIn)
         if (address == null) {

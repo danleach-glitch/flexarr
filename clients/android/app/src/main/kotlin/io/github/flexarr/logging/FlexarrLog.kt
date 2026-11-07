@@ -7,6 +7,7 @@ import io.github.flexarr.core.ClientDiagnostics
 import io.github.flexarr.core.ClientLogDelivery
 import io.github.flexarr.core.ClientLogEntry
 import io.github.flexarr.core.ClientLogFile
+import io.github.flexarr.core.ClientLogOwner
 import io.github.flexarr.core.ClientLogLevel
 import io.github.flexarr.core.ClientLogUploader
 import io.github.flexarr.core.FlexarrClient
@@ -91,24 +92,34 @@ object LogHub {
     private val early = mutableListOf<ClientLogEntry>()
     @Volatile private var redactor = LogRedactor()
     @Volatile private var client: FlexarrClient? = null
+    private lateinit var owner: ClientLogOwner
+    /** Signed in to another server before [uploader] was made: what it finds waiting goes. Guarded by [early]. */
+    private var clearWhenMade = false
 
     fun start(context: Context) {
         val directory = File(context.cacheDir, "Logs").apply { mkdirs() }
         file = ClientLogFile(directory)
+        owner = ClientLogOwner(File(directory, "server.txt"))
         thread(name = "flexarr-log-start", isDaemon = true) {
-            val made = ClientLogUploader(File(directory, "waiting.json"), systemLog = { Log.i("Flexarr.logs", it) }) { entries ->
-                val client = client ?: return@ClientLogUploader ClientLogDelivery.Unavailable
-                try {
-                    client.sendLogs(PLATFORM, BuildConfig.VERSION_NAME, entries)
-                    ClientLogDelivery.Delivered
-                } catch (e: FlexarrException) {
-                    ClientLogDelivery.of(e)
+            // Made while holding [early], so a sign-in to another server meanwhile clears what it loads.
+            val made = synchronized(early) {
+                val made = ClientLogUploader(File(directory, "waiting.json"), systemLog = { Log.i("Flexarr.logs", it) }) { entries ->
+                    val client = client ?: return@ClientLogUploader ClientLogDelivery.Unavailable
+                    try {
+                        client.sendLogs(PLATFORM, BuildConfig.VERSION_NAME, entries)
+                        ClientLogDelivery.Delivered
+                    } catch (e: FlexarrException) {
+                        ClientLogDelivery.of(e)
+                    }
                 }
-            }
-            synchronized(early) {
+                if (clearWhenMade) {
+                    made.clear()
+                    clearWhenMade = false
+                }
                 early.forEach(made::add)
                 early.clear()
                 uploader = made
+                made
             }
             if (client != null) made.kick()
         }
@@ -128,8 +139,19 @@ object LogHub {
     /** The sign-in's secrets, which nothing sent may contain. */
     val secrets: List<String> get() = redactor.secrets
 
-    /** The server to send to (null when signed out), whose sign-in is also kept out of the log from now on. */
-    fun signedIn(client: FlexarrClient?) {
+    /**
+     * The server to send to (null when signed out), whose sign-in is also kept out of the log from now on. Signed in to
+     * another server than the log is about ([address]: the one typed in, the same at home and away), the
+     * log and what's waiting to be sent go first: they name the last one's titles and address.
+     */
+    fun signedIn(client: FlexarrClient?, address: String?) {
+        if (client != null && address != null && ::owner.isInitialized && owner.signedIn(address)) {
+            file.clear()
+            synchronized(early) {
+                early.clear()
+                uploader?.clear() ?: run { clearWhenMade = true }
+            }
+        }
         this.client = client
         redactor = redactor.copy(secrets = listOfNotNull(client?.apiKey, client?.profileToken).filter { it.isNotEmpty() })
         if (client != null) uploader?.kick()
