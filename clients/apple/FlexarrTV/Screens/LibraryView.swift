@@ -95,14 +95,12 @@ struct LibraryView: View {
                     StatusView(state: .empty(genre.map(noneInGenre) ?? t("Nothing in this library yet.")))
                         .frame(height: 500)
                 } else {
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 64) {
-                        ForEach(items) { item in
-                            card(item)
-                                .id(item.id)
-                                .onAppear { loadMoreIfNeeded(showing: item) }
-                        }
-                    }
-                    .focusSection()
+                    // Its own view, drawn again only when the titles change: every move of focus draws this screen
+                    // again, and going through thousands of loaded titles each time made the remote feel sticky.
+                    LibraryGrid(items: items, content: content, columns: columns, focus: $focusedItem,
+                                open: { router.push(.item($0)) }, showing: { loadMoreIfNeeded(showing: $0) })
+                        .equatable()
+                        .focusSection()
                     if isLoading {
                         ProgressView().frame(maxWidth: .infinity).padding(40)
                     }
@@ -236,15 +234,6 @@ struct LibraryView: View {
             return page
         case .titles, .artists:
             return try await client.libraryItems(library.id, sort: sort, genre: genre, skip: skip, take: take)
-        }
-    }
-
-    @ViewBuilder
-    private func card(_ item: ItemSummary) -> some View {
-        switch content {
-        case .titles: PosterCard(item: item, focus: $focusedItem) { router.push(.item(item)) }
-        case .artists: ArtistCard(item: item, focus: $focusedItem) { router.push(.item(item)) }
-        case .albums: AlbumCard(item: item, showsArtist: true, focus: $focusedItem) { router.push(.item(item)) }
         }
     }
 
@@ -416,6 +405,44 @@ struct LibraryView: View {
                 total = page.total
             }
         }
+    }
+}
+
+/// A library's posters, artists or albums. Equal, and so not drawn again, while the titles and the layout are the same:
+/// a move of focus draws `LibraryView` again but leaves this be.
+private struct LibraryGrid: View, @MainActor Equatable {
+    let items: [ItemSummary]
+    let content: LibraryGridContent
+    let columns: [GridItem]
+    var focus: FocusState<String?>.Binding
+    let open: (ItemSummary) -> Void
+    /// A title came on screen: the grid may want its next page.
+    let showing: (ItemSummary) -> Void
+
+    var body: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 64) {
+            ForEach(items) { item in
+                card(item)
+                    .id(item.id)
+                    .onAppear { showing(item) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func card(_ item: ItemSummary) -> some View {
+        switch content {
+        case .titles: PosterCard(item: item, focus: focus) { open(item) }
+        case .artists: ArtistCard(item: item, focus: focus) { open(item) }
+        case .albums: AlbumCard(item: item, showsArtist: true, focus: focus) { open(item) }
+        }
+    }
+
+    /// The closures only reach the library screen's own state and the router, which stay the same; the columns
+    /// differ only in their spacing, which follows whether the rail shows.
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.items == rhs.items && lhs.content == rhs.content && lhs.columns.count == rhs.columns.count
+            && lhs.columns.first?.spacing == rhs.columns.first?.spacing
     }
 }
 
