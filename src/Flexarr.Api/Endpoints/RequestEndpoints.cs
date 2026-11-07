@@ -480,7 +480,9 @@ public static partial class RequestEndpoints
         await seerr.RequestAsync(instance, mediaType, tmdbId, to, ct, seasons);
         // Seerr now says it's asked for: what was kept of its lists and requests is out of date.
         RequestRequested.Forget();
-        if (!await db.MediaRequests.AnyAsync(r => r.ProfileId == profileId && r.Kind == kind && r.TmdbId == tmdbId && r.FulfilledAt == null, ct))
+        // One open for over a year isn't looked for any more (see NotificationWorker): asked again, it's a new request.
+        var lookedFor = DateTime.UtcNow - Notifications.NotificationWorker.VideosWaitFor;
+        if (!await db.MediaRequests.AnyAsync(r => r.ProfileId == profileId && r.Kind == kind && r.TmdbId == tmdbId && r.FulfilledAt == null && r.RequestedAt > lookedFor, ct))
         {
             db.MediaRequests.Add(new MediaRequest { ProfileId = profileId, Kind = kind, TmdbId = tmdbId });
             await db.SaveChangesAsync(ct);

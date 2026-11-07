@@ -139,6 +139,38 @@ public sealed class RequestDiscoverTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AskingAgainForATitleAskedForOverAYearAgo_IsANewRequest()
+    {
+        // Requests that old aren't looked for any more (NotificationWorker), so asking again has to count afresh.
+        using (var scope = _server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.MediaRequests.Add(new Flexarr.Core.Notifications.MediaRequest
+            {
+                ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 107, RequestedAt = DateTime.UtcNow.AddDays(-400),
+            });
+            db.MediaRequests.Add(new Flexarr.Core.Notifications.MediaRequest
+            {
+                ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 108, RequestedAt = DateTime.UtcNow.AddDays(-300),
+            });
+            await db.SaveChangesAsync();
+        }
+
+        _seerr.Responses["POST /api/v1/request"] = "{}";
+        (await Client().PostAsJsonAsync(Api("/requests"), new { mediaType = "movie", tmdbId = 107 })).EnsureSuccessStatusCode();
+        (await Client().PostAsJsonAsync(Api("/requests"), new { mediaType = "movie", tmdbId = 108 })).EnsureSuccessStatusCode();
+
+        using (var scope = _server.Services.CreateScope())
+        {
+            var open = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaRequests.Where(r => r.FulfilledAt == null).ToListAsync();
+            Assert.Equal(2, open.Count(r => r.TmdbId == 107));
+            Assert.Contains(open, r => r.TmdbId == 107 && r.RequestedAt > DateTime.UtcNow.AddDays(-1));
+            // One asked for within the year is still the one looked for.
+            Assert.Single(open, r => r.TmdbId == 108);
+        }
+    }
+
+    [Fact]
     public async Task Discover_AsksAgainNextTime_ForAListSeerrDidntAnswer()
     {
         SeerrLists();

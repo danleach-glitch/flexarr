@@ -466,7 +466,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     }
 
     /// <summary>How far back film and show requests are looked for.</summary>
-    private static readonly TimeSpan VideosWaitFor = TimeSpan.FromDays(365);
+    internal static readonly TimeSpan VideosWaitFor = TimeSpan.FromDays(365);
 
     /// <summary>How far back music requests are looked for: an album Lidarr hasn't found in this long isn't coming.</summary>
     private static readonly TimeSpan MusicWaitsFor = TimeSpan.FromDays(90);
