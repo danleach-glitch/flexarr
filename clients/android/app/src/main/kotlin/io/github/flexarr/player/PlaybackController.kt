@@ -47,6 +47,7 @@ import io.github.flexarr.core.NextEpisodeTiming
 import io.github.flexarr.core.PlaybackPrompt
 import io.github.flexarr.core.nextEpisodeTiming
 import io.github.flexarr.core.PlaybackRequest
+import io.github.flexarr.core.PlaybackSpeedReport
 import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
 import io.github.flexarr.core.SubtitleSyncState
@@ -672,6 +673,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         val startRate = (if (sameTitle) carriedRate else null) ?: started.speed?.toFloat() ?: 1f
         carriedRate = null
         setPlayerRate(startRate)
+        // Opened again at a speed the new stream wasn't started at (a converted film sped up before): the server hears it.
+        tellSpeed(started, rate, known = started.speed ?: 1.0)
         // Asleep (End of episode stopped the last one): stay paused under the dim.
         if (sleep.phase != VideoSleep.Phase.Asleep) player.play()
         lastReport = System.currentTimeMillis()
@@ -1386,15 +1389,25 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     // Speed
 
-    /** A speed chosen in the menu. During an episode it's kept for its show (for this profile); a film's is for now. */
+    /**
+     * A speed chosen in the menu. During an episode it's kept for its show (for this profile); a film's is for now, but
+     * a film being converted has the server make it that fast (see [PlaybackSpeedReport]).
+     */
     fun chooseRate(rate: Float) {
         if (rate == this.rate) return
+        val before = this.rate
         setPlayerRate(rate)
         val current = info ?: return
-        if (!current.hasPlayerControls || current.item.kind != MediaKind.Episode || !model.recordsHistory) return
+        tellSpeed(current, this.rate, known = before.toDouble())
+    }
+
+    private fun tellSpeed(current: PlaybackInfo, rate: Float, known: Double) {
+        val tells = PlaybackSpeedReport.shouldTell(current.item.kind, rate, known, converted = current.method == PlaybackMethod.Transcode,
+            hasPlayerControls = current.hasPlayerControls, offline = isOffline, recordsHistory = model.recordsHistory)
+        if (!tells) return
         scope.launch {
             runCatching { client.setPlaybackSpeed(current.item.id, rate.toDouble()) }
-                .onFailure { log.warning("Couldn't remember the show's speed", it) }
+                .onFailure { log.warning("Couldn't tell the server the speed", it) }
         }
     }
 
