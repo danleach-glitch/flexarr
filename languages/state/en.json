@@ -455,7 +455,7 @@
   "Choose an Apple TV and Siri plays there (Flexarr needs to be open on it). You can also name one as you ask.": "a",
   "Choose an admin PIN": "w",
   "Choose an admin PIN first: it’s what keeps children in their profiles.": "s",
-  "Choose an admin PIN from a browser or device you signed in, or with the API key.": "s",
+  "Choose an admin PIN from a browser you signed in, or with the API key.": "s",
   "Choose an admin PIN in Flexarr in a browser first.": "an",
   "Choose another": "w",
   "Choose another…": "w",

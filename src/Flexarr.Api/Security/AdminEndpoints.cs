@@ -85,8 +85,8 @@ public static class AdminEndpoints
             return Results.NoContent();
         });
 
-        // The first PIN, on a server set up before setup asked for one, may be set by the main profile on a browser or
-        // device the owner signed in. Once there is one, a new one takes the one it has now, or the API key: that's the
+        // The first PIN, on a server set up before setup asked for one, may be set by the main profile on a browser the
+        // owner signed in with the key. Once there is one, a new one takes the one it has now, or the API key: that's the
         // way back from a forgotten PIN.
         group.MapPost("/pin", async (AdminPinRequest request, HttpContext http, FlexarrDbContext db, CurrentProfile current, SignIns signIns, AdminUnlocks unlocks,
             PinGuard guard, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
@@ -112,9 +112,11 @@ public static class AdminEndpoints
                 withKey = true;
             }
 
-            // A first PIN takes a browser or device the owner signed in: a Tailscale identity alone can be posed as by
-            // another program on this machine, and the home-network rule lets in anyone at home.
-            var first = main.AdminPinHash is null && current.Id == PlaybackState.DefaultUser && current.SignInId is not null && current.IsTrusted;
+            // A first PIN takes a browser the owner signed in with the key: a Tailscale identity alone can be posed as by
+            // another program on this machine, and the home-network rule lets in anyone at home. Not a paired device (a
+            // child's tablet, a TV): it may choose the main profile without a PIN, so it would take the server over.
+            var first = main.AdminPinHash is null && current.Id == PlaybackState.DefaultUser && current.IsTrusted
+                && signIns.ById(current.SignInId) is { Kind: SignInKind.Browser, PinVerified: false, Guest: false };
             if (!withKey && !first && main.AdminPinHash is not null && !string.IsNullOrEmpty(request.CurrentPin))
             {
                 // Knowing the PIN it has now: the guard counts this like unlocking, so it's no back door for guessing.
@@ -142,7 +144,7 @@ public static class AdminEndpoints
             if (!withKey && !first)
             {
                 return main.AdminPinHash is null
-                    ? Problems.Of("Choose an admin PIN from a browser or device you signed in, or with the API key.", status: 403)
+                    ? Problems.Of("Choose an admin PIN from a browser you signed in, or with the API key.", status: 403)
                     : Problems.Of("Enter the current admin PIN, or the server’s API key (it’s in config.json in the server’s data folder).", status: 403);
             }
 
