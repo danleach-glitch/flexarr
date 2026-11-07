@@ -40,13 +40,19 @@ extension FlexarrClient {
     /// The server's address for away from home, from its `status`, as a base URL: every request there carries the
     /// sign-in. Nil when it has none, it's the `address` already in use, it isn't a Tailscale one (see
     /// `isAcceptableRemote`), or a different server answers there. A new one is only taken once the server there
-    /// gives the same id as this one (`SystemStatus.serverId`, asked by `idAt` without the sign-in); while nothing
-    /// answers there, the address `kept` until now stays, to be checked again next launch. Servers before 0.55 have
-    /// no id, so their address is taken without asking.
+    /// gives this server's id (asked by `idAt` without the sign-in); while nothing answers there, the address `kept`
+    /// until now stays, to be checked again next launch.
+    ///
+    /// The id it has to give is `knownId`, the one this device kept when it signed in (`ServerCredentials.serverId`),
+    /// whatever `status` says: a status tampered with on the home network can name a host of its own on Tailscale
+    /// and an id to match, but not one that gives the id kept from before. Only without one (signing in, or a sign-in
+    /// from before the app kept it) is the id in `status` what's asked for. Servers before 0.55 have no id, so their
+    /// address is taken without asking.
     public static func remoteAddress(
         for status: SystemStatus,
         address: URL,
         kept: URL? = nil,
+        knownId: String? = nil,
         idAt: @Sendable (URL) async throws -> String? = { try await serverId(at: $0) },
         refused: @Sendable (String) -> Void
     ) async -> URL? {
@@ -59,7 +65,7 @@ extension FlexarrClient {
         guard url != address else { return nil }
         // Checked when it was kept.
         if url == kept { return kept }
-        guard let id = status.serverId else { return url }
+        guard let id = knownId?.isEmpty == false ? knownId : status.serverId else { return url }
         let there: String?
         do {
             there = try await idAt(url)

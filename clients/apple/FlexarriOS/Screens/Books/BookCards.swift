@@ -36,7 +36,7 @@ struct BookCard: View {
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 BookCover(item: item)
-                    .downloadedMark(downloads.entry(for: item.id)?.isDownloaded == true, raised: item.progress != nil)
+                    .downloadedMark(downloads.isDownloaded(trackId: item.id), raised: item.progress != nil)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(item.title)
                         .font(.footnote.weight(.semibold))

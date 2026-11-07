@@ -111,4 +111,45 @@ import Testing
         #expect(!asked.contains("/api/v1/languages/en"))
         Localization.shared.show(nil)
     }
+
+    @Test func aListAlreadyFetchedIsNotAskedForAgain() async {
+        let (client, host) = stubbedClient(.init(status: 404, body: Data()))
+        let offered = [LanguageInfo(code: "en-XA", name: "Pseudo", direction: "ltr", version: 3)]
+        await Localization.shared.settle(profileChoice: "en-XA", client: client, offered: offered)
+        let asked = StubProtocol.recorded(host: host).compactMap { $0.url?.path }
+        #expect(!asked.contains("/api/v1/languages"))
+        #expect(asked.contains("/api/v1/languages/en-XA"))
+        Localization.shared.show(nil)
+    }
+}
+
+/// A pack is kept in a file named after the code it gives itself, and the server writes that code.
+struct KeptPackTests {
+    private func pack(_ code: String) -> LanguagePack {
+        LanguagePack(code: code, name: "Test", direction: "ltr", version: 9, messages: ["Play": "Abspielen"])
+    }
+
+    @Test func aPacksFileIsNamedOnlyAfterALanguagesCode() {
+        let folder = URL(filePath: "/tmp/flexarr-test/Languages", directoryHint: .isDirectory)
+        for code in ["de", "pt-BR", "zh-Hans", "es-419", "en-XA"] {
+            #expect(Localization.file(for: code, in: folder)?.path == "/tmp/flexarr-test/Languages/\(code).json", "\(code)")
+        }
+        for code in ["../Widgets/podcasts", "..", "de/../../x", "/etc/hosts", "de.json", "de AT", "dé", "", String(repeating: "a", count: 36)] {
+            #expect(Localization.file(for: code, in: folder) == nil, "\(code)")
+            #expect(!Localization.isCode(code), "\(code)")
+        }
+    }
+
+    @Test func aPackThatSaysItsSomethingElseIsRefused() {
+        // What was asked for, or the wider language the server fell back to.
+        #expect(Localization.accepts(pack("pt-BR"), askedFor: "pt-BR"))
+        #expect(Localization.accepts(pack("pt"), askedFor: "pt-BR"))
+        // Another language, a narrower one, or a path: not kept, so not written anywhere.
+        for code in ["de", "pt-BR-x", "../Widgets/podcasts", "pt/../../Widgets/podcasts", ""] {
+            #expect(!Localization.accepts(pack(code), askedFor: "pt"), "\(code)")
+            #expect(!Localization.keep(pack(code), askedFor: "pt"), "\(code)")
+        }
+        // Asked for by a name that's a path itself (a server's list can say anything): nothing is.
+        #expect(!Localization.keep(pack("../Widgets/podcasts"), askedFor: "../Widgets/podcasts"))
+    }
 }

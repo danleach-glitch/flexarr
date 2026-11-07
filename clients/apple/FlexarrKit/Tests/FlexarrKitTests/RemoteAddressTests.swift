@@ -25,9 +25,9 @@ struct RemoteAddressTests {
 
     private struct NotAsked: Error {}
 
-    private func remote(_ status: SystemStatus, address: URL? = nil, kept: URL? = nil, _ record: Record,
+    private func remote(_ status: SystemStatus, address: URL? = nil, kept: URL? = nil, knownId: String? = nil, _ record: Record,
                         idThere: @escaping @Sendable () throws -> String?) async -> URL? {
-        await FlexarrClient.remoteAddress(for: status, address: address ?? home, kept: kept,
+        await FlexarrClient.remoteAddress(for: status, address: address ?? home, kept: kept, knownId: knownId,
                                           idAt: { url in record.ask(url); return try idThere() },
                                           refused: { record.refuse($0) })
     }
@@ -44,6 +44,28 @@ struct RemoteAddressTests {
         #expect(await remote(status(tailscale.absoluteString), record) { "someone-else" } == nil)
         #expect(await remote(status(tailscale.absoluteString), record) { nil } == nil)
         #expect(record.refusals.count == 2)
+    }
+
+    @Test func aNewAddressHasToGiveTheIdKeptAtSignIn_NotOneTheSameAnswerBrings() async {
+        // An answer tampered with on the home network: someone's own Tailscale host, and the id that host gives.
+        let theirs = URL(string: "https://theirs.tail9999.ts.net")!
+        let record = Record()
+        #expect(await remote(status(theirs.absoluteString, serverId: "their-id"), knownId: "home-id", record) { "their-id" } == nil)
+        // Or with the id taken out, as a server before 0.55 would answer: still asked, and still not this server.
+        #expect(await remote(status(theirs.absoluteString, serverId: nil), knownId: "home-id", record) { "their-id" } == nil)
+        #expect(await remote(status(theirs.absoluteString, serverId: nil), knownId: "home-id", record) { nil } == nil)
+        #expect(record.asked == [theirs, theirs, theirs])
+        #expect(record.refusals.count == 3)
+        // The server's own new address gives the id kept, whatever the answer said.
+        #expect(await remote(status(tailscale.absoluteString, serverId: nil), knownId: "home-id", record) { "home-id" } == tailscale)
+        #expect(await remote(status(tailscale.absoluteString), knownId: "home-id", record) { "home-id" } == tailscale)
+        // While nothing answers there, what was kept stays; and an address already kept isn't asked again.
+        #expect(await remote(status(theirs.absoluteString, serverId: "their-id"), kept: tailscale, knownId: "home-id", record) {
+            throw FlexarrClientError.unreachable
+        } == tailscale)
+        #expect(await remote(status(tailscale.absoluteString, serverId: "their-id"), kept: tailscale, knownId: "home-id", record) {
+            throw NotAsked()
+        } == tailscale)
     }
 
     @Test func whileNothingAnswersThereWhatWasKeptStaysUntilNextTime() async {

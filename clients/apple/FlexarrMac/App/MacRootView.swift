@@ -22,6 +22,9 @@ struct MacRootView: View {
     /// The welcome's Join someone’s Flexarr: the connect screen opens on the code for the invite.
     @State private var joinsInvite = false
     @State private var showsDownloads = false
+    /// The window becoming active is every Cmd-Tab or click back into it on a Mac: what that brings up to date is
+    /// asked for at most once a minute (per server and profile), not each time.
+    @State private var frontRefresh = RefreshPacing(every: 60)
     /// The splash, for a moment at launch.
     @State private var splashing = true
 
@@ -158,6 +161,9 @@ struct MacRootView: View {
             if phase == .active, model.credentials != nil {
                 Task { await model.ensureGuestTunnel() }
                 Task { await model.checkConnection() }
+                // The rest ran a moment ago, as the window was last clicked into: nothing to catch up on yet.
+                let key = "\(model.credentials?.address.absoluteString ?? "")#\(model.credentials?.profileToken ?? "")"
+                guard frontRefresh.isDue(for: key) else { return }
                 model.warmConnection()
                 Task { await downloads.catchUp() }
                 Task { await model.loadUpNext() }

@@ -12,9 +12,49 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### iPhone, iPad and Apple TV
 - While an episode plays, the lock screen and Control Center show the show's poster instead of the episode's still.
 
+### CarPlay
+- Lists appear as soon as your server answers, with covers filling in as they arrive, instead of staying on "Nothing here yet." until every cover had loaded one by one. The four tabs load together.
+
+### iPhone, iPad, Apple TV and Mac
+- Tapping a title or **Play** straight after a fast scroll no longer waits behind the posters still loading: the app's requests to your server have connections of their own.
+- After you watch or mark something, only the library grid on screen fetches its titles again. Grids left open behind other pages or tabs used to do so every time, and now catch up once, when you go back to them.
+- Flexarr opens a little sooner on a slow connection: it asks your server for its languages once rather than twice before the first screen, asks for podcasts, Live TV and the watchlist alongside your libraries rather than one after another, and reuses the server's version it already knows.
+- Scrubbing through a film or episode no longer fills the app's memory with preview sheets and pushes out the posters, which used to load again after the film. Only the few sheets around where you're scrubbing are kept.
+
+### iPhone, iPad and Mac
+- Away from home, Flexarr opens a couple of seconds sooner: it starts with your server's away-from-home address when that's the one that answered last time, instead of waiting on the home address first.
+- Scrolling no longer stutters while a big album or playlist downloads: the list of downloads is saved in the background, every couple of seconds at most, instead of in full at every step of every track.
+- Signing out sends only what the profile signing out watched from downloads and hadn't sent yet. Another profile's unsent viewing no longer turns up in that profile's history and Continue watching.
+- While something downloads, posters and album covers on screen no longer redraw at every step of its progress: progress shows a few times a second at most, and a title's downloaded mark changes only when it arrives or goes.
+- Posters and covers you've already seen at home aren't downloaded again over mobile data when you leave, and pictures on screen no longer blank and reload as the app moves between your server's home and away-from-home addresses. Each picture is kept once, whichever address it came from.
+
+### Mac
+- Clicking back into Flexarr's window no longer sends your server four or five requests every time: what it brings up to date (Up Next, downloads, the server's status) is checked once a minute at most.
+
+### Live TV
+- On iPhone, iPad and Mac, the guide draws faster with a long channel list, and tapping a channel's logo no longer redraws the whole grid.
+- The apps on iPhone, iPad, Mac and Apple TV download the guide again every half hour instead of every two to five minutes, which saves data away from home. Setting or cancelling a recording still updates it at once, and a recording starting or finishing still shows within a few minutes.
+- While you watch a channel on iPhone, iPad, Mac or Apple TV, the title over the picture no longer downloads the whole channel list every minute: it moves on to the next programme by itself, and asks your server only when it doesn't know what comes next.
+
+### Music
+- A long playlist's page no longer stutters as it plays or downloads, on iPhone, iPad, Mac and Apple TV, and on iPhone, iPad and Mac it opens without building every row first.
+- On Apple TV, the visualiser's light comes to rest a few seconds after you pause, and moves again when the music does. Paused music left on Now Playing no longer keeps the Apple TV drawing 30 times a second.
+- Music, podcasts and books use a little less battery while they play on iPhone, iPad, Mac and Apple TV: the app no longer hands the lock screen its playing time every second, only when it has changed from what the lock screen counts by itself.
+
+### Security
+- On iPhone, iPad, Apple TV and Mac, away from home, your sign-in goes to your server's home address only after it has shown it's your server, so another network using the same address never receives it and can't sign the app out.
+- On iPhone, iPad, Apple TV and Mac, what your server tells the app (profiles, Home's rows, what each profile is part way through) is no longer kept in the app's picture cache on disk, where it could outlast a change of profile. Updating empties that cache once, to clear what earlier versions kept there, and so does signing out.
+- On iPhone, iPad, Apple TV and Mac, a language downloaded from a server is only kept when it's the language the app asked for, under that language's own name, so a server you've joined as a guest can't use it to damage the app's other saved files.
+- On iPhone, iPad, Apple TV and Mac, when your server's away-from-home address changes, the app only takes the new one once the server there shows it's the server this device signed in to. Before, something on your home network that altered one answer could point the app at a Tailscale address of its own.
+- On a locked iPhone or iPad, **Play on Apple TV** and **Download** on a Flexarr notification, and asking Siri to add a title to your watchlist, now ask for Face ID or your passcode first.
+- On iPhone, iPad and Mac, **Copy code and open Trakt** only opens a web page. Whatever else a server's answer gives there, such as another app's link or a phone number, is no longer opened.
+- On iPhone, iPad, Apple TV and Mac, signing in to a different server empties the app's own log and the warnings still waiting to be sent, so what you played on one server never goes to the next one's log or its **Send diagnostics**.
+
 ### Apple TV
+- On an Apple TV set to **Ask who's watching**, the Home screen's Top Shelf no longer shows a profile's titles when that profile asks for a PIN, and Play on the Top Shelf waits for **Who's watching?** rather than starting as whoever watched last.
 - A show's page opens with **Play** in focus, not **Shuffle**. Play is there from the start and fills in the episode once it's known.
 - Pressing down from a row of buttons onto **Play** (on Browse, say) lands on Play wherever you were along the row, rather than skipping to the row of titles below. Up from far along a row comes back to a page's buttons the same way.
+- Moving around a big library's grid feels less sticky after jumping to a late letter: the A to Z rail is no longer worked out again from every loaded title at each press of the remote.
 
 ### Playback
 - Reading the closed captions out of a recording no longer competes with the stream you've just started: it runs in the background and gives way to playback.

@@ -333,6 +333,15 @@ public actor ClientLogUploader {
         schedule(after: debounce)
     }
 
+    /// Drops everything waiting (on disk too): it was written for another server. A batch already on its way finishes
+    /// against the empty queue, which has nothing in flight.
+    public func clear() {
+        scheduled?.cancel()
+        scheduled = nil
+        queue = ClientLogQueue()
+        save()
+    }
+
     /// Sends what's waiting now, batch after batch, until it's all gone or something stops it.
     public func flush() async {
         scheduled?.cancel()
@@ -432,6 +441,29 @@ public final class ClientLogFile: @unchecked Sendable {
     /// Waits for everything appended so far to be written.
     public func flush() {
         queue.sync { try? handle?.synchronize() }
+    }
+
+    /// Notes which server the log is now written for (`server`, its home address). When it was written for another,
+    /// both files are emptied first and true is returned, so one server's history (titles, devices, profiles) is never
+    /// sent to the next. A log with no server noted yet (from before the app kept one) is kept and claimed.
+    @discardableResult
+    public func claim(for server: String) -> Bool {
+        queue.sync {
+            let note = directory.appending(path: "server.txt")
+            let before = try? String(contentsOf: note, encoding: .utf8)
+            guard before != server else { return false }
+            let other = before != nil
+            if other {
+                try? handle?.close()
+                handle = nil
+                size = 0
+                try? FileManager.default.removeItem(at: current)
+                try? FileManager.default.removeItem(at: previous)
+            }
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try? Data(server.utf8).write(to: note, options: .atomic)
+            return other
+        }
     }
 
     private func write(_ line: String) {

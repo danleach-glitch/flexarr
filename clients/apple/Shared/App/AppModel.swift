@@ -192,6 +192,7 @@ final class AppModel {
            case .signedIn(var saved) = phase {
             saved.address = url
             saved.remoteAddress = nil
+            saved.serverId = nil
             phase = .signedIn(saved)
             upgradeChecked = true
             remoteChecked = true
@@ -358,6 +359,7 @@ final class AppModel {
     func refreshErrorReports() async {
         guard let credentials, let client else { return }
         guard let status = try? await client.systemStatus(), self.credentials?.address == credentials.address else { return }
+        serverVersions[credentials.address] = status.version
         noteServerAge(status.version, of: credentials.address)
         // So does its name, which a rename on the web changes while the app is open.
         noteServerName(status, guest: credentials.isGuest)
@@ -369,6 +371,17 @@ final class AppModel {
     /// (`ServerSupport.minimumVersion`). Said once per server each time the app starts.
     var serverUpdateNotice: String?
     @ObservationIgnored private var toldToUpdate: Set<URL> = []
+
+    /// Each server's version from the last status it gave (asked at sign-in and each return to the front), so what
+    /// only needs the version doesn't ask for the status again.
+    @ObservationIgnored private var serverVersions: [URL: String] = [:]
+
+    private func serverVersion(_ client: FlexarrClient, of address: URL) async -> String? {
+        if let known = serverVersions[address] { return known }
+        guard let status = try? await client.systemStatus() else { return nil }
+        serverVersions[address] = status.version
+        return status.version
+    }
 
     private func noteServerAge(_ version: String, of address: URL) {
         guard ServerSupport.isTooOld(version), toldToUpdate.insert(address).inserted else { return }
@@ -387,7 +400,7 @@ final class AppModel {
     func checkMusicAlbums(library: Library) async {
         guard let credentials, let client, musicAlbumsOffered[credentials.address] == nil else { return }
         var offered: Bool?
-        if let status = try? await client.systemStatus(), let atLeast = ServerVersion.isAtLeast(status.version, major: 0, minor: 59) {
+        if let version = await serverVersion(client, of: credentials.address), let atLeast = ServerVersion.isAtLeast(version, major: 0, minor: 59) {
             offered = atLeast
         } else {
             // Nil (rather than an error) only from a server without the endpoint.
@@ -436,6 +449,8 @@ final class AppModel {
         guard !ServerSupport.isTooOld(status.version) else { throw ServerTooOld() }
         // The server's address for away from home comes with its status; it's kept beside this one.
         credentials.remoteAddress = await Self.remoteAddress(for: status, address: url)
+        // So is its id: from now on this address is asked for it before it's sent the sign-in (see `ServerAddresses`).
+        credentials.serverId = status.serverId
         let typed = credentials
         credentials = await withOwnToken(credentials)
         do {
@@ -511,6 +526,9 @@ final class AppModel {
         serverUpdateNotice = nil
         leaveOfflineMode()
         store.clear()
+        // Nothing of this server stays in the cache on disk: its artwork, and whatever an earlier version of the app
+        // kept of its answers there (requests no longer keep any: see `FlexarrClient.apiSession`).
+        URLCache.shared.removeAllCachedResponses()
         serverName = nil
         libraries = []
         resetProfiles()
@@ -570,26 +588,34 @@ final class AppModel {
     private var remoteChecked = false
 
     /// Keeps the saved address for away from home in step with the server's (remote access turned on or off since,
-    /// or a sign-in from before the app kept one). Best effort, once per launch, after the profiles are up.
+    /// or a sign-in from before the app kept one), and keeps the server's id the first time it gives it (a sign-in
+    /// from before the app kept that), so the home address can be asked who it is before it's sent the sign-in. Best
+    /// effort, once per launch, after the profiles are up.
     private func refreshRemoteAddress() async {
         // A guest only ever reaches its host through the tunnel.
         guard !remoteChecked, let credentials, !credentials.isGuest else { return }
         remoteChecked = true
         guard let status = try? await credentials.client.systemStatus() else { return }
-        let remote = await Self.remoteAddress(for: status, address: credentials.address, kept: credentials.remoteAddress)
+        // A new one has to give the id kept at sign-in, not one this answer brings with it.
+        let remote = await Self.remoteAddress(for: status, address: credentials.address, kept: credentials.remoteAddress,
+                                              knownId: credentials.serverId)
+        // Never swapped for another: a server whose id has changed is a different server, to be connected to afresh.
+        let id = credentials.serverId ?? status.serverId
         // Who's watching may have been chosen meanwhile: what matters is that it's still the same sign-in.
-        guard let now = self.credentials, remote != now.remoteAddress,
+        guard let now = self.credentials, remote != now.remoteAddress || id != now.serverId,
               now.address == credentials.address, now.apiKey == credentials.apiKey else { return }
         var updated = now
         updated.remoteAddress = remote
+        updated.serverId = id
         store.saveRemoteAddress(remote)
+        store.saveServerId(id)
         phase = .signedIn(updated)
     }
 
     /// The server's address for away from home, once it's a Tailscale one with the same server there (see
     /// `FlexarrClient.remoteAddress`); one that isn't is left out, and said so in the log.
-    private static func remoteAddress(for status: SystemStatus, address: URL, kept: URL? = nil) async -> URL? {
-        await FlexarrClient.remoteAddress(for: status, address: address, kept: kept, refused: { log.warning($0) })
+    private static func remoteAddress(for status: SystemStatus, address: URL, kept: URL? = nil, knownId: String? = nil) async -> URL? {
+        await FlexarrClient.remoteAddress(for: status, address: address, kept: kept, knownId: knownId, refused: { log.warning($0) })
     }
 
     /// The same sign-in with this device's own token in place of the server's API key, if it holds the key
@@ -623,6 +649,8 @@ final class AppModel {
         guard credentials != nil else { return }
         settleOfflineProfile()
         needsProfileChoice = false
+        // A link that was waiting for "Who's watching?" doesn't open later, out of the blue, when someone switches profile.
+        afterProfileChoice = nil
         profilesLoaded = true
         if !isOffline {
             log.info("Offline: the server can't be reached")
@@ -973,8 +1001,9 @@ final class AppModel {
     var profileLanguage: String?
 
     private func settleLanguage(_ client: FlexarrClient) async {
-        languages = (try? await client.languages()) ?? []
-        await Localization.shared.settle(profileChoice: profileLanguage, client: client)
+        let offered = (try? await client.languages()) ?? []
+        languages = offered
+        await Localization.shared.settle(profileChoice: profileLanguage, client: client, offered: offered)
     }
 
     /// Picks the profile's language on every device (nil: each device's own) and shows it here.
@@ -1081,6 +1110,14 @@ final class AppModel {
         set { UserDefaults.standard.set(newValue, forKey: "FlexarrAsksWhoIsWatching") }
     }
 
+    /// `asksWhoIsWatching` as a view can follow it: what the Top Shelf may show depends on it.
+    private(set) var asksWhoIsWatchingHere = AppModel.asksWhoIsWatching
+
+    func setAsksWhoIsWatching(_ asks: Bool) {
+        Self.asksWhoIsWatching = asks
+        asksWhoIsWatchingHere = asks
+    }
+
     /// Makes `profile` the one watching on this device (remembered across launches). A wrong
     /// PIN throws the server's message. Every screen reloads, since history and libraries differ. Leaving a kids
     /// profile takes the admin PIN as `parentPin`: without it, `FlexarrClientError.parentPinNeeded` comes back
@@ -1184,21 +1221,25 @@ final class AppModel {
 
     func loadLibraries() async {
         guard let client else { return }
+        // What doesn't wait on another answer is asked for together, so a slow link waits for the slowest, not the sum.
+        // A kids profile has no podcasts: with no status, nothing offers them. Nor Live TV.
+        let kids = isKids
+        async let podcastAnswer: PodcastStatus? = kids ? nil : try? await client.podcastStatus()
+        async let liveTvAnswer: LiveTvStatus? = kids ? nil : try? await client.liveTvStatus()
+        async let watchlist: Void = refreshWatchlist()
         do {
             libraries = try await client.libraries()
             librariesError = nil
         } catch {
             librariesError = ConnectionError(error).message
         }
-        // A kids profile has no podcasts: with no status, nothing offers them.
-        podcastStatus = isKids ? nil : try? await client.podcastStatus()
+        podcastStatus = await podcastAnswer
         if podcastStatus?.available == true { podcastPreferences = try? await client.podcastPreferences() }
-        // Nor Live TV.
-        liveTvStatus = isKids ? nil : try? await client.liveTvStatus()
+        liveTvStatus = await liveTvAnswer
         if libraries.contains(where: { $0.type == .audiobooks }), let listening = try? await client.bookListening() {
             bookListening = listening
         }
-        await refreshWatchlist()
+        await watchlist
     }
 
     /// The server keeps watchlists (0.56 and later): the watchlist's buttons, menu items and screen show.
@@ -1391,8 +1432,8 @@ final class AppModel {
         // A server before 0.59 would show the warm-up as playing and give it a transcode slot: only asked once per server.
         guard let supported = warmUpsSupported[credentials.address] else {
             Task {
-                let status = try? await client.systemStatus()
-                warmUpsSupported[credentials.address] = status.flatMap { ServerVersion.isAtLeast($0.version, major: 0, minor: 59) } ?? false
+                let version = await serverVersion(client, of: credentials.address)
+                warmUpsSupported[credentials.address] = version.flatMap { ServerVersion.isAtLeast($0, major: 0, minor: 59) } ?? false
                 if warmUpsSupported[credentials.address] == true, self.credentials?.address == credentials.address { getReady(item, prewarmBytes: prewarmBytes) }
             }
             return
@@ -1853,6 +1894,12 @@ final class AppModel {
             Task { await open(rest, as: wanted) }
             return
         }
+        // "Who's watching?" comes first: a link (Play on the Top Shelf, say) that arrives while it's up, or before
+        // it's known whether it will be, waits for whoever is chosen rather than opening as whoever watched last.
+        if profileChoicePending {
+            Task { await openOnceChosen(url) }
+            return
+        }
         switch host {
         case "watchlist":
             pendingRoute = .watchlist
@@ -1902,6 +1949,32 @@ final class AppModel {
                 player.play(itemId: id, preview: nil, startAt: start, client: client, shuffle: shuffle, subtitleKey: subtitles)
             }
         default: break
+        }
+    }
+
+    /// Whether "Who's watching?" is up, or may be once the profiles have loaded: nobody has been chosen on this device,
+    /// or an Apple TV set to ask each time it starts hasn't yet. Not with one profile (as last known), which is never
+    /// asked, so its links needn't wait for the list.
+    private var profileChoicePending: Bool {
+        if needsProfileChoice { return true }
+        guard let credentials, !profilesLoaded else { return false }
+        #if DEBUG
+        if skipsProfileChoice { return false }
+        #endif
+        guard credentials.profileToken == nil || (Self.asksWhoIsWatching && !askedWhoIsWatching) else { return false }
+        return store.savedProfiles.count != 1
+    }
+
+    /// Opens `url` once it's settled who's watching: as things are if nobody is asked, else once someone is chosen
+    /// (PIN and all), as a link that names a profile with a PIN is.
+    private func openOnceChosen(_ url: URL) async {
+        for _ in 0..<50 where !profilesLoaded { try? await Task.sleep(for: .milliseconds(200)) }
+        // Never loaded (signed out meanwhile, or a guest with no tunnel): there's nobody to open it as.
+        guard profilesLoaded else { return }
+        if needsProfileChoice {
+            afterProfileChoice = url
+        } else {
+            open(url: url)
         }
     }
 
