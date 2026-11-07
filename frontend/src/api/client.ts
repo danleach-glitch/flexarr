@@ -1394,6 +1394,16 @@ export const confirmHeldRemoval = (f: HeldFolder) =>
 
 export const getLibraryHealth = (signal?: AbortSignal) => apiGet<LibraryHealth>('/library-health', signal)
 
+/**
+ * Library health's score alone, which the server keeps for a few minutes, for Settings' summary lines. Servers before
+ * /library-health/score (after 0.62.1) answer 404: then the score comes from the whole report, as before.
+ */
+export const getLibraryHealthScore = (signal?: AbortSignal) =>
+  apiGet<LibraryHealth['score']>('/library-health/score', signal).catch(async (e: unknown) => {
+    if (e instanceof ApiError && e.status === 404) return (await getLibraryHealth(signal)).score
+    throw e
+  })
+
 export interface HealthCheckReport {
   running: boolean
   checked: number
