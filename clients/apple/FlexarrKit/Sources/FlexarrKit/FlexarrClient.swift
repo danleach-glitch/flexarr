@@ -1003,18 +1003,29 @@ public struct FlexarrClient: Sendable {
     /// same work to the other address too.
     func send(_ method: String, _ path: String, query: [URLQueryItem] = [], bodyData: Data? = nil,
               contentType: String = "application/json", timeout: TimeInterval = 20, racesAlternate: Bool = true) async throws -> Data {
-        let (data, http) = try await exchange(method, path, query: query, bodyData: bodyData, contentType: contentType, timeout: timeout,
-                                              racesAlternate: racesAlternate)
+        try await answer(method, path, query: query, bodyData: bodyData, contentType: contentType, timeout: timeout,
+                         racesAlternate: racesAlternate).data
+    }
+
+    /// As `send`, with the answer's headers, and with `headers` added to the request. A request that carries
+    /// If-None-Match gets a 304 back as an answer (no body) rather than an error.
+    func answer(_ method: String, _ path: String, query: [URLQueryItem] = [], bodyData: Data? = nil, headers: [String: String] = [:],
+                contentType: String = "application/json", timeout: TimeInterval = 20,
+                racesAlternate: Bool = true) async throws -> (data: Data, response: HTTPURLResponse) {
+        let (data, http) = try await exchange(method, path, query: query, bodyData: bodyData, headers: headers, contentType: contentType,
+                                              timeout: timeout, racesAlternate: racesAlternate)
 
         switch http.statusCode {
         case 204, 202:
-            return Data()
+            return (Data(), http)
+        case 304 where headers["If-None-Match"] != nil:
+            return (Data(), http)
         case 200..<300:
             // Unknown paths fall through to the web app's index.html; don't try to decode that.
             if let type = http.value(forHTTPHeaderField: "Content-Type"), type.contains("text/html") {
                 throw FlexarrClientError.unexpectedResponse
             }
-            return data
+            return (data, http)
         case 401:
             onUnauthorized?()
             throw FlexarrClientError.unauthorized
@@ -1036,7 +1047,7 @@ public struct FlexarrClient: Sendable {
         }
     }
 
-    private func request(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?, at base: URL,
+    private func request(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?, at base: URL, headers: [String: String] = [:],
                          contentType: String = "application/json", timeout: TimeInterval = 20) -> URLRequest {
         // Each segment encoded as it stands, keeping %-escapes: a name made one segment by pathSegment (a genre's,
         // which can hold a slash) stays one, which appending(path:) would split or encode twice.
@@ -1064,6 +1075,7 @@ public struct FlexarrClient: Sendable {
             request.httpBody = bodyData
             request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
+        for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
         return request
     }
 
@@ -1073,11 +1085,11 @@ public struct FlexarrClient: Sendable {
     /// first (or hasn't heard back after `ServerAddresses.alternateDelay`) is also sent there and the first answer
     /// wins; anything else only moves over once the first address has failed to connect, so a write is never sent
     /// twice. Whichever address answers is used from then on.
-    private func exchange(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?,
+    private func exchange(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?, headers: [String: String] = [:],
                           contentType: String, timeout: TimeInterval, racesAlternate: Bool) async throws -> Answer {
         do {
-            let answer = try await reach(method, path, query: query, bodyData: bodyData, contentType: contentType, timeout: timeout,
-                                         racesAlternate: racesAlternate)
+            let answer = try await reach(method, path, query: query, bodyData: bodyData, headers: headers, contentType: contentType,
+                                         timeout: timeout, racesAlternate: racesAlternate)
             Self.answered()
             return answer
         } catch let error where Self.couldNotConnect(error) || (error as? FlexarrClientError) == .unreachable {
@@ -1086,15 +1098,17 @@ public struct FlexarrClient: Sendable {
         }
     }
 
-    private func reach(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?,
+    private func reach(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?, headers: [String: String],
                        contentType: String, timeout: TimeInterval, racesAlternate: Bool) async throws -> Answer {
         let primary = addresses.current
-        let first = request(method, path, query: query, bodyData: bodyData, at: primary, contentType: contentType, timeout: timeout)
+        let first = request(method, path, query: query, bodyData: bodyData, at: primary, headers: headers, contentType: contentType,
+                            timeout: timeout)
         guard let alternate = addresses.alternate(to: primary) else {
             return try await exchange(first, at: primary)
         }
 
-        let second = request(method, path, query: query, bodyData: bodyData, at: alternate, contentType: contentType, timeout: timeout)
+        let second = request(method, path, query: query, bodyData: bodyData, at: alternate, headers: headers, contentType: contentType,
+                             timeout: timeout)
         let answer: Answer
         let reached: URL
         if method == "GET", racesAlternate {

@@ -13,7 +13,9 @@ struct LiveGuideOverlay: View {
     /// See `LiveGuideGrid.records`.
     var records = true
 
-    @State private var guide: LiveGuide?
+    @State private var kept: KeptLiveGuide?
+    /// The end of the window the guide shows, once it has been moved on from where it opens.
+    @State private var showingUntil: Date?
 
     var body: some View {
         ZStack {
@@ -22,18 +24,25 @@ struct LiveGuideOverlay: View {
                 Text(t("Guide"))
                     .font(.marquee(56, weight: .black))
                     .foregroundStyle(Color.screen)
-                LiveGuideGrid(client: client, channels: channels, guide: guide, onWatch: onWatch,
-                              onRecordingsChanged: { Task { await load() } }, focusChannel: currentId, records: records)
+                LiveGuideGrid(client: client, channels: channels, guide: kept?.guide, onWatch: onWatch,
+                              onRecordingsChanged: { Task { await load(force: true) } }, focusChannel: currentId, records: records,
+                              onWindow: { showingUntil = $0 })
             }
             .padding(.leading, Layout.edge)
             .padding(.top, 50)
         }
         .onExitCommand(perform: onClose)
         .task { await load() }
+        .onChange(of: showingUntil) { Task { await load() } }
     }
 
-    private func load() async {
-        if let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: 24, descriptions: false) { guide = loaded }
+    /// Every channel's guide for the window shown and a margin (`LiveGuidePlan`); again after a recording was set or
+    /// taken off (`force`, for its marks), or as the window moves towards its end.
+    private func load(force: Bool = false) async {
+        let opens = LiveGuideGrid.halfHour(before: Date()).addingTimeInterval(LiveGuideGrid.window)
+        guard let request = LiveGuidePlan.next(kept: kept, scope: .all, shown: channels.map(\.id), showingUntil: max(showingUntil ?? opens, opens),
+                                               keepAhead: LiveGuideGrid.keepAhead, askAhead: LiveGuideGrid.askAhead, force: force) else { return }
+        if let loaded = try? await client.liveGuide(request, kept: kept) { kept = loaded }
     }
 
     /// The screen the player presents, over itself.
