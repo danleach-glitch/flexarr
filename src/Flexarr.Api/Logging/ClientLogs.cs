@@ -274,7 +274,7 @@ public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILogg
     /// <summary>About how much of the log a line takes, as it's clipped on the way in.</summary>
     private static long Weight(ClientLogLine line) =>
         Math.Min(line.Message.Length, MaxText) + Math.Min(line.Error?.Length ?? 0, MaxText) + Math.Min(line.Category?.Length ?? 0, 200)
-        + (line.Properties ?? []).Take(MaxProperties).Sum(p => Math.Min(p.Key.Length, 40) + Math.Min(p.Value.Length, 200));
+        + (line.Properties ?? []).Take(MaxProperties).Sum(p => Math.Min(p.Key.Length, 40) + Math.Min(p.Value?.Length ?? 0, 200));
 
     private static LogLevel Level(LogEventLevel level) => level switch
     {

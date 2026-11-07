@@ -176,6 +176,15 @@ public class LoggingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     }
 
     [Fact]
+    public async Task AReportWithAnEmptyPropertyIsStillTaken()
+    {
+        var device = await DeviceAsync("Sparse TV");
+        var batch = new { platform = "web", entries = new[] { new { level = "Warning", message = "Hello", properties = new Dictionary<string, string?> { ["not a name"] = null } } } };
+
+        Assert.Equal(HttpStatusCode.Accepted, (await device.PostAsJsonAsync(Api("/logs/client"), batch)).StatusCode);
+    }
+
+    [Fact]
     public async Task ADeviceSendingLongReportsIsTurnedAwayBeforeItFloodsTheLog()
     {
         var device = await DeviceAsync("Wordy TV");
