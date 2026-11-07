@@ -22,6 +22,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### iPhone, iPad and Mac
 - Away from home, Flexarr opens a couple of seconds sooner: it starts with your server's away-from-home address when that's the one that answered last time, instead of waiting on the home address first.
 - Scrolling no longer stutters while a big album or playlist downloads: the list of downloads is saved in the background, every couple of seconds at most, instead of in full at every step of every track.
+- While something downloads, posters and album covers on screen no longer redraw at every step of its progress: progress shows a few times a second at most, and a title's downloaded mark changes only when it arrives or goes.
 - Posters and covers you've already seen at home aren't downloaded again over mobile data when you leave, and pictures on screen no longer blank and reload as the app moves between your server's home and away-from-home addresses. Each picture is kept once, whichever address it came from.
 
 ### Mac

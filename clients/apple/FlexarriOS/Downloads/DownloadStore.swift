@@ -192,13 +192,21 @@ extension LocalCollection {
 final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     static let sessionIdentifier = "io.github.flexarr.downloads"
 
-    private(set) var all: [LocalDownload] = []
+    private(set) var all: [LocalDownload] = [] {
+        didSet { refreshDownloadedIds() }
+    }
     private(set) var collections: [LocalCollection] = []
+    /// The ids of this profile's downloads that are here to play, kept apart from `all` so what only asks "is this
+    /// downloaded?" (a card's mark) isn't drawn again on every step of a transfer's progress: it changes only when a
+    /// download arrives, goes, or the profile changes.
+    private(set) var downloadedIds: Set<String> = []
     /// Collections whose tracks are still being asked of the server (observed, so a collection whose requests were
     /// cut short shows as failed as soon as they stop).
     private var queueing: Set<String> = []
     /// The profile watching: whose downloads show. Remembered, so they show with no connection too.
-    private(set) var profileId: String? = UserDefaults.standard.string(forKey: "downloads.profile")
+    private(set) var profileId: String? = UserDefaults.standard.string(forKey: "downloads.profile") {
+        didSet { refreshDownloadedIds() }
+    }
     /// The size downloads are made at: Medium unless changed in Settings.
     var quality: DownloadQuality = UserDefaults.standard.string(forKey: "downloads.quality").flatMap(DownloadQuality.init(rawValue:)) ?? .medium {
         didSet { UserDefaults.standard.set(quality.rawValue, forKey: "downloads.quality") }
@@ -227,6 +235,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     private(set) var isOnline = true
     /// How far each of a book's files has come down (download id, then file), for the whole book's progress.
     @ObservationIgnored private var bookFileProgress: [String: [Int: Double]] = [:]
+    /// When each transfer's progress was last shown, so it's shown only a few times a second.
+    @ObservationIgnored private var progressShownAt: [String: Date] = [:]
     /// Books whose next in the series is being looked up, so it's fetched once.
     @ObservationIgnored private var fetchingNextBook: Set<String> = []
     private(set) var isOnWiFi = false
@@ -292,6 +302,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         super.init()
         all = Self.loadSaved(LocalDownload.self, from: Self.manifest)
         collections = Self.loadSaved(LocalCollection.self, from: Self.collectionsManifest)
+        refreshDownloadedIds()
         let configuration = URLSessionConfiguration.background(withIdentifier: Self.sessionIdentifier)
         configuration.sessionSendsLaunchEvents = true
         configuration.isDiscretionary = false
@@ -368,23 +379,25 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         return LocalCollection.status(of: states)
     }
 
+    /// A film, episode, track, book or podcast episode of this profile's is here to play (what
+    /// `entry(for:)?.isDownloaded` says, without following its progress).
     func isDownloaded(trackId: String) -> Bool {
-        entry(for: trackId)?.isDownloaded == true
+        downloadedIds.contains(trackId)
     }
 
-    /// The ids of this profile's downloads that are here to play, for a long list to look its rows up in: one pass
-    /// over the downloads rather than a search of them all per row. Says what `isDownloaded(trackId:)` says.
-    var downloadedIds: Set<String> {
+    /// Works out `downloadedIds` again, setting it only when it changed (setting it at all redraws what reads it).
+    private func refreshDownloadedIds() {
         var seen = Set<String>(), here = Set<String>()
         for download in all where download.profileId == profileId {
             if seen.insert(download.item.id).inserted, download.isDownloaded { here.insert(download.item.id) }
         }
-        return here
+        if here != downloadedIds { downloadedIds = here }
     }
 
     /// Every track of this album (or playlist) is here.
     func isDownloaded(collectionId: String) -> Bool {
-        collection(for: collectionId).map { status(of: $0) == .downloaded } ?? false
+        guard let collection = collection(for: collectionId), !collection.trackIds.isEmpty else { return false }
+        return collection.trackIds.allSatisfy(downloadedIds.contains)
     }
 
     var bytesUsed: Int64 {
@@ -897,6 +910,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             try? FileManager.default.removeItem(at: Self.folder.appending(path: name))
         }
         all.removeAll { $0.id == id }
+        progressShownAt[id] = nil
         save(rightAway: true) // its file has gone
         removeImageIfUnused(download.imageFileName)
         resumeData[id] = nil
@@ -1143,7 +1157,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         let total = sizes.reduce(0, +)
         let done = sizes.indices.reduce(0.0) { sum, n in sum + sizes[n] * (book.files[n] != nil ? 1 : bookFileProgress[id]?[n] ?? 0) }
         let whole = min(0.999, done / total)
-        guard Self.shows(whole, after: all[index].state) else { return }
+        guard shows(whole, of: id, after: all[index].state) else { return }
         all[index].state = .downloading(whole)
         save(throttled: true)
     }
@@ -1166,6 +1180,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         save(rightAway: true) // a file is here
         if complete {
             bookFileProgress[id] = nil
+            progressShownAt[id] = nil
             log.info("Downloaded the book \(download.item.title)")
         } else {
             bookProgressed(id, file: file, 1)
@@ -1186,19 +1201,23 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     fileprivate func progressed(_ id: String, _ fraction: Double) {
         if let (book, file) = Self.bookFile(id) { return bookProgressed(book, file: file, fraction) }
-        guard let index = all.firstIndex(where: { $0.id == id }), Self.shows(fraction, after: all[index].state) else { return }
+        guard let index = all.firstIndex(where: { $0.id == id }), shows(fraction, of: id, after: all[index].state) else { return }
         all[index].state = .downloading(fraction)
         save(throttled: true)
     }
 
-    /// Whether a transfer's progress has moved on by a percent that shows. The system reports it many times a second,
-    /// and each change to `all` redraws every screen that lists downloads, so smaller steps are let go by.
-    nonisolated private static func shows(_ fraction: Double, after state: LocalDownload.State) -> Bool {
-        guard case .downloading(let shown) = state, fraction.isFinite, shown.isFinite else { return true }
-        return (fraction * 100).rounded(.down) != (shown * 100).rounded(.down)
+    /// Whether a transfer's progress has moved on by a percent that shows, and not too soon after the last one shown
+    /// (see `ProgressPacing`): each change to `all` redraws every screen that lists downloads. Saying yes counts as shown.
+    private func shows(_ fraction: Double, of id: String, after state: LocalDownload.State) -> Bool {
+        let shown: Double? = if case .downloading(let shown) = state { shown } else { nil }
+        let now = Date()
+        guard ProgressPacing.shows(fraction, after: shown, shownAt: progressShownAt[id], now: now) else { return false }
+        progressShownAt[id] = now
+        return true
     }
 
     fileprivate func arrived(_ id: String, fileName: String, bytes: Int64) {
+        progressShownAt[id] = nil
         update(id) {
             $0.state = .downloaded
             $0.fileName = fileName
