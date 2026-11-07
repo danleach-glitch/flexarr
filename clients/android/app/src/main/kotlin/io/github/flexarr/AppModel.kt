@@ -1392,8 +1392,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 hasOwnSignIn = it.method == "device"
                 serverSaysGuest = it.isGuest
             }
-            // Without an answer, as before servers asked: a refused request asks again (serverRefusedUnchosen).
-            serverAsksWho = me?.chooseProfile ?: false
+            // Without an answer, as before servers asked: a refused request asks again (serverRefusedUnchosen). Someone
+            // chosen while this was asked (chose) already settled it: an answer from before doesn't bring the picker back.
+            if (client.profileToken == this.client?.profileToken) serverAsksWho = me?.chooseProfile ?: false
             leaveOfflineMode()
         } catch (e: FlexarrException) {
             // A guest's device the host has removed is turned away (403) whatever it asks: back to joining.
