@@ -249,6 +249,7 @@ fun TvMainScreen(model: AppModel) {
         sidebarOpen = false
         linkScope.launch { when (link) {
             is AppLink.Item -> navigator.openItem(link.id)
+            is AppLink.Album -> navigator.openAlbum(link.id)
             is AppLink.Play -> {
                 val item = if (link.shuffle) null else runCatching { client.item(link.id) }.getOrNull()
                 when {

@@ -239,6 +239,7 @@ dependencies {
     implementation(libs.sentry.android)
     implementation(libs.glance.appwidget)
     implementation(libs.tv.material)
+    implementation(libs.tvprovider)
     implementation(libs.zxing.core)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)

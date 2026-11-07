@@ -345,6 +345,18 @@ class FlexarrClient(
         return url("$relative${separator}w=$width")
     }
 
+    /**
+     * The title's backdrop cut to 16:9 with its logo on it, lower left (the backdrop alone if it has no logo); null
+     * without a backdrop. Drawn by the server (0.36 on), for the Apple TV's Top Shelf and Google TV's Watch Next.
+     */
+    fun wideImageUrl(artwork: Artwork, width: Int): String? {
+        val backdrop = artwork.backdrop ?: return null
+        val path = backdrop.substringBefore('?')
+        if (!path.endsWith("/backdrop")) return null
+        val query = backdrop.substringAfter('?', "")
+        return imageUrl(path.removeSuffix("backdrop") + "wide" + (if (query.isEmpty()) "" else "?$query"), width)
+    }
+
     // Transport
 
     internal suspend inline fun <reified T> get(path: String, query: Map<String, String> = emptyMap()): T =

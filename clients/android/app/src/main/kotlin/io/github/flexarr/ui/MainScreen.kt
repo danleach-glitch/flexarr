@@ -248,6 +248,7 @@ fun MainScreen(model: AppModel) {
                         }
                     }
                 }
+                is AppLink.Album -> nav.navigate("album/${link.id}")
                 is AppLink.Podcast -> nav.navigate("podcast/${link.id}")
                 is AppLink.PodcastEpisode -> runCatching { client.podcastEpisode(link.id) }.onSuccess {
                     model.podcasts.play(it)

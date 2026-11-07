@@ -182,6 +182,8 @@ data class UserData(
     val watched: Boolean,
     val playCount: Int,
     val unwatchedCount: Int? = null,
+    /** When it was last played (ISO 8601, UTC); null if never. */
+    val lastPlayedAt: String? = null,
 )
 
 @Serializable

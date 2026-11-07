@@ -59,6 +59,7 @@ import io.github.flexarr.logging.ErrorReports
 import io.github.flexarr.logging.FlexarrLog
 import io.github.flexarr.logging.LogHub
 import io.github.flexarr.notifications.PushNotifications
+import io.github.flexarr.tv.WatchNext
 import io.github.flexarr.widget.ContinueWatchingWidget
 import io.github.flexarr.widget.PodcastWidgets
 import io.github.flexarr.widget.WatchlistWidget
@@ -1179,6 +1180,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             ContinueWatchingWidget.refresh(context)
             PodcastWidgets.refresh(context)
             WatchlistWidget.forget(context)
+            WatchNext.clear(context)
         }
     }
 
@@ -1526,6 +1528,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         scope.launch {
             ContinueWatchingWidget.refresh(context)
             PodcastWidgets.refresh(context)
+            WatchNext.refresh(context)
         }
     }
 
