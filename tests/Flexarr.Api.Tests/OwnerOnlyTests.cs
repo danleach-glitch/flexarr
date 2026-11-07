@@ -34,7 +34,7 @@ public sealed class OwnerOnlyTests : IDisposable
     }
 
     [Fact]
-    public void TheDatabaseLogsAndCache_AreTakenFromOtherAccounts_AndTheDataFolderIsLeftAsItIs()
+    public void TheDataFolderDatabaseLogsAndCache_AreTakenFromOtherAccounts()
     {
         if (OperatingSystem.IsWindows())
         {
@@ -50,8 +50,27 @@ public sealed class OwnerOnlyTests : IDisposable
 
         Assert.All(files, file => Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(file)));
         Assert.All([logs, cache], folder => Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute, File.GetUnixFileMode(folder)));
-        // Docker's /config, say: the person's own folder, with whatever else they keep in it.
-        Assert.Equal(OpenFolder, File.GetUnixFileMode(data));
+        // Docker's /config too, when that's the data folder.
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute, File.GetUnixFileMode(data));
+    }
+
+    [Fact]
+    public void ALogOrCacheFolderSetElsewhere_IsClosedWhenTheServerMakesIt_ButOneThatWasThereIsLeftAlone()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var data = Folder("data");
+        var shared = Folder("shared-logs"); // the owner's, there already, perhaps shared
+        var made = Path.Combine(Folder("scratch"), "flexarr-cache"); // not there yet: the server makes it
+
+        OwnerOnly.Apply(data, shared, made, null);
+
+        Assert.Equal(OpenFolder, File.GetUnixFileMode(shared));
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute, File.GetUnixFileMode(made));
+        Assert.Equal(OpenFolder, File.GetUnixFileMode(Path.Combine(_dir, "scratch")));
     }
 
     [Fact]
@@ -75,6 +94,7 @@ public sealed class OwnerOnlyTests : IDisposable
 
         OwnerOnly.Apply(data, logs, scratch, root);
         Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute, File.GetUnixFileMode(root));
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute, File.GetUnixFileMode(logs));
         Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(database));
         Assert.Equal(OpenFolder, File.GetUnixFileMode(scratch));
     }
@@ -99,7 +119,7 @@ public sealed class OwnerOnlyTests : IDisposable
     }
 
     [Fact]
-    public void ACacheFolderSetToNothing_OrToTheDataFolderItself_DoesntStopTheServerOrCloseTheDataFolder()
+    public void ACacheFolderSetToNothing_OrToTheDataFolderItself_DoesntStopTheServer()
     {
         if (OperatingSystem.IsWindows())
         {
@@ -116,7 +136,6 @@ public sealed class OwnerOnlyTests : IDisposable
         OwnerOnly.Apply(data, Path.Combine(data, "logs"), data + Path.DirectorySeparatorChar, null);
         OwnerOnly.Apply(data + Path.DirectorySeparatorChar, Path.Combine(data, "logs"), Path.Combine(data, "cache", "..") + Path.DirectorySeparatorChar, null);
 
-        Assert.Equal(OpenFolder, File.GetUnixFileMode(data));
         Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(database));
         Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute, File.GetUnixFileMode(Path.Combine(data, "logs")));
     }
@@ -132,6 +151,7 @@ public sealed class OwnerOnlyTests : IDisposable
         using var factory = new FlexarrApiFactory();
         _ = factory.Services.GetRequiredService<Flexarr.Api.Logging.LogPaths>(); // starts the server
 
+        Assert.Equal((UnixFileMode)0, File.GetUnixFileMode(factory.DataDirectory) & Others);
         Assert.Equal((UnixFileMode)0, File.GetUnixFileMode(Path.Combine(factory.DataDirectory, "flexarr.db")) & Others);
         Assert.Equal((UnixFileMode)0, File.GetUnixFileMode(Path.Combine(factory.DataDirectory, "logs")) & Others);
         Assert.Equal((UnixFileMode)0, File.GetUnixFileMode(Path.Combine(factory.DataDirectory, "cache")) & Others);
