@@ -120,7 +120,13 @@ public static class MessageFormat
 
     // ---- parsing (the same steps as icu.py) -----------------------------------------------------------------------
 
-    private static List<Part> ParseParts(string s, ref int pos, bool inPlural, bool nested)
+    /// <summary>
+    /// How deep a value may sit inside others' options. Flexarr's own go two deep; a pack nesting thousands would
+    /// overflow the stack while it's checked, which ends the server.
+    /// </summary>
+    internal const int MaxDepth = 8;
+
+    private static List<Part> ParseParts(string s, ref int pos, bool inPlural, bool nested, int depth = 0)
     {
         var parts = new List<Part>();
         var text = new StringBuilder();
@@ -182,7 +188,7 @@ public static class MessageFormat
             {
                 Flush();
                 pos++;
-                parts.Add(ParseArg(s, ref pos));
+                parts.Add(ParseArg(s, ref pos, depth + 1));
             }
             else if (c == '}')
             {
@@ -234,8 +240,13 @@ public static class MessageFormat
     private static bool IsSelector(string w) =>
         w.Length > 1 && w[0] == '=' ? w[1..].All(char.IsAsciiDigit) : w.Length > 0 && (char.IsAsciiLetter(w[0]) || w[0] == '_') && w.All(ch => char.IsAsciiLetterOrDigit(ch) || ch is '_' or '-');
 
-    private static Arg ParseArg(string s, ref int pos)
+    private static Arg ParseArg(string s, ref int pos, int depth)
     {
+        if (depth > MaxDepth)
+        {
+            throw new FormatException($"Values nested more than {MaxDepth} deep");
+        }
+
         SkipSpace(s, ref pos);
         var name = Word(s, ref pos);
         if (!IsName(name))
@@ -309,7 +320,7 @@ public static class MessageFormat
             }
 
             pos++;
-            var sub = ParseParts(s, ref pos, kind == "plural", nested: true);
+            var sub = ParseParts(s, ref pos, kind == "plural", nested: true, depth);
             if (pos >= s.Length || s[pos] != '}')
             {
                 throw new FormatException($"Unclosed option '{sel}' in {{{name}}}");
