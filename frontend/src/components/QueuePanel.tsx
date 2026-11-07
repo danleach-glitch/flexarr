@@ -159,7 +159,7 @@ function QueueTrackFace({ track }: { track: ItemSummary }) {
   return (
     <>
       <span className="queue-art" aria-hidden="true">
-        {track.artwork.poster && <img src={imageUrl(track.artwork.poster, 92)} alt="" loading="lazy" />}
+        {track.artwork.poster && <img src={imageUrl(track.artwork.poster, 92)} alt="" loading="lazy" decoding="async" />}
       </span>
       <span className="queue-text">
         <strong>{track.title}</strong>

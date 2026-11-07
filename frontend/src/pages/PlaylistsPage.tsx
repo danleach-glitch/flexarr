@@ -447,7 +447,7 @@ const PlaylistEntryRow = memo(function PlaylistEntryRow({
       <button className={isCurrent ? 'track current' : 'track'} onClick={() => actions.play(i)} aria-current={isCurrent || undefined}>
         <span className="track-number">{playing ? <Play /> : i + 1}</span>
         <span className="playlist-track-art" aria-hidden="true">
-          {track.artwork.poster && <img src={imageUrl(track.artwork.poster, 92)} alt="" loading="lazy" />}
+          {track.artwork.poster && <img src={imageUrl(track.artwork.poster, 92)} alt="" loading="lazy" decoding="async" />}
         </span>
         <span className="playlist-track-text">
           <span className="track-title">{track.title}</span>
