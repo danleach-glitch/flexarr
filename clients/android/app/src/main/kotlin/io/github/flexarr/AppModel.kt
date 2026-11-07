@@ -1573,7 +1573,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     fun videoEnded(ending: PlaybackEnding) {
         lastEnding = ending
+        lastPlayed = setOf(ending.startedWith, ending.stoppedOn)
     }
+
+    /** The titles the last sitting started and stopped on, for a list near them to fetch again. */
+    var lastPlayed: Set<String> = emptySet()
+        private set
 
     /** A new sitting: an ending no page took is old news. */
     fun videoStarted() {
