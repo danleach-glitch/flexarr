@@ -46,7 +46,8 @@ brought forward) every build has the TV interface and the manifest offers the ap
      A card resumes playback through a launch token of its own (never `AppLink`'s in-app secret). Removing a card
      on the home screen calls `DELETE /home/continue/{id}` (servers 0.51 on).
    - **Frame rate follows the TV's own setting** (*Match content frame rate*), as the Apple TV follows Match
-     Content: the player asks for the film's frame rate before its first frame and the TV decides. No Flexarr
+     Content: the player asks for the film's frame rate before its first frame (MP4 and HLS say it; MKV doesn't,
+     so there it's measured from the first couple of seconds of frames) and the TV decides. No Flexarr
      setting.
    - **Passthrough is *Lossless surround*** (Settings › Playback › This TV, the Apple TV's wording), on by default
      when the HDMI output takes a format. The profile lists `dts` and `truehd` only for formats the output takes,
