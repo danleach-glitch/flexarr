@@ -64,6 +64,16 @@ public struct FlexarrClient: Sendable {
     /// come back at once rather than at its next check. Set once at launch.
     public nonisolated(unsafe) static var onAnswered: (@Sendable () -> Void)?
 
+    /// Called whenever the server refuses a request until someone chooses who's watching here (403 with
+    /// `chooseProfile`: the main profile has a PIN of its own that wasn't given on this device), so an app can show
+    /// "Who's watching?". Given the server's home address. Set once at launch.
+    public nonisolated(unsafe) static var onChooseProfile: (@Sendable (URL) -> Void)?
+
+    /// Sent with every request as `X-Flexarr-Profile-Choice: 1`: this app asks who's watching when nobody has chosen
+    /// on this device yet, so a server whose main profile has a PIN of its own answers as nobody chosen (`SignInInfo.
+    /// chooseProfile`) rather than as the main profile. Servers before 0.63 ignore it.
+    static let profileChoiceHeader = "X-Flexarr-Profile-Choice"
+
     /// Debug builds' "act offline": every request fails as if there were no network, and `isReachable` says no.
     public nonisolated(unsafe) static var simulatesOffline = false
 
@@ -570,6 +580,7 @@ public struct FlexarrClient: Sendable {
         if let apiKey, !apiKey.isEmpty { request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key") }
         if let profileToken, !profileToken.isEmpty { request.setValue(profileToken, forHTTPHeaderField: "X-Flexarr-Profile") }
         if let deviceType = Self.deviceType { request.setValue(deviceType, forHTTPHeaderField: "X-Flexarr-Device") }
+        request.setValue("1", forHTTPHeaderField: Self.profileChoiceHeader)
         return request
     }
 
@@ -809,6 +820,7 @@ public struct FlexarrClient: Sendable {
         if let apiKey, !apiKey.isEmpty { request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key") }
         if let profileToken, !profileToken.isEmpty { request.setValue(profileToken, forHTTPHeaderField: "X-Flexarr-Profile") }
         if let deviceType = Self.deviceType { request.setValue(deviceType, forHTTPHeaderField: "X-Flexarr-Device") }
+        request.setValue("1", forHTTPHeaderField: Self.profileChoiceHeader)
         let prepared = request
         let session = events
         let onUnauthorized = self.onUnauthorized
@@ -1037,6 +1049,8 @@ public struct FlexarrClient: Sendable {
                 if problem["ownPin"] as? Bool == true { throw FlexarrClientError.ownPinWrong(message: Self.problemMessage(data)) }
                 if problem["parentPin"] as? Bool == true { throw FlexarrClientError.parentPinNeeded(message: Self.problemMessage(data)) }
                 if problem["kidsLock"] as? Bool == true { throw FlexarrClientError.kidsLocked(message: Self.problemMessage(data)) }
+                // Nobody has chosen who's watching here, and being the main profile takes its own PIN: the app asks.
+                if problem["chooseProfile"] as? Bool == true { Self.onChooseProfile?(addresses.home) }
                 // A family guest's device its host removed: refused whatever it asks, so the app signs out (as for 401).
                 if problem["guestRemoved"] as? Bool == true {
                     onUnauthorized?()
@@ -1071,6 +1085,7 @@ public struct FlexarrClient: Sendable {
         if let deviceType = Self.deviceType {
             request.setValue(deviceType, forHTTPHeaderField: "X-Flexarr-Device")
         }
+        request.setValue("1", forHTTPHeaderField: Self.profileChoiceHeader)
         if let bodyData {
             request.httpBody = bodyData
             request.setValue(contentType, forHTTPHeaderField: "Content-Type")

@@ -211,6 +211,9 @@ final class AppModel {
         FlexarrClient.onAnswered = { [weak self] in
             Task { @MainActor in self?.serverAnswered() }
         }
+        FlexarrClient.onChooseProfile = { [weak self] home in
+            Task { @MainActor in self?.serverAsksWhoIsWatching(home) }
+        }
         // A family guest reaches its host only through the tunnel: start it before anything asks the server.
         GuestMode.isActive = credentials?.isGuest == true
         if credentials?.isGuest == true { Task { await ensureGuestTunnel() } }
@@ -1081,6 +1084,9 @@ final class AppModel {
         #if DEBUG
         if skipsProfileChoice { needsProfileChoice = false }
         #endif
+        // Nobody has chosen here, and the main profile has a PIN of its own: the server answers as nobody until someone
+        // is chosen (and their PIN given), one profile or several.
+        if me?.chooseProfile == true { needsProfileChoice = true }
         #if !os(tvOS)
         if !needsProfileChoice { teachSiriTitles() }
         #endif
@@ -1210,6 +1216,16 @@ final class AppModel {
             afterProfileChoice = nil
             open(url: link)
         }
+    }
+
+    /// The server refused a request until someone chooses who's watching here (the main profile was given a PIN of its
+    /// own, say, while nobody had chosen on this device): "Who's watching?" comes up, with its PIN.
+    private func serverAsksWhoIsWatching(_ home: URL) {
+        guard let credentials, credentials.address == home, credentials.isGuest != true, profilesLoaded, !needsProfileChoice,
+              !profiles.isEmpty else { return }
+        endPlayback()
+        music.stop()
+        needsProfileChoice = true
     }
 
     private func resetProfiles() {
