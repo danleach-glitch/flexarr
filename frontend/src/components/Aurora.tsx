@@ -2,20 +2,28 @@ import { useEffect, useRef } from 'react'
 import { createLevels, silence, type Levels } from '../lib/audioLevels'
 import type { Rgb } from '../lib/palette'
 
+/** How long after a pause the light keeps drifting (slowing to a near stop) before it stops being drawn at all. */
+const STOP_AFTER_PAUSE_MS = 5000
+
 /**
  * Light in the cover's colours, drifting behind Now Playing. Large soft fields wander on slow, never-repeating paths;
  * the bass makes them swell, a beat makes them flare, the middle hurries them along and the treble brings out small
  * bright glints. With nothing to hear (paused, or no `analyser`) they drift on their own; when `still` (the setting is
- * off, or the viewer asks for less motion) one calm frame is drawn and nothing moves.
+ * off, or the viewer asks for less motion) one calm frame is drawn and nothing moves. Paused for a few seconds, the
+ * light stops where it has drifted to, and moves on when the music does.
  *
- * Drawn small on a canvas and scaled up blurred, so it costs little: a handful of gradients a frame.
+ * Drawn small on a canvas and scaled up, so it costs little: a handful of gradients a frame, soft enough that the
+ * browser needn't blur them (blurring the whole window at every frame is what would cost).
  */
 export function Aurora({ colours, analyser, playing, still }: { colours: Rgb[]; analyser: () => AnalyserNode | null; playing: boolean; still: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   // Read by the drawing loop each frame, so a new track or a pause changes the light without restarting it.
   const live = useRef({ colours, playing })
+  // Starts the drawing loop again after a long pause has stopped it.
+  const wake = useRef<(() => void) | null>(null)
   useEffect(() => {
     live.current = { colours, playing }
+    wake.current?.()
   }, [colours, playing])
   // A still frame is drawn once, so it's drawn again for a new track's colours.
   const stillColours = still ? colours : null
@@ -32,9 +40,12 @@ export function Aurora({ colours, analyser, playing, still }: { colours: Rgb[]; 
     let pace = 0.02
     let last = performance.now()
     let frame = 0
+    // Whether the loop is running, and since when the music has been paused (null while it plays).
+    let running = false
+    let pausedSince: number | null = null
 
     const resize = () => {
-      // About a tenth of the screen's pixels: the blur hides it, and it's what keeps this cheap.
+      // About a tenth of the screen's pixels: the soft gradients hide it, and it's what keeps this cheap.
       const scale = 0.12
       el.width = Math.max(32, Math.round(el.clientWidth * scale))
       el.height = Math.max(32, Math.round(el.clientHeight * scale))
@@ -42,7 +53,8 @@ export function Aurora({ colours, analyser, playing, still }: { colours: Rgb[]; 
     resize()
     const observer = new ResizeObserver(() => {
       resize()
-      if (still || reduced) draw(silence)
+      // Resizing clears the canvas: a light that isn't moving is drawn again where it was.
+      if (still || reduced || !running) draw(silence)
     })
     observer.observe(el)
 
@@ -101,9 +113,17 @@ export function Aurora({ colours, analyser, playing, still }: { colours: Rgb[]; 
     }
 
     const tick = (now: number) => {
+      // Paused long enough to have settled, the light stops where it is, until the music plays again (see `wake`).
+      if (live.current.playing) pausedSince = null
+      else pausedSince ??= now
+      if (pausedSince !== null && now - pausedSince >= STOP_AFTER_PAUSE_MS) {
+        running = false
+        return
+      }
       frame = requestAnimationFrame(tick)
       // Thirty frames a second is plenty for light this soft, and once a pause has slowed it nearly to a stop, ten: the
-      // browser blurs the whole window each time it's drawn. (A little slack, so a 60 Hz screen draws every other frame.)
+      // browser scales it up to the whole window each time it's drawn. (A little slack, so a 60 Hz screen draws every
+      // other frame.)
       const settled = !live.current.playing && pace < 0.012
       if (now - last < (settled ? 100 : 1000 / 30) - 4) return
       // A long gap (the tab was hidden) counts as one ordinary frame, so nothing leaps when it comes back.
@@ -121,8 +141,19 @@ export function Aurora({ colours, analyser, playing, still }: { colours: Rgb[]; 
       clock += pace * dt * 4
       draw(level)
     }
-    frame = requestAnimationFrame(tick)
+    const start = () => {
+      if (running) return
+      running = true
+      pausedSince = null
+      // The time stopped counts as one ordinary frame (see `dt`), so nothing leaps.
+      last = performance.now()
+      frame = requestAnimationFrame(tick)
+    }
+    start()
+    wake.current = start
     return () => {
+      wake.current = null
+      running = false
       cancelAnimationFrame(frame)
       observer.disconnect()
     }

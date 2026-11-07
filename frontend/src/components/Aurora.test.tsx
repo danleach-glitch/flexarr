@@ -63,11 +63,33 @@ describe('the Now Playing light', () => {
     const { rerender } = render(<Aurora colours={colours} analyser={() => null} playing still={false} />)
     run(1)
     rerender(<Aurora colours={colours} analyser={() => null} playing={false} still={false} />)
-    run(5)
+    run(2)
     expect(run(2)).toBe(20)
 
     rerender(<Aurora colours={colours} analyser={() => null} playing still={false} />)
     run(0.5)
     expect(run(2)).toBe(60)
+  })
+
+  it('stops being drawn a few seconds into a pause, and moves again when the music plays', () => {
+    const { rerender } = render(<Aurora colours={colours} analyser={() => null} playing still={false} />)
+    run(1)
+    rerender(<Aurora colours={colours} analyser={() => null} playing={false} still={false} />)
+    run(6)
+    expect(run(10)).toBe(0)
+    expect(queued).toHaveLength(0)
+
+    rerender(<Aurora colours={colours} analyser={() => null} playing still={false} />)
+    expect(run(2)).toBe(60)
+  })
+
+  it('draws a stopped light once more for a new cover’s colours, then stops again', () => {
+    const { rerender } = render(<Aurora colours={colours} analyser={() => null} playing={false} still={false} />)
+    run(10)
+    expect(run(2)).toBe(0)
+    rerender(<Aurora colours={[[20, 140, 220]]} analyser={() => null} playing={false} still={false} />)
+    expect(run(2)).toBeGreaterThan(0)
+    run(6)
+    expect(run(2)).toBe(0)
   })
 })

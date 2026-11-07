@@ -173,6 +173,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Web
 
+- Now Playing's light costs your computer much less: the browser no longer blurs the whole window at every frame, and a few seconds after you pause, the light comes to rest and stops being drawn until the music plays again.
 - In an audiobook library of more than a few hundred books, jumping to a letter no longer leaves books out of the grid.
 - On a podcast's page, **Show more episodes** carries on past 200 episodes, and each press loads just the next ones rather than the whole list again.
 - The Live TV guide opens and responds to a click more quickly when it has hundreds of channels.
