@@ -140,18 +140,29 @@ public sealed class PlaybackService(
         // A player that takes fragmented MP4 (Apple's) gets the video as it is when only the container or the sound was
         // in the way: the original picture, HDR and Dolby Vision included. It needs the file's keyframes, which an MKV
         // indexes; others are scanned in the background and repackaged from next time.
-        if (decision.Transcode is { } converting && request.Profile.Fmp4 && file.VideoCodec is "h264" or "hevc"
-            && await remuxIndex.GetAsync(file.Path, ct) is { } index
-            && PlaybackDecider.Repackaged(converting, file, request.Profile, playbackOptions, index) is { } repackaged)
+        // The copied Dolby track's first packet (asked about below) is read alongside the video's facts, not after them.
+        Task<double?>? firstPacket = null;
+        if (decision.Transcode is { } converting && request.Profile.Fmp4 && file.VideoCodec is "h264" or "hevc")
         {
-            decision = decision with { Transcode = repackaged };
+            firstPacket = converting is { CopyAudio: true, SourceAudioCodec: "ac3" or "eac3", AudioStreamIndex: { } track }
+                ? remuxIndex.FirstPacketSecondsAsync(file.Path, track, ct)
+                : null;
+            // Not needed after all (the stream isn't repackaged), its answer is still kept for next time and a failure
+            // isn't this request's; when it is needed, awaiting it below still throws.
+            _ = firstPacket?.ContinueWith(static t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+            if (await remuxIndex.GetAsync(file.Path, ct) is { } index
+                && PlaybackDecider.Repackaged(converting, file, request.Profile, playbackOptions, index) is { } repackaged)
+            {
+                decision = decision with { Transcode = repackaged };
+            }
         }
 
         // Fragmented MP4 describes Dolby Digital (Plus) from its first frame, so a track that starts well after the
         // picture (a silent opening) leaves the stream's init segment without it, and an Apple TV refuses the stream.
-        // That track is converted instead, which needs no frame to describe.
+        // That track is converted instead, which needs no frame to describe. (Repackaging keeps the plan's audio, so a
+        // first packet read above is this track's.)
         if (decision.Transcode is { Fmp4: true, CopyAudio: true, SourceAudioCodec: "ac3" or "eac3", AudioStreamIndex: { } audioStream } copying
-            && await remuxIndex.FirstPacketSecondsAsync(file.Path, audioStream, ct) > LateAudioSeconds)
+            && await (firstPacket ?? remuxIndex.FirstPacketSecondsAsync(file.Path, audioStream, ct)) > LateAudioSeconds)
         {
             decision = decision with { Transcode = copying with { CopyAudio = false } };
         }
@@ -252,27 +263,44 @@ public sealed class PlaybackService(
             }, CancellationToken.None);
         }
 
-        var summary = await db.MediaItems.Where(i => i.Id == item.Id).Summaries(profile.Id).FirstAsync(ct);
-        var ancestors = new List<ItemSummaryDto>();
+        // The trail up from the item (season, show), two levels a query. A scan may take a parent away mid-request: the
+        // trail stops there instead of failing.
+        var trail = new List<Guid>();
         for (var parentId = item.ParentId; parentId is { } pid;)
         {
-            // A scan may take a parent away mid-request: the trail stops there instead of failing.
-            if (await db.MediaItems.Where(i => i.Id == pid).Summaries(profile.Id).FirstOrDefaultAsync(ct) is not { } parent)
+            var step = await db.MediaItems.Where(i => i.Id == pid)
+                .Select(i => new { i.ParentId, Grandparent = i.Parent == null ? null : new { i.Parent.ParentId } }).FirstOrDefaultAsync(ct);
+            if (step is null)
             {
                 break;
             }
 
-            ancestors.Insert(0, parent);
-            parentId = await db.MediaItems.Where(i => i.Id == pid).Select(i => i.ParentId).FirstOrDefaultAsync(ct);
+            trail.Add(pid);
+            parentId = step.ParentId;
+            if (step.ParentId is { } grandparentId)
+            {
+                if (step.Grandparent is null)
+                {
+                    break;
+                }
+
+                trail.Add(grandparentId);
+                parentId = step.Grandparent.ParentId;
+            }
         }
 
         var shuffling = request.Shuffle && item.Kind == MediaKind.Episode;
         // Without ListeningInContinue: players save back what they were given, and mustn't switch Home's row back.
         var watching = await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
             .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize, p.SubtitlePosition, p.SubtitlesInBlackBars)).FirstOrDefaultAsync(ct);
-        var next = shuffling ? await ShuffleNextAsync(item, ct) : await NextEpisodeAsync(item, ct);
-        // On shuffle the player keeps its own trail of what it played; in order, the episode before this one.
-        var before = shuffling ? null : await PreviousEpisodeAsync(item, ct);
+        // On shuffle the player keeps its own trail of what it played; in order, the episode before this one. Both from
+        // one read of the show's episodes.
+        var (next, before) = shuffling ? ((await ShuffleNextAsync(item, ct))?.Id, null) : await NeighboursAsync(item, trail, ct);
+        // The item, its trail and the episodes either side, summarised in one query.
+        var wanted = trail.Append(item.Id).Concat(new[] { next, before }.OfType<Guid>()).ToList();
+        var summaries = (await db.MediaItems.Where(i => wanted.Contains(i.Id)).Summaries(profile.Id).ToListAsync(ct)).ToDictionary(s => s.Id);
+        var summary = summaries[item.Id];
+        var ancestors = trail.TakeWhile(summaries.ContainsKey).Select(id => summaries[id]).Reverse().ToList();
         var basePath = $"/api/v1/playback/{id}";
         var burned = decision.Transcode?.BurnSubtitle is not null;
         var series = ancestors.FirstOrDefault(a => a.Kind == MediaKind.Series)?.Id;
@@ -297,12 +325,12 @@ public sealed class PlaybackService(
             file.Markers.OrderBy(m => m.StartSeconds).Select(m => new MarkerDto(m.Type, m.StartSeconds, m.EndSeconds)).ToList(),
             summary,
             ancestors,
-            next is null ? null : await db.MediaItems.Where(i => i.Id == next.Id).Summaries(profile.Id).FirstAsync(ct),
+            next is { } nextId ? summaries[nextId] : null,
             decision.Transcode is { } t ? Summary(t, file) : null,
             shuffling,
             watching,
             state?.SubtitleDelaySeconds ?? 0,
-            before is null ? null : await db.MediaItems.Where(i => i.Id == before.Id).Summaries(profile.Id).FirstAsync(ct),
+            before is { } beforeId ? summaries[beforeId] : null,
             file.AudioDelaySeconds,
             decision.Transcode?.AudioDelaySeconds is not (null or 0),
             speed,
@@ -729,6 +757,23 @@ public sealed class PlaybackService(
         return episodes.FirstOrDefault(e => e.Id == episode.Id) is { } current && PreviousBefore(episodes, current) is { } previous
             ? await db.MediaItems.AsNoTracking().FirstAsync(e => e.Id == previous.Id, ct)
             : null;
+    }
+
+    /// <summary>
+    /// The episodes after and before this one (as <see cref="NextEpisodeAsync"/> and <see cref="PreviousEpisodeAsync"/>),
+    /// from one read of the show's episodes. <paramref name="trail"/> is the item's parents, nearest first.
+    /// </summary>
+    private async Task<(Guid? Next, Guid? Previous)> NeighboursAsync(MediaItem episode, List<Guid> trail, CancellationToken ct)
+    {
+        if (episode.Kind != MediaKind.Episode || trail.Count < 2)
+        {
+            return (null, null);
+        }
+
+        var episodes = await EpisodesAsync(db, profile.Id, [trail[1]], ct);
+        return episodes.FirstOrDefault(e => e.Id == episode.Id) is { } current
+            ? (NextAfter(episodes, current)?.Id, PreviousBefore(episodes, current)?.Id)
+            : (null, null);
     }
 
     /// <summary>On shuffle, a random other episode of the show this one is from.</summary>
