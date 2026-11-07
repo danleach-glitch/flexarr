@@ -301,6 +301,7 @@ targets:
     platform: macOS
     sources:
       - path: NotificationService/NotificationService.swift
+      - path: NotificationService/PrivacyInfo.xcprivacy
     dependencies:
       - package: FlexarrKit
     info:
