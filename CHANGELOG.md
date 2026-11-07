@@ -80,6 +80,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - In the web player, styled subtitles only download the fonts their own lines use, not every font attached to the file, so they show sooner and get less in the way of the picture away from home.
 - On iPhone, iPad and Apple TV, the first play of a film or episode after the server restarts starts a moment sooner when its stream is sent as it is: when its sound begins is remembered with the rest of what the server knows about the file, instead of being read from the file again.
 
+### Backups
+
+- On the web, downloading a backup with a passphrase goes straight to your downloads as it's protected, as one without a passphrase already did, instead of the whole file being held in the page first, which could fail on a phone or with a big library.
+
 ### Security
 
 - On iPhone, iPad, Apple TV and Mac, away from home, your sign-in goes to your server's home address only after it has shown it's your server, so another network using the same address never receives it and can't sign the app out.

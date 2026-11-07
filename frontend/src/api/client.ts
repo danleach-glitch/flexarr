@@ -1238,16 +1238,33 @@ export const saveBackupSettings = (update: { folder?: string; nightly?: boolean 
 export const backUpNow = () => request<Backup>('POST', '/backups')
 export const deleteBackup = (name: string) => request<void>('DELETE', `/backups/${encodeURIComponent(name)}`)
 /**
- * Saves a backup to this computer, protected with `passphrase` when there is one. Without one it's a plain link (bought
- * with the admin PIN, as the file holds every key), so the browser writes it straight to disk rather than holding it
- * all in the page first.
+ * Whether a server of `version` (as /system/status says it) takes a passphrase on a backup's download link: releases
+ * after 0.62.1. Dev builds ("0.63.0-dev.<commit>") may be from before it, so they count as older.
+ */
+export function linksTakePassphrase(version: string | undefined): boolean {
+  const core = version?.split('+')[0]
+  if (!core || core.includes('-')) return false
+  const parts = core.split('.').map(Number)
+  if (parts.length !== 3 || parts.some((n) => !Number.isInteger(n))) return false
+  const [major, minor, patch] = parts
+  return major > 0 || minor > 62 || (minor === 62 && patch > 1)
+}
+
+/**
+ * Saves a backup to this computer, protected with `passphrase` when there is one. It's a one-use link (bought with the
+ * admin PIN, as the file holds every key, and carrying the passphrase when there is one), so the browser writes it
+ * straight to disk rather than holding it all in the page first.
  */
 export async function downloadBackup(name: string, confirmation: KeyConfirmation, passphrase?: string) {
-  if (passphrase) return download(`/backups/${encodeURIComponent(name)}/download`, { passphrase, ...confirmation }, name)
-  const { url } = await request<{ url: string }>('POST', `/backups/${encodeURIComponent(name)}/download-link`, confirmation)
+  // A link carrying the passphrase streams the protected backup to disk too. A server before them would ignore the
+  // passphrase and link the backup unprotected, so the page holds it while it's protected there instead.
+  if (passphrase && !linksTakePassphrase(await getSystemStatus().then((s) => s.version, () => undefined)))
+    return download(`/backups/${encodeURIComponent(name)}/download`, { passphrase, ...confirmation }, name)
+  const { url } = await request<{ url: string }>('POST', `/backups/${encodeURIComponent(name)}/download-link`, passphrase ? { ...confirmation, passphrase } : confirmation)
   const link = document.createElement('a')
   link.href = url
-  link.download = name
+  // The server names a protected backup as POST /download does: `.flexarr-backup` in place of `.zip`.
+  link.download = passphrase ? `${name.replace(/\.[^.]*$/, '')}.flexarr-backup` : name
   document.body.append(link)
   link.click()
   link.remove()

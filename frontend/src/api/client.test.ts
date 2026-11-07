@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi, movies } from '../test/mockApi'
-import { apiGet, backdropSources, parseAnswer, beaconBookProgress, clearApiCache, FETCH_TIMEOUT_MS, getLibraries, liveHeartbeat, reportProgress, getLibraryGenres, getLibraryItems, keepPage, keptPage, onAdminLapsed, onLockedChange, savePlayerPreferences, setWatched, signOut, stopPlayback, watchLiveChannel } from './client'
+import { apiGet, backdropSources, downloadBackup, linksTakePassphrase, parseAnswer, beaconBookProgress, clearApiCache, FETCH_TIMEOUT_MS, getLibraries, liveHeartbeat, reportProgress, getLibraryGenres, getLibraryItems, keepPage, keptPage, onAdminLapsed, onLockedChange, savePlayerPreferences, setWatched, signOut, stopPlayback, watchLiveChannel } from './client'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -288,5 +288,58 @@ describe('ids in paths', () => {
     // A dot in a name, or one question mark, is an ordinary path.
     await expect(apiGet('/items/a.b/x..y?q=..')).rejects.toMatchObject({ status: 404 })
     expect(asked(fetchMock)).toEqual(['/api/v1/items/a.b/x..y'])
+  })
+})
+
+describe('Backup downloads', () => {
+  it('knows which servers take a passphrase on a download link', () => {
+    expect(linksTakePassphrase('0.63.0+abc')).toBe(true)
+    expect(linksTakePassphrase('0.62.2')).toBe(true)
+    expect(linksTakePassphrase('1.0.0')).toBe(true)
+    expect(linksTakePassphrase('0.62.1+abc')).toBe(false)
+    expect(linksTakePassphrase('0.50.0')).toBe(false)
+    expect(linksTakePassphrase('0.63.0-dev.1a2b3c4d')).toBe(false)
+    expect(linksTakePassphrase(undefined)).toBe(false)
+    expect(linksTakePassphrase('nonsense')).toBe(false)
+  })
+
+  it('with a passphrase, saves a protected backup from a one-use link the browser streams to disk', async () => {
+    let body: unknown
+    const fetchMock = mockApi({
+      '/system/status': { version: '0.63.0+abc' },
+      'POST /backups/b.zip/download-link': (init?: RequestInit) => {
+        body = JSON.parse(String(init?.body))
+        return { url: '/api/v1/backups/b.zip/download?ticket=t' }
+      },
+    })
+    const saved: string[] = []
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      saved.push(`${this.getAttribute('href')} as ${this.download}`)
+    })
+
+    await downloadBackup('b.zip', { pin: '1234' }, 'correct horse')
+
+    expect(body).toEqual({ pin: '1234', passphrase: 'correct horse' })
+    expect(saved).toEqual(['/api/v1/backups/b.zip/download?ticket=t as b.flexarr-backup'])
+    expect(sent(fetchMock, '/backups/b.zip/download')).toBe(0)
+    click.mockRestore()
+  })
+
+  it('on a server whose links don’t take a passphrase, protects the backup through the page as before', async () => {
+    const fetchMock = mockApi({
+      '/system/status': { version: '0.62.1+abc' },
+      'POST /backups/b.zip/download': () => new Response('protected', { headers: { 'Content-Disposition': 'attachment; filename=b.flexarr-backup' } }),
+    })
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => {} }))
+    const saved: string[] = []
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      saved.push(this.download)
+    })
+
+    await downloadBackup('b.zip', { pin: '1234' }, 'correct horse')
+
+    expect(saved).toEqual(['b.flexarr-backup'])
+    expect(sent(fetchMock, '/backups/b.zip/download-link')).toBe(0)
+    click.mockRestore()
   })
 })
