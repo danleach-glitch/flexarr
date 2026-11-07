@@ -360,10 +360,13 @@ fun TvLibraryGrid(
     // The watch state the titles shown are from.
     var seenWatchState by remember { mutableIntStateOf(model.watchStateVersion) }
     val artistsVersion = if (content == TvGridContent.Artists) model.musicArtistsVersion else 0
+    // Another profile chosen over the grid (Who's watching? from the sidebar) sees its own list, not just new badges: a
+    // child's leaves out what it may not watch.
+    val profileId = model.currentProfile?.id
     // Once loaded (so a grid made again, back from a title, finds what was kept before it writes over it).
     SideEffect {
         if (!loadedOnce) return@SideEffect
-        memory.key = listOf(sort, genre, artistsVersion)
+        memory.key = listOf(sort, genre, artistsVersion, profileId)
         memory.items = items
         memory.total = total
         memory.watchState = seenWatchState
@@ -388,11 +391,12 @@ fun TvLibraryGrid(
 
     // The first page, again whenever the sort or genre changes (the list is fetched again up to as far as it had got,
     // so the place in it stays). Back from a title opened here, the titles kept are shown again instead.
-    // An artist leaving the library from here (a placeholder unfollowed) reloads Artists, so they don't stay listed.
-    LaunchedEffect(sort, genre, attempt, artistsVersion) {
+    // An artist leaving the library from here (a placeholder unfollowed) reloads Artists, so they don't stay listed, and
+    // another profile chosen reloads it all as theirs.
+    LaunchedEffect(sort, genre, attempt, artistsVersion, profileId) {
         val current = ++generation
         val kept = memory.items
-        if (!loadedOnce && loadedCount > 0 && kept.isNotEmpty() && memory.key == listOf(sort, genre, artistsVersion)) {
+        if (!loadedOnce && loadedCount > 0 && kept.isNotEmpty() && memory.key == listOf(sort, genre, artistsVersion, profileId)) {
             items = kept
             total = memory.total
             seenWatchState = memory.watchState

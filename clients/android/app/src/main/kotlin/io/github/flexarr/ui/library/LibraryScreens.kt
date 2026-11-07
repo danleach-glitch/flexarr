@@ -396,8 +396,9 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
         }
     }
 
-    // A while away: fetch what's loaded again, so titles added or removed since show so, keeping the scroll position.
-    LaunchedEffect(libraryId, sort, genre, staleVersion) {
+    // A while away, or another profile chosen (a child's list leaves out what it may not watch): fetch what's loaded
+    // again, so titles added or removed since show so, keeping the scroll position.
+    LaunchedEffect(libraryId, sort, genre, staleVersion, model.currentProfile?.id) {
         if (items.isEmpty()) return@LaunchedEffect
         val fresh = refetch(items.size) { skip, take -> client.libraryItems(libraryId, sort, genre, skip = skip, take = take) }
             ?: return@LaunchedEffect
