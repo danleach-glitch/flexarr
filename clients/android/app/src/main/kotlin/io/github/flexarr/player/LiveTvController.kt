@@ -259,8 +259,12 @@ class LiveTvController(context: Context, private val model: AppModel, val client
                 beats++
                 if (beats % 4 == 0 && LiveNowRefresh.isDue(shownEnd, nowAsked, Instant.now())) {
                     val id = watching?.channel?.id ?: continue
+                    // Counted only once answered: a failed ask is tried again at the next chance, as before.
+                    val channels = runCatching { client.liveChannels() }.getOrNull() ?: continue
+                    // Another channel was picked while that was out: it has its own title.
+                    if (watching?.channel?.id != id) continue
                     nowAsked = Instant.now()
-                    runCatching { client.liveChannels() }.getOrNull()?.firstOrNull { it.id == id }?.let { showTitle(it, it.now) }
+                    channels.firstOrNull { it.id == id }?.let { showTitle(it, it.now) }
                 }
             }
         }

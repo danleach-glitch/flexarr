@@ -30,9 +30,12 @@ class LiveTvTest {
         assertFalse(LiveNowRefresh.isDue(end, asked, asked.plusSeconds(540)))
         // It ended: once.
         assertTrue(LiveNowRefresh.isDue(end, asked, end))
-        assertFalse(LiveNowRefresh.isDue(end, end.plusSeconds(1), end.plusSeconds(61)))
-        // Still the old programme (the guide ran out): every ten minutes, as with no guide at all.
-        assertTrue(LiveNowRefresh.isDue(end, end.plusSeconds(1), end.plusSeconds(601)))
+        // Answered with it still (the server's clock a little behind): asked again each minute for a few minutes.
+        assertTrue(LiveNowRefresh.isDue(end, end.plusSeconds(1), end.plusSeconds(61)))
+        assertTrue(LiveNowRefresh.isDue(end, end.plusSeconds(120), end.plusSeconds(180)))
+        assertFalse(LiveNowRefresh.isDue(end, end.plusSeconds(181), end.plusSeconds(241)))
+        // Still the old programme after that (the guide ran out): every ten minutes, as with no guide at all.
+        assertTrue(LiveNowRefresh.isDue(end, end.plusSeconds(181), end.plusSeconds(781)))
         assertFalse(LiveNowRefresh.isDue(null, asked, asked.plusSeconds(60)))
         assertTrue(LiveNowRefresh.isDue(null, asked, asked.plusSeconds(600)))
         // Shown from the channel list it was picked from: asked at the first chance if it's ended or there's none.

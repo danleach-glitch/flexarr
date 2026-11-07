@@ -88,15 +88,17 @@ data class LiveProgramme(
  * When the live player asks again what's on the channel it shows. The answer is the whole channel list, large with a big
  * IPTV line-up, so not every minute: once the programme shown has ended ([shownEnd]), and otherwise every
  * [EVERY_MS] (the guide may fill in, or change). [lastAsked] is when the server was last asked, null when what's shown
- * came from elsewhere (the channel list the channel was picked from), which may be older.
+ * came from elsewhere (the channel list the channel was picked from), which may be older. For [GRACE_MS] after the
+ * programme ends it's asked at every chance, in case the server (its clock a little behind, say) still answered with it.
  */
 object LiveNowRefresh {
     const val EVERY_MS = 600_000L
+    const val GRACE_MS = 180_000L
 
     fun isDue(shownEnd: Instant?, lastAsked: Instant?, now: Instant): Boolean {
         val ended = shownEnd != null && !now.isBefore(shownEnd)
         if (lastAsked == null) return shownEnd == null || ended
-        if (ended && lastAsked.isBefore(shownEnd)) return true
+        if (ended && lastAsked.isBefore(shownEnd!!.plusMillis(GRACE_MS))) return true
         return now.toEpochMilli() - lastAsked.toEpochMilli() >= EVERY_MS
     }
 }
