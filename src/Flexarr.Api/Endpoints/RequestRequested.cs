@@ -48,6 +48,13 @@ public static class RequestRequested
     /// <summary>Seerr's and the *arrs' answers are kept this long (a page and its revisits), dropped by a request or an unrequest.</summary>
     private static readonly TimeSpan ListsFor = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// What Radarr or Sonarr says of one title (its folder, whether it has the file, when it's out) is kept longer than
+    /// the lists: how far a download has got comes from the queue. Dropped by a request or an unrequest, and by a
+    /// Radarr or Sonarr webhook (a file arrived).
+    /// </summary>
+    private static readonly TimeSpan TitleAnswersFor = TimeSpan.FromMinutes(10);
+
     /// <summary>A title's name and poster barely change.</summary>
     private static readonly TimeSpan TitlesFor = TimeSpan.FromHours(6);
 
@@ -212,7 +219,7 @@ public static class RequestRequested
         var answered = 0;
         foreach (var radarr in radarrs.Where(r => !down.ContainsKey(r)))
         {
-            var films = await Cached(cache, $"requested-movie:{radarr.BaseUrl}:{tmdbId}", ListsFor, t => arr.GetMoviesByTmdbIdAsync(radarr, tmdbId, t), ct);
+            var films = await Cached(cache, $"requested-movie:{radarr.BaseUrl}:{tmdbId}", TitleAnswersFor, t => arr.GetMoviesByTmdbIdAsync(radarr, tmdbId, t), ct);
             answered += films is null ? 0 : 1;
             if (films is null)
             {
@@ -253,7 +260,7 @@ public static class RequestRequested
         var answered = 0;
         foreach (var sonarr in sonarrs.Where(s => !down.ContainsKey(s)))
         {
-            var shows = await Cached(cache, $"requested-series:{sonarr.BaseUrl}:{tvdbId}", ListsFor, t => arr.GetSeriesByTvdbIdAsync(sonarr, tvdbId, t), ct);
+            var shows = await Cached(cache, $"requested-series:{sonarr.BaseUrl}:{tvdbId}", TitleAnswersFor, t => arr.GetSeriesByTvdbIdAsync(sonarr, tvdbId, t), ct);
             answered += shows is null ? 0 : 1;
             if (shows is null)
             {

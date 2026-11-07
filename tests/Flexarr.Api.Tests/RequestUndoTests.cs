@@ -617,4 +617,41 @@ public sealed class RequestUndoTests : IAsyncLifetime
         Assert.Equal(3, refreshed.Count);
         Assert.Single(_arr.Requests, r => r.StartsWith("GET /api/v3/", StringComparison.Ordinal)); // the refresh didn't wait on it again
     }
+
+    [Fact]
+    public async Task Requested_KeepsWhatRadarrSaidOfATitle_UntilARadarrWebhookArrives()
+    {
+        await InDbAsync(async db =>
+        {
+            db.Libraries.Add(new Library { Name = "Films", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = "/media/movies" }] });
+            return await db.SaveChangesAsync();
+        });
+        _arr.Responses["GET /api/v1/request?take=100&skip=0&filter=pending&sort=added"] = """{"results":[]}""";
+        _arr.Responses["GET /api/v1/request?take=100&skip=0&filter=failed&sort=added"] = """{"results":[]}""";
+        _arr.Responses["GET /api/v1/request?take=100&skip=0&filter=processing&sort=added"] = """
+            {"results":[{"id":1,"status":2,"type":"movie","media":{"id":11,"tmdbId":7401,"status":3}}]}
+            """;
+        _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7401"] = """[{"id":3,"title":"Film","year":2025,"hasFile":false,"status":"released"}]""";
+        int Asked() => _arr.Requests.Count(r => r == "GET /api/v3/movie?tmdbId=7401");
+
+        var first = (await Client().GetFromJsonAsync<JsonElement>(Api("/requests/requested"))).EnumerateArray().ToList();
+        Assert.Equal("searching", Assert.Single(first).GetProperty("state").GetString());
+        Assert.Equal(1, Asked());
+
+        // Seerr's list and the queue are kept only half a minute; once they've gone, the title's answer is still kept.
+        var cache = (Microsoft.Extensions.Caching.Memory.MemoryCache)_server.Services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
+        foreach (var key in cache.Keys.OfType<string>().Where(k => k.StartsWith("seerr-requested:", StringComparison.Ordinal) || k.StartsWith("requested-queue:", StringComparison.Ordinal)).ToList())
+        {
+            cache.Remove(key);
+        }
+
+        Assert.Single((await Client().GetFromJsonAsync<JsonElement>(Api("/requests/requested"))).EnumerateArray());
+        Assert.Equal(1, Asked());
+
+        // Radarr says the file has come: it's asked again, and the film is no longer waiting.
+        _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7401"] = """[{"id":3,"title":"Film","year":2025,"hasFile":true,"status":"released"}]""";
+        (await Client().PostAsJsonAsync(Api("/webhooks/radarr"), new { eventType = "Grab" })).EnsureSuccessStatusCode();
+        Assert.Empty((await Client().GetFromJsonAsync<JsonElement>(Api("/requests/requested"))).EnumerateArray());
+        Assert.Equal(2, Asked());
+    }
 }

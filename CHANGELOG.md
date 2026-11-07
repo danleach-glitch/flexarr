@@ -163,6 +163,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Requests
 
 - A library's **Requested** view opens sooner when many titles are waiting: Radarr and Sonarr are asked about four at a time instead of one after another, and only the requested titles are looked up in your library rather than every film and show.
+- Opening a library's **Requested** view again is quicker while titles wait: what Radarr and Sonarr say about each title is kept for ten minutes instead of half a minute (download progress still updates as before), and is asked again as soon as Radarr or Sonarr tells Flexarr something has arrived.
 - When Seerr's machine is off or asleep, the pages that offer requests (libraries, search, Discover on the apps) no longer wait fifteen seconds for it and then get an error. Seerr gets five seconds to answer, counts as away if it doesn't, and is asked again half a minute later.
 
 ### Watchlist
