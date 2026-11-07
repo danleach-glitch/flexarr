@@ -173,6 +173,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Web
 
+- In a library's grid after jumping to a letter, **Show earlier** moves keyboard focus to the first of the titles it brings, so Tab carries on among them, instead of dropping focus back to the top of the page. The page stays where it was, with the new titles under the button.
 - Dragging a track into a new place in a long playlist or the queue keeps up with the pointer: each step redraws only the rows it passes over, and the playlist no longer redraws every row as the music moves on or pauses.
 - Music, podcasts and books paused or stopped in a browser tab let go of the computer's sound after a few seconds, so a tab that played something hours ago no longer costs battery or keeps a laptop from sleeping. Signing out or switching profile lets it go at once.
 - Now Playing's light costs your computer much less: the browser no longer blurs the whole window at every frame, and a few seconds after you pause, the light comes to rest and stops being drawn until the music plays again.
