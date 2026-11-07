@@ -86,6 +86,9 @@ It's tempting to open port 8383 on your router and connect to `http://your-home-
 
 Plain `http://` is fine on a home network you trust. Anywhere else, use Tailscale or HTTPS.
 
+> **Note**
+> A browser hands Flexarr's sign-in to every web app at the same name, whatever the port, so Sonarr or a download client at `http://your-server:8989` sees it too. If you don't trust the other apps on that computer, open Flexarr at a name of its own: its Tailscale address, or one your reverse proxy gives it.
+
 ## Connecting a device from outside
 
 Devices normally connect with a code you approve in **Settings › Security › Connect a device**, and that only works from your home network or over Tailscale. To connect an app through a reverse proxy instead, use the API key:
