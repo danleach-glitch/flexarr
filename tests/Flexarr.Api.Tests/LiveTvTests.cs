@@ -632,6 +632,54 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task An_unchanged_guide_isnt_written_again_and_a_changed_one_is()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        async Task<List<(long Id, string Title)>> ProgrammesAsync()
+        {
+            await using var scope = _server.Services.CreateAsyncScope();
+            return [.. (await scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>().LiveProgrammes.OrderBy(p => p.Start)
+                .Select(p => new { p.Id, p.Title }).ToListAsync()).Select(p => (p.Id, p.Title))];
+        }
+
+        var first = await ProgrammesAsync();
+        Assert.Equal(["The News", "Doctor Who"], first.Select(p => p.Title));
+
+        // The same guide again: the same rows, not deleted and written anew.
+        await RefreshAsync();
+        Assert.Equal(first, await ProgrammesAsync());
+
+        // A changed guide replaces it.
+        _dispatcharr.Guide = _dispatcharr.Guide.Replace("Doctor Who", "Doctor Who: Specials", StringComparison.Ordinal);
+        await RefreshAsync();
+        var changed = await ProgrammesAsync();
+        Assert.Equal(["The News", "Doctor Who: Specials"], changed.Select(p => p.Title));
+        Assert.Empty(changed.Select(p => p.Id).Intersect(first.Select(p => p.Id)));
+    }
+
+    [Fact]
+    public async Task Programmes_go_as_they_slip_out_of_the_past_kept_even_when_the_guide_is_unchanged()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            // As if the last refresh was hours ago: The News ended longer ago than the guide keeps.
+            var db = scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>();
+            await db.LiveProgrammes.Where(p => p.Title == "The News").ExecuteUpdateAsync(u => u
+                .SetProperty(p => p.Start, DateTime.UtcNow.AddHours(-5)).SetProperty(p => p.End, DateTime.UtcNow.AddHours(-4)));
+        }
+
+        await RefreshAsync();
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>();
+            Assert.Equal(["Doctor Who"], await db.LiveProgrammes.Select(p => p.Title).ToListAsync());
+        }
+    }
+
+    [Fact]
     public async Task A_quick_check_brings_in_channels_added_in_dispatcharr_and_otherwise_changes_nothing()
     {
         var client = Client();

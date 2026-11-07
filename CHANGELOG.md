@@ -45,6 +45,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone, iPad, Mac and Apple TV, the guide downloads without each programme's description, so it's much smaller; the description is fetched when you open a programme. With a server before this release, the guide comes as before.
 - On Apple TV, the guide downloads the next few hours rather than the whole day, and more as you page on through it; on iPhone, iPad, Mac and Apple TV, Favourites downloads only your favourite channels' guide, and a guide that hasn't changed isn't downloaded again.
 - While you watch a channel on iPhone, iPad, Mac or Apple TV, the title over the picture no longer downloads the whole channel list every minute: it moves on to the next programme by itself, and asks your server only when it doesn't know what comes next.
+- When the guide your Live TV source sends hasn't changed since the last refresh, your server no longer rewrites it all, so saving watch progress and library scans no longer wait behind the refresh on a big line-up.
 - When the Live TV source stops sending the guide part-way (its machine sleeps, or the network drops), the refresh gives up after two minutes and says so in Settings, instead of waiting until the server is restarted with no more guide or channel updates.
 - On the web, the guide opens sooner on Favourites: it downloads only your favourite channels while that's what's shown, leaves out programme descriptions until you open one, and an unchanged guide isn't downloaded again.
 
