@@ -203,6 +203,55 @@ struct ClientLogTests {
         #expect(!FileManager.default.fileExists(atPath: storage.path()))
     }
 
+    @Test func clearingDropsWhatWaits_onDiskToo() async throws {
+        let storage = FileManager.default.temporaryDirectory.appending(path: "pending-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: storage) }
+        let uploader = ClientLogUploader(storage: storage, debounce: .seconds(3600)) { _ in .failed }
+        await uploader.add(entry("a"))
+        #expect(FileManager.default.fileExists(atPath: storage.path()))
+        await uploader.clear()
+        #expect(await uploader.pending.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: storage.path()))
+        let next = ClientLogUploader(storage: storage, debounce: .seconds(3600)) { _ in .delivered }
+        #expect(await next.pending.isEmpty)
+    }
+
+    @Test func clearingWhileABatchIsSentKeepsWorking() async throws {
+        let gate = Gate()
+        let received = Received()
+        let uploader = ClientLogUploader(storage: nil, debounce: .seconds(3600)) { batch in
+            await gate.wait()
+            await received.add(batch)
+            return .delivered
+        }
+        await uploader.add(entry("old"))
+        let sending = Task { await uploader.flush() }
+        while await !gate.waiting { await Task.yield() }
+        await uploader.clear()
+        await uploader.add(entry("new"))
+        await gate.open()
+        await sending.value
+        await uploader.flush()
+        #expect(await received.messages == ["old", "new"])
+        #expect(await uploader.pending.isEmpty)
+    }
+
+    private actor Gate {
+        private(set) var waiting = false
+        private var continuation: CheckedContinuation<Void, Never>?
+        private var opened = false
+        func wait() async {
+            if opened { return }
+            waiting = true
+            await withCheckedContinuation { continuation = $0 }
+        }
+        func open() {
+            opened = true
+            continuation?.resume()
+            continuation = nil
+        }
+    }
+
     private actor Received {
         var messages: [String] = []
         func add(_ batch: [ClientLogEntry]) { messages += batch.map(\.message) }
@@ -223,6 +272,23 @@ struct ClientLogTests {
         #expect(!text.contains("line 00"))
         // In order.
         #expect(lines == lines.sorted())
+    }
+
+    @Test func anotherServerEmptiesTheLog_theSameOneKeepsIt() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: "logs-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = ClientLogFile(directory: directory, maxFileBytes: 100)
+        file.append("before any server")
+        // Nothing noted yet (an earlier version's log): kept.
+        #expect(!file.claim(for: "http://home.example:8383"))
+        #expect(file.contents().contains("before any server"))
+        file.append("played Film A")
+        #expect(!file.claim(for: "http://home.example:8383"))
+        #expect(file.contents().contains("played Film A"))
+        #expect(file.claim(for: "http://friend.example:8383"))
+        #expect(file.contents().isEmpty)
+        file.append("on the friend's server")
+        #expect(file.contents() == "on the friend's server\n")
     }
 
     // MARK: The endpoints

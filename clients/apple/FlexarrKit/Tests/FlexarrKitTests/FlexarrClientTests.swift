@@ -8,6 +8,7 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
         var status: Int
         var body: Data
         var contentType: String = "application/json"
+        var headers: [String: String] = [:]
     }
 
     nonisolated(unsafe) private static var stubs: [String: Stub] = [:]
@@ -16,6 +17,11 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
 
     static func register(host: String, _ stub: Stub) {
         lock.withLock { stubs[host] = stub }
+    }
+
+    /// What `host` answers at one path ("/api/v1/setup"), whatever it answers elsewhere.
+    static func register(host: String, path: String, _ stub: Stub) {
+        lock.withLock { stubs[host + path] = stub }
     }
 
     static func recorded(host: String) -> [URLRequest] {
@@ -43,14 +49,14 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
         }
         let stub = Self.lock.withLock { () -> Stub? in
             Self.requests[host, default: []].append(captured)
-            return Self.stubs[host]
+            return Self.stubs[host + (request.url?.path ?? "")] ?? Self.stubs[host]
         }
         guard let stub else {
             client?.urlProtocol(self, didFailWithError: URLError(.cannotConnectToHost))
             return
         }
         let response = HTTPURLResponse(url: request.url!, statusCode: stub.status, httpVersion: "HTTP/1.1",
-                                       headerFields: ["Content-Type": stub.contentType])!
+                                       headerFields: stub.headers.merging(["Content-Type": stub.contentType]) { _, type in type })!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: stub.body)
         client?.urlProtocolDidFinishLoading(self)
@@ -95,6 +101,55 @@ private final class Counter: @unchecked Sendable {
 }
 
 struct FlexarrClientTests {
+    @Test func requestsAndTheCommandStream_HaveConnectionsOfTheirOwn_NotArtworks() {
+        let client = FlexarrClient(baseURL: URL(string: "http://flexarr.local:8383")!)
+        // Artwork loads on the shared session, whose few connections to the server a scroll through posters fills:
+        // a request (Play) never waits behind those, and the always-open command stream doesn't hold one of its own.
+        #expect(client.requests !== URLSession.shared)
+        #expect(client.events !== URLSession.shared)
+        #expect(client.events !== client.requests)
+        // Every client shares them (the app makes a new client per profile and address), so connections are reused.
+        let another = FlexarrClient(baseURL: URL(string: "http://flexarr.local:8383")!, apiKey: "secret", profileToken: "token")
+        #expect(another.requests === client.requests)
+        #expect(another.events === client.events)
+        // A session handed over is used for everything, as before.
+        let own = URLSession(configuration: .ephemeral)
+        let given = FlexarrClient(baseURL: URL(string: "http://flexarr.local:8383")!, session: own)
+        #expect(given.requests === own)
+        #expect(given.events === own)
+    }
+
+    @Test func answersAndTheSignInSentForThem_AreNotKeptInTheSharedCacheOnDisk() {
+        let client = FlexarrClient(baseURL: URL(string: "http://flexarr.local:8383")!, apiKey: "secret", profileToken: "token")
+        // The shared cache is a file (hundreds of megabytes, for artwork) that keeps each request's headers beside
+        // its answer: nothing signed in is written there.
+        #expect(client.requests.configuration.urlCache == nil)
+        #expect(client.events.configuration.urlCache == nil)
+    }
+
+    @Test func whatAnEarlierVersionKeptInTheSharedCache_IsEmptiedOnce() throws {
+        let suite = "flexarr.tests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let cache = URLCache(memoryCapacity: 1024 * 1024, diskCapacity: 0)
+        // What a version that made its requests on the shared session left: an answer, beside the sign-in it was asked with.
+        var asked = URLRequest(url: URL(string: "http://flexarr.local:8383/api/v1/profiles")!)
+        asked.setValue("secret", forHTTPHeaderField: "X-Api-Key")
+        func keepAnAnswer() {
+            let answer = HTTPURLResponse(url: asked.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"])!
+            cache.storeCachedResponse(CachedURLResponse(response: answer, data: Data(#"{"profiles":[]}"#.utf8)), for: asked)
+        }
+        keepAnAnswer()
+        #expect(cache.cachedResponse(for: asked) != nil)
+
+        #expect(FlexarrClient.forgetAnswersKeptBefore(in: cache, noted: defaults))
+        #expect(cache.cachedResponse(for: asked) == nil)
+        // Once only: the artwork kept there since isn't thrown away at every launch.
+        keepAnAnswer()
+        #expect(!FlexarrClient.forgetAnswersKeptBefore(in: cache, noted: defaults))
+        #expect(cache.cachedResponse(for: asked) != nil)
+    }
+
     @Test func sendsApiKeyHeaderAndDecodesStatus() async throws {
         let (client, host) = stubbedClient(.init(status: 200, body: try Fixture.data("system-status")))
 
@@ -755,6 +810,33 @@ struct ServerAddressesTests {
         #expect(!addresses.isAway)
     }
 
+    @Test func aLaunchStartsAtTheAddressThatAnsweredLast() throws {
+        let suite = "io.github.flexarr.test.\(UUID().uuidString)"
+        let memory = try #require(UserDefaults(suiteName: suite))
+        defer { memory.removePersistentDomain(forName: suite) }
+        let home = URL(string: "http://mini.local:8383")!, remote = URL(string: "https://mini.ts.net:8443")!
+
+        // Nothing kept yet: home.
+        let first = ServerAddresses(home: home, remote: remote, memory: memory)
+        #expect(first.current == home)
+        first.reached(remote)
+
+        // Away last time: the next launch starts there, and checks home as soon as something has answered.
+        let away = ServerAddresses(home: home, remote: remote, memory: memory)
+        #expect(away.current == remote)
+        #expect(away.isAway)
+        #expect(away.shouldCheckHome())
+        // Another server's remote address, or none any more, isn't this one's.
+        #expect(ServerAddresses(home: home, remote: URL(string: "https://other.ts.net")!, memory: memory).current == home)
+        #expect(ServerAddresses(home: home, remote: nil, memory: memory).current == home)
+        // Without anywhere to keep it (a client made for one address), always home.
+        #expect(ServerAddresses(home: home, remote: remote).current == home)
+
+        // Home again: the launch after starts at home.
+        away.reached(home)
+        #expect(ServerAddresses(home: home, remote: remote, memory: memory).current == home)
+    }
+
     @Test func sharedInstancesAreOnePerPair() {
         let home = URL(string: "http://shared-\(UUID().uuidString).local:8383")!, remote = URL(string: "https://mini.ts.net:8443")!
         #expect(ServerAddresses.shared(home: home, remote: remote) === ServerAddresses.shared(home: home, remote: remote))
@@ -819,6 +901,28 @@ struct RemoteFallbackTests {
         }
         #expect(StubProtocol.recorded(host: home).count == 1)
         #expect(StubProtocol.recorded(host: remote).count == 1)
+    }
+
+    @Test func awayLastTimeTheFirstRequestGoesStraightToTheRemoteAddress() async throws {
+        let suite = "io.github.flexarr.test.\(UUID().uuidString)"
+        let memory = try #require(UserDefaults(suiteName: suite))
+        defer { memory.removePersistentDomain(forName: suite) }
+        let homeHost = "home-\(UUID().uuidString.lowercased()).local"
+        let remoteHost = "remote-\(UUID().uuidString.lowercased()).ts.net"
+        StubProtocol.register(host: remoteHost, .init(status: 200, body: Data("[]".utf8)))
+        let home = URL(string: "http://\(homeHost):8383")!, remote = URL(string: "https://\(remoteHost):8443")!
+        memory.set(remote.absoluteString, forKey: ServerAddresses.memoryKey)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubProtocol.self]
+        let client = FlexarrClient(addresses: ServerAddresses(home: home, remote: remote, memory: memory), apiKey: "secret",
+                                   session: URLSession(configuration: configuration))
+
+        _ = try await client.libraries()
+
+        #expect(StubProtocol.recorded(host: remoteHost).first?.url?.path == "/api/v1/libraries")
+        // Home wasn't waited on: at most it's asked afterwards whether it's back.
+        #expect(!StubProtocol.recorded(host: homeHost).contains { $0.url?.path == "/api/v1/libraries" })
+        #expect(client.addresses.isAway)
     }
 
     @Test func statusWithoutARemoteAddressStillDecodes() throws {

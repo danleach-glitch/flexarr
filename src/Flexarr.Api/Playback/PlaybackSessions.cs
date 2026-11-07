@@ -226,6 +226,11 @@ public sealed partial class PlaybackSessions
         {
             var before = session.Remote;
             var rate = progress.Rate is { } r && double.IsFinite(r) ? Math.Clamp(r, 0.25, 4) : before?.Rate ?? 1;
+            if (progress.Rate is not null && session.Transcode is { } converting)
+            {
+                converting.Speed = rate; // A stream being converted is made as fast as it's watched.
+            }
+
             session.Remote = new RemoteState(rate, Parse<PlayerPrompt>(progress.Prompt), progress.HasNext ?? false, Trim(progress.Tracks) ?? before?.Tracks,
                 Sound(progress.Sound) ?? before?.Sound);
         }

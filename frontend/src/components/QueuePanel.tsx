@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react'
 import { imageUrl, type ItemSummary } from '../api/client'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { ChevronDown, ChevronUp, Close, Grip } from './icons'
@@ -53,44 +53,48 @@ export function QueuePanel({ onClose, style }: { onClose: () => void; style?: CS
     ;(same && !same.disabled ? same : other)?.focus()
   })
 
-  const move = (from: number, to: number, dir: 'up' | 'down') => {
-    player.moveInQueue(from, to)
-    focusAfter.current = { index: to, dir }
-  }
-
-  const dragStart = (at: number, track: ItemSummary) => (e: DragEvent) => {
-    setDragging(at)
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', track.title)
-  }
-  const dragOver = (at: number) => (e: DragEvent) => {
-    if (dragging === null) return
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    if (over !== at) setOver(at)
-  }
-  const drop = (at: number) => (e: DragEvent) => {
-    e.preventDefault()
-    if (dragging !== null && dragging !== at) player.moveInQueue(dragging, at)
-    setDragging(null)
-    setOver(null)
-  }
-  const dragEnd = () => {
-    setDragging(null)
-    setOver(null)
-  }
-
-  const art = (track: ItemSummary) => (
-    <span className="queue-art" aria-hidden="true">
-      {track.artwork.poster && <img src={imageUrl(track.artwork.poster, 92)} alt="" />}
-    </span>
-  )
-  const text = (track: ItemSummary) => (
-    <span className="queue-text">
-      <strong>{track.title}</strong>
-      <span className="muted">{track.trackArtist ?? track.seriesTitle}</span>
-    </span>
-  )
+  // The player as of the last render: the rows get one unchanging set of actions (`rowActions`) that use it, so a drag
+  // step or the player moving on redraws only the rows whose own props changed, however long the queue.
+  const latest = useRef(player)
+  const drag = useRef({ dragging, over })
+  useLayoutEffect(() => {
+    latest.current = player
+    drag.current = { dragging, over }
+  })
+  const rowActions = useMemo<QueueRowActions>(() => {
+    const end = () => {
+      setDragging(null)
+      setOver(null)
+    }
+    return {
+      skipTo: (at) => latest.current.skipTo(at),
+      move: (from, to, dir) => {
+        latest.current.moveInQueue(from, to)
+        focusAfter.current = { index: to, dir }
+      },
+      remove: (at) => latest.current.removeFromQueue(at),
+      dragStart: (at, track, e) => {
+        setDragging(at)
+        drag.current.dragging = at
+        e.dataTransfer.effectAllowed = 'move'
+        e.dataTransfer.setData('text/plain', track.title)
+      },
+      dragOver: (at, e) => {
+        if (drag.current.dragging === null) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        setOver(at)
+      },
+      dragLeave: (at) => setOver((o) => (o === at ? null : o)),
+      drop: (at, e) => {
+        e.preventDefault()
+        const from = drag.current.dragging
+        if (from !== null && from !== at) latest.current.moveInQueue(from, at)
+        end()
+      },
+      dragEnd: end,
+    }
+  }, [])
 
   return (
     <section id="queue-panel" ref={panel} className="queue-panel" role="dialog" aria-label={t('Queue')} style={style}>
@@ -109,8 +113,7 @@ export function QueuePanel({ onClose, style }: { onClose: () => void; style?: CS
             <h3 className="queue-heading">{t(Words.nowPlaying)}</h3>
             <div className="queue-item now">
               <div className="queue-track">
-                {art(current)}
-                {text(current)}
+                <QueueTrackFace track={current} />
               </div>
             </div>
           </>
@@ -121,41 +124,16 @@ export function QueuePanel({ onClose, style }: { onClose: () => void; style?: CS
         ) : (
           <ol className="queue-list">
             {upcoming.map(({ track, index: at }, k) => (
-              <li
+              <QueueRow
                 key={`${track.id}-${at}`}
-                data-queue-index={at}
-                className={['queue-item', dragging === at && 'dragging', over === at && 'drag-over'].filter(Boolean).join(' ')}
-                draggable
-                onDragStart={dragStart(at, track)}
-                onDragOver={dragOver(at)}
-                onDragLeave={() => over === at && setOver(null)}
-                onDrop={drop(at)}
-                onDragEnd={dragEnd}
-              >
-                <span className="queue-grip" aria-hidden="true">
-                  <Grip />
-                </span>
-                <button className="queue-track" onClick={() => player.skipTo(at)} aria-label={t('Play {title} now', { title: track.title })}>
-                  {art(track)}
-                  {text(track)}
-                </button>
-                <span className="queue-actions">
-                  <button className="icon-button queue-move-up" aria-label={t('Move {title} up', { title: track.title })} disabled={k === 0} onClick={() => move(at, at - 1, 'up')}>
-                    <ChevronUp />
-                  </button>
-                  <button
-                    className="icon-button queue-move-down"
-                    aria-label={t('Move {title} down', { title: track.title })}
-                    disabled={k === upcoming.length - 1}
-                    onClick={() => move(at, at + 1, 'down')}
-                  >
-                    <ChevronDown />
-                  </button>
-                  <button className="icon-button" aria-label={t('Remove {title} from the queue', { title: track.title })} onClick={() => player.removeFromQueue(at)}>
-                    <Close />
-                  </button>
-                </span>
-              </li>
+                track={track}
+                at={at}
+                first={k === 0}
+                last={k === upcoming.length - 1}
+                dragging={dragging === at}
+                over={over === at}
+                actions={rowActions}
+              />
             ))}
           </ol>
         )}
@@ -163,3 +141,80 @@ export function QueuePanel({ onClose, style }: { onClose: () => void; style?: CS
     </section>
   )
 }
+
+/** What an upcoming track's row can have done to it, by its place in the queue. */
+interface QueueRowActions {
+  skipTo(at: number): void
+  move(from: number, to: number, dir: 'up' | 'down'): void
+  remove(at: number): void
+  dragStart(at: number, track: ItemSummary, e: DragEvent): void
+  dragOver(at: number, e: DragEvent): void
+  dragLeave(at: number): void
+  drop(at: number, e: DragEvent): void
+  dragEnd(): void
+}
+
+/** A track's cover, title and artist. */
+function QueueTrackFace({ track }: { track: ItemSummary }) {
+  return (
+    <>
+      <span className="queue-art" aria-hidden="true">
+        {track.artwork.poster && <img src={imageUrl(track.artwork.poster, 92)} alt="" loading="lazy" decoding="async" />}
+      </span>
+      <span className="queue-text">
+        <strong>{track.title}</strong>
+        <span className="muted">{track.trackArtist ?? track.seriesTitle}</span>
+      </span>
+    </>
+  )
+}
+
+/** One upcoming track, drawn again only when something of its own changes (see `rowActions`). */
+const QueueRow = memo(function QueueRow({
+  track,
+  at,
+  first,
+  last,
+  dragging,
+  over,
+  actions,
+}: {
+  track: ItemSummary
+  at: number
+  first: boolean
+  last: boolean
+  dragging: boolean
+  over: boolean
+  actions: QueueRowActions
+}) {
+  return (
+    <li
+      data-queue-index={at}
+      className={['queue-item', dragging && 'dragging', over && 'drag-over'].filter(Boolean).join(' ')}
+      draggable
+      onDragStart={(e) => actions.dragStart(at, track, e)}
+      onDragOver={(e) => actions.dragOver(at, e)}
+      onDragLeave={() => actions.dragLeave(at)}
+      onDrop={(e) => actions.drop(at, e)}
+      onDragEnd={actions.dragEnd}
+    >
+      <span className="queue-grip" aria-hidden="true">
+        <Grip />
+      </span>
+      <button className="queue-track" onClick={() => actions.skipTo(at)} aria-label={t('Play {title} now', { title: track.title })}>
+        <QueueTrackFace track={track} />
+      </button>
+      <span className="queue-actions">
+        <button className="icon-button queue-move-up" aria-label={t('Move {title} up', { title: track.title })} disabled={first} onClick={() => actions.move(at, at - 1, 'up')}>
+          <ChevronUp />
+        </button>
+        <button className="icon-button queue-move-down" aria-label={t('Move {title} down', { title: track.title })} disabled={last} onClick={() => actions.move(at, at + 1, 'down')}>
+          <ChevronDown />
+        </button>
+        <button className="icon-button" aria-label={t('Remove {title} from the queue', { title: track.title })} onClick={() => actions.remove(at)}>
+          <Close />
+        </button>
+      </span>
+    </li>
+  )
+})

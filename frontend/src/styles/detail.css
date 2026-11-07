@@ -764,13 +764,14 @@ button.now-playing-cover:focus-visible .now-playing-expand {
   }
 }
 
-/* Drawn small and scaled up: the blur turns its few pixels into soft light, and overscan hides the blurred edge. */
+/* Drawn small and scaled up: its gradients are soft enough to need no blur, which would make the browser blur the whole
+   window again at every frame. The overscan keeps the picture as it was when it had one. */
 .aurora {
   position: absolute;
   inset: -8%;
   width: 116%;
   height: 116%;
-  filter: blur(36px) saturate(1.2);
+  filter: saturate(1.2);
 }
 
 .np-view-veil {

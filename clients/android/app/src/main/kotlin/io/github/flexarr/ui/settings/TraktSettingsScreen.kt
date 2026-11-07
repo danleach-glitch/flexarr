@@ -150,7 +150,7 @@ fun TraktSettingsScreen(model: AppModel) {
                             Divider()
                             ActionRow(t("Copy code and open Trakt"), icon = Icons.AutoMirrored.Filled.OpenInNew) {
                                 copy(context, code.userCode)
-                                runCatching { uri.openUri(code.verificationUrl) }
+                                runCatching { uri.openUri(code.openableVerificationUrl) }
                             }
                             Divider()
                             ActionRow(t(Words.cancel), color = Flexarr.screen, enabled = !trakt.working) { trakt.run(TraktSpot.Account) { it.cancelTraktConnect() } }

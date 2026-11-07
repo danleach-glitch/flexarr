@@ -253,7 +253,16 @@ public static class ItemEndpoints
                 return Results.NotFound();
             }
 
-            var tracks = db.MediaItems.Where(i => i.Kind == MediaKind.Track && (i.ParentId == id || i.Parent!.ParentId == id));
+            // An artist's albums first, then the tracks in them (and any straight under the artist): each found by index.
+            // Asked for in one go, as tracks whose album is this or whose album's artist is, SQLite read every item
+            // in the database.
+            List<Guid> albums = [id];
+            if (kind == MediaKind.Artist)
+            {
+                albums.AddRange(await db.MediaItems.Where(i => i.ParentId == id).Select(i => i.Id).ToListAsync(ct));
+            }
+
+            var tracks = db.MediaItems.Where(i => i.Kind == MediaKind.Track && i.ParentId != null && albums.Contains(i.ParentId.Value));
             return Results.Ok(await tracks
                 .OrderBy(t => t.Parent!.Year == null).ThenBy(t => t.Parent!.Year).ThenBy(t => t.Parent!.SortTitle)
                 .ThenBy(t => t.SortTitle)
@@ -339,20 +348,22 @@ public static class ItemEndpoints
             ? await db.MediaItems.Where(i => i.ParentId == id).Select(i => new { i.Id, i.Overview }).ToDictionaryAsync(i => i.Id, i => i.Overview, ct)
             : new Dictionary<Guid, string?>();
 
+        // Where things are on the server's disk is the main profile's to know: the fields stay (apps read them), empty.
+        var paths = profile.IsMainProfile;
         return new ItemDetailDto(
-            item, entity.Path, entity.OriginalTitle, entity.Overview ?? (entity.Kind == MediaKind.Season ? series.Overview : null),
+            item, paths ? entity.Path : null, entity.OriginalTitle, entity.Overview ?? (entity.Kind == MediaKind.Season ? series.Overview : null),
             entity.Studio ?? series.Studio, series.Status, entity.TrailerYouTubeId,
             series.Genres.Select(g => g.Name).Order().ToList(),
             series.TvdbId, entity.TmdbId ?? series.TmdbId, entity.ImdbId ?? series.ImdbId,
-            ancestors, children, credits, files.Select(ToDto).ToList(), childOverviews, entity.MatchLocked,
+            ancestors, children, credits, files.Select(f => ToDto(f, paths)).ToList(), childOverviews, entity.MatchLocked,
             CanSearchSubtitles: bazarr && entity.Kind is (MediaKind.Movie or MediaKind.Episode) && entity.ArrId is not null && files.Count > 0,
             RatingAge: entity.RatingAge, KidsOverride: profile.IsMainProfile ? entity.KidsOverride : null,
             Book: entity.Kind == MediaKind.Audiobook ? await Books.BookQueries.DetailAsync(db, entity, profile.Id, ct) : null,
             DetailsLocked: entity.DetailsLocked, SortTitle: entity.SortTitle, ArtworkLocked: entity.ArtworkLocked);
     }
 
-    private static FileDto ToDto(MediaFile f) => new(
-        f.Id, f.Path, f.Size, f.Container, f.DurationSeconds, f.Bitrate, f.VideoCodec, f.Width, f.Height, f.VideoRange,
+    private static FileDto ToDto(MediaFile f, bool path) => new(
+        f.Id, path ? f.Path : "", f.Size, f.Container, f.DurationSeconds, f.Bitrate, f.VideoCodec, f.Width, f.Height, f.VideoRange,
         f.AudioCodec, f.AudioChannels, f.ProbeError,
         f.Streams.OrderBy(s => s.Index)
             .Select(s => new StreamDto(s.Index, s.Type, s.Codec, s.Profile, s.Language, s.Title, s.IsDefault, s.IsForced, s.Width, s.Height, s.Channels))

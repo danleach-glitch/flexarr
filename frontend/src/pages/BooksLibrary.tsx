@@ -29,6 +29,8 @@ import { AlphaPicker, AlphaRail, ShowMore, useLibraryGrid } from './libraryGrid'
 import { locale, t, tk, Words } from '../i18n'
 
 const PAGE_SIZE = 60
+/** The most books the server gives in one page (BookEndpoints' MaxPage). */
+const MAX_PAGE = 200
 
 type View = 'browse' | 'all' | 'series' | 'authors' | 'genres' | 'narrators' | 'genre'
 
@@ -230,10 +232,11 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
     const timer = setTimeout(() => setQuery(search.trim()), 250)
     return () => clearTimeout(timer)
   }, [search])
-  const { items, total, error, moreError, busy, jumping, jumpFailed, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
+  const { items, end, total, error, moreError, busy, jumping, jumpFailed, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
     snapshotKey: `books-${view} ${library.id} ${key}`,
     query,
     pageSize: PAGE_SIZE,
+    jumpPageSize: MAX_PAGE,
     itemCount: library.itemCount,
     load: (page, signal) => getLibraryBooks(library.id, { ...filters, search: query || undefined, ...page }, signal),
   })
@@ -303,7 +306,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
         </div>
         {letters && <AlphaRail jump={(l) => void jump(l)} jumping={jumping} failed={jumpFailed} empty={empty} />}
       </div>
-      <ShowMore loaded={items.length} total={total} pageSize={PAGE_SIZE} busy={busy} error={moreError} onMore={() => void loadMore()} />
+      <ShowMore loaded={end} total={total} pageSize={PAGE_SIZE} busy={busy} error={moreError} onMore={() => void loadMore()} />
     </>
   )
 }

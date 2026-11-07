@@ -29,6 +29,13 @@ public struct TraktPendingConnect: Codable, Sendable, Hashable {
     public let qrUrl: String
     public let expiresAt: Date?
     public var error: String? = nil
+
+    /// `verificationUrl` as a link to open, only when it's a web page: it comes from the server's answer, so any
+    /// other kind (another app's link, a phone number) is never opened.
+    public var verificationLink: URL? {
+        guard let url = URL(string: verificationUrl), url.scheme?.lowercased() == "https", url.host?.isEmpty == false else { return nil }
+        return url
+    }
 }
 
 public struct TraktStatus: Codable, Sendable, Hashable {

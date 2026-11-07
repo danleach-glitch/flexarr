@@ -44,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,7 +75,9 @@ import io.github.flexarr.core.LiveChannel
 import io.github.flexarr.core.LiveGuide
 import io.github.flexarr.core.LiveProgramme
 import io.github.flexarr.core.liveChannels
+import io.github.flexarr.core.GuideFilter
 import io.github.flexarr.core.liveGuide
+import io.github.flexarr.core.liveProgramme
 import io.github.flexarr.core.record
 import io.github.flexarr.core.recordSeries
 import io.github.flexarr.core.recordings
@@ -93,6 +96,7 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.components.RepeatWhileShowing
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -140,8 +144,17 @@ fun LiveTvScreen(model: AppModel) {
             if (channels == null) error = e.message
         }
     }
-    // What's on moves on: fetched again each minute while the screen is up.
-    RepeatWhileShowing(60_000, model.credentials) { load() }
+    // What's on moves on: fetched again each minute while the list is up. Under the guide, which has every programme
+    // itself, the list is only the channels and their stars: fetched every five minutes, and at once on going back to
+    // the list.
+    RepeatWhileShowing(if (showsGuide) GUIDE_REFRESH_MS else 60_000, model.credentials, showsGuide) {
+        load()
+        // No channels yet (the server couldn't be reached): tried again each minute, as it was, not left five.
+        while (showsGuide && channels == null) {
+            delay(60_000)
+            load()
+        }
+    }
 
     val all = channels.orEmpty()
     val favourites = all.filter { it.isFavourite }
@@ -200,7 +213,7 @@ fun LiveTvScreen(model: AppModel) {
                 else -> {
                     Chips(filter, groups, onChoose = { chosen = it })
                     if (showsGuide) {
-                        LiveGuideView(client, shown, order, model, onFavourite = { setFavourite(it, !it.isFavourite) }, onNotice = { notice = it })
+                        LiveGuideView(client, shown, order, filter == Filter.Favourites, model, onFavourite = { setFavourite(it, !it.isFavourite) }, onNotice = { notice = it })
                     } else {
                         PullToRefreshBox(isRefreshing = refreshing, onRefresh = { refreshing = true; scope.launch { load(); refreshing = false } }) {
                             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -344,6 +357,17 @@ internal fun RecordMark(recordingNow: Boolean) {
 
 private const val GUIDE_HOURS = 6
 
+/**
+ * How often the guide is fetched again while it's up: every five minutes, as on the TV. It's the programmes of the
+ * channels shown for the hours on screen, without descriptions (a programme's comes when it's opened), and changes only
+ * when the server reads its source again or a recording is set elsewhere; one set here fetches it at once. Asked again
+ * with its ETag, an unchanged guide isn't sent again.
+ */
+private const val GUIDE_REFRESH_MS = 300_000L
+
+/** Until the guide has come once, it's asked for again this often. */
+private const val GUIDE_RETRY_MS = 120_000L
+
 /** Figures of one width, so times line up. */
 private val Tabular = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum")
 
@@ -357,6 +381,7 @@ private fun LiveGuideView(
     client: FlexarrClient,
     channels: List<LiveChannel>,
     order: List<LiveChannel>,
+    favouritesOnly: Boolean,
     model: AppModel,
     onFavourite: (LiveChannel) -> Unit,
     onNotice: (String) -> Unit,
@@ -371,13 +396,34 @@ private fun LiveGuideView(
     // Recordings have no age to check, so a profile with an age limit has none.
     val records = model.currentProfile?.hasAgeLimit != true
 
+    // Only the channels shown ([order] is every channel): a big line-up isn't sent whole for a few favourites.
+    val ask = remember(channels, order, favouritesOnly) { GuideFilter.forShown(channels, order, favouritesOnly) }
+    // What the guide shown was asked for, and the ETag it came with.
+    var guideAsk by remember { mutableStateOf<GuideFilter?>(null) }
+    var etag by remember { mutableStateOf<String?>(null) }
+
     suspend fun load() {
-        runCatching { client.liveGuide(Instant.now().minusSeconds(3600), GUIDE_HOURS + 2) }.onSuccess { guide = it }
+        val asking = ask
+        runCatching {
+            client.liveGuide(windowStart, GUIDE_HOURS, asking, descriptions = false, etag = etag.takeIf { guide != null && guideAsk == asking })
+        }.onSuccess { fetched ->
+            // Null when it hadn't changed: the guide shown stands.
+            fetched.guide?.let { guide = it }
+            etag = fetched.etag
+            guideAsk = asking
+        }
     }
-    RepeatWhileShowing(120_000) {
+    RepeatWhileShowing(GUIDE_REFRESH_MS, ask) {
         load()
-        now = Instant.now()
+        // No guide yet for what's shown (the server couldn't be reached, or it took too long to come): tried again
+        // every two minutes, as it was, rather than left loading for five.
+        while (guide == null || guideAsk != ask) {
+            delay(GUIDE_RETRY_MS)
+            load()
+        }
     }
+    // The line for now, and what's on, move on each minute without fetching anything.
+    RepeatWhileShowing(60_000) { now = Instant.now() }
     /** Does a recording action, then fetches the guide again for its marks; says why if it couldn't be done. */
     fun act(action: suspend () -> String?) {
         scope.launch {
@@ -396,6 +442,8 @@ private fun LiveGuideView(
     val width = perMinute * (GUIDE_HOURS * 60)
     val loaded = guide ?: return StatusView()
     val byChannel = loaded.channels.associateBy { it.id }
+    // Another view chosen, its channels not in the guide yet: loading, rather than "No listings" for each.
+    if (guideAsk != ask && channels.any { it.id !in byChannel }) return StatusView()
     // One sideways position for every row, so the times and all the channels scroll across together.
     val across = rememberScrollState()
 
@@ -482,10 +530,11 @@ private fun LiveGuideView(
     }
 
     details?.let { (programme, channel) ->
+        val description = rememberDescription(client, programme)
         AlertDialog(
             onDismissRequest = { details = null },
             title = { Text(programme.displayTitle) },
-            text = { Text(describe(programme)) },
+            text = { Text(describe(programme.copy(description = description))) },
             confirmButton = {
                 Column(horizontalAlignment = Alignment.End) {
                     TextButton(onClick = { details = null; navigator.watch(channel, order) }) { Text(t("Watch {channel} now", "channel" to channel.name)) }
@@ -535,6 +584,19 @@ private fun GuideCell(
         }
         DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) { menu { open = false } }
     }
+}
+
+/**
+ * [programme]'s description: as the guide gave it, or (from a guide fetched without them) asked for once it's shown.
+ * Null until it comes, and when there's none.
+ */
+@Composable
+internal fun rememberDescription(client: FlexarrClient, programme: LiveProgramme): String? {
+    var fetched by remember(programme.id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(programme.id) {
+        if (programme.description == null) fetched = runCatching { client.liveProgramme(programme.id)?.description }.getOrNull()
+    }
+    return programme.description ?: fetched
 }
 
 private fun halfHourBefore(time: Instant): Instant = Instant.ofEpochSecond(time.epochSecond / 1800 * 1800)

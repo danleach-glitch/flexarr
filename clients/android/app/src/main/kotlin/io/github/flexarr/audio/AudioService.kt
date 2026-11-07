@@ -19,6 +19,7 @@ class AudioService : MediaLibraryService() {
     private var session: MediaLibrarySession? = null
     private lateinit var library: CarLibrary
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class) // setBitmapLoader
     override fun onCreate() {
         super.onCreate()
         // Tapping the notification opens the app.
@@ -29,7 +30,7 @@ class AudioService : MediaLibraryService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         library = CarLibrary(appModel, applicationContext)
-        session = MediaLibrarySession.Builder(this, library.Router(activePlayer()), library).setSessionActivity(open).build().also { addSession(it) }
+        session = MediaLibrarySession.Builder(this, library.Router(activePlayer()), library).setSessionActivity(open).setBitmapLoader(io.github.flexarr.player.sessionBitmapLoader(this)).build().also { addSession(it) }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

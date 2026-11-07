@@ -7,6 +7,7 @@ import { askedFrom, pairingError } from '../lib/pairing'
 import { AsyncButton } from './AsyncButton'
 import { DeviceTypeIcon } from './DeviceTypeIcon'
 import { t } from '../i18n'
+import '../styles/settings.lazy.css'
 
 /** "Apple TV · from your home network (192.168.1.70)", or just where from when it hasn't said what it is. */
 const where = (details: PairingDetails) => {

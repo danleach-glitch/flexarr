@@ -27,6 +27,8 @@ import io.github.flexarr.core.LiveProgramme
 import io.github.flexarr.core.LiveWatch
 import io.github.flexarr.core.RecordingInTheWay
 import io.github.flexarr.core.liveChannels
+import java.time.Instant
+import io.github.flexarr.core.LiveNowRefresh
 import io.github.flexarr.core.liveHeartbeat
 import io.github.flexarr.core.removeRecording
 import io.github.flexarr.core.stopLiveChannel
@@ -59,6 +61,8 @@ class LiveTvController(context: Context, private val model: AppModel, val client
 
     val player: ExoPlayer = ExoPlayer.Builder(context, shaper.renderers(context))
         .setMediaSourceFactory(mediaSources(context))
+        // ExoPlayer's own buffering, held to what a low-memory device can spare (as the film player's is).
+        .apply { StartBuffer.cappedDefault()?.let { setLoadControl(it) } }
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         .setHandleAudioBecomingNoisy(true)
         .setSeekBackIncrementMs(skipSeconds * 1000L)
@@ -98,6 +102,8 @@ class LiveTvController(context: Context, private val model: AppModel, val client
         private set
     var isBuffering by mutableStateOf(true)
         private set
+    /** Whether the screen is kept on ([screenStaysOn]): playing, or the spinner is up. */
+    val keepsScreenOn: Boolean get() = screenStaysOn(isPlaying, isBuffering || startingChannel != null, error != null)
     /** Where the picture is in the rewind window, and how long the window is. */
     var position by mutableDoubleStateOf(0.0)
         private set
@@ -174,6 +180,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
         position = 0.0
         duration = 0.0
         isBehind = false
+        nowAsked = null
         showTitle(channel, channel.now)
         starting = scope.launch {
             try {
@@ -222,7 +229,12 @@ class LiveTvController(context: Context, private val model: AppModel, val client
         keepTicking()
     }
 
+    /** When the programme shown ends, and when the server was last asked what's on ([LiveNowRefresh]). */
+    private var shownEnd: Instant? = null
+    private var nowAsked: Instant? = null
+
     private fun showTitle(channel: LiveChannel, programme: LiveProgramme?) {
+        shownEnd = programme?.end
         title = programme?.displayTitle ?: channel.name
         subtitle = "${channel.numberText} ${channel.name}" + (programme?.let { "   " + timeRange(it) } ?: "")
     }
@@ -245,9 +257,14 @@ class LiveTvController(context: Context, private val model: AppModel, val client
                     // A missed beat; the next one will do.
                 }
                 beats++
-                if (beats % 4 == 0) {
+                if (beats % 4 == 0 && LiveNowRefresh.isDue(shownEnd, nowAsked, Instant.now())) {
                     val id = watching?.channel?.id ?: continue
-                    runCatching { client.liveChannels() }.getOrNull()?.firstOrNull { it.id == id }?.let { showTitle(it, it.now) }
+                    // Counted only once answered: a failed ask is tried again at the next chance, as before.
+                    val channels = runCatching { client.liveChannels() }.getOrNull() ?: continue
+                    // Another channel was picked while that was out: it has its own title.
+                    if (watching?.channel?.id != id) continue
+                    nowAsked = Instant.now()
+                    channels.firstOrNull { it.id == id }?.let { showTitle(it, it.now) }
                 }
             }
         }

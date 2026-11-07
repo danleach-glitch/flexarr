@@ -17,9 +17,6 @@ struct BookView: View {
     @State private var loadedAt: Date?
     @State private var isVisible = false
     @State private var overviewExpanded = false
-    @State private var allChapters = false
-    /// Start over was tapped part way through: it asks first.
-    @State private var confirmingStartOver = false
     /// What the Bookmark button came to, for a moment.
     /// The bookmark whose note is being written.
     @State private var editing: Bookmark?
@@ -28,12 +25,6 @@ struct BookView: View {
     private var item: ItemSummary? { detail?.item ?? preview }
     private var book: BookDetail? { detail?.book }
     private var ambient: Color { item?.glowColor ?? .silver }
-
-    /// Where this profile is: the player's place while it's playing this book, else the server's.
-    private var position: Double {
-        if model.music.current?.id == id { return model.music.position }
-        return item?.userData.positionSeconds ?? 0
-    }
 
     private var duration: Double { book?.durationSeconds ?? item?.book?.durationSeconds ?? item?.effectiveDuration ?? 0 }
     private var speed: Double { book?.speed ?? model.bookListening?.speed ?? 1 }
@@ -113,12 +104,13 @@ struct BookView: View {
                     .accessibilityHint(t("Opens the series"))
                 }
                 people
-                FactsLine(facts: facts(item))
+                // The parts that follow the player's clock are views of their own, so the page isn't redrawn as it moves.
+                BookPageFacts(item: item, duration: duration, speed: speed)
                     .font(.caption)
                     .padding(.top, 2)
             }
             .padding(.horizontal, Layout.edge)
-            actions(item)
+            BookPageActions(item: item) { finished in await setFinished(finished) }
                 .padding(.horizontal, Layout.edge)
         }
         .frame(maxWidth: .infinity)
@@ -162,78 +154,6 @@ struct BookView: View {
         }
     }
 
-    /// Its length, and how long is left at this profile's speed for it.
-    private func facts(_ item: ItemSummary) -> [String] {
-        var facts: [String] = []
-        if let length = Format.runtime(seconds: duration) { facts.append(length) }
-        if position > 0, !item.isFinishedBook, let left = Format.remaining((duration - position) / max(0.5, speed)) {
-            facts.append(speed == 1 ? left : t("{time} at {speed}", ["time": left, "speed": BookSpeed.label(speed)]))
-        }
-        if item.isFinishedBook { facts.append(t("Finished")) }
-        return facts
-    }
-
-    private func actions(_ item: ItemSummary) -> some View {
-        let resumable = position > 0 && !item.isFinishedBook
-        let playingThis = model.music.current?.id == item.id
-        return VStack(spacing: 18) {
-            Button {
-                if playingThis { model.music.togglePlayPause() } else { model.playBook(item) }
-            } label: {
-                Label(playingThis && model.music.isPlaying ? t("Pause") : resumable ? t(Words.resumeFrom, ["time": Format.timestamp(position)]) : t(Words.play),
-                      systemImage: playingThis && model.music.isPlaying ? Symbol.pause : Symbol.play)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
-            .monospacedDigit()
-
-            // After Play, in `BookActions` order: Start over, Finished (or Unread), Download, ⋯.
-            HStack(alignment: .top, spacing: 8) {
-                ForEach(BookActions(hasProgress: resumable, finished: item.isFinishedBook, isKids: model.isKids,
-                                    platform: .phone, canDownload: true, hasMenu: model.canDeleteBooks).buttons.dropFirst(),
-                        id: \.self) { button in
-                    switch button {
-                    case .startOver:
-                        // Part way through, it asks first.
-                        Button {
-                            if resumable { confirmingStartOver = true } else { Task { await model.listenAgain(item) } }
-                        } label: {
-                            Label(t(Words.startOver), systemImage: Symbol.startOver)
-                        }
-                        .confirmationDialog(t("Start over?"), isPresented: $confirmingStartOver, titleVisibility: .visible) {
-                            Button(t(Words.startOver), role: .destructive) { Task { await model.listenAgain(item) } }
-                            // Not while it plays, which would set the place again.
-                            if !model.isKids, !playingThis {
-                                Button(t(Words.markAsUnread)) { Task { await setFinished(false) } }
-                            }
-                            Button(t(Words.cancel), role: .cancel) {}
-                        } message: {
-                            Text(t("You’re at {time}.", ["time": Format.timestamp(position)]))
-                        }
-                    case .finished:
-                        // Unread (no place, not finished, as if never started) in Finished's place once it's finished.
-                        if item.isFinishedBook {
-                            Button { Task { await setFinished(false) } } label: { Label(t("Unread"), systemImage: "book.closed") }
-                                .accessibilityLabel(t(Words.markAsUnread))
-                        } else {
-                            Button { Task { await setFinished(true) } } label: { Label(t("Finished"), systemImage: Symbol.watched) }
-                                .accessibilityLabel(t(Words.markAsFinished))
-                        }
-                    case .download:
-                        BookDownloadButton(item: item)
-                    case .more:
-                        BookMoreMenu(item: item)
-                            .menuStyle(.button)
-                    case .play:
-                        EmptyView()
-                    }
-                }
-            }
-            .buttonStyle(LabeledActionStyle())
-        }
-        .frame(maxWidth: 520)
-    }
-
     // MARK: Sections
 
     @ViewBuilder
@@ -257,7 +177,7 @@ struct BookView: View {
             .padding(.horizontal, Layout.edge)
         }
         if let book {
-            if book.chapters.count > 1 { chapters(book.chapters, item: item) }
+            if book.chapters.count > 1 { BookPageChapters(chapters: book.chapters, item: item, duration: duration) }
             if !book.bookmarks.isEmpty { bookmarks(book.bookmarks, chapters: book.chapters, item: item) }
             bookRow(t("More in the series"), book.moreInSeries)
             bookRow(firstName(.author).map { t("More by {name}", ["name": $0]) } ?? t("More by the author"), book.byAuthor)
@@ -306,53 +226,6 @@ struct BookView: View {
 
     private func firstName(_ role: CreditRole) -> String? {
         detail?.credits.first { $0.role == role }?.name
-    }
-
-    /// The chapters: those heard dimmed, the one playing with how far in it is. Long lists show the ones around the
-    /// current one until All chapters is tapped.
-    private func chapters(_ chapters: [BookChapter], item: ItemSummary) -> some View {
-        let timeline = BookTimeline(files: [], chapters: chapters, duration: duration)
-        let current = position > 0 && !item.isFinishedBook ? timeline.chapterIndex(at: position) : nil
-        let shown: [BookChapter] = {
-            guard !allChapters, chapters.count > 8 else { return chapters }
-            let start = max(0, min((current ?? 0) - 2, chapters.count - 8))
-            return Array(chapters[start..<min(chapters.count, start + 8)])
-        }()
-        return VStack(alignment: .leading, spacing: 4) {
-            SectionHeading(title: t("Chapters"), actionTitle: allChapters ? t("Fewer") : t("All {count}", ["count": chapters.count]),
-                           action: chapters.count > 8 ? { withAnimation { allChapters.toggle() } } : nil)
-            ForEach(shown) { chapter in
-                let index = chapters.firstIndex(of: chapter) ?? 0
-                Button { model.playBook(item, at: chapter.startSeconds) } label: {
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(chapter.title)
-                                .font(.subheadline.weight(index == current ? .bold : .regular))
-                                .foregroundStyle(index == current ? Color.screen : Color.screen.opacity((current ?? -1) > index || item.isFinishedBook ? 0.5 : 0.85))
-                                .multilineTextAlignment(.leading)
-                            if index == current, chapter.durationSeconds > 0 {
-                                ProgressBar(value: min(1, max(0, (position - chapter.startSeconds) / chapter.durationSeconds)), tint: .silver)
-                                    .frame(maxWidth: 200)
-                            }
-                        }
-                        Spacer(minLength: 8)
-                        if (current ?? -1) > index || item.isFinishedBook {
-                            Image(systemName: "checkmark").font(.caption.weight(.bold)).foregroundStyle(Color.usher)
-                        }
-                        Text(Format.timestamp(chapter.durationSeconds))
-                            .font(.caption.weight(.medium))
-                            .monospacedDigit()
-                            .foregroundStyle(Color.usher)
-                    }
-                    .padding(.horizontal, Layout.edge)
-                    .padding(.vertical, 9)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(chapter.title), \(Format.timestamp(chapter.durationSeconds))")
-                .accessibilityAddTraits(index == current ? .isSelected : [])
-            }
-        }
     }
 
     /// Bookmarks (added in the player): each plays from its place, × deletes it, and a long press writes its note.
@@ -462,5 +335,190 @@ struct BookView: View {
         } catch {
             if detail == nil { self.error = ConnectionError(error).message }
         }
+    }
+}
+
+// MARK: - The parts that follow the clock
+
+private extension AppModel {
+    /// Where this profile is in a book: the player's place while it's playing it, else the server's. Reading it follows
+    /// the player's clock, so only the small views below do.
+    func place(in item: ItemSummary) -> Double {
+        music.current?.id == item.id ? music.position : item.userData.positionSeconds
+    }
+}
+
+/// The book's length, and how long is left at this profile's speed for it.
+private struct BookPageFacts: View {
+    @Environment(AppModel.self) private var model
+    let item: ItemSummary
+    let duration: Double
+    let speed: Double
+
+    var body: some View {
+        let position = model.place(in: item)
+        var facts: [String] = []
+        if let length = Format.runtime(seconds: duration) { facts.append(length) }
+        if position > 0, !item.isFinishedBook, let left = Format.remaining((duration - position) / max(0.5, speed)) {
+            facts.append(speed == 1 ? left : t("{time} at {speed}", ["time": left, "speed": BookSpeed.label(speed)]))
+        }
+        if item.isFinishedBook { facts.append(t("Finished")) }
+        return FactsLine(facts: facts)
+    }
+}
+
+/// Play (or Resume from where this profile is; Pause while it plays), then the rest in `BookActions` order.
+private struct BookPageActions: View {
+    @Environment(AppModel.self) private var model
+    let item: ItemSummary
+    let setFinished: (Bool) async -> Void
+    /// Start over was tapped part way through: it asks first.
+    @State private var confirmingStartOver = false
+
+    var body: some View {
+        let position = model.place(in: item)
+        let resumable = position > 0 && !item.isFinishedBook
+        let playingThis = model.music.current?.id == item.id
+        VStack(spacing: 18) {
+            Button {
+                if playingThis { model.music.togglePlayPause() } else { model.playBook(item) }
+            } label: {
+                Label(playingThis && model.music.isPlaying ? t("Pause") : resumable ? t(Words.resumeFrom, ["time": Format.timestamp(position)]) : t(Words.play),
+                      systemImage: playingThis && model.music.isPlaying ? Symbol.pause : Symbol.play)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
+            .monospacedDigit()
+
+            // After Play, in `BookActions` order: Start over, Finished (or Unread), Download, ⋯.
+            HStack(alignment: .top, spacing: 8) {
+                ForEach(BookActions(hasProgress: resumable, finished: item.isFinishedBook, isKids: model.isKids,
+                                    platform: .phone, canDownload: true, hasMenu: model.canDeleteBooks).buttons.dropFirst(),
+                        id: \.self) { button in
+                    switch button {
+                    case .startOver:
+                        // Part way through, it asks first.
+                        Button {
+                            if resumable { confirmingStartOver = true } else { Task { await model.listenAgain(item) } }
+                        } label: {
+                            Label(t(Words.startOver), systemImage: Symbol.startOver)
+                        }
+                        .confirmationDialog(t("Start over?"), isPresented: $confirmingStartOver, titleVisibility: .visible) {
+                            Button(t(Words.startOver), role: .destructive) { Task { await model.listenAgain(item) } }
+                            // Not while it plays, which would set the place again.
+                            if !model.isKids, !playingThis {
+                                Button(t(Words.markAsUnread)) { Task { await setFinished(false) } }
+                            }
+                            Button(t(Words.cancel), role: .cancel) {}
+                        } message: {
+                            Text(t("You’re at {time}.", ["time": Format.timestamp(position)]))
+                        }
+                    case .finished:
+                        // Unread (no place, not finished, as if never started) in Finished's place once it's finished.
+                        if item.isFinishedBook {
+                            Button { Task { await setFinished(false) } } label: { Label(t("Unread"), systemImage: "book.closed") }
+                                .accessibilityLabel(t(Words.markAsUnread))
+                        } else {
+                            Button { Task { await setFinished(true) } } label: { Label(t("Finished"), systemImage: Symbol.watched) }
+                                .accessibilityLabel(t(Words.markAsFinished))
+                        }
+                    case .download:
+                        BookDownloadButton(item: item)
+                    case .more:
+                        BookMoreMenu(item: item)
+                            .menuStyle(.button)
+                    case .play:
+                        EmptyView()
+                    }
+                }
+            }
+            .buttonStyle(LabeledActionStyle())
+        }
+        .frame(maxWidth: 520)
+    }
+}
+
+/// The chapters: those heard dimmed, the one playing with how far in it is. Long lists show the ones around the
+/// current one until All chapters is tapped. Only working out which chapter is current follows the clock here; the
+/// rows are drawn again when that changes, and the current one's bar follows the clock on its own.
+private struct BookPageChapters: View {
+    @Environment(AppModel.self) private var model
+    let chapters: [BookChapter]
+    let item: ItemSummary
+    let duration: Double
+
+    var body: some View {
+        let position = model.place(in: item)
+        let timeline = BookTimeline(files: [], chapters: chapters, duration: duration)
+        let current = position > 0 && !item.isFinishedBook ? timeline.chapterIndex(at: position) : nil
+        BookPageChapterRows(chapters: chapters, item: item, current: current)
+            .equatable()
+    }
+}
+
+/// Equal, and so not drawn again, while the chapters and which is current are the same.
+private struct BookPageChapterRows: View, @MainActor Equatable {
+    @Environment(AppModel.self) private var model
+    let chapters: [BookChapter]
+    let item: ItemSummary
+    let current: Int?
+    @State private var all = false
+
+    static func == (a: Self, b: Self) -> Bool {
+        a.current == b.current && a.chapters == b.chapters && a.item == b.item
+    }
+
+    var body: some View {
+        let shown: [BookChapter] = {
+            guard !all, chapters.count > 8 else { return chapters }
+            let start = max(0, min((current ?? 0) - 2, chapters.count - 8))
+            return Array(chapters[start..<min(chapters.count, start + 8)])
+        }()
+        VStack(alignment: .leading, spacing: 4) {
+            SectionHeading(title: t("Chapters"), actionTitle: all ? t("Fewer") : t("All {count}", ["count": chapters.count]),
+                           action: chapters.count > 8 ? { withAnimation { all.toggle() } } : nil)
+            ForEach(shown) { chapter in
+                let index = chapters.firstIndex(of: chapter) ?? 0
+                Button { model.playBook(item, at: chapter.startSeconds) } label: {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(chapter.title)
+                                .font(.subheadline.weight(index == current ? .bold : .regular))
+                                .foregroundStyle(index == current ? Color.screen : Color.screen.opacity((current ?? -1) > index || item.isFinishedBook ? 0.5 : 0.85))
+                                .multilineTextAlignment(.leading)
+                            if index == current, chapter.durationSeconds > 0 {
+                                BookChapterBar(chapter: chapter, item: item)
+                                    .frame(maxWidth: 200)
+                            }
+                        }
+                        Spacer(minLength: 8)
+                        if (current ?? -1) > index || item.isFinishedBook {
+                            Image(systemName: "checkmark").font(.caption.weight(.bold)).foregroundStyle(Color.usher)
+                        }
+                        Text(Format.timestamp(chapter.durationSeconds))
+                            .font(.caption.weight(.medium))
+                            .monospacedDigit()
+                            .foregroundStyle(Color.usher)
+                    }
+                    .padding(.horizontal, Layout.edge)
+                    .padding(.vertical, 9)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(chapter.title), \(Format.timestamp(chapter.durationSeconds))")
+                .accessibilityAddTraits(index == current ? .isSelected : [])
+            }
+        }
+    }
+}
+
+/// How far into the current chapter this profile is.
+private struct BookChapterBar: View {
+    @Environment(AppModel.self) private var model
+    let chapter: BookChapter
+    let item: ItemSummary
+
+    var body: some View {
+        ProgressBar(value: min(1, max(0, (model.place(in: item) - chapter.startSeconds) / chapter.durationSeconds)), tint: .silver)
     }
 }

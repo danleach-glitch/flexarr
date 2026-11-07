@@ -88,13 +88,13 @@ class GuestSignInTest {
         assertEquals("http://127.0.0.1:53000/", store.load()!!.address)
 
         store.clear()
-        store.save(ServerCredentials("http://192.168.1.106:8383/", "home-key"))
+        store.save(ServerCredentials("http://192.168.1.50:8383/", "home-key"))
         val home = store.load()!!
         assertFalse(home.isGuest)
         // Not a guest: the address doesn't move.
         store.saveGuestAddress("http://127.0.0.1:53000/")
-        assertEquals("http://192.168.1.106:8383/", store.load()!!.address)
-        assertEquals("http://192.168.1.106:8383/", store.lastAddress)
+        assertEquals("http://192.168.1.50:8383/", store.load()!!.address)
+        assertEquals("http://192.168.1.50:8383/", store.lastAddress)
     }
 
     @Test

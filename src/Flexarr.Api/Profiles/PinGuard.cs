@@ -32,8 +32,10 @@ public enum PinCheck
 /// </para>
 /// <para>
 /// A caller that keeps changing address starts afresh each time, so the admin PIN (which guards the API key) also has
-/// a daily allowance of wrong guesses from callers that can't manage the server: once it's spent, none of them may try
-/// the admin PIN until the day is out. Callers that may manage the server still get in.
+/// a daily allowance of wrong guesses from callers told apart only by address: once it's spent, none of them may try
+/// the admin PIN until the day is out. Callers that may manage the server still get in, and so do those with a count
+/// they can't shed (a browser or device with a sign-in, a browser that has given the right admin PIN before): they
+/// neither spend the allowance nor are held off by it, so a guesser can't use it to lock the owner out for the day.
 /// </para>
 /// </summary>
 public sealed class PinGuard(TimeProvider clock)
@@ -53,8 +55,15 @@ public sealed class PinGuard(TimeProvider clock)
     /// <summary>Once a profile has had several wrong PINs, from anyone: the most often it's tried.</summary>
     public static readonly TimeSpan ProfileThrottle = TimeSpan.FromSeconds(5);
 
-    /// <summary>Wrong admin PINs a day from callers that can't manage the server, after which none of them may try it.</summary>
+    /// <summary>Wrong admin PINs a day from callers told apart only by address, after which none of them may try it.</summary>
     public const int AdminDailyAllowance = 100;
+
+    /// <summary>
+    /// Wrong PINs a day from one caller at one profile, after which it may not try that profile's PIN until the day is
+    /// out. Strikes halve with each quiet spell, so without it a caller that paces itself would get well over a hundred
+    /// guesses a day; a right PIN clears it, as it does the strikes.
+    /// </summary>
+    public const int CallerDailyAllowance = 20;
 
     /// <summary>After this long without a wrong PIN (once any lockout is over), half the strikes are forgotten.</summary>
     public static readonly TimeSpan QuietPeriod = TimeSpan.FromMinutes(30);
@@ -68,7 +77,7 @@ public sealed class PinGuard(TimeProvider clock)
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, Strikes> _strikes = new(StringComparer.Ordinal);
 
-    /// <summary>The day's wrong admin PINs from callers that can't manage the server (only touched inside the admin PIN's gate).</summary>
+    /// <summary>The day's wrong admin PINs from callers told apart only by address (only touched inside the admin PIN's gate).</summary>
     private (DateTime Since, int Count) _adminDaily;
 
     /// <summary>Browsers that have given the right admin PIN, and when they last did.</summary>
@@ -82,6 +91,10 @@ public sealed class PinGuard(TimeProvider clock)
 
         /// <summary>When half the strikes were last forgotten.</summary>
         public DateTime HalvedAt;
+
+        /// <summary>The first wrong PIN of the caller's day, and how many since; never halved.</summary>
+        public DateTime DailySince;
+        public int DailyCount;
     }
 
     /// <inheritdoc cref="CheckAsync(string, IReadOnlyList{string}, Func{bool}, CancellationToken, bool, string?)"/>
@@ -115,9 +128,14 @@ public sealed class PinGuard(TimeProvider clock)
         {
             var now = clock.GetUtcNow().UtcDateTime;
             var wait = callerKeys.Select(k => HeldOff(k, now, throttleOnly: false)).Max();
+            var callerDay = callerKeys.Select(k => DayOut(k, now)).Max();
+            wait = callerDay > wait ? callerDay : wait;
             var shared = mayManage ? HeldOff(managersKey, now, throttleOnly: false) : HeldOff(profileKey, now, throttleOnly: true);
             wait = shared > wait ? shared : wait;
-            var daily = !mayManage && profileId == AdminKey;
+            // Only callers that could start afresh from another address: a sign-in, or a browser known by its right
+            // admin PIN, keeps its own count wherever it asks from. A caller that also goes by a name that isn't a
+            // sign-in (a browser moved over from earlier versions' shared cookie, which could ask for another) doesn't.
+            var daily = !mayManage && profileId == AdminKey && !known && !(callers.Count > 0 && callers.All(c => c.StartsWith("sign-in:", StringComparison.Ordinal)));
             if (daily && now - _adminDaily.Since >= TimeSpan.FromDays(1))
             {
                 _adminDaily = (now, 0);
@@ -183,6 +201,7 @@ public sealed class PinGuard(TimeProvider clock)
                 lock (strikes)
                 {
                     strikes.Count = Math.Max(0, strikes.Count - 1);
+                    strikes.DailyCount = Math.Max(0, strikes.DailyCount - 1);
                     if (strikes.Count < FreeAttempts)
                     {
                         strikes.LockedUntil = default;
@@ -222,7 +241,7 @@ public sealed class PinGuard(TimeProvider clock)
             {
                 var spells = (int)Math.Min(31, (now - quietSince) / QuietPeriod);
                 strikes.Count >>= spells;
-                if (strikes.Count == 0)
+                if (strikes.Count == 0 && now - strikes.DailySince >= TimeSpan.FromDays(1))
                 {
                     _strikes.TryRemove(key, out _);
                     return TimeSpan.Zero;
@@ -240,12 +259,34 @@ public sealed class PinGuard(TimeProvider clock)
         }
     }
 
+    /// <summary>How long a caller must wait for its day's allowance of wrong PINs (<see cref="CallerDailyAllowance"/>) to come back.</summary>
+    private TimeSpan DayOut(string key, DateTime now)
+    {
+        if (!_strikes.TryGetValue(key, out var strikes))
+        {
+            return TimeSpan.Zero;
+        }
+
+        lock (strikes)
+        {
+            var dayOut = strikes.DailySince + TimeSpan.FromDays(1) - now;
+            return strikes.DailyCount >= CallerDailyAllowance && dayOut > TimeSpan.Zero ? dayOut : TimeSpan.Zero;
+        }
+    }
+
     /// <summary>Counts a wrong PIN; returns how many there are now.</summary>
     private int Strike(string key, DateTime now, int freeAttempts)
     {
         var strikes = _strikes.GetOrAdd(key, _ => new Strikes());
         lock (strikes)
         {
+            if (now - strikes.DailySince >= TimeSpan.FromDays(1))
+            {
+                strikes.DailySince = now;
+                strikes.DailyCount = 0;
+            }
+
+            strikes.DailyCount++;
             strikes.Count++;
             strikes.LastWrong = now;
             if (strikes.Count >= freeAttempts)

@@ -27,6 +27,7 @@ import { StreamingSection } from './StreamingSection'
 import { NavigationSection } from './NavigationSection'
 import { TraktSection } from './TraktSection'
 import { UpdatesSection } from './UpdatesSection'
+import '../../styles/settings.lazy.css'
 
 interface Page {
   id: string

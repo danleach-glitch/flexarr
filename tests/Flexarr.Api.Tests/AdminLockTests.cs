@@ -234,19 +234,43 @@ public class AdminLockTests
         var me = await MeAsync(tv);
         var unlock = await tv.PostAsJsonAsync(Api("/admin/unlock"), new { pin = "1234" });
         var fromKid = await kidsTv.PostAsJsonAsync(Api("/admin/pin"), new { pin = "1234" });
-        var tooShort = await tv.PostAsJsonAsync(Api("/admin/pin"), new { pin = "12" });
-        var first = await tv.PostAsJsonAsync(Api("/admin/pin"), new { pin = "1234" });
-        var again = await tv.PostAsJsonAsync(Api("/admin/pin"), new { pin = "5678" });
+        // A paired device may choose the main profile without a PIN, so it doesn't get to choose the first admin PIN.
+        var kidOnMain = await kidsTv.PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = (string?)null });
+        var fromKidOnMain = await kidsTv.PostAsJsonAsync(Api("/admin/pin"), new { pin = "1234" });
+        var fromTv = await tv.PostAsJsonAsync(Api("/admin/pin"), new { pin = "1234" });
+        var browser = await BrowserAsync(server);
+        var tooShort = await browser.PostAsJsonAsync(Api("/admin/pin"), new { pin = "12" });
+        var first = await browser.PostAsJsonAsync(Api("/admin/pin"), new { pin = "1234" });
+        var again = await browser.PostAsJsonAsync(Api("/admin/pin"), new { pin = "5678" });
 
         Assert.True(me.GetProperty("adminPinMissing").GetBoolean());
         Assert.Equal(HttpStatusCode.Conflict, unlock.StatusCode);
         Assert.True((await unlock.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("pinMissing").GetBoolean());
         Assert.Equal(HttpStatusCode.Forbidden, fromKid.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, kidOnMain.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, fromKidOnMain.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, fromTv.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, tooShort.StatusCode);
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await tv.GetAsync(Api("/settings"))).StatusCode); // setting it unlocks
+        Assert.Equal(HttpStatusCode.OK, (await browser.GetAsync(Api("/settings"))).StatusCode); // setting it unlocks
         Assert.Equal(HttpStatusCode.Forbidden, again.StatusCode); // once there's one, a new one takes the key
         Assert.False((await MeAsync(tv)).GetProperty("adminPinMissing").GetBoolean());
+        Assert.Equal(HttpStatusCode.OK, (await tv.PostAsJsonAsync(Api("/admin/unlock"), new { pin = "1234" })).StatusCode);
+    }
+
+    /// <summary>A browser signed in with the key, as the web app does, then locked as it is once the unlock has lapsed.</summary>
+    private static async Task<HttpClient> BrowserAsync(FlexarrApiFactory server)
+    {
+        var browser = server.CreateClient();
+        using (var signIn = new HttpRequestMessage(HttpMethod.Post, Api("/session")))
+        {
+            signIn.Headers.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+            browser.DefaultRequestHeaders.Add("Cookie", Assert.Single((await browser.SendAsync(signIn)).Headers.GetValues("Set-Cookie")).Split(';')[0]);
+            browser.DefaultRequestHeaders.Add("X-Requested-With", "flexarr");
+        }
+
+        Assert.Equal(HttpStatusCode.NoContent, (await browser.PostAsJsonAsync(Api("/admin/lock"), new { })).StatusCode);
+        return browser;
     }
 
     [Fact]

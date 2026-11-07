@@ -1,6 +1,9 @@
+import FlexarrKit
 import SwiftUI
 
-/// Decoded-image memory cache. Disk caching is left to URLCache (configured at launch).
+/// Decoded-image memory cache. Disk caching is left to URLCache (configured at launch). A picture from the server is
+/// kept under its home address whichever address it came from (`ServerAddresses.atHome`), so what was loaded at home
+/// is still there, and still on screen, when the app moves to the server's address for away from home.
 final class ImageCache: @unchecked Sendable {
     static let shared = ImageCache()
     private let cache = NSCache<NSURL, PlatformImage>()
@@ -15,13 +18,13 @@ final class ImageCache: @unchecked Sendable {
     }
 
     func image(for url: URL) -> PlatformImage? {
-        cache.object(forKey: url as NSURL)
+        cache.object(forKey: ServerAddresses.atHome(url) as NSURL)
     }
 
     func insert(_ image: PlatformImage, for url: URL) {
         let pixels = image.pixelSize
         let cost = Int(pixels.width * pixels.height * 4)
-        cache.setObject(image, forKey: url as NSURL, cost: cost)
+        cache.setObject(image, forKey: ServerAddresses.atHome(url) as NSURL, cost: cost)
     }
 }
 
@@ -63,11 +66,21 @@ actor ImageLoader {
 
     /// The image's bytes. A server too busy to make it right now (503, after a fast scroll through uncached posters)
     /// is asked again after its Retry-After, twice at most, for as long as someone is still waiting for it.
+    ///
+    /// Away from home, a picture the disk cache has from home is used rather than downloaded again, and one fetched
+    /// now is kept where a request at home will find it (`KeptArtwork`): once, not a copy for each address.
     private static func fetch(_ url: URL) async -> Data? {
+        let home = ServerAddresses.atHome(url)
+        let away = home != url
+        if away, let kept = KeptArtwork.data(for: home) { return kept }
+        let session = away ? awaySession : URLSession.shared
         for attempt in 0..<3 {
-            guard let (data, response) = try? await URLSession.shared.data(from: url),
+            guard let (data, response) = try? await session.data(from: url),
                   let http = response as? HTTPURLResponse else { return nil }
-            if http.statusCode == 200 { return data }
+            if http.statusCode == 200 {
+                if away { KeptArtwork.keep(data, from: http, as: home) }
+                return data
+            }
             guard http.statusCode == 503, attempt < 2 else { return nil }
             let wait = http.value(forHTTPHeaderField: "Retry-After").flatMap(Int.init) ?? 5
             // Cancelled (scrolled away, nobody else waiting): stop rather than ask again.
@@ -75,6 +88,14 @@ actor ImageLoader {
         }
         return nil
     }
+
+    /// Artwork from the server's address for away from home: as the shared session, but keeping nothing itself
+    /// (what it fetches is kept under the home address instead).
+    private static let awaySession: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.urlCache = nil
+        return URLSession(configuration: configuration)
+    }()
 
     private func abandon(_ url: URL, _ task: Task<PlatformImage?, Never>) {
         guard var load = inFlight[url], load.task == task else { return }

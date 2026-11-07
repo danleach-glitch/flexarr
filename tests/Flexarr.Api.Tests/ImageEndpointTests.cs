@@ -6,6 +6,7 @@ using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Flexarr.Metadata;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
@@ -167,10 +168,204 @@ public class ImageEndpointTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
-    public async Task ArtworkVersion_IsTheLaterOfTheLookUpAndTheArtworkChange()
+    public async Task AScannedCover_IsServedFromTheCache_WithoutLookingAtTheFile_UntilItsStampChanges()
+    {
+        if (!await HasFfmpegAsync())
+        {
+            return; // CI without ffmpeg: nothing to make the covers with
+        }
+
+        var root = Directory.CreateTempSubdirectory("flexarr-cover-").FullName;
+        try
+        {
+            var cover = Path.Combine(root, "Book", "cover.jpg");
+            Directory.CreateDirectory(Path.GetDirectoryName(cover)!);
+            await RunAsync("ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=red:s=64x64", "-frames:v", "1", cover);
+            Guid id;
+            using (var scope = factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+                var library = new Library { Name = $"Books {Guid.NewGuid():N}", Type = LibraryType.Audiobooks, Folders = [new LibraryFolder { Path = root }] };
+                var item = new MediaItem
+                {
+                    LibraryId = library.Id, Kind = MediaKind.Audiobook, Title = "Book", SortTitle = "book", PosterUrl = $"file://{cover}", ArtworkStamp = "first",
+                };
+                db.AddRange(library, item);
+                await db.SaveChangesAsync();
+                id = item.Id;
+            }
+
+            var client = factory.CreateClient();
+            var before = await client.GetByteArrayAsync(new Uri($"/api/v1/images/items/{id}/poster?w=64", UriKind.Relative));
+
+            // The drive asleep (or the file gone): the cached copy is still served, by the scan's stamp.
+            File.Move(cover, cover + ".away");
+            Assert.Equal(before, await client.GetByteArrayAsync(new Uri($"/api/v1/images/items/{id}/poster?w=64", UriKind.Relative)));
+
+            // Replaced, and a scan noticed (a new stamp, a new ?v=): read again.
+            await RunAsync("ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=blue:s=128x128", "-frames:v", "1", cover);
+            File.Delete(cover + ".away");
+            using (var scope = factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+                await db.MediaItems.Where(i => i.Id == id).ExecuteUpdateAsync(u => u.SetProperty(i => i.ArtworkStamp, "second").SetProperty(i => i.ArtworkChangedAt, DateTime.UtcNow));
+            }
+
+            var after = await client.GetByteArrayAsync(new Uri($"/api/v1/images/items/{id}/poster?w=64&v=2", UriKind.Relative));
+            Assert.NotEqual(before, after);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task AScannedTitlesWideCard_IsServedFromTheCache_WithoutLookingAtItsFiles()
+    {
+        if (!await HasFfmpegAsync())
+        {
+            return; // CI without ffmpeg: nothing to make the pictures with
+        }
+
+        var root = Directory.CreateTempSubdirectory("flexarr-wide-").FullName;
+        try
+        {
+            var backdrop = Path.Combine(root, "Film", "fanart.jpg");
+            var logo = Path.Combine(root, "Film", "logo.png");
+            Directory.CreateDirectory(Path.GetDirectoryName(backdrop)!);
+            await RunAsync("ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=red:s=640x360", "-frames:v", "1", backdrop);
+            await RunAsync("ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=white:s=200x50", "-frames:v", "1", logo);
+            Guid id;
+            using (var scope = factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+                var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = root }] };
+                var item = new MediaItem
+                {
+                    LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Film", SortTitle = "film", BackdropUrl = $"file://{backdrop}", LogoUrl = $"file://{logo}",
+                    ArtworkStamp = "first",
+                };
+                db.AddRange(library, item);
+                await db.SaveChangesAsync();
+                id = item.Id;
+            }
+
+            var client = factory.CreateClient();
+            var before = await client.GetByteArrayAsync(new Uri($"/api/v1/images/items/{id}/wide?w=780", UriKind.Relative));
+
+            // The drive asleep (or the files gone), and the title looked up again: the card still comes from the cache.
+            File.Move(backdrop, backdrop + ".away");
+            File.Move(logo, logo + ".away");
+            Assert.Equal(before, await client.GetByteArrayAsync(new Uri($"/api/v1/images/items/{id}/wide?w=780&v=2", UriKind.Relative)));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ACoverThatIsALink_IsNeverRead_StampedOrNot()
+    {
+        if (!await HasFfmpegAsync())
+        {
+            return; // CI without ffmpeg: nothing to make the covers with
+        }
+
+        var root = Directory.CreateTempSubdirectory("flexarr-link-").FullName;
+        var outside = Directory.CreateTempSubdirectory("flexarr-outside-").FullName;
+        try
+        {
+            var secret = Path.Combine(outside, "secret.jpg");
+            await RunAsync("ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=green:s=64x64", "-frames:v", "1", secret);
+            var ids = new List<Guid>();
+            using (var scope = factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+                var library = new Library { Name = $"Books {Guid.NewGuid():N}", Type = LibraryType.Audiobooks, Folders = [new LibraryFolder { Path = root }] };
+                db.Add(library);
+                foreach (var stamp in new[] { "stamped", null })
+                {
+                    var cover = Path.Combine(root, $"Book {stamp ?? "unstamped"}", "cover.jpg");
+                    Directory.CreateDirectory(Path.GetDirectoryName(cover)!);
+                    File.CreateSymbolicLink(cover, secret);
+                    var item = new MediaItem
+                    {
+                        LibraryId = library.Id, Kind = MediaKind.Audiobook, Title = "Book", SortTitle = "book", PosterUrl = $"file://{cover}", ArtworkStamp = stamp,
+                    };
+                    db.Add(item);
+                    ids.Add(item.Id);
+                }
+
+                await db.SaveChangesAsync();
+            }
+
+            var client = factory.CreateClient();
+            foreach (var id in ids)
+            {
+                Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(new Uri($"/api/v1/images/items/{id}/poster?w=64", UriKind.Relative))).StatusCode);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+            Directory.Delete(outside, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task APosterKeepsItsAddress_WhenItsTitleIsLookedUpAgain_AndGetsANewOneWhenItChanges()
     {
         var looked = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        var changed = looked.AddDays(3);
+        Guid id;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies };
+            var item = new MediaItem
+            {
+                LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Dune", SortTitle = "dune", PosterUrl = "https://image.test/dune.jpg", MetadataUpdatedAt = looked,
+            };
+            db.AddRange(library, item);
+            await db.SaveChangesAsync();
+            id = item.Id;
+        }
+
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        async Task<string?> PosterAsync() =>
+            (await client.GetFromJsonAsync<System.Text.Json.JsonElement>(new Uri($"/api/v1/items/{id}", UriKind.Relative)))
+                .GetProperty("item").GetProperty("artwork").GetProperty("poster").GetString();
+        async Task ChangeAsync(Action<MediaItem> change)
+        {
+            using var scope = factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            change((await db.MediaItems.FindAsync(id))!);
+            await db.SaveChangesAsync();
+        }
+
+        var first = await PosterAsync();
+        Assert.Equal($"/api/v1/images/items/{id}/poster?v={looked.Ticks / 10_000_000}", first);
+
+        // The weekly refresh, twice over: looked up again, the same poster found.
+        await ChangeAsync(item => (item.MetadataUpdatedAt, item.PosterUrl, item.Overview) = (looked.AddDays(7), "https://image.test/dune.jpg", "Paul Atreides arrives on Arrakis."));
+        await ChangeAsync(item => item.MetadataUpdatedAt = looked.AddDays(14));
+        Assert.Equal(first, await PosterAsync());
+
+        // A new poster: a new address, for the picture to be fetched from.
+        await ChangeAsync(item => (item.MetadataUpdatedAt, item.PosterUrl) = (looked.AddDays(21), "https://image.test/dune-part-two.jpg"));
+        var second = await PosterAsync();
+        Assert.NotEqual(first, second);
+        await ChangeAsync(item => item.MetadataUpdatedAt = looked.AddDays(28));
+        Assert.Equal(second, await PosterAsync());
+    }
+
+    [Fact]
+    public async Task ArtworkVersion_IsWhenTheArtworkChanged_NotWhenTheTitleWasLastLookedUp()
+    {
+        var changed = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var looked = changed.AddDays(7); // looked up again a week later, as every title is
         Guid id;
         using (var scope = factory.Services.CreateScope())
         {
@@ -194,7 +389,8 @@ public class ImageEndpointTests(FlexarrApiFactory factory) : IClassFixture<Flexa
         Assert.EndsWith($"?v={changed.Ticks / 10_000_000}", poster, StringComparison.Ordinal);
         Assert.Equal(looked.Ticks / 10_000_000, ArtworkUrls.Version(looked, null));
         Assert.Equal(changed.Ticks / 10_000_000, ArtworkUrls.Version(null, changed));
-        Assert.Equal(changed.Ticks / 10_000_000, ArtworkUrls.Version(changed, looked));
+        Assert.Equal(changed.Ticks / 10_000_000, ArtworkUrls.Version(looked, changed));
+        Assert.Equal(looked.Ticks / 10_000_000, ArtworkUrls.Version(changed, looked)); // artwork replaced since the last look-up
         Assert.Equal(0, ArtworkUrls.Version(null, null));
     }
 

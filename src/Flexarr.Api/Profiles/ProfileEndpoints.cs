@@ -577,10 +577,15 @@ public static partial class ProfileEndpoints
             {
                 signIns.ChooseProfile(signInId, profile.IsMain ? null : profile.Id);
             }
-            else if (mainPinGiven && http.User.FindFirst(FlexarrClaims.Method)?.Value != ApiKeyAuthenticationHandler.Methods.ApiKey)
+            else if ((mainPinGiven || profile.IsMain && profile.PinHash is not null
+                    && http.Request.Headers[ApiKeyAuthenticationHandler.ProfileChoiceHeader].ToString() == "1")
+                && http.User.FindFirst(FlexarrClaims.Method)?.Value != ApiKeyAuthenticationHandler.Methods.ApiKey)
             {
                 // Without a sign-in (over Tailscale, or at home with "only away from home"), the PIN signs this browser
-                // in as the main profile instead, so the unlock has somewhere to live (see AdminEndpoints).
+                // in as the main profile instead, so the unlock has somewhere to live (see AdminEndpoints). Its own PIN,
+                // from a client that asks who's watching (see ApiKeyAuthenticationHandler.ProfileChoiceHeader), does
+                // too, unlocking nothing: so the choice lasts, also when switching to it from another profile (a
+                // main-profile token alone is dropped by the web app, and it would be asked again).
                 signInId = AdminEndpoints.SignInForUnlock(http, signIns);
             }
 
@@ -636,7 +641,10 @@ public static partial class ProfileEndpoints
     {
         if (current.SignInId is { } signIn)
         {
-            return ([$"sign-in:{signIn}"], null);
+            // A browser moved over from earlier versions' shared cookie could have another sign-in for the asking, so
+            // it goes by a second name that isn't a sign-in: the guard counts its admin PIN guesses in the day's allowance.
+            return (http.RequestServices.GetRequiredService<SignIns>().ById(signIn)?.FromSharedCookie == true
+                ? [$"sign-in:{signIn}", $"shared-cookie:{signIn}"] : [$"sign-in:{signIn}"], null);
         }
 
         var browser = http.Request.Cookies[BrowserCookieName];
@@ -646,7 +654,7 @@ public static partial class ProfileEndpoints
             http.Response.Cookies.Append(BrowserCookieName, browser, new CookieOptions
             {
                 HttpOnly = true,
-                Secure = http.Request.IsHttps,
+                Secure = RequestPeer.SaysHttps(http),
                 SameSite = SameSiteMode.Strict,
                 Path = "/",
                 MaxAge = TimeSpan.FromDays(400),
@@ -654,7 +662,34 @@ public static partial class ProfileEndpoints
         }
 
         var address = $"address:{http.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
-        return (http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value is { } login ? [$"tailscale:{login.ToLowerInvariant()}", address] : [address], browser);
+        if (http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value is { } login)
+        {
+            return ([$"tailscale:{login.ToLowerInvariant()}", address], browser);
+        }
+
+        return (PinRange(http.Connection.RemoteIpAddress) is { } range ? [address, range] : [address], browser);
+    }
+
+    /// <summary>
+    /// The IPv6 /64 an address without a sign-in also counts under, as "range:…/64": one device can take a fresh
+    /// address in its /64 for nothing, so it mustn't earn fresh PIN guesses with each. Null for IPv4 (an IPv4-mapped
+    /// address counts as IPv4) and for a tailnet address, which is fixed to its device.
+    /// </summary>
+    internal static string? PinRange(System.Net.IPAddress? address)
+    {
+        if (address is not { AddressFamily: System.Net.Sockets.AddressFamily.InterNetworkV6 } || address.IsIPv4MappedToIPv6)
+        {
+            return null;
+        }
+
+        var bytes = address.GetAddressBytes();
+        if (bytes[0] == 0xfd && bytes[1] == 0x7a && bytes[2] == 0x11 && bytes[3] == 0x5c && bytes[4] == 0xa1 && bytes[5] == 0xe0)
+        {
+            return null; // Tailscale's fd7a:115c:a1e0::/48
+        }
+
+        Array.Clear(bytes, 8, 8);
+        return $"range:{new System.Net.IPAddress(bytes)}/64";
     }
 
     /// <summary>A 429 saying how long to wait, with Retry-After.</summary>

@@ -146,7 +146,9 @@ struct PlaylistView: View {
     @State private var error: String?
 
     private var summary: PlaylistSummary { detail?.summary ?? playlist }
-    private var tracks: [ItemSummary] { detail?.tracks.map(\.track) ?? [] }
+    /// The playlist's tracks, read out of `detail` once when it loads: every row is handed the whole list (for its
+    /// menu, and to play from there), so working it out afresh each time made a long playlist's page slow to draw.
+    @State private var tracks: [ItemSummary] = []
 
     var body: some View {
         ZStack {
@@ -224,7 +226,9 @@ struct PlaylistView: View {
     private func load() async {
         guard let client = model.client else { return }
         do {
-            detail = try await client.playlist(playlist.id)
+            let loaded = try await client.playlist(playlist.id)
+            detail = loaded
+            tracks = loaded.tracks.map(\.track)
             error = nil
         } catch {
             if detail == nil { self.error = ConnectionError(error).message }

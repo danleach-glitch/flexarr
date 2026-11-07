@@ -9,21 +9,33 @@ struct LiveGuideView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
     let channels: [LiveChannel]
+    /// The channels are the favourites: the guide is asked for only theirs.
+    var favouritesOnly = false
     let order: [LiveChannel]
     let onFavourite: (LiveChannel) -> Void
 
-    @State private var guide: LiveGuide?
+    /// The guide as fetched: kept a while (`LiveGuide.keptFor`) rather than downloaded again at every look, and asked
+    /// for (`LiveGuidePlan`) for the window shown and an hour more, and for only the favourites while they're shown.
+    @State private var kept: KeptLiveGuide?
+    /// The guide being asked for, so the same isn't asked twice at once.
+    @State private var asking: LiveGuideRequest?
     @State private var windowStart = LiveGuideView.halfHour(before: Date())
     @State private var details: (programme: LiveProgramme, channel: LiveChannel)?
     @State private var now = Date()
     @State private var notice: String?
+    /// The channel rows built: those near the screen (`GuideRowWindow`), kept up to date as the guide scrolls.
+    @State private var shownRows = 0..<40
 
     private static let hours: Double = 6
-    /// Made each time, so it follows a change of language.
+    /// Kept while the language shown stays the same: every programme in the grid reads it three times.
+    private static var clockFormatter: DateFormatter?
     private static var clock: DateFormatter {
+        let locale = Localization.locale
+        if let kept = clockFormatter, kept.locale == locale { return kept }
         let formatter = DateFormatter()
-        formatter.locale = Localization.locale
+        formatter.locale = locale
         formatter.timeStyle = .short
+        clockFormatter = formatter
         return formatter
     }
 
@@ -32,43 +44,73 @@ struct LiveGuideView: View {
     private var rowHeight: CGFloat { sizeClass == .regular ? 64 : 56 }
     private var width: CGFloat { CGFloat(Self.hours * 60) * perMinute }
     private var windowEnd: Date { windowStart.addingTimeInterval(Self.hours * 3600) }
+    /// The times along the top and every channel's row below, as tall as if all the rows were built.
+    private var columnHeight: CGFloat {
+        channels.isEmpty ? 30 : 30 + CGFloat(channels.count) * (rowHeight + 4)
+    }
 
     var body: some View {
         Group {
-            if guide == nil {
-                StatusView(state: .loading)
-            } else {
+            if let guide = kept?.guide {
+                // Each channel's programmes, found once rather than searched for in every row.
+                let listings = Dictionary(guide.channels.map { ($0.id, $0.programmes) }, uniquingKeysWith: { first, _ in first })
+                // Only the rows near the screen are built (`GuideRowWindow`), the same in both columns, each column
+                // its full height so the rows line up and the scroll bar is right: a lazy stack in the programmes'
+                // sideways scroll view would still build every row.
+                let built = shownRows.clamped(to: 0..<channels.count)
+                let skipped = CGFloat(built.lowerBound) * (rowHeight + 4)
                 ScrollView(.vertical) {
                     HStack(alignment: .top, spacing: 0) {
                         // The channels stay put while the programmes scroll across.
                         VStack(spacing: 4) {
                             Color.clear.frame(height: 30)
-                            ForEach(channels) { channelCell($0) }
+                            VStack(spacing: 4) {
+                                ForEach(channels[built]) { channelCell($0) }
+                            }
+                            .padding(.top, skipped)
                         }
-                        .frame(width: channelWidth)
+                        .frame(width: channelWidth, height: columnHeight, alignment: .top)
                         ScrollView(.horizontal, showsIndicators: false) {
                             VStack(alignment: .leading, spacing: 4) {
                                 timeline
-                                ForEach(channels) { row($0) }
+                                VStack(alignment: .leading, spacing: 4) {
+                                    ForEach(channels[built]) { row($0, listings[$0.id] ?? []) }
+                                }
+                                .padding(.top, skipped)
                             }
-                            .frame(width: width, alignment: .leading)
+                            .frame(width: width, height: columnHeight, alignment: .topLeading)
                             .overlay(alignment: .topLeading) { nowLine }
                             .padding(.trailing, Layout.edge)
                         }
                     }
                     .padding(.vertical, 8)
                 }
+                .onScrollGeometryChange(for: Range<Int>.self) { geometry in
+                    GuideRowWindow.rows(visibleTop: geometry.visibleRect.minY, visibleHeight: geometry.visibleRect.height,
+                                        firstRowAt: 8 + 30 + 4, pitch: rowHeight + 4)
+                } action: { _, rows in
+                    shownRows = rows
+                }
+            } else {
+                StatusView(state: .loading)
             }
         }
         // Only while the app is in front: with music keeping it alive in the background, it would go on asking.
         .task(id: scenePhase == .active) {
             guard scenePhase == .active else { return }
+            // The line for now moves on every couple of minutes; the listings are fetched again only once they're old,
+            // a recording has started or ended since (its mark changes), or they weren't had: a fetch that failed is
+            // tried again at the next look.
             while !Task.isCancelled {
                 await load()
                 now = Date()
                 try? await Task.sleep(for: .seconds(120))
             }
         }
+        // Favourites has only its own channels' guide: another list may want more.
+        .onChange(of: favouritesOnly) { Task { await load() } }
+        // A favourite starred on another device, or another list: its channels may not be in the guide kept.
+        .onChange(of: channels.map(\.id)) { Task { await load() } }
         .alert(details?.programme.displayTitle ?? "", isPresented: Binding(get: { details != nil }, set: { if !$0 { details = nil } })) {
             if let channel = details?.channel, let programme = details?.programme {
                 Button(t("Watch {channel} now", ["channel": channel.name])) { model.watch(channel, among: order) }
@@ -80,6 +122,12 @@ struct LiveGuideView: View {
             Button(t("Close"), role: .cancel) {}
         } message: {
             if let programme = details?.programme { Text(describe(programme)) }
+        }
+        // The guide comes without descriptions: the one shown is fetched as its details open.
+        .task(id: details?.programme.id) {
+            guard let shown = details, shown.programme.description == nil, let client = model.client else { return }
+            let full = await client.programmeWithDescription(shown.programme)
+            if !Task.isCancelled, details?.programme.id == full.id { details = (full, shown.channel) }
         }
         .banner($notice, systemImage: "record.circle")
     }
@@ -103,10 +151,7 @@ struct LiveGuideView: View {
                 Text(channel.name.prefix(4)).font(.marquee(14, weight: .bold, scales: false)).foregroundStyle(Color.usher)
             }
             .padding(8)
-            if model.liveTv.startingChannel == channel.id {
-                RoundedRectangle(cornerRadius: Radius.art, style: .continuous).fill(.black.opacity(0.45))
-                ProgressView()
-            }
+            StartingMark(channelId: channel.id)
         }
         .overlay(alignment: .topTrailing) {
             if channel.isFavourite {
@@ -121,9 +166,8 @@ struct LiveGuideView: View {
         .accessibilityAddTraits(.isButton)
     }
 
-    private func row(_ channel: LiveChannel) -> some View {
-        let programmes = (guide?.channels.first { $0.id == channel.id }?.programmes ?? [])
-            .filter { $0.end > windowStart && $0.start < windowEnd }
+    private func row(_ channel: LiveChannel, _ listed: [LiveProgramme]) -> some View {
+        let programmes = listed.filter { $0.end > windowStart && $0.start < windowEnd }
         return ZStack(alignment: .leading) {
             if programmes.isEmpty {
                 Text(t("No listings")).font(.footnote).foregroundStyle(Color.usher).padding(.leading, 12)
@@ -222,11 +266,16 @@ struct LiveGuideView: View {
 
     private static let recordRed = Color.record
 
-    private func load() async {
-        if let client = model.client,
-           let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: Int(Self.hours) + 2) {
-            guide = loaded
-        }
+    /// The guide when `LiveGuidePlan` says the one kept won't do, or always after a recording was set or taken off
+    /// (`force`, for its marks).
+    private func load(force: Bool = false) async {
+        guard let client = model.client,
+              let request = LiveGuidePlan.next(kept: kept, scope: favouritesOnly ? .favourites : .all, shown: channels.map(\.id),
+                                               showingUntil: windowEnd, keepAhead: 0, askAhead: 3600, force: force),
+              request != asking else { return }
+        asking = request
+        defer { if asking == request { asking = nil } }
+        if let loaded = try? await client.liveGuide(request, kept: kept) { kept = loaded }
     }
 
     /// Does a recording action, then fetches the guide again for its marks; says why if it couldn't be done.
@@ -238,7 +287,7 @@ struct LiveGuideView: View {
             } catch {
                 notice = error.localizedDescription
             }
-            await load()
+            await load(force: true)
         }
     }
 
@@ -255,5 +304,21 @@ struct LiveGuideView: View {
     static func halfHour(before date: Date) -> Date {
         let seconds = date.timeIntervalSinceReferenceDate
         return Date(timeIntervalSinceReferenceDate: (seconds / 1800).rounded(.down) * 1800)
+    }
+}
+
+/// The spinner over a channel's logo while it starts. Its own view, so a tap on a logo redraws that and not every
+/// programme in the grid.
+private struct StartingMark: View {
+    @Environment(AppModel.self) private var model
+    let channelId: String
+
+    var body: some View {
+        if model.liveTv.startingChannel == channelId {
+            ZStack {
+                RoundedRectangle(cornerRadius: Radius.art, style: .continuous).fill(.black.opacity(0.45))
+                ProgressView()
+            }
+        }
     }
 }

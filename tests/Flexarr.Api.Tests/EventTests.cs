@@ -157,6 +157,80 @@ public sealed class EventTests : IDisposable
     }
 
     [Fact]
+    public async Task ABookInALibraryHiddenFromAProfile_IsToldAsPlaying_WithoutItsChapter()
+    {
+        // A book with chapters, playing on the study's speaker as the main profile.
+        var speaker = await (await Admin().PostAsJsonAsync(Api("/session/device"), new { deviceName = "Study" })).Content.ReadFromJsonAsync<JsonElement>();
+        Guid books, book;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"Books {Guid.NewGuid():N}", Type = LibraryType.Audiobooks };
+            var item = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Audiobook, Title = "The Secret History", SortTitle = "secret history" };
+            db.AddRange(library, item);
+            db.MediaChapters.Add(new Flexarr.Core.Books.MediaChapter { MediaItemId = item.Id, Index = 0, Title = "Prologue: The Snow", StartSeconds = 0, EndSeconds = 900 });
+            await db.SaveChangesAsync();
+            (books, book) = (library.Id, item.Id);
+        }
+
+        var session = new PlaybackSession
+        {
+            Id = Guid.NewGuid().ToString("N"), ItemId = book, ProfileId = PlaybackState.DefaultUser, SignInId = speaker.GetProperty("id").GetString(), FileId = Guid.NewGuid(),
+            FilePath = "", Container = null, DurationSeconds = 3600, Method = PlaybackMethod.DirectPlay, Subtitles = [], CreditsStart = null, BookParts = [],
+        };
+
+        // A phone on a profile kept out of the audiobooks library, following what plays and (as a remote) what each device plays.
+        var sam = (await (await Admin().PostAsJsonAsync(Api("/profiles"), new { name = "Sam", hiddenLibraryIds = new[] { books } })).Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("id").GetString();
+        var token = (await (await Admin().PostAsJsonAsync(Api("/session/device"), new { deviceName = "Sam's phone" })).Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("token").GetString();
+        var phone = factory.CreateClient();
+        phone.DefaultRequestHeaders.Add("X-Api-Key", token);
+        Assert.True((await phone.PostAsJsonAsync(Api($"/profiles/{sam}/select"), new { })).IsSuccessStatusCode);
+        var forSam = await ListenAsync(phone);
+        var forMain = await ListenAsync(Admin());
+        var remote = await phone.GetAsync(Api("/devices/commands?nowPlaying=true"), HttpCompletionOption.ResponseHeadersRead);
+        var onRemote = new StreamReader(await remote.Content.ReadAsStreamAsync());
+        using var nowPlaying = new Flexarr.Api.Devices.NowPlayingPublisher(factory.Services.GetRequiredService<Flexarr.Api.Devices.NowPlayingFeed>(),
+            factory.Services.GetRequiredService<PlaybackSessions>(), factory.Services.GetRequiredService<Flexarr.Api.Devices.LiveActivities>(),
+            factory.Services.GetRequiredService<Flexarr.Api.Devices.DeviceCommands>(), factory.Services.GetRequiredService<SignIns>(),
+            factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<Flexarr.Api.Devices.NowPlayingPublisher>.Instance);
+        await nowPlaying.StartAsync(default);
+
+        factory.Services.GetRequiredService<PlaybackSessions>().Add(session);
+        await ReportAsync(session.Id, 30);
+        var mine = await NextEventAsync(forMain);
+        var theirs = await NextEventAsync(forSam);
+        JsonElement onPhone;
+        using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+        {
+            while (true)
+            {
+                var line = await onRemote.ReadLineAsync(timeout.Token) ?? throw new InvalidOperationException("The stream ended.");
+                if (line == "event: now-playing" && JsonDocument.Parse((await onRemote.ReadLineAsync(timeout.Token))!["data: ".Length..]).RootElement is var change
+                    && change.GetProperty("nowPlaying").ValueKind == JsonValueKind.Object)
+                {
+                    onPhone = change.GetProperty("nowPlaying");
+                    break;
+                }
+            }
+        }
+
+        await nowPlaying.StopAsync(default);
+        remote.Dispose();
+
+        // The main profile hears the book and its chapter.
+        Assert.Equal(("The Secret History", "Prologue: The Snow"), (mine.GetProperty("item").GetProperty("title").GetString(), mine.GetProperty("chapter").GetString()));
+        // Sam is told something is playing, and nothing that says what: not the title, not its length, not the chapter.
+        Assert.Equal(Flexarr.Api.Profiles.LibraryVisibility.PrivateTitle, theirs.GetProperty("item").GetProperty("title").GetString());
+        Assert.Equal(JsonValueKind.Null, theirs.GetProperty("chapter").ValueKind);
+        Assert.DoesNotContain("Snow", theirs.GetRawText(), StringComparison.Ordinal);
+        Assert.Equal(Flexarr.Api.Profiles.LibraryVisibility.PrivateTitle, onPhone.GetProperty("item").GetProperty("title").GetString());
+        Assert.Equal(JsonValueKind.Null, onPhone.GetProperty("chapter").ValueKind);
+        Assert.DoesNotContain("Snow", onPhone.GetRawText(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task TheStream_NeedsSigningIn()
     {
         var response = await factory.CreateClient().GetAsync(Api("/events"));

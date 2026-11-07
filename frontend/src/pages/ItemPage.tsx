@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { PageError } from '../components/PageStatus'
 import { openAddToCollection } from '../components/AddToCollection'
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   analyzeItem,
   getItem,
+  backdropSources,
   getItemPage,
   getSimilar,
   getShowMissing,
@@ -27,8 +28,7 @@ import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
 import { Row } from '../components/Row'
 import { TrailerDialog } from '../components/TrailerDialog'
 import { DeleteDialog } from '../components/DeleteDialog'
-import { DetailsEditor } from '../components/DetailsEditor'
-import { FixMatchDialog } from '../components/FixMatchDialog'
+import { DetailsEditor, FixMatchDialog } from '../components/onDemand'
 import { SubtitleSearchDialog } from '../components/SubtitleSearchDialog'
 import { WatchedToggle } from '../components/WatchedToggle'
 import { Overview } from '../components/Overview'
@@ -39,9 +39,10 @@ import { announceWatched } from '../hooks/watched'
 import { useApi } from '../hooks/useApi'
 import { endingFrom, finalReportSent, moveOn, rememberScroll, takeScroll, type PlayState } from '../hooks/playbackEnding'
 import { getReady, handOver, leave, PAGE_DELAY_MS } from '../lib/preparedPlayback'
+import { onDemand } from '../lib/onDemand'
 import { detectProfile } from '../lib/profile'
+import { prepareVideo } from '../lib/copiedVideo'
 import { AlbumPage, ArtistPage } from './MusicPages'
-import { BookPage } from './BookPage'
 import {
   episodeHeading,
   formatBitrate,
@@ -53,6 +54,9 @@ import {
   pictureLabel,
 } from '../lib/format'
 import { locale, t, Words } from '../i18n'
+
+// Only someone with audiobooks opens a book's page, so it isn't part of the first page everyone loads.
+const BookPage = lazy(() => onDemand(() => import('./BookPage').then((m) => ({ default: m.BookPage }))))
 
 export function ItemPage() {
   const { id = '' } = useParams()
@@ -88,7 +92,13 @@ export function ItemPage() {
   }
   if (data.item.kind === 'Album') return <AlbumPage detail={data} onChange={() => setVersion((v) => v + 1)} />
   if (data.item.kind === 'Artist') return <ArtistPage detail={data} onChange={() => setVersion((v) => v + 1)} />
-  if (data.item.kind === 'Audiobook') return <BookPage key={id} detail={data} onChange={() => setVersion((v) => v + 1)} />
+  // A book's page loads when a book is first opened; until it has, the page waits as it does for the book itself.
+  if (data.item.kind === 'Audiobook')
+    return (
+      <Suspense fallback={<div className="detail-hero detail-loading" aria-busy="true" />}>
+        <BookPage key={id} detail={data} onChange={() => setVersion((v) => v + 1)} />
+      </Suspense>
+    )
 
   return <Detail key={id} detail={data} onChange={() => setVersion((v) => v + 1)} />
 }
@@ -167,7 +177,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const warmId = playTarget && (playTarget.kind === 'Movie' || playTarget.kind === 'Episode') ? playTarget.id : undefined
   useEffect(() => {
     if (!warmId) return
-    const timer = window.setTimeout(() => getReady({ itemId: warmId, profile: detectProfile() }), PAGE_DELAY_MS)
+    const timer = window.setTimeout(() => getReady({ itemId: warmId, profile: detectProfile() }, prepareVideo), PAGE_DELAY_MS)
     return () => {
       window.clearTimeout(timer)
       leave(warmId)
@@ -187,7 +197,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
     <article className="detail" style={accent ? ({ '--ambient': accent } as CSSProperties) : undefined}>
       <section className="detail-hero">
         <div className="detail-art" aria-hidden="true">
-          {backdrop && <img src={imageUrl(backdrop, 1920)} alt="" />}
+          {backdrop && <img {...backdropSources(backdrop)} alt="" />}
         </div>
         <div className="detail-hero-content">
           {/* Moved on from the episode just watched: said, since the page changed under the reader. */}
@@ -508,7 +518,7 @@ function FileInfo({ files, itemId, kind }: { files: MediaFile[]; itemId: string;
       <summary>{files.length > 1 ? t('{count} versions on disk', { count: files.length }) : t('File and stream details')}</summary>
       {files.map((file) => (
         <div key={file.id} className="file">
-          <code>{file.path}</code>
+          {file.path && <code>{file.path}</code>}
           {file.probeError && <p className="error">{t('This file couldn’t be read: {reason}', { reason: file.probeError })}</p>}
           <dl>
             <dt>{t('Video')}</dt>

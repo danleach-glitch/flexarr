@@ -1,5 +1,6 @@
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints;
+using Flexarr.Api.Localization;
 using Flexarr.Api.Playback;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
@@ -34,6 +35,18 @@ public sealed record DownloadDto(
 public sealed record DownloadOptionDto(DownloadQuality Quality, long EstimatedBytes, bool Available);
 
 public sealed record DownloadRequest(Guid ItemId, DownloadQuality Quality);
+
+/// <param name="ItemIds">The titles (films, episodes, tracks, podcast episodes, books) the device has kept for this profile.</param>
+public sealed record OfflineCheckRequest(IReadOnlyList<Guid>? ItemIds);
+
+/// <summary>
+/// Which of a device's kept titles this profile may still see. Every id asked about is in exactly one list.
+/// </summary>
+/// <param name="Allowed">Still allowed: keep them.</param>
+/// <param name="Hidden">Kept from this profile now (blocked, above its age limit, or in a library hidden from it): the device should take them off.</param>
+/// <param name="Missing">Allowed, but their files can't be found just now (a drive not mounted, say): not a reason to take them off.</param>
+/// <param name="Gone">The server has no such title (it was deleted, or the id is from another server).</param>
+public sealed record OfflineCheckDto(IReadOnlyList<Guid> Allowed, IReadOnlyList<Guid> Hidden, IReadOnlyList<Guid> Missing, IReadOnlyList<Guid> Gone);
 
 public static class DownloadEndpoints
 {
@@ -87,7 +100,8 @@ public static class DownloadEndpoints
             return list;
         });
 
-        group.MapPost("/", async (DownloadRequest request, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
+        group.MapPost("/", async (DownloadRequest request, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, DownloadPreparer preparer,
+            CancellationToken ct) =>
         {
             var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == request.ItemId, ct);
             if (item is null || item.Kind is not (MediaKind.Movie or MediaKind.Episode or MediaKind.Track or MediaKind.PodcastEpisode)
@@ -111,9 +125,43 @@ public static class DownloadEndpoints
                 existing = new Download { ProfileId = profile.Id, MediaItemId = item.Id, Quality = quality, Status = DownloadStatus.Queued };
                 db.Downloads.Add(existing);
                 await db.SaveChangesAsync(ct);
+                preparer.Wake();
             }
 
             return Results.Ok(await ToDtoAsync(db, playback, profile, existing.Id, ct));
+        });
+
+        // What a device kept: which titles this profile may still play from it (see OfflineCheckDto). A title kept
+        // before a parent blocked it, lowered the age limit or hid its library is Hidden; one whose file is offline is
+        // Missing, never Hidden, unless it's kept from the profile as well. Up to 5000 ids at a time.
+        group.MapPost("/check", async (OfflineCheckRequest request, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            var ids = (request.ItemIds ?? []).Distinct().ToList();
+            if (ids.Count > 5000)
+            {
+                return Problems.Field("Ask about 5000 titles at most.", field: "itemIds");
+            }
+
+            var visible = new HashSet<Guid>();
+            var known = new List<(Guid Id, Guid LibraryId, int? RatingAge, KidsOverride KidsOverride, bool Missing)>();
+            foreach (var chunk in ids.Chunk(500))
+            {
+                // The context's own filter (the profile's libraries and age limit, present titles) says what it may play now.
+                visible.UnionWith(await db.MediaItems.Where(i => chunk.Contains(i.Id)).Select(i => i.Id).ToListAsync(ct));
+                known.AddRange((await db.MediaItems.IgnoreQueryFilters().Where(i => chunk.Contains(i.Id))
+                    .Select(i => new { i.Id, i.LibraryId, i.RatingAge, i.KidsOverride, Missing = i.MissingSince != null }).ToListAsync(ct))
+                    .Select(i => (i.Id, i.LibraryId, i.RatingAge, i.KidsOverride, i.Missing)));
+            }
+
+            // Of those it can't play now, a missing one the profile could otherwise see is only missing.
+            var missing = known.Where(i => !visible.Contains(i.Id) && i.Missing && !db.HiddenLibraryIds.Contains(i.LibraryId)
+                && LibraryVisibility.AgeAllows(db.MaxRatingAge, db.KidsLibraryIds, i.LibraryId, i.RatingAge, i.KidsOverride)).Select(i => i.Id).ToHashSet();
+            var found = known.Select(i => i.Id).ToHashSet();
+            return Results.Ok(new OfflineCheckDto(
+                [.. ids.Where(visible.Contains)],
+                [.. ids.Where(id => found.Contains(id) && !visible.Contains(id) && !missing.Contains(id))],
+                [.. ids.Where(missing.Contains)],
+                [.. ids.Where(id => !found.Contains(id))]));
         });
 
         group.MapGet("/{id:guid}", async (Guid id, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>

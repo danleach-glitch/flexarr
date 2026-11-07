@@ -47,21 +47,105 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     /// <summary>Upcoming is sent within this long of its hour (a phone that was off at 9 hears at 10, not at 11pm).</summary>
     private const int UpcomingWindowHours = 3;
 
+    /// <summary>
+    /// The longest a cursor that moved over nothing is kept in memory before it's saved. A quiet minute changes nothing
+    /// else, so saving every cursor every minute would write to the database all day with nobody using the server.
+    /// </summary>
+    private static readonly TimeSpan CursorsKeptFor = TimeSpan.FromMinutes(15);
+
+    /// <summary>Cursors moved on but not saved yet, by kind; ahead of the saved ones.</summary>
+    private readonly Dictionary<string, DateTime> _held = new(StringComparer.Ordinal);
+
+    /// <summary>When each kind's cursor was last saved by this worker.</summary>
+    private readonly Dictionary<string, DateTime> _savedAt = new(StringComparer.Ordinal);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(Tick, clock);
-        do
+        try
         {
-            try
+            do
             {
-                await RunOnceAsync(stoppingToken);
+                try
+                {
+                    await RunOnceAsync(stoppingToken);
+                }
+                catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+                {
+                    LogFailed(ex);
+                }
             }
-            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
-            {
-                LogFailed(ex);
-            }
+            while (await timer.WaitForNextTickAsync(stoppingToken));
         }
-        while (await timer.WaitForNextTickAsync(stoppingToken));
+        finally
+        {
+            await SaveHeldCursorsAsync();
+        }
+    }
+
+    /// <summary>On the way out: the cursors kept in memory, so a restart doesn't look over those minutes again.</summary>
+    internal async Task SaveHeldCursorsAsync()
+    {
+        if (_held.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            foreach (var cursor in await db.NotificationCursors.ToListAsync(CancellationToken.None))
+            {
+                if (_held.TryGetValue(cursor.Kind, out var through) && through > cursor.Through)
+                {
+                    cursor.Through = through;
+                }
+            }
+
+            await db.SaveChangesAsync(CancellationToken.None);
+            _held.Clear();
+        }
+        catch (Exception ex)
+        {
+            LogFailed(ex);
+        }
+    }
+
+    /// <summary>
+    /// Whether this save can be skipped: nothing changed but cursors, saved less than <see cref="CursorsKeptFor"/> ago.
+    /// Those are then kept in memory. Anything else to save (a request answered, a phone forgotten) saves them too, and
+    /// sending a notification always does, so nothing is told twice after a restart.
+    /// </summary>
+    private bool OnlyCursorsMoved(FlexarrDbContext db)
+    {
+        var changed = db.ChangeTracker.Entries().Where(e => e.State != EntityState.Unchanged).ToList();
+        if (changed.Count == 0)
+        {
+            return true;
+        }
+
+        var now = clock.GetUtcNow().UtcDateTime;
+        var cursors = changed.Select(e => e.Entity).OfType<NotificationCursor>().ToList();
+        if (cursors.Count < changed.Count || changed.Any(e => e.State != EntityState.Modified)
+            || cursors.Any(c => now - _savedAt.GetValueOrDefault(c.Kind, DateTime.MinValue) >= CursorsKeptFor))
+        {
+            foreach (var cursor in cursors)
+            {
+                _savedAt[cursor.Kind] = now;
+            }
+
+            return false;
+        }
+
+        foreach (var entry in changed)
+        {
+            var cursor = (NotificationCursor)entry.Entity;
+            _held[cursor.Kind] = cursor.Through;
+            entry.State = EntityState.Unchanged;
+        }
+
+        return true;
     }
 
     internal async Task RunOnceAsync(CancellationToken ct)
@@ -89,7 +173,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
 
     private sealed record Show(Guid Id, string Title, string? Poster, string? TmdbId, string? TvdbId, string? ImdbId, DateTime AddedAt);
 
-    private static async Task LibraryAsync(FlexarrDbContext db, Notifier notifier, ProfileLanguages languages, List<NotificationDevice> devices, DateTime now,
+    private async Task LibraryAsync(FlexarrDbContext db, Notifier notifier, ProfileLanguages languages, List<NotificationDevice> devices, DateTime now,
         CancellationToken ct)
     {
         if (await WindowAsync(db, "library", now - Settle, ct) is not var (from, to))
@@ -115,7 +199,11 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         answered.AddRange(await WatchlistArrivalsAsync(db, languages, answered, to, now, ct));
         if (devices.Count == 0)
         {
-            await SaveAsync(db, ct);
+            if (!OnlyCursorsMoved(db))
+            {
+                await SaveAsync(db, ct);
+            }
+
             return;
         }
 
@@ -154,7 +242,10 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             }
         }
 
-        await SaveAsync(db, ct);
+        if (!OnlyCursorsMoved(db))
+        {
+            await SaveAsync(db, ct);
+        }
     }
 
     /// <summary>
@@ -301,12 +392,40 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         CancellationToken ct)
     {
         var answered = new List<Answered>();
-        var open = await db.MediaRequests.Where(r => r.FulfilledAt == null).ToListAsync(ct);
+        // A film or show asked for over a year ago and still not in isn't looked for any more (it still shows in the
+        // library if it comes, without being announced as a request answered): the minute's work doesn't grow for ever.
+        var videosFrom = now - VideosWaitFor;
+        var open = await db.MediaRequests.Where(r => r.FulfilledAt == null
+            && (r.Kind == MediaKind.Album || r.Kind == MediaKind.Artist || r.RequestedAt > videosFrom)).ToListAsync(ct);
         answered.AddRange(await MusicAnsweredAsync(db, languages, open.Where(r => r.Kind is MediaKind.Album or MediaKind.Artist).ToList(), from, settled, now, ct));
-        foreach (var request in open.Where(r => r.Kind is not (MediaKind.Album or MediaKind.Artist)))
+        var videos = open.Where(r => r.Kind is not (MediaKind.Album or MediaKind.Artist)).ToList();
+        if (videos.Count == 0)
+        {
+            return answered;
+        }
+
+        // One look for all of them first (most minutes, none has come in), then the full look only for those that may have.
+        var filmIds = videos.Where(r => r.Kind == MediaKind.Movie).Select(r => r.TmdbId.ToString(CultureInfo.InvariantCulture)).Distinct().ToList();
+        var filmsIn = filmIds.Count == 0 ? []
+            : (await db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Movie && i.TmdbId != null && filmIds.Contains(i.TmdbId) && i.AddedAt <= settled)
+                .Select(i => i.TmdbId!).Distinct().ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
+        var shows = videos.Where(r => r.Kind != MediaKind.Movie).ToList();
+        var showIds = shows.Select(r => r.TmdbId.ToString(CultureInfo.InvariantCulture)).Distinct().ToList();
+        var earliest = shows.Count == 0 ? settled : shows.Min(r => r.RequestedAt);
+        var latestEpisode = showIds.Count == 0 ? []
+            : (await db.MediaItems.AsNoTracking()
+                .Where(i => i.Kind == MediaKind.Episode && i.Parent!.Parent!.TmdbId != null && showIds.Contains(i.Parent.Parent.TmdbId) && i.AddedAt > earliest && i.AddedAt <= settled)
+                .GroupBy(i => i.Parent!.Parent!.TmdbId!).Select(g => new { TmdbId = g.Key, Latest = g.Max(i => i.AddedAt) }).ToListAsync(ct))
+            .ToDictionary(e => e.TmdbId, e => e.Latest, StringComparer.Ordinal);
+        foreach (var request in videos)
         {
 
             var tmdb = request.TmdbId.ToString(CultureInfo.InvariantCulture);
+            if (request.Kind == MediaKind.Movie ? !filmsIn.Contains(tmdb) : !(latestEpisode.TryGetValue(tmdb, out var latest) && latest > request.RequestedAt))
+            {
+                continue;
+            }
+
             if (request.Kind == MediaKind.Movie)
             {
                 var film = await db.MediaItems.AsNoTracking()
@@ -345,6 +464,9 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
 
         return answered;
     }
+
+    /// <summary>How far back film and show requests are looked for.</summary>
+    internal static readonly TimeSpan VideosWaitFor = TimeSpan.FromDays(365);
 
     /// <summary>How far back music requests are looked for: an album Lidarr hasn't found in this long isn't coming.</summary>
     private static readonly TimeSpan MusicWaitsFor = TimeSpan.FromDays(90);
@@ -582,7 +704,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
 
     // ---- Podcasts ----
 
-    private static async Task PodcastsAsync(FlexarrDbContext db, Notifier notifier, ProfileLanguages languages, List<NotificationDevice> devices, DateTime now,
+    private async Task PodcastsAsync(FlexarrDbContext db, Notifier notifier, ProfileLanguages languages, List<NotificationDevice> devices, DateTime now,
         CancellationToken ct)
     {
         if (await WindowAsync(db, "podcasts", now, ct) is not var (from, to))
@@ -593,7 +715,11 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         var listening = devices.Where(d => d.Podcasts).ToList();
         if (listening.Count == 0)
         {
-            await db.SaveChangesAsync(ct);
+            if (!OnlyCursorsMoved(db))
+            {
+                await db.SaveChangesAsync(ct);
+            }
+
             return;
         }
 
@@ -633,7 +759,10 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             await notifier.SendAsync(db, listening.Where(d => d.ProfileId == follow.ProfileId), message, $"podcast:{newest.MediaItemId}", ct);
         }
 
-        await db.SaveChangesAsync(ct);
+        if (!OnlyCursorsMoved(db))
+        {
+            await db.SaveChangesAsync(ct);
+        }
     }
 
     /// <summary>The profiles with an age limit, and the libraries fine for kids.</summary>
@@ -643,7 +772,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
 
     // ---- Recordings ----
 
-    private static async Task RecordingsAsync(FlexarrDbContext db, Notifier notifier, ProfileLanguages languages, List<NotificationDevice> devices, DateTime now,
+    private async Task RecordingsAsync(FlexarrDbContext db, Notifier notifier, ProfileLanguages languages, List<NotificationDevice> devices, DateTime now,
         CancellationToken ct)
     {
         if (await WindowAsync(db, "recordings", now - RecordingSettle, ct) is not var (from, to))
@@ -654,7 +783,11 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         var listening = devices.Where(d => d.Recordings).ToList();
         if (listening.Count == 0)
         {
-            await db.SaveChangesAsync(ct);
+            if (!OnlyCursorsMoved(db))
+            {
+                await db.SaveChangesAsync(ct);
+            }
+
             return;
         }
 
@@ -694,7 +827,10 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             }
         }
 
-        await db.SaveChangesAsync(ct);
+        if (!OnlyCursorsMoved(db))
+        {
+            await db.SaveChangesAsync(ct);
+        }
     }
 
     // ---- Upcoming ----
@@ -793,7 +929,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     /// The stretch since this kind was last told, up to <paramref name="to"/>, moving its cursor on (saved with the
     /// rest). Null the first time, when the cursor starts now: nothing from before notifications existed is news.
     /// </summary>
-    private static async Task<(DateTime From, DateTime To)?> WindowAsync(FlexarrDbContext db, string kind, DateTime to, CancellationToken ct)
+    private async Task<(DateTime From, DateTime To)?> WindowAsync(FlexarrDbContext db, string kind, DateTime to, CancellationToken ct)
     {
         var cursor = await db.NotificationCursors.FindAsync([kind], ct);
         if (cursor is null)
@@ -801,6 +937,12 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             db.NotificationCursors.Add(new NotificationCursor { Kind = kind, Through = to });
             await db.SaveChangesAsync(ct);
             return null;
+        }
+
+        // Moved on in memory since it was last saved.
+        if (_held.TryGetValue(kind, out var held) && held > cursor.Through)
+        {
+            cursor.Through = held;
         }
 
         if (to <= cursor.Through)

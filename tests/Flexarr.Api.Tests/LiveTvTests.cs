@@ -63,11 +63,16 @@ public sealed class FakeDispatcharr : HttpMessageHandler
             },
             "/xmltv.php" => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(Guide, Encoding.UTF8, "application/xml") },
             "/api/channels/logos/1/cache/" => Image(),
+            // Logos that redirect: to another of the source's own, and off it to a device on the home network.
+            "/api/channels/logos/8/cache/" => Redirect("/api/channels/logos/1/cache/"),
+            "/api/channels/logos/9/cache/" => Redirect("http://192.168.1.1/admin/logo.png"),
             // The community collection's file list (GitHub) and its logos.
             "/repos/tv-logo/tv-logos/git/trees/main" => Json("""{"tree":[{"path":"countries/united-kingdom/bbc-one-uk.png","type":"blob"},{"path":"countries/united-kingdom/sky-news-uk.png","type":"blob"}]}"""),
             _ => url.Host is "elsewhere.example" or "raw.githubusercontent.com" ? Image() : new HttpResponseMessage(HttpStatusCode.NotFound),
         });
     }
+
+    private static HttpResponseMessage Redirect(string to) => new(HttpStatusCode.Found) { Headers = { Location = new Uri(to, UriKind.RelativeOrAbsolute) } };
 
     private static HttpResponseMessage Json(string json) => new(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
 
@@ -90,6 +95,7 @@ public sealed class LiveTvTests : IDisposable
         _server = _factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
         {
             services.AddHttpClient<XtreamClient>().ConfigurePrimaryHttpMessageHandler(() => _dispatcharr);
+            services.AddHttpClient(XtreamClient.LogoClientName).ConfigurePrimaryHttpMessageHandler(() => _dispatcharr);
             // GitHub too, so tests never reach the internet.
             services.AddHttpClient(CommunityLogoIndex.ClientName).ConfigurePrimaryHttpMessageHandler(() => _dispatcharr);
         }));
@@ -313,6 +319,36 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task A_profile_kept_out_of_the_Recordings_library_doesnt_see_the_recordings_list()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        var doctorWho = (await GuideProgrammeAsync(client, "Doctor Who")).GetProperty("id").GetInt64();
+        (await client.PostAsJsonAsync(Api("livetv/recordings"), new { programmeId = doctorWho })).EnsureSuccessStatusCode();
+
+        string hiddenFrom, sees;
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var recordings = db.Libraries.Add(new Library { Name = RecordingsLibrary.Name, Type = LibraryType.TvShows }).Entity;
+            var other = db.Libraries.Add(new Library { Name = "Films", Type = LibraryType.Movies }).Entity;
+            await db.SaveChangesAsync();
+            hiddenFrom = db.Profiles.Add(new Flexarr.Core.Media.Profile { Id = Flexarr.Core.Media.Profile.NewId(), Name = "Lodger", HiddenLibraryIds = [recordings.Id] }).Entity.Id;
+            sees = db.Profiles.Add(new Flexarr.Core.Media.Profile { Id = Flexarr.Core.Media.Profile.NewId(), Name = "Claire", HiddenLibraryIds = [other.Id] }).Entity.Id;
+            await db.SaveChangesAsync();
+        }
+
+        async Task<JsonElement> ListAsync(string profileId)
+        {
+            var token = (await (await client.PostAsJsonAsync(Api($"profiles/{profileId}/select"), new { })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+            return await Client(token).GetFromJsonAsync<JsonElement>(Api("livetv/recordings"));
+        }
+
+        Assert.Empty((await ListAsync(hiddenFrom)).GetProperty("upcoming").EnumerateArray());
+        Assert.Single((await ListAsync(sees)).GetProperty("upcoming").EnumerateArray());
+    }
+
+    [Fact]
     public async Task A_programme_can_be_set_to_record_and_taken_off_again()
     {
         var client = Client();
@@ -411,6 +447,70 @@ public sealed class LiveTvTests : IDisposable
         list = await client.GetFromJsonAsync<JsonElement>(Api("livetv/recordings"));
         Assert.Empty(list.GetProperty("upcoming").EnumerateArray());
         Assert.Empty(list.GetProperty("series").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task A_series_finds_its_showings_whatever_their_case_and_spacing_and_nothing_else()
+    {
+        var now = DateTime.UtcNow;
+        _dispatcharr.Guide = $"""
+            <?xml version="1.0" encoding="UTF-8"?><tv>
+            <programme start="{Xmltv(now.AddMinutes(10))}" stop="{Xmltv(now.AddMinutes(70))}" channel="101"><title>Doctor Who</title><sub-title>The Star Beast</sub-title><desc>One</desc><new/></programme>
+            <programme start="{Xmltv(now.AddDays(1))}" stop="{Xmltv(now.AddDays(1).AddHours(1))}" channel="101"><title>  DOCTOR WHO </title><sub-title>Wild Blue Yonder</sub-title><desc>Two</desc><new/></programme>
+            <programme start="{Xmltv(now.AddDays(2))}" stop="{Xmltv(now.AddDays(2).AddHours(1))}" channel="101"><title>Doctor Who Confidential</title><new/></programme>
+            <programme start="{Xmltv(now.AddDays(9))}" stop="{Xmltv(now.AddDays(9).AddHours(1))}" channel="101"><title>Doctor Who</title><sub-title>Too far ahead</sub-title><new/></programme>
+            </tv>
+            """;
+        var client = Client();
+        await ConnectAsync(client);
+        var doctorWho = (await GuideProgrammeAsync(client, "Doctor Who")).GetProperty("id").GetInt64();
+        (await client.PostAsJsonAsync(Api("livetv/recordings/series"), new { programmeId = doctorWho, newOnly = true })).EnsureSuccessStatusCode();
+
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var scheduler = new DvrScheduler(services.GetRequiredService<IServiceScopeFactory>(), services.GetRequiredService<DvrService>(),
+                services.GetRequiredService<DvrSignal>(), services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Flexarr.Api.Configuration.FlexarrOptions>>(),
+                TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<DvrScheduler>.Instance);
+            await scheduler.RunOnceAsync(CancellationToken.None);
+        }
+
+        var list = await client.GetFromJsonAsync<JsonElement>(Api("livetv/recordings"));
+        Assert.Equal(["The Star Beast", "Wild Blue Yonder"],
+            list.GetProperty("upcoming").EnumerateArray().OrderBy(u => u.GetProperty("start").GetDateTime()).Select(u => u.GetProperty("subtitle").GetString()).ToList());
+    }
+
+    [Fact]
+    public async Task A_series_with_more_showings_than_SQLite_takes_parameters_is_still_planned()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        var now = DateTime.UtcNow;
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var channel = new Flexarr.Core.LiveTv.LiveChannel { Name = "Rolling News" };
+            db.LiveChannels.Add(channel);
+            // Repeats only, so a new-only rule plans none of them: the look-up is what's under test.
+            db.LiveProgrammes.AddRange(Enumerable.Range(0, 33_000).Select(i => new Flexarr.Core.LiveTv.LiveProgramme
+            {
+                ChannelId = channel.Id, Title = "Rolling News", Start = now.AddSeconds(10 * i + 60), End = now.AddSeconds(10 * i + 70),
+            }));
+            db.RecordingRules.Add(new Flexarr.Core.LiveTv.RecordingRule { Title = "Rolling News", NewOnly = true });
+            await db.SaveChangesAsync();
+        }
+
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var scheduler = new DvrScheduler(services.GetRequiredService<IServiceScopeFactory>(), services.GetRequiredService<DvrService>(),
+                services.GetRequiredService<DvrSignal>(), services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Flexarr.Api.Configuration.FlexarrOptions>>(),
+                TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<DvrScheduler>.Instance);
+            await scheduler.RunOnceAsync(CancellationToken.None);
+        }
+
+        var list = await client.GetFromJsonAsync<JsonElement>(Api("livetv/recordings"));
+        Assert.Empty(list.GetProperty("upcoming").EnumerateArray());
     }
 
     [Fact]
@@ -532,6 +632,54 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task An_unchanged_guide_isnt_written_again_and_a_changed_one_is()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        async Task<List<(long Id, string Title)>> ProgrammesAsync()
+        {
+            await using var scope = _server.Services.CreateAsyncScope();
+            return [.. (await scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>().LiveProgrammes.OrderBy(p => p.Start)
+                .Select(p => new { p.Id, p.Title }).ToListAsync()).Select(p => (p.Id, p.Title))];
+        }
+
+        var first = await ProgrammesAsync();
+        Assert.Equal(["The News", "Doctor Who"], first.Select(p => p.Title));
+
+        // The same guide again: the same rows, not deleted and written anew.
+        await RefreshAsync();
+        Assert.Equal(first, await ProgrammesAsync());
+
+        // A changed guide replaces it.
+        _dispatcharr.Guide = _dispatcharr.Guide.Replace("Doctor Who", "Doctor Who: Specials", StringComparison.Ordinal);
+        await RefreshAsync();
+        var changed = await ProgrammesAsync();
+        Assert.Equal(["The News", "Doctor Who: Specials"], changed.Select(p => p.Title));
+        Assert.Empty(changed.Select(p => p.Id).Intersect(first.Select(p => p.Id)));
+    }
+
+    [Fact]
+    public async Task Programmes_go_as_they_slip_out_of_the_past_kept_even_when_the_guide_is_unchanged()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            // As if the last refresh was hours ago: The News ended longer ago than the guide keeps.
+            var db = scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>();
+            await db.LiveProgrammes.Where(p => p.Title == "The News").ExecuteUpdateAsync(u => u
+                .SetProperty(p => p.Start, DateTime.UtcNow.AddHours(-5)).SetProperty(p => p.End, DateTime.UtcNow.AddHours(-4)));
+        }
+
+        await RefreshAsync();
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>();
+            Assert.Equal(["Doctor Who"], await db.LiveProgrammes.Select(p => p.Title).ToListAsync());
+        }
+    }
+
+    [Fact]
     public async Task A_quick_check_brings_in_channels_added_in_dispatcharr_and_otherwise_changes_nothing()
     {
         var client = Client();
@@ -569,6 +717,40 @@ public sealed class LiveTvTests : IDisposable
         Assert.DoesNotContain(_dispatcharr.Requests, u => u.Host == "elsewhere.example");
         // Sky News has no logo in Dispatcharr but one in the community collection, which it takes.
         Assert.Equal(JsonValueKind.String, channels[2].GetProperty("logoUrl").ValueKind);
+    }
+
+    [Fact]
+    public async Task A_logo_redirect_is_only_followed_while_it_stays_on_the_source()
+    {
+        // Channels the community collection has no logo for, so the source's own are used.
+        _dispatcharr.Channels[1] = _dispatcharr.Channels[1] with { Logo = $"{FakeDispatcharr.Root}/api/channels/logos/8/cache/" };
+        _dispatcharr.Channels.Add((4, 301, "Local TV", "UK General", $"{FakeDispatcharr.Root}/api/channels/logos/9/cache/"));
+        var client = Client();
+        await ConnectAsync(client);
+        var channels = await ChannelsAsync(client);
+        string? LogoOf(string name) => channels.Single(c => c.GetProperty("name").GetString() == name).GetProperty("logoUrl").GetString();
+
+        var own = await client.GetAsync(LogoOf("BBC Two"));
+        Assert.Equal(HttpStatusCode.OK, own.StatusCode);
+        Assert.Contains(_dispatcharr.Requests, u => u.AbsolutePath == "/api/channels/logos/1/cache/");
+
+        var away = await client.GetAsync(LogoOf("Local TV"));
+        Assert.Equal(HttpStatusCode.NotFound, away.StatusCode);
+        Assert.DoesNotContain(_dispatcharr.Requests, u => u.Host == "192.168.1.1");
+    }
+
+    [Fact]
+    public void The_logo_client_leaves_redirects_to_the_code_that_checks_them()
+    {
+        // Without the tests' stand-in: the server's own handler for logos.
+        using var factory = new FlexarrApiFactory();
+        var handler = factory.Services.GetRequiredService<IHttpMessageHandlerFactory>().CreateHandler(XtreamClient.LogoClientName);
+        while (handler is DelegatingHandler delegating)
+        {
+            handler = delegating.InnerHandler!;
+        }
+
+        Assert.False(Assert.IsType<SocketsHttpHandler>(handler).AllowAutoRedirect);
     }
 
     [Fact]

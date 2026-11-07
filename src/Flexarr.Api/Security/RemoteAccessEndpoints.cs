@@ -39,8 +39,13 @@ public sealed record TailscaleLinkRequest(string Login, string? ProfileId);
 /// The profile's chosen language (a BCP 47 code); null follows the device. Set with PUT /me/language. Absent from servers
 /// before 0.61.
 /// </param>
+/// <param name="ChooseProfile">
+/// No profile is chosen here yet and the main profile's own PIN is needed to be it: show who's watching. Only for
+/// clients that send <c>X-Flexarr-Profile-Choice: 1</c>. Absent from servers before 0.63.
+/// </param>
 public sealed record MeDto(string ProfileId, string Method, NetworkZone Zone, bool IsAdmin, string? TailscaleLogin, bool CanUnlock = false, bool AdminPinMissing = false,
-    DateTime? UnlockedUntil = null, bool IsKids = false, int? MaxRatingAge = null, bool KidsLock = false, bool IsGuest = false, string? Language = null);
+    DateTime? UnlockedUntil = null, bool IsKids = false, int? MaxRatingAge = null, bool KidsLock = false, bool IsGuest = false, string? Language = null,
+    bool ChooseProfile = false);
 
 /// <summary>The language a profile picked; null to follow each device's own.</summary>
 public sealed record LanguageChoice(string? Language);
@@ -63,7 +68,8 @@ public static class RemoteAccessEndpoints
                 (profile.IsAdmin || profile.CanUnlock) && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.AdminPinHash == null, ct),
                 profile.IsAdmin ? unlocks.UnlockedUntil(profile.SignInId) : null,
                 db.ServesKids, db.MaxRatingAge, signIns.ById(profile.SignInId)?.KidsLock == true, profile.IsGuest,
-                await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id).Select(p => p.Language).FirstOrDefaultAsync(ct));
+                await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id).Select(p => p.Language).FirstOrDefaultAsync(ct),
+                http.User.HasClaim(FlexarrClaims.ChooseProfile, "true"));
         }).WithTags("Remote access");
 
         // Each profile's own, like its playback preferences: anyone signed in as it may change it, kids included.

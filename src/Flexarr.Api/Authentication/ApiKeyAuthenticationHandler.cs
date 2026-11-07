@@ -49,6 +49,16 @@ public sealed class ApiKeyAuthenticationHandler(
     public const string SessionCookieName = "flexarr.session";
     public const string RequestedWithHeader = "X-Requested-With";
 
+    /// <summary>
+    /// <c>X-Flexarr-Profile-Choice: 1</c>, from a client that can ask who's watching: the web app on every request, and
+    /// apps that adopt it. When the main profile has a PIN of its own and nobody gave it here (a newly paired TV or phone,
+    /// a browser let in by the home network or the owner's Tailscale account), such a client is answered as no profile
+    /// chosen: <c>/me</c> says <c>chooseProfile</c>, and everything but choosing one is refused with 403 and
+    /// <c>chooseProfile: true</c> (see <see cref="ProfileChoiceGate"/>). Without the header, the main profile, as before,
+    /// so apps that don't send it are unchanged.
+    /// </summary>
+    public const string ProfileChoiceHeader = "X-Flexarr-Profile-Choice";
+
     /// <summary>Sign-in methods, as the <see cref="FlexarrClaims.Method"/> claim.</summary>
     public static class Methods
     {
@@ -164,7 +174,8 @@ public sealed class ApiKeyAuthenticationHandler(
         http.Response.Cookies.Append(SessionCookieName, token, new CookieOptions
         {
             HttpOnly = true,
-            Secure = http.Request.IsHttps,
+            // Also behind an HTTPS proxy that isn't in TrustedProxies, so the cookie never crosses the network in the clear.
+            Secure = RequestPeer.SaysHttps(http),
             SameSite = SameSiteMode.Strict,
             Path = "/",
             // The browser keeps it as long as it can; the server signs out browsers left unused for six months.
@@ -239,7 +250,7 @@ public sealed class ApiKeyAuthenticationHandler(
         {
             var pending = Upgrading.GetOrAdd(key, _ => new Lazy<(SignIn, string)>(() =>
                 signIns.Issue(SignInKind.Browser, BrowserName(Request), NetworkZones.Of(Context), Context.Connection.RemoteIpAddress?.ToString(),
-                    chosen == PlaybackState.DefaultUser ? null : chosen)));
+                    chosen == PlaybackState.DefaultUser ? null : chosen, fromSharedCookie: true)));
             (SignIn SignIn, string Token) issued;
             try
             {
@@ -276,6 +287,8 @@ public sealed class ApiKeyAuthenticationHandler(
         bool admin;
         bool trusted;
         var kidsHome = false;
+        // The main profile only because nothing else was chosen here (not its PIN): see ProfileChoiceHeader.
+        var mainByDefault = false;
         if (signIn is { Guest: true })
         {
             // A family guest: its invite's profile, nothing else, and never trusted. A removed profile ends it.
@@ -294,11 +307,19 @@ public sealed class ApiKeyAuthenticationHandler(
             {
                 profile = signIn.ProfileId ?? PlaybackState.DefaultUser;
                 admin = profile == PlaybackState.DefaultUser && unlocks.IsUnlocked(signIn.Id);
+                mainByDefault = signIn is { ProfileId: null, AwaitsProfile: true };
             }
             else if (signIn.KidsLock && await FirstKidsProfileAsync(db) is { } kids)
             {
                 // Locked to kids profiles and its own has gone: another of them, never one without a limit.
                 (profile, admin) = (kids, false);
+            }
+            else if (await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash != null, Context.RequestAborted))
+            {
+                // Its profile has been removed, and the main profile has a PIN of its own that was never given here:
+                // becoming the main profile would get round it, so it's signed out instead.
+                signIns.Revoke(signIn.Id);
+                return AuthenticateResult.Fail("This sign-in's profile has been removed");
             }
             else
             {
@@ -315,8 +336,11 @@ public sealed class ApiKeyAuthenticationHandler(
             // At home with "only away from home", a browser without a profile chosen would be the main profile, so a
             // child could leave a kids profile by opening a private window. With kids profiles in the house, it starts
             // on one, and choosing the main profile there takes the admin PIN, which signs the browser in.
+            // The same over Tailscale for an account linked to the main profile: every device logged in to it, a child's
+            // tablet included, would otherwise be the main profile.
             // Only looked up where it matters: no profile chosen yet, or the main profile.
-            var kids = method == Methods.Local && (chosen is null || chosen == PlaybackState.DefaultUser) ? await FirstKidsProfileAsync(db) : null;
+            var mainUnasked = method == Methods.Local || (method == Methods.Tailscale && basis == PlaybackState.DefaultUser);
+            var kids = mainUnasked && (chosen is null || chosen == PlaybackState.DefaultUser) ? await FirstKidsProfileAsync(db) : null;
             kidsHome = kids is not null;
             // Where choosing the main profile takes the admin PIN (a Tailscale guest, that browser at home), it lives
             // on the sign-in the PIN gave. A main-profile token alone isn't enough: it's bound to the main profile's own
@@ -327,6 +351,7 @@ public sealed class ApiKeyAuthenticationHandler(
             }
 
             profile = chosen ?? kids ?? basis;
+            mainByDefault = method is Methods.Local or Methods.Tailscale && profile == PlaybackState.DefaultUser && chosen is null;
             // Without a sign-in, only the key itself. The admin PIN gives a browser at home or on the tailnet
             // a sign-in of its own, unlocked (see AdminEndpoints). Over Tailscale that matters doubly: another program
             // on this machine can pose as a tailnet user (it only needs one of their devices' addresses).
@@ -334,6 +359,8 @@ public sealed class ApiKeyAuthenticationHandler(
         }
 
         var guest = signIn is { Guest: true };
+        var choose = mainByDefault && !admin && Request.Headers[ProfileChoiceHeader].ToString() == "1"
+            && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash != null, Context.RequestAborted);
         var canUnlock = !admin && !guest && profile == PlaybackState.DefaultUser;
         var claims = new List<Claim> { new(FlexarrClaims.Method, method), new(FlexarrClaims.Profile, profile) };
         if (admin)
@@ -354,6 +381,11 @@ public sealed class ApiKeyAuthenticationHandler(
         if (kidsHome)
         {
             claims.Add(new Claim(FlexarrClaims.KidsHome, "true"));
+        }
+
+        if (choose)
+        {
+            claims.Add(new Claim(FlexarrClaims.ChooseProfile, "true"));
         }
 
         if (signIn is not null)

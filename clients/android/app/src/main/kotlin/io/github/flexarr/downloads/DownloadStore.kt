@@ -1,5 +1,6 @@
 package io.github.flexarr.downloads
 
+import java.util.concurrent.TimeUnit
 import android.Manifest
 import android.content.pm.PackageManager
 import io.github.flexarr.core.i18n.t
@@ -22,6 +23,7 @@ import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import io.github.flexarr.AppModel
@@ -38,7 +40,9 @@ import io.github.flexarr.core.LocalCollection
 import io.github.flexarr.core.LocalDownload
 import io.github.flexarr.core.LocalPhase
 import io.github.flexarr.core.MediaKind
+import io.github.flexarr.core.OfflineCheck
 import io.github.flexarr.core.OfflineDownload
+import io.github.flexarr.core.checkOffline
 import io.github.flexarr.core.PlaylistSummary
 import io.github.flexarr.core.ServerAnswer
 import io.github.flexarr.core.deleteDownload
@@ -53,14 +57,17 @@ import io.github.flexarr.core.requestDownload
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import okhttp3.Request
 import java.io.File
 import java.time.Instant
+import kotlin.system.measureTimeMillis
 
 private val flexarrLog = FlexarrLog("downloads")
 
@@ -78,9 +85,16 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     private val work = WorkManager.getInstance(context)
     private val scope = model.scope
 
+    /** [all], with each download found at once by its id or its title: made again whenever the list changes. */
+    private var index by mutableStateOf(DownloadIndex(emptyList()))
+
     /** Every download on the phone, whoever's it is: empty for the moment it takes to read the saved list at launch. */
-    var all: List<LocalDownload> by mutableStateOf(emptyList())
-        private set
+    var all: List<LocalDownload>
+        get() = index.all
+        private set(value) {
+            // A list that's the same as before changes nothing, so nothing redraws.
+            if (value != index.all) index = DownloadIndex(value)
+        }
 
     /** Every album and playlist on the phone, whoever's it is (their tracks are downloads in [all]). */
     var collections: List<LocalCollection> by mutableStateOf(emptyList())
@@ -168,6 +182,21 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     private val saves = Channel<List<LocalDownload>>(Channel.CONFLATED)
     private val collectionSaves = Channel<List<LocalCollection>>(Channel.CONFLATED)
 
+    /**
+     * Downloads were deleted: the list is saved without the rest a long one's write is given, so a list on disk never
+     * names files that have gone for longer than it did.
+     */
+    private val hurry = Channel<Unit>(Channel.CONFLATED)
+
+    /**
+     * Downloads that have come (by id) whose server hasn't been told yet. It lets its own copy go as soon as it hears,
+     * so it's told only once the list saying they're here is on disk ([saved]). Told at once, as it used to be, an app
+     * stopped before the list's next save (up to two seconds off, for a long list) came back to a list without the
+     * file and a server without its copy, and the download failed; stopped before the server's told, the server still
+     * has the file and it's fetched again. Read and changed on the main thread.
+     */
+    private val unacknowledged = mutableSetOf<String>()
+
     /** Reads the saved lists off the main thread, then lets saves through. */
     private val loading: Job = scope.launch {
         val (saved, savedCollections) = withContext(Dispatchers.IO) {
@@ -188,9 +217,11 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     init {
         // Written one after another, a moment apart, so a burst of changes is one write.
         scope.launch(Dispatchers.IO) {
-            for (list in saves) {
-                write(list, LocalDownload.serializer(), MANIFEST)
-                delay(SAVE_GAP_MS)
+            saveAsTheyCome(saves, hurry) { list ->
+                var written = false
+                val took = measureTimeMillis { written = write(list, LocalDownload.serializer(), MANIFEST) }
+                if (written) scope.launch { saved(list) }
+                took
             }
         }
         scope.launch(Dispatchers.IO) {
@@ -226,7 +257,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** This profile's albums and playlists, newest first. */
     val musicCollections: List<LocalCollection> get() = collections.filter { it.profileId == profileId }.sortedByDescending { it.createdAtMillis }
 
-    fun entry(itemId: String): LocalDownload? = all.firstOrNull { it.profileId == profileId && it.item.id == itemId }
+    fun entry(itemId: String): LocalDownload? = index.entry(profileId, itemId)
 
     fun collection(id: String): LocalCollection? = collections.firstOrNull { it.profileId == profileId && it.id == id }
 
@@ -246,7 +277,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** A saved picture, by the name a download or collection holds. */
     fun image(name: String?): File? = name?.let { fileIn(folder, it) }?.takeIf { it.exists() }
 
-    fun byId(id: String): LocalDownload? = all.firstOrNull { it.id == id }
+    fun byId(id: String): LocalDownload? = index.byId(id)
 
     val bytesUsed: Long get() = all.filter { it.isDownloaded }.sumOf { it.sizeBytes ?: 0 }
 
@@ -303,7 +334,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     /**
      * Signed in to [address] (again, or another profile chosen). Downloads kept from a sign-in the server refused stay
-     * if it's the same server, and catch up from where they were; for another server they go, as signing out would.
+     * if it's the same server, and catch up from where they were; for another server they go, as signing out would,
+     * whole audiobooks with them (the main profile has the same id on every server, so they'd show as this server's).
      */
     fun signingIn(address: String) {
         val keptFor = prefs.getString(KEPT_FOR, null) ?: return
@@ -311,21 +343,24 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         if (keptFor == address) return
         flexarrLog.info("Signed in to another server: deleting the downloads kept from the last one")
         signedOut(null)
+        model.bookDownloads.deleteAll(null)
     }
 
     /**
      * The server refused this device's sign-in (signed out from the web's Sign-ins list, or a new key). The downloads
      * stay, with what was watched offline and not yet sent, for when the device signs in to [address] again; transfers
-     * stop until then. True when there was anything to keep.
+     * stop until then. True when there was anything to keep: whole audiobooks count, so that with only books here a
+     * sign-in to another server still clears them ([signingIn]).
      */
     fun signedOutByServer(address: String): Boolean {
         work.cancelAllWorkByTag(WORK_TAG)
         UserInitiatedTransfers.cancelAll(context)
         transferring.clear()
         client = null
-        if (all.isEmpty()) return false
+        val books = model.bookDownloads.all.size
+        if (all.isEmpty() && books == 0) return false
         prefs.edit { putString(KEPT_FOR, address) }
-        flexarrLog.info("Signed out by the server: keeping ${all.size} downloads for when it's signed in again")
+        flexarrLog.info("Signed out by the server: keeping ${all.size + books} downloads for when it's signed in again")
         return true
     }
 
@@ -416,19 +451,25 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
                 break // still out of reach
             }
         }
-        for (download in all.filter { it.profileId == profileId && it.unsent != null }) {
-            val unsent = download.unsent ?: continue
-            try {
-                client.reportOfflineProgress(download.item.id, unsent.position, unsent.finished, Instant.ofEpochMilli(unsent.playedAtMillis))
-                update(download.id) { if (it.unsent == unsent) it.copy(unsent = null) else it }
-                model.watchStateChanged()
-            } catch (e: FlexarrException.Http) {
-                // The title's gone from the server: there's nothing left to tell it about.
-                if (e.status == 404) update(download.id) { if (it.unsent == unsent) it.copy(unsent = null) else it }
-                else flexarrLog.warning("Couldn't send offline progress", e)
-            } catch (e: FlexarrException) {
-                if (e !is FlexarrException.Unreachable) flexarrLog.warning("Couldn't send offline progress", e)
+        // Once for all the plays sent, not once each: every screen listening fetches its titles again.
+        var sent = false
+        try {
+            for (download in all.filter { it.profileId == profileId && it.unsent != null }) {
+                val unsent = download.unsent ?: continue
+                try {
+                    client.reportOfflineProgress(download.item.id, unsent.position, unsent.finished, Instant.ofEpochMilli(unsent.playedAtMillis))
+                    update(download.id) { if (it.unsent == unsent) it.copy(unsent = null) else it }
+                    sent = true
+                } catch (e: FlexarrException.Http) {
+                    // The title's gone from the server: there's nothing left to tell it about.
+                    if (e.status == 404) update(download.id) { if (it.unsent == unsent) it.copy(unsent = null) else it }
+                    else flexarrLog.warning("Couldn't send offline progress", e)
+                } catch (e: FlexarrException) {
+                    if (e !is FlexarrException.Unreachable) flexarrLog.warning("Couldn't send offline progress", e)
+                }
             }
+        } finally {
+            if (sent) model.watchStateChanged()
         }
         removeFinished() // podcast episodes whose play was waiting to be sent
         removePlayedPodcasts(client)
@@ -438,12 +479,40 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             val remote = runCatching { client.offlineDownload(download.id) }.getOrNull() ?: continue
             if (remote.item.kind != MediaKind.Unknown) update(download.id) { it.copy(item = remote.item) }
         }
+        removeKeptFromProfile(client)
         // A transfer for everything still to come (one that's running already is left alone).
         all.filter { it.isPending }.forEach { enqueue(it, replace = false) }
         downloads.forEach { fetchNext(after = it) }
         reconcilePodcasts()
         // Whole books are kept apart, and catch up with the rest.
         model.bookDownloads.catchUp()
+    }
+
+    /**
+     * Titles kept here that the profile may no longer see (a parent blocked one, lowered its age limit or hid its library
+     * since), or that the server no longer has: the server says which ([checkOffline]) and they go, books too. One whose
+     * file is only missing on the server stays, and nothing goes with a server up to 0.62.1 or one out of reach.
+     */
+    private suspend fun removeKeptFromProfile(client: FlexarrClient) {
+        // Asked only as the profile the downloads are kept for (not, say, on Who's watching).
+        val profile = profileId?.takeIf { it == model.currentProfile?.id } ?: return
+        val asked = (downloads.map { it.item.id } + model.bookDownloads.books.map { it.itemId }).distinct()
+        if (asked.isEmpty()) return
+        val gone = HashSet<String>()
+        for (chunk in asked.chunked(OfflineCheck.MOST_IDS)) {
+            val check = try {
+                client.checkOffline(chunk)
+            } catch (_: FlexarrException) {
+                return // out of reach, or an answer not to act on
+            } ?: return
+            gone += check.toRemove(chunk)
+        }
+        if (gone.isEmpty()) return
+        // Someone else chosen meanwhile: the answer was about the profile asked for.
+        if (profileId != profile || model.currentProfile?.id != profile || currentClient !== client) return
+        flexarrLog.info("Taking off ${gone.size} downloads this profile may no longer play")
+        downloads.filter { it.item.id in gone }.forEach { remove(it.id, tellServer = true) }
+        model.bookDownloads.books.filter { it.itemId in gone }.forEach { model.bookDownloads.remove(it.itemId) }
     }
 
     // Downloading
@@ -504,13 +573,28 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             return
         }
         if (replace) UserInitiatedTransfers.cancel(context, download.id)
+        work.enqueueUniqueWork(workName(download.id), if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP, request(download))
+    }
+
+    private fun request(download: LocalDownload, waits: Int = 0): OneTimeWorkRequest {
         val network = if (DownloadNetwork.needsUnmetered(isWiFiOnly(download), download.automatic, dataSaver)) NetworkType.UNMETERED else NetworkType.CONNECTED
-        val request = OneTimeWorkRequestBuilder<DownloadWorker>()
-            .setInputData(workDataOf(DownloadWorker.ID to download.id))
+        return OneTimeWorkRequestBuilder<DownloadWorker>()
+            .setInputData(workDataOf(DownloadWorker.ID to download.id, DownloadWorker.WAITS to waits))
             .setConstraints(Constraints.Builder().setRequiredNetworkType(network).setRequiresStorageNotLow(true).build())
+            .apply { if (waits > 0) setInitialDelay(DownloadRules.laterMillis(waits - 1), TimeUnit.MILLISECONDS) }
             .addTag(WORK_TAG)
             .build()
-        work.enqueueUniqueWork(workName(download.id), if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP, request)
+    }
+
+    /**
+     * A transfer WorkManager ran ended with [id] still waiting its turn on the server, having come back [waits] times
+     * before: it comes back in a few minutes ([DownloadRules.laterMillis]), in place of the one ending. Not if the
+     * download's gone, arrived, or a user-initiated job has it now.
+     */
+    internal fun later(id: String, waits: Int) {
+        val download = byId(id)?.takeIf { it.isPending } ?: return
+        if (UserInitiatedTransfers.isScheduled(context, id)) return
+        work.enqueueUniqueWork(workName(id), ExistingWorkPolicy.REPLACE, request(download, waits + 1))
     }
 
     /** What the server says about a download; true when its file should be fetched now. Called by the transfers too. */
@@ -549,9 +633,22 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         transferring.remove(id)
         update(id) { it.copy(phase = LocalPhase.Downloaded, fileName = name, sizeBytes = bytes, progress = 1.0, failure = null) }
         flexarrLog.info("Downloaded $id")
+        val here = byId(id) ?: return // deleted as it came: the server was told that
+        // The server is told once the list saying so is saved ([saved]).
+        unacknowledged += id
+        fetchNext(here)
+    }
+
+    /**
+     * [list] is on disk: the server is told about the downloads in it that have come since the last save, and lets
+     * its copies go.
+     */
+    private fun saved(list: List<LocalDownload>) {
+        val here = DownloadRules.savedArrivals(unacknowledged, list)
+        if (here.isEmpty()) return
+        unacknowledged -= here
         val client = currentClient ?: return
-        scope.launch { runCatching { client.markDownloadReceived(id) } }
-        byId(id)?.let(::fetchNext)
+        here.forEach { id -> scope.launch { runCatching { client.markDownloadReceived(id) } } }
     }
 
     internal fun failed(id: String, message: String) {
@@ -756,10 +853,12 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         work.cancelUniqueWork(workName(id))
         UserInitiatedTransfers.cancel(context, id)
         transferring.remove(id)
+        unacknowledged.remove(id)
         download.fileName?.let { fileIn(folder, it)?.delete() }
         fileIn(folder, "${safeName(id)}.part")?.delete()
         all = all.filterNot { it.id == id }
         save()
+        hurry.trySend(Unit)
         removeImageIfUnused(download.imageFileName)
         if (!tellServer) return
         // The server drops its copy (and won't offer a podcast episode again); out of reach, it's told later.
@@ -810,7 +909,9 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         all = emptyList()
         collections = emptyList()
         transferring.clear()
+        unacknowledged.clear()
         save()
+        hurry.trySend(Unit)
         saveCollections()
         profileId = null
         unsentDeletes = emptySet()
@@ -881,14 +982,14 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         if (loaded) collectionSaves.trySend(collections)
     }
 
-    private fun <T> write(list: List<T>, serializer: KSerializer<T>, name: String) {
+    /** True when the list reached disk. */
+    private fun <T> write(list: List<T>, serializer: KSerializer<T>, name: String): Boolean =
         runCatching {
             val text = FlexarrClient.json.encodeToString(ListSerializer(serializer), list)
             val temporary = File(folder, "$name.tmp")
             temporary.writeText(text)
             temporary.renameTo(File(folder, name))
-        }.onFailure { flexarrLog.error("Couldn't save $name", it) }
-    }
+        }.onFailure { flexarrLog.error("Couldn't save $name", it) }.getOrDefault(false)
 
     private val folder: File get() = folder(context)
 
@@ -907,6 +1008,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         private const val KEPT_FOR = "keptFor"
         private const val WORK_TAG = "flexarr-download"
         private const val SAVE_GAP_MS = 250L
+        private const val MOST_SAVE_GAP_MS = 2_000L
+        private const val SAVE_REST = 10
         private const val RECORDED_CATCH_UP_MS = 60_000L
 
         /**
@@ -925,6 +1028,31 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
                 unreadable(dropped, runCatching { file.copyTo(copy) }.getOrNull())
             }
             return items
+        }
+
+        /**
+         * How long to leave after a save of the downloads list that took [writeMillis] before the next. A short list is
+         * written in a few milliseconds and saved again a moment later, as it always was. A thousand tracks' takes long
+         * enough that saving it four times a second, as the tracks arrive, kept the phone's storage busy throughout: it
+         * rests ten times as long as the write took, up to two seconds.
+         */
+        internal fun saveGapMillis(writeMillis: Long): Long = (writeMillis * SAVE_REST).coerceIn(SAVE_GAP_MS, MOST_SAVE_GAP_MS)
+
+        /**
+         * Writes each list sent to [saves] with [write] (which says how long it took), one after another: the first at
+         * once, then only the newest of whatever came during the rest after a write ([saveGapMillis]). A word on
+         * [hurry] (downloads were deleted) ends that rest early, though never sooner than the moment every save
+         * leaves.
+         */
+        internal suspend fun <T> saveAsTheyCome(saves: ReceiveChannel<T>, hurry: ReceiveChannel<Unit>, write: suspend (T) -> Long) {
+            for (list in saves) {
+                hurry.tryReceive() // asked for before this write, which is it
+                val took = write(list)
+                delay(SAVE_GAP_MS)
+                // A long list takes a while to write: the longer it took, the longer before the next, unless files
+                // were deleted meanwhile.
+                withTimeoutOrNull(saveGapMillis(took) - SAVE_GAP_MS) { hurry.receive() }
+            }
         }
 
         private fun reportUnreadable(count: Int, keptAs: File?) {

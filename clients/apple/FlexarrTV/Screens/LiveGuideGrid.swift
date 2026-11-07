@@ -20,6 +20,8 @@ struct LiveGuideGrid: View {
     var focusChannel: String? = nil
     /// Programmes can be set to record: not for a profile with an age limit, since a recording is for everyone.
     var records = true
+    /// The end of the window, each time it moves: the guide is fetched further ahead as it nears the end of it.
+    var onWindow: ((Date) -> Void)? = nil
 
     @FocusState private var focusedProgramme: Int64?
 
@@ -32,6 +34,10 @@ struct LiveGuideGrid: View {
 
     static let window: TimeInterval = 3 * 3600
     static let step: TimeInterval = 90 * 60
+    /// The guide is asked for this far past the end of the window (`LiveGuidePlan`), and again once it reaches less
+    /// than `keepAhead` past it: a page ahead, so it's there by the time the window gets there.
+    static let askAhead: TimeInterval = 3 * step
+    static let keepAhead: TimeInterval = step
     private static let channelWidth: CGFloat = 230
     private static let rowHeight: CGFloat = 96
     /// Made each time, so it follows a change of language.
@@ -88,6 +94,12 @@ struct LiveGuideGrid: View {
             if let details {
                 Text(describe(details))
             }
+        }
+        // The guide comes without descriptions: the one shown is fetched as its details open.
+        .task(id: details?.id) {
+            guard let shown = details, shown.description == nil, let client else { return }
+            let full = await client.programmeWithDescription(shown)
+            if !Task.isCancelled, details?.id == full.id { details = full }
         }
         .alert(t("Recording"), isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
             Button(t("OK"), role: .cancel) {}
@@ -296,6 +308,7 @@ struct LiveGuideGrid: View {
         withAnimation(.easeInOut(duration: 0.25)) {
             windowStart = min(max(next, earliest), max(earliest, latest))
         }
+        onWindow?(windowStart.addingTimeInterval(Self.window))
     }
 
     private func describe(_ programme: LiveProgramme) -> String {

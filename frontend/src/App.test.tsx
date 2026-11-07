@@ -1,4 +1,4 @@
-import { waitFor, act, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
+import { waitFor, act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
 import { MemoryRouter, useNavigate } from 'react-router'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App, { Shell } from './App'
@@ -6,6 +6,7 @@ import { TrailerDialog } from './components/TrailerDialog'
 import { usePolling } from './hooks/usePolling'
 import { clearApiCache, deleteItem, getLibraries } from './api/client'
 import { WATCHED_CHANGED } from './hooks/watched'
+import { LANGUAGE_WAIT_MS, showLanguage } from './i18n'
 import { detail, mockApi, movies, status, summary } from './test/mockApi'
 
 // The player's tests wait for streams to be asked for again, which takes a slow CI runner more than the default 5 s.
@@ -55,6 +56,90 @@ describe('App', () => {
     expect(screen.getByText(/mismatched pair/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Top 10 films in your library' })).toBeInTheDocument()
     expect(screen.getByText('Number 1: The Nice Guys')).toBeInTheDocument()
+  })
+
+  it('asks for everything the first screen waits for together, not one after the other', async () => {
+    let answerStatus: (value: unknown) => void = () => {}
+    const fetched = mockApi({
+      '/system/status': () => new Promise((resolve) => (answerStatus = resolve)),
+      '/profiles': [],
+      '/languages': { languages: [{ code: 'en', name: 'English', direction: 'ltr', version: 0 }] },
+      '/libraries': [],
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+    const asked = () => fetched.mock.calls.map(([input]) => new URL(String(input), 'http://localhost').pathname.replace('/api/v1', ''))
+
+    render(<App />)
+
+    // The server hasn't answered the first of them yet, and the rest are already on their way.
+    await waitFor(() => expect(asked()).toEqual(expect.arrayContaining(['/system/status', '/profiles', '/me', '/languages'])))
+    expect(screen.getByText('Connecting…')).toBeInTheDocument()
+
+    answerStatus(status)
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
+  })
+
+  it('goes on to the first screen when the server never says which languages it has, once the wait is up', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      mockApi({
+        '/system/status': status,
+        '/profiles': [],
+        '/languages': () => new Promise(() => {}),
+        '/libraries': [],
+        '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+      })
+
+      render(<App />)
+      await act(() => vi.advanceTimersByTimeAsync(LANGUAGE_WAIT_MS - 100))
+      expect(screen.getByText('Connecting…')).toBeInTheDocument()
+
+      await act(() => vi.advanceTimersByTimeAsync(100))
+      vi.useRealTimers()
+      expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows the first screen in the profile’s language, asking for its pack once, and remembers it for next time', async () => {
+    const languages = [{ code: 'en', name: 'English', direction: 'ltr', version: 0 }, { code: 'de', name: 'Deutsch', direction: 'ltr', version: 3 }]
+    const german = { code: 'de', name: 'Deutsch', direction: 'ltr', version: 3, messages: { 'Nothing to watch yet': 'Noch nichts zu sehen' } }
+    try {
+      const fetched = mockApi({
+        '/system/status': status,
+        '/profiles': [],
+        '/me': { profileId: 'p1', method: 'local', zone: 'Local', isAdmin: false, tailscaleLogin: null, language: 'de' },
+        '/languages': { languages },
+        '/languages/de': () => new Response(JSON.stringify(german), { headers: { ETag: '"de-3-web"' } }),
+        '/libraries': [],
+        '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+      })
+
+      render(<App />)
+
+      expect(await screen.findByRole('heading', { name: 'Noch nichts zu sehen' })).toBeInTheDocument()
+      expect(document.documentElement.lang).toBe('de')
+      expect(localStorage.getItem('flexarr.language.choice')).toBe('de')
+      const asked = fetched.mock.calls.map(([input]) => new URL(String(input), 'http://localhost').pathname.replace('/api/v1', ''))
+      expect(asked.filter((path) => path.startsWith('/languages'))).toEqual(['/languages', '/languages/de'])
+    } finally {
+      await showLanguage(null)
+    }
+  })
+
+  it('shows the sign-in form, having asked once, when the server refuses everything the first screen asks for', async () => {
+    const refused = () => new Response('', { status: 401 })
+    const fetched = mockApi({ '/system/status': refused, '/profiles': refused, '/me': refused, '/setup': { open: false } })
+
+    render(<App />)
+
+    expect(await screen.findByLabelText('API key')).toBeInTheDocument()
+    // Three refusals at once, each saying this browser is signed out: it looks once, not once for each.
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    const asked = fetched.mock.calls.map(([input]) => new URL(String(input), 'http://localhost').pathname.replace('/api/v1', ''))
+    expect(asked.filter((path) => path === '/system/status')).toHaveLength(1)
+    expect(screen.getByLabelText('API key')).toBeInTheDocument()
   })
 
   it('says a library is empty when nothing in its folders was recognised, and keeps Coming soon', async () => {
@@ -323,6 +408,39 @@ describe('App', () => {
     await vi.waitFor(() => expect(posted).toEqual([{ watched: true }, { watched: false }]))
   })
 
+  it('comes back to Home without waiting for the setup guide again, for the main profile', async () => {
+    let asked = 0
+    mockApi({
+      '/libraries': [movies],
+      '/me': { profileId: 'owner', method: 'local', zone: 'Local', isAdmin: true, tailscaleLogin: null },
+      '/profiles': [],
+      '/home': { featured: [niceGuys], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+      'PUT /setup-guide': undefined,
+      'GET /setup-guide': () => {
+        asked += 1
+        // Asked a second time, the server is slow to say (away from home).
+        return asked === 1 ? { opened: true, dismissed: false, skipped: [], apps: true, libraries: true, profiles: false, devices: false, away: false } : new Promise(() => undefined)
+      },
+    })
+
+    const home = renderAt('/')
+    expect(await screen.findByRole('heading', { name: 'Finish setting up' })).toBeInTheDocument()
+    home.unmount()
+
+    // Back from a title: Home's own answer is still kept, and so is the guide's.
+    renderAt('/')
+    expect(await screen.findByRole('heading', { level: 1, name: 'The Nice Guys' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Finish setting up' })).toBeInTheDocument()
+    expect(asked).toBe(1)
+
+    // Hiding the list is a change, which clears what was kept: the next visit asks the server.
+    fireEvent.click(screen.getByRole('button', { name: 'Hide' }))
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Finish setting up' })).toBeNull())
+    cleanup()
+    renderAt('/')
+    await waitFor(() => expect(asked).toBe(2))
+  })
+
   it('asks for an API key when the server requires one, then retries with it', async () => {
     // The key is traded for a session cookie (which jsdom's fetch mock stands in for here) and never stored.
     let authorized = false
@@ -363,6 +481,48 @@ describe('App', () => {
     await act(() => getLibraries().catch(() => undefined))
 
     expect(await screen.findByLabelText('API key')).toBeInTheDocument()
+  })
+
+  it('forgets what was played here once this browser is no longer signed in, for whoever signs in next', async () => {
+    localStorage.setItem('flexarr.bookPlace.book-1', '{"position":600,"savedAt":1}')
+    localStorage.setItem('flexarr.bookPlace.book-2.p-kid-1', '{"position":30,"savedAt":2}')
+    localStorage.setItem('flexarr.sound', '{}')
+    sessionStorage.setItem('flexarr.musicQueue', '{"ids":["t1"],"albums":[],"index":0,"position":0}')
+    sessionStorage.setItem('flexarr.musicQueueTracks', '[]')
+    const refused = () => new Response('', { status: 401 })
+    mockApi({ '/system/status': refused, '/profiles': refused, '/me': refused, '/setup': { open: false } })
+
+    try {
+      render(<App />)
+      expect(await screen.findByLabelText('API key')).toBeInTheDocument()
+
+      expect(Object.keys(localStorage)).toEqual(['flexarr.sound'])
+      expect(sessionStorage.length).toBe(0)
+    } finally {
+      sessionStorage.clear()
+    }
+  })
+
+  it('forgets what a page that signed out left on its way, when the next one opens signed in another way', async () => {
+    // Signed out with something queued, at home: the home network signs the next page in, and no sign-in form comes.
+    sessionStorage.setItem('flexarr.signedOut', '1')
+    sessionStorage.setItem('flexarr.musicQueue', '{"ids":["t1"],"albums":[],"index":0,"position":0}')
+    localStorage.setItem('flexarr.bookPlace.book-1', '{"position":600,"savedAt":1}')
+    localStorage.setItem('flexarr.sound', '{}')
+    const fetched = mockApi({ '/system/status': status, '/libraries': [], '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 } })
+
+    try {
+      render(<App />)
+      expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
+
+      expect(Object.keys(localStorage)).toEqual(['flexarr.sound'])
+      expect(Object.keys(sessionStorage).filter((key) => key === 'flexarr.signedOut' || key.startsWith('flexarr.musicQueue'))).toEqual([])
+      // The queue wasn't asked for either: there was none by the time the player looked.
+      expect(fetched.mock.calls.some(([input]) => String(input).includes('/items/t1'))).toBe(false)
+    } finally {
+      localStorage.clear()
+      sessionStorage.clear()
+    }
   })
 
   it('sets up a new server from the first browser with its setup code, without a key', async () => {
@@ -430,6 +590,31 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
     expect(sent).toEqual(['ABCD-EFGH 2468'])
+  })
+
+  it('shows a device’s code from its link before signing in, and never anything else the link says', async () => {
+    const signedOut = { '/system/status': new Response('', { status: 401 }) }
+    try {
+      mockApi(signedOut)
+      window.history.replaceState(null, '', '/link?code=K7M-Q4X')
+      const first = render(<App />)
+      expect(await screen.findByText('Type in this code:')).toBeInTheDocument()
+      expect(screen.getByText('K7M-Q4X', { selector: '.setup-code' })).toBeInTheDocument()
+      first.unmount()
+
+      // A link someone made up: its words aren't put on the page as a code, and the page is the ordinary sign-in.
+      for (const made of ['Call 0800 123 456 to finish setting up', 'ABC-DEF-GHJ', 'K7M Q4X', '<b>K7M</b>']) {
+        mockApi(signedOut)
+        window.history.replaceState(null, '', `/link?code=${encodeURIComponent(made)}`)
+        const next = render(<App />)
+        expect(await screen.findByLabelText('API key')).toBeInTheDocument()
+        expect(screen.queryByText('Type in this code:')).not.toBeInTheDocument()
+        expect(document.body).not.toHaveTextContent(made)
+        next.unmount()
+      }
+    } finally {
+      window.history.replaceState(null, '', '/')
+    }
   })
 
   it('says so when the API key is wrong', async () => {
@@ -546,6 +731,19 @@ describe('Library page', () => {
 })
 
 describe('Series page', () => {
+  it('offers a title’s backdrop in sizes for the screen, not only the widest', async () => {
+    const film = summary({ id: 'm1', title: 'The Nice Guys', artwork: { poster: null, backdrop: '/api/v1/images/items/m1/backdrop?v=1', logo: null, thumb: null } })
+    mockApi({ '/libraries': [], '/items/m1': detail(film), '/items/m1/similar': [] })
+
+    const { container } = renderAt('/item/m1')
+    await screen.findByRole('heading', { level: 1, name: 'The Nice Guys' })
+
+    const backdrop = container.querySelector('.detail-art img')
+    expect(backdrop).toHaveAttribute('src', '/api/v1/images/items/m1/backdrop?v=1&w=1920')
+    expect(backdrop?.getAttribute('srcset')?.split(', ').map((s) => s.split(' ')[1])).toEqual(['780w', '1280w', '1920w'])
+    expect(backdrop).toHaveAttribute('sizes', '100vw')
+  })
+
   it('shows seasons as tabs and the selected season’s episodes with overviews', async () => {
     const series = summary({ id: 's', kind: 'Series', title: '30 Rock', childCount: 1 })
     const season = summary({ id: 'season-1', kind: 'Season', parentId: 's', title: 'Season 1', seasonNumber: 1, childCount: 1 })
@@ -1551,6 +1749,57 @@ describe('Profiles', () => {
     expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
   })
 
+  it('asks who’s watching, with no way back, when the server says nobody has chosen here, even with one profile', async () => {
+    let me = { profileId: 'owner', method: 'local', zone: 'Local', isAdmin: false, tailscaleLogin: null, chooseProfile: true }
+    let sentChoice: string | null | undefined
+    const fetched = mockApi({
+      '/system/status': status,
+      '/profiles': [pinnedMain],
+      '/me': () => me,
+      'POST /profiles/owner/select': (init?: RequestInit) => {
+        sentChoice = (init?.headers as Record<string, string> | undefined)?.['X-Flexarr-Profile-Choice']
+        me = { ...me, chooseProfile: false }
+        return { token: 'owner.sig', profile: pinnedMain }
+      },
+      '/libraries': [],
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+    sessionStorage.setItem('flexarr.profileChosen', '1') // chosen in this tab before: the server's word wins
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Dan/ }))
+    expect(screen.queryByRole('button', { name: 'Not now' })).toBeNull()
+    fireEvent.change(await screen.findByLabelText('PIN'), { target: { value: '1357' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }))
+
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
+    expect(sentChoice).toBe('1')
+    // The app says it can ask on what it asks for, not only when choosing.
+    const home = fetched.mock.calls.find(([input]) => String(input).startsWith('/api/v1/home'))
+    expect((home?.[1]?.headers as Record<string, string> | undefined)?.['X-Flexarr-Profile-Choice']).toBe('1')
+    sessionStorage.clear()
+    clearApiCache()
+  })
+
+  it('asks who’s watching when a request is refused because nobody has chosen here', async () => {
+    let me = { profileId: 'owner', method: 'local', zone: 'Local', isAdmin: false, tailscaleLogin: null, chooseProfile: false }
+    mockApi({
+      '/system/status': status,
+      '/profiles': [pinnedMain],
+      '/me': () => me,
+      '/libraries': [],
+      '/home': () => {
+        me = { ...me, chooseProfile: true }
+        return new Response(JSON.stringify({ status: 403, chooseProfile: true }), { status: 403 })
+      },
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: /Dan/ })).toBeInTheDocument()
+    clearApiCache()
+  })
+
   it('over Tailscale, Switch profile opens the picker', async () => {
     sessionStorage.setItem('flexarr.pickProfile', '1') // what Switch profile leaves before reloading
     mockApi({ '/system/status': status, '/profiles': [pinnedMain], '/me': tailscaleOwner })
@@ -1718,6 +1967,144 @@ describe('Library grid', () => {
     expect(await screen.findByRole('link', { name: 'Film 209' })).toBeInTheDocument()
     expect(pages).toEqual([0, 200, 200])
     expect(within(rail).queryByRole('alert')).toBeNull()
+  })
+
+  describe('jumping to a letter, where the server says where letters start', () => {
+    // 2,600 films, a hundred to each letter: A at 0, B at 100 … Z at 2,500.
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    const library = Array.from({ length: 2600 }, (_, i) => summary({ id: `a${i}`, title: `${alphabet[Math.floor(i / 100)]}film ${String(i).padStart(4, '0')}` }))
+    const runs = [...alphabet].map((letter, i) => ({ letter, offset: i * 100, count: 100 }))
+    function lettered(lettersAnswer: unknown = runs.filter((r) => r.letter !== 'Q')) {
+      const asked: { skip: number; take: number }[] = []
+      mockApi({
+        '/libraries': [{ ...movies, scan: null, itemCount: library.length }],
+        '/libraries/lib-movies/genres': [],
+        '/libraries/lib-movies/items/letters': lettersAnswer,
+        '/libraries/lib-movies/items': (_: RequestInit | undefined, url: URL) => {
+          const skip = Number(url.searchParams.get('skip') ?? 0)
+          const take = Number(url.searchParams.get('take'))
+          asked.push({ skip, take })
+          return { total: library.length, items: library.slice(skip, skip + take) }
+        },
+      })
+      return asked
+    }
+
+    it('loads only the page the letter starts on, with Show earlier and Show more around it', async () => {
+      const asked = lettered()
+      renderAt('/library/lib-movies?view=all')
+
+      const rail = await screen.findByRole('navigation', { name: 'Jump to letter' })
+      fireEvent.click(within(rail).getByRole('button', { name: 'T' }))
+
+      const first = await screen.findByRole('link', { name: 'Tfilm 1900' })
+      await vi.waitFor(() => expect(first).toHaveFocus())
+      expect(asked).toEqual([
+        { skip: 0, take: 200 },
+        { skip: 1900, take: 200 },
+      ])
+      expect(screen.getAllByRole('link', { name: /film \d+$/ })).toHaveLength(200)
+      expect(screen.queryByRole('link', { name: 'Afilm 0000' })).toBeNull()
+      // Q has no titles, so there's nothing to jump to.
+      expect(within(rail).getByRole('button', { name: 'Q' })).toBeDisabled()
+      expect(within(rail).getByRole('button', { name: 'Numbers and symbols' })).toBeDisabled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Show 200 more' }))
+      expect(await screen.findByRole('link', { name: 'Vfilm 2100' })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Show 200 earlier' }))
+      expect(await screen.findByRole('link', { name: 'Rfilm 1700' })).toBeInTheDocument()
+      // Keyboard focus goes to the first title it brought, rather than being dropped while the button was busy.
+      await vi.waitFor(() => expect(document.activeElement?.closest('[data-id]')).toHaveAttribute('data-id', 'a1700'))
+      expect(asked.slice(2)).toEqual([
+        { skip: 2100, take: 200 },
+        { skip: 1700, take: 200 },
+      ])
+      expect(screen.getAllByRole('link', { name: /film \d+$/ })).toHaveLength(600)
+      // In list order, the earlier page first.
+      const names = screen.getAllByRole('link', { name: /film \d+$/ }).map((l) => l.textContent)
+      expect(names[0]).toContain('Rfilm 1700')
+      expect(names[599]).toContain('Wfilm 2299')
+    })
+
+    it('grows the grid to a letter just past what’s loaded, as before', async () => {
+      const asked = lettered()
+      renderAt('/library/lib-movies?view=all')
+
+      const rail = await screen.findByRole('navigation', { name: 'Jump to letter' })
+      fireEvent.click(within(rail).getByRole('button', { name: 'D' }))
+
+      expect(await screen.findByRole('link', { name: 'Dfilm 0300' })).toBeInTheDocument()
+      expect(asked).toEqual([
+        { skip: 0, take: 200 },
+        { skip: 200, take: 300 },
+      ])
+      expect(screen.getByRole('link', { name: 'Afilm 0000' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /earlier/ })).toBeNull()
+    })
+
+    it('going back after a jump, has the same titles from the same place, without asking again', async () => {
+      const asked = lettered()
+      function Back() {
+        const navigate = useNavigate()
+        return <button onClick={() => navigate(-1)}>Back</button>
+      }
+      render(
+        <MemoryRouter initialEntries={['/library/lib-movies?view=all']}>
+          <Shell />
+          <Back />
+        </MemoryRouter>,
+      )
+      const rail = await screen.findByRole('navigation', { name: 'Jump to letter' })
+      fireEvent.click(within(rail).getByRole('button', { name: 'T' }))
+      fireEvent.click(await screen.findByRole('link', { name: 'Tfilm 1905' }))
+      await screen.findByRole('button', { name: 'Back' })
+      fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+      expect(await screen.findByRole('link', { name: 'Tfilm 1905' })).toBeInTheDocument()
+      expect(screen.getAllByRole('link', { name: /film \d+$/ })).toHaveLength(200)
+      expect(screen.getByRole('button', { name: 'Show 200 earlier' })).toBeInTheDocument()
+      expect(asked.filter((a) => a.skip === 1900)).toHaveLength(1)
+      fireEvent.click(screen.getByRole('button', { name: 'Show 200 more' }))
+      expect(await screen.findByRole('link', { name: 'Vfilm 2100' })).toBeInTheDocument()
+    })
+
+    it('keeps the letters after a jump to a last letter with only a few titles', async () => {
+      // 2,520 films: a hundred to each letter from A to Y, and twenty under Z.
+      const few = library.slice(0, 2500).concat(Array.from({ length: 20 }, (_, i) => summary({ id: `z${i}`, title: `Zfilm ${i}` })))
+      mockApi({
+        '/libraries': [{ ...movies, scan: null, itemCount: few.length }],
+        '/libraries/lib-movies/genres': [],
+        '/libraries/lib-movies/items/letters': runs.slice(0, 25).concat({ letter: 'Z', offset: 2500, count: 20 }),
+        '/libraries/lib-movies/items': (_: RequestInit | undefined, url: URL) => {
+          const skip = Number(url.searchParams.get('skip') ?? 0)
+          const take = Number(url.searchParams.get('take'))
+          return { total: few.length, items: few.slice(skip, skip + take) }
+        },
+      })
+      renderAt('/library/lib-movies?view=all')
+
+      const rail = await screen.findByRole('navigation', { name: 'Jump to letter' })
+      fireEvent.click(within(rail).getByRole('button', { name: 'Z' }))
+
+      expect(await screen.findByRole('link', { name: 'Zfilm 0' })).toBeInTheDocument()
+      expect(screen.getAllByRole('link', { name: /film \d+$/ })).toHaveLength(20)
+      const after = screen.getByRole('navigation', { name: 'Jump to letter' })
+      fireEvent.click(within(after).getByRole('button', { name: 'A' }))
+      expect(await screen.findByRole('link', { name: 'Afilm 0000' })).toBeInTheDocument()
+    })
+
+    it('on a server that can’t say, loads everything up to the letter', async () => {
+      const asked = lettered(new Response('', { status: 404 }))
+      renderAt('/library/lib-movies?view=all')
+
+      const rail = await screen.findByRole('navigation', { name: 'Jump to letter' })
+      fireEvent.click(within(rail).getByRole('button', { name: 'G' }))
+
+      expect(await screen.findByRole('link', { name: 'Gfilm 0600' })).toBeInTheDocument()
+      expect(asked[0]).toEqual({ skip: 0, take: 200 })
+      expect(asked.slice(1).map((a) => a.skip)).toEqual([200, 700, 1200, 1700])
+      expect(screen.getByRole('link', { name: 'Afilm 0000' })).toBeInTheDocument()
+    })
   })
 
   it('dims letters with nothing to jump to, once the grid has loaded past them', async () => {
@@ -1963,6 +2350,63 @@ describe('Library grid going back', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back' }))
 
     await vi.waitFor(() => expect(titles()).toEqual(['Film 0', 'Film 2']))
+  })
+})
+
+describe('Loaded when opened', () => {
+  const owner = { profileId: 'owner', method: 'local', zone: 'Local', isAdmin: true, tailscaleLogin: null }
+
+  it('opens Fix match over a film’s page, which stays as it is while the dialog’s code arrives', async () => {
+    const film = summary({ id: 'm1', title: 'The Nice Guys' })
+    mockApi({ '/libraries': [], '/me': owner, '/profiles': [], '/items/m1': detail(film), '/items/m1/similar': [] })
+
+    renderAt('/item/m1')
+    fireEvent.click(await screen.findByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Fix match…' }))
+
+    // Nothing takes the page away while it loads.
+    expect(screen.getByRole('heading', { level: 1, name: 'The Nice Guys' })).toBeVisible()
+    expect(await screen.findByRole('dialog', { name: 'Fix match' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'The Nice Guys' })).toBeVisible()
+
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('shows a book’s page, and its chapter editor', async () => {
+    const book = summary({ id: 'b1', kind: 'Audiobook', title: 'Project Hail Mary', libraryId: 'lib-books', durationSeconds: 58000 })
+    const about = {
+      subtitle: null, asin: null, isbn: null, publisher: null, language: null, abridged: false, explicit: false, durationSeconds: 58000, chapterSource: 'File',
+      finishedAt: null, speed: null, series: [], chapters: [{ title: 'One', startSeconds: 0 }], bookmarks: [], moreInSeries: [], byAuthor: [], readByNarrator: [], authors: [],
+    }
+    mockApi({ '/libraries': [], '/me': owner, '/profiles': [], '/items/b1': detail(book, { book: about }), '/books/listening': { speed: 1 } })
+
+    renderAt('/item/b1')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Project Hail Mary' })).toBeInTheDocument()
+    // The rest of the app is there throughout: only the page waits for its code.
+    expect(screen.getByRole('navigation', { name: 'Main' })).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: 'More for Project Hail Mary' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Edit chapters…' }))
+    expect(await screen.findByRole('dialog', { name: 'Chapters' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Project Hail Mary' })).toBeVisible()
+  })
+
+  it('shows a book library’s shelves and a music library’s playlists under the library’s own views', async () => {
+    const books = { ...movies, id: 'lib-books', name: 'Audiobooks', type: 'Audiobooks' }
+    const music = { ...movies, id: 'lib-music', name: 'Music', type: 'Music' }
+    const shelves = { continueListening: [], nextInSeries: [], recentlyAdded: [], series: [], authors: [], narrators: [], genres: [], finished: [] }
+    mockApi({ '/libraries': [books, music], '/libraries/lib-books/book-shelves': shelves, '/playlists': [] })
+
+    const first = renderAt('/library/lib-books')
+    expect(await screen.findByRole('navigation', { name: 'Audiobooks views' })).toBeInTheDocument()
+    first.unmount()
+
+    renderAt('/library/lib-music?view=playlists')
+    const views = await screen.findByRole('navigation', { name: 'Music views' })
+    expect(within(views).getByRole('link', { name: 'Playlists' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('heading', { level: 1, name: 'Music' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Main' })).toBeVisible()
   })
 })
 

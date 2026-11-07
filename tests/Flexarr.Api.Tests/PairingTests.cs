@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Flexarr.Api.Security;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -108,14 +109,15 @@ public class PairingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     {
         var tv = Tv("192.168.1.71");
         var results = new List<HttpStatusCode>();
-        for (var i = 0; i < 4; i++)
+        for (var i = 0; i < 3; i++)
         {
             results.Add((await tv.PostAsJsonAsync(Api("/pairing"), new { deviceName = $"TV {i}" })).StatusCode);
         }
 
         var someoneElse = await Tv("192.168.1.72").PostAsJsonAsync(Api("/pairing"), new { deviceName = "Bedroom" });
 
-        Assert.Equal([HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.TooManyRequests], results);
+        // Two of the ten places from one address, so five addresses are needed to fill them all, not four.
+        Assert.Equal([HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.TooManyRequests], results);
         Assert.Equal(HttpStatusCode.OK, someoneElse.StatusCode);
     }
 
@@ -257,6 +259,95 @@ public class PairingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
         var waiting = await Admin().GetFromJsonAsync<JsonElement>(Api("/pairing/waiting"));
         var hall = Assert.Single(waiting.EnumerateArray(), p => p.GetProperty("deviceName").GetString() == "Hall");
         await Admin().PostAsJsonAsync(Api($"/pairing/code/{hall.GetProperty("code").GetString()}/decline"), new { }); // frees its place for the other tests
+    }
+
+    [Fact]
+    public void ADeviceAskingInALoop_KeepsItsCode_AndThePhonesAreToldOnce()
+    {
+        using var server = new FlexarrApiFactory();
+        var pairings = server.Services.GetRequiredService<Pairings>();
+
+        var first = pairings.Start("Living room TV", NetworkZone.Local, "192.168.1.95", out var told)!;
+        var again = new List<PairingDetailsDto?>();
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.Equal(first.Code, pairings.Start("Living room TV", NetworkZone.Local, "192.168.1.95", out var announced)!.Code);
+            again.Add(announced);
+        }
+
+        Assert.NotNull(told);
+        Assert.All(again, Assert.Null);
+        Assert.Single(pairings.Waiting());
+    }
+
+    [Fact]
+    public void ThePhones_AreToldOfAtMostTwentyCodesAnHour()
+    {
+        using var server = new FlexarrApiFactory();
+        var pairings = server.Services.GetRequiredService<Pairings>();
+
+        var announced = new List<bool>();
+        for (var i = 0; i < 22; i++)
+        {
+            var started = pairings.Start($"TV {i}", NetworkZone.Local, $"192.168.2.{i + 1}", out var told)!;
+            announced.Add(told is not null);
+            pairings.Decline(started.Code); // frees its place
+        }
+
+        Assert.Equal(20, announced.Count(a => a));
+        Assert.False(announced[^1]);
+    }
+
+    [Fact]
+    public void OneAddress_HasANewCodeAnnounced_AtMostOnceAMinute_UnlessTheOwnerTurnedOneAway()
+    {
+        var clock = new Clock();
+        using var server = new FlexarrApiFactory();
+        using var app = server.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<TimeProvider>(clock)));
+        var pairings = app.Services.GetRequiredService<Pairings>();
+        const string address = "192.168.5.7";
+
+        var first = pairings.Start("Living room TV", NetworkZone.Local, address, out var firstTold)!;
+        var second = pairings.Start("Kitchen TV", NetworkZone.Local, address, out var secondTold)!;
+        clock.Now += TimeSpan.FromMinutes(1);
+        pairings.Start("Kitchen TV", NetworkZone.Local, address, out var secondLater);
+
+        // Turned away: after the device's own quiet retry, trying again from there is announced at once, however soon.
+        pairings.Decline(first.Code);
+        pairings.Decline(second.Code);
+        pairings.Start("Kitchen TV", NetworkZone.Local, address, out var ownRetry);
+        pairings.Start("Kitchen TV", NetworkZone.Local, address, out var tryAgain);
+
+        Assert.NotNull(firstTold);
+        Assert.Null(secondTold);
+        Assert.NotNull(secondLater);
+        Assert.Null(ownRetry);
+        Assert.NotNull(tryAgain);
+    }
+
+    [Fact]
+    public void ACodeTheLimitHeldBack_IsAnnounced_WhenItAsksAgainLater()
+    {
+        var clock = new Clock();
+        using var server = new FlexarrApiFactory();
+        using var app = server.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<TimeProvider>(clock)));
+        var pairings = app.Services.GetRequiredService<Pairings>();
+        for (var i = 0; i < 20; i++)
+        {
+            pairings.Decline(pairings.Start($"TV {i}", NetworkZone.Local, $"192.168.4.{i + 1}", out _)!.Code);
+        }
+
+        clock.Now += TimeSpan.FromMinutes(59);
+        var held = pairings.Start("Hall TV", NetworkZone.Local, "192.168.4.100", out var heldBack)!;
+        clock.Now += TimeSpan.FromMinutes(2);
+        var again = pairings.Start("Hall TV", NetworkZone.Local, "192.168.4.100", out var later)!;
+        var once = pairings.Start("Hall TV", NetworkZone.Local, "192.168.4.100", out var repeated)!;
+
+        Assert.Null(heldBack);
+        Assert.Equal(held.Code, again.Code);
+        Assert.Equal(held.Code, once.Code);
+        Assert.NotNull(later);
+        Assert.Null(repeated);
     }
 
     [Fact]

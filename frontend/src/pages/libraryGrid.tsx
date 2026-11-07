@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { useNavigationType } from 'react-router'
-import { forgetPage, freshly, getItem, keepPage, keptPage, wasDeleted, type ItemSummary, type Paged } from '../api/client'
+import { forgetPage, freshly, getItem, keepPage, keptPage, wasDeleted, type ItemSummary, type LetterRun, type Paged } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { useWatchedChanges, watchedSince } from '../hooks/watched'
 import { t } from '../i18n'
 
 export const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
+/** A letter jump's page: the most the films, shows and music lists give at once. A list that gives fewer says so (`jumpPageSize`). */
 const JUMP_PAGE = 500
 const JUMP_PARALLEL = 4
 
@@ -16,13 +17,17 @@ export function letterOf(item: ItemSummary) {
 }
 
 /**
- * What going back to a grid restores: the titles it had loaded, where it was scrolled to and the card that was opened
- * (for keyboard focus). The place is the first card on screen and how far it sat from the top (only cards near the
+ * What going back to a grid restores: the titles it had loaded (from `start` in the list, after a letter jump), where
+ * it was scrolled to and the card that was opened (for keyboard focus). The place is the first card on screen and how far it sat from the top (only cards near the
  * screen are laid out, so a pixel offset lands elsewhere once the grid is rebuilt), with scrollY in case that title
  * has gone. Only a grid that finished loading for its own sort and filter is kept.
  */
 interface GridSnapshot {
   items: ItemSummary[]
+  /** Where `items` start in the list. Absent from snapshots kept before letter jumps could start part way. */
+  start?: number
+  /** Where each letter starts, if the server said (null: it can't). */
+  runs?: LetterRun[] | null
   total: number
   itemCount: number | undefined
   scrollY: number
@@ -82,22 +87,40 @@ function append(loaded: ItemSummary[], pages: ItemSummary[][]) {
   return [...loaded, ...pages.flat().filter((i) => !seen.has(i.id))]
 }
 
+/** Puts a page before a grid's titles, skipping those it already has. */
+function prepend(loaded: ItemSummary[], page: ItemSummary[]) {
+  const seen = new Set(loaded.map((i) => i.id))
+  return [...page.filter((i) => !seen.has(i.id)), ...loaded]
+}
+
 /**
  * A library's grid of titles, a page at a time: searching (`query`), Show more, jumping to a letter, refreshing when
  * a scan changes the library, and picking up where it was on Back. `snapshotKey` names the grid (its library, sort
  * and filters, not the search): a grid with the same key is restored on Back. `itemCount` is the library's size now.
+ * `jumpPageSize` is the most titles `load` gives in one page: a letter jump asks for pages that size, side by side, so
+ * asking for more than the server gives would leave the titles between them out.
+ *
+ * With `letters` (where each letter starts in the list, null when the server can't say), a jump far down the list
+ * loads just the page it lands on rather than every title before it: the grid then starts part way (`start`), with
+ * Show earlier above it. Without, or from a server that can't say, a jump loads everything up to its letter.
  */
-export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }: {
+export function useLibraryGrid({ snapshotKey, query, pageSize, jumpPageSize = JUMP_PAGE, itemCount, load, letters }: {
   snapshotKey: string
   query: string
   pageSize: number
+  jumpPageSize?: number
   itemCount: number | undefined
   load: (page: { skip?: number; take: number }, signal?: AbortSignal) => Promise<Paged<ItemSummary>>
+  letters?: (signal?: AbortSignal) => Promise<LetterRun[] | null>
 }) {
   const navigation = useNavigationType()
   const [restored] = useState(() => (navigation === 'POP' ? restorable(keptPage<GridSnapshot>(snapshotKey)) : undefined))
 
   const [items, setItems] = useState<ItemSummary[]>(restored?.items ?? [])
+  // Where `items` start in the list: 0 unless a letter jump went straight to a page further down.
+  const [start, setStart] = useState(restored?.start ?? 0)
+  // Where each letter starts, once a jump has asked (null: the server can't say).
+  const [runs, setRuns] = useState<LetterRun[] | null | undefined>(restored?.runs)
   const [total, setTotal] = useState<number | undefined>(restored?.total)
   // The library's size when the grid loaded, to notice titles a scan adds since.
   const [loadedCount, setLoadedCount] = useState<number | undefined>(restored?.itemCount)
@@ -107,6 +130,8 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
   const [error, setError] = useState<Error>()
   // Show more that failed: the titles already loaded stay, and Show more tries again.
   const [moreError, setMoreError] = useState<Error>()
+  // The same for Show earlier.
+  const [earlierError, setEarlierError] = useState<Error>()
   // A letter whose titles failed to load: the rail (or picker) says so beside it, and tries that letter again.
   const [jumpFailed, setJumpFailed] = useState<string>()
   const [busy, setBusy] = useState(false)
@@ -117,8 +142,10 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
   const generation = useRef(0)
   const grid = useRef<HTMLDivElement>(null)
   const loader = useRef(load)
+  const lettersLoader = useRef(letters)
   useEffect(() => {
     loader.current = load
+    lettersLoader.current = letters
   })
 
   // While every title fits on one page, nothing is lost by starting over, so titles a scan finds just appear (the
@@ -149,11 +176,14 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
       .then((page) => {
         if (run !== generation.current) return
         setItems(page.items)
+        setStart(0)
+        setRuns(undefined)
         setTotal(page.total)
         setLoadedCount(countAtLoad)
         setLoadedFor(loadingFor)
         setError(undefined)
         setMoreError(undefined)
+        setEarlierError(undefined)
         setJumpFailed(undefined)
       })
       .catch((e: unknown) => {
@@ -204,9 +234,9 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
   // that one starts afresh). A layout effect, so the cards are still on screen to measure. The card opened is the one
   // with focus then, else the one clicked to leave (Safari doesn't focus a link you click): only from this visit.
   const opened = useRef<string>(undefined)
-  const latest = useRef({ items, total, itemCount: loadedCount, query, snapshotKey, current: loadedFor === gridKey })
+  const latest = useRef({ items, start, runs, total, itemCount: loadedCount, query, snapshotKey, current: loadedFor === gridKey })
   useEffect(() => {
-    latest.current = { items, total, itemCount: loadedCount, query, snapshotKey, current: loadedFor === gridKey }
+    latest.current = { items, start, runs, total, itemCount: loadedCount, query, snapshotKey, current: loadedFor === gridKey }
   })
   useLayoutEffect(() => {
     const element = grid.current
@@ -225,7 +255,7 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
     setBusy(true)
     setMoreError(undefined)
     try {
-      const page = await loader.current({ skip: items.length, take: pageSize })
+      const page = await loader.current({ skip: start + items.length, take: pageSize })
       if (run !== generation.current) return
       setItems((current) => append(current, [page.items]))
       setTotal(page.total)
@@ -236,29 +266,101 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
     }
   }
 
-  /** Loads everything up to the letter if needed (a few big pages at a time), then scrolls to its first title. */
+  // After Show earlier, the first title it brought, for keyboard focus: the button is disabled while it loads (which
+  // drops focus) and goes once the list is complete, and Tab should carry on among the titles just shown.
+  const earlierShown = useRef<string>(undefined)
+  useLayoutEffect(() => {
+    const id = earlierShown.current
+    if (!id) return
+    earlierShown.current = undefined
+    const link = grid.current?.querySelector<HTMLElement>(`[data-id="${id}"] a:not([tabindex="-1"])`)
+    if (!link) return
+    // The page stays where it was (the new titles fill in under the button, where the viewer is looking), moving only
+    // if that title is off screen.
+    link.focus({ preventScroll: true })
+    link.closest('[data-id]')?.scrollIntoView({ block: 'nearest' })
+  })
+
+  /** The page before the titles loaded, after a letter jump started the grid part way down. */
+  async function loadEarlier() {
+    if (busy || start === 0) return
+    const run = generation.current
+    setBusy(true)
+    setEarlierError(undefined)
+    try {
+      const skip = Math.max(0, start - pageSize)
+      const page = await loader.current({ skip, take: start - skip })
+      if (run !== generation.current) return
+      earlierShown.current = page.items.find((i) => !items.some((loaded) => loaded.id === i.id))?.id
+      setItems((current) => prepend(current, page.items))
+      setStart(skip)
+      setTotal(page.total)
+    } catch (e) {
+      if (run === generation.current) setEarlierError(e instanceof Error ? e : new Error(String(e)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /**
+   * With where the letters start: the letter's first title, loading the page it's on unless it's already here. Close
+   * after (or before) the titles loaded, the grid grows to it; further, the grid starts again from that page.
+   */
+  async function jumpTo(letter: string, at: LetterRun, run: number): Promise<ItemSummary | undefined> {
+    const end = start + items.length
+    if (at.offset >= start && at.offset < end) return items[at.offset - start]
+    setJumping(letter)
+    let next: ItemSummary[]
+    let from: number
+    if (at.offset >= end && at.offset + pageSize - end <= jumpPageSize) {
+      const page = await loader.current({ skip: end, take: at.offset + pageSize - end })
+      if (run !== generation.current) return undefined
+      next = append(items, [page.items])
+      from = start
+      setTotal(page.total)
+    } else if (at.offset < start && start - at.offset <= jumpPageSize) {
+      const page = await loader.current({ skip: at.offset, take: start - at.offset })
+      if (run !== generation.current) return undefined
+      next = prepend(items, page.items)
+      from = at.offset
+      setTotal(page.total)
+    } else {
+      const page = await loader.current({ skip: at.offset, take: pageSize })
+      if (run !== generation.current) return undefined
+      next = page.items
+      from = at.offset
+      setTotal(page.total)
+      setMoreError(undefined)
+      setEarlierError(undefined)
+    }
+    setItems(next)
+    setStart(from)
+    return next[at.offset - from] ?? next[0]
+  }
+
+  /**
+   * Scrolls to the letter's first title. Where the server says where letters start, only the page it's on is loaded;
+   * otherwise everything up to the letter (a few big pages at a time).
+   */
   async function jump(letter: string) {
     if (busy) return
     const run = generation.current
-    // Sorted A–Z, so once the grid ends past the letter there's nothing with it to find.
-    const passed = (loaded: ItemSummary[]) => {
-      const last = loaded.length ? letterOf(loaded[loaded.length - 1]) : '#'
-      return letter !== '#' && last !== '#' && last > letter
-    }
-    let loaded = items
     setBusy(true)
     setJumpFailed(undefined)
+    let target: ItemSummary | undefined
     try {
-      while (!loaded.some((i) => letterOf(i) === letter) && !passed(loaded) && total !== undefined && loaded.length < total) {
+      let known = runs
+      if (known === undefined && lettersLoader.current) {
         setJumping(letter)
-        const skips: number[] = []
-        for (let skip = loaded.length; skip < total && skips.length < JUMP_PARALLEL; skip += JUMP_PAGE) skips.push(skip)
-        const pages = await Promise.all(skips.map((skip) => loader.current({ skip, take: JUMP_PAGE })))
+        known = await lettersLoader.current()
         if (run !== generation.current) return
-        const next = append(loaded, pages.map((p) => p.items))
-        if (next.length === loaded.length) break
-        loaded = next
-        setItems(loaded)
+        setRuns(known)
+      }
+      if (known) {
+        const at = known.find((r) => r.letter === letter)
+        if (at) target = await jumpTo(letter, at, run)
+      } else {
+        target = await loadUpTo(letter, run)
       }
     } catch {
       if (run === generation.current) setJumpFailed(letter)
@@ -266,22 +368,46 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
       setBusy(false)
       setJumping(undefined)
     }
-    const target = loaded.find((i) => letterOf(i) === letter)
-    if (target) {
-      // Straight there rather than smoothly: cards skipped on the way only have estimated heights, and a smooth scroll
-      // aims at where the target was before the cards it passes are laid out. Once there, cards drawn around it can
-      // still nudge it, so settle once more.
-      requestAnimationFrame(() => {
-        const card = grid.current?.querySelector<HTMLElement>(`[data-id="${target.id}"]`)
-        card?.scrollIntoView({ block: 'center' })
-        // The card's keyboard-reachable link (the poster link is hidden from keyboard and screen readers).
-        card?.querySelector<HTMLElement>('a:not([tabindex="-1"])')?.focus({ preventScroll: true })
-        requestAnimationFrame(() => card?.scrollIntoView({ block: 'center' }))
-      })
-    }
+    if (target) scrollToCard(target)
   }
 
-  const empty = useMemo(() => emptyLetters(items, total), [items, total])
+  /** Loads everything up to the letter if needed (a few big pages at a time), and gives its first title. */
+  async function loadUpTo(letter: string, run: number): Promise<ItemSummary | undefined> {
+    // Sorted A–Z, so once the grid ends past the letter there's nothing with it to find.
+    const passed = (loaded: ItemSummary[]) => {
+      const last = loaded.length ? letterOf(loaded[loaded.length - 1]) : '#'
+      return letter !== '#' && last !== '#' && last > letter
+    }
+    let loaded = items
+    while (!loaded.some((i) => letterOf(i) === letter) && !passed(loaded) && total !== undefined && loaded.length < total) {
+      setJumping(letter)
+      const skips: number[] = []
+      for (let skip = loaded.length; skip < total && skips.length < JUMP_PARALLEL; skip += jumpPageSize) skips.push(skip)
+      const pages = await Promise.all(skips.map((skip) => loader.current({ skip, take: jumpPageSize })))
+      if (run !== generation.current) return undefined
+      const next = append(loaded, pages.map((p) => p.items))
+      if (next.length === loaded.length) break
+      loaded = next
+      setItems(loaded)
+    }
+    return loaded.find((i) => letterOf(i) === letter)
+  }
+
+  function scrollToCard(target: ItemSummary) {
+    // Straight there rather than smoothly: cards skipped on the way only have estimated heights, and a smooth scroll
+    // aims at where the target was before the cards it passes are laid out. Once there, cards drawn around it can
+    // still nudge it, so settle once more.
+    requestAnimationFrame(() => {
+      const card = grid.current?.querySelector<HTMLElement>(`[data-id="${target.id}"]`)
+      card?.scrollIntoView({ block: 'center' })
+      // The card's keyboard-reachable link (the poster link is hidden from keyboard and screen readers).
+      card?.querySelector<HTMLElement>('a:not([tabindex="-1"])')?.focus({ preventScroll: true })
+      requestAnimationFrame(() => card?.scrollIntoView({ block: 'center' }))
+    })
+  }
+
+  // Once the server has said where letters start, the letters it didn't list are the empty ones.
+  const empty = useMemo(() => (runs ? new Set(LETTERS.filter((l) => !runs.some((r) => r.letter === l))) : emptyLetters(items, total)), [runs, items, total])
   /** Remembers which card was clicked to leave the grid (Safari doesn't focus a link you click). */
   const onGridClick = (e: MouseEvent) => {
     const card = e.target instanceof Element ? e.target.closest('a')?.closest<HTMLElement>('[data-id]') : undefined
@@ -289,8 +415,8 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
   }
 
   return {
-    items, total, error, moreError, busy, jumping, jumpFailed, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump,
-    restart: () => setVersion((v) => v + 1),
+    items, start, end: start + items.length, total, error, moreError, earlierError, busy, jumping, jumpFailed, grid, empty, small, grown, loadedCount,
+    onGridClick, loadMore, loadEarlier, jump, restart: () => setVersion((v) => v + 1),
   }
 }
 
@@ -313,6 +439,29 @@ export function ShowMore({ loaded, total, pageSize, busy, error, onMore }: {
       )}
       <AsyncButton className="button quiet" onClick={onMore} disabled={busy}>
         {error ? t('Try again') : t('Show {count} more', { count: Math.min(pageSize, total - loaded) })}
+      </AsyncButton>
+    </div>
+  )
+}
+
+/** Show earlier above a grid that starts part way down its list (after a letter jump); after one that failed, why, and Try again. */
+export function ShowEarlier({ start, pageSize, busy, error, onEarlier }: {
+  start: number
+  pageSize: number
+  busy: boolean
+  error: Error | undefined
+  onEarlier: () => void
+}) {
+  if (start <= 0) return null
+  return (
+    <div className="load-more">
+      {error && (
+        <p className="error" role="alert">
+          {t('Earlier titles couldn’t be loaded.')}
+        </p>
+      )}
+      <AsyncButton className="button quiet" onClick={onEarlier} disabled={busy}>
+        {error ? t('Try again') : t('Show {count} earlier', { count: Math.min(pageSize, start) })}
       </AsyncButton>
     </div>
   )

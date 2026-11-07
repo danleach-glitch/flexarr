@@ -156,9 +156,11 @@ else
 fi
 root="$(ssh "$host" 'echo $HOME/.flexarr')"
 dotnet_root="$(ssh "$host" 'echo $HOME/.dotnet')"
-ssh "$host" "mkdir -p '$root/app' '$root/data' '$root/logs' ~/Library/LaunchAgents"
+# ~/.flexarr is this account's alone: the database, its copy below and the logs (PIN hashes, sign-ins, a new server's
+# setup code) are otherwise there for every other account on the Mac to read.
+ssh "$host" "mkdir -p '$root/app' '$root/data' '$root/logs' ~/Library/LaunchAgents && chmod 700 '$root'"
 # One rolling copy of the database as it was before this deploy (the server also keeps its own before a migration).
-ssh "$host" 'if [ -f ~/.flexarr/data/flexarr.db ]; then sqlite3 ~/.flexarr/data/flexarr.db ".backup $HOME/.flexarr/pre-deploy.db"; fi'
+ssh "$host" 'umask 077; if [ -f ~/.flexarr/data/flexarr.db ]; then sqlite3 ~/.flexarr/data/flexarr.db ".backup $HOME/.flexarr/pre-deploy.db" && chmod 600 ~/.flexarr/pre-deploy.db; fi'
 echo "    database copied to ~/.flexarr/pre-deploy.db"
 # Keep earlier builds' web files (their names change every build), so tabs opened before this deploy can still load
 # the pages they ask for; files older than a week are pruned.

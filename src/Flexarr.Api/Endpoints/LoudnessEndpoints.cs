@@ -36,9 +36,11 @@ public static class LoudnessEndpoints
 }
 
 /// <summary>
-/// Reads a track's ReplayGain tags when they're first asked for, which means running ffprobe again (the scanner doesn't
-/// keep tags), and keeps the answer, including "none", on disk under cache/loudness so the next request doesn't touch the
-/// track until the file changes.
+/// A track's ReplayGain. The scanner keeps it with the file from the tags it reads anyway, and that's the answer while
+/// the file is as the scan found it. For a file changed since (retagged, and not scanned yet), or last scanned before
+/// ReplayGain was kept, the tags are read when first asked for, which means running ffprobe again, and the answer,
+/// including "none", is kept on disk under cache/loudness so the next request doesn't touch the track until the file
+/// changes.
 /// </summary>
 public sealed partial class LoudnessCache(IMediaProbe probe, IOptionsMonitor<FlexarrOptions> options, ILogger<LoudnessCache> logger)
 {
@@ -47,6 +49,11 @@ public sealed partial class LoudnessCache(IMediaProbe probe, IOptionsMonitor<Fle
     public async Task<Loudness> GetAsync(MediaFile file, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(file);
+
+        if (Loudness.FromJson(file.Loudness) is { } scanned && File.GetLastWriteTimeUtc(file.Path) == file.ModifiedAt)
+        {
+            return scanned;
+        }
 
         var key = Stamp(file.Path);
         var cachePath = Path.Combine(options.CurrentValue.ResolvedCacheDirectory, "loudness", file.Id.ToString("N") + ".json");

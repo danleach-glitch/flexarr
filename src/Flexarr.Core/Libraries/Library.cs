@@ -95,4 +95,10 @@ public sealed class LibraryFolder
     /// and go, rather than the folder (still empty) being held again.
     /// </summary>
     public DateTime? ReleasedAt { get; set; }
+
+    /// <summary>
+    /// When the last scan of the whole folder finished (held or not). The schedule scans it again 12 hours after,
+    /// so a restart in between doesn't; null until one has.
+    /// </summary>
+    public DateTime? FullScanAt { get; set; }
 }

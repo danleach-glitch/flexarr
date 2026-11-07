@@ -1,11 +1,14 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AudioPlayerContext, type AudioPlayer } from '../hooks/audioPlayerContext'
 import { mockApi, summary } from '../test/mockApi'
 import { SearchPalette } from './SearchPalette'
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.useRealTimers()
+})
 
 const pulp = summary({ id: 'pulp', kind: 'Artist', title: 'Pulp', childCount: 3 })
 const differentClass = summary({ id: 'dc', kind: 'Album', title: 'Different Class', year: 1995, parentId: 'pulp', seriesTitle: 'Pulp', seriesId: 'pulp' })
@@ -40,6 +43,39 @@ describe('SearchPalette', () => {
     expect(within(titles).getByText('3 albums')).toBeInTheDocument()
     expect(within(screen.getByRole('group', { name: 'Albums' })).getByText('Pulp, 1995')).toBeInTheDocument()
     expect(within(screen.getByRole('group', { name: 'Tracks' })).getByText('Pulp, Different Class')).toBeInTheDocument()
+  })
+
+  it('asks the library once for a word typed at an ordinary speed, and for one letter only when typing has stopped there', async () => {
+    vi.useFakeTimers()
+    const searched = vi.fn()
+    mockApi({
+      '/search': (_: RequestInit | undefined, url: URL) => {
+        searched(url.searchParams.get('q'))
+        return { titles: [], episodes: [], people: [], genres: [], albums: [], tracks: [] }
+      },
+    })
+    renderPalette()
+    const field = screen.getByLabelText('Search your library')
+
+    for (const typed of ['p', 'pu', 'pul', 'pulp']) {
+      fireEvent.change(field, { target: { value: typed } })
+      await act(() => vi.advanceTimersByTimeAsync(150))
+    }
+    expect(searched).not.toHaveBeenCalled()
+    // Nothing's been asked yet, so nothing's said about what matches.
+    expect(screen.queryByText(/Nothing in your library matches/)).toBeNull()
+    await act(() => vi.advanceTimersByTimeAsync(150))
+    expect(searched.mock.calls).toEqual([['pulp']])
+    expect(screen.getByText('Nothing in your library matches “pulp”.')).toBeInTheDocument()
+
+    // A single letter is still a search (a film called "X"), once it's plainly all there is.
+    fireEvent.change(field, { target: { value: 'x' } })
+    await act(() => vi.advanceTimersByTimeAsync(300))
+    expect(searched).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText(/Nothing in your library matches/)).toBeNull()
+    await act(() => vi.advanceTimersByTimeAsync(400))
+    expect(searched.mock.calls).toEqual([['pulp'], ['x']])
+    expect(screen.getByText('Nothing in your library matches “x”.')).toBeInTheDocument()
   })
 
   it('lists films, shows, artists and albums that aren’t in the library last, opening their own pages', async () => {

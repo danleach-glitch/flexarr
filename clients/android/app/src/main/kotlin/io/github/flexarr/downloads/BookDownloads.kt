@@ -271,17 +271,23 @@ class BookDownloads(private val context: Context, private val model: AppModel) {
         val client = model.client
         if (client != null && model.downloads.isOnline) {
             lastSent = System.currentTimeMillis()
-            for (book in all.filter { it.profileId == profileId && it.unsent != null }) {
-                val unsent = book.unsent ?: continue
-                try {
-                    client.recordBookProgress(book.itemId, unsent.position, model.deviceName, unsent.playedAtMillis, ended = unsent.finished)
-                    update(book.itemId) { if (it.unsent == unsent) it.copy(unsent = null) else it }
-                    model.watchStateChanged()
-                } catch (e: FlexarrException.Http) {
-                    if (e.status == 404) update(book.itemId) { if (it.unsent == unsent) it.copy(unsent = null) else it }
-                } catch (_: FlexarrException) {
-                    break // out of reach
+            // Once for all the listening sent, not once a book: every screen listening fetches its titles again.
+            var sent = false
+            try {
+                for (book in all.filter { it.profileId == profileId && it.unsent != null }) {
+                    val unsent = book.unsent ?: continue
+                    try {
+                        client.recordBookProgress(book.itemId, unsent.position, model.deviceName, unsent.playedAtMillis, ended = unsent.finished)
+                        update(book.itemId) { if (it.unsent == unsent) it.copy(unsent = null) else it }
+                        sent = true
+                    } catch (e: FlexarrException.Http) {
+                        if (e.status == 404) update(book.itemId) { if (it.unsent == unsent) it.copy(unsent = null) else it }
+                    } catch (_: FlexarrException) {
+                        break // out of reach
+                    }
                 }
+            } finally {
+                if (sent) model.watchStateChanged()
             }
             // Speeds chosen offline: the book's own speed on the server.
             for (book in all.filter { it.profileId == profileId && it.unsentSpeed != null }) {
@@ -324,6 +330,14 @@ class BookDownloads(private val context: Context, private val model: AppModel) {
 
     /** Signing out, or Delete all: what was heard offline is sent first while it can be, then every book goes. */
     fun deleteAll(client: FlexarrClient? = model.client) {
+        // Not read from the phone yet (the app has only just started): once it has been, or they'd come back.
+        if (!loaded) {
+            scope.launch {
+                loading.join()
+                if (loaded) deleteAll(client)
+            }
+            return
+        }
         val pending = all.mapNotNull { book -> book.unsent?.let { book.itemId to it } }
         work.cancelAllWorkByTag(WORK_TAG)
         transferring.clear()

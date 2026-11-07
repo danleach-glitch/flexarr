@@ -8,6 +8,7 @@ import mockwebserver3.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -85,6 +86,73 @@ class DownloadsTest {
         assertEquals(ServerAnswer.Failed("No room"), DownloadRules.answer(waiting, ready.copy(status = DownloadStatus.Failed, error = "No room")))
         // Here already: the server having let its copy go changes nothing.
         assertEquals(ServerAnswer.None, DownloadRules.answer(local(), ready.copy(status = DownloadStatus.Received)))
+    }
+
+    @Test
+    fun `a download is asked after every three seconds at first, whatever the server says`() {
+        for (status in listOf(DownloadStatus.Queued, DownloadStatus.Preparing, DownloadStatus.Unknown)) {
+            assertEquals(List(5) { 3_000L }, (1..5).map { DownloadRules.pollMillis(status, it) })
+        }
+    }
+
+    @Test
+    fun `one being converted is then asked after every ten seconds`() {
+        assertEquals(List(6) { 10_000L }, listOf(6, 7, 8, 20, 400, Int.MAX_VALUE).map { DownloadRules.pollMillis(DownloadStatus.Preparing, it) })
+    }
+
+    @Test
+    fun `one waiting its turn is asked after less and less often, up to every half minute`() {
+        assertEquals(listOf(6_000L, 12_000L, 24_000L, 30_000L, 30_000L), (6..10).map { DownloadRules.pollMillis(DownloadStatus.Queued, it) })
+        // However long it waits (hours, behind a season), never longer, and never back to every three seconds.
+        assertEquals(List(4) { 30_000L }, listOf(11, 100, 100_000, Int.MAX_VALUE).map { DownloadRules.pollMillis(DownloadStatus.Queued, it) })
+        // A status from a newer server waits the same way.
+        assertEquals(30_000L, DownloadRules.pollMillis(DownloadStatus.Unknown, 50))
+    }
+
+    @Test
+    fun `a transfer only waiting its turn ends after a minute or so, and at once when it comes back`() {
+        // The first run: the quick polls and a few more (about a minute), then it ends.
+        assertFalse((1..7).any { DownloadRules.comesBackLater(DownloadStatus.Queued, it, waits = 0) })
+        assertTrue(DownloadRules.comesBackLater(DownloadStatus.Queued, 8, waits = 0))
+        assertTrue(DownloadRules.comesBackLater(DownloadStatus.Queued, 1, waits = 1))
+        // One being converted keeps asking, so its progress moves; so does one a newer server says something else about.
+        for (status in listOf(DownloadStatus.Preparing, DownloadStatus.Ready, DownloadStatus.Unknown)) {
+            assertFalse(DownloadRules.comesBackLater(status, 1_000, waits = 5))
+        }
+    }
+
+    @Test
+    fun `a waiting transfer comes back after one minute, then two, four, and five at most`() {
+        assertEquals(listOf(60_000L, 120_000L, 240_000L, 300_000L, 300_000L, 300_000L), listOf(0, 1, 2, 3, 50, Int.MAX_VALUE).map { DownloadRules.laterMillis(it) })
+    }
+
+    @Test
+    fun `a season waiting an hour to be converted is asked after a tenth as often`() {
+        fun asks(status: DownloadStatus): Int {
+            var waited = 0L
+            var heard = 0
+            while (waited < 3_600_000) waited += DownloadRules.pollMillis(status, ++heard)
+            return heard
+        }
+        // Every three seconds was 1,200 an hour for each episode.
+        assertTrue(asks(DownloadStatus.Queued) <= 130)
+        assertTrue(asks(DownloadStatus.Preparing) <= 370)
+    }
+
+    @Test
+    fun `the server is told a download has come only once the saved list says so`() {
+        val here = local(itemId = "ep1")
+        val coming = local(itemId = "ep2", phase = LocalPhase.Downloading)
+        val longHere = local(itemId = "ep3")
+        val waiting = setOf(here.id, coming.id, "d-deleted")
+
+        // Here in the list on disk, and not yet told: told now. One told before isn't told again.
+        assertEquals(setOf(here.id), DownloadRules.savedArrivals(waiting, listOf(here, coming, longHere)))
+        // The list was taken before it came, or it's been deleted since: it waits for a save that has it.
+        assertEquals(emptySet<String>(), DownloadRules.savedArrivals(waiting, listOf(here.copy(phase = LocalPhase.Downloading, fileName = null), coming)))
+        assertEquals(emptySet<String>(), DownloadRules.savedArrivals(waiting, emptyList()))
+        // Nothing waiting: nothing to tell, however long the list.
+        assertEquals(emptySet<String>(), DownloadRules.savedArrivals(emptySet(), listOf(here, longHere)))
     }
 
     @Test
@@ -176,5 +244,36 @@ class DownloadsTest {
         assertEquals("bytes=1024-", file.header("Range"))
         assertEquals("key", file.header("X-Api-Key"))
         assertNull(client.downloadFileRequest("abc").header("Range"))
+    }
+
+    @Test
+    fun `the offline check takes off only what's hidden or gone, never what's missing`() = runTest {
+        val client = FlexarrClient(server.url("/"), apiKey = "key")
+        server.enqueue(json("""{"allowed":["a"],"hidden":["B"],"missing":["c"],"gone":["d"]}"""))
+        val check = client.checkOffline(listOf("a", "b", "c", "d"))!!
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/v1/offline/check", request.url.encodedPath)
+        assertEquals("""{"itemIds":["a","b","c","d"]}""", request.body!!.utf8())
+        assertEquals(setOf("b", "d"), check.toRemove(listOf("a", "b", "c", "d", "e")))
+        // Named in a list that keeps it as well: kept.
+        assertEquals(emptySet<String>(), OfflineCheck(allowed = listOf("a"), hidden = listOf("a"), missing = listOf("b"), gone = listOf("b")).toRemove(listOf("a", "b")))
+    }
+
+    @Test
+    fun `a server before the offline check takes nothing off`() = runTest {
+        val client = FlexarrClient(server.url("/"), apiKey = "key")
+        server.enqueue(MockResponse.Builder().code(404).build())
+        assertNull(client.checkOffline(listOf("a")))
+        // Or the web app's page, as an unknown path falls through to it.
+        server.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/html").body("<html></html>").build())
+        assertNull(client.checkOffline(listOf("a")))
+        // An answer without the lists: nothing to take off.
+        server.enqueue(json("{}"))
+        assertEquals(emptySet<String>(), client.checkOffline(listOf("a"))!!.toRemove(listOf("a")))
+        // Nothing kept: nothing asked.
+        assertEquals(3, server.requestCount)
+        assertEquals(emptySet<String>(), client.checkOffline(emptyList())!!.toRemove(emptyList()))
+        assertEquals(3, server.requestCount)
     }
 }

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -56,6 +57,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
@@ -76,6 +79,8 @@ import io.github.flexarr.core.alphabetLetter
 import io.github.flexarr.core.alphabetLetters
 import io.github.flexarr.core.emptyAlphabetLetters
 import io.github.flexarr.ui.components.Load
+import io.github.flexarr.ui.library.fetchNear
+import io.github.flexarr.ui.library.updatedFrom
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.rememberLoader
@@ -103,8 +108,7 @@ fun TvLibraryTab(model: AppModel, library: Library, takeFocus: Boolean, onFocusT
     val saved = TvLibraryOpening.saved(LocalContext.current)
     // Genres' tiles have pictures from servers of 0.54 on; before that they're plain, so those libraries open on Browse
     // and offer no Genres, as the phone does. Taken as able until the server says.
-    val client = model.client
-    val tiles = rememberLoader(model.credentials) { client?.let { ServerVersion.atLeast(it.systemStatus().version, 0, 54) } ?: true }
+    val tiles = rememberLoader(model.credentials) { model.serverVersion()?.let { ServerVersion.atLeast(it, 0, 54) } ?: true }
     val hasGenres = TvLibraryOpening.hasGenres(library) && (tiles.state as? Load.Loaded)?.value != false
     var picked by rememberSaveable(library.id, saved) { mutableStateOf<TvLibraryOpening?>(null) }
     // Just switched: the view taking over gives its switch focus, as the word pressed has gone.
@@ -351,12 +355,63 @@ fun TvLibraryGrid(
         else -> client.libraryItems(library.id, sort, genre, skip = skip, take = take)
     }
     val showsLetters = sort == LibrarySort.Title && total > PAGE_SIZE
+    // What's loaded, kept while this page is in the back stack (see [TvGridMemory]).
+    val memory = viewModel(key = "tv-grid/${library.id}/$content/$initialGenre") { TvGridMemory() }
+    // The watch state the titles shown are from.
+    var seenWatchState by remember { mutableIntStateOf(model.watchStateVersion) }
+    val artistsVersion = if (content == TvGridContent.Artists) model.musicArtistsVersion else 0
+    // Another profile chosen over the grid (Who's watching? from the sidebar) sees its own list, not just new badges: a
+    // child's leaves out what it may not watch.
+    val profileId = model.currentProfile?.id
+    // Once loaded (so a grid made again, back from a title, finds what was kept before it writes over it).
+    SideEffect {
+        if (!loadedOnce) return@SideEffect
+        memory.key = listOf(sort, genre, artistsVersion, profileId)
+        memory.items = items
+        memory.total = total
+        memory.watchState = seenWatchState
+    }
 
-    // The first page, again whenever the sort or genre changes, and when what's watched may have changed (the list is
-    // fetched again up to as far as it had got, so the place in it stays).
-    // An artist leaving the library from here (a placeholder unfollowed) reloads Artists, so they don't stay listed.
-    LaunchedEffect(sort, genre, model.watchStateVersion, attempt, if (content == TvGridContent.Artists) model.musicArtistsVersion else 0) {
+    /**
+     * After something is watched: the titles near [around] (or the screen) and the one just played, fetched again;
+     * the rest stay as they were until the grid is next opened, rather than every title loaded so far coming again.
+     */
+    suspend fun refreshNear(around: Int? = null) {
+        val version = model.watchStateVersion
+        val current = generation
+        val visible = grid.layoutInfo.visibleItemsInfo
+        // The header is the grid's first item.
+        val first = around ?: ((visible.firstOrNull()?.index ?: 1) - 1).coerceAtLeast(0)
+        val last = around ?: ((visible.lastOrNull()?.index ?: 1) - 1).coerceAtLeast(0)
+        val fresh = fetchNear(items, first, last, model.lastPlayed + listOfNotNull(opened)) { skip, take -> page(skip, take) } ?: return
+        if (current != generation) return
+        items = items.updatedFrom(fresh)
+        seenWatchState = version
+    }
+
+    // The first page, again whenever the sort or genre changes (the list is fetched again up to as far as it had got,
+    // so the place in it stays). Back from a title opened here, the titles kept are shown again instead.
+    // An artist leaving the library from here (a placeholder unfollowed) reloads Artists, so they don't stay listed, and
+    // another profile chosen reloads it all as theirs.
+    LaunchedEffect(sort, genre, attempt, artistsVersion, profileId) {
         val current = ++generation
+        val kept = memory.items
+        if (!loadedOnce && loadedCount > 0 && kept.isNotEmpty() && memory.key == listOf(sort, genre, artistsVersion, profileId)) {
+            items = kept
+            total = memory.total
+            seenWatchState = memory.watchState
+            error = null
+            val index = opened?.let { id -> kept.indexOfFirst { it.id == id } } ?: -1
+            if (index >= 0) {
+                // The header is the grid's first item.
+                grid.scrollToItem(index + 1)
+                focusTarget = opened
+            }
+            loadedOnce = true
+            if (seenWatchState != model.watchStateVersion) refreshNear(around = index.takeIf { it >= 0 })
+            return@LaunchedEffect
+        }
+        val version = model.watchStateVersion
         loading = true
         try {
             // As far as it had got, however far that is, a page at a time: past MAX_PAGE_SIZE, one request would cut the
@@ -375,6 +430,7 @@ fun TvLibraryGrid(
             if (current != generation) return@LaunchedEffect
             items = fetched
             total = first.total
+            seenWatchState = version
             error = null
             if (!loadedOnce) opened?.let { id ->
                 val index = fetched.indexOfFirst { it.id == id }
@@ -394,6 +450,10 @@ fun TvLibraryGrid(
         }
     }
     LaunchedEffect(items.size) { if (items.isNotEmpty()) loadedCount = items.size }
+    // Something watched while the grid shows (the player closing over it, an episode ending): what's near the screen.
+    LaunchedEffect(model.watchStateVersion) {
+        if (loadedOnce && items.isNotEmpty() && model.watchStateVersion != seenWatchState) refreshNear()
+    }
     // More as the grid nears the end of what's loaded.
     LaunchedEffect(grid, sort, genre) {
         snapshotFlow { grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.collect { last ->
@@ -665,6 +725,17 @@ fun <T> TvChoiceMenu(title: String, choices: List<Pair<String, T>>, selected: T,
         delay(50)
         runCatching { current.requestFocus() }
     }
+}
+
+/**
+ * A grid's titles, kept while its page is in the back stack: back from a title opened there, the grid shows them again
+ * (fetching only those near it if something was watched meanwhile) rather than every title loaded so far.
+ */
+internal class TvGridMemory : ViewModel() {
+    var key: List<Any?>? = null
+    var items: List<ItemSummary> = emptyList()
+    var total = 0
+    var watchState = 0
 }
 
 private const val PAGE_SIZE = 60

@@ -63,4 +63,13 @@ class TvLogicTest {
         assertFalse(isSwitch("a", "a"))
         assertTrue(isSwitch("a", "b"))
     }
+
+    @Test
+    fun settingsIsNotOfferedToAChild() {
+        assertTrue(tvShowsSettings(isKids = false, kidsLock = false, profileCount = 3))
+        assertFalse(tvShowsSettings(isKids = true, kidsLock = false, profileCount = 3))
+        assertFalse(tvShowsSettings(isKids = true, kidsLock = true, profileCount = 1))
+        // The only profile there is: Settings is the TV's one way to sign out or change server.
+        assertTrue(tvShowsSettings(isKids = true, kidsLock = false, profileCount = 1))
+    }
 }

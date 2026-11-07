@@ -68,6 +68,33 @@ test('a code already showing on another TV is refused', async () => {
   assert.equal((await call({ method: 'POST', body: { code: 'JKMNPQRS', publicKey: publicKey(), secret } })).status, 409);
 });
 
+// The same vectors as the server's RemoteGuestTests and docs/remote-guests.md.
+const VECTORS = [
+  ['BAabxf2q9hMu/dxG+nGp5nYWsRDth260mBqx6U/8TU9miOPz86o/f4xuMSzrZ/YVxS1EHcdBY/JxFPKujcWATRA=', 'P5GSPMQP'],
+  ['BJeO6XNfhIDBbIdQxtPpYlj3Cjk7nlUzjg+xJFmk20ChvzfI1jdWs2T5CgsWu1MmBW4iXHxrMfK9/MTDb9Nb1mM=', 'VFAZC453'],
+  ['BBikfwYmLGipShyfrqxMWA/kv+NWBDrgrZotgMESONlNQfZ0um1pjfF8J+1iarUDMOzmd5+F9czYFE5xxV+pIvo=', '7EAR565J'],
+];
+
+test('a TV key makes its code, ending in a check character', () => {
+  for (const [key, code] of VECTORS) {
+    assert.equal(pair.codeFor(key), code);
+    assert.equal(pair.isKeyCode(code), true);
+  }
+  assert.equal(pair.isKeyCode('ABCDEFGH'), false);
+});
+
+test('a code made from a key is kept only with that key; an older TV\'s random code with any', async () => {
+  pair._memory.clear();
+  const [[key, code], [otherKey]] = VECTORS;
+  // CodeTaken, so an older TV whose random code ends in its check character by chance makes another.
+  const refused = await call({ method: 'POST', body: { code, publicKey: otherKey, secret } });
+  assert.equal(refused.status, 409);
+  assert.equal(refused.body.reason, 'CodeTaken');
+  assert.equal(pair._memory.has(`pair:${code}`), false);
+  assert.equal((await call({ method: 'POST', body: { code, publicKey: key, secret } })).status, 201);
+  assert.equal((await call({ method: 'POST', body: { code: 'ABCDEFGH', publicKey: otherKey, secret } })).status, 201);
+});
+
 test('codes last ten minutes', async () => {
   pair._memory.clear();
   const now = Date.now();
@@ -105,6 +132,213 @@ test('refuses anything but JSON posts, so a web page can\'t post from visitors\'
 
 test('an address gets 60 requests a minute', async () => {
   pair._hits.clear();
-  for (let i = 0; i < 60; i++) await call({ url: '/api/pair?code=ABCDEFGH', ip: '198.51.100.7' });
+  pair._memory.clear();
+  await call({ method: 'POST', body: { code: 'ABCDEFGH', publicKey: publicKey(), secret } });
+  for (let i = 0; i < 60; i++) assert.equal((await call({ url: '/api/pair?code=ABCDEFGH', ip: '198.51.100.7' })).status, 200);
   assert.equal((await call({ url: '/api/pair?code=ABCDEFGH', ip: '198.51.100.7' })).status, 429);
+});
+
+// --- Budgets: what a flood does all day and a household hardly ever.
+
+function fresh() {
+  pair._memory.clear();
+  pair._hits.clear();
+  pair._spent.clear();
+  pair._asking.clear();
+}
+
+/** How many of each status came back, as { 404: 20, 429: 20 }. */
+function statuses(answers) {
+  const counts = {};
+  for (const { status } of answers) counts[status] = (counts[status] || 0) + 1;
+  return counts;
+}
+
+/** An eight-character code nobody is showing, different for each n: an older TV's kind, so any key may take it. */
+function unknownCode(n) {
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const first = `ZZZZZ${alphabet[Math.floor(n / alphabet.length)]}${alphabet[n % alphabet.length]}`;
+  return [...alphabet].map((last) => first + last).find((code) => !pair.isKeyCode(code));
+}
+
+/** Runs work against a stand-in for the Upstash store's /pipeline: just the commands pair.js sends. */
+async function withStore(work, { failing = () => false } = {}) {
+  const data = new Map();
+  const sent = [];
+  const realFetch = global.fetch;
+  process.env.KV_REST_API_URL = 'https://store.example';
+  process.env.KV_REST_API_TOKEN = 'token';
+  global.fetch = async (url, options) => {
+    const commands = JSON.parse(options.body);
+    if (failing(commands)) throw new Error('store down');
+    sent.push(...commands);
+    const results = commands.map(([name, key, ...rest]) => {
+      if (name === 'GET') return data.has(key) ? data.get(key) : null;
+      if (name === 'SET') {
+        if (data.has(key)) return null;
+        data.set(key, rest[0]);
+        return 'OK';
+      }
+      if (name === 'INCR') {
+        data.set(key, (data.get(key) || 0) + 1);
+        return data.get(key);
+      }
+      if (name === 'EXPIRE') return 1;
+      if (name === 'DEL') return [key, ...rest].filter((k) => data.delete(k)).length;
+      throw new Error(`unexpected command ${name}`);
+    });
+    return { ok: true, status: 200, json: async () => results.map((result) => ({ result })) };
+  };
+  try {
+    await work({ sent, data });
+  } finally {
+    global.fetch = realFetch;
+    delete process.env.KV_REST_API_URL;
+    delete process.env.KV_REST_API_TOKEN;
+  }
+}
+
+test('an address that keeps asking about codes nobody is showing is refused, and others are not', async () => {
+  fresh();
+  const ip = '198.51.100.20';
+  for (let i = 0; i < 20; i++) assert.equal((await call({ url: `/api/pair?code=${unknownCode(i)}`, ip })).status, 404);
+  assert.equal((await call({ url: `/api/pair?code=${unknownCode(20)}`, ip })).status, 429);
+  assert.equal((await call({ method: 'POST', url: `/api/pair?code=${unknownCode(21)}&action=invite`, body: {}, ip })).status, 429);
+  assert.equal((await call({ url: `/api/pair?code=${unknownCode(22)}`, ip: '198.51.100.21' })).status, 404);
+
+  // Ten minutes on, it may ask again.
+  for (const entry of pair._spent.values()) entry.window -= 1;
+  assert.equal((await call({ url: `/api/pair?code=${unknownCode(23)}`, ip })).status, 404);
+});
+
+test('a TV\'s polls of its own code, and a server\'s lookups of it, use none of that budget', async () => {
+  fresh();
+  const ip = '198.51.100.22';
+  assert.equal((await call({ method: 'POST', body: { code: 'ABCDEFGH', publicKey: publicKey(), secret }, ip })).status, 201);
+  for (let i = 0; i < 25; i++) assert.equal((await call({ url: `/api/pair?code=ABCDEFGH&secret=${secret}`, ip })).status, 204);
+  for (let i = 0; i < 25; i++) assert.equal((await call({ url: '/api/pair?code=ABCDEFGH', ip })).status, 200);
+  assert.equal(pair._spent.has(`unknown:${ip}`), false);
+});
+
+test('an address registers only so many codes in ten minutes', async () => {
+  fresh();
+  const ip = '198.51.100.23';
+  for (let i = 0; i < 20; i++) {
+    assert.equal((await call({ method: 'POST', body: { code: unknownCode(i), publicKey: publicKey(), secret }, ip })).status, 201);
+  }
+  assert.equal((await call({ method: 'POST', body: { code: unknownCode(20), publicKey: publicKey(), secret }, ip })).status, 429);
+  assert.equal(pair._memory.has(`pair:${unknownCode(20)}`), false);
+  // Its codes still work, and so does another address.
+  assert.equal((await call({ url: `/api/pair?code=${unknownCode(0)}&secret=${secret}`, ip })).status, 204);
+  assert.equal((await call({ method: 'POST', body: { code: unknownCode(21), publicKey: publicKey(), secret }, ip: '198.51.100.24' })).status, 201);
+});
+
+test('with a store, the budget is one across instances and a refused address costs the store nothing', () =>
+  withStore(async ({ sent }) => {
+    fresh();
+    const ip = '198.51.100.25';
+    for (let i = 0; i < 20; i++) assert.equal((await call({ url: `/api/pair?code=${unknownCode(i)}`, ip })).status, 404);
+
+    // Another instance: nothing in its memory, but the store has the count.
+    pair._spent.clear();
+    assert.equal((await call({ url: `/api/pair?code=${unknownCode(20)}`, ip })).status, 404);
+    sent.length = 0;
+    assert.equal((await call({ url: `/api/pair?code=${unknownCode(21)}`, ip })).status, 429);
+    assert.equal((await call({ url: `/api/pair?code=${unknownCode(22)}&secret=${secret}`, ip })).status, 429);
+    assert.deepEqual(sent, []);
+
+    // Registering is counted the same way, before the code is kept.
+    for (let i = 0; i < 20; i++) {
+      assert.equal((await call({ method: 'POST', body: { code: unknownCode(100 + i), publicKey: publicKey(), secret }, ip })).status, 201);
+    }
+    pair._spent.clear();
+    sent.length = 0;
+    assert.equal((await call({ method: 'POST', body: { code: unknownCode(120), publicKey: publicKey(), secret }, ip })).status, 429);
+    assert.equal(sent.some(([name]) => name === 'SET'), false);
+  }));
+
+test('with a store, a TV\'s ordinary polls only read: nothing is counted for them', () =>
+  withStore(async ({ sent }) => {
+    fresh();
+    const ip = '198.51.100.26';
+    assert.equal((await call({ method: 'POST', body: { code: 'ABCDEFGH', publicKey: publicKey(), secret }, ip })).status, 201);
+    sent.length = 0;
+    for (let i = 0; i < 5; i++) assert.equal((await call({ url: `/api/pair?code=ABCDEFGH&secret=${secret}`, ip })).status, 204);
+    assert.equal((await call({ url: '/api/pair?code=ABCDEFGH', ip })).status, 200);
+    assert.deepEqual([...new Set(sent.map(([name]) => name))], ['GET']);
+    assert.equal(sent.length, 11);
+  }));
+
+test('a store that can\'t count falls back to this instance\'s count, and the answer is the same', () =>
+  withStore(async () => {
+    fresh();
+    const ip = '198.51.100.27';
+    for (let i = 0; i < 20; i++) assert.equal((await call({ url: `/api/pair?code=${unknownCode(i)}`, ip })).status, 404);
+    assert.equal((await call({ url: `/api/pair?code=${unknownCode(20)}`, ip })).status, 429);
+  }, { failing: (commands) => commands.some(([name]) => name === 'INCR') }));
+
+// --- The same budgets when the requests arrive together, not one after another.
+
+test('unknown codes asked about all at once get the same budget as one after another', async () => {
+  fresh();
+  const ip = '198.51.100.28';
+  const answers = await Promise.all(Array.from({ length: 40 }, (_, i) => call({ url: `/api/pair?code=${unknownCode(i)}`, ip })));
+  assert.deepEqual(statuses(answers), { 404: 20, 429: 20 });
+  assert.equal(pair._asking.size, 0);
+  assert.equal((await call({ url: `/api/pair?code=${unknownCode(40)}`, ip })).status, 429);
+});
+
+test('with a store, a burst of unknown codes costs it the budget\'s worth of lookups and no more', () =>
+  withStore(async ({ sent }) => {
+    fresh();
+    const ip = '198.51.100.29';
+    const answers = await Promise.all(Array.from({ length: 40 }, (_, i) => call({ url: `/api/pair?code=${unknownCode(i)}`, ip })));
+    assert.deepEqual(statuses(answers), { 404: 20, 429: 20 });
+    assert.equal(sent.filter(([name]) => name === 'GET').length, 20);
+    assert.equal(sent.filter(([name]) => name === 'INCR').length, 20);
+
+    // New codes all at once: twenty are kept, and the rest never reach the store.
+    sent.length = 0;
+    const registered = await Promise.all(Array.from({ length: 40 }, (_, i) =>
+      call({ method: 'POST', body: { code: unknownCode(100 + i), publicKey: publicKey(), secret }, ip })));
+    assert.deepEqual(statuses(registered), { 201: 20, 429: 20 });
+    assert.equal(sent.filter(([name]) => name === 'SET').length, 20);
+    assert.equal(sent.filter(([name]) => name === 'INCR').length, 20);
+  }));
+
+test('a store that can\'t count still holds a burst to the budget', () =>
+  withStore(async () => {
+    fresh();
+    const ip = '198.51.100.30';
+    const answers = await Promise.all(Array.from({ length: 40 }, (_, i) => call({ url: `/api/pair?code=${unknownCode(i)}`, ip })));
+    assert.deepEqual(statuses(answers), { 404: 20, 429: 20 });
+    const registered = await Promise.all(Array.from({ length: 40 }, (_, i) =>
+      call({ method: 'POST', body: { code: unknownCode(100 + i), publicKey: publicKey(), secret }, ip })));
+    assert.deepEqual(statuses(registered), { 201: 20, 429: 20 });
+  }, { failing: (commands) => commands.some(([name]) => name === 'INCR') }));
+
+test('lookups of a real code that arrive together are all answered, and none is left counted', async () => {
+  fresh();
+  const ip = '198.51.100.31';
+  assert.equal((await call({ method: 'POST', body: { code: 'ABCDEFGH', publicKey: publicKey(), secret }, ip })).status, 201);
+  const answers = await Promise.all([
+    ...Array.from({ length: 8 }, () => call({ url: `/api/pair?code=ABCDEFGH&secret=${secret}`, ip })),
+    ...Array.from({ length: 8 }, () => call({ url: '/api/pair?code=ABCDEFGH', ip })),
+  ]);
+  assert.deepEqual(statuses(answers), { 200: 8, 204: 8 });
+  assert.equal(pair._asking.size, 0);
+  assert.equal(pair._spent.has(`unknown:${ip}`), false);
+});
+
+test('a lookup the store fails is not counted and holds nothing back afterwards', async () => {
+  fresh();
+  const ip = '198.51.100.32';
+  await withStore(async () => {
+    const answers = await Promise.all(Array.from({ length: 25 }, (_, i) => call({ url: `/api/pair?code=${unknownCode(i)}`, ip })));
+    // Twenty are asked of the store, which is down; the rest wait their turn behind them.
+    assert.deepEqual(statuses(answers), { 503: 20, 429: 5 });
+  }, { failing: () => true });
+  assert.equal(pair._asking.size, 0);
+  assert.equal(pair._spent.has(`unknown:${ip}`), false);
+  assert.equal((await call({ url: `/api/pair?code=${unknownCode(30)}`, ip })).status, 404);
 });

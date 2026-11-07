@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Flexarr.Api.Authentication;
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Endpoints;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
@@ -18,6 +19,9 @@ public sealed record AdminUnlockRequest(string? Pin, string? ApiKey = null);
 /// <param name="ApiKey">When there's an admin PIN already and it's been forgotten.</param>
 /// <param name="CurrentPin">When there's an admin PIN already: changing it knowing the one it has now. Absent from servers before 0.57.</param>
 public sealed record AdminPinRequest(string Pin, string? ApiKey = null, string? CurrentPin = null);
+
+/// <summary>The Mac app's Reset Admin PIN: a random nonce (base64, at least 16 bytes) and the sealed PIN (see <see cref="Endpoints.MacAppHost.OpenPinReset"/>).</summary>
+public sealed record MacAppPinResetRequest(string? Nonce, string? Sealed);
 
 /// <param name="UnlockedUntil">When managing the server takes the PIN again; null for the API key, which always may.</param>
 /// <param name="Token">After a new PIN, the main profile's new <c>X-Flexarr-Profile</c> token (the old one stops working).</param>
@@ -85,8 +89,8 @@ public static class AdminEndpoints
             return Results.NoContent();
         });
 
-        // The first PIN, on a server set up before setup asked for one, may be set by the main profile on a browser or
-        // device the owner signed in. Once there is one, a new one takes the one it has now, or the API key: that's the
+        // The first PIN, on a server set up before setup asked for one, may be set by the main profile on a browser the
+        // owner signed in with the key. Once there is one, a new one takes the one it has now, or the API key: that's the
         // way back from a forgotten PIN.
         group.MapPost("/pin", async (AdminPinRequest request, HttpContext http, FlexarrDbContext db, CurrentProfile current, SignIns signIns, AdminUnlocks unlocks,
             PinGuard guard, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
@@ -112,9 +116,11 @@ public static class AdminEndpoints
                 withKey = true;
             }
 
-            // A first PIN takes a browser or device the owner signed in: a Tailscale identity alone can be posed as by
-            // another program on this machine, and the home-network rule lets in anyone at home.
-            var first = main.AdminPinHash is null && current.Id == PlaybackState.DefaultUser && current.SignInId is not null && current.IsTrusted;
+            // A first PIN takes a browser the owner signed in with the key: a Tailscale identity alone can be posed as by
+            // another program on this machine, and the home-network rule lets in anyone at home. Not a paired device (a
+            // child's tablet, a TV): it may choose the main profile without a PIN, so it would take the server over.
+            var first = main.AdminPinHash is null && current.Id == PlaybackState.DefaultUser && current.IsTrusted
+                && signIns.ById(current.SignInId) is { Kind: SignInKind.Browser, PinVerified: false, Guest: false };
             if (!withKey && !first && main.AdminPinHash is not null && !string.IsNullOrEmpty(request.CurrentPin))
             {
                 // Knowing the PIN it has now: the guard counts this like unlocking, so it's no back door for guessing.
@@ -142,7 +148,7 @@ public static class AdminEndpoints
             if (!withKey && !first)
             {
                 return main.AdminPinHash is null
-                    ? Problems.Of("Choose an admin PIN from a browser or device you signed in, or with the API key.", status: 403)
+                    ? Problems.Of("Choose an admin PIN from a browser you signed in, or with the API key.", status: 403)
                     : Problems.Of("Enter the current admin PIN, or the server’s API key (it’s in config.json in the server’s data folder).", status: 403);
             }
 
@@ -165,6 +171,46 @@ public static class AdminEndpoints
             signIns.ChooseProfile(signInId, null);
             return Results.Ok(new AdminUnlockDto(unlocks.Unlock(signInId), current.TokenFor(main)));
         });
+
+        // The Mac app's Reset Admin PIN (clients/macos AdminPinReset.swift): the PIN sealed with the app's launch token
+        // (Flexarr:MacApp:Token; see MacAppHost.OpenPinReset), so the app never sends the API key, or the PIN, to
+        // whatever else might answer on the port. Only from this Mac, and only in the Mac app; 204 when it's set. The
+        // app's earlier way, POST /pin with the API key, still works.
+        api.MapPost("/admin/pin/mac-app", async (MacAppPinResetRequest request, HttpContext http, FlexarrDbContext db, SignIns signIns, AdminUnlocks unlocks,
+            MacAppHost mac, TimeProvider clock, CancellationToken ct) =>
+        {
+            if (!mac.IsAvailable || http.Connection.RemoteIpAddress is not { } peer || !System.Net.IPAddress.IsLoopback(peer))
+            {
+                return Results.NotFound();
+            }
+
+            if (mac.OpenPinReset(request.Nonce, request.Sealed, clock.GetUtcNow()) is not { } pin)
+            {
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+            }
+
+            if (!IsPin(pin))
+            {
+                return Problems.Field("A PIN is 4 to 8 digits.", field: "pin");
+            }
+
+            if (await db.Profiles.FindAsync([PlaybackState.DefaultUser], ct) is not { } main)
+            {
+                return Results.NotFound();
+            }
+
+            var replacing = main.AdminPinHash is not null;
+            main.SetAdminPin(pin);
+            await db.SaveChangesAsync(ct);
+            if (replacing)
+            {
+                // Whoever knew the old one starts again, as with the API key.
+                signIns.RevokePinVerifiedExcept(null);
+                unlocks.LockAllExcept(null);
+            }
+
+            return Results.NoContent();
+        }).WithTags("Profiles").AllowAnonymous();
 
         return api;
     }

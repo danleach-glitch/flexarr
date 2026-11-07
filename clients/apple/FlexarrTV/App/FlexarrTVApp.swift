@@ -16,6 +16,8 @@ struct FlexarrTVApp: App {
         ThisDevice.identify()
         // Artwork is fetched constantly while browsing; give it a generous disk cache.
         URLCache.shared = URLCache(memoryCapacity: 64 * 1024 * 1024, diskCapacity: 512 * 1024 * 1024)
+        // An earlier version kept the server's answers there too, with the sign-in they were asked with: gone, once.
+        Task.detached(priority: .utility) { FlexarrClient.forgetAnswersKeptBefore() }
         let model = AppModel()
         _model = State(initialValue: model)
         // The guide over the live picture is the Apple TV's (it's the grid from the Live TV screen).
@@ -44,6 +46,25 @@ struct FlexarrTVApp: App {
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
+
+    /// Whose titles the Top Shelf would show: the profile chosen last, or the main one with nobody chosen (the server
+    /// acts as it).
+    private var watching: Profile? { model.currentProfile ?? model.profiles.first(where: \.isMain) }
+
+    /// What the Top Shelf's sign-in follows: the sign-in itself, and whether its profile's titles may be shown.
+    private struct TopShelfKey: Equatable {
+        let credentials: ServerCredentials?
+        let asksWhoIsWatching: Bool
+        let profilesLoaded: Bool
+        let severalProfiles: Bool
+        let watching: String?
+        let behindPin: Bool?
+    }
+
+    private var topShelf: TopShelfKey {
+        TopShelfKey(credentials: model.credentials, asksWhoIsWatching: model.asksWhoIsWatchingHere, profilesLoaded: model.profilesLoaded,
+                    severalProfiles: model.profiles.count > 1, watching: watching?.id, behindPin: watching?.needsPinToChoose)
+    }
 
     var body: some View {
         ZStack {
@@ -106,9 +127,16 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.35), value: model.isOffline)
         .task(id: model.credentials?.address) { await model.loadProfiles() }
         // Top Shelf follows whoever's signed in here; after watching, its Continue Watching is refreshed.
-        .task(id: model.credentials) {
-            // A family guest's Top Shelf stays empty: the extension runs apart from the app, so it can't reach the tunnel.
-            SharedSignIn.save(model.credentials.flatMap { $0.isGuest ? nil : SharedSignIn.Value(address: $0.address, apiKey: $0.apiKey, profileToken: $0.profileToken) })
+        .task(id: topShelf) {
+            // An Apple TV that asks who's watching (or where nobody has been chosen yet) first hears who the profiles
+            // are and who watched last: until then the Top Shelf keeps what it had.
+            if let credentials = model.credentials, topShelf.asksWhoIsWatching || credentials.profileToken == nil,
+               !model.profilesLoaded { return }
+            // A family guest's Top Shelf stays empty (the extension runs apart from the app, so it can't reach the
+            // tunnel), and so does a profile's with a PIN while "Who's watching?" stands before it (an Apple TV that
+            // asks each time, or nobody chosen yet): the Home screen would show, and play, what the PIN keeps for its owner.
+            SharedSignIn.save(SharedSignIn.forTopShelf(model.credentials, asksWhoIsWatching: topShelf.asksWhoIsWatching, watching: watching,
+                                                       severalProfiles: topShelf.severalProfiles))
             TVTopShelfContentProvider.topShelfContentDidChange()
         }
         .onChange(of: model.refreshToken) { TVTopShelfContentProvider.topShelfContentDidChange() }

@@ -19,14 +19,25 @@ public sealed class SearchIndex(TimeProvider clock) : IDisposable
 
     /// <param name="Version">The <see cref="CatalogVersion"/> when <paramref name="Stamp"/> was last confirmed.</param>
     /// <param name="CheckedAt">When <paramref name="Stamp"/> was last confirmed, as a <see cref="TimeProvider"/> timestamp.</param>
+    /// <param name="BuiltAt">When it was built, as a <see cref="TimeProvider"/> timestamp.</param>
+    /// <param name="BuildTook">How long building it took.</param>
     private sealed record Snapshot((int Items, DateTime? Added, DateTime? Updated, int People, int Genres) Stamp, IReadOnlyList<Entry> Entries,
-        long Version, long CheckedAt);
+        long Version, long CheckedAt, long BuiltAt, TimeSpan BuildTook);
 
     /// <summary>
     /// How long a confirmed stamp is trusted while no save has touched the catalog. Saves are seen straight away;
     /// this only bounds how late bulk updates and deletes (which skip the change tracker) are noticed.
     /// </summary>
     internal static readonly TimeSpan Fresh = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// A build at least this slow (a big catalog) isn't repeated until <see cref="RebuildSpacing"/> times as long has
+    /// passed: while a metadata refresh moves the stamp with every title it saves, searches meanwhile use the names as
+    /// they were (what the database finds exactly is found regardless) rather than each rebuilding the whole index.
+    /// </summary>
+    internal static readonly TimeSpan SlowBuild = TimeSpan.FromMilliseconds(100);
+
+    internal const int RebuildSpacing = 10;
 
     private readonly SemaphoreSlim gate = new(1, 1);
     private Snapshot? snapshot;
@@ -108,7 +119,15 @@ public sealed class SearchIndex(TimeProvider clock) : IDisposable
                 return snapshot = built with { Version = version, CheckedAt = checkedAt };
             }
 
-            snapshot = new Snapshot(stamp, await BuildAsync(db, ct), version, checkedAt);
+            // Its stamp is left as it was, so the next search looks again.
+            if (snapshot is { } recent && recent.BuildTook >= SlowBuild && clock.GetElapsedTime(recent.BuiltAt) < recent.BuildTook * RebuildSpacing)
+            {
+                return recent;
+            }
+
+            var started = clock.GetTimestamp();
+            var entries = await BuildAsync(db, ct);
+            snapshot = new Snapshot(stamp, entries, version, checkedAt, started, clock.GetElapsedTime(started));
             return snapshot;
         }
         finally

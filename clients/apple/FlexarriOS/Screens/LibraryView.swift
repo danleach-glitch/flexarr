@@ -36,6 +36,8 @@ struct LibraryView: View {
     @State private var loadedToken: Int?
     @State private var loadedAt: Date?
     @State private var isVisible = false
+    /// Where the grid was last looking, for fetching again only the titles near it after a watch.
+    @State private var place = NearbyRefresh.Place()
     /// Bumped by each reload (a new sort or genre), so an answer for the old one is dropped rather than shown or appended.
     @State private var generation = 0
     @State private var isRefreshing = false
@@ -232,7 +234,11 @@ struct LibraryView: View {
             // Coming back from a detail screen or another tab runs this again. Keep what's loaded, and so the
             // scroll position, only bringing it up to date if something changed here or it's getting old.
             if let loadedToken, !items.isEmpty {
-                if loadedToken != model.refreshToken || Freshness.isStale(loadedAt) { await refreshLoaded() }
+                if Freshness.isStale(loadedAt) {
+                    await refreshLoaded()
+                } else if loadedToken != model.refreshToken {
+                    await refreshLoaded(nearby: true)
+                }
                 return
             }
             // Already loading (a search switched to the grid and loads it): not a second request.
@@ -246,7 +252,9 @@ struct LibraryView: View {
         }
         .onChange(of: sort) { Task { await reload() } }
         .onChange(of: genre) { Task { await reload() } }
-        .onChange(of: model.refreshToken) { Task { await refreshLoaded() } }
+        // Only the grid on screen: one behind another page or tab catches up when it's next shown (the task above),
+        // once for however much changed meanwhile, rather than fetching everything it has loaded at each change.
+        .onChange(of: model.refreshToken) { if isVisible { Task { await refreshLoaded(nearby: true) } } }
     }
 
     @ViewBuilder
@@ -295,7 +303,10 @@ struct LibraryView: View {
                         else if music { ArtistCard(item: item) }
                         else { PosterCard(item: item) }
                     }
-                    .onAppear { loadMoreIfNeeded(at: index) }
+                    .onAppear {
+                        place.index = index
+                        loadMoreIfNeeded(at: index)
+                    }
                 }
             }
             .padding(.horizontal, Layout.edge)
@@ -395,15 +406,36 @@ struct LibraryView: View {
 
     /// After playback or watched changes, or after a while, refetch what is already on screen so badges update.
     /// Only one runs at a time; one asked for while it runs because something changed again runs once it finishes.
-    private func refreshLoaded() async {
+    /// `nearby`: something was watched or marked, so the titles near where the grid is looking are enough, if they
+    /// come back the same titles in the same order (`fetchNearby`).
+    private func refreshLoaded(nearby: Bool = false) async {
         guard !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }
         var token: Int
         repeat {
             token = model.refreshToken
+            if nearby, await fetchNearby(around: place.index) { continue }
             await fetchLoaded()
         } while token != model.refreshToken && !Task.isCancelled
+    }
+
+    /// After a watch or a mark: only the titles around where the grid is looking (`NearbyRefresh`), one request
+    /// rather than one per 500 titles loaded. False when that isn't known to be enough (a short list, a failed
+    /// request, or that stretch came back changed), and everything should be fetched again. The rest catch up once
+    /// the grid is old (`Freshness`), as titles watched on another device do.
+    private func fetchNearby(around index: Int) async -> Bool {
+        guard let client = model.client, let window = NearbyRefresh.window(around: index, loaded: items.count) else { return false }
+        let current = generation
+        let token = model.refreshToken
+        guard let page = try? await fetch(client, skip: window.lowerBound, take: window.count) else { return false }
+        // A new sort or genre replaced the list meanwhile: there's nothing of this one left to bring up to date.
+        guard current == generation else { return true }
+        guard let patched = NearbyRefresh.patch(items, window: window, fetched: page.items,
+                                                fetchedTotal: page.total, total: total) else { return false }
+        items = patched
+        loadedToken = token
+        return true
     }
 
     /// The server sends at most `maxPageSize` a request, so a long list comes back in several; whatever didn't

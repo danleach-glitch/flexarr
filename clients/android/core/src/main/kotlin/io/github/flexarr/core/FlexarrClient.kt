@@ -52,8 +52,10 @@ sealed class FlexarrException(message: String) : Exception(message) {
     /**
      * [detail]: the server's own words for what went wrong (its problem details' `detail`), when it gave some.
      * [guestRemoved]: a 403 saying this is a family guest's device its host removed (servers from 0.57).
+     * [chooseProfile]: a 403 saying nobody has chosen who's watching here yet, and being the main profile takes its own
+     * PIN (servers from 0.63, see [SignInInfo.chooseProfile]).
      */
-    class Http(val status: Int, message: String?, val detail: String? = null, val guestRemoved: Boolean = false) :
+    class Http(val status: Int, message: String?, val detail: String? = null, val guestRemoved: Boolean = false, val chooseProfile: Boolean = false) :
         FlexarrException(message ?: t("The server answered with an error (HTTP {status}).", "status" to status.toString()))
 
     /**
@@ -73,6 +75,12 @@ sealed class FlexarrException(message: String) : Exception(message) {
 
     /** The response was not what a Flexarr server sends (for example an HTML page). */
     class UnexpectedResponse : FlexarrException(t("That address answered, but not like a Flexarr server. Check the host name and port."))
+
+    /**
+     * Nothing answered like a Flexarr server over https at an internet address typed without `http://`. Plain http isn't
+     * tried there unasked ([FlexarrClient.addressCandidates]): it would send the sign-in in the clear.
+     */
+    class NoSecureAnswer : FlexarrException(t("No Flexarr server answered there over https. If yours only uses http, type http:// before its address."))
 
     class InvalidAddress : FlexarrException(t("That doesn’t look like a server address. Try something like {example}.", "example" to "http://192.168.1.20:8383"))
 
@@ -364,6 +372,17 @@ class FlexarrClient(
         http: OkHttpClient = this.http,
     ): String = withContext(Dispatchers.IO) { exchange(method, path, query, body?.toRequestBody(jsonType), racesAlternate, http) }
 
+    /**
+     * As [send] for a GET, with [headers] of its own on the request (`If-None-Match`, say), handing [answered] the
+     * answer's headers when it's a success. A 304 is [FlexarrException.Http] with that status.
+     */
+    internal suspend fun sendWithHeaders(
+        path: String,
+        query: Map<String, String>,
+        headers: Map<String, String>,
+        answered: (okhttp3.Headers) -> Unit,
+    ): String = withContext(Dispatchers.IO) { exchange("GET", path, query, null, racesAlternate = true, http = http, headers = headers, answered = answered) }
+
     /** As [send], with a body of any type (a plain-text log, say) and its own time limit for the whole call. */
     internal suspend fun sendBody(
         method: String,
@@ -376,7 +395,7 @@ class FlexarrClient(
         exchange(method, path, query, body, racesAlternate = false, http = slow)
     }
 
-    private fun request(method: String, path: String, query: Map<String, String>, body: RequestBody?, base: HttpUrl): Request {
+    private fun request(method: String, path: String, query: Map<String, String>, body: RequestBody?, base: HttpUrl, headers: Map<String, String> = emptyMap()): Request {
         // An id from outside the app (a link, say) mustn't climb out of the path it was put in: OkHttp would resolve
         // `..` against the segments before it, and splits on a backslash as well as a slash. Ids never are one.
         if (path.split('/', '\\').any { isDotSegment(it) }) throw FlexarrException.Http(404, null)
@@ -386,6 +405,7 @@ class FlexarrClient(
             query.forEach { (name, value) -> addQueryParameter(name, value) }
         }.build()
         return Request.Builder().url(url).header("Accept", "application/json").apply {
+            headers.forEach { (name, value) -> header(name, value) }
             signIn()
             val requestBody = body ?: if (method == "POST") ByteArray(0).toRequestBody(null) else null
             method(method, requestBody)
@@ -399,6 +419,8 @@ class FlexarrClient(
         apiKey?.takeIf { it.isNotEmpty() }?.let { header("X-Api-Key", it) }
         profileToken?.takeIf { it.isNotEmpty() }?.let { header("X-Flexarr-Profile", it) }
         deviceType?.let { header("X-Flexarr-Device", it) }
+        // This app asks who's watching when nobody has chosen here yet (see SignInInfo.chooseProfile). Older servers ignore it.
+        header(PROFILE_CHOICE_HEADER, "1")
     }
 
     private suspend fun exchange(
@@ -408,10 +430,12 @@ class FlexarrClient(
         body: RequestBody?,
         racesAlternate: Boolean,
         http: OkHttpClient,
+        headers: Map<String, String> = emptyMap(),
+        answered: ((okhttp3.Headers) -> Unit)? = null,
     ): String {
         val response = try {
             if (simulatesOffline) throw ConnectException("No network (simulated)")
-            reach(method, path, query, body, racesAlternate, http).also {
+            reach(method, path, query, body, racesAlternate, http, headers).also {
                 lastAnsweredAtMs = System.currentTimeMillis()
                 onAnswered?.invoke()
             }
@@ -426,6 +450,7 @@ class FlexarrClient(
                 it.isSuccessful -> {
                     // Unknown paths fall through to the web app's index.html; don't try to decode that.
                     if (it.header("Content-Type")?.contains("text/html") == true) throw FlexarrException.UnexpectedResponse()
+                    answered?.invoke(it.headers)
                     text
                 }
                 it.code == 401 -> {
@@ -441,6 +466,11 @@ class FlexarrClient(
                 it.code == 403 && problemFlag(text, "guestRemoved") -> {
                     onUnauthorized?.invoke()
                     throw FlexarrException.Http(it.code, problemMessage(text), problemDetail(text), guestRemoved = true)
+                }
+                // Nobody has chosen who's watching here (the main profile's own PIN wasn't given): the app asks.
+                it.code == 403 && problemFlag(text, "chooseProfile") -> {
+                    onChooseProfile?.invoke()
+                    throw FlexarrException.Http(it.code, problemMessage(text), problemDetail(text), chooseProfile = true)
                 }
                 else -> throw FlexarrException.Http(it.code, problemMessage(text), problemDetail(text))
             }
@@ -514,6 +544,7 @@ class FlexarrClient(
         body: RequestBody?,
         racesAlternate: Boolean,
         http: OkHttpClient,
+        headers: Map<String, String> = emptyMap(),
     ): Response {
         val primary = addresses.current
         var alternate = addresses.alternate(primary)
@@ -521,19 +552,19 @@ class FlexarrClient(
         // server, on this network. Until then, away it is.
         if (primary == addresses.home && !homeTrusted(http)) {
             val remote = alternate ?: throw ConnectException("Something else answers at the server's home address on this network.")
-            val response = http.newCall(request(method, path, query, body, remote)).await()
+            val response = http.newCall(request(method, path, query, body, remote, headers)).await()
             addresses.reached(remote)
             return response
         }
         // Away, home is asked about separately (checkHomeIfDue) rather than sent the sign-in on a hunch.
         if (alternate == addresses.home && !addresses.homeTrustedNow) alternate = null
-        val first = request(method, path, query, body, primary)
+        val first = request(method, path, query, body, primary, headers)
         if (alternate == null) {
             val response = http.newCall(first).await()
             checkHomeIfDue(http)
             return response
         }
-        val second = request(method, path, query, body, alternate)
+        val second = request(method, path, query, body, alternate, headers)
         val (response, reached) = if (method == "GET" && racesAlternate) {
             race(http, first to primary, second to alternate)
         } else {
@@ -604,6 +635,17 @@ class FlexarrClient(
 
     /** Whether home may be sent the sign-in on this network, asking it ([verifyHome]) when that isn't known yet. */
     private suspend fun homeTrusted(http: OkHttpClient): Boolean = addresses.checkHome { verifyHome(http) }
+
+    /**
+     * The address a request built beside [send] (the command stream, a download's file) may carry the sign-in to, as
+     * [reach] decides it for everything else: the one in use, unless that's home and home hasn't shown it's this
+     * server on this network, when it's the remote address, or with none a [ConnectException].
+     */
+    internal suspend fun signInBase(): HttpUrl {
+        val primary = addresses.current
+        if (primary != addresses.home || homeTrusted(http)) return primary
+        return addresses.alternate(primary) ?: throw ConnectException("Something else answers at the server's home address on this network.")
+    }
 
     /**
      * Whether this server answers at home on the network in use, asked without the sign-in: with its id
@@ -697,6 +739,19 @@ class FlexarrClient(
         @Volatile
         var onAnswered: (() -> Unit)? = null
 
+        /**
+         * Called whenever the server refuses a request because nobody has chosen who's watching here yet (a 403 with
+         * `chooseProfile`, see [SignInInfo.chooseProfile]), so the app can show "Who's watching?". Set once at launch.
+         */
+        @Volatile
+        var onChooseProfile: (() -> Unit)? = null
+
+        /**
+         * Sent with every request: this app can ask who's watching, so a server whose main profile has a PIN of its own
+         * answers a device nobody has chosen a profile on as no profile chosen rather than as the main profile.
+         */
+        const val PROFILE_CHOICE_HEADER = "X-Flexarr-Profile-Choice"
+
         /** When a server last answered a request (or the reachability check) from this app; 0 if none has yet. */
         @Volatile
         var lastAnsweredAtMs = 0L
@@ -715,6 +770,13 @@ class FlexarrClient(
             .readTimeout(20, TimeUnit.SECONDS)
             .addInterceptor(LoopbackTunnel.interceptor { loopbackTunnel })
             .build()
+
+        /**
+         * [sharedHttp] with a queue of its own, for artwork. OkHttp sends one server five requests at a time and
+         * keeps the rest waiting in turn, so on the shared queue a screenful of posters still loading held up the
+         * next API call and the player's requests behind them. The connections are still the shared ones.
+         */
+        val artworkHttp: OkHttpClient by lazy { sharedHttp.newBuilder().dispatcher(okhttp3.Dispatcher()).build() }
 
         /**
          * Whether [id], from outside the app (a link), looks like one of the server's: letters, digits, `-` and `_`
@@ -755,17 +817,28 @@ class FlexarrClient(
 
         /**
          * The addresses to try, in order, for what a person typed. As [normalizeAddress], except that a host on the
-         * internet typed without a scheme is tried over https first (on 443, unless a port was typed), and only then as
-         * http on Flexarr's port, so a sign-in isn't sent in the clear when it needn't be. A home-network host (a private
-         * or Tailscale address, `.local`, `.ts.net`, a name with no dots) stays as it was.
+         * internet typed without a scheme is tried over https only (on 443, unless a port was typed), so a sign-in is
+         * never sent there in the clear unless `http://` was typed: falling back to http when https doesn't answer
+         * would hand the key to anyone on the way who can stop https answering. A home-network host (a private or
+         * Tailscale address, `.local`, `.ts.net`, a name with no dots) stays as it was.
          */
         fun addressCandidates(input: String): List<HttpUrl> {
             val text = input.trim()
             val url = normalizeAddress(text) ?: return emptyList()
-            if ("://" in text || isHomeNetworkHost(url.host)) return listOf(url)
+            if (!triesOnlyHttps(text)) return listOf(url)
             val portTyped = Regex("^(?:\\[[^]]+]|[^/:]+):\\d+").containsMatchIn(text)
-            val secure = url.newBuilder().scheme("https").port(if (portTyped) url.port else 443).build()
-            return listOf(secure, url)
+            return listOf(url.newBuilder().scheme("https").port(if (portTyped) url.port else 443).build())
+        }
+
+        /**
+         * What was typed is a host on the internet with no `http://` or `https://`, which [addressCandidates] tries
+         * over https only: when nothing answers there, the person is told how to ask for plain http
+         * ([FlexarrException.NoSecureAnswer]).
+         */
+        fun triesOnlyHttps(input: String): Boolean {
+            val text = input.trim()
+            val url = normalizeAddress(text) ?: return false
+            return "://" !in text && !isHomeNetworkHost(url.host)
         }
 
         /** A host only reached at home or over Tailscale, where a server is usually plain http on its own port. */

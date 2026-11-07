@@ -46,7 +46,7 @@ struct ServerNameTests {
         defer { store.clear(); UserDefaults().removePersistentDomain(forName: suite) }
 
         do {
-            try store.save(ServerCredentials(address: URL(string: "http://192.168.1.106:8383")!, apiKey: "key"))
+            try store.save(ServerCredentials(address: URL(string: "http://192.168.1.50:8383")!, apiKey: "key"))
         } catch {
             return // No Keychain for command-line tests on every machine.
         }
@@ -54,7 +54,7 @@ struct ServerNameTests {
         #expect(store.savedServerName == "Smith House")
 
         // Signing in to the same server again keeps it; another server's sign-in doesn't inherit it.
-        try store.save(ServerCredentials(address: URL(string: "http://192.168.1.106:8383")!, apiKey: "key"))
+        try store.save(ServerCredentials(address: URL(string: "http://192.168.1.50:8383")!, apiKey: "key"))
         #expect(store.savedServerName == "Smith House")
         try store.save(ServerCredentials(address: URL(string: "http://192.168.1.20:8383")!, apiKey: "other"))
         #expect(store.savedServerName == nil)

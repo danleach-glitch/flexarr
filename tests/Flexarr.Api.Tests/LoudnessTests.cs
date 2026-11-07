@@ -43,6 +43,48 @@ public class LoudnessTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApi
     }
 
     [Fact]
+    public async Task ATrackWhoseReplayGainTheScanKept_IsAnsweredWithoutProbing_UntilItsFileChanges()
+    {
+        var probe = new FixtureProbe();
+        using var host = WithProbe(probe);
+        var (track, path) = await SeedTrackAsync(host, "05 - Portobello Belle.flac");
+        await File.WriteAllBytesAsync(path, [0x66, 0x4C, 0x61, 0x43]);
+        var (untagged, untaggedPath) = await SeedTrackAsync(host, "06 - Single-Handed Sailor.flac");
+        await File.WriteAllBytesAsync(untaggedPath, [0x66, 0x4C, 0x61, 0x43]);
+        using (var scope = host.Services.CreateScope())
+        {
+            // As a scan leaves them: the file's size and date, and what its tags said of its loudness (here, not what
+            // the stand-in ffprobe would say, to tell the two apart).
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var file = db.MediaFiles.Single(f => f.MediaItemId == track);
+            file.ModifiedAt = File.GetLastWriteTimeUtc(path);
+            file.Loudness = new Flexarr.Core.Parsing.Loudness(-3.25, -4.5, 0.75, null).ToJson();
+            var none = db.MediaFiles.Single(f => f.MediaItemId == untagged);
+            none.ModifiedAt = File.GetLastWriteTimeUtc(untaggedPath);
+            none.Loudness = Flexarr.Core.Parsing.Loudness.Unknown.ToJson();
+            await db.SaveChangesAsync();
+        }
+
+        var cache = Path.Combine(factory.DataDirectory, "cache", "loudness");
+        var cached = Directory.Exists(cache) ? Directory.GetFiles(cache).Length : 0;
+        var loudness = await Client(host).GetFromJsonAsync<LoudnessDto>(new Uri($"/api/v1/items/{track}/loudness", UriKind.Relative), Json);
+        var silent = await Client(host).GetFromJsonAsync<LoudnessDto>(new Uri($"/api/v1/items/{untagged}/loudness", UriKind.Relative), Json);
+
+        Assert.Equal(new LoudnessDto(-3.25, -4.5, 0.75, null), loudness);
+        Assert.Equal(new LoudnessDto(null, null, null, null), silent); // known to have no tags: that's an answer too
+        Assert.Equal(0, probe.Calls);
+        Assert.Equal(cached, Directory.Exists(cache) ? Directory.GetFiles(cache).Length : 0);
+
+        // Retagged since the scan (its modification time moved on): what was kept is about the old file, so the tags
+        // are read now, as they always were.
+        File.SetLastWriteTimeUtc(path, File.GetLastWriteTimeUtc(path).AddMinutes(1));
+        var retagged = await Client(host).GetFromJsonAsync<LoudnessDto>(new Uri($"/api/v1/items/{track}/loudness", UriKind.Relative), Json);
+
+        Assert.Equal(new LoudnessDto(-7.52, -8.10, 0.988525, 1.0), retagged);
+        Assert.Equal(1, probe.Calls);
+    }
+
+    [Fact]
     public async Task AFileWithoutTags_OrOneThatIsntThere_PlaysAtItsOwnLevel()
     {
         var probe = new FixtureProbe { Tags = new Dictionary<string, string>() };

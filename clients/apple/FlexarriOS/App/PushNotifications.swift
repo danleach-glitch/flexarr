@@ -111,10 +111,12 @@ final class PushNotifications {
     static func registerCategories() {
         let play = UNNotificationAction(identifier: playAction, title: t(Words.play), options: [.foreground],
                                         icon: UNNotificationActionIcon(systemImageName: "play.fill"))
-        // Both run without opening the app: the download is asked for and fetched in the background.
-        let download = UNNotificationAction(identifier: downloadAction, title: t(Words.download), options: [],
+        // Both run without opening the app: the download is asked for and fetched in the background. From a locked
+        // phone they take Face ID or the passcode first, as opening the app would: whoever picks the phone up can't
+        // start the TV or fill the phone with downloads from its lock screen.
+        let download = UNNotificationAction(identifier: downloadAction, title: t(Words.download), options: [.authenticationRequired],
                                             icon: UNNotificationActionIcon(systemImageName: "arrow.down"))
-        let playOnTv = UNNotificationAction(identifier: playOnTvAction, title: t("Play on Apple TV"), options: [],
+        let playOnTv = UNNotificationAction(identifier: playOnTvAction, title: t("Play on Apple TV"), options: [.authenticationRequired],
                                             icon: UNNotificationActionIcon(systemImageName: "appletv.fill"))
         // The phone has to be unlocked to answer, and the code to check is in the notification. Allowing opens the app:
         // from 0.56 it takes the admin PIN when the main profile is locked here, and only the app can ask.

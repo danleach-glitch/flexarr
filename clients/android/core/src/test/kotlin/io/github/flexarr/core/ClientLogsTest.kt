@@ -95,7 +95,7 @@ class ClientLogsTest {
     @Test
     fun scrubberTakesOutAddressesPathsAndTitles() {
         val scrubber = ErrorReportScrubber()
-        assertEquals("<email> at http://<server>/x", scrubber.scrub("dan@example.com at http://192.168.1.106:8383/x"))
+        assertEquals("<email> at http://<server>/x", scrubber.scrub("dan@example.com at http://192.168.1.50:8383/x"))
         assertEquals("open <path> failed", scrubber.scrub("open /data/user/0/com.danleach.flexarr/files/a.mp4 failed"))
         assertEquals("couldn't play <quoted>", scrubber.scrub("couldn't play \"The Matrix\""))
         assertEquals("reach <server>", scrubber.scrub("reach mini.local:8383"))
@@ -124,6 +124,63 @@ class ClientLogsTest {
             assertEquals("it froze", diagnostics.url.queryParameter("note"))
             assertTrue(diagnostics.headers["Content-Type"]!!.startsWith("text/plain"))
             assertEquals("the log", diagnostics.body!!.utf8())
+        }
+    }
+
+    @Test
+    fun theLogStartsAfreshForAnotherServerOnly() {
+        val directory = java.nio.file.Files.createTempDirectory("logs").toFile()
+        try {
+            val owner = ClientLogOwner(java.io.File(directory, "server.txt"))
+            assertFalse(owner.signedIn("https://home.example"))
+            assertFalse(owner.signedIn("https://home.example"))
+            assertTrue(owner.signedIn("https://other.example"))
+            assertFalse(ClientLogOwner(java.io.File(directory, "server.txt")).signedIn("https://other.example"))
+            // Signing out keeps it about that server.
+            owner.signedOut()
+            assertFalse(owner.signedIn("https://other.example"))
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun aLogFromBeforeTheOwnerWasKeptGoesAtTheFirstSignInAfterSigningOut() {
+        val directory = java.nio.file.Files.createTempDirectory("logs").toFile()
+        try {
+            // Updated while signed out: whichever server is signed in to next gets a fresh log.
+            val owner = ClientLogOwner(java.io.File(directory, "server.txt"))
+            owner.signedOut()
+            assertTrue(owner.signedIn("https://new.example"))
+            assertFalse(owner.signedIn("https://new.example"))
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun clearingLetsGoOfWhatWaitsAndTheFile() = runBlocking {
+        val directory = java.nio.file.Files.createTempDirectory("logs").toFile()
+        try {
+            val storage = java.io.File(directory, "waiting.json")
+            val uploader = ClientLogUploader(storage, debounceMs = 60_000) { ClientLogDelivery.Unavailable }
+            uploader.add(entry("about the old server"))
+            repeat(50) { if (uploader.pending().isEmpty()) kotlinx.coroutines.delay(20) }
+            assertEquals(1, uploader.pending().size)
+            assertTrue(storage.exists())
+            uploader.clear()
+            assertTrue(uploader.pending().isEmpty())
+            assertFalse(storage.exists())
+            assertTrue(ClientLogUploader(storage) { ClientLogDelivery.Unavailable }.pending().isEmpty())
+
+            val file = ClientLogFile(directory)
+            file.append("watched The Matrix")
+            file.clear()
+            assertEquals("", file.contents())
+            file.append("after")
+            assertEquals("after\n", file.contents())
+        } finally {
+            directory.deleteRecursively()
         }
     }
 

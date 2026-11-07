@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Flexarr.Api.Configuration;
@@ -57,9 +58,10 @@ public static partial class SubtitleSearchEndpoints
 
         var group = api.MapGroup("/items/{id:guid}/subtitles").WithTags("Subtitles").NotForKids();
 
-        group.MapGet("/search", async (Guid id, Guid? fileId, IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr, FlexarrDbContext db, CancellationToken ct) =>
+        group.MapGet("/search", async (Guid id, Guid? fileId, IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr, FlexarrDbContext db, CurrentProfile profile,
+            ILoggerFactory logs, CancellationToken ct) =>
         {
-            var found = await FindAsync(id, fileId, options, bazarr, db, ct);
+            var found = await FindAsync(id, fileId, options, bazarr, db, profile, logs, ct);
             if (found.Problem is { } problem)
             {
                 return problem;
@@ -68,18 +70,21 @@ public static partial class SubtitleSearchEndpoints
             try
             {
                 var results = await bazarr.SearchAsync(found.Bazarr!, found.Media!, ct);
-                return Results.Ok(new SubtitleSearchDto(results.Select(ToDto).ToList()));
+                var secret = options.CurrentValue.ImageSecret;
+                return Results.Ok(new SubtitleSearchDto(results.Select(r => ToDto(r, secret)).ToList()));
             }
             catch (HttpRequestException ex)
             {
-                return Problems.Of("Bazarr couldn’t search: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway);
+                return profile.IsMainProfile
+                    ? Problems.Of("Bazarr couldn’t search: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway)
+                    : NotAnswering(ex, logs);
             }
         });
 
         group.MapPost("/download", async (Guid id, SubtitleDownloadRequest request, IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr,
-            FlexarrDbContext db, ILoggerFactory logs, CancellationToken ct) =>
+            FlexarrDbContext db, CurrentProfile profile, ILoggerFactory logs, CancellationToken ct) =>
         {
-            var found = await FindAsync(id, request.FileId, options, bazarr, db, ct);
+            var found = await FindAsync(id, request.FileId, options, bazarr, db, profile, logs, ct);
             if (found.Problem is { } problem)
             {
                 return problem;
@@ -88,7 +93,7 @@ public static partial class SubtitleSearchEndpoints
             BazarrSubtitleResult? chosen;
             if (request.Result is { } token)
             {
-                chosen = Decode(token);
+                chosen = Decode(token, options.CurrentValue.ImageSecret);
                 if (chosen is null)
                 {
                     return Problems.Of("That search result isn’t one Flexarr knows. Search again.", status: StatusCodes.Status400BadRequest);
@@ -102,7 +107,9 @@ public static partial class SubtitleSearchEndpoints
                 }
                 catch (HttpRequestException ex)
                 {
-                    return Problems.Of("Bazarr couldn’t search: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway);
+                    return profile.IsMainProfile
+                        ? Problems.Of("Bazarr couldn’t search: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway)
+                        : NotAnswering(ex, logs);
                 }
 
                 if (chosen is null)
@@ -127,7 +134,9 @@ public static partial class SubtitleSearchEndpoints
             }
             catch (HttpRequestException ex)
             {
-                return Problems.Of("Bazarr couldn’t download it: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway);
+                return profile.IsMainProfile
+                    ? Problems.Of("Bazarr couldn’t download it: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway)
+                    : NotAnswering(ex, logs);
             }
 
             if (saved is null)
@@ -141,9 +150,9 @@ public static partial class SubtitleSearchEndpoints
         });
 
         group.MapPost("/sync", async (Guid id, SubtitleSyncRequest request, IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr,
-            FlexarrDbContext db, SubtitleSyncs syncs, ILoggerFactory logs, CancellationToken ct) =>
+            FlexarrDbContext db, SubtitleSyncs syncs, CurrentProfile profile, ILoggerFactory logs, CancellationToken ct) =>
         {
-            var found = await FindAsync(id, request.FileId, options, bazarr, db, ct);
+            var found = await FindAsync(id, request.FileId, options, bazarr, db, profile, logs, ct);
             if (found.Problem is { } problem)
             {
                 return problem;
@@ -187,8 +196,9 @@ public static partial class SubtitleSearchEndpoints
                 }
                 catch (HttpRequestException ex)
                 {
+                    // Bazarr's own words can name its address, and any profile watching this may ask how it went: they stay in the log.
                     LogSyncFailed(log, ex, path);
-                    return ex.Message;
+                    return Loc.Mark("Bazarr couldn’t re-sync these subtitles. Its log says why.");
                 }
                 catch (TaskCanceledException) when (!stopping.IsCancellationRequested)
                 {
@@ -270,7 +280,8 @@ public static partial class SubtitleSearchEndpoints
     private sealed record Found(IResult? Problem, BazarrInstance? Bazarr = null, BazarrMedia? Media = null, MediaFile? File = null);
 
     /// <summary>The Bazarr film or episode for an item's file, given a languages profile if it had none (Bazarr won't search without one).</summary>
-    private static async Task<Found> FindAsync(Guid id, Guid? fileId, IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr, FlexarrDbContext db, CancellationToken ct)
+    private static async Task<Found> FindAsync(Guid id, Guid? fileId, IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr, FlexarrDbContext db,
+        CurrentProfile asking, ILoggerFactory logs, CancellationToken ct)
     {
         if (options.CurrentValue.Bazarr?.Instance is not { } instance)
         {
@@ -329,8 +340,20 @@ public static partial class SubtitleSearchEndpoints
         }
         catch (HttpRequestException ex)
         {
-            return new Found(Problems.Of("Bazarr can’t be reached: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway));
+            return new Found(asking.IsMainProfile
+                ? Problems.Of("Bazarr can’t be reached: {message}", new { message = ex.Message }, status: StatusCodes.Status502BadGateway)
+                : NotAnswering(ex, logs));
         }
+    }
+
+    /// <summary>
+    /// What a profile other than the main one is told when Bazarr fails: its own words can name its address, which is
+    /// the main profile's to know, so they go to the log instead.
+    /// </summary>
+    private static IResult NotAnswering(HttpRequestException ex, ILoggerFactory logs)
+    {
+        LogBazarrFailed(logs.CreateLogger(typeof(SubtitleSearchEndpoints)), ex);
+        return Problems.Of("Bazarr isn’t answering. Try again later.", status: StatusCodes.Status502BadGateway);
     }
 
     private static Task<List<MediaFile>> PlayableFilesAsync(FlexarrDbContext db, Guid id, CancellationToken ct) =>
@@ -343,8 +366,8 @@ public static partial class SubtitleSearchEndpoints
     /// <summary>The name of a file as Bazarr gives it, whichever way its slashes go.</summary>
     private static string FileName(string path) => path[(path.LastIndexOfAny(['/', '\\']) + 1)..];
 
-    private static SubtitleResultDto ToDto(BazarrSubtitleResult r) => new(
-        Encode(r),
+    private static SubtitleResultDto ToDto(BazarrSubtitleResult r, string? secret) => new(
+        Encode(r, secret),
         r.Provider,
         r.Language,
         Languages.Label(r.Language, r.HearingImpaired ? "SDH" : null, r.Forced),
@@ -356,15 +379,26 @@ public static partial class SubtitleSearchEndpoints
         r.Uploader);
 
     // A result travels to the client and back as its own id, so the server keeps nothing between search and download.
-    private static string Encode(BazarrSubtitleResult r) =>
-        Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(new Token(r.Provider, r.Subtitle, r.Language, r.HearingImpaired, r.Forced, r.OriginalFormat), Json))
+    // It's signed with the server's secret: what's in it is handed to Bazarr with Flexarr's key, so only a result
+    // this server was given by Bazarr may come back, never one a caller made up.
+    private static string Encode(BazarrSubtitleResult r, string? secret)
+    {
+        var payload = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(new Token(r.Provider, r.Subtitle, r.Language, r.HearingImpaired, r.Forced, r.OriginalFormat), Json))
             .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        return $"{payload}.{Convert.ToHexStringLower(Signature(payload, secret))}";
+    }
 
-    private static BazarrSubtitleResult? Decode(string id)
+    private static BazarrSubtitleResult? Decode(string id, string? secret)
     {
         try
         {
-            var base64 = id.Replace('-', '+').Replace('_', '/');
+            if (id.Split('.') is not [var payload, var signature]
+                || !CryptographicOperations.FixedTimeEquals(Convert.FromHexString(signature), Signature(payload, secret)))
+            {
+                return null;
+            }
+
+            var base64 = payload.Replace('-', '+').Replace('_', '/');
             var bytes = Convert.FromBase64String(base64.PadRight(base64.Length + ((4 - (base64.Length % 4)) % 4), '='));
             return JsonSerializer.Deserialize<Token>(bytes, Json) is { Provider.Length: > 0, Subtitle.Length: > 0 } t
                 ? new BazarrSubtitleResult(t.Provider, t.Subtitle, t.Language, t.Hi, t.Forced, t.OriginalFormat, 0, [], [], null)
@@ -376,6 +410,9 @@ public static partial class SubtitleSearchEndpoints
         }
     }
 
+    private static byte[] Signature(string payload, string? secret) =>
+        HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret ?? throw new InvalidOperationException("No image secret.")), Encoding.UTF8.GetBytes($"subtitle:{payload}"))[..16];
+
     private sealed record Token(string Provider, string Subtitle, string Language, bool Hi, bool Forced, bool OriginalFormat);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Bazarr was asked for subtitles for {Path}, but none appeared beside the file")]
@@ -383,6 +420,9 @@ public static partial class SubtitleSearchEndpoints
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Bazarr was asked to re-sync {Path}, but the file didn't change")]
     private static partial void LogSyncUnchanged(ILogger logger, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Bazarr failed a subtitle request")]
+    private static partial void LogBazarrFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Bazarr couldn't re-sync {Path}")]
     private static partial void LogSyncFailed(ILogger logger, Exception exception, string path);

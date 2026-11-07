@@ -2,23 +2,31 @@ import SwiftUI
 
 /// Light in the cover's colours, drifting behind Now Playing. Large soft fields wander on slow, never-repeating paths;
 /// the bass makes them swell, a beat makes them flare, the middle hurries them along and the treble brings out small
-/// bright glints. With nothing to hear (paused, or a converted stream that can't be tapped) they drift on their own.
+/// bright glints. With nothing to hear (a converted stream that can't be tapped) they drift on their own. Paused, they
+/// slow, and a few seconds later hold still.
 /// The web app's visualiser draws the same way (frontend/src/components/Aurora.tsx).
 ///
-/// Drawn about a tenth of the screen's size, blurred and scaled up: a handful of gradients a frame, 30 times a second.
+/// Drawn about a tenth of the screen's size, blurred and scaled up: a handful of gradients a frame, 30 times a second
+/// while there's music playing. Once paused music's light has settled nothing is drawn again until it plays, so an
+/// Apple TV left paused on Now Playing isn't kept busy until the screensaver comes.
 struct MusicAurora: View {
     var colours: [CoverPalette.RGB]
     var spectrum: AudioSpectrum
     var playing: Bool
 
     @State private var motion = AuroraMotion()
+    /// Paused for long enough that the light has eased down (see `settles`): held as it is.
+    @State private var resting = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let canvas = CGSize(width: 192, height: 108)
+    /// How long after pausing the light takes to ease down: its levels and pace are as good as at rest by then
+    /// (`AuroraMotion.step`).
+    private static let settles: Duration = .seconds(3)
 
     var body: some View {
         GeometryReader { geometry in
-            TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion)) { timeline in
+            TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion || resting)) { timeline in
                 let frame = motion.step(at: timeline.date, bands: playing ? spectrum.bands : nil, playing: playing && !reduceMotion)
                 Canvas { context, size in draw(frame, in: &context, size: size) }
                     .frame(width: Self.canvas.width, height: Self.canvas.height)
@@ -39,6 +47,11 @@ struct MusicAurora: View {
         }
         .ignoresSafeArea()
         .accessibilityHidden(true)
+        .task(id: playing) {
+            resting = false
+            guard !playing, (try? await Task.sleep(for: Self.settles)) != nil else { return }
+            resting = true
+        }
     }
 
     private func draw(_ frame: AuroraMotion.Frame, in context: inout GraphicsContext, size: CGSize) {

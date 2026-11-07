@@ -93,22 +93,49 @@ public static partial class LiveTvEndpoints
             }).ToList();
         });
 
-        group.MapGet("/guide", async (DateTime? from, double? hours, FlexarrDbContext db, CurrentProfile profile, TimeProvider clock, CancellationToken ct) =>
+        // The guide from `from` (default half an hour ago) for `hours` (default 6, 1 to 24). Optional, all absent from
+        // servers before the release after 0.62.1, and each leaves the answer as it was when left out:
+        //   channels=<id>,<id>  only those channels (400 if one isn't a channel id);
+        //   group=<name>        only channels in that group (exactly as the channel's `group` says);
+        //   favourites=true     only the asking profile's favourites;
+        //   descriptions=false  programmes without their description (null); GET /livetv/programmes/{id} has it.
+        // The filters combine (a channel has to pass each one given). Every answer carries a weak ETag and answers 304 to
+        // If-None-Match when nothing in it changed; ask with the same `from` (rounded, say to the half-hour) to get one.
+        group.MapGet("/guide", async (DateTime? from, double? hours, string? channels, [FromQuery(Name = "group")] string? channelGroup, bool? favourites,
+            bool? descriptions, FlexarrDbContext db, CurrentProfile profile, TimeProvider clock, HttpContext http,
+            IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions> json, CancellationToken ct) =>
         {
+            if (!GuideChannels.TryParse(channels, channelGroup, favourites, out var only))
+            {
+                return Results.BadRequest();
+            }
+
             var start = (from?.ToUniversalTime() ?? clock.GetUtcNow().UtcDateTime.AddMinutes(-30));
             var window = TimeSpan.FromHours(Math.Clamp(hours ?? 6, 1, MaxGuideWindow.TotalHours));
             var until = start + window;
-            var channels = await db.LiveChannels.AsNoTracking().OrderBy(c => c.Number).ThenBy(c => c.Name).ToListAsync(ct);
-            var listed = db.IsLimited() ? channels.Select(c => c.Id).ToList() : null;
+            var shown = await db.LiveChannels.AsNoTracking().OrderBy(c => c.Number).ThenBy(c => c.Name).ToListAsync(ct);
+            var favouriteIds = await FavouritesAsync(db, profile.Id, ct);
+            if (only.Narrows)
+            {
+                shown = [.. shown.Where(c => only.Keeps(c, favouriteIds))];
+            }
+
+            var listed = db.IsLimited() || only.Narrows ? shown.Select(c => c.Id).ToList() : null;
             var programmes = (await db.LiveProgrammes.AsNoTracking()
                     .Where(p => p.End > start && p.Start < until && (listed == null || listed.Contains(p.ChannelId))).OrderBy(p => p.Start).ToListAsync(ct))
                 .ToLookup(p => p.ChannelId);
-            var favourites = await FavouritesAsync(db, profile.Id, ct);
             var marks = await DvrEndpoints.Marks.LoadAsync(db, start, until, ct);
-            return new GuideDto(start, until, [.. channels.Select(c =>
-                new GuideChannelDto(c.Id, c.Number, c.Name, c.Group, LogoUrl(c), favourites.Contains(c.Id),
-                    [.. programmes[c.Id].Select(p => ToDto(p) with { Recording = marks.StateOf(p), Series = marks.InSeries(p) })]))]);
+            var withDescriptions = descriptions != false;
+            var guide = new GuideDto(start, until, [.. shown.Select(c =>
+                new GuideChannelDto(c.Id, c.Number, c.Name, c.Group, LogoUrl(c), favouriteIds.Contains(c.Id),
+                    [.. programmes[c.Id].Select(p => ToDto(p) with
+                    {
+                        Recording = marks.StateOf(p), Series = marks.InSeries(p), Description = withDescriptions ? p.Description : null,
+                    })]))]);
+            return JsonWithETag(guide, http, json.Value.SerializerOptions);
         });
+
+        MapProgrammeEndpoint(group);
 
         // Each profile's own favourites; starring twice, or unstarring what isn't starred, is fine.
         group.MapPut("/channels/{id:guid}/favourite", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>

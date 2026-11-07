@@ -36,6 +36,13 @@ struct TitleEntity: AppEntity {
         kind = .podcast
     }
 
+    init(_ picked: SiriTitles.Title) {
+        id = picked.id
+        title = picked.title
+        year = picked.year
+        kind = picked.kind
+    }
+
     /// The podcast's own id, for one.
     var podcastId: String? { id.hasPrefix(Self.podcastPrefix) ? String(id.dropFirst(Self.podcastPrefix.count)) : nil }
 
@@ -72,8 +79,8 @@ struct TitleQuery: EntityStringQuery {
         return titles + Podcasts.matching(string, in: (try? await client.podcasts()) ?? []).map(TitleEntity.init)
     }
 
-    /// The library's films and shows, so Siri recognises their names in a phrase. Shows first, since "play the
-    /// next …" is the usual ask; capped so a big library doesn't flood the vocabulary.
+    /// Followed podcasts and the library's films and shows, so Siri recognises their names in a phrase: those in
+    /// progress, then the newest added, about 150 in all (`SiriTitles`), so a big library doesn't flood the vocabulary.
     @MainActor
     func suggestedEntities() async throws -> [TitleEntity] {
         guard let client = model.client else { return [] }
@@ -89,15 +96,16 @@ struct TitleQuery: EntityStringQuery {
 
     @MainActor
     private func fetchSuggested(_ client: FlexarrClient) async throws -> [TitleEntity] {
-        var titles: [ItemSummary] = []
-        let libraries = model.libraries.isEmpty ? ((try? await client.libraries()) ?? []) : model.libraries
-        for library in libraries.sorted(by: { $0.type == .tvShows && $1.type != .tvShows }) where [.movies, .tvShows, .homeVideos].contains(library.type) {
-            if let page = try? await client.libraryItems(library.id, sort: .added, take: 300) { titles.append(contentsOf: page.items) }
-            if titles.count >= 600 { break }
+        let podcasts = ((try? await client.podcasts()) ?? []).map { podcast in
+            SiriTitles.Title(id: TitleEntity.podcastPrefix + podcast.id, title: podcast.title, year: nil, kind: .podcast)
         }
-        var seen: Set<String> = []
-        let library = titles.filter { seen.insert($0.id).inserted }.prefix(600).map(TitleEntity.init)
-        return ((try? await client.podcasts()) ?? []).map(TitleEntity.init) + library
+        let inProgress = (try? await client.home())?.rows.first(where: { $0.id == "continue" })?.items ?? []
+        var added: [ItemSummary] = []
+        let libraries = model.libraries.isEmpty ? ((try? await client.libraries()) ?? []) : model.libraries
+        for library in libraries where [.movies, .tvShows, .homeVideos].contains(library.type) {
+            if let page = try? await client.libraryItems(library.id, sort: .added, take: SiriTitles.cap) { added.append(contentsOf: page.items) }
+        }
+        return SiriTitles.pick(podcasts: podcasts, inProgress: inProgress, added: added).map(TitleEntity.init)
     }
 }
 
@@ -571,6 +579,9 @@ struct AddToUpNextIntent: AppIntent {
 struct AddToWatchlistIntent: AppIntent {
     static let title: LocalizedStringResource = "Add to watchlist"
     static let description = IntentDescription("Puts a movie or show on your watchlist, to watch later, whether you have it yet or not.", categoryName: "Watchlist")
+    /// Not from a locked phone: for many profiles a title added here is also requested (and so downloaded) by the
+    /// server, which whoever picks the phone up shouldn't be able to ask for.
+    static let authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
 
     @Parameter(title: "Movie or show", requestValueDialog: "What would you like to add?")
     var title: WatchlistTitleEntity

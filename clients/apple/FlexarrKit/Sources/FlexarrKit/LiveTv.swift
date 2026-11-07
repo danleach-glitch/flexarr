@@ -86,6 +86,42 @@ public struct LiveChannel: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
+/// When the title over a live picture needs the channel list fetched again to say what's on. Rather than every
+/// minute, only once the programme shown has ended (and the one after it, which the channel already gave, doesn't
+/// cover now), or, for a channel with no guide, every half hour in case one has come. Never more than once a minute.
+public enum LiveTitleRefresh {
+    public static let withoutGuide: TimeInterval = 30 * 60
+    public static let atMost: TimeInterval = 60
+
+    public enum Step: Equatable, Sendable {
+        /// What's shown is still on.
+        case keep
+        /// The programme after it has started: show it, no fetch needed.
+        case show(LiveProgramme)
+        /// Ask the server what's on now.
+        case fetch
+    }
+
+    /// `showing` and `next`: the programme shown and the one after it; `checkedAt`: when the server was last asked.
+    public static func step(showing: LiveProgramme?, next: LiveProgramme?, checkedAt: Date, now: Date = Date()) -> Step {
+        let since = now.timeIntervalSince(checkedAt)
+        // A clock put back counts as time having passed.
+        let mayFetch = since < 0 || since >= atMost
+        guard let showing else {
+            // A gap in the guide with the programme after it known: that one is shown once it starts.
+            if let next {
+                if now < next.start { return .keep }
+                if now < next.end { return .show(next) }
+                return mayFetch ? .fetch : .keep
+            }
+            return since < 0 || since >= withoutGuide ? .fetch : .keep
+        }
+        if now < showing.end { return .keep }
+        if let next, next.start <= now, now < next.end, next != showing { return .show(next) }
+        return mayFetch ? .fetch : .keep
+    }
+}
+
 /// A channel being watched. `playlist` is a live HLS playlist whose address is the viewer's capability.
 public struct LiveWatch: Codable, Sendable, Hashable {
     public let viewer: String
@@ -120,6 +156,34 @@ public struct LiveGuide: Codable, Sendable, Hashable {
     public let from: Date
     public let until: Date
     public let channels: [GuideChannel]
+
+    /// How long a guide that's been fetched is shown before the whole of it is asked for again. The listings change a
+    /// few times a day (the server reads its source every six hours), and a recording set or taken off on this device
+    /// has the guide fetched again at once, so a screen left on the guide needn't download every channel's day every
+    /// couple of minutes.
+    public static let keptFor: TimeInterval = 30 * 60
+
+    /// Whether a guide fetched at `fetchedAt` is due to be fetched again (nil: there's none yet, so yes).
+    public static func isDue(fetchedAt: Date?, now: Date = Date()) -> Bool {
+        guard let fetchedAt else { return true }
+        return now.timeIntervalSince(fetchedAt) >= keptFor
+    }
+
+    /// Whether this guide, fetched at `fetchedAt`, is due to be fetched again: it's old, or the clock has overtaken
+    /// one of its recording marks. A showing set to record that's now on should say it's recording (it may have just
+    /// been set, or have started since), and one that was recording and has ended should lose its mark. Only the
+    /// server knows which, so the guide is asked for again at the next look, as it was at every look before it was
+    /// kept, rather than showing the old mark for up to half an hour. Marks that are right cost nothing: a showing
+    /// still to come, and one recording that's still on.
+    public func isDue(fetchedAt: Date?, now: Date = Date()) -> Bool {
+        if Self.isDue(fetchedAt: fetchedAt, now: now) { return true }
+        return channels.contains { channel in
+            channel.programmes.contains { programme in
+                guard programme.isSetToRecord else { return false }
+                return programme.isRecordingNow ? programme.end <= now : programme.start <= now && programme.end > now
+            }
+        }
+    }
 }
 
 // MARK: - Recordings (the DVR)
@@ -231,12 +295,29 @@ extension FlexarrClient {
         }
     }
 
-    /// Every channel's programmes from `from` for `hours` (at most a day).
-    public func liveGuide(from: Date, hours: Int) async throws -> LiveGuide {
-        try await get("livetv/guide", query: [
+    /// Every channel's programmes from `from` for `hours` (at most a day). `descriptions: false` leaves each
+    /// programme's description out, the bulk of a day's guide; `programmeWithDescription` fetches one when its details
+    /// open. Servers before the release after 0.62.1 ignore it and send descriptions as before.
+    public func liveGuide(from: Date, hours: Int, descriptions: Bool = true) async throws -> LiveGuide {
+        var query: [URLQueryItem] = [
             .init(name: "from", value: ISO8601DateFormatter().string(from: from)),
             .init(name: "hours", value: String(hours)),
-        ])
+        ]
+        if !descriptions { query.append(.init(name: "descriptions", value: "false")) }
+        return try await get("livetv/guide", query: query)
+    }
+
+    /// One programme as the guide gives it, with its description. Absent from servers before the release after 0.62.1
+    /// (404), as is a programme that has gone from the guide.
+    public func liveProgramme(_ id: Int64) async throws -> LiveProgramme {
+        try await get("livetv/programmes/\(id)")
+    }
+
+    /// The programme with its description, for its details: as it is when it has one (a guide from a server that
+    /// sends them), otherwise fetched; when that can't be had (an older server, a programme with none), as it is.
+    public func programmeWithDescription(_ programme: LiveProgramme) async -> LiveProgramme {
+        guard programme.description == nil, let full = try? await liveProgramme(programme.id), full.id == programme.id else { return programme }
+        return full
     }
 
     /// Every channel in number order, with what's on now and next.

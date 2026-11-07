@@ -235,7 +235,10 @@ struct HomeHero: View {
 
     #if os(macOS)
     @State private var hovering = false
-    private var holdsStill: Bool { hovering }
+    @Environment(\.scenePhase) private var scenePhase
+    /// Still while the pointer's over it, while a film plays over the window, and while the window isn't in use
+    /// (hidden, minimised or behind another app).
+    private var holdsStill: Bool { hovering || PlayerHost.shared.shown != nil || scenePhase != .active }
 
     /// A Mac has no swiping pages: one title at a time, crossfading, with dots to pick one and arrows on hover.
     private var pages: some View {

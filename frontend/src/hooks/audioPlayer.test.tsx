@@ -4,7 +4,8 @@ import type { ItemSummary } from '../api/types'
 import { detail, mockApi, summary } from '../test/mockApi'
 import { AudioPlayerProvider } from './audioPlayer'
 import { useAudioPlayer } from './audioPlayerContext'
-import { queueStorageKey } from './queue'
+import { forgetPlayed } from '../lib/profileScope'
+import { queueStorageKey, queueTracksStorageKey } from './queue'
 
 beforeAll(() => {
   // jsdom has no media playback: play/pause keep `paused` honest and fire their events, and nothing else.
@@ -29,7 +30,10 @@ beforeAll(() => {
   })
 })
 
-beforeEach(() => localStorage.clear())
+beforeEach(() => {
+  localStorage.clear()
+  sessionStorage.clear()
+})
 afterEach(() => vi.unstubAllGlobals())
 
 const track = (id: string, title: string, album = 'album-1') => summary({ id, kind: 'Track', title, parentId: album, seriesTitle: 'Artist', seriesId: 'artist-1', durationSeconds: 240 })
@@ -73,7 +77,13 @@ function playbackApi(extra: Record<string, unknown> = {}) {
   return { requests, stopped, ended }
 }
 
-const stored = () => JSON.parse(sessionStorage.getItem(queueStorageKey()) ?? 'null') as { ids: string[]; albums: string[]; index: number; position: number } | null
+/** The queue as it's kept for a reload, without when it was written. */
+const stored = () => {
+  const kept = JSON.parse(sessionStorage.getItem(queueStorageKey()) ?? 'null') as { ids: string[]; albums: string[]; index: number; position: number; savedAt?: number } | null
+  delete kept?.savedAt
+  return kept
+}
+const keptTracks = () => (JSON.parse(sessionStorage.getItem(queueTracksStorageKey()) ?? 'null') as { id: string }[] | null)?.map((t) => t.id) ?? null
 
 /** The two elements, as the provider renders them. */
 const elements = () => Array.from(document.querySelectorAll('audio'))
@@ -155,6 +165,45 @@ describe('AudioPlayerProvider', () => {
     act(() => result.current.stop())
     expect(result.current.current).toBeUndefined()
     expect(sessionStorage.getItem(queueStorageKey())).toBeNull()
+    expect(sessionStorage.getItem(queueTracksStorageKey())).toBeNull()
+  })
+
+  it('a reload brings a queue back from the tracks kept with it, without asking the server for any of them', async () => {
+    playbackApi()
+    const first = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+    act(() => first.result.current.play([one, two, three, one] as unknown as ItemSummary[], 0))
+    act(() => first.result.current.next())
+    await waitFor(() => expect(stored()?.index).toBe(1))
+    // Each track is kept once, however often it's queued, and only rewritten when the queue changes.
+    expect(keptTracks()).toEqual(['t1', 't2', 't3'])
+    first.unmount()
+
+    const fetched = mockApi({})
+    const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+    await waitFor(() => expect(result.current.queue.map((t) => t.id)).toEqual(['t1', 't2', 't3', 't1']))
+    expect(result.current.index).toBe(1)
+    expect(result.current.current?.title).toBe('Two')
+    expect(result.current.playing).toBe(false)
+    expect(fetched).not.toHaveBeenCalled()
+  })
+
+  it('fetches the queue as before when its tracks weren’t all kept, or were kept long ago', async () => {
+    const queue = { ids: ['t1', 't2'], albums: ['album-1'], index: 1, position: 42 }
+    const renamed = { ...album, children: [one, { ...two, title: 'Two (remastered)' }] }
+
+    // Storage ran out part-way: one of the tracks isn't there.
+    sessionStorage.setItem(queueStorageKey(), JSON.stringify({ ...queue, savedAt: Date.now() }))
+    sessionStorage.setItem(queueTracksStorageKey(), JSON.stringify([one]))
+    playbackApi({ '/items/album-1': renamed })
+    const partial = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+    await waitFor(() => expect(partial.result.current.current?.title).toBe('Two (remastered)'))
+    partial.unmount()
+
+    // A browser bringing back a tab from days ago: the library may have changed since.
+    sessionStorage.setItem(queueStorageKey(), JSON.stringify({ ...queue, savedAt: Date.now() - 3 * 24 * 60 * 60 * 1000 }))
+    sessionStorage.setItem(queueTracksStorageKey(), JSON.stringify([one, two]))
+    const old = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+    await waitFor(() => expect(old.result.current.current?.title).toBe('Two (remastered)'))
   })
 
   it('opens Now Playing for Play and Shuffle, not for a track picked from a list', async () => {
@@ -202,6 +251,47 @@ describe('AudioPlayerProvider', () => {
     } finally {
       localStorage.removeItem('flexarr.profile')
     }
+  })
+
+  it('keeps the queue for the profile the page was opened for, when another is chosen just before the page goes', async () => {
+    playbackApi()
+    const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+    act(() => result.current.play([one, two] as unknown as ItemSummary[], 0))
+    await waitFor(() => expect(stored()?.ids).toEqual(['t1', 't2']))
+
+    // "Switch to …": the new profile is saved, then the page reloads, writing the queue once more on its way out.
+    localStorage.setItem('flexarr.profile', 'kid-1.signature')
+    act(() => void window.dispatchEvent(new Event('pagehide')))
+
+    expect(Object.keys(sessionStorage).sort()).toEqual(['flexarr.musicQueue', 'flexarr.musicQueueTracks'])
+  })
+
+  it('writes the queue no more once this browser has signed out, so the page going doesn’t put it back', async () => {
+    playbackApi()
+    const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+    act(() => result.current.play([one, two] as unknown as ItemSummary[], 0))
+    await waitFor(() => expect(stored()?.ids).toEqual(['t1', 't2']))
+
+    // "Sign out of this browser": forgotten, then the page reloads. At home the next page may open signed in anyway.
+    forgetPlayed({ signedOut: true })
+    act(() => result.current.next())
+    act(() => void window.dispatchEvent(new Event('pagehide')))
+
+    expect(Object.keys(sessionStorage).filter((key) => key.startsWith('flexarr.musicQueue'))).toEqual([])
+  })
+
+  it('leaves another profile’s queue as ids alone, taking away its tracks, once someone else is here', async () => {
+    sessionStorage.setItem('flexarr.musicQueue', JSON.stringify({ ids: ['t1'], albums: ['album-1'], index: 0, position: 5, savedAt: Date.now() }))
+    sessionStorage.setItem('flexarr.musicQueueTracks', JSON.stringify([one]))
+    localStorage.setItem('flexarr.profile', 'kid-1.signature')
+    playbackApi()
+    const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    })
+
+    expect(result.current.queue).toEqual([])
+    expect(Object.keys(sessionStorage)).toEqual(['flexarr.musicQueue'])
   })
 
   it('drops stored tracks that no longer exist and forgets a queue with none left', async () => {
@@ -753,6 +843,36 @@ describe('AudioPlayerProvider', () => {
       expect(beacon).not.toHaveBeenCalled()
       // This browser's own place is forgotten too, so the next start doesn't bring it back.
       expect(JSON.parse(localStorage.getItem('flexarr.bookPlace.b1') ?? 'null')).toMatchObject({ position: 0 })
+    })
+
+    it('keep their place for the profile they were started for, when another is chosen just before the page goes', async () => {
+      bookApi()
+      vi.stubGlobal('navigator', { ...navigator, sendBeacon: vi.fn(() => true) })
+      const { a } = await start()
+      tick(a, 40)
+
+      // "Switch to …": the new profile is saved, then the page reloads, keeping the book's place once more as it goes.
+      localStorage.setItem('flexarr.profile', 'kid-1.signature')
+      act(() => void window.dispatchEvent(new Event('pagehide')))
+
+      // The child doesn't find the parent's place under their own name, to start the book from.
+      expect(Object.keys(localStorage).filter((key) => key.startsWith('flexarr.bookPlace.'))).toEqual(['flexarr.bookPlace.b1'])
+      expect(JSON.parse(localStorage.getItem('flexarr.bookPlace.b1') ?? 'null')).toMatchObject({ position: 40 })
+    })
+
+    it('keep their place no more once this browser has signed out, so the page going doesn’t put it back', async () => {
+      bookApi()
+      vi.stubGlobal('navigator', { ...navigator, sendBeacon: vi.fn(() => true) })
+      const { result, a } = await start()
+      tick(a, 40)
+      act(() => result.current.toggle())
+      await waitFor(() => expect(localStorage.getItem('flexarr.bookPlace.b1')).not.toBeNull())
+
+      forgetPlayed({ signedOut: true })
+      act(() => void window.dispatchEvent(new Event('pagehide')))
+
+      expect(Object.keys(localStorage).filter((key) => key.startsWith('flexarr.bookPlace.'))).toEqual([])
+      expect(Object.keys(sessionStorage).filter((key) => key.startsWith('flexarr.musicQueue'))).toEqual([])
     })
 
     it('send the place to the book itself once the session has expired', async () => {

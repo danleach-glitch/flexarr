@@ -153,7 +153,7 @@ fun MainScreen(model: AppModel) {
     // Signed in (or as someone else): commands for this device come to this sign-in.
     LaunchedEffect(model.credentials) { model.listenForCommands() }
     // Whether this profile may manage the server, and so is asked to let devices in.
-    LaunchedEffect(model.credentials) { model.loadSignIn() }
+    LaunchedEffect(model.credentials) { model.loadSignIn(mayShare = true) }
     // Whether the server keeps watchlists, and what's on this profile's (cards' menus offer it).
     LaunchedEffect(model.credentials, model.isKids) { model.refreshWatchlist() }
     // Downloads follow the server and profile signed in.

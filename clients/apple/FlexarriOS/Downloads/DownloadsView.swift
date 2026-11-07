@@ -91,7 +91,7 @@ private struct DownloadRow: View {
                     // Bigger on an iPad or a Mac, where the row has the room.
                     .frame(width: sizeClass == .regular ? 192 : 112, height: sizeClass == .regular ? 108 : 63)
                     .overlay {
-                        if let name = download.imageFileName, let image = PlatformImage(contentsOfFile: DownloadStore.folder.appending(path: name).path(percentEncoded: false)) {
+                        if let image = store.image(named: download.imageFileName) {
                             Image(platformImage: image).resizable().scaledToFill()
                         } else {
                             Image(systemName: "film").foregroundStyle(Color.usher)

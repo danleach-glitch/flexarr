@@ -210,6 +210,9 @@ namespace Flexarr.Core.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("FullScanAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("HeldKnown")
                         .HasColumnType("INTEGER");
 
@@ -752,6 +755,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<int?>("Height")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Loudness")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("MarkersScannedAt")
                         .HasColumnType("TEXT");
 
@@ -988,6 +994,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.HasIndex("TmdbId");
 
                     b.HasIndex("TvdbId");
+
+                    b.HasIndex("Kind", "Title")
+                        .HasFilter("\"Kind\" IN ('Episode', 'Album', 'Track', 'Audiobook')");
 
                     b.HasIndex("LibraryId", "Kind", "SortTitle");
 
@@ -1996,6 +2005,9 @@ namespace Flexarr.Core.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("CheckedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContentHash")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ETag")

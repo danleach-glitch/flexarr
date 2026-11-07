@@ -48,6 +48,12 @@ public static class PlaylistEndpoints
 {
     public const string HomeRowId = "music-playlists";
 
+    /// <summary>The most tracks, albums and artists one request may name (the apps send one).</summary>
+    public const int MaxIdsPerRequest = 500;
+
+    /// <summary>The most tracks a playlist holds: one request naming an artist over and over could otherwise make millions of rows.</summary>
+    public const int MaxTracks = 10_000;
+
     public static RouteGroupBuilder MapPlaylistEndpoints(this RouteGroupBuilder api)
     {
         var group = api.MapGroup("/playlists").WithTags("Playlists");
@@ -72,10 +78,20 @@ public static class PlaylistEndpoints
                 return Problems.Field("Give the playlist a name.", field: "name");
             }
 
-            var tracks = await TracksOfAsync(db, request.ItemIds ?? [], ct);
+            if (request.ItemIds?.Count > MaxIdsPerRequest)
+            {
+                return Problems.Of("Add up to 500 tracks, albums or artists at a time.", status: 400);
+            }
+
+            var tracks = await TracksOfAsync(db, request.ItemIds ?? [], null, MaxTracks, ct);
             if (tracks is null)
             {
                 return Problems.Of("Only tracks, albums and artists can go in a playlist.", status: 400);
+            }
+
+            if (tracks.Count > MaxTracks)
+            {
+                return Problems.Of("A playlist can hold up to 10,000 tracks.", status: 400);
             }
 
             var playlist = new Playlist { ProfileId = profile.Id, Name = name };
@@ -137,17 +153,22 @@ public static class PlaylistEndpoints
                 return Results.NotFound();
             }
 
-            var tracks = await TracksOfAsync(db, request.ItemIds, ct);
+            if (request.ItemIds.Count > MaxIdsPerRequest)
+            {
+                return Problems.Of("Add up to 500 tracks, albums or artists at a time.", status: 400);
+            }
+
+            var existing = await db.PlaylistItems.Where(i => i.PlaylistId == id).Select(i => new { i.MediaItemId, i.Position }).ToListAsync(ct);
+            var room = Math.Max(0, MaxTracks - existing.Count);
+            var tracks = await TracksOfAsync(db, request.ItemIds, request.SkipDuplicates ? existing.Select(e => e.MediaItemId).ToHashSet() : null, room, ct);
             if (tracks is null)
             {
                 return Problems.Of("Only tracks, albums and artists can go in a playlist.", status: 400);
             }
 
-            var existing = await db.PlaylistItems.Where(i => i.PlaylistId == id).Select(i => new { i.MediaItemId, i.Position }).ToListAsync(ct);
-            if (request.SkipDuplicates)
+            if (tracks.Count > room)
             {
-                var had = existing.Select(e => e.MediaItemId).ToHashSet();
-                tracks = tracks.Where(had.Add).ToList();
+                return Problems.Of("A playlist can hold up to 10,000 tracks.", status: 400);
             }
 
             var next = existing.Count == 0 ? 0 : existing.Max(e => e.Position) + 1;
@@ -168,17 +189,35 @@ public static class PlaylistEndpoints
                 return Results.NotFound();
             }
 
-            var items = await db.PlaylistItems.Where(i => i.PlaylistId == id).OrderBy(i => i.Position).ToListAsync(ct);
-            if (items.FirstOrDefault(i => i.Id == entryId) is not { } entry)
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            if (await DenseCountAsync(db, id, ct) is not null)
             {
-                return Results.NotFound();
+                // Only the entries after it move up one.
+                if (await db.PlaylistItems.FirstOrDefaultAsync(i => i.PlaylistId == id && i.Id == entryId, ct) is not { } gone)
+                {
+                    return Results.NotFound();
+                }
+
+                db.PlaylistItems.Remove(gone);
+                await db.PlaylistItems.Where(i => i.PlaylistId == id && i.Position > gone.Position)
+                    .ExecuteUpdateAsync(u => u.SetProperty(i => i.Position, i => i.Position - 1), ct);
+            }
+            else
+            {
+                var items = await db.PlaylistItems.Where(i => i.PlaylistId == id).OrderBy(i => i.Position).ToListAsync(ct);
+                if (items.FirstOrDefault(i => i.Id == entryId) is not { } entry)
+                {
+                    return Results.NotFound();
+                }
+
+                items.Remove(entry);
+                db.PlaylistItems.Remove(entry);
+                Renumber(items);
             }
 
-            items.Remove(entry);
-            db.PlaylistItems.Remove(entry);
-            Renumber(items);
             playlist.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
             return Results.NoContent();
         });
 
@@ -189,17 +228,46 @@ public static class PlaylistEndpoints
                 return Results.NotFound();
             }
 
-            var items = await db.PlaylistItems.Where(i => i.PlaylistId == id).OrderBy(i => i.Position).ToListAsync(ct);
-            if (items.FirstOrDefault(i => i.Id == entryId) is not { } entry)
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            if (await DenseCountAsync(db, id, ct) is { } count)
             {
-                return Results.NotFound();
+                // Only the entries between its old place and its new one shift, by one.
+                if (await db.PlaylistItems.FirstOrDefaultAsync(i => i.PlaylistId == id && i.Id == entryId, ct) is not { } moving)
+                {
+                    return Results.NotFound();
+                }
+
+                var from = moving.Position;
+                var to = Math.Clamp(request.Position, 0, count - 1);
+                if (to < from)
+                {
+                    await db.PlaylistItems.Where(i => i.PlaylistId == id && i.Position >= to && i.Position < from)
+                        .ExecuteUpdateAsync(u => u.SetProperty(i => i.Position, i => i.Position + 1), ct);
+                }
+                else if (to > from)
+                {
+                    await db.PlaylistItems.Where(i => i.PlaylistId == id && i.Position > from && i.Position <= to)
+                        .ExecuteUpdateAsync(u => u.SetProperty(i => i.Position, i => i.Position - 1), ct);
+                }
+
+                moving.Position = to;
+            }
+            else
+            {
+                var items = await db.PlaylistItems.Where(i => i.PlaylistId == id).OrderBy(i => i.Position).ToListAsync(ct);
+                if (items.FirstOrDefault(i => i.Id == entryId) is not { } entry)
+                {
+                    return Results.NotFound();
+                }
+
+                items.Remove(entry);
+                items.Insert(Math.Clamp(request.Position, 0, items.Count), entry);
+                Renumber(items);
             }
 
-            items.Remove(entry);
-            items.Insert(Math.Clamp(request.Position, 0, items.Count), entry);
-            Renumber(items);
             playlist.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
             return Results.NoContent();
         });
 
@@ -225,6 +293,19 @@ public static class PlaylistEndpoints
         return string.IsNullOrEmpty(trimmed) ? null : trimmed[..Math.Min(trimmed.Length, 120)];
     }
 
+    /// <summary>
+    /// How many entries the playlist has when their positions run 0, 1, 2… with no gaps or repeats, so a move or a
+    /// removal need only shift the entries in between; else null (a track gone from the library left a gap), and the
+    /// whole list is numbered again.
+    /// </summary>
+    private static async Task<int?> DenseCountAsync(FlexarrDbContext db, Guid id, CancellationToken ct)
+    {
+        var shape = await db.PlaylistItems.Where(i => i.PlaylistId == id).GroupBy(i => i.PlaylistId)
+            .Select(g => new { Count = g.Count(), Lowest = g.Min(i => i.Position), Highest = g.Max(i => i.Position), Distinct = g.Select(i => i.Position).Distinct().Count() })
+            .FirstOrDefaultAsync(ct);
+        return shape is not null && shape.Lowest == 0 && shape.Highest == shape.Count - 1 && shape.Distinct == shape.Count ? shape.Count : null;
+    }
+
     /// <summary>Positions from 0 without gaps, in the order given.</summary>
     private static void Renumber(List<PlaylistItem> items)
     {
@@ -238,7 +319,9 @@ public static class PlaylistEndpoints
     /// The tracks <paramref name="ids"/> stand for, in the order asked: a track is itself, an album its tracks in
     /// order, an artist every track they have (albums oldest first). Null when an id isn't a track, album or artist.
     /// </summary>
-    private static async Task<List<Guid>?> TracksOfAsync(FlexarrDbContext db, IReadOnlyList<Guid> ids, CancellationToken ct)
+    /// <param name="had">Tracks to leave out (the playlist's own, when duplicates are skipped), and then any named twice.</param>
+    /// <param name="room">How many fit. It stops once there are more, so more than <paramref name="room"/> back means they don't.</param>
+    private static async Task<List<Guid>?> TracksOfAsync(FlexarrDbContext db, IReadOnlyList<Guid> ids, HashSet<Guid>? had, int room, CancellationToken ct)
     {
         var wanted = ids.Distinct().ToList();
         if (wanted.Count == 0)
@@ -261,12 +344,16 @@ public static class PlaylistEndpoints
         var result = new List<Guid>();
         foreach (var id in ids)
         {
-            result.AddRange(kinds[id] switch
+            result.AddRange((kinds[id] switch
             {
                 MediaKind.Track => inOrder.Where(t => t.Id == id).Select(t => t.Id),
                 MediaKind.Album => inOrder.Where(t => t.AlbumId == id).Select(t => t.Id),
                 _ => inOrder.Where(t => t.ArtistId == id).Select(t => t.Id),
-            });
+            }).Where(t => had is null || had.Add(t)));
+            if (result.Count > room)
+            {
+                break;
+            }
         }
 
         return result;
@@ -291,37 +378,44 @@ public static class PlaylistEndpoints
         await SummariesAsync(db, await db.Playlists.Where(p => p.ProfileId == profileId).OrderByDescending(p => p.UpdatedAt).ThenBy(p => p.Name).ToListAsync(ct), ct);
 
     /// <summary>
-    /// What a list of playlists shows (count, length and four covers each) without summarising every track: one query
-    /// over the entries of them all, one for any chosen covers.
+    /// What a list of playlists shows (count, length and four covers each) without reading every entry: the counts
+    /// and lengths added up in the database, each playlist's covers as the distinct ones with where each first comes,
+    /// and one query for the covers' versions and any chosen covers.
     /// </summary>
     private static async Task<List<PlaylistSummaryDto>> SummariesAsync(FlexarrDbContext db, IReadOnlyList<Playlist> playlists, CancellationToken ct)
     {
         var ids = playlists.Select(p => p.Id).ToList();
-        var entries = ids.Count == 0 ? []
-            : await db.PlaylistItems.Where(i => ids.Contains(i.PlaylistId) && i.MediaItem != null)
-                .Select(i => new
-                {
-                    i.PlaylistId,
-                    i.Position,
-                    Duration = i.MediaItem!.Files.Max(f => f.DurationSeconds),
-                    // A track's cover is its album's, unless it has one of its own.
-                    CoverOf = i.MediaItem.PosterUrl != null ? i.MediaItem.Id : i.MediaItem.Parent!.PosterUrl != null ? i.MediaItem.ParentId : null,
-                    CoverVersion = i.MediaItem.PosterUrl != null ? i.MediaItem.MetadataUpdatedAt : i.MediaItem.Parent!.MetadataUpdatedAt,
-                    CoverChanged = i.MediaItem.PosterUrl != null ? i.MediaItem.ArtworkChangedAt : i.MediaItem.Parent!.ArtworkChangedAt,
-                })
-                .ToListAsync(ct);
-        var byPlaylist = entries.ToLookup(e => e.PlaylistId);
+        var entries = db.PlaylistItems.Where(i => ids.Contains(i.PlaylistId) && i.MediaItem != null);
+        var totals = ids.Count == 0 ? []
+            : await entries
+                .Select(i => new { i.PlaylistId, Duration = i.MediaItem!.Files.Max(f => f.DurationSeconds) ?? 0 })
+                .GroupBy(e => e.PlaylistId)
+                .Select(g => new { PlaylistId = g.Key, Count = g.Count(), Duration = g.Sum(e => e.Duration) })
+                .ToDictionaryAsync(t => t.PlaylistId, ct);
+        // A track's cover is its album's, unless it has one of its own.
+        var mosaics = ids.Count == 0 ? []
+            : (await entries
+                .Select(i => new { i.PlaylistId, i.Position, CoverOf = i.MediaItem!.PosterUrl != null ? i.MediaItem.Id : i.MediaItem.Parent!.PosterUrl != null ? i.MediaItem.ParentId : null })
+                .Where(e => e.CoverOf != null)
+                .GroupBy(e => new { e.PlaylistId, e.CoverOf })
+                .Select(g => new { g.Key.PlaylistId, CoverOf = g.Key.CoverOf!.Value, First = g.Min(e => e.Position) })
+                .ToListAsync(ct))
+            .GroupBy(e => e.PlaylistId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(e => e.First).Take(4).Select(e => e.CoverOf).ToList());
 
-        var coverIds = playlists.Where(p => p.CoverItemId != null).Select(p => p.CoverItemId!.Value).Distinct().ToList();
-        var covers = coverIds.Count == 0 ? []
-            : await db.MediaItems.Where(i => coverIds.Contains(i.Id) && i.PosterUrl != null).Select(i => new { i.Id, i.MetadataUpdatedAt, i.ArtworkChangedAt }).ToDictionaryAsync(i => i.Id, ct);
+        var chosen = playlists.Where(p => p.CoverItemId != null).Select(p => p.CoverItemId!.Value).ToList();
+        var pictureIds = mosaics.Values.SelectMany(m => m).Concat(chosen).Distinct().ToList();
+        var pictures = pictureIds.Count == 0 ? []
+            : await db.MediaItems.Where(i => pictureIds.Contains(i.Id)).Select(i => new { i.Id, HasPoster = i.PosterUrl != null, i.MetadataUpdatedAt, i.ArtworkChangedAt })
+                .ToDictionaryAsync(i => i.Id, ct);
 
         return playlists.Select(p =>
         {
-            var items = byPlaylist[p.Id].OrderBy(e => e.Position).ToList();
-            var mosaic = items.Where(e => e.CoverOf != null).DistinctBy(e => e.CoverOf).Take(4).Select(e => Poster(e.CoverOf!.Value, ArtworkUrls.Version(e.CoverVersion, e.CoverChanged))).ToList();
-            var cover = p.CoverItemId is { } id && covers.TryGetValue(id, out var c) ? Poster(id, ArtworkUrls.Version(c.MetadataUpdatedAt, c.ArtworkChangedAt)) : null;
-            return new PlaylistSummaryDto(p.Id, p.Name, items.Count, items.Sum(e => e.Duration ?? 0), mosaic, cover, p.CreatedAt, p.UpdatedAt);
+            var total = totals.GetValueOrDefault(p.Id);
+            var mosaic = mosaics.GetValueOrDefault(p.Id, []).Where(pictures.ContainsKey)
+                .Select(id => Poster(id, ArtworkUrls.Version(pictures[id].MetadataUpdatedAt, pictures[id].ArtworkChangedAt))).ToList();
+            var cover = p.CoverItemId is { } id && pictures.TryGetValue(id, out var c) && c.HasPoster ? Poster(id, ArtworkUrls.Version(c.MetadataUpdatedAt, c.ArtworkChangedAt)) : null;
+            return new PlaylistSummaryDto(p.Id, p.Name, total?.Count ?? 0, total?.Duration ?? 0, mosaic, cover, p.CreatedAt, p.UpdatedAt);
         }).ToList();
     }
 

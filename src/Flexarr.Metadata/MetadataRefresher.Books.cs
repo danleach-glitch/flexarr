@@ -12,6 +12,11 @@ public sealed partial class MetadataRefresher
     private async Task<MetadataRefreshResult> RefreshBooksAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
     {
         var result = await RefreshDueBooksAsync(libraryId, force, within, ct).ConfigureAwait(false);
+        if (_dueAtMost is not null)
+        {
+            db.ChangeTracker.Clear();
+            return result; // Author folders' photos are looked at when the library is scanned.
+        }
 
         // A photo put in (or taken from) an author's folder shows after the scan that saw it, not when one of their
         // books is next due.

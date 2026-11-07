@@ -36,7 +36,7 @@ struct GuestInviteTests {
 
     @Test func refusesAnythingThatCouldPointElsewhere() {
         #expect(GuestInvite.parse("https://evil.example/join#\(payload([:]))") == nil)
-        #expect(GuestInvite.parse(payload(["a": "192.168.1.106:8383"])) == nil) // not a tailnet address
+        #expect(GuestInvite.parse(payload(["a": "192.168.1.50:8383"])) == nil) // not a tailnet address
         #expect(GuestInvite.parse(payload(["a": "100.101.102.103"])) == nil) // no port
         #expect(GuestInvite.parse(payload(["k": "not-a-key"])) == nil)
         #expect(GuestInvite.parse(payload(["v": 2])) == nil)
@@ -100,5 +100,16 @@ struct GuestInviteTests {
         #expect(tv.display == "\(tv.code.prefix(4))-\(tv.code.suffix(4))")
         #expect(tv.secret.count >= 32)
         #expect(Data(base64Encoded: tv.publicKey)?.count == 65)
+    }
+
+    /// The vectors in docs/remote-guests.md ("The code proves the key"), which relay/test/pair.test.js checks too.
+    @Test func aTvCodeIsMadeFromItsPublicKey() {
+        #expect(GuestTvCode.code(forPublicKey: "BAabxf2q9hMu/dxG+nGp5nYWsRDth260mBqx6U/8TU9miOPz86o/f4xuMSzrZ/YVxS1EHcdBY/JxFPKujcWATRA=") == "P5GSPMQP")
+        #expect(GuestTvCode.code(forPublicKey: "BJeO6XNfhIDBbIdQxtPpYlj3Cjk7nlUzjg+xJFmk20ChvzfI1jdWs2T5CgsWu1MmBW4iXHxrMfK9/MTDb9Nb1mM=") == "VFAZC453")
+        #expect(GuestTvCode.code(forPublicKey: "BBikfwYmLGipShyfrqxMWA/kv+NWBDrgrZotgMESONlNQfZ0um1pjfF8J+1iarUDMOzmd5+F9czYFE5xxV+pIvo=") == "7EAR565J")
+
+        let tv = GuestTvCode()
+        #expect(tv.code == GuestTvCode.code(forPublicKey: tv.publicKey))
+        #expect(GuestTvCode().code != tv.code)
     }
 }

@@ -26,6 +26,8 @@ final class ServerProcess {
     /// While nobody has set the server up: the code its welcome page asks for, which it keeps in its data folder.
     private(set) var setupCode: String?
     private let requests: AppRequests
+    /// The token this run's server was given (Flexarr:MacApp:Token): what Reset Admin PIN seals the new PIN with.
+    var launchToken: String { requests.token }
     private var requestsPort: UInt16?
     private var process: Process?
     private var quickExits = 0
@@ -38,6 +40,9 @@ final class ServerProcess {
     /// The port the server listens on. `defaults write <bundle id> Port 8484` changes it.
     let port: Int = UserDefaults.standard.integer(forKey: "Port").nonZero ?? 8383
     var address: URL { URL(string: "http://localhost:\(port)")! }
+    /// The same server by number, for what carries the API key: "localhost" is also ::1 and whatever the Mac's hosts
+    /// file says, one more place another program could be answering from.
+    var loopbackAddress: URL { URL(string: "http://127.0.0.1:\(port)")! }
     /// Where Open Flexarr goes: while the server isn't set up, with its code after the #, which the welcome page fills
     /// in by itself (browsers never send that part to the server, so it stays out of logs). Nobody hunts for the code.
     var openAddress: URL { setupCode.flatMap { URL(string: "http://localhost:\(port)/#setup=\($0)") } ?? address }
@@ -87,7 +92,7 @@ final class ServerProcess {
         let process = Process()
         process.executableURL = executable
         process.currentDirectoryURL = content
-        var environment = ProcessInfo.processInfo.environment
+        var environment = Self.inherited(from: ProcessInfo.processInfo.environment)
         environment["ASPNETCORE_ENVIRONMENT"] = "Production"
         environment["ASPNETCORE_CONTENTROOT"] = content.path
         environment["Urls"] = "http://*:\(port)"
@@ -98,10 +103,17 @@ final class ServerProcess {
         environment["Flexarr__FfmpegPath"] = executable.deletingLastPathComponent().appending(path: "ffmpeg").path
         environment["Flexarr__FfprobePath"] = executable.deletingLastPathComponent().appending(path: "ffprobe").path
         environment["Flexarr__MacApp__Port"] = String(requestsPort)
-        environment["Flexarr__MacApp__Token"] = requests.token
+        // The token goes on standard input, not here: another program can read what's in a process's environment.
+        environment["Flexarr__MacApp__TokenOnInput"] = "true"
         // The sandbox leaves the server no way to ask for this Mac's Bonjour name, its default name.
         if let host = SCDynamicStoreCopyLocalHostName(nil).map({ String($0) }) { environment["Flexarr__MacApp__HostName"] = host }
         process.environment = environment
+        // Written before the server starts, while this end of the pipe is still open, so the write can't fail on a
+        // server that has already gone; it reads the line at its start (MacAppHost.ReadTokenFromInput).
+        let input = Pipe()
+        try? input.fileHandleForWriting.write(contentsOf: Data((requests.token + "\n").utf8))
+        try? input.fileHandleForWriting.close()
+        process.standardInput = input
 
         let console = logDirectory.appending(path: "console.log")
         if !FileManager.default.fileExists(atPath: console.path) {
@@ -194,6 +206,18 @@ final class ServerProcess {
 }
 
 extension ServerProcess {
+    /// What the server gets of the app's own environment: where its home and temporary folders are (the sandbox's), who
+    /// is signed in, the language and the time zone. Nothing else, because the rest is whatever was set for every app
+    /// started on this Mac (`launchctl setenv`), and all of it gives orders: .NET loads code named in DOTNET_ variables,
+    /// the loader in DYLD_ ones, and any other name is a server setting (Flexarr__…, Urls).
+    nonisolated static func inherited(from environment: [String: String]) -> [String: String] {
+        let kept: Set = ["HOME", "CFFIXED_USER_HOME", "TMPDIR", "USER", "LOGNAME", "SHELL", "LANG", "TZ", "__CF_USER_TEXT_ENCODING", "APP_SANDBOX_CONTAINER_ID"]
+        var inherited = environment.filter { kept.contains($0.key) || $0.key.hasPrefix("LC_") }
+        // What an app opened from the Finder has.
+        inherited["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
+        return inherited
+    }
+
     /// This Mac's Bonjour name ("Dans-Mac-Mini").
     static var localHostName: String { SCDynamicStoreCopyLocalHostName(nil).map { String($0) } ?? "localhost" }
 

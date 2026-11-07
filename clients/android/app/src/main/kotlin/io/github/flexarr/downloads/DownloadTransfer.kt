@@ -13,6 +13,8 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import io.github.flexarr.AppLink
 import io.github.flexarr.appModel
+import io.github.flexarr.core.DownloadRules
+import io.github.flexarr.core.DownloadStatus
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.LocalDownload
@@ -47,12 +49,19 @@ internal class DownloadTransfer(
         Done,
         /** Out of reach, or the connection dropped: to be tried again later, from where it got to. */
         Retry,
+        /** Still waiting its turn on the server: to ask again later ([DownloadRules.laterMillis]), not counted as a try. */
+        Later,
     }
 
     private val store get() = context.appModel.downloads
 
-    /** Runs the transfer of download [id]; [attempt] is how many times it's been tried before (it gives up after a while). */
-    suspend fun run(id: String, attempt: Int): Outcome {
+    /**
+     * Runs the transfer of download [id]; [attempt] is how many times it's been tried before (it gives up after a while).
+     * [waits]: how many times it's come back [Outcome.Later] already, for one that can (WorkManager's); null asks after
+     * it until it's ready, however long that takes (a user-initiated job, which Android won't let the app schedule again
+     * from the background). [mayEnd]: whether it may end to wait now (not while it holds what it couldn't get back).
+     */
+    suspend fun run(id: String, attempt: Int, waits: Int? = null, mayEnd: () -> Boolean = { true }): Outcome {
         store.ready()
         val local = onMain { store.byId(id) } ?: return Outcome.Done // deleted meanwhile
         if (local.isDownloaded) return Outcome.Done
@@ -61,7 +70,10 @@ internal class DownloadTransfer(
         try {
             val client = onMain { store.currentClient } ?: return Outcome.Retry
             show(local, t("Getting ready"), null)
-            // The server converts it first: asked after every few seconds until it's ready.
+            // The server converts it first: asked after until it's ready, every few seconds at first and then less often
+            // ([DownloadRules.pollMillis]), as a season waits hours for its turn.
+            var heard = 0
+            var lastStatus: DownloadStatus? = null
             while (true) {
                 val remote = try {
                     client.offlineDownload(id)
@@ -74,7 +86,10 @@ internal class DownloadTransfer(
                 }
                 if (onMain { store.apply(remote) }) break
                 if (onMain { store.byId(id)?.phase } != LocalPhase.Preparing) return Outcome.Done // failed, forgotten or deleted
-                delay(POLL_MS)
+                heard = if (remote.status == lastStatus) heard + 1 else 1
+                lastStatus = remote.status
+                if (waits != null && DownloadRules.comesBackLater(remote.status, heard, waits) && mayEnd()) return Outcome.Later
+                delay(DownloadRules.pollMillis(remote.status, heard))
             }
             val ready = onMain { store.byId(id) } ?: return Outcome.Done
             show(ready, t("Downloading"), null)
@@ -215,7 +230,6 @@ internal class DownloadTransfer(
 
         private const val CHANNEL = "downloads"
         private const val OPEN_DOWNLOADS_REQUEST = 0x0d0f
-        private const val POLL_MS = 3_000L
         private const val PROGRESS_MS = 500L
         const val MAX_ATTEMPTS = 20
         /** Left free beside a download, so the phone isn't filled to the brim. */

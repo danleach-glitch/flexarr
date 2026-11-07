@@ -85,6 +85,57 @@ public sealed class DownloadConversionTests : IDisposable
         Assert.Equal(("audio", "aac", 2), (audio.Type, audio.Codec, audio.Channels));
     }
 
+    [Fact]
+    public async Task WhenFfmpegIsInstalled_APodcastEpisodeThatsReallyAPlaylist_IsRefused_AndASoundFileIsConverted()
+    {
+        if (!await HasFfmpegAsync())
+        {
+            return;
+        }
+
+        // A track in someone's library, and an "episode" that's a playlist naming it.
+        var track = Path.Combine(_dir, "track.flac");
+        await RunAsync("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440", "-t", "2", track);
+        var playlist = Path.Combine(_dir, "episode.part.m3u8");
+        await File.WriteAllTextAsync(playlist, $"#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:10\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:2.0,\n{track}\n#EXT-X-ENDLIST\n");
+        var list = Path.Combine(_dir, "episode.part.ogg");
+        await File.WriteAllTextAsync(list, $"ffconcat version 1.0\nfile '{track}'\n");
+
+        foreach (var episode in new[] { playlist, list })
+        {
+            var stolen = Path.Combine(_dir, "stolen.m4a");
+            Assert.NotEqual(0, await ExitCodeAsync("ffmpeg", [.. FfmpegCommand.M4a(episode, 0, 2, stolen, soundFileOnly: true)]));
+            Assert.False(File.Exists(stolen) && new FileInfo(stolen).Length > 0);
+        }
+
+        // What podcasts really come as still converts, under a name that says nothing about it.
+        foreach (var (format, codec) in new[] { ("flac", "flac"), ("wav", "pcm_s16le"), ("ogg", "flac"), ("matroska", "pcm_s16le"), ("mp4", "aac"), ("adts", "aac"), ("mp3", "mp3") })
+        {
+            var episode = Path.Combine(_dir, $"{format}.part.php");
+            await RunAsync("ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440", "-t", "2", "-c:a", codec, "-f", format, episode);
+            var output = Path.Combine(_dir, $"{format}.m4a");
+            await RunAsync("ffmpeg", [.. FfmpegCommand.M4a(episode, 0, 2, output, soundFileOnly: true)]);
+            var audio = Assert.Single(await StreamsAsync(output));
+            Assert.Equal(("audio", "aac"), (audio.Type, audio.Codec));
+        }
+    }
+
+    private static async Task<int> ExitCodeAsync(string program, params string[] args)
+    {
+        var start = new ProcessStartInfo(program) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        foreach (var arg in args)
+        {
+            start.ArgumentList.Add(arg);
+        }
+
+        using var process = Process.Start(start)!;
+        var output = process.StandardOutput.ReadToEndAsync();
+        var errors = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        await Task.WhenAll(output, errors);
+        return process.ExitCode;
+    }
+
     private static async Task<bool> HasFfmpegAsync()
     {
         try

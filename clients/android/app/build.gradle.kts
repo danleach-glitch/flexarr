@@ -24,6 +24,10 @@ val serverVersion: String = providers.gradleProperty("flexarr.version").orNull
         .find(rootDir.resolve("../../Directory.Build.props").readText())!!.groupValues[1]
 val versionParts = serverVersion.split(".").map { it.toInt() }
 
+// Family invites ("Join someone’s Flexarr", invite links): debug builds, and release builds given
+// -Pflexarr.guestInvites=true, until servers have them on (docs/remote-guests.md).
+val guestInvites: Boolean = providers.gradleProperty("flexarr.guestInvites").orNull == "true"
+
 // Google Play builds are signed with the upload key, and Google signs what people download with the app's own key. The
 // keystore and its passwords stay out of the repo: ~/.flexarr-release/android-upload.properties (storeFile, storePassword,
 // keyAlias, keyPassword), or the file FLEXARR_ANDROID_SIGNING names. Without one, release builds come out unsigned.
@@ -45,9 +49,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Signing in from launch arguments (MainActivity): debug builds, and the builds the baseline profile is made with.
         buildConfigField("boolean", "LAUNCH_ARGUMENTS", "false")
-        // Family invites ("Join someone’s Flexarr", invite links): debug builds, and release builds given
-        // -Pflexarr.guestInvites=true, until servers have them on (docs/remote-guests.md).
-        buildConfigField("boolean", "GUEST_INVITES", (providers.gradleProperty("flexarr.guestInvites").orNull == "true").toString())
+        // Family invites: see guestInvites above. Builds without them leave the tunnel's library out (onVariants below).
+        buildConfigField("boolean", "GUEST_INVITES", guestInvites.toString())
     }
 
     signingConfigs {
@@ -154,6 +157,10 @@ androidComponents {
         if (variant.name == "nonMinifiedRelease" || variant.name == "benchmarkRelease") {
             variant.buildConfigFields?.put("LAUNCH_ARGUMENTS", com.android.build.api.variant.BuildConfigField("boolean", "true", null))
         }
+        // A build without family invites (GUEST_INVITES false: release and the builds made from it, unless
+        // -Pflexarr.guestInvites=true) has no way to a guest's sign-in, so it leaves the tunnel's Go library out: about
+        // 18 MB on each device. The AAR's few Java classes stay, for GuestTunnel, which never loads the library there.
+        if (variant.buildType != "debug" && !guestInvites) variant.packaging.jniLibs.excludes.add("**/libgojni.so")
     }
 }
 
@@ -175,6 +182,7 @@ play {
 // their content, kept in a .hash file beside the AAR when it's built here, not by their dates: a checkout (CI's above
 // all, with the AAR restored from its cache) makes every source newer than an AAR built from the same code. Needs Go,
 // the NDK and a JDK (clients/tunnel/README.md). Google Play's bundles give each phone just its own ABI's library.
+// Only builds with family invites package that library (see onVariants above); every build compiles against the AAR.
 val tunnelDir: File = rootDir.resolve("../tunnel")
 val tunnelAar: File = tunnelDir.resolve("build/flexarr-tunnel.aar")
 val buildTunnel by tasks.registering(Exec::class) {

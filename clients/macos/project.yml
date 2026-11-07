@@ -33,7 +33,11 @@ targets:
         # Sign to run locally until the App Store record exists; Tools/build.sh can pass a team.
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Manual
-        ENABLE_HARDENED_RUNTIME: NO
+        # The app itself, so nothing set for every app on this Mac (DYLD_INSERT_LIBRARIES) is loaded into it and its
+        # sandbox. It needs none of the runtime's exceptions. The server and FFmpeg in Contents/Helpers are signed
+        # with it too when signed by a team (Tools/embed-server.sh), the server with .NET's JIT as its one exception,
+        # and get a fixed environment from the app (ServerProcess.inherited).
+        ENABLE_HARDENED_RUNTIME: YES
         GENERATE_INFOPLIST_FILE: NO
         # Made from the iPhone app's artwork by Tools/make-app-icon.swift.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

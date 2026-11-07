@@ -155,10 +155,20 @@ public struct GuestTvCode: Sendable {
     public let privateKey: P256.KeyAgreement.PrivateKey
 
     public init(code: String? = nil, secret: String? = nil, privateKey: P256.KeyAgreement.PrivateKey = .init()) {
-        self.code = code ?? String((0..<8).map { _ in Self.alphabet.randomElement()! })
+        self.code = code ?? Self.code(forPublicKey: privateKey.publicKey.x963Representation.base64EncodedString())
         self.secret = secret ?? Data((0..<32).map { _ in UInt8.random(in: 0...255) }).base64EncodedString()
             .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
         self.privateKey = privateKey
+    }
+
+    /// The code made from the public key (as sent to the relay), so the server can tell the key the relay hands back
+    /// is this TV's: seven characters from its SHA-256 and a check character (docs/remote-guests.md, "The code proves
+    /// the key"). A new key makes a new code.
+    public static func code(forPublicKey publicKey: String) -> String {
+        let h = Array(SHA256.hash(data: Data(publicKey.utf8)))
+        let first = (0..<7).map { Int(h[$0]) % alphabet.count }
+        let check = first.enumerated().reduce(0) { $0 + ($1.offset + 1) * $1.element } % alphabet.count
+        return String((first + [check]).map { alphabet[$0] })
     }
 
     /// "ABCD-EFGH", as the TV shows it.

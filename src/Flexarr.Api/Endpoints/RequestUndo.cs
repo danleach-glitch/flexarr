@@ -1,7 +1,9 @@
 using System.Globalization;
 using Flexarr.Api.Configuration;
 using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
+using Flexarr.Core.Paths;
 using Flexarr.Integrations.Arr;
 using Flexarr.Integrations.Arr.Models;
 using Microsoft.EntityFrameworkCore;
@@ -65,6 +67,13 @@ public static class RequestUndo
         // Only a real request is taken back. Seerr reads a title someone added in Radarr or Sonarr by hand as
         // processing, so it can show as requested; with no open request in Seerr or Flexarr, nobody asked for it.
         if (open.Count == 0 && !await db.MediaRequests.AnyAsync(r => r.Kind == kind && r.TmdbId == body.TmdbId && r.FulfilledAt == null, ct))
+        {
+            return Results.NoContent();
+        }
+
+        // Not in a library yet, and headed for one the profile can't see (the Requested list leaves it out, too): not
+        // theirs to undo.
+        if (inLibrary.Count == 0 && !await HeadedWhereSeenAsync(movie, body.TmdbId, record, open, arr, options, db, ct))
         {
             return Results.NoContent();
         }
@@ -141,7 +150,56 @@ public static class RequestUndo
 
         UpcomingEndpoints.ForgetArrCalls();
         RequestRequested.Forget();
+        // The watchlist keeps what Seerr said for hours: it said requested, and isn't any more.
+        Watchlist.WatchlistService.Forget(cache, body.MediaType, body.TmdbId);
         return Results.NoContent();
+    }
+
+    /// <summary>
+    /// Whether a title that isn't in a library yet is headed for one the profile can see, worked out as the Requested
+    /// list does (<see cref="RequestRequested.ListAsync"/>): the folder Radarr or Sonarr keeps it in, else the one
+    /// Seerr sent it to, through the path mappings; else the oldest library of its kind. Radarr and Sonarr are only
+    /// asked when some library of its kind is hidden from the profile.
+    /// </summary>
+    private static async Task<bool> HeadedWhereSeenAsync(bool movie, int tmdbId, SeerrMediaRecord? record, List<SeerrRequest> open, ArrClient arr, FlexarrOptions options,
+        FlexarrDbContext db, CancellationToken ct)
+    {
+        var type = movie ? LibraryType.Movies : LibraryType.TvShows;
+        var libraries = await db.Libraries.IgnoreQueryFilters().AsNoTracking().Where(l => l.Type == type).Select(l => new { l.Id, l.CreatedAt }).ToListAsync(ct);
+        var seen = await db.Libraries.Where(l => l.Type == type).Select(l => l.Id).ToListAsync(ct);
+        if (seen.Count == libraries.Count)
+        {
+            return true; // nothing of its kind is hidden from this profile
+        }
+
+        string? path = null;
+        if (movie)
+        {
+            foreach (var radarr in options.Arr.Where(a => a.Kind == ArrKind.Radarr))
+            {
+                path ??= (await Call("Radarr", () => arr.GetMoviesByTmdbIdAsync(radarr, tmdbId, ct))).Select(f => f.Path).FirstOrDefault(p => !string.IsNullOrEmpty(p));
+            }
+        }
+        else if ((record?.TvdbId ?? open.Select(r => r.Media?.TvdbId).FirstOrDefault(t => t is > 0)) is { } tvdb)
+        {
+            foreach (var sonarr in options.Arr.Where(a => a.Kind == ArrKind.Sonarr))
+            {
+                path ??= (await Call("Sonarr", () => arr.GetSeriesByTvdbIdAsync(sonarr, tvdb, ct))).Select(s => s.Path).FirstOrDefault(p => !string.IsNullOrEmpty(p));
+            }
+        }
+
+        path ??= open.Select(r => r.RootFolder).FirstOrDefault(f => !string.IsNullOrEmpty(f));
+        var local = string.IsNullOrEmpty(path) ? null : PathMapper.Map(path, options.PathMappings);
+        var created = libraries.ToDictionary(l => l.Id, l => l.CreatedAt);
+        var folders = (await db.LibraryFolders.IgnoreQueryFilters().AsNoTracking().Select(f => new { f.LibraryId, f.Path }).ToListAsync(ct))
+            .Where(f => created.ContainsKey(f.LibraryId)).ToList();
+        var homes = local is null ? [] : folders.Where(f => PathComparison.IsUnder(local, f.Path, PathComparison.FileSystemComparison)).Select(f => f.LibraryId).Distinct().ToList();
+        if (homes.Count == 0 && folders.OrderBy(f => created[f.LibraryId]).ThenBy(f => f.LibraryId).FirstOrDefault() is { } oldest)
+        {
+            homes = [oldest.LibraryId];
+        }
+
+        return homes.Any(seen.Contains);
     }
 
     /// <summary>

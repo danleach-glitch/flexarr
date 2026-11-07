@@ -47,6 +47,44 @@ public sealed class StyledSubtitleTests : IDisposable
         Assert.Equal(("Sign Font.ttf", "font/ttf"), (font.Name, font.ContentType));
         var extracted = await SubtitleFonts.ExtractAsync(file, font, settings, default);
         Assert.Equal("not really a font", await File.ReadAllTextAsync(extracted!));
+
+        // Asked again (a player wants every font at once): the list is remembered, not read with ffprobe each time.
+        var missing = Path.Combine(_dir, "no-ffprobe-here");
+        Assert.Equal(font, Assert.Single(await SubtitleFonts.ListAsync(file, missing, default)));
+        // A file that changed is read again.
+        File.SetLastWriteTimeUtc(file.Path, File.GetLastWriteTimeUtc(file.Path).AddMinutes(1));
+        await Assert.ThrowsAsync<System.ComponentModel.Win32Exception>(() => SubtitleFonts.ListAsync(file, missing, default));
+        Assert.Equal(font, Assert.Single(await SubtitleFonts.ListAsync(file, "ffprobe", default)));
+    }
+
+    [Fact]
+    public async Task WhenFfmpegIsInstalled_EveryFontAskedForAtOnce_IsSavedWithOneFfmpegRun()
+    {
+        if (OperatingSystem.IsWindows() || !await HasFfmpegAsync())
+        {
+            return;
+        }
+
+        var (file, settings) = await ClipAsync(fonts: 3);
+        var fonts = await SubtitleFonts.ListAsync(file, "ffprobe", default);
+        Assert.Equal(["Sign Font.ttf", "Sign Font 2.ttf", "Sign Font 3.ttf"], fonts.Select(f => f.Name));
+
+        // FFmpeg through a script that counts its runs.
+        var runs = Path.Combine(_dir, "runs.log");
+        var counting = Path.Combine(_dir, "counting-ffmpeg");
+        await File.WriteAllTextAsync(counting, $"#!/bin/sh\necho run >> \"{runs}\"\nexec ffmpeg \"$@\"\n");
+        File.SetUnixFileMode(counting, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var through = new TranscodeSettings { CacheDirectory = settings.CacheDirectory, FfmpegPath = counting };
+
+        var saved = await Task.WhenAll(fonts.Select(f => SubtitleFonts.ExtractAsync(file, f, fonts, through, default)));
+
+        Assert.Equal(["not really a font", "not really a font 2", "not really a font 3"], saved.Select(p => File.ReadAllText(p!)));
+        Assert.Single(await File.ReadAllLinesAsync(runs));
+        // Asked again, they come from the cache; a font asked for on its own is the same file.
+        Assert.Equal(saved, await Task.WhenAll(fonts.Select(f => SubtitleFonts.ExtractAsync(file, f, fonts, through, default))));
+        Assert.Equal(saved[1], await SubtitleFonts.ExtractAsync(file, fonts[1], through, default));
+        Assert.Single(await File.ReadAllLinesAsync(runs));
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(_dir, "subtitles"), "*.tmp"));
     }
 
     [Fact]
@@ -68,15 +106,21 @@ public sealed class StyledSubtitleTests : IDisposable
         Assert.DoesNotContain(Directory.EnumerateFiles(Path.Combine(_dir, "subtitles")), f => Path.GetFileName(f).StartsWith("cc-", StringComparison.Ordinal));
     }
 
-    private async Task<(MediaFile File, TranscodeSettings Settings)> ClipAsync()
+    private async Task<(MediaFile File, TranscodeSettings Settings)> ClipAsync(int fonts = 1)
     {
         var ass = Path.Combine(_dir, "signs.ass");
         await File.WriteAllTextAsync(ass, Ass);
-        var font = Path.Combine(_dir, "Sign Font.ttf");
-        await File.WriteAllTextAsync(font, "not really a font");
+        var args = new List<string> { "-v", "error", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=24", "-i", ass, "-t", "3", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:s", "copy" };
+        for (var n = 1; n <= fonts; n++)
+        {
+            var font = Path.Combine(_dir, n == 1 ? "Sign Font.ttf" : $"Sign Font {n}.ttf");
+            await File.WriteAllTextAsync(font, n == 1 ? "not really a font" : $"not really a font {n}");
+            args.AddRange(["-attach", font]);
+        }
+
         var clip = Path.Combine(_dir, "Clip: \"one\".mkv");
-        await RunAsync("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=24", "-i", ass, "-t", "3", "-c:v", "libx264", "-pix_fmt", "yuv420p",
-            "-c:s", "copy", "-attach", font, "-metadata:s:t", "mimetype=application/x-truetype-font", clip);
+        args.AddRange(["-metadata:s:t", "mimetype=application/x-truetype-font", clip]);
+        await RunAsync("ffmpeg", [.. args]);
         var file = new MediaFile
         {
             Path = clip,

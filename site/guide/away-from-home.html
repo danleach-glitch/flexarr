@@ -182,6 +182,8 @@
 <h2 id="why-not-forward-a-port"><a class="anchor" href="#why-not-forward-a-port" aria-hidden="true" tabindex="-1">#</a>Why not forward a port?</h2>
 <p>It&#39;s tempting to open port 8383 on your router and connect to <code>http://your-home-address:8383</code>. Please don&#39;t. Plain <code>http://</code> isn&#39;t encrypted, so your API key, your sign-ins and what you watch cross the internet readable by anyone along the way. It also puts your server in front of every scanner on the internet.</p>
 <p>Plain <code>http://</code> is fine on a home network you trust. Anywhere else, use Tailscale or HTTPS.</p>
+<blockquote class="callout note"><p><strong>Note</strong> A browser hands Flexarr&#39;s sign-in to every web app at the same name, whatever the port, so Sonarr or a download client at <code>http://your-server:8989</code> sees it too. If you don&#39;t trust the other apps on that computer, open Flexarr at a name of its own: its Tailscale address, or one your reverse proxy gives it.</p>
+</blockquote>
 <h2 id="connecting-a-device-from-outside"><a class="anchor" href="#connecting-a-device-from-outside" aria-hidden="true" tabindex="-1">#</a>Connecting a device from outside</h2>
 <p>Devices normally connect with a code you approve in <strong>Settings › Security › Connect a device</strong>, and that only works from your home network or over Tailscale. To connect an app through a reverse proxy instead, use the API key:</p>
 <ul>

@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.appModel
+import io.github.flexarr.ui.Navigator
 import io.github.flexarr.core.BookActions
 import io.github.flexarr.core.BookAuthor
 import io.github.flexarr.core.BookChapter
@@ -124,10 +125,7 @@ import kotlinx.coroutines.launch
 // title, who wrote and reads it, Play, then its chapters, bookmarks, notes and more like it.
 
 /** What a book card's long-press menu offers: play, open, download, finished. */
-@Composable
-fun bookActions(item: ItemSummary, showsDetails: Boolean, downloads: Boolean): List<MenuAction> {
-    val navigator = LocalNavigator.current
-    val model = LocalContext.current.appModel
+fun bookActions(item: ItemSummary, showsDetails: Boolean, downloads: Boolean, navigator: Navigator, model: AppModel): List<MenuAction> {
     val finished = item.isBookFinished
     return buildList {
         add(MenuAction(if (item.userData.positionSeconds > 0 && !finished) t("Resume") else t(Words.play)) { navigator.playBook(item) })

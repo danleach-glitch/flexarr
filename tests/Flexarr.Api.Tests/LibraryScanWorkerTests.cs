@@ -33,7 +33,8 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
         // Path.GetFullPath throws on a null: in the same batch as a good request, it used to stop the server.
         await queue.EnqueueAsync(new LibraryScanRequest($"{root}/Bad\0Path", "Sonarr Download"));
         await queue.EnqueueAsync(new LibraryScanRequest(Path.Combine(root, "Dune (2021)"), "Sonarr Download"));
-        using var worker = new LibraryScanWorker(queue, host.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance);
+        using var worker = new LibraryScanWorker(queue, host.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            host.Services.GetRequiredService<LibraryWorkGate>());
         await worker.StartAsync(default);
 
         var scanned = false;
@@ -47,6 +48,160 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
         Assert.True(scanned, "the good request in the batch should still be scanned");
         Assert.False(worker.ExecuteTask!.IsCompleted, "the worker should still be running");
         await worker.StopAsync(default);
+    }
+
+    [Fact]
+    public async Task TheMetadataTimer_RefreshesOutOfDateTitles_AFewAtATime()
+    {
+        var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = $"/films-{Guid.NewGuid():N}" }] };
+        var month = DateTime.UtcNow.AddDays(-30);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.Libraries.Add(library);
+            for (var n = 0; n < MetadataRefreshWorker.BatchSize + 3; n++)
+            {
+                db.MediaItems.Add(new MediaItem
+                {
+                    LibraryId = library.Id, Kind = MediaKind.Movie, Title = $"Film {n}", SortTitle = $"film {n:D2}", Path = $"{library.Folders[0].Path}/Film {n}",
+                    MetadataUpdatedAt = month.AddMinutes(n),
+                });
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        using var worker = new MetadataRefreshWorker(factory.Services.GetRequiredService<IServiceScopeFactory>(), factory.Services.GetRequiredService<LibraryWorkGate>(),
+            NullLogger<MetadataRefreshWorker>.Instance);
+        await worker.RefreshDueAsync(default);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var stillDue = await db.MediaItems.Where(i => i.LibraryId == library.Id && i.MetadataUpdatedAt < DateTime.UtcNow.AddDays(-7)).OrderBy(i => i.SortTitle).Select(i => i.Title).ToListAsync();
+            Assert.Equal([$"Film {MetadataRefreshWorker.BatchSize}", $"Film {MetadataRefreshWorker.BatchSize + 1}", $"Film {MetadataRefreshWorker.BatchSize + 2}"], stillDue);
+        }
+    }
+
+    [Fact]
+    public async Task TheScheduledScan_SkipsAFolderScannedInFullWithinTwelveHours_AndQueuesItWhenTheyreUp()
+    {
+        var root = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, $"films-{Guid.NewGuid():N}")).FullName;
+        var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = root }] };
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.Libraries.Add(library);
+            await db.SaveChangesAsync();
+        }
+
+        var queue = new LibraryScanQueue();
+        LibraryScanWorker Worker() => new(queue, factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            factory.Services.GetRequiredService<LibraryWorkGate>());
+        async Task<List<string>> QueuedAsync(LibraryScanWorker worker)
+        {
+            await worker.EnqueueAllAsync("Startup", default);
+            var queued = new List<string>();
+            while (queue.TryDequeue(out var request))
+            {
+                if (request.Path == root)
+                {
+                    queued.Add(request.Path);
+                }
+            }
+
+            return queued;
+        }
+
+        async Task FullScanAtAsync(DateTime? at)
+        {
+            using var scope = factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            await db.LibraryFolders.Where(f => f.LibraryId == library.Id).ExecuteUpdateAsync(u => u.SetProperty(f => f.FullScanAt, at));
+        }
+
+        // Never scanned in full: queued, and not again while that's still to do.
+        using (var worker = Worker())
+        {
+            Assert.Equal([root], await QueuedAsync(worker));
+            Assert.Empty(await QueuedAsync(worker));
+        }
+
+        // Started again an hour after a full scan: left until the 12 hours are up.
+        await FullScanAtAsync(DateTime.UtcNow.AddHours(-1));
+        using (var worker = Worker())
+        {
+            Assert.Empty(await QueuedAsync(worker));
+        }
+
+        // Started again 13 hours after: queued.
+        await FullScanAtAsync(DateTime.UtcNow.AddHours(-13));
+        using (var worker = Worker())
+        {
+            Assert.Equal([root], await QueuedAsync(worker));
+        }
+
+        // A clock put back since: queued rather than waited for.
+        await FullScanAtAsync(DateTime.UtcNow.AddHours(5));
+        using (var worker = Worker())
+        {
+            Assert.Equal([root], await QueuedAsync(worker));
+        }
+    }
+
+    [Fact]
+    public async Task AScanOfTheWholeFolder_RecordsWhenItFinished_AndAScanOfPartOfItDoesnt()
+    {
+        using var host = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<IMediaProbe>(new FixedProbe())));
+        var root = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, $"films-{Guid.NewGuid():N}")).FullName;
+        foreach (var film in new[] { "Dune (2021)", "Heat (1995)" })
+        {
+            Directory.CreateDirectory(Path.Combine(root, film));
+            File.WriteAllText(Path.Combine(root, film, $"{film}.mkv"), "x");
+        }
+
+        // Scanned in full an hour ago: the worker's start leaves it alone.
+        var hourAgo = DateTime.UtcNow.AddHours(-1);
+        var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = root, FullScanAt = hourAgo }] };
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.Libraries.Add(library);
+            await db.SaveChangesAsync();
+        }
+
+        var queue = new LibraryScanQueue();
+        using var worker = new LibraryScanWorker(queue, host.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            host.Services.GetRequiredService<LibraryWorkGate>());
+        async Task<(int Items, DateTime? FullScanAt)> StateAsync()
+        {
+            using var scope = host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            return (await db.MediaItems.CountAsync(m => m.LibraryId == library.Id && m.Kind == MediaKind.Movie),
+                (await db.LibraryFolders.AsNoTracking().SingleAsync(f => f.LibraryId == library.Id)).FullScanAt);
+        }
+
+        await queue.EnqueueAsync(new LibraryScanRequest(Path.Combine(root, "Dune (2021)"), "Radarr Download"));
+        await worker.StartAsync(default);
+        for (var i = 0; i < 100 && (await StateAsync()).Items == 0; i++)
+        {
+            await Task.Delay(100);
+        }
+
+        Assert.Equal((1, (DateTime?)hourAgo), await StateAsync());
+
+        var before = DateTime.UtcNow;
+        await queue.EnqueueAsync(new LibraryScanRequest(root, "Library scan"));
+        for (var i = 0; i < 100 && (await StateAsync()).FullScanAt == hourAgo; i++)
+        {
+            await Task.Delay(100);
+        }
+
+        var (items, at) = await StateAsync();
+        await worker.StopAsync(default);
+        Assert.Equal(2, items);
+        Assert.NotNull(at);
+        Assert.InRange(at.Value, before, DateTime.UtcNow);
     }
 
     [Fact]

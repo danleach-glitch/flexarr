@@ -80,6 +80,9 @@ public sealed class RequestUndoTests : IAsyncLifetime
             db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 7001 });
             return await db.SaveChangesAsync();
         });
+        // What the watchlist kept of Seerr's word (that it's requested) goes with the request.
+        var cache = _server.Services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
+        Microsoft.Extensions.Caching.Memory.CacheExtensions.Set(cache, "watchlist:seerr:movie:7001", "requested");
 
         var response = await Client().PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "movie", tmdbId = 7001 });
 
@@ -89,6 +92,7 @@ public sealed class RequestUndoTests : IAsyncLifetime
         Assert.Contains("DELETE /api/v1/request/9", _arr.Requests);
         Assert.Contains("DELETE /api/v1/media/55", _arr.Requests);
         Assert.True(await InDbAsync(db => db.MediaRequests.AllAsync(r => r.TmdbId != 7001 || r.FulfilledAt != null)));
+        Assert.False(cache.TryGetValue("watchlist:seerr:movie:7001", out _));
     }
 
     [Fact]
@@ -341,6 +345,55 @@ public sealed class RequestUndoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ARequestHeadedForALibraryHiddenFromAProfile_IsntThatProfilesToUndo()
+    {
+        // The test server maps /data (as Radarr and Seerr see it) to /Volumes/Media/data.
+        var family = new Library { Name = "Family films", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = "/Volumes/Media/data/family" }], CreatedAt = DateTime.UtcNow.AddDays(-2) };
+        var parents = new Library { Name = "Parents' films", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = "/Volumes/Media/data/parents" }] };
+        await InDbAsync(async db =>
+        {
+            db.Libraries.AddRange(family, parents);
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 7201 });
+            return await db.SaveChangesAsync();
+        });
+        // In Radarr under the parents' folder; not in Radarr yet, but Seerr sent it there; and one for the family's.
+        _arr.Responses["GET /api/v1/movie/7201"] = """{"id":7201,"mediaInfo":{"id":61,"status":3,"requests":[{"id":21,"status":2,"type":"movie"}]}}""";
+        _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7201"] = """[{"id":31,"title":"Theirs","hasFile":false,"path":"/data/parents/Theirs (2026)"}]""";
+        _arr.Responses["GET /api/v1/movie/7202"] = """{"id":7202,"mediaInfo":{"id":62,"status":2,"requests":[{"id":22,"status":1,"type":"movie","rootFolder":"/data/parents"}]}}""";
+        _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7202"] = "[]";
+        _arr.Responses["GET /api/v1/movie/7203"] = """{"id":7203,"mediaInfo":{"id":63,"status":3,"requests":[{"id":23,"status":2,"type":"movie"}]}}""";
+        _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7203"] = """[{"id":33,"title":"Everyone's","hasFile":false,"path":"/data/family/Everyone's (2026)"}]""";
+        Deletes("/api/v3/movie/31?deleteFiles=false&addImportExclusion=false", "/api/v1/request/21", "/api/v1/media/61", "/api/v1/request/22", "/api/v1/media/62",
+            "/api/v3/movie/33?deleteFiles=false&addImportExclusion=false", "/api/v1/request/23", "/api/v1/media/63");
+        var id = (await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = "Teen", hiddenLibraryIds = new[] { parents.Id } })).Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("id").GetString();
+        var token = (await (await Client().PostAsJsonAsync(Api("/session/device"), new { deviceName = "Teen's phone" })).Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("token").GetString();
+        var teen = _server.CreateClient();
+        teen.DefaultRequestHeaders.Add("X-Api-Key", token);
+        Assert.True((await teen.PostAsJsonAsync(Api($"/profiles/{id}/select"), new { })).IsSuccessStatusCode);
+
+        // Answered as though there were nothing to take back, and nothing is touched.
+        var theirs = await teen.PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "movie", tmdbId = 7201 });
+        var sentThere = await teen.PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "movie", tmdbId = 7202 });
+
+        Assert.Equal(HttpStatusCode.NoContent, theirs.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, sentThere.StatusCode);
+        Assert.DoesNotContain(_arr.Requests, r => r.StartsWith("DELETE", StringComparison.Ordinal));
+        Assert.True(await InDbAsync(db => db.MediaRequests.AnyAsync(r => r.TmdbId == 7201 && r.FulfilledAt == null)));
+
+        // One headed for a library it sees is its to undo, as before; and the main profile undoes any.
+        var everyones = await teen.PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "movie", tmdbId = 7203 });
+        Assert.Equal(HttpStatusCode.NoContent, everyones.StatusCode);
+        Assert.Equal(["DELETE /api/v3/movie/33?deleteFiles=false&addImportExclusion=false", "DELETE /api/v1/request/23", "DELETE /api/v1/media/63"],
+            _arr.Requests.Where(r => r.StartsWith("DELETE", StringComparison.Ordinal)));
+        var mine = await Client().PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "movie", tmdbId = 7201 });
+        Assert.Equal(HttpStatusCode.NoContent, mine.StatusCode);
+        Assert.Contains("DELETE /api/v3/movie/31?deleteFiles=false&addImportExclusion=false", _arr.Requests);
+        Assert.Contains("DELETE /api/v1/request/21", _arr.Requests);
+    }
+
+    [Fact]
     public async Task Requested_ListsWhatsOpen_WithProgress_AndKeepsToALibrary()
     {
         var movies = new Library { Name = "Films", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = "/media/movies" }] };
@@ -386,6 +439,151 @@ public sealed class RequestUndoTests : IAsyncLifetime
         Assert.Equal(7101, Assert.Single(films.EnumerateArray().ToList()).GetProperty("tmdbId").GetInt32());
     }
 
+    private void SeerrIsWaitingFor(params string[] requests)
+    {
+        _arr.Responses["GET /api/v1/request?take=100&skip=0&filter=pending&sort=added"] = """{"results":[]}""";
+        _arr.Responses["GET /api/v1/request?take=100&skip=0&filter=failed&sort=added"] = """{"results":[]}""";
+        _arr.Responses["GET /api/v1/request?take=100&skip=0&filter=processing&sort=added"] = $$"""{"results":[{{string.Join(',', requests)}}]}""";
+    }
+
+    [Fact]
+    public async Task Requested_LeavesOutAFilmThatsIn_AndPlacesEachTitleInItsLibrary()
+    {
+        var films = new Library { Name = "Films", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = "/media/movies" }] };
+        var films4k = new Library { Name = "Films 4K", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = "/media/movies4k" }], CreatedAt = DateTime.UtcNow.AddMinutes(1) };
+        var shows = new Library { Name = "Shows", Type = LibraryType.TvShows, Folders = [new LibraryFolder { Path = "/media/tv" }] };
+        var anime = new Library { Name = "Anime", Type = LibraryType.TvShows, Folders = [new LibraryFolder { Path = "/media/anime" }], CreatedAt = DateTime.UtcNow.AddMinutes(1) };
+        // A film that's in whatever Seerr thinks, a show that's partly in (in the second shows library), and a film
+        // elsewhere with the same TMDB id as that show.
+        var here = new MediaItem { LibraryId = films.Id, Kind = MediaKind.Movie, Title = "Here", SortTitle = "here", TmdbId = "7401" };
+        var partly = new MediaItem { LibraryId = anime.Id, Kind = MediaKind.Series, Title = "Partly", SortTitle = "partly", TmdbId = "8401" };
+        var sameNumber = new MediaItem { LibraryId = films.Id, Kind = MediaKind.Movie, Title = "Same Number", SortTitle = "same number", TmdbId = "8401" };
+        await InDbAsync(async db =>
+        {
+            db.AddRange(films, films4k, shows, anime, here, partly, sameNumber);
+            return await db.SaveChangesAsync();
+        });
+        SeerrIsWaitingFor(
+            """{"id":1,"status":2,"type":"movie","media":{"id":11,"tmdbId":7401,"status":3}}""",
+            """{"id":2,"status":2,"type":"tv","media":{"id":12,"tmdbId":8401,"tvdbId":95,"status":4},"seasons":[{"seasonNumber":3}]}""",
+            """{"id":3,"status":2,"type":"movie","media":{"id":13,"tmdbId":7402,"status":3}}""",
+            """{"id":4,"status":1,"type":"movie","media":{"id":14,"tmdbId":7403,"status":2},"rootFolder":"/media/movies4k"}""");
+        _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7401"] = """[{"id":31,"title":"Here","year":2020,"status":"released","path":"/media/movies/Here (2020)"}]""";
+        _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7402"] = """[{"id":32,"title":"In 4K","year":2026,"status":"released","path":"/media/movies4k/In 4K (2026)"}]""";
+        _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7403"] = "[]"; // waiting to be approved, so not in Radarr yet: Seerr names it, and says where it'll go
+        _arr.Responses["GET /api/v1/movie/7403"] = """{"id":7403,"title":"Only Seerr Knows","releaseDate":"2027-02-01","posterPath":"/s.jpg"}""";
+        _arr.Responses["GET //sonarr.test/api/v3/series?tvdbId=95"] = """[{"id":33,"title":"Partly","year":2022,"status":"continuing","path":"/media/tv/Partly"}]""";
+
+        List<(string Type, int TmdbId, string Title, Guid? Item)> Rows(JsonElement list) =>
+            [.. list.EnumerateArray().Select(r => (r.GetProperty("mediaType").GetString()!, r.GetProperty("tmdbId").GetInt32(), r.GetProperty("title").GetString()!,
+                r.GetProperty("libraryItemId").ValueKind == JsonValueKind.Null ? (Guid?)null : r.GetProperty("libraryItemId").GetGuid()))];
+        var all = Rows(await Client().GetFromJsonAsync<JsonElement>(Api("/requests/requested")));
+        async Task<List<int>> InAsync(Library library) =>
+            [.. Rows(await Client().GetFromJsonAsync<JsonElement>(Api($"/requests/requested?libraryId={library.Id}"))).Select(r => r.TmdbId)];
+
+        Assert.Equal([("movie", 7402, "In 4K", null), ("movie", 7403, "Only Seerr Knows", null), ("tv", 8401, "Partly", partly.Id)], all);
+        Assert.Empty(await InAsync(films));
+        Assert.Equal([7402, 7403], await InAsync(films4k)); // by Radarr's folder, and by the folder Seerr sent it to
+        Assert.Empty(await InAsync(shows)); // Sonarr's folder is here, but the show itself is in the other library
+        Assert.Equal([8401], await InAsync(anime));
+    }
+
+    [Fact]
+    public async Task Requested_AsksRadarrAboutAFewTitlesAtATime_NotOneAfterAnother_AndNotAllAtOnce()
+    {
+        await InDbAsync(async db =>
+        {
+            db.Libraries.Add(new Library { Name = "Films", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = "/media/movies" }] });
+            return await db.SaveChangesAsync();
+        });
+        var films = Enumerable.Range(7501, 10).ToList();
+        SeerrIsWaitingFor([.. films.Select(tmdb => $$$"""{"id":{{{tmdb}}},"status":2,"type":"movie","media":{"id":{{{tmdb}}},"tmdbId":{{{tmdb}}},"status":3}}""")]);
+        foreach (var tmdb in films)
+        {
+            _arr.Responses[$"GET //radarr.test/api/v3/movie?tmdbId={tmdb}"] = $$"""[{"id":{{tmdb}},"title":"Film {{tmdb}}","year":2026,"status":"released","path":"/media/movies/Film {{tmdb}}"}]""";
+        }
+
+        // Radarr answers nothing about a film until it has been asked about four: asked one after another, the first
+        // would never be answered. It then waits a moment for any more, to see how many it's asked about at once.
+        var asking = 0;
+        var most = 0;
+        var four = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _arr.Before = async (request, ct) =>
+        {
+            if (!request.RequestUri!.Query.StartsWith("?tmdbId=", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var now = Interlocked.Increment(ref asking);
+            InterlockedMax(ref most, now);
+            if (now == 4)
+            {
+                await Task.Delay(300, ct);
+                four.TrySetResult();
+            }
+
+            await four.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+            Interlocked.Decrement(ref asking);
+        };
+
+        var rows = (await Client().GetFromJsonAsync<JsonElement>(Api("/requests/requested"))).EnumerateArray().ToList();
+
+        Assert.Equal(films.Select(tmdb => $"Film {tmdb}"), rows.Select(r => r.GetProperty("title").GetString()));
+        Assert.All(rows, r => Assert.Equal("searching", r.GetProperty("state").GetString()));
+        Assert.Equal(4, most);
+        Assert.All(films, tmdb => Assert.Single(_arr.Requests, r => r == $"GET /api/v3/movie?tmdbId={tmdb}"));
+
+        static void InterlockedMax(ref int target, int value)
+        {
+            int seen;
+            while ((seen = Volatile.Read(ref target)) < value && Interlocked.CompareExchange(ref target, value, seen) != seen)
+            {
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Requested_LooksUpOnlyTheRequestedTitlesInTheLibrary_NotEveryFilmAndShow()
+    {
+        var films = new Library { Name = "Films", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = "/media/movies" }] };
+        await InDbAsync(async db =>
+        {
+            db.AddRange(films, new MediaItem { LibraryId = films.Id, Kind = MediaKind.Movie, Title = "Here", SortTitle = "here", TmdbId = "7601" });
+            return await db.SaveChangesAsync();
+        });
+        SeerrIsWaitingFor("""{"id":1,"status":2,"type":"movie","media":{"id":11,"tmdbId":7602,"status":3}}""");
+        _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7602"] = """[{"id":41,"title":"Coming","year":2026,"status":"released","path":"/media/movies/Coming (2026)"}]""";
+        var sql = new Statements();
+        using var server = _server.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.ConfigureDbContext<FlexarrDbContext>(o => o.AddInterceptors(sql))));
+        var client = server.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+
+        var rows = (await client.GetFromJsonAsync<JsonElement>(Api("/requests/requested"))).EnumerateArray().ToList();
+
+        Assert.Equal("Coming", Assert.Single(rows).GetProperty("title").GetString());
+        // Both readings of titles by TMDB id (what the profile sees, and what's anywhere) name the ids they want.
+        var lookups = sql.Run.Where(statement => statement.Contains("\"m\".\"TmdbId\" IS NOT NULL", StringComparison.Ordinal)).ToList();
+        Assert.Equal(2, lookups.Count);
+        Assert.All(lookups, statement => Assert.Matches("""
+            "m"\."TmdbId" (IN \(|= )@
+            """.Trim(), statement));
+    }
+
+    /// <summary>Every statement the server sent the database.</summary>
+    private sealed class Statements : Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<string> Run { get; } = new();
+
+        public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+            System.Data.Common.DbCommand command, Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            Run.Enqueue(command.CommandText);
+            return ValueTask.FromResult(result);
+        }
+    }
+
     [Fact]
     public async Task Requested_AsksARadarrThatDoesntAnswer_OnlyOnce_EvenAcrossRefreshes()
     {
@@ -422,5 +620,52 @@ public sealed class RequestUndoTests : IAsyncLifetime
         Assert.All(rows, r => Assert.Equal("searching", r.GetProperty("state").GetString()));
         Assert.Equal(3, refreshed.Count);
         Assert.Single(_arr.Requests, r => r.StartsWith("GET /api/v3/", StringComparison.Ordinal)); // the refresh didn't wait on it again
+    }
+
+    [Fact]
+    public async Task Requested_KeepsWhatRadarrSaidOfATitle_UntilARadarrWebhookArrives()
+    {
+        await InDbAsync(async db =>
+        {
+            db.Libraries.Add(new Library { Name = "Films", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = "/media/movies" }] });
+            return await db.SaveChangesAsync();
+        });
+        _arr.Responses["GET /api/v1/request?take=100&skip=0&filter=pending&sort=added"] = """{"results":[]}""";
+        _arr.Responses["GET /api/v1/request?take=100&skip=0&filter=failed&sort=added"] = """{"results":[]}""";
+        _arr.Responses["GET /api/v1/request?take=100&skip=0&filter=processing&sort=added"] = """
+            {"results":[{"id":1,"status":2,"type":"movie","media":{"id":11,"tmdbId":7401,"status":3}}]}
+            """;
+        _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7401"] = """[{"id":3,"title":"Film","year":2025,"hasFile":false,"status":"released"}]""";
+        int Asked() => _arr.Requests.Count(r => r == "GET /api/v3/movie?tmdbId=7401");
+
+        var first = (await Client().GetFromJsonAsync<JsonElement>(Api("/requests/requested"))).EnumerateArray().ToList();
+        Assert.Equal("searching", Assert.Single(first).GetProperty("state").GetString());
+        Assert.Equal(1, Asked());
+
+        // Seerr's list and the queue are kept only half a minute; once they've gone, the title's answer is still kept.
+        // A request, unrequest or webhook in any other test drops it too (Forget is one for the process), so it's tried
+        // a few times rather than once.
+        var cache = (Microsoft.Extensions.Caching.Memory.MemoryCache)_server.Services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
+        var kept = false;
+        for (var i = 0; i < 20 && !kept; i++)
+        {
+            var before = Asked();
+            foreach (var key in cache.Keys.OfType<string>().Where(k => k.StartsWith("seerr-requested:", StringComparison.Ordinal) || k.StartsWith("requested-queue:", StringComparison.Ordinal)).ToList())
+            {
+                cache.Remove(key);
+            }
+
+            Assert.Single((await Client().GetFromJsonAsync<JsonElement>(Api("/requests/requested"))).EnumerateArray());
+            kept = Asked() == before;
+        }
+
+        Assert.True(kept);
+        var asked = Asked();
+
+        // Radarr says the file has come: it's asked again, and the film is no longer waiting.
+        _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7401"] = """[{"id":3,"title":"Film","year":2025,"hasFile":true,"status":"released"}]""";
+        (await Client().PostAsJsonAsync(Api("/webhooks/radarr"), new { eventType = "Grab" })).EnsureSuccessStatusCode();
+        Assert.Empty((await Client().GetFromJsonAsync<JsonElement>(Api("/requests/requested"))).EnumerateArray());
+        Assert.Equal(asked + 1, Asked());
     }
 }

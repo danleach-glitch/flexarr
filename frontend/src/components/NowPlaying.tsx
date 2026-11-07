@@ -1,18 +1,23 @@
-import { useCallback, useRef, useState, type CSSProperties } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Link, useLocation } from 'react-router'
 import { imageUrl } from '../api/client'
 import { useAudioPlayer, useAudioTime } from '../hooks/audioPlayerContext'
 import { useScrub } from '../hooks/useScrub'
 import { formatClock } from '../lib/format'
 import { authorsLine, chapterIndexAt, isBook } from '../lib/books'
+import { onDemand } from '../lib/onDemand'
 import { BookOffers } from './BookOffers'
 import { BookTools } from './BookTools'
 import { Close, Fullscreen, Next, Queue, SkipBack, SkipForward } from './icons'
 import { icon } from './icons.generated'
-import { NowPlayingView } from './NowPlayingView'
 import { PodcastTools } from './PodcastTools'
 import { QueuePanel } from './QueuePanel'
 import { t, Words } from '../i18n'
+
+// Now Playing over the whole window, with its visualiser, is only for someone playing music, a podcast or a book: its
+// code is fetched once the bar is there, so the cover opens it at once.
+const loadView = () => import('./NowPlayingView').then((m) => ({ default: m.NowPlayingView }))
+const NowPlayingView = lazy(() => onDemand(loadView))
 
 /**
  * The music bar along the bottom, there while something is queued. The cover opens Now Playing over the whole window;
@@ -32,6 +37,11 @@ export function NowPlaying() {
   const track = player.current
   const queueOpen = openOn === location.pathname
   const setQueueOpen = (open: boolean) => setOpenOn(open ? location.pathname : null)
+  const showing = track !== undefined
+  useEffect(() => {
+    // Ahead of time, so a miss here costs nothing: opening it asks again.
+    if (showing) void loadView().catch(() => undefined)
+  }, [showing])
 
   if (!track) return null
 
@@ -60,7 +70,11 @@ export function NowPlaying() {
   return (
     <>
       {queueOpen && <QueuePanel onClose={closeQueue} style={accent} />}
-      {viewOpen && <NowPlayingView onClose={closeView} />}
+      {viewOpen && (
+        <Suspense fallback={null}>
+          <NowPlayingView onClose={closeView} />
+        </Suspense>
+      )}
       {!viewOpen && <BookOffers />}
       <aside className="now-playing" aria-label={t(Words.nowPlaying)} style={accent}>
         <div className="now-playing-track">

@@ -83,7 +83,7 @@ final class TrickplayPreviews {
         guard !loading.contains(sheet), let url = client.trickplaySheetURL(sessionId: sessionId, sheet: sheet) else { return }
         loading.insert(sheet)
         Task { [weak self] in
-            let image = await ImageLoader.shared.load(url)
+            let image = await Self.loadSheet(url)
             guard let self else { return }
             self.loading.remove(sheet)
             if let image {
@@ -93,5 +93,22 @@ final class TrickplayPreviews {
                 self.onLoaded?()
             }
         }
+    }
+
+    /// A sheet is fetched past the artwork caches: kept in `ImageCache` it would sit beside the video and push the
+    /// posters out, and its address (the session's) is never asked for again, so the disk cache gets nothing either.
+    /// Only `sheets` keeps it.
+    nonisolated private static let sheetSession: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: configuration)
+    }()
+
+    nonisolated private static func loadSheet(_ url: URL) async -> PlatformImage? {
+        guard let (data, response) = try? await sheetSession.data(from: url),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let image = PlatformImage(data: data) else { return nil }
+        return await image.preparedForDisplay()
     }
 }

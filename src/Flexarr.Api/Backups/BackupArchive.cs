@@ -59,6 +59,7 @@ public static class BackupArchive
         // The copy is made beside the database, on this machine's own drive, and only the zip goes to the backups
         // folder: on a network share the database then crosses the network once, not three times.
         var snapshot = Path.Combine(dataDirectory, $".backup-snapshot-{Guid.NewGuid():N}.db");
+        var slim = Path.ChangeExtension(snapshot, ".slim.db");
         try
         {
             // VACUUM INTO copies the database as one consistent moment, while the server goes on using it. It writes
@@ -73,7 +74,8 @@ public static class BackupArchive
                 await vacuum.ExecuteNonQueryAsync(ct);
             }
 
-            var manifest = new BackupManifest(Format, kind, now, AppVersion.Current, await LastMigrationAsync(snapshot, ct));
+            var database = await WithoutGuideAsync(snapshot, slim, now, ct);
+            var manifest = new BackupManifest(Format, kind, now, AppVersion.Current, await LastMigrationAsync(database, ct));
             await using (var file = PrivateFiles.Create(partial))
             using (var zip = new ZipArchive(file, ZipArchiveMode.Create))
             {
@@ -82,7 +84,7 @@ public static class BackupArchive
                     await JsonSerializer.SerializeAsync(entry, manifest, Json, ct);
                 }
 
-                await zip.CreateEntryFromFileAsync(snapshot, DatabaseName, CompressionLevel.Optimal, ct);
+                await zip.CreateEntryFromFileAsync(database, DatabaseName, CompressionLevel.Optimal, ct);
                 foreach (var name in Files.Where(n => File.Exists(Path.Combine(dataDirectory, n))))
                 {
                     await zip.CreateEntryFromFileAsync(Path.Combine(dataDirectory, name), name, CompressionLevel.Optimal, ct);
@@ -111,7 +113,50 @@ public static class BackupArchive
         {
             File.Delete(partial);
             File.Delete(snapshot);
+            File.Delete(slim);
         }
+    }
+
+    /// <summary>
+    /// The snapshot without the Live TV guide. With a big channel list the guide is most of the database, and the next
+    /// refresh replaces all of it anyway, so a backup needn't copy, compress and keep it. The channels are marked as not
+    /// refreshed lately, so a server restored from the backup fetches its guide as it starts, rather than showing an
+    /// empty one until the next refresh falls due.
+    /// </summary>
+    /// <param name="slim">Where the smaller copy goes when there's a guide to leave out.</param>
+    /// <returns>The file to back up: <paramref name="slim"/>, or the snapshot itself when it holds no guide.</returns>
+    private static async Task<string> WithoutGuideAsync(string snapshot, string slim, DateTime now, CancellationToken ct)
+    {
+        await using (var db = Open(snapshot))
+        {
+            await db.OpenAsync(ct);
+            // A snapshot from before Live TV (kept before an upgrade) has no guide to look in.
+            if (await ScalarAsync<long>(db, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('LiveProgrammes', 'LiveChannels')", ct) != 2
+                || await ScalarAsync<long>(db, "SELECT EXISTS (SELECT 1 FROM LiveProgrammes)", ct) == 0)
+            {
+                return snapshot;
+            }
+
+            await using (var empty = db.CreateCommand())
+            {
+                empty.CommandText = "DELETE FROM LiveProgrammes; UPDATE LiveChannels SET UpdatedAt = $stale WHERE UpdatedAt > $stale";
+                empty.Parameters.AddWithValue("$stale", now - LiveTv.LiveTvGuideWorker.Every - TimeSpan.FromMinutes(1));
+                await empty.ExecuteNonQueryAsync(ct);
+            }
+
+            // Emptying a table leaves its pages in the file; copying once more leaves them behind. Into a file of its
+            // own beside the database, as the first copy was, rather than wherever SQLite keeps its temporary files.
+            await PrivateFiles.Create(slim).DisposeAsync();
+            await using var vacuum = db.CreateCommand();
+            vacuum.CommandText = "VACUUM INTO $path";
+            vacuum.Parameters.AddWithValue("$path", slim);
+            await vacuum.ExecuteNonQueryAsync(ct);
+        }
+
+        // The first copy goes before the zip is written, so the two copies and the zip are never all on the drive at
+        // once: a backup needs no more room than it did.
+        File.Delete(snapshot);
+        return slim;
     }
 
     /// <summary>The manifest of a backup zip, or null when the file isn't one.</summary>

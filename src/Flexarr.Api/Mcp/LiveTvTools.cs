@@ -57,7 +57,8 @@ public static class LiveTvTools
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        if (!profile.IsTrusted)
+        ArgumentNullException.ThrowIfNull(db);
+        if (!profile.IsTrusted || db.ServesKids)
         {
             throw new InvalidOperationException("This sign-in may not play on other devices.");
         }
