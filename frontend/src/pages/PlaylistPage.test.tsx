@@ -6,6 +6,10 @@ import { AudioPlayerContext, type AudioPlayer } from '../hooks/audioPlayerContex
 import { mockApi, summary } from '../test/mockApi'
 import { PlaylistPage } from './PlaylistsPage'
 
+// Each row asks for its cover's address as it's drawn: counting the asks counts the rows drawn.
+const imageUrl = vi.hoisted(() => vi.fn((path: string) => path))
+vi.mock('../api/client', async (load) => ({ ...(await load<typeof import('../api/client')>()), imageUrl }))
+
 afterEach(() => vi.unstubAllGlobals())
 
 const track = (id: string, title: string) =>
@@ -105,4 +109,47 @@ describe('PlaylistPage', () => {
     expect(await screen.findByText('All playlists')).toBeInTheDocument()
     expect(calls).toContain('delete')
   })
+
+  it('drags a track to a new place, redrawing only the rows the drag passes over or the player moves between', async () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ entryId: i + 1, track: { ...track(`m${i}`, `Song ${i + 1}`), artwork: { poster: `/art/${i}.jpg`, backdrop: null, logo: null, thumb: null } } }))
+    const moves: unknown[] = []
+    mockApi({
+      '/playlists/p1': { ...detail(), tracks: many },
+      'PUT /playlists/p1/items/2/position': (init?: RequestInit) => {
+        moves.push(JSON.parse(String(init?.body)))
+      },
+    })
+    const props = { current: many[0].track, playing: true }
+    const page = (
+      <MemoryRouter initialEntries={['/playlist/p1']}>
+        <Routes>
+          <Route path="playlist/:id" element={<PlaylistPage />} />
+        </Routes>
+      </MemoryRouter>
+    )
+    const player = { play: vi.fn(), playNext: vi.fn(), enqueue: vi.fn(), queue: [], index: 0, duration: 0, ...props } as unknown as AudioPlayer
+    const { rerender } = render(<AudioPlayerContext value={player}>{page}</AudioPlayerContext>)
+    await screen.findByRole('heading', { level: 1, name: 'Road trip' })
+    const rows = within(screen.getByRole('list', { name: 'Tracks in Road trip' })).getAllByRole('listitem')
+    const dataTransfer = { setData() {}, effectAllowed: '', dropEffect: '' }
+    imageUrl.mockClear()
+
+    fireEvent.dragStart(rows[1], { dataTransfer })
+    for (const at of [2, 3, 4]) fireEvent.dragOver(rows[at], { dataTransfer })
+    expect(rows[1]).toHaveClass('dragging')
+    expect(rows[4]).toHaveClass('drag-over')
+    // The dragged row, then each row as the drag reaches it and leaves it: not all 30 at every step.
+    expect(imageUrl).toHaveBeenCalledTimes(1 + 1 + 2 + 2)
+
+    fireEvent.drop(rows[4], { dataTransfer })
+    expect(titles().slice(0, 5)).toEqual(['Song 1', 'Song 3', 'Song 4', 'Song 5', 'Song 2'])
+    await vi.waitFor(() => expect(moves).toEqual([{ position: 4 }]))
+    expect(screen.getByRole('list', { name: 'Tracks in Road trip' }).querySelector('.dragging, .drag-over')).toBeNull()
+
+    // The player moving on to the next track redraws the two rows it moves between.
+    imageUrl.mockClear()
+    rerender(<AudioPlayerContext value={{ ...player, current: many[2].track }}>{page}</AudioPlayerContext>)
+    expect(imageUrl).toHaveBeenCalledTimes(2)
+  })
 })
+

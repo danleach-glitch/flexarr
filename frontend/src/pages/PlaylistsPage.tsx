@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type DragEvent, type FormEvent, type MouseEvent, type ReactNode } from 'react'
+import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type FormEvent, type MouseEvent, type ReactNode } from 'react'
 import { PageError, PageLoading } from '../components/PageStatus'
 import { Link, useNavigate, useParams } from 'react-router'
 import {
@@ -124,8 +124,6 @@ export function PlaylistPage() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [message, setMessage] = useState<string>()
-  const [dragging, setDragging] = useState<number | null>(null)
-  const [over, setOver] = useState<number | null>(null)
   // One track's menu at a time: which, and where it opened.
   const [trackMenu, setTrackMenu] = useState<{ index: number; at: MenuPoint } | null>(null)
 
@@ -183,29 +181,7 @@ export function PlaylistPage() {
     }).finally(() => setSaving(false))
   }
 
-  const dragStart = (at: number, track: ItemSummary) => (e: DragEvent) => {
-    setDragging(at)
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', track.title)
-  }
-  const dragOver = (at: number) => (e: DragEvent) => {
-    if (dragging === null) return
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    if (over !== at) setOver(at)
-  }
-  const drop = (at: number) => (e: DragEvent) => {
-    e.preventDefault()
-    if (dragging !== null && dragging !== at) move(dragging, at)
-    setDragging(null)
-    setOver(null)
-  }
-  const dragEnd = () => {
-    setDragging(null)
-    setOver(null)
-  }
-
-  const openMenu = (index: number, at: MenuPoint) => (e: MouseEvent) => {
+  const openMenu = (index: number, at: MenuPoint, e: MouseEvent) => {
     e.preventDefault()
     setTrackMenu(trackMenu?.index === index ? null : { index, at })
   }
@@ -289,63 +265,14 @@ export function PlaylistPage() {
       {entries.length === 0 ? (
         <p className="muted collection-empty">{t('Nothing in it yet. Add tracks, albums or artists from their ⋯ menu: Add to playlist.')}</p>
       ) : (
-        <ol className="tracklist playlist-tracks" aria-label={t('Tracks in {name}', { name: summary.name })}>
-          {entries.map(({ entryId, track }, i) => {
-            const isCurrent = player.current?.id === track.id
-            return (
-              <li
-                key={entryId}
-                data-entry-id={entryId}
-                className={['playlist-entry', dragging === i && 'dragging', over === i && 'drag-over'].filter(Boolean).join(' ')}
-                draggable
-                onDragStart={dragStart(i, track)}
-                onDragOver={dragOver(i)}
-                onDragLeave={() => over === i && setOver(null)}
-                onDrop={drop(i)}
-                onDragEnd={dragEnd}
-                onContextMenu={(e) => openMenu(i, { x: e.clientX, y: e.clientY })(e)}
-              >
-                <span className="queue-grip" aria-hidden="true">
-                  <Grip />
-                </span>
-                <button className={isCurrent ? 'track current' : 'track'} onClick={() => player.play(tracks, i)} aria-current={isCurrent || undefined}>
-                  <span className="track-number">{isCurrent && player.playing ? <Play /> : i + 1}</span>
-                  <span className="playlist-track-art" aria-hidden="true">
-                    {track.artwork.poster && <img src={imageUrl(track.artwork.poster, 92)} alt="" loading="lazy" />}
-                  </span>
-                  <span className="playlist-track-text">
-                    <span className="track-title">{track.title}</span>
-                    <span className="muted">{track.seriesTitle}</span>
-                  </span>
-                  <span className="track-time">{track.durationSeconds ? formatClock(track.durationSeconds) : ''}</span>
-                </button>
-                <span className="queue-actions">
-                  <button className="icon-button" aria-label={t('Move {title} up', { title: track.title })} disabled={i === 0} onClick={() => move(i, i - 1)}>
-                    <ChevronUp />
-                  </button>
-                  <button className="icon-button" aria-label={t('Move {title} down', { title: track.title })} disabled={i === entries.length - 1} onClick={() => move(i, i + 1)}>
-                    <ChevronDown />
-                  </button>
-                  <button className="icon-button" aria-label={t('Remove {title} from the playlist', { title: track.title })} onClick={() => remove(entries[i])}>
-                    <Close />
-                  </button>
-                  <button
-                    className="icon-button"
-                    aria-label={t('More for {title}', { title: track.title })}
-                    aria-haspopup="menu"
-                    aria-expanded={trackMenu?.index === i}
-                    onClick={(e) => {
-                      const r = e.currentTarget.getBoundingClientRect()
-                      openMenu(i, { x: r.right - 220, y: r.bottom + 6 })(e)
-                    }}
-                  >
-                    <More />
-                  </button>
-                </span>
-              </li>
-            )
-          })}
-        </ol>
+        <PlaylistEntries
+          entries={entries}
+          label={t('Tracks in {name}', { name: summary.name })}
+          currentId={player.current?.id}
+          playing={player.playing}
+          menuIndex={trackMenu?.index}
+          actions={{ play: (at) => player.play(tracks, at), move, remove: (at) => remove(entries[at]), openMenu }}
+        />
       )}
 
       {trackMenu && entries[trackMenu.index] && (
@@ -373,3 +300,183 @@ export function PlaylistPage() {
     </article>
   )
 }
+
+/** What a playlist's track can have done to it, by its place in the list. */
+interface EntryActions {
+  play(at: number): void
+  move(from: number, to: number): void
+  remove(at: number): void
+  openMenu(at: number, point: MenuPoint, e: MouseEvent): void
+}
+
+/** What a row is given to work with: the playlist's actions, and dragging it to a new place. */
+interface RowActions extends EntryActions {
+  dragStart(at: number, track: ItemSummary, e: DragEvent): void
+  dragOver(at: number, e: DragEvent): void
+  dragLeave(at: number): void
+  drop(at: number, e: DragEvent): void
+  dragEnd(): void
+}
+
+/**
+ * A playlist's tracks, in order, to play, drag into a new order, move with the arrow buttons or remove. Each row is
+ * drawn again only when something of its own changes: a drag step redraws the two rows it passes between, and the
+ * player moving on the two tracks it moves between, however long the playlist.
+ */
+function PlaylistEntries({
+  entries,
+  label,
+  currentId,
+  playing,
+  menuIndex,
+  actions,
+}: {
+  entries: PlaylistTrack[]
+  label: string
+  currentId: string | undefined
+  playing: boolean
+  menuIndex: number | undefined
+  actions: EntryActions
+}) {
+  const [dragging, setDragging] = useState<number | null>(null)
+  const [over, setOver] = useState<number | null>(null)
+  // The actions as of the last render: the rows get one unchanging set (`rowActions`) that calls these.
+  const latest = useRef(actions)
+  const drag = useRef({ dragging, over })
+  useLayoutEffect(() => {
+    latest.current = actions
+    drag.current = { dragging, over }
+  })
+  const rowActions = useMemo<RowActions>(() => {
+    const end = () => {
+      setDragging(null)
+      setOver(null)
+    }
+    return {
+      play: (at) => latest.current.play(at),
+      move: (from, to) => latest.current.move(from, to),
+      remove: (at) => latest.current.remove(at),
+      openMenu: (at, point, e) => latest.current.openMenu(at, point, e),
+      dragStart: (at, track, e) => {
+        setDragging(at)
+        drag.current.dragging = at
+        e.dataTransfer.effectAllowed = 'move'
+        e.dataTransfer.setData('text/plain', track.title)
+      },
+      dragOver: (at, e) => {
+        if (drag.current.dragging === null) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        setOver(at)
+      },
+      dragLeave: (at) => setOver((o) => (o === at ? null : o)),
+      drop: (at, e) => {
+        e.preventDefault()
+        const from = drag.current.dragging
+        if (from !== null && from !== at) latest.current.move(from, at)
+        end()
+      },
+      dragEnd: end,
+    }
+  }, [])
+
+  return (
+    <ol className="tracklist playlist-tracks" aria-label={label}>
+      {entries.map(({ entryId, track }, i) => {
+        const isCurrent = currentId === track.id
+        return (
+          <PlaylistEntryRow
+            key={entryId}
+            entryId={entryId}
+            track={track}
+            index={i}
+            last={i === entries.length - 1}
+            isCurrent={isCurrent}
+            playing={isCurrent && playing}
+            dragging={dragging === i}
+            over={over === i}
+            menuOpen={menuIndex === i}
+            actions={rowActions}
+          />
+        )
+      })}
+    </ol>
+  )
+}
+
+/** One track of a playlist (see PlaylistEntries). */
+const PlaylistEntryRow = memo(function PlaylistEntryRow({
+  entryId,
+  track,
+  index: i,
+  last,
+  isCurrent,
+  playing,
+  dragging,
+  over,
+  menuOpen,
+  actions,
+}: {
+  entryId: number
+  track: ItemSummary
+  index: number
+  last: boolean
+  isCurrent: boolean
+  playing: boolean
+  dragging: boolean
+  over: boolean
+  menuOpen: boolean
+  actions: RowActions
+}) {
+  return (
+    <li
+      data-entry-id={entryId}
+      className={['playlist-entry', dragging && 'dragging', over && 'drag-over'].filter(Boolean).join(' ')}
+      draggable
+      onDragStart={(e) => actions.dragStart(i, track, e)}
+      onDragOver={(e) => actions.dragOver(i, e)}
+      onDragLeave={() => actions.dragLeave(i)}
+      onDrop={(e) => actions.drop(i, e)}
+      onDragEnd={actions.dragEnd}
+      onContextMenu={(e) => actions.openMenu(i, { x: e.clientX, y: e.clientY }, e)}
+    >
+      <span className="queue-grip" aria-hidden="true">
+        <Grip />
+      </span>
+      <button className={isCurrent ? 'track current' : 'track'} onClick={() => actions.play(i)} aria-current={isCurrent || undefined}>
+        <span className="track-number">{playing ? <Play /> : i + 1}</span>
+        <span className="playlist-track-art" aria-hidden="true">
+          {track.artwork.poster && <img src={imageUrl(track.artwork.poster, 92)} alt="" loading="lazy" />}
+        </span>
+        <span className="playlist-track-text">
+          <span className="track-title">{track.title}</span>
+          <span className="muted">{track.seriesTitle}</span>
+        </span>
+        <span className="track-time">{track.durationSeconds ? formatClock(track.durationSeconds) : ''}</span>
+      </button>
+      <span className="queue-actions">
+        <button className="icon-button" aria-label={t('Move {title} up', { title: track.title })} disabled={i === 0} onClick={() => actions.move(i, i - 1)}>
+          <ChevronUp />
+        </button>
+        <button className="icon-button" aria-label={t('Move {title} down', { title: track.title })} disabled={last} onClick={() => actions.move(i, i + 1)}>
+          <ChevronDown />
+        </button>
+        <button className="icon-button" aria-label={t('Remove {title} from the playlist', { title: track.title })} onClick={() => actions.remove(i)}>
+          <Close />
+        </button>
+        <button
+          className="icon-button"
+          aria-label={t('More for {title}', { title: track.title })}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect()
+            actions.openMenu(i, { x: r.right - 220, y: r.bottom + 6 }, e)
+          }}
+        >
+          <More />
+        </button>
+      </span>
+    </li>
+  )
+})
