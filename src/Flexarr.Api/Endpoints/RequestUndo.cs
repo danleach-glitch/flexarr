@@ -150,6 +150,8 @@ public static class RequestUndo
 
         UpcomingEndpoints.ForgetArrCalls();
         RequestRequested.Forget();
+        // The watchlist keeps what Seerr said for hours: it said requested, and isn't any more.
+        Watchlist.WatchlistService.Forget(cache, body.MediaType, body.TmdbId);
         return Results.NoContent();
     }
 

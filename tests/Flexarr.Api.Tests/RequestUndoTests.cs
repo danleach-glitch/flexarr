@@ -80,6 +80,9 @@ public sealed class RequestUndoTests : IAsyncLifetime
             db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 7001 });
             return await db.SaveChangesAsync();
         });
+        // What the watchlist kept of Seerr's word (that it's requested) goes with the request.
+        var cache = _server.Services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
+        Microsoft.Extensions.Caching.Memory.CacheExtensions.Set(cache, "watchlist:seerr:movie:7001", "requested");
 
         var response = await Client().PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "movie", tmdbId = 7001 });
 
@@ -89,6 +92,7 @@ public sealed class RequestUndoTests : IAsyncLifetime
         Assert.Contains("DELETE /api/v1/request/9", _arr.Requests);
         Assert.Contains("DELETE /api/v1/media/55", _arr.Requests);
         Assert.True(await InDbAsync(db => db.MediaRequests.AllAsync(r => r.TmdbId != 7001 || r.FulfilledAt != null)));
+        Assert.False(cache.TryGetValue("watchlist:seerr:movie:7001", out _));
     }
 
     [Fact]
