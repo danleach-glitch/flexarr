@@ -359,6 +359,7 @@ final class AppModel {
     func refreshErrorReports() async {
         guard let credentials, let client else { return }
         guard let status = try? await client.systemStatus(), self.credentials?.address == credentials.address else { return }
+        serverVersions[credentials.address] = status.version
         noteServerAge(status.version, of: credentials.address)
         // So does its name, which a rename on the web changes while the app is open.
         noteServerName(status, guest: credentials.isGuest)
@@ -370,6 +371,17 @@ final class AppModel {
     /// (`ServerSupport.minimumVersion`). Said once per server each time the app starts.
     var serverUpdateNotice: String?
     @ObservationIgnored private var toldToUpdate: Set<URL> = []
+
+    /// Each server's version from the last status it gave (asked at sign-in and each return to the front), so what
+    /// only needs the version doesn't ask for the status again.
+    @ObservationIgnored private var serverVersions: [URL: String] = [:]
+
+    private func serverVersion(_ client: FlexarrClient, of address: URL) async -> String? {
+        if let known = serverVersions[address] { return known }
+        guard let status = try? await client.systemStatus() else { return nil }
+        serverVersions[address] = status.version
+        return status.version
+    }
 
     private func noteServerAge(_ version: String, of address: URL) {
         guard ServerSupport.isTooOld(version), toldToUpdate.insert(address).inserted else { return }
@@ -388,7 +400,7 @@ final class AppModel {
     func checkMusicAlbums(library: Library) async {
         guard let credentials, let client, musicAlbumsOffered[credentials.address] == nil else { return }
         var offered: Bool?
-        if let status = try? await client.systemStatus(), let atLeast = ServerVersion.isAtLeast(status.version, major: 0, minor: 59) {
+        if let version = await serverVersion(client, of: credentials.address), let atLeast = ServerVersion.isAtLeast(version, major: 0, minor: 59) {
             offered = atLeast
         } else {
             // Nil (rather than an error) only from a server without the endpoint.
@@ -989,8 +1001,9 @@ final class AppModel {
     var profileLanguage: String?
 
     private func settleLanguage(_ client: FlexarrClient) async {
-        languages = (try? await client.languages()) ?? []
-        await Localization.shared.settle(profileChoice: profileLanguage, client: client)
+        let offered = (try? await client.languages()) ?? []
+        languages = offered
+        await Localization.shared.settle(profileChoice: profileLanguage, client: client, offered: offered)
     }
 
     /// Picks the profile's language on every device (nil: each device's own) and shows it here.
@@ -1208,21 +1221,25 @@ final class AppModel {
 
     func loadLibraries() async {
         guard let client else { return }
+        // What doesn't wait on another answer is asked for together, so a slow link waits for the slowest, not the sum.
+        // A kids profile has no podcasts: with no status, nothing offers them. Nor Live TV.
+        let kids = isKids
+        async let podcastAnswer: PodcastStatus? = kids ? nil : try? await client.podcastStatus()
+        async let liveTvAnswer: LiveTvStatus? = kids ? nil : try? await client.liveTvStatus()
+        async let watchlist: Void = refreshWatchlist()
         do {
             libraries = try await client.libraries()
             librariesError = nil
         } catch {
             librariesError = ConnectionError(error).message
         }
-        // A kids profile has no podcasts: with no status, nothing offers them.
-        podcastStatus = isKids ? nil : try? await client.podcastStatus()
+        podcastStatus = await podcastAnswer
         if podcastStatus?.available == true { podcastPreferences = try? await client.podcastPreferences() }
-        // Nor Live TV.
-        liveTvStatus = isKids ? nil : try? await client.liveTvStatus()
+        liveTvStatus = await liveTvAnswer
         if libraries.contains(where: { $0.type == .audiobooks }), let listening = try? await client.bookListening() {
             bookListening = listening
         }
-        await refreshWatchlist()
+        await watchlist
     }
 
     /// The server keeps watchlists (0.56 and later): the watchlist's buttons, menu items and screen show.
@@ -1415,8 +1432,8 @@ final class AppModel {
         // A server before 0.59 would show the warm-up as playing and give it a transcode slot: only asked once per server.
         guard let supported = warmUpsSupported[credentials.address] else {
             Task {
-                let status = try? await client.systemStatus()
-                warmUpsSupported[credentials.address] = status.flatMap { ServerVersion.isAtLeast($0.version, major: 0, minor: 59) } ?? false
+                let version = await serverVersion(client, of: credentials.address)
+                warmUpsSupported[credentials.address] = version.flatMap { ServerVersion.isAtLeast($0, major: 0, minor: 59) } ?? false
                 if warmUpsSupported[credentials.address] == true, self.credentials?.address == credentials.address { getReady(item, prewarmBytes: prewarmBytes) }
             }
             return

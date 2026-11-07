@@ -111,6 +111,16 @@ import Testing
         #expect(!asked.contains("/api/v1/languages/en"))
         Localization.shared.show(nil)
     }
+
+    @Test func aListAlreadyFetchedIsNotAskedForAgain() async {
+        let (client, host) = stubbedClient(.init(status: 404, body: Data()))
+        let offered = [LanguageInfo(code: "en-XA", name: "Pseudo", direction: "ltr", version: 3)]
+        await Localization.shared.settle(profileChoice: "en-XA", client: client, offered: offered)
+        let asked = StubProtocol.recorded(host: host).compactMap { $0.url?.path }
+        #expect(!asked.contains("/api/v1/languages"))
+        #expect(asked.contains("/api/v1/languages/en-XA"))
+        Localization.shared.show(nil)
+    }
 }
 
 /// A pack is kept in a file named after the code it gives itself, and the server writes that code.

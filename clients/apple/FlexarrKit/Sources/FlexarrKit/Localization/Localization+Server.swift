@@ -12,8 +12,10 @@ public struct LanguageInfo: Codable, Sendable, Hashable, Identifiable {
 extension Localization {
     /// Settles the language: the profile's choice (nil follows the device), shown from the device's newest copy at
     /// once, then from the server's if it has a newer one. Offline, the device's copy stays.
-    public func settle(profileChoice: String?, client: FlexarrClient) async {
-        let offered = (try? await client.languages()) ?? []
+    /// `offered`: the server's list when the caller has just fetched it, so it isn't asked for twice in a row.
+    public func settle(profileChoice: String?, client: FlexarrClient, offered known: [LanguageInfo]? = nil) async {
+        let offered: [LanguageInfo]
+        if let known { offered = known } else { offered = (try? await client.languages()) ?? [] }
         let code = profileChoice ?? Self.deviceChoice(offered: offered.map(\.code))
         guard let code, code != "en" else {
             show(nil)
