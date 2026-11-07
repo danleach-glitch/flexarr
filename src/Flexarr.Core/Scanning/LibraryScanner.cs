@@ -830,8 +830,10 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 return index;
             }
 
-            var seasons = items.Where(i => i.Kind == MediaKind.Season);
-            var episodes = items.Where(i => i.Kind == MediaKind.Episode);
+            // Untracked: a scan only finds parents among them and never changes them, and tracking every season and
+            // episode of a big library held them all, twice over, for the whole scan.
+            var seasons = items.AsNoTracking().Where(i => i.Kind == MediaKind.Season);
+            var episodes = items.AsNoTracking().Where(i => i.Kind == MediaKind.Episode);
             var folders = scoped?.Select(t => SeriesFolder(t.Root, t.Scope)).ToList();
             if (folders is not null && folders.All(f => f is not null))
             {
