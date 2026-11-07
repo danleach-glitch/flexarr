@@ -38,6 +38,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Watching a Live TV channel uses less data: the player fetches what’s on when the programme on screen ends (and every ten minutes in case the guide changes), rather than the whole channel list every minute.
 - An audiobook with hundreds of chapters no longer makes its chapter list stutter while it plays, and the list opens straight away.
 - **Copy code and open Trakt** only ever opens a page on trakt.tv. If the server names anywhere else, the Android app opens trakt.tv/activate instead.
+- On Android TV, a kids profile no longer has **Settings** in the sidebar (so no **Sign out** either), as on the phone. A kids profile that's the only one on the server keeps it.
 
 ## 0.62.1 · 5 November 2026
 
