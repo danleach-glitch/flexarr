@@ -41,6 +41,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The log and the diagnostics bundle no longer keep the key of a private podcast feed, or a password written into an address (`https://user:password@host`). A podcast that can't be refreshed is logged by its title and host.
 - Family guests can no longer move a title's sound earlier or later. Audio sync is kept on the file for the whole household, so only the household's own profiles change it.
 - On a home network with IPv6, a podcast feed or its artwork can no longer point the server at the router, a NAS or the server itself by their IPv6 addresses. Anything on the networks the server is connected to counts as home, not the internet.
+- A device that guesses at a profile's PIN slowly, waiting out each lockout, now gets 20 wrong guesses at that profile a day, then can't try it again until the day is out. A right PIN clears the count, and other devices aren't held up.
 
 ## 0.62.1 · 5 November 2026
 

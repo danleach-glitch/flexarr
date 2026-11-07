@@ -115,6 +115,47 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
     }
 
     [Fact]
+    public async Task APatientGuesser_GetsOnlyADaysAllowance_OfGuessesAtAProfile()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        var start = clock.Now;
+        // One wrong PIN at a time, each after a quiet spell has halved the strikes, so no lockout is ever waited for.
+        for (var i = 0; i < PinGuard.CallerDailyAllowance; i++)
+        {
+            Assert.Equal(PinCheck.Wrong, (await guard.CheckAsync("kid", "patient", () => false, CancellationToken.None)).Result);
+            clock.Now += PinGuard.QuietPeriod + TimeSpan.FromMinutes(1);
+        }
+
+        var spent = await guard.CheckAsync("kid", "patient", () => true, CancellationToken.None);
+        var someoneElse = await guard.CheckAsync("kid", "parent", () => true, CancellationToken.None);
+        var otherProfile = await guard.CheckAsync("teen", "patient", () => true, CancellationToken.None);
+        clock.Now = start + TimeSpan.FromDays(1) + TimeSpan.FromSeconds(1);
+        var nextDay = await guard.CheckAsync("kid", "patient", () => true, CancellationToken.None);
+
+        Assert.Equal(PinCheck.LockedOut, spent.Result);
+        Assert.Equal(PinCheck.Right, someoneElse.Result);
+        Assert.Equal(PinCheck.Right, otherProfile.Result);
+        Assert.Equal(PinCheck.Right, nextDay.Result);
+    }
+
+    [Fact]
+    public async Task APinForgivenAsTheRightOneForAnotherCheck_DoesntSpendTheDaysAllowance()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        // The owner choosing the main profile with the admin PIN, many times in a day.
+        for (var i = 0; i <= PinGuard.CallerDailyAllowance; i++)
+        {
+            await guard.CheckAsync("main", "sign-in:laptop", () => false, CancellationToken.None);
+            guard.Forgive("main", ["sign-in:laptop"], mayManage: false);
+            clock.Now += PinGuard.ProfileThrottle;
+        }
+
+        Assert.Equal(PinCheck.Right, (await guard.CheckAsync("main", "sign-in:laptop", () => true, CancellationToken.None)).Result);
+    }
+
+    [Fact]
     public async Task ABrowserThatKnowsThePin_IsntLockedOut_ByGuessesFromItsAddress()
     {
         var clock = new ManualClock();
@@ -348,27 +389,34 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
     {
         var clock = new ManualClock();
         var guard = new PinGuard(clock);
-        // A household tablet paces itself: a few guesses, then a wait long enough for half its strikes to be forgotten.
+        // Household tablets pace themselves: a few guesses, then a wait long enough for half their strikes to be
+        // forgotten, each until its own day's allowance is spent; together, as many as the day's for callers by address.
         var started = clock.Now;
         var guesses = 0;
-        while (guesses < PinGuard.AdminDailyAllowance)
+        var tablets = PinGuard.AdminDailyAllowance / PinGuard.CallerDailyAllowance;
+        for (var n = 0; n < tablets; n++)
         {
-            var (result, retryAfter) = await guard.CheckAsync(PinGuard.AdminKey, "sign-in:tablet", () => false, CancellationToken.None);
-            if (result == PinCheck.Wrong)
+            var mine = 0;
+            while (mine < PinGuard.CallerDailyAllowance)
             {
-                guesses++;
-            }
+                var (result, retryAfter) = await guard.CheckAsync(PinGuard.AdminKey, $"sign-in:tablet{n}", () => false, CancellationToken.None);
+                if (result == PinCheck.Wrong)
+                {
+                    mine++;
+                    guesses++;
+                }
 
-            clock.Now += retryAfter + (retryAfter >= TimeSpan.FromMinutes(8) ? PinGuard.QuietPeriod : TimeSpan.Zero) + PinGuard.ProfileThrottle;
+                clock.Now += retryAfter + (retryAfter >= TimeSpan.FromMinutes(8) ? PinGuard.QuietPeriod : TimeSpan.Zero) + PinGuard.ProfileThrottle;
+            }
         }
 
-        var tablet = await guard.CheckAsync(PinGuard.AdminKey, "sign-in:tablet", () => true, CancellationToken.None);
+        var tablet = await guard.CheckAsync(PinGuard.AdminKey, $"sign-in:tablet{tablets - 1}", () => true, CancellationToken.None);
         clock.Now += PinGuard.ProfileThrottle;
         var owner = await guard.CheckAsync(PinGuard.AdminKey, "address:192.168.1.20", () => true, CancellationToken.None);
 
+        Assert.Equal(PinGuard.AdminDailyAllowance, guesses);
         Assert.True(clock.Now - started < TimeSpan.FromHours(23)); // all within the day
-        Assert.Equal(PinCheck.LockedOut, tablet.Result);
-        Assert.True(tablet.RetryAfter <= TimeSpan.FromHours(1)); // its own lockout, not the day's
+        Assert.Equal(PinCheck.LockedOut, tablet.Result); // its own day's allowance is spent
         Assert.Equal(PinCheck.Right, owner.Result);
     }
 

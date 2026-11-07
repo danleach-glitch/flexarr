@@ -58,6 +58,13 @@ public sealed class PinGuard(TimeProvider clock)
     /// <summary>Wrong admin PINs a day from callers told apart only by address, after which none of them may try it.</summary>
     public const int AdminDailyAllowance = 100;
 
+    /// <summary>
+    /// Wrong PINs a day from one caller at one profile, after which it may not try that profile's PIN until the day is
+    /// out. Strikes halve with each quiet spell, so without it a caller that paces itself would get well over a hundred
+    /// guesses a day; a right PIN clears it, as it does the strikes.
+    /// </summary>
+    public const int CallerDailyAllowance = 20;
+
     /// <summary>After this long without a wrong PIN (once any lockout is over), half the strikes are forgotten.</summary>
     public static readonly TimeSpan QuietPeriod = TimeSpan.FromMinutes(30);
 
@@ -84,6 +91,10 @@ public sealed class PinGuard(TimeProvider clock)
 
         /// <summary>When half the strikes were last forgotten.</summary>
         public DateTime HalvedAt;
+
+        /// <summary>The first wrong PIN of the caller's day, and how many since; never halved.</summary>
+        public DateTime DailySince;
+        public int DailyCount;
     }
 
     /// <inheritdoc cref="CheckAsync(string, IReadOnlyList{string}, Func{bool}, CancellationToken, bool, string?)"/>
@@ -117,6 +128,8 @@ public sealed class PinGuard(TimeProvider clock)
         {
             var now = clock.GetUtcNow().UtcDateTime;
             var wait = callerKeys.Select(k => HeldOff(k, now, throttleOnly: false)).Max();
+            var callerDay = callerKeys.Select(k => DayOut(k, now)).Max();
+            wait = callerDay > wait ? callerDay : wait;
             var shared = mayManage ? HeldOff(managersKey, now, throttleOnly: false) : HeldOff(profileKey, now, throttleOnly: true);
             wait = shared > wait ? shared : wait;
             // Only callers that could start afresh from another address: a sign-in, or a browser known by its right
@@ -188,6 +201,7 @@ public sealed class PinGuard(TimeProvider clock)
                 lock (strikes)
                 {
                     strikes.Count = Math.Max(0, strikes.Count - 1);
+                    strikes.DailyCount = Math.Max(0, strikes.DailyCount - 1);
                     if (strikes.Count < FreeAttempts)
                     {
                         strikes.LockedUntil = default;
@@ -227,7 +241,7 @@ public sealed class PinGuard(TimeProvider clock)
             {
                 var spells = (int)Math.Min(31, (now - quietSince) / QuietPeriod);
                 strikes.Count >>= spells;
-                if (strikes.Count == 0)
+                if (strikes.Count == 0 && now - strikes.DailySince >= TimeSpan.FromDays(1))
                 {
                     _strikes.TryRemove(key, out _);
                     return TimeSpan.Zero;
@@ -245,12 +259,34 @@ public sealed class PinGuard(TimeProvider clock)
         }
     }
 
+    /// <summary>How long a caller must wait for its day's allowance of wrong PINs (<see cref="CallerDailyAllowance"/>) to come back.</summary>
+    private TimeSpan DayOut(string key, DateTime now)
+    {
+        if (!_strikes.TryGetValue(key, out var strikes))
+        {
+            return TimeSpan.Zero;
+        }
+
+        lock (strikes)
+        {
+            var dayOut = strikes.DailySince + TimeSpan.FromDays(1) - now;
+            return strikes.DailyCount >= CallerDailyAllowance && dayOut > TimeSpan.Zero ? dayOut : TimeSpan.Zero;
+        }
+    }
+
     /// <summary>Counts a wrong PIN; returns how many there are now.</summary>
     private int Strike(string key, DateTime now, int freeAttempts)
     {
         var strikes = _strikes.GetOrAdd(key, _ => new Strikes());
         lock (strikes)
         {
+            if (now - strikes.DailySince >= TimeSpan.FromDays(1))
+            {
+                strikes.DailySince = now;
+                strikes.DailyCount = 0;
+            }
+
+            strikes.DailyCount++;
             strikes.Count++;
             strikes.LastWrong = now;
             if (strikes.Count >= freeAttempts)
