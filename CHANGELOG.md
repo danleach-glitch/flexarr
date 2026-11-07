@@ -25,6 +25,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - In a long library, watching or marking something fetches again only the titles around where you are in the grid, rather than every title you've scrolled past.
 - Flexarr opens a little sooner on a slow connection: it asks your server for its languages once rather than twice before the first screen, asks for podcasts, Live TV and the watchlist alongside your libraries rather than one after another, and reuses the server's version it already knows.
 - Scrubbing through a film or episode no longer fills the app's memory with preview sheets and pushes out the posters, which used to load again after the film. Only the few sheets around where you're scrubbing are kept.
+- A book's page no longer redraws all of itself twice a second while that book plays: only Resume, the time left and the chapters follow the clock, so it does less while it's open.
 
 ### iPhone, iPad and Mac
 
