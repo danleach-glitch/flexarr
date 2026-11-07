@@ -41,6 +41,7 @@ import { endingFrom, finalReportSent, moveOn, rememberScroll, takeScroll, type P
 import { getReady, handOver, leave, PAGE_DELAY_MS } from '../lib/preparedPlayback'
 import { onDemand } from '../lib/onDemand'
 import { detectProfile } from '../lib/profile'
+import { prepareVideo } from '../lib/copiedVideo'
 import { AlbumPage, ArtistPage } from './MusicPages'
 import {
   episodeHeading,
@@ -176,7 +177,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const warmId = playTarget && (playTarget.kind === 'Movie' || playTarget.kind === 'Episode') ? playTarget.id : undefined
   useEffect(() => {
     if (!warmId) return
-    const timer = window.setTimeout(() => getReady({ itemId: warmId, profile: detectProfile() }), PAGE_DELAY_MS)
+    const timer = window.setTimeout(() => getReady({ itemId: warmId, profile: detectProfile() }, prepareVideo), PAGE_DELAY_MS)
     return () => {
       window.clearTimeout(timer)
       leave(warmId)
