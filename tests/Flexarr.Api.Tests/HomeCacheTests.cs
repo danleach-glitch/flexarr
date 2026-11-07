@@ -71,10 +71,17 @@ public sealed class HomeCacheTests : IDisposable
         Assert.Equal(films, Row(first, "recent-movies"));
         var key = Assert.Single(HomeKeys());
 
-        // Something only the kept copy holds shows the second answer came from it.
+        // Something only the kept copy holds shows the second answer came from it. Other tests in this process write to
+        // their own databases and move the version on too (on a server, every write is its own), so it's tried a few times.
         var entry = Assert.IsType<HomeCache.Entry>(Cache.Get(key));
-        Cache.Set(key, entry with { Home = entry.Home with { Rows = [] } }, HomeCache.KeptFor);
-        Assert.Empty(Row(await HomeAsync(), "recent-movies"));
+        var kept = false;
+        for (var i = 0; i < 20 && !kept; i++)
+        {
+            Cache.Set(key, entry with { Version = DataVersion.Current, Home = entry.Home with { Rows = [] } }, HomeCache.KeptFor);
+            kept = Row(await HomeAsync(), "recent-movies").Count == 0;
+        }
+
+        Assert.True(kept);
 
         // Any write drops it.
         (await Client().PostAsJsonAsync(Api($"/items/{films[0]}/watched"), new { watched = true })).EnsureSuccessStatusCode();
