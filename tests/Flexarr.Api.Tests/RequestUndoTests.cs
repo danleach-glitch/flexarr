@@ -643,19 +643,29 @@ public sealed class RequestUndoTests : IAsyncLifetime
         Assert.Equal(1, Asked());
 
         // Seerr's list and the queue are kept only half a minute; once they've gone, the title's answer is still kept.
+        // A request, unrequest or webhook in any other test drops it too (Forget is one for the process), so it's tried
+        // a few times rather than once.
         var cache = (Microsoft.Extensions.Caching.Memory.MemoryCache)_server.Services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
-        foreach (var key in cache.Keys.OfType<string>().Where(k => k.StartsWith("seerr-requested:", StringComparison.Ordinal) || k.StartsWith("requested-queue:", StringComparison.Ordinal)).ToList())
+        var kept = false;
+        for (var i = 0; i < 20 && !kept; i++)
         {
-            cache.Remove(key);
+            var before = Asked();
+            foreach (var key in cache.Keys.OfType<string>().Where(k => k.StartsWith("seerr-requested:", StringComparison.Ordinal) || k.StartsWith("requested-queue:", StringComparison.Ordinal)).ToList())
+            {
+                cache.Remove(key);
+            }
+
+            Assert.Single((await Client().GetFromJsonAsync<JsonElement>(Api("/requests/requested"))).EnumerateArray());
+            kept = Asked() == before;
         }
 
-        Assert.Single((await Client().GetFromJsonAsync<JsonElement>(Api("/requests/requested"))).EnumerateArray());
-        Assert.Equal(1, Asked());
+        Assert.True(kept);
+        var asked = Asked();
 
         // Radarr says the file has come: it's asked again, and the film is no longer waiting.
         _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7401"] = """[{"id":3,"title":"Film","year":2025,"hasFile":true,"status":"released"}]""";
         (await Client().PostAsJsonAsync(Api("/webhooks/radarr"), new { eventType = "Grab" })).EnsureSuccessStatusCode();
         Assert.Empty((await Client().GetFromJsonAsync<JsonElement>(Api("/requests/requested"))).EnumerateArray());
-        Assert.Equal(2, Asked());
+        Assert.Equal(asked + 1, Asked());
     }
 }
