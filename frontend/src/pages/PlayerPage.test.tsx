@@ -120,6 +120,13 @@ describe('Player when the tab closes', () => {
     expect(stopped).toEqual(['s1'])
   })
 
+  it('calls a copied picture by its summary, not “Converting”', async () => {
+    mockApi({ 'POST /playback': () => playback({ transcodeSummary: 'Original H.264, repackaged' }) })
+    const page = renderPlayer()
+    await waitFor(() => expect(page.getByText('Original H.264, repackaged')).toBeTruthy())
+    expect(page.queryByText(/Converting/)).toBeNull()
+    await act(async () => page.unmount())
+  })
 })
 
 // Last: a copied stream's failure is remembered for the rest of the visit.

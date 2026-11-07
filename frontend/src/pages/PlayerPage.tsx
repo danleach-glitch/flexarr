@@ -1443,7 +1443,8 @@ export function PlayerPage() {
         )}
         {info?.transcodeSummary && (
           <span className="player-badge" title={info.reasons.join('\n')}>
-            {t('Converting: {summary}', { summary: info.transcodeSummary })}
+            {/* A copied picture ("Original H.264, repackaged") isn't converted, so it isn't called that. */}
+            {/^Original\b/.test(info.transcodeSummary) ? info.transcodeSummary : t('Converting: {summary}', { summary: info.transcodeSummary })}
           </span>
         )}
       </header>
