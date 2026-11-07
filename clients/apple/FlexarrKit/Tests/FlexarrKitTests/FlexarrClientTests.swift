@@ -8,6 +8,7 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
         var status: Int
         var body: Data
         var contentType: String = "application/json"
+        var headers: [String: String] = [:]
     }
 
     nonisolated(unsafe) private static var stubs: [String: Stub] = [:]
@@ -55,7 +56,7 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
             return
         }
         let response = HTTPURLResponse(url: request.url!, statusCode: stub.status, httpVersion: "HTTP/1.1",
-                                       headerFields: ["Content-Type": stub.contentType])!
+                                       headerFields: stub.headers.merging(["Content-Type": stub.contentType]) { _, type in type })!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: stub.body)
         client?.urlProtocolDidFinishLoading(self)

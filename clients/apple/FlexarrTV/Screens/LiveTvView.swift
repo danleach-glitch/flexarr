@@ -13,9 +13,13 @@ struct LiveTvView: View {
     @State private var error: String?
     @State private var chosen: Category?
     @FocusState private var focusedCategory: Category?
-    @State private var guide: LiveGuide?
-    /// When `guide` was fetched: it's kept a while (`LiveGuide.keptFor`) rather than downloaded again at every look.
-    @State private var guideLoadedAt: Date?
+    /// The guide as fetched: kept a while (`LiveGuide.keptFor`) rather than downloaded again at every look, and asked
+    /// for (`LiveGuidePlan`) for the window shown and a margin, and for only the favourites while they're shown.
+    @State private var kept: KeptLiveGuide?
+    /// The guide being asked for, so the same isn't asked twice at once.
+    @State private var asking: LiveGuideRequest?
+    /// The end of the window the guide shows, once it has been moved on from where it opens.
+    @State private var showingUntil: Date?
     /// How many recordings are coming up, for the sidebar.
     @State private var upcoming: Int?
 
@@ -35,14 +39,15 @@ struct LiveTvView: View {
                     HStack(alignment: .top, spacing: 50) {
                         sidebar
                         if category == .recordings {
-                            LiveRecordingsView(onChanged: { Task { await loadGuide() } }, upcoming: $upcoming)
+                            LiveRecordingsView(onChanged: { Task { await loadGuide(force: true) } }, upcoming: $upcoming)
                         } else if category == .favourites, favourites.isEmpty {
                             noFavourites
                         } else {
-                            LiveGuideGrid(client: model.client, channels: self.channels(in: category), guide: guide,
+                            LiveGuideGrid(client: model.client, channels: self.channels(in: category), guide: kept?.guide,
                                           onWatch: { model.watch($0, among: order) },
                                           onFavourite: { setFavourite($0, !$0.isFavourite) },
-                                          onRecordingsChanged: { Task { await loadGuide() } }, records: !model.hasAgeLimit)
+                                          onRecordingsChanged: { Task { await loadGuide(force: true) } }, records: !model.hasAgeLimit,
+                                          onWindow: { showingUntil = $0 })
                         }
                     }
                     .padding(.leading, Layout.edge)
@@ -62,14 +67,18 @@ struct LiveTvView: View {
                 try? await Task.sleep(for: .seconds(60))
             }
         }
-        // The guide: a day's worth, looked at every five minutes and fetched again once it's old, a recording has
-        // started or ended since (its mark changes), or it wasn't had: a fetch that failed is tried again at the next look.
+        // The guide: looked at every five minutes and fetched again once it's old, a recording has started or ended
+        // since (its mark changes), or it wasn't had: a fetch that failed is tried again at the next look. Also as the
+        // channels arrive, the category changes (Favourites has only its own) and the window moves towards its end.
         .task {
             while !Task.isCancelled {
-                await loadGuide(onlyIfDue: true)
+                await loadGuide(countsUpcoming: true)
                 try? await Task.sleep(for: .seconds(300))
             }
         }
+        .onChange(of: channels != nil) { Task { await loadGuide() } }
+        .onChange(of: category) { Task { await loadGuide() } }
+        .onChange(of: showingUntil) { Task { await loadGuide() } }
         .onChange(of: focusedCategory) { _, category in
             if let category { chosen = category }
         }
@@ -166,16 +175,21 @@ struct LiveTvView: View {
 
     static let gold = Color.screen
 
-    /// The count of recordings coming up, and the guide: always after a recording was set or taken off (for its
-    /// marks), otherwise (`onlyIfDue`) only once the one shown is old.
-    private func loadGuide(onlyIfDue: Bool = false) async {
+    /// The count of recordings coming up (at each look, and after a recording was set or taken off), and the guide:
+    /// always after a recording was set or taken off (`force`, for its marks), otherwise only when `LiveGuidePlan` says
+    /// the one kept won't do. Not while Recordings is shown, nor before the channels are known (which list is shown).
+    private func loadGuide(force: Bool = false, countsUpcoming: Bool = false) async {
         guard let client = model.client else { return }
-        if !model.hasAgeLimit { upcoming = try? await client.recordings().upcoming.count }
-        if onlyIfDue, let guide, !guide.isDue(fetchedAt: guideLoadedAt) { return }
-        if let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: 24, descriptions: false) {
-            guide = loaded
-            guideLoadedAt = Date()
-        }
+        if !model.hasAgeLimit, force || countsUpcoming { upcoming = try? await client.recordings().upcoming.count }
+        guard channels != nil, category != .recordings else { return }
+        let opens = LiveGuideGrid.halfHour(before: Date()).addingTimeInterval(LiveGuideGrid.window)
+        guard let request = LiveGuidePlan.next(kept: kept, scope: category == .favourites ? .favourites : .all,
+                                               shown: channels(in: category).map(\.id), showingUntil: max(showingUntil ?? opens, opens),
+                                               keepAhead: LiveGuideGrid.keepAhead, askAhead: LiveGuideGrid.askAhead, force: force),
+              request != asking else { return }
+        asking = request
+        defer { if asking == request { asking = nil } }
+        if let loaded = try? await client.liveGuide(request, kept: kept) { kept = loaded }
     }
 
     private func load() async {

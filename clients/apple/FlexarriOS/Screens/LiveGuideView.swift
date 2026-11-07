@@ -9,12 +9,16 @@ struct LiveGuideView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
     let channels: [LiveChannel]
+    /// The channels are the favourites: the guide is asked for only theirs.
+    var favouritesOnly = false
     let order: [LiveChannel]
     let onFavourite: (LiveChannel) -> Void
 
-    @State private var guide: LiveGuide?
-    /// When `guide` was fetched: it's kept a while (`LiveGuide.keptFor`) rather than downloaded again at every look.
-    @State private var guideLoadedAt: Date?
+    /// The guide as fetched: kept a while (`LiveGuide.keptFor`) rather than downloaded again at every look, and asked
+    /// for (`LiveGuidePlan`) for the window shown and an hour more, and for only the favourites while they're shown.
+    @State private var kept: KeptLiveGuide?
+    /// The guide being asked for, so the same isn't asked twice at once.
+    @State private var asking: LiveGuideRequest?
     @State private var windowStart = LiveGuideView.halfHour(before: Date())
     @State private var details: (programme: LiveProgramme, channel: LiveChannel)?
     @State private var now = Date()
@@ -41,7 +45,7 @@ struct LiveGuideView: View {
 
     var body: some View {
         Group {
-            if let guide {
+            if let guide = kept?.guide {
                 // Each channel's programmes, found once rather than searched for in every row.
                 let listings = Dictionary(guide.channels.map { ($0.id, $0.programmes) }, uniquingKeysWith: { first, _ in first })
                 ScrollView(.vertical) {
@@ -75,11 +79,13 @@ struct LiveGuideView: View {
             // a recording has started or ended since (its mark changes), or they weren't had: a fetch that failed is
             // tried again at the next look.
             while !Task.isCancelled {
-                if guide?.isDue(fetchedAt: guideLoadedAt) ?? true { await load() }
+                await load()
                 now = Date()
                 try? await Task.sleep(for: .seconds(120))
             }
         }
+        // Favourites has only its own channels' guide: another list may want more.
+        .onChange(of: favouritesOnly) { Task { await load() } }
         .alert(details?.programme.displayTitle ?? "", isPresented: Binding(get: { details != nil }, set: { if !$0 { details = nil } })) {
             if let channel = details?.channel, let programme = details?.programme {
                 Button(t("Watch {channel} now", ["channel": channel.name])) { model.watch(channel, among: order) }
@@ -235,12 +241,16 @@ struct LiveGuideView: View {
 
     private static let recordRed = Color.record
 
-    private func load() async {
-        if let client = model.client,
-           let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: Int(Self.hours) + 2, descriptions: false) {
-            guide = loaded
-            guideLoadedAt = Date()
-        }
+    /// The guide when `LiveGuidePlan` says the one kept won't do, or always after a recording was set or taken off
+    /// (`force`, for its marks).
+    private func load(force: Bool = false) async {
+        guard let client = model.client,
+              let request = LiveGuidePlan.next(kept: kept, scope: favouritesOnly ? .favourites : .all, shown: channels.map(\.id),
+                                               showingUntil: windowEnd, keepAhead: 0, askAhead: 3600, force: force),
+              request != asking else { return }
+        asking = request
+        defer { if asking == request { asking = nil } }
+        if let loaded = try? await client.liveGuide(request, kept: kept) { kept = loaded }
     }
 
     /// Does a recording action, then fetches the guide again for its marks; says why if it couldn't be done.
@@ -252,7 +262,7 @@ struct LiveGuideView: View {
             } catch {
                 notice = error.localizedDescription
             }
-            await load()
+            await load(force: true)
         }
     }
 
