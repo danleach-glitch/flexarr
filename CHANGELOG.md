@@ -178,6 +178,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Notifications
 
+- **Your request is ready** is sent for films and shows asked for within the last year. One asked for longer ago that finally arrives is announced like any other new title, so requests that never come in no longer add to your server's work every minute.
 - A server nobody is using no longer writes to its database three times a minute to note that there was nothing to tell phones about, so the drive it's on (a NAS's, say) can sleep. It notes it every quarter of an hour instead, and straight away whenever something is sent.
 
 ### Web

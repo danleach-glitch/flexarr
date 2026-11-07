@@ -389,6 +389,33 @@ public sealed class NotificationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AFilmAskedForOverAYearAgo_IsntLookedForAnyMore()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var library = OldLibrary(LibraryType.Movies);
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 438631, RequestedAt = _clock.Now.AddDays(-400) });
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 693134, RequestedAt = _clock.Now.AddDays(-300) });
+            db.MediaItems.Add(Film(library, "Dune", _clock.Now.AddMinutes(1), tmdb: "438631"));
+            db.MediaItems.Add(Film(library, "Dune: Part Two", _clock.Now.AddMinutes(1), tmdb: "693134"));
+        });
+
+        var sent = await RunAtAsync(_clock.Now.AddMinutes(5));
+
+        // Only the one asked for within the year is answered; the other's arrival is news like any other.
+        Assert.Single(sent, m => m.GetProperty("t").GetString() == "Your request is ready" && m.GetProperty("b").GetString()!.StartsWith("Dune: Part Two", StringComparison.Ordinal));
+        Assert.DoesNotContain(sent, m => m.GetProperty("t").GetString() == "Your request is ready" && m.GetProperty("b").GetString()!.StartsWith("Dune (", StringComparison.Ordinal));
+        using var scope = _server.Services.CreateScope();
+        var requests = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaRequests.ToDictionaryAsync(r => r.TmdbId);
+        Assert.Null(requests[438631].FulfilledAt);
+        Assert.NotNull(requests[693134].FulfilledAt);
+    }
+
+    [Fact]
     public async Task ARequestComingIn_TellsWhoAsked_InsteadOfTheUsualNews()
     {
         var (_, phone) = await PhoneAsync();

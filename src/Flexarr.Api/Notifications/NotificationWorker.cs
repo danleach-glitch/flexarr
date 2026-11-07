@@ -392,7 +392,11 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         CancellationToken ct)
     {
         var answered = new List<Answered>();
-        var open = await db.MediaRequests.Where(r => r.FulfilledAt == null).ToListAsync(ct);
+        // A film or show asked for over a year ago and still not in isn't looked for any more (it still shows in the
+        // library if it comes, without being announced as a request answered): the minute's work doesn't grow for ever.
+        var videosFrom = now - VideosWaitFor;
+        var open = await db.MediaRequests.Where(r => r.FulfilledAt == null
+            && (r.Kind == MediaKind.Album || r.Kind == MediaKind.Artist || r.RequestedAt > videosFrom)).ToListAsync(ct);
         answered.AddRange(await MusicAnsweredAsync(db, languages, open.Where(r => r.Kind is MediaKind.Album or MediaKind.Artist).ToList(), from, settled, now, ct));
         var videos = open.Where(r => r.Kind is not (MediaKind.Album or MediaKind.Artist)).ToList();
         if (videos.Count == 0)
@@ -460,6 +464,9 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
 
         return answered;
     }
+
+    /// <summary>How far back film and show requests are looked for.</summary>
+    private static readonly TimeSpan VideosWaitFor = TimeSpan.FromDays(365);
 
     /// <summary>How far back music requests are looked for: an album Lidarr hasn't found in this long isn't coming.</summary>
     private static readonly TimeSpan MusicWaitsFor = TimeSpan.FromDays(90);
