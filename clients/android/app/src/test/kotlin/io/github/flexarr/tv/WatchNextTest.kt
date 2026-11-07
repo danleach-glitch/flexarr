@@ -30,7 +30,7 @@ class WatchNextTest {
     )
 
     private fun cards(watching: List<ItemSummary>, albums: List<ItemSummary> = emptyList()) =
-        WatchNext.cards(watching, albums, now) { "https://server/${it.id}.jpg" }
+        WatchNext.cards(watching, albums, now) { WatchNext.Picture("https://server/${it.id}.jpg", 0) }
 
     @Test fun aFilmPartWayThrough_continuesWithItsProgress() {
         val card = cards(listOf(item("a", MediaKind.Movie, position = 900.0, playedAt = "2027-01-15T08:00:00Z"))).single()
@@ -40,7 +40,7 @@ class WatchNextTest {
         assertEquals(3_600_000, card.durationMillis)
         assertEquals(java.time.Instant.parse("2027-01-15T08:00:00Z").toEpochMilli(), card.lastEngagement)
         assertEquals(AppLink.Play("a"), card.link)
-        assertEquals("https://server/a.jpg", card.image)
+        assertEquals("https://server/a.jpg", card.image?.url)
     }
 
     @Test fun aFilmNotStarted_isLeftOut() {

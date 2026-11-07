@@ -13,6 +13,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import io.github.flexarr.AppLink
 import io.github.flexarr.appModel
+import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.data.CredentialStore
@@ -52,15 +53,18 @@ object WatchNext {
         val durationMillis: Int? = null,
         val positionMillis: Int? = null,
         val lastEngagement: Long,
-        val image: String?,
+        val image: Picture?,
         val link: AppLink,
     )
+
+    /** A card's picture and its shape (`TvContractCompat.PreviewPrograms.ASPECT_RATIO_*`), so a cover isn't cropped to 16:9. */
+    data class Picture(val url: String, val aspect: Int)
 
     /**
      * The row for [watching] (`home/continue`: films and episodes part way through, and shows' next episodes) and
      * [albums] (recently played), newest first. [image] is a card's picture.
      */
-    fun cards(watching: List<ItemSummary>, albums: List<ItemSummary>, now: Long, image: (ItemSummary) -> String?): List<Card> {
+    fun cards(watching: List<ItemSummary>, albums: List<ItemSummary>, now: Long, image: (ItemSummary) -> Picture?): List<Card> {
         // Google TV orders the row by these times. The server's order (by when each film or show was last played)
         // holds: a show's next episode has never been played and so has no time of its own, so each card's time is
         // its own or, if that's later, just after the card before.
@@ -154,9 +158,7 @@ object WatchNext {
         if (watching?.takesPin == true) return write(context, emptyList())
         val videos = client.continueWatching(take = MAX_VIDEOS)
         val albums = runCatching { client.home().rows.firstOrNull { it.id == RECENT_MUSIC }?.items.orEmpty() }.getOrDefault(emptyList())
-        val cards = cards(videos, albums, System.currentTimeMillis()) { item ->
-            client.wideImageUrl(item.artwork, WIDTH) ?: client.imageUrl(item.artwork.thumb ?: item.artwork.poster, WIDTH)
-        }
+        val cards = cards(videos, albums, System.currentTimeMillis()) { item -> picture(item, client) }
         write(context, cards)
     }
 
@@ -206,12 +208,25 @@ object WatchNext {
             card.episode?.let { setEpisodeNumber(it) }
             card.durationMillis?.let { setDurationMillis(it) }
             card.positionMillis?.let { setLastPlaybackPositionMillis(it) }
-            card.image?.let { setPosterArtUri(Uri.parse(it)); setPosterArtAspectRatio(TvContractCompat.PreviewPrograms.ASPECT_RATIO_16_9) }
+            card.image?.let { setPosterArtUri(Uri.parse(it.url)); setPosterArtAspectRatio(it.aspect) }
         }
         .setLastEngagementTimeUtcMillis(card.lastEngagement)
         .setInternalProviderId(card.id)
         .setIntent(card.link.launcherIntent(context))
         .build()
+
+    /**
+     * A card's picture: a film's or episode's wide picture (a still or the backdrop with its title), else its poster;
+     * an album's square cover.
+     */
+    private fun picture(item: ItemSummary, client: FlexarrClient): Picture? {
+        val art = item.artwork
+        fun url(path: String?) = client.imageUrl(path, WIDTH)
+        if (item.kind == MediaKind.Album) return url(art.poster ?: art.thumb)?.let { Picture(it, TvContractCompat.PreviewPrograms.ASPECT_RATIO_1_1) }
+        val wide = client.wideImageUrl(art, WIDTH) ?: url(art.thumb)
+        return wide?.let { Picture(it, TvContractCompat.PreviewPrograms.ASPECT_RATIO_16_9) }
+            ?: url(art.poster)?.let { Picture(it, TvContractCompat.PreviewPrograms.ASPECT_RATIO_2_3) }
+    }
 
     /**
      * The program a [TvContractCompat.ACTION_WATCH_NEXT_PROGRAM_BROWSABLE_DISABLED] broadcast names, as the title's
