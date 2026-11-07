@@ -23,19 +23,29 @@ const gaps: ShowMissing = {
 }
 
 describe('ShowGaps', () => {
-  it('requests just a missing season, searches for a season’s missing episodes, and lists what’s coming', async () => {
+  it('requests just a missing season, requests a season’s missing episodes from Sonarr, and lists what’s coming', async () => {
     render(<ShowGaps showId="show" tmdbId={99} gaps={gaps} />)
 
     expect(screen.getByRole('heading', { name: 'Coming up' })).toBeInTheDocument()
     expect(screen.getByText(/^Airs /)).toBeInTheDocument()
-    expect(screen.getByText('Requested')).toBeInTheDocument()
+    expect(screen.getAllByText('Requested')).toHaveLength(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'Request Season 2' }))
     await waitFor(() => expect(requestTitle).toHaveBeenCalledWith('tv', 99, [2]))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Search for season 1’s missing episodes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Request season 1’s missing episodes' }))
     await waitFor(() => expect(searchMissing).toHaveBeenCalledWith('show', 1))
-    expect(await screen.findByText('Searching')).toBeInTheDocument()
+    const seasonOne = document.querySelector('.card') as HTMLElement
+    await waitFor(() => expect(seasonOne).toHaveTextContent('Requested'))
+    expect(screen.queryByText('Search')).not.toBeInTheDocument()
+  })
+
+  it('says Requested for a season’s missing episodes Sonarr is already looking for', () => {
+    const looking = { ...gaps, episodes: gaps.episodes.map((e) => ({ ...e, monitored: true })) }
+    render(<ShowGaps showId="show" tmdbId={99} gaps={looking} />)
+
+    expect(screen.queryByRole('button', { name: 'Request season 1’s missing episodes' })).not.toBeInTheDocument()
+    expect(document.querySelector('.card')).toHaveTextContent('Requested')
   })
 
   it('offers neither to a profile that can’t request or search', () => {
