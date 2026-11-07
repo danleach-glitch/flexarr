@@ -98,12 +98,18 @@ public sealed class XtreamClient(HttpClient http)
         return channels;
     }
 
-    /// <summary>The source's XMLTV guide, as it downloads. The caller disposes it.</summary>
+    /// <summary>How long the guide may go without a byte arriving before the download is given up.</summary>
+    internal TimeSpan GuideIdleTimeout { get; init; } = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// The source's XMLTV guide, as it downloads. The caller disposes it. The client's timeout only covers waiting for
+    /// the answer to start, so a download that goes quiet part-way is given up after <see cref="GuideIdleTimeout"/>.
+    /// </summary>
     public async Task<Stream> OpenGuideAsync(XtreamAccount account, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(account);
         var response = await SendAsync(account.Guide(), HttpCompletionOption.ResponseHeadersRead, ct);
-        return await response.Content.ReadAsStreamAsync(ct);
+        return new IdleTimeoutStream(await response.Content.ReadAsStreamAsync(ct), GuideIdleTimeout);
     }
 
     /// <summary>A channel logo from the source itself or the community collection, as bytes and type; null when it isn't one.</summary>
@@ -199,4 +205,57 @@ public sealed class XtreamClient(HttpClient http)
 
     private static double? Double(JsonElement e, string name) =>
         double.TryParse(Text(e, name), NumberStyles.Float, CultureInfo.InvariantCulture, out var n) ? n : null;
+}
+
+/// <summary>A download that fails with <see cref="XtreamException"/> when a read waits longer than the limit for data.</summary>
+internal sealed class IdleTimeoutStream(Stream inner, TimeSpan idle) : Stream
+{
+    public override bool CanRead => true;
+    public override bool CanSeek => false;
+    public override bool CanWrite => false;
+    public override long Length => throw new NotSupportedException();
+    public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+    public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        limit.CancelAfter(idle);
+        try
+        {
+            return await inner.ReadAsync(buffer, limit.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new XtreamException("The Live TV source stopped sending the guide part-way.", ex);
+        }
+    }
+
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+        ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+    public override int Read(byte[] buffer, int offset, int count) => ReadAsync(buffer, offset, count, CancellationToken.None).GetAwaiter().GetResult();
+
+    public override void Flush()
+    {
+    }
+
+    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+    public override void SetLength(long value) => throw new NotSupportedException();
+    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            inner.Dispose();
+        }
+
+        base.Dispose(disposing);
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        await inner.DisposeAsync().ConfigureAwait(false);
+        await base.DisposeAsync().ConfigureAwait(false);
+    }
 }
