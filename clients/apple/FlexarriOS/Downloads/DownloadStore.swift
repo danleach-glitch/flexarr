@@ -470,9 +470,16 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         update(id) { if case .downloading = $0.state { $0.state = .preparing(1) } }
     }
 
+    /// Catch-ups run one at a time: one asked for while another runs follows it, once.
+    @ObservationIgnored private let catchUps = OneRunAtATime()
+
     /// Sends what was watched offline, follows what the server is getting ready, deletes what's finished with, and
-    /// fetches next episodes that are due.
+    /// fetches next episodes that are due. One at a time: asked for during one, it runs again once that's done.
     func catchUp() async {
+        await catchUps.run { [weak self] in await self?.catchUpNow() }
+    }
+
+    private func catchUpNow() async {
         deleteFinished()
         guard let client, isOnline else { return }
         for id in unsentDeletes {
@@ -1009,7 +1016,21 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             $0.unsent = UnsentProgress(position: position, finished: finished, playedAt: Date())
         }
         if finished, let updated = entry(for: itemId) { fetchNext(after: updated) }
-        Task { await catchUp() }
+        // A place saved part way (every few seconds while it plays) goes on its own; the end of it brings everything
+        // up to date (what's finished with is deleted once that's sent).
+        if finished { Task { await catchUp() } } else { Task { await sendProgress(of: download.id) } }
+    }
+
+    /// Sends one download's place, saved while it played, if there's one to send and the server's in reach.
+    private func sendProgress(of id: String) async {
+        guard let client, isOnline, let download = all.first(where: { $0.id == id }), download.profileId == profileId,
+              let unsent = download.unsent else { return }
+        do {
+            try await send(unsent, itemId: download.item.id, isBook: download.book != nil, with: client)
+            update(id) { if $0.unsent == unsent { $0.unsent = nil } }
+        } catch {
+            log.warning("Couldn't send offline progress", error: error)
+        }
     }
 
     /// Where listening to a downloaded book got to: kept here, and sent with its time once there's a connection.
@@ -1021,7 +1042,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             $0.unsent = UnsentProgress(position: position, finished: ended, playedAt: Date())
         }
         if ended { bookFinished(itemId: itemId) }
-        if isOnline { Task { await catchUp() } }
+        if isOnline { Task { if ended { await catchUp() } else { await sendProgress(of: download.id) } } }
     }
 
     func refreshBook(_ fresh: BookManifest) -> BookManifest? {
