@@ -342,21 +342,20 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** How fast the video player's stream segments have come lately, sent with each start (docs/fast-start.md). */
     val linkSpeed = LinkSpeed()
 
-    /** The server's version and the video profile the player asks with, worked out once per server (not on a failure). */
-    private var serverInfo: Triple<String, String, DeviceProfile>? = null
+    /** The server's version, asked once per server (not on a failure). */
+    private var serverInfo: Pair<String, String>? = null
 
     /**
      * The server's version (null if it couldn't be asked) and the video profile the player asks with
      * ([DeviceCapabilities.withServer]): shared by the player and warm-ups, so both ask for exactly the same stream.
+     * The profile is worked out each time, since what's plugged in (an amplifier switched on) and the sound settings change it.
      */
     suspend fun server(): Pair<String?, DeviceProfile>? {
         val client = client ?: return null
         val address = client.baseUrl.toString()
-        serverInfo?.let { (forServer, version, profile) -> if (forServer == address) return version to profile }
-        val version = runCatching { client.systemStatus().version }.getOrNull()
-        val profile = DeviceCapabilities.withServer(DeviceCapabilities.profile(context), version)
-        if (version != null) serverInfo = Triple(address, version, profile)
-        return version to profile
+        val version = serverInfo?.takeIf { it.first == address }?.second
+            ?: runCatching { client.systemStatus().version }.getOrNull()?.also { serverInfo = address to it }
+        return version to DeviceCapabilities.withServer(DeviceCapabilities.profile(context), version)
     }
 
     /** The one warm-up being worked out (the server's version first), and for which title, so a drop can cancel it. */
