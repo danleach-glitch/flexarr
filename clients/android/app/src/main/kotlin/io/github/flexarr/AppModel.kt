@@ -932,11 +932,26 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     }
 
     /**
-     * Someone has to choose who's watching: more than one profile, and none chosen on this device yet. Offline the app
-     * goes on as the profile last chosen instead, unless that would be a way past its PIN ([offlineAsksWho]).
+     * Someone has to choose who's watching: more than one profile, and none chosen on this device yet; or the server
+     * says so ([serverAsksWho]), even with one. Offline the app goes on as the profile last chosen instead, unless that
+     * would be a way past its PIN ([offlineAsksWho]).
      */
     val needsProfile: Boolean
-        get() = profilesLoaded && (!serverUnreachable || offlineAsksWho) && credentials?.profileToken == null && profiles.size > 1
+        get() = profilesLoaded && (!serverUnreachable || offlineAsksWho) &&
+            needsProfile(chosenHere = credentials?.profileToken != null, profiles = profiles.size, serverAsks = serverAsksWho)
+
+    /**
+     * The server answers this device as nobody chosen until someone is: the main profile has a PIN of its own that wasn't
+     * given here (a newly paired device), so it won't let it be the main profile unasked ([SignInInfo.chooseProfile]).
+     */
+    private var serverAsksWho by mutableStateOf(false)
+
+    /** A request was refused because nobody has chosen who's watching here: the server is asked who this is again. */
+    private fun serverRefusedUnchosen() {
+        if (serverAsksWho || credentials == null) return
+        signInAnswers.forget()
+        scope.launch { loadProfiles() }
+    }
 
     /**
      * [needsProfile] for what works without the app's screens (the home-screen widgets, the car, the Assistant, the
@@ -1377,6 +1392,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 hasOwnSignIn = it.method == "device"
                 serverSaysGuest = it.isGuest
             }
+            // Without an answer, as before servers asked: a refused request asks again (serverRefusedUnchosen). Someone
+            // chosen while this was asked (chose) already settled it: an answer from before doesn't bring the picker back.
+            if (client.profileToken == this.client?.profileToken) serverAsksWho = me?.chooseProfile ?: false
             leaveOfflineMode()
         } catch (e: FlexarrException) {
             // A guest's device the host has removed is turned away (403) whatever it asks: back to joining.
@@ -1458,6 +1476,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             upNext = emptyList()
         }
         val updated = credentials.copy(profileToken = selection.token)
+        // Chosen: the server answers as them from now on.
+        serverAsksWho = false
         // Saved only for a saved sign-in: one for this launch alone stays that way.
         if (saved) store.saveProfile(selection.token)
         phase = Phase.SignedIn(updated)
@@ -1732,6 +1752,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         network.onChange(::networkChanged)
         FlexarrClient.onCouldNotConnect = { scope.launch { connectionTrouble() } }
         FlexarrClient.onAnswered = { scope.launch { serverAnswered() } }
+        FlexarrClient.onChooseProfile = { scope.launch { serverRefusedUnchosen() } }
         tunnel.onPort = ::tunnelMoved
         // The host deleted this device from its tailnet: as good as removing it from Flexarr.
         tunnel.onRefused = { scope.launch { if (credentials?.isGuest == true) removedAsGuest() } }
@@ -1961,6 +1982,13 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         }
     }
 }
+
+/**
+ * Whether "Who's watching?" is up, once [profiles] have loaded ([AppModel.needsProfile]): more than one and none
+ * [chosenHere], or the server [serverAsks] (nobody chosen here and the main profile's own PIN needed), even with one.
+ */
+internal fun needsProfile(chosenHere: Boolean, profiles: Int, serverAsks: Boolean): Boolean =
+    profiles > 0 && (serverAsks || !chosenHere && profiles > 1)
 
 /**
  * Nobody has been chosen on this device though someone has to be ([AppModel.awaitsProfile]): once the profiles are
