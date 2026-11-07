@@ -56,6 +56,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Libraries
 
+- A library scan holds much less in the server's memory: of the files it already knows, it keeps only the ones that changed, not every file of the library, which matters on a NAS or a small Docker host.
 - The Apple TV's Top Shelf cards for titles whose artwork is kept beside the media no longer wake a sleeping drive once the server has made them, as covers already didn't, and a cover the server already has a copy of is served without looking at the drive again when the title is looked up afresh.
 
 ### Playback

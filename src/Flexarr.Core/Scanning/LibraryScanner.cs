@@ -170,6 +170,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     {
                         // Back after going missing, unchanged or not: its book is put together again with it in.
                         state.ChangedBooks.Add(match.MediaItemId);
+                        Track(match);
                     }
 
                     match.MissingSince = null;
@@ -186,7 +187,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 }
                 else
                 {
-                    work.Add((file, match));
+                    work.Add((file, match is null ? null : Track(match)));
                 }
             }
 
@@ -311,7 +312,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 var now = DateTime.UtcNow;
                 foreach (var file in gone)
                 {
-                    file.MissingSince = now;
+                    Track(file).MissingSince = now;
                     state.ChangedBooks.Add(file.MediaItemId);
                     missing++;
                 }
@@ -392,17 +393,32 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
     }
 
     /// <summary>
-    /// The library's files at or under <paramref name="target"/>, missing ones included. When the target isn't on disk
+    /// A known file the scan is about to change, tracked so the change is saved. Known files are read untracked: most
+    /// are unchanged, and tracking every one of a big library held them all, twice over, for the whole scan.
+    /// </summary>
+    private MediaFile Track(MediaFile file)
+    {
+        if (db.Entry(file).State == EntityState.Detached)
+        {
+            db.MediaFiles.Attach(file);
+        }
+
+        return file;
+    }
+
+    /// <summary>
+    /// The library's files at or under <paramref name="target"/>, missing ones included, untracked (see
+    /// <see cref="Track"/>), except those the context already tracks, which are given as tracked. When the target isn't on disk
     /// (a deleted series folder) it keeps the webhook's spelling, which may not be how its files were stored ("é"
     /// composed, say, where the files have it decomposed): then they're matched by <see cref="PathComparison.Key"/>
     /// among the files of the nearest folder that is there.
     /// </summary>
     private async Task<List<MediaFile>> KnownFilesAsync(Guid libraryId, string root, string target, CancellationToken ct)
     {
-        var files = db.MediaFiles.IgnoreQueryFilters().Where(f => f.MediaItem!.LibraryId == libraryId);
+        var files = db.MediaFiles.IgnoreQueryFilters().AsNoTracking().Where(f => f.MediaItem!.LibraryId == libraryId);
         if (Directory.Exists(target) || File.Exists(target))
         {
-            return await files.Where(f => f.Path == target || f.Path.StartsWith(target + "/")).ToListAsync(ct).ConfigureAwait(false);
+            return Tracked(await files.Where(f => f.Path == target || f.Path.StartsWith(target + "/")).ToListAsync(ct).ConfigureAwait(false));
         }
 
         var prefix = Path.GetDirectoryName(target);
@@ -415,7 +431,19 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         var candidates = await files.AsNoTracking().Where(f => f.Path.StartsWith(prefix + "/")).Select(f => new { f.Id, f.Path })
             .ToListAsync(ct).ConfigureAwait(false);
         var ids = candidates.Where(f => PathComparison.IsUnder(f.Path, target)).Select(f => f.Id).ToList();
-        return ids.Count == 0 ? [] : await files.Where(f => ids.Contains(f.Id)).ToListAsync(ct).ConfigureAwait(false);
+        return ids.Count == 0 ? [] : Tracked(await files.Where(f => ids.Contains(f.Id)).ToListAsync(ct).ConfigureAwait(false));
+
+        // A file an earlier folder of the scan changed (one library folder inside another) is the tracked one.
+        List<MediaFile> Tracked(List<MediaFile> loaded)
+        {
+            if (!db.ChangeTracker.Entries<MediaFile>().Any())
+            {
+                return loaded;
+            }
+
+            var local = db.MediaFiles.Local;
+            return loaded.Select(f => local.FindEntry(f.Id)?.Entity ?? f).ToList();
+        }
     }
 
     /// <summary>Whether the library shows any file in <paramref name="root"/> besides <paramref name="these"/>.</summary>

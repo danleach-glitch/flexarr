@@ -993,6 +993,48 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         Assert.Equal(3, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Episode));
     }
 
+    [Fact]
+    public async Task ARescan_HoldsOnlyTheFilesItChanges_AndSavesEachChange()
+    {
+        var root = Touch(
+            "tv/Show/Season 01/Show - S01E01.mkv",
+            "tv/Show/Season 01/Show - S01E02.mkv",
+            "tv/Show/Season 01/Show - S01E03.mkv",
+            "tv/Show/Season 01/Show - S01E04.mkv",
+            "tv/Other/Season 01/Other - S01E01.mkv");
+        var library = await AddLibrary(LibraryType.TvShows, Path.Combine(root, "tv"));
+        await Scanner().ScanAsync(library, null, default);
+        // A scan starts from a fresh context, as the scan worker's do.
+        _db.ChangeTracker.Clear();
+        library = await _db.Libraries.Include(l => l.Folders).SingleAsync(l => l.Id == library.Id);
+
+        // Nothing changed: no file is held.
+        var unchanged = await Scanner().ScanAsync(library, null, default);
+        Assert.Equal((0, 0, 5, 0), (unchanged.Added, unchanged.Updated, unchanged.Unchanged, unchanged.Missing));
+        Assert.Empty(_db.ChangeTracker.Entries<MediaFile>());
+        _db.ChangeTracker.Clear();
+        library = await _db.Libraries.Include(l => l.Folders).SingleAsync(l => l.Id == library.Id);
+
+        // One changed, one gone, one back after going missing, one new: only those are held, and each is saved.
+        var back = Path.Combine(root, "tv/Show/Season 01/Show - S01E03.mkv");
+        await _db.MediaFiles.Where(f => f.Path == back).ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddHours(-1)));
+        File.AppendAllText(Path.Combine(root, "tv/Show/Season 01/Show - S01E01.mkv"), "more bytes");
+        File.Delete(Path.Combine(root, "tv/Show/Season 01/Show - S01E02.mkv"));
+        Touch("tv/Show/Season 01/Show - S01E05.mkv");
+        var result = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal((1, 1, 3, 1), (result.Added, result.Updated, result.Unchanged, result.Missing));
+        Assert.Equal(4, _db.ChangeTracker.Entries<MediaFile>().Count());
+        _db.ChangeTracker.Clear();
+        var files = await _db.MediaFiles.IgnoreQueryFilters().AsNoTracking().OrderBy(f => f.Path).ToListAsync();
+        Assert.Equal(
+            [("Other - S01E01.mkv", false), ("Show - S01E01.mkv", false), ("Show - S01E02.mkv", true), ("Show - S01E03.mkv", false), ("Show - S01E04.mkv", false), ("Show - S01E05.mkv", false)],
+            files.Select(f => (Path.GetFileName(f.Path), f.MissingSince is not null)));
+        var changed = files.Single(f => f.Path.EndsWith("S01E01.mkv", StringComparison.Ordinal) && f.Path.Contains("/Show/", StringComparison.Ordinal));
+        Assert.Equal(new FileInfo(Path.Combine(root, "tv/Show/Season 01/Show - S01E01.mkv")).Length, changed.Size);
+        Assert.NotEmpty(await _db.MediaStreams.Where(s => s.MediaFileId == changed.Id).ToListAsync());
+    }
+
     private LibraryScanner Scanner() => new(_db, _probe, new ScanProgress(), NullLogger<LibraryScanner>.Instance);
 
     private async Task<Library> AddLibrary(LibraryType type, string folder)
