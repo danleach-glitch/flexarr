@@ -97,11 +97,12 @@ class CarLibrary(private val model: AppModel, private val context: Context) : Me
     /**
      * Who may use the session. The service is open to every app (Android Auto must find it), so only this app, Android
      * Auto, the Assistant and the system (the lock screen, Bluetooth, anything Android trusts with media) may browse
-     * and choose what plays. Any other app gets the transport controls alone: play, pause, skip and seek what's
+     * and choose what plays: each by what it is, built into the device or signed by Google ([TrustedCallers]), not just
+     * the name it gives. Any other app gets the transport controls alone: play, pause, skip and seek what's
      * already playing, never the library or something new to play.
      */
     override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
-        if (controller.uid == Process.myUid() || controller.isTrusted || controller.packageName in trustedPackages) {
+        if (controller.uid == Process.myUid() || controller.isTrusted || TrustedCallers.isGenuine(context, controller.packageName, trustedPackages)) {
             return super.onConnect(session, controller)
         }
         log.info("Transport controls only for ${controller.packageName}")
