@@ -8,6 +8,7 @@ import mockwebserver3.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -106,6 +107,23 @@ class DownloadsTest {
         assertEquals(List(4) { 30_000L }, listOf(11, 100, 100_000, Int.MAX_VALUE).map { DownloadRules.pollMillis(DownloadStatus.Queued, it) })
         // A status from a newer server waits the same way.
         assertEquals(30_000L, DownloadRules.pollMillis(DownloadStatus.Unknown, 50))
+    }
+
+    @Test
+    fun `a transfer only waiting its turn ends after a minute or so, and at once when it comes back`() {
+        // The first run: the quick polls and a few more (about a minute), then it ends.
+        assertFalse((1..7).any { DownloadRules.comesBackLater(DownloadStatus.Queued, it, waits = 0) })
+        assertTrue(DownloadRules.comesBackLater(DownloadStatus.Queued, 8, waits = 0))
+        assertTrue(DownloadRules.comesBackLater(DownloadStatus.Queued, 1, waits = 1))
+        // One being converted keeps asking, so its progress moves; so does one a newer server says something else about.
+        for (status in listOf(DownloadStatus.Preparing, DownloadStatus.Ready, DownloadStatus.Unknown)) {
+            assertFalse(DownloadRules.comesBackLater(status, 1_000, waits = 5))
+        }
+    }
+
+    @Test
+    fun `a waiting transfer comes back after one minute, then two, four, and five at most`() {
+        assertEquals(listOf(60_000L, 120_000L, 240_000L, 300_000L, 300_000L, 300_000L), listOf(0, 1, 2, 3, 50, Int.MAX_VALUE).map { DownloadRules.laterMillis(it) })
     }
 
     @Test

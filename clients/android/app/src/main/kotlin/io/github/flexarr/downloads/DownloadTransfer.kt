@@ -49,12 +49,19 @@ internal class DownloadTransfer(
         Done,
         /** Out of reach, or the connection dropped: to be tried again later, from where it got to. */
         Retry,
+        /** Still waiting its turn on the server: to ask again later ([DownloadRules.laterMillis]), not counted as a try. */
+        Later,
     }
 
     private val store get() = context.appModel.downloads
 
-    /** Runs the transfer of download [id]; [attempt] is how many times it's been tried before (it gives up after a while). */
-    suspend fun run(id: String, attempt: Int): Outcome {
+    /**
+     * Runs the transfer of download [id]; [attempt] is how many times it's been tried before (it gives up after a while).
+     * [waits]: how many times it's come back [Outcome.Later] already, for one that can (WorkManager's); null asks after
+     * it until it's ready, however long that takes (a user-initiated job, which Android won't let the app schedule again
+     * from the background). [mayEnd]: whether it may end to wait now (not while it holds what it couldn't get back).
+     */
+    suspend fun run(id: String, attempt: Int, waits: Int? = null, mayEnd: () -> Boolean = { true }): Outcome {
         store.ready()
         val local = onMain { store.byId(id) } ?: return Outcome.Done // deleted meanwhile
         if (local.isDownloaded) return Outcome.Done
@@ -81,6 +88,7 @@ internal class DownloadTransfer(
                 if (onMain { store.byId(id)?.phase } != LocalPhase.Preparing) return Outcome.Done // failed, forgotten or deleted
                 heard = if (remote.status == lastStatus) heard + 1 else 1
                 lastStatus = remote.status
+                if (waits != null && DownloadRules.comesBackLater(remote.status, heard, waits) && mayEnd()) return Outcome.Later
                 delay(DownloadRules.pollMillis(remote.status, heard))
             }
             val ready = onMain { store.byId(id) } ?: return Outcome.Done

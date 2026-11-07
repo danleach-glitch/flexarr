@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.provider.MediaStore
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
+import io.github.flexarr.audio.TrustedCallers
 import io.github.flexarr.audio.VoiceSearch
 import io.github.flexarr.logging.FlexarrLog
 import kotlinx.coroutines.launch
@@ -41,10 +42,12 @@ class VoiceActivity : ComponentActivity() {
 
     /**
      * Whether the Google app (the Assistant) sent this. The referrer is the app that started this one unless the intent
-     * names one itself, which any app could: then it doesn't count.
+     * names one itself, which any app could: then it doesn't count. And the app it names must really be the Google app
+     * ([TrustedCallers]), not one installed under its name on a device without it.
      */
     private val fromAssistant: Boolean
-        get() = !intent.hasExtra(Intent.EXTRA_REFERRER) && !intent.hasExtra(Intent.EXTRA_REFERRER_NAME) && referrer?.host in assistants
+        get() = !intent.hasExtra(Intent.EXTRA_REFERRER) && !intent.hasExtra(Intent.EXTRA_REFERRER_NAME) &&
+            TrustedCallers.isGenuine(this, referrer?.host, assistants)
 
     private fun play(said: String?, extras: Bundle?) {
         val model = appModel

@@ -269,6 +269,49 @@ internal suspend fun refetch(count: Int, page: suspend (skip: Int, take: Int) ->
     return total?.let { Refetched(fetched, offset, it, wanted) }
 }
 
+/** How many titles either side of those on screen are fetched again after something is watched. */
+internal const val NEAR_SCREEN = 30
+
+/**
+ * After something is watched: the titles of [shown] near the screen (from [first] to [last], and [NEAR_SCREEN] either
+ * side) and any of [played] it lists, fetched again, by id. The rest of a long list stays as it was until the list is
+ * next opened, rather than every title loaded so far coming down again. Null when nothing came back.
+ */
+internal suspend fun fetchNear(
+    shown: List<ItemSummary>,
+    first: Int,
+    last: Int,
+    played: Collection<String>,
+    page: suspend (skip: Int, take: Int) -> Paged<ItemSummary>,
+): Map<String, ItemSummary>? {
+    if (shown.isEmpty()) return null
+    val from = (minOf(first, last) - NEAR_SCREEN).coerceIn(0, shown.lastIndex)
+    val to = (maxOf(first, last) + NEAR_SCREEN).coerceIn(from, shown.lastIndex)
+    val fresh = HashMap<String, ItemSummary>()
+    suspend fun fetch(skip: Int, take: Int): Boolean = try {
+        page(skip, take).items.associateByTo(fresh) { it.id }
+        true
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        false
+    }
+    if (!fetch(from, minOf(to - from + 1, MAX_PAGE_SIZE))) return null
+    // One played further away: just its own place (and one either side, in case the list has shifted by a title).
+    for (id in played.toSet()) {
+        if (id in fresh) continue
+        val index = shown.indexOfFirst { it.id == id }
+        if (index < 0) continue
+        val skip = (index - 1).coerceAtLeast(0)
+        fetch(skip, index + 2 - skip)
+    }
+    return fresh
+}
+
+/** [this] with the titles in [fresh] in their places. */
+internal fun List<ItemSummary>.updatedFrom(fresh: Map<String, ItemSummary>): List<ItemSummary> =
+    if (fresh.isEmpty()) this else map { fresh[it.id] ?: it }
+
 private enum class Showing { Browse, All, Genres }
 
 /** Films, shows and home videos have a Browse page: a hero and rows of just that library. */
@@ -334,9 +377,28 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
         loading = false
     }
 
-    // After playback or watched changes, or a while away, fetch what's on screen again so badges update and titles
-    // added or removed since show so, keeping the scroll position.
-    LaunchedEffect(libraryId, sort, genre, model.watchStateVersion, staleVersion) {
+    // After playback or watched changes, fetch the titles near the screen (and the one just played) again so their
+    // badges update; the rest of a long list stays as it was until it's next opened.
+    LaunchedEffect(model.watchStateVersion) {
+        if (items.isEmpty()) return@LaunchedEffect
+        val visible = gridState.layoutInfo.visibleItemsInfo
+        // The count above the grid is its first item.
+        val first = ((visible.firstOrNull()?.index ?: 1) - 1).coerceAtLeast(0)
+        val last = ((visible.lastOrNull()?.index ?: 1) - 1).coerceAtLeast(0)
+        val fresh = fetchNear(items.toList(), first, last, model.lastPlayed) { skip, take ->
+            client.libraryItems(libraryId, sort, genre, skip = skip, take = take)
+        } ?: return@LaunchedEffect
+        // By id, into the list as it is now (a page may have been added meanwhile).
+        val updated = items.updatedFrom(fresh)
+        if (updated != items) {
+            items.clear()
+            items.addAll(updated)
+        }
+    }
+
+    // A while away, or another profile chosen (a child's list leaves out what it may not watch): fetch what's loaded
+    // again, so titles added or removed since show so, keeping the scroll position.
+    LaunchedEffect(libraryId, sort, genre, staleVersion, model.currentProfile?.id) {
         if (items.isEmpty()) return@LaunchedEffect
         val fresh = refetch(items.size) { skip, take -> client.libraryItems(libraryId, sort, genre, skip = skip, take = take) }
             ?: return@LaunchedEffect

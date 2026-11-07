@@ -13,6 +13,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -83,6 +84,27 @@ func SetPreferredPort(port int) {
 		port = 0
 	}
 	preferredPort.Store(int32(port))
+}
+
+// TokenHeader is the request header that carries the token set by SetClientToken.
+const TokenHeader = "X-Flexarr-Tunnel"
+
+// clientToken, when set, must be named by the first request on each connection.
+var clientToken atomic.Value // string
+
+// SetClientToken makes the loopback port take only connections whose first request
+// carries token in its X-Flexarr-Tunnel header, so only the app that knows it (not
+// another app on the same phone) reaches the server through the tunnel. Empty (the
+// default) checks only the Host. Takes effect for the next connection.
+func SetClientToken(token string) { clientToken.Store(token) }
+
+// tokenOK reports whether the start of a request names the client token, when one is set.
+func tokenOK(head []byte, token string) bool {
+	if token == "" {
+		return true
+	}
+	got, ok := headerOf(head, TokenHeader)
+	return ok && subtle.ConstantTimeCompare([]byte(got), []byte(token)) == 1
 }
 
 // SetVerbose turns tsnet's own logging (to stderr / logcat) on or off. Off by default.
@@ -310,14 +332,17 @@ func localHost(host string, port int) bool {
 }
 
 // hostOf finds the Host header in the start of an HTTP request.
-func hostOf(head []byte) (string, bool) {
+func hostOf(head []byte) (string, bool) { return headerOf(head, "host") }
+
+// headerOf finds the header called name in the start of an HTTP request.
+func headerOf(head []byte, name string) (string, bool) {
 	end := bytes.Index(head, []byte("\r\n\r\n"))
 	if end < 0 {
 		return "", false
 	}
 	for _, line := range bytes.Split(head[:end], []byte("\r\n"))[1:] {
-		name, value, ok := bytes.Cut(line, []byte(":"))
-		if ok && strings.EqualFold(string(bytes.TrimSpace(name)), "host") {
+		key, value, ok := bytes.Cut(line, []byte(":"))
+		if ok && strings.EqualFold(string(bytes.TrimSpace(key)), name) {
 			return string(bytes.TrimSpace(value)), true
 		}
 	}
@@ -348,6 +373,11 @@ func forward(c net.Conn, s *tsnet.Server, targetAddr string) {
 	c.SetReadDeadline(time.Time{})
 	if host, ok := hostOf(head); !ok || !localHost(host, port) {
 		io.WriteString(c, "HTTP/1.1 421 Misdirected Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+		return
+	}
+	// Another app on the phone can reach the port too, but doesn't know the app's token.
+	if token, _ := clientToken.Load().(string); !tokenOK(head, token) {
+		io.WriteString(c, "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

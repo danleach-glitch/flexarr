@@ -229,6 +229,22 @@ object DownloadRules {
         else -> (QUICK_POLL_MS shl (heard - QUICK_POLLS).coerceAtMost(8)).coerceAtMost(WAITING_POLL_MS)
     }
 
+    /**
+     * Whether a transfer that can come back later (one WorkManager runs, [waits] times come back already) stops asking
+     * and ends, rather than keeping the phone awake for the hours a season can wait: one only waiting its turn, once
+     * it's been asked after for a minute or so (at once, when it's come back before). One being converted carries on,
+     * so how far it's got keeps moving on screen.
+     */
+    fun comesBackLater(status: DownloadStatus, heard: Int, waits: Int): Boolean =
+        status == DownloadStatus.Queued && heard >= (if (waits == 0) LATER_AFTER else 1)
+
+    /** How long until a transfer that ended to wait ([comesBackLater]) asks again, having come back [waits] times: one minute, then two, four, and five at most. */
+    fun laterMillis(waits: Int): Long = (LATER_MS shl waits.coerceIn(0, 3)).coerceAtMost(MAX_LATER_MS)
+
+    private const val LATER_AFTER = 8
+    private const val LATER_MS = 60_000L
+    private const val MAX_LATER_MS = 5 * 60_000L
+
     private const val QUICK_POLLS = 5
     private const val QUICK_POLL_MS = 3_000L
     private const val PREPARING_POLL_MS = 10_000L
