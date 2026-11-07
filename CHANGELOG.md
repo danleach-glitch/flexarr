@@ -37,6 +37,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Family guests no longer see the household's Live TV recordings, and can't schedule, stop or delete them. A profile the Recordings library is hidden from no longer sees the list of what's recorded.
 - A Live TV source can no longer redirect a channel logo to somewhere else, such as a device on your home network, and have the server hand back what it found there. Logos only follow redirects that stay on the source.
 - Asking for a language the server hasn't downloaded yet no longer starts a new download every time while flexarr.io can't be reached. A pack downloads once at a time, and one that failed waits an hour before it's tried again.
+- One app or browser can no longer push the server's own record of what happened out of its log by reporting long messages over and over. Each device's reports may add up to 1 MB to the log an hour.
 
 ## 0.62.1 · 5 November 2026
 

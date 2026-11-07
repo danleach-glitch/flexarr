@@ -171,6 +171,20 @@ public class LoggingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     }
 
     [Fact]
+    public async Task ADeviceSendingLongReportsIsTurnedAwayBeforeItFloodsTheLog()
+    {
+        var device = await DeviceAsync("Wordy TV");
+        var long_ = new string('x', 8 * 1024);
+        var batch = new { platform = "tvos", entries = Enumerable.Range(0, 100).Select(i => new { level = "Warning", message = $"{i} {long_}" }).ToArray() };
+
+        var first = await device.PostAsJsonAsync(Api("/logs/client"), batch);
+        var second = await device.PostAsJsonAsync(Api("/logs/client"), batch);
+
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
+    }
+
+    [Fact]
     public async Task DiagnosticsAreRedactedAndListed()
     {
         var device = await DeviceAsync("Diagnostics TV");
