@@ -870,8 +870,34 @@ public sealed class PodcastTests : IDisposable
     [InlineData("2002:c0a8:101::1", false)] // 6to4 from 192.168.1.1
     [InlineData("::c0a8:101", false)] // IPv4-compatible
     [InlineData("2001:0:4136:e378::1", false)] // Teredo
+    [InlineData("fec0::1", false)] // the old site-local range
     public void OnlyTheInternet_IsFetchedFrom(string address, bool allowed) =>
         Assert.Equal(allowed, PodcastFetcher.IsPublic(IPAddress.Parse(address)));
+
+    [Theory]
+    [InlineData("2a02:c7c:1234:5600::1", true)] // the router's address on the internet's ranges
+    [InlineData("2a02:c7c:1234:5600:abcd::9", true)]
+    [InlineData("2a02:c7c:1234:5601::1", false)]
+    [InlineData("192.168.1.20", true)]
+    [InlineData("::ffff:192.168.1.20", true)]
+    [InlineData("8.8.8.8", false)]
+    public void TheNetworksThisMachineIsOn_AreHome(string address, bool home)
+    {
+        IReadOnlyList<IPNetwork> attached = [IPNetwork.Parse("2a02:c7c:1234:5600::/64"), IPNetwork.Parse("192.168.1.0/24")];
+        Assert.Equal(home, PodcastFetcher.OnNetwork(IPAddress.Parse(address), attached));
+    }
+
+    [Fact]
+    public void ThisMachinesOwnAddresses_AreOnItsNetworks()
+    {
+        var attached = PodcastFetcher.AttachedNetworks();
+        var own = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+            .SelectMany(n => n.GetIPProperties().UnicastAddresses)
+            .Where(u => !IPAddress.IsLoopback(u.Address) && u.PrefixLength >= (u.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? 16 : 32))
+            .Select(u => u.Address);
+        Assert.All(own, a => Assert.True(PodcastFetcher.OnNetwork(a, attached), a.ToString()));
+        Assert.DoesNotContain(attached, n => n.Contains(IPAddress.Parse("8.8.8.8")) || n.Contains(IPAddress.Parse("2606:4700::1111")));
+    }
 
     [Fact]
     public async Task Artwork_ReachesTheHomeNetwork_OnlyFromAConfiguredServer()

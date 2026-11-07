@@ -72,7 +72,8 @@ public sealed class PodcastFetcher(HttpClient http)
     {
         var host = context.DnsEndPoint.Host;
         var addresses = IPAddress.TryParse(host, out var literal) ? [literal] : await Dns.GetHostAddressesAsync(host, ct).ConfigureAwait(false);
-        var allowed = addresses.Where(IsPublic).ToArray();
+        var attached = AttachedNetworks();
+        var allowed = addresses.Where(a => IsPublic(a) && !OnNetwork(a, attached)).ToArray();
         if (allowed.Length == 0)
         {
             throw new HttpRequestException($"{host} isn't on the internet, so Flexarr won't fetch from it.");
@@ -96,7 +97,7 @@ public sealed class PodcastFetcher(HttpClient http)
         IPNetwork.Parse("0.0.0.0/8"), IPNetwork.Parse("10.0.0.0/8"), IPNetwork.Parse("100.64.0.0/10"), IPNetwork.Parse("127.0.0.0/8"),
         IPNetwork.Parse("169.254.0.0/16"), IPNetwork.Parse("172.16.0.0/12"), IPNetwork.Parse("192.0.0.0/24"), IPNetwork.Parse("192.168.0.0/16"),
         IPNetwork.Parse("198.18.0.0/15"), IPNetwork.Parse("224.0.0.0/3"),
-        IPNetwork.Parse("::/127"), IPNetwork.Parse("fc00::/7"), IPNetwork.Parse("fe80::/10"), IPNetwork.Parse("ff00::/8"),
+        IPNetwork.Parse("::/127"), IPNetwork.Parse("fc00::/7"), IPNetwork.Parse("fe80::/10"), IPNetwork.Parse("fec0::/10"), IPNetwork.Parse("ff00::/8"),
         IPNetwork.Parse("64:ff9b:1::/48"), IPNetwork.Parse("2001:db8::/32"),
         // Teredo hides the address it tunnels to; nothing a podcast needs.
         IPNetwork.Parse("2001::/32"),
@@ -130,6 +131,79 @@ public sealed class PodcastFetcher(HttpClient http)
         }
 
         return !NotInternet.Any(n => n.Contains(address));
+    }
+
+    /// <summary>
+    /// Whether <paramref name="address"/> is on one of <paramref name="networks"/>: the networks this machine is on. With
+    /// IPv6 the router, a NAS and this machine have addresses on the internet's ranges too, so those count as home.
+    /// </summary>
+    public static bool OnNetwork(IPAddress address, IReadOnlyList<IPNetwork> networks)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        ArgumentNullException.ThrowIfNull(networks);
+        if (address.IsIPv4MappedToIPv6)
+        {
+            address = address.MapToIPv4();
+        }
+
+        return networks.Any(n => n.Contains(address));
+    }
+
+    private static readonly Lock AttachedLock = new();
+    private static (DateTime At, IReadOnlyList<IPNetwork> Networks) _attached = (DateTime.MinValue, []);
+
+    /// <summary>
+    /// The networks this machine's interfaces are on, read again every half minute. A prefix wider than a /16 (IPv4) or a
+    /// /32 (IPv6) is left out, so an interface set up oddly can't keep the whole internet away.
+    /// </summary>
+    internal static IReadOnlyList<IPNetwork> AttachedNetworks()
+    {
+        lock (AttachedLock)
+        {
+            var now = DateTime.UtcNow;
+            if (now - _attached.At < TimeSpan.FromSeconds(30))
+            {
+                return _attached.Networks;
+            }
+
+            var networks = new List<IPNetwork>();
+            try
+            {
+                foreach (var nic in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    foreach (var unicast in nic.GetIPProperties().UnicastAddresses)
+                    {
+                        var address = unicast.Address;
+                        var prefix = unicast.PrefixLength;
+                        var narrowEnough = address.AddressFamily == AddressFamily.InterNetwork ? prefix is >= 16 and <= 32
+                            : address.AddressFamily == AddressFamily.InterNetworkV6 && prefix is >= 32 and <= 128;
+                        if (narrowEnough && !IPAddress.IsLoopback(address))
+                        {
+                            networks.Add(new IPNetwork(Masked(address, prefix), prefix));
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is System.Net.NetworkInformation.NetworkInformationException or SocketException or PlatformNotSupportedException)
+            {
+                // Unreadable: the ranges above still keep the home network out.
+            }
+
+            _attached = (now, networks);
+            return networks;
+        }
+    }
+
+    private static IPAddress Masked(IPAddress address, int prefix)
+    {
+        var bytes = address.GetAddressBytes();
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            var bits = Math.Clamp(prefix - i * 8, 0, 8);
+            bytes[i] &= (byte)(0xFF << (8 - bits));
+        }
+
+        return new IPAddress(bytes);
     }
 
     /// <summary>

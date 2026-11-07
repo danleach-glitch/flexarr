@@ -40,6 +40,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - One app or browser can no longer push the server's own record of what happened out of its log by reporting long messages over and over. Each device's reports may add up to 1 MB to the log an hour.
 - The log and the diagnostics bundle no longer keep the key of a private podcast feed, or a password written into an address (`https://user:password@host`). A podcast that can't be refreshed is logged by its title and host.
 - Family guests can no longer move a title's sound earlier or later. Audio sync is kept on the file for the whole household, so only the household's own profiles change it.
+- On a home network with IPv6, a podcast feed or its artwork can no longer point the server at the router, a NAS or the server itself by their IPv6 addresses. Anything on the networks the server is connected to counts as home, not the internet.
 
 ## 0.62.1 · 5 November 2026
 
