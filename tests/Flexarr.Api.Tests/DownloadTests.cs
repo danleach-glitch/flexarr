@@ -481,6 +481,47 @@ public sealed class DownloadTests : IDisposable
         throw new TimeoutException($"Download {id} never became {status}");
     }
 
+    [Fact]
+    public async Task ADevicesKeptTitles_AreCheckedAgainstTheProfile_AndAMissingFileIsNeverHidden()
+    {
+        Guid allowed, missing, blocked, aboveAge, missingAboveAge, inHiddenLibrary, missingInHiddenLibrary;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var films = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies };
+            var hidden = new Library { Name = $"Private {Guid.NewGuid():N}", Type = LibraryType.Movies };
+            MediaItem Film(Library library, string rating, KidsOverride kids = KidsOverride.None, bool gone = false) => new()
+            {
+                LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Film", SortTitle = "film", ContentRating = rating, KidsOverride = kids,
+                MissingSince = gone ? DateTime.UtcNow : null,
+            };
+            var items = new[]
+            {
+                Film(films, "PG"), Film(films, "PG", gone: true), Film(films, "PG", KidsOverride.Block), Film(films, "R"), Film(films, "R", gone: true),
+                Film(hidden, "PG"), Film(hidden, "PG", gone: true),
+            };
+            db.AddRange(films, hidden);
+            db.AddRange(items);
+            var main = await db.Profiles.SingleAsync(p => p.Id == PlaybackState.DefaultUser);
+            main.MaxRatingAge = 12;
+            main.HiddenLibraryIds = [hidden.Id];
+            await db.SaveChangesAsync();
+            (allowed, missing, blocked, aboveAge, missingAboveAge, inHiddenLibrary, missingInHiddenLibrary) =
+                (items[0].Id, items[1].Id, items[2].Id, items[3].Id, items[4].Id, items[5].Id, items[6].Id);
+        }
+
+        var deleted = Guid.NewGuid();
+        var response = await Client().PostAsJsonAsync(new Uri("/api/v1/offline/check", UriKind.Relative),
+            new { itemIds = new[] { allowed, missing, blocked, aboveAge, missingAboveAge, inHiddenLibrary, missingInHiddenLibrary, deleted } });
+
+        response.EnsureSuccessStatusCode();
+        var check = (await response.Content.ReadFromJsonAsync<Downloads.OfflineCheckDto>(new JsonSerializerOptions(JsonSerializerDefaults.Web)))!;
+        Assert.Equal([allowed], check.Allowed);
+        Assert.Equal([missing], check.Missing);
+        Assert.Equal([blocked, aboveAge, missingAboveAge, inHiddenLibrary, missingInHiddenLibrary], check.Hidden);
+        Assert.Equal([deleted], check.Gone);
+    }
+
     private HttpClient Client()
     {
         var client = _factory.CreateClient();

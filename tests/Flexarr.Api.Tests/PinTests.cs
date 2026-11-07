@@ -255,6 +255,35 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
         Assert.Equal(PinCheck.Right, someoneElse.Result);
     }
 
+    [Theory]
+    [InlineData("2001:db8:1:2:aaaa:bbbb:cccc:dddd", "range:2001:db8:1:2::/64")]
+    [InlineData("fe80::1234:5678", "range:fe80::/64")]
+    [InlineData("192.168.1.20", null)]
+    [InlineData("::ffff:192.168.1.20", null)]
+    [InlineData("fd7a:115c:a1e0::42", null)]
+    public void AnIPv6AddressWithoutASignIn_AlsoCountsUnderItsSlash64(string address, string? range) =>
+        Assert.Equal(range, ProfileEndpoints.PinRange(IPAddress.Parse(address)));
+
+    [Fact]
+    public async Task AGuesserTakingAFreshIPv6AddressInItsRange_IsStillLockedOut_ButAnotherRangeIsnt()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        string[] Caller(string address) => [$"address:{address}", ProfileEndpoints.PinRange(IPAddress.Parse(address))!];
+        for (var i = 0; i < 4; i++)
+        {
+            await guard.CheckAsync("owner", Caller($"2001:db8:1:2::{i + 1:x}"), () => false, CancellationToken.None);
+        }
+
+        clock.Now += PinGuard.ProfileThrottle + TimeSpan.FromSeconds(1);
+
+        var fresh = await guard.CheckAsync("owner", Caller("2001:db8:1:2::99"), () => true, CancellationToken.None);
+        var otherRange = await guard.CheckAsync("owner", Caller("2001:db8:1:3::1"), () => true, CancellationToken.None);
+
+        Assert.Equal(PinCheck.LockedOut, fresh.Result);
+        Assert.Equal(PinCheck.Right, otherRange.Result);
+    }
+
     [Fact]
     public async Task KnowingAnotherProfilesPin_DoesntCrowdTheOwnersBrowserOutOfTheKnownList()
     {

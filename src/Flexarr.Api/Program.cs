@@ -392,7 +392,8 @@ using (var scope = app.Services.CreateScope())
         app.Services.GetRequiredService<IOptions<FlexarrOptions>>().Value.DataDirectory,
         app.Services.GetRequiredService<LogPaths>().Directory,
         app.Services.GetRequiredService<IOptions<FlexarrOptions>>().Value.ResolvedCacheDirectory,
-        app.Services.GetRequiredService<IInstallEnvironment>() is { Kind: InstallKind.MacLaunchAgent, Root: { } root } ? root : null);
+        app.Services.GetRequiredService<IInstallEnvironment>() is { Kind: InstallKind.MacLaunchAgent, Root: { } root } ? root : null,
+        app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Flexarr.Configuration"));
     await PodcastLibrary.EnsureLibraryAsync(db, app.Services.GetRequiredService<IOptions<FlexarrOptions>>().Value, CancellationToken.None);
     // Age limits read each title's age: work them out for titles saved before, or rated by an older table of ratings.
     // Saving a title works out its own, so otherwise there's nothing to do.

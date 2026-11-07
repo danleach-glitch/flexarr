@@ -60,8 +60,8 @@ public enum PairingApproval
 /// <summary>
 /// Connecting a TV without typing: the TV, on the home network or tailnet, asks for a code and shows it (and a QR code
 /// linking to it); someone signed in as the main profile approves it in the web app; the TV, polling with its secret
-/// id, is handed a token of its own. Codes last ten minutes and only a few can be waiting at once, from any one address
-/// or altogether. At most ten are approved in an hour: each is a sign-in of its own, so a script that got into the
+/// id, is handed a token of its own. Codes last ten minutes and only a few can be waiting at once, two from any one
+/// address and ten altogether. At most ten are approved in an hour: each is a sign-in of its own, so a script that got into the
 /// approver's page mustn't be able to make them by the thousand. The main profile's phones are told as codes start
 /// (see <see cref="Listen"/> and <see cref="PairingAlerts"/>), so approving is a tap on one of them.
 /// </summary>
@@ -69,11 +69,18 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
 {
     private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(10);
     private const int MaxWaiting = 10;
-    private const int MaxWaitingPerAddress = 3;
+    private const int MaxWaitingPerAddress = 2;
     private const int MaxApprovedPerHour = 10;
 
     /// <summary>Codes the main profile's phones are notified of in an hour; more are still listed, but not pushed.</summary>
     private const int MaxAnnouncedPerHour = 20;
+
+    /// <summary>
+    /// How often one address may have a new code announced, so a device asking in a loop under new names can't send a
+    /// prompt after prompt. One it held back is announced when the device asks again. Turning a code away starts the
+    /// address afresh, so Try again on that device is announced at once.
+    /// </summary>
+    private static readonly TimeSpan AnnounceGapPerAddress = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan ApprovalWindow = TimeSpan.FromHours(1);
 
     /// <summary>With this little left, a code still being shown is given longer (see <see cref="Status"/>).</summary>
@@ -88,6 +95,9 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
     private readonly ConcurrentDictionary<string, Pending> _pending = new(StringComparer.Ordinal);
     private readonly Queue<DateTime> _approvedAt = new();
     private readonly Queue<DateTime> _announcedAt = new();
+
+    /// <summary>When each address last had a code announced.</summary>
+    private readonly ConcurrentDictionary<string, DateTime> _announcedFrom = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<Listener, byte> _listeners = new();
 
     /// <summary>Addresses just turned away, and until when the next code from each is its own retry.</summary>
@@ -223,10 +233,15 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         // Already announced with this code: the phones' notification still matches. One the hourly limit held back
         // is announced when it asks again, if the limit allows by then.
         pending.Announced = kept is not null && kept.Code == code && kept.Announced;
-        if (!quiet && !pending.Announced && MayAnnounce(now))
+        if (!quiet && !pending.Announced && (address is null || !(_announcedFrom.TryGetValue(address, out var last) && now - last < AnnounceGapPerAddress))
+            && MayAnnounce(now))
         {
             announced = Details(pending);
             pending.Announced = true;
+            if (address is not null)
+            {
+                _announcedFrom[address] = now;
+            }
         }
 
         return new PairingStartDto(pending.Id, Format(code), pending.ExpiresAt);
@@ -352,6 +367,7 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         {
             _declined[address] = now + DeclinedQuiet;
             _declinedCodes[DeviceKey(address, pending.DeviceName, pending.DeviceType)] = (pending.Code, now + Lifetime);
+            _announcedFrom.TryRemove(address, out _); // the owner has answered: Try again is announced at once
         }
 
         _declinedIds[pending.Id] = now + Lifetime;
@@ -393,6 +409,11 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         foreach (var (key, declined) in _declinedCodes.Where(d => d.Value.Until < now))
         {
             _declinedCodes.TryRemove(new KeyValuePair<string, (string, DateTime)>(key, declined));
+        }
+
+        foreach (var (address, at) in _announcedFrom.Where(a => now - a.Value >= AnnounceGapPerAddress))
+        {
+            _announcedFrom.TryRemove(new KeyValuePair<string, DateTime>(address, at));
         }
     }
 

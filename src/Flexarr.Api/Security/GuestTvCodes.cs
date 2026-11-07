@@ -38,6 +38,28 @@ public sealed partial class GuestTvCodes(IHttpClientFactory clients, IOptionsMon
         return letters.Length == 8 && letters.All(c => Alphabet.Contains(c, StringComparison.Ordinal)) ? letters : null;
     }
 
+    /// <summary>
+    /// The code a TV's key makes (docs/remote-guests.md, "The code proves the key"): the SHA-256 of
+    /// <paramref name="publicKey"/>'s UTF-8 bytes (the base64 exactly as the TV sends it), its first seven bytes each
+    /// picking a character, then <see cref="CheckCharacter"/>.
+    /// </summary>
+    public static string CodeFor(string publicKey)
+    {
+        ArgumentNullException.ThrowIfNull(publicKey);
+        var h = SHA256.HashData(Encoding.UTF8.GetBytes(publicKey));
+        var first = new string([.. h.Take(7).Select(b => Alphabet[b % Alphabet.Length])]);
+        return first + CheckCharacter(first);
+    }
+
+    /// <summary>The eighth character of a code made from a key: the sum of each character's place (1 to 7) times its index, mod 31.</summary>
+    private static char CheckCharacter(string first) => Alphabet[first.Take(7).Select((c, i) => (i + 1) * Alphabet.IndexOf(c, StringComparison.Ordinal)).Sum() % Alphabet.Length];
+
+    /// <summary>
+    /// True when a (normalized) code ends in its check character, so it was made from the TV's key and the key the
+    /// relay hands back must make it. TV apps from before that make their codes at random, and those aren't checked.
+    /// </summary>
+    public static bool IsKeyCode(string code) => code is { Length: 8 } && CheckCharacter(code) == code[7];
+
     /// <summary>The public key the TV showing <paramref name="code"/> left at the relay; null when no TV is showing it.</summary>
     public async Task<byte[]?> TvKeyAsync(string code, CancellationToken ct)
     {
@@ -58,10 +80,13 @@ public sealed partial class GuestTvCodes(IHttpClientFactory clients, IOptionsMon
             throw new InviteException(Loc.T("Flexarr’s relay answered {status}. Try again in a minute.", new { status = (int)response.StatusCode }), StatusCodes.Status502BadGateway);
         }
 
+        string? publicKey;
+        byte[] key;
         try
         {
             var body = await response.Content.ReadFromJsonAsync<TvKey>(ct);
-            var key = Convert.FromBase64String(body?.PublicKey ?? "");
+            publicKey = body?.PublicKey;
+            key = Convert.FromBase64String(publicKey ?? "");
             if (key.Length != 65 || key[0] != 0x04)
             {
                 return null;
@@ -69,12 +94,20 @@ public sealed partial class GuestTvCodes(IHttpClientFactory clients, IOptionsMon
 
             // A point that isn't on the curve can't be sealed to: found now, before an invite is made for it.
             using var _ = ECDiffieHellman.Create(PublicParameters(key));
-            return key;
         }
         catch (Exception ex) when (ex is FormatException or JsonException or NotSupportedException or CryptographicException)
         {
             return null;
         }
+
+        // The code was made from the TV's key, and this key doesn't make it: it isn't that TV's, so nothing is sealed to it.
+        if (IsKeyCode(code) && !string.Equals(CodeFor(publicKey!), code, StringComparison.Ordinal))
+        {
+            LogKeyMismatch();
+            throw new InviteException(Loc.T("That code doesn’t match the device showing it. Check the one on their screen now, and try again."), StatusCodes.Status502BadGateway);
+        }
+
+        return key;
     }
 
     /// <summary>Encrypts <paramref name="invite"/> (the encoded payload) to the TV's key and leaves it at the relay.</summary>
@@ -156,4 +189,7 @@ public sealed partial class GuestTvCodes(IHttpClientFactory clients, IOptionsMon
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Left a sealed invite at the relay for a device")]
     private partial void LogDelivered();
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Flexarr's relay handed back a key that doesn't make the code typed; no invite was sealed to it")]
+    private partial void LogKeyMismatch();
 }

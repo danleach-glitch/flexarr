@@ -761,6 +761,17 @@ public sealed class PodcastTests : IDisposable
     }
 
     [Fact]
+    public void AnOpmlFileOfOutlinesInsideOutlinesWithoutEnd_IsRefused_ButFoldersInsideFoldersAreFine()
+    {
+        static List<string> Read(int depth) => Flexarr.Api.Podcasts.Opml.FeedUrls(new MemoryStream(Encoding.UTF8.GetBytes(
+            "<opml version=\"2.0\"><body>" + string.Concat(Enumerable.Repeat("<outline text=\"f\">", depth))
+            + "<outline type=\"rss\" xmlUrl=\"https://feeds.example.com/deep\"/>" + string.Concat(Enumerable.Repeat("</outline>", depth)) + "</body></opml>")));
+
+        Assert.Equal(["https://feeds.example.com/deep"], Read(20));
+        Assert.Throws<FormatException>(() => Read(20_000));
+    }
+
+    [Fact]
     public async Task Search_ComesFromApple_MarkingWhatsAlreadyFollowed()
     {
         await AddLibraryAsync();

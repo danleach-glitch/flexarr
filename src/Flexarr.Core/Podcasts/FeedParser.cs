@@ -140,7 +140,7 @@ public static partial class FeedParser
     /// out, then wound back to be read for real: it has to be known before the document is built, which is the slow part.
     /// </summary>
     /// <exception cref="XmlException">It isn't valid XML.</exception>
-    private static bool NestedDeeperThan(ref Stream xml, int limit)
+    public static bool NestedDeeperThan(ref Stream xml, int limit)
     {
         if (!xml.CanSeek)
         {

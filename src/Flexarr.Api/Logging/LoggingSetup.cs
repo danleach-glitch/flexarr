@@ -19,6 +19,19 @@ public static class LoggingSetup
         userConfig.GetSection("logs").Bind(settings);
 
         var paths = new LogPaths(settings.ResolvedDirectory(dataDirectory));
+        if (!OperatingSystem.IsWindows() && !Directory.Exists(paths.Directory))
+        {
+            // Made by the server, so its account's alone from the first line (see OwnerOnly); a folder that was there is left as it is.
+            try
+            {
+                Directory.CreateDirectory(paths.Directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // The file sink tries again, as before.
+            }
+        }
+
         var levels = new LogLevels();
         levels.Update(settings);
         var feed = new LogFeed();

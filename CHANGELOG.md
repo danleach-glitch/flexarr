@@ -35,6 +35,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Mac
 
+- **Reset Admin PIN** in the Flexarr Server menu no longer sends the server's API key. The new PIN goes sealed so only the app's own server can read it, so no other program on the Mac can pick up the key or the PIN.
 - Clicking back into Flexarr's window no longer sends your server four or five requests every time: what it brings up to date (Up Next, downloads, the server's status) is checked once a minute at most.
 
 ### Live TV
@@ -82,7 +83,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A podcast episode a phone downloads is only converted when it really is a sound file (MP3, M4A, Ogg, Opus, FLAC, WAV and the like). A feed could have dressed something else up as an episode to have the server hand back sound from a library the profile can't see.
 - A podcast feed written to be slow to read can no longer keep the server busy for hours, stop it, or hold up podcast updates. Show notes are read in time that keeps step with their length, only their first 200,000 characters count, and a feed's newest 20,000 episodes are kept.
 - One request can no longer fill the server's memory or disk by adding the same artist to a playlist thousands of times. A playlist holds up to 10,000 tracks, a book keeps up to 1,000 bookmarks for each profile, and a collection's description and rules have a length.
-- Other accounts on the server's machine can no longer read Flexarr's database, logs or cache. The server keeps them to its own account from the next start, as it already did its settings file, and a Mac install's `~/.flexarr` folder is closed to everyone else whole.
+- Other accounts on the server's machine can no longer read Flexarr's database, logs or cache. The server keeps them to its own account from the next start, as it already did its settings file, and a Mac install's `~/.flexarr` folder is closed to everyone else whole. The data folder itself (Docker's `/config` too) is now closed the same way, and so are log and cache folders the server makes elsewhere; one you pointed it at that was already there is left as it is.
 - With a PIN on the main profile, removing another profile signs out the TVs, phones and browsers that were on it. They used to carry on as the main profile, without being asked for its PIN; connect them again to choose who's watching. Without a PIN on the main profile, nothing changes.
 - Behind an HTTPS reverse proxy that isn't listed in `trustedProxies`, a browser's sign-in is now only ever sent over HTTPS, and the browser is told to keep to HTTPS. Before, it could cross your network unencrypted the first time that browser asked for the `http://` address.
 - Backups can no longer be kept in the folder the web app is served from, where one could have been fetched without signing in or giving the admin PIN. Settings refuses that folder, and no backup is made there.
@@ -97,6 +98,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - One app or browser can no longer push the server's own record of what happened out of its log by reporting long messages over and over. Each device's reports may add up to 1 MB to the log an hour.
 - On a server without an admin PIN yet, only a browser you signed in with the API key can choose the first one. A paired TV or tablet could choose the main profile without a PIN and set one itself, locking you out of the settings.
 - A device asking to connect over and over keeps the code it's showing, and your phones are told about it once rather than every time it asks. Phones hear about at most 20 devices asking to connect in an hour; any more still wait to be allowed in Flexarr itself.
+- One device can now hold at most two of the ten places for devices waiting to connect, and your phones hear about a new one from it at most once a minute, so a few devices can't fill every place or keep prompting you.
 - An audiobook whose title or grouping tag is absurdly long can no longer hold up library scans for hours. Titles that long are kept as they are, without looking for a series number in them.
 - A broken language pack can no longer stop the server when it's downloaded. Messages nested too deeply are left out, and the English is shown for them.
 - Artwork of more than 40 million pixels (a podcast cover made enormous, say) is left out instead of being drawn, so a feed of them can no longer use up the server's memory. Real covers and posters are far smaller.
@@ -105,6 +107,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Family guests can no longer move a title's sound earlier or later. Audio sync is kept on the file for the whole household, so only the household's own profiles change it.
 - On a home network with IPv6, a podcast feed or its artwork can no longer point the server at the router, a NAS or the server itself by their IPv6 addresses. Anything on the networks the server is connected to counts as home, not the internet.
 - A device that guesses at a profile's PIN slowly, waiting out each lockout, now gets 20 wrong guesses at that profile a day, then can't try it again until the day is out. A right PIN clears the count, and other devices aren't held up.
+- Devices that aren't signed in and come from the same IPv6 network now share one count of wrong PINs, so a device can no longer earn fresh guesses by switching to a new IPv6 address.
 - On the web, a link someone sends you can no longer make your browser change anything on your server just by being opened. A link to a channel, title or playlist only ever asks for that one thing.
 - The page a device's QR code opens before you've signed in shows a device code and nothing else: a link can no longer put words of its sender's choosing there.
 - **Sign out of this browser** also forgets what was played in it: each audiobook's place and the play queue. A browser keeps a book's place for a month after it was last played there rather than for good; after that the book starts from the place your server has.

@@ -1,8 +1,10 @@
 import AppKit
+import CryptoKit
 
 /// Sets a new PIN for the main profile, which guards the server's settings, when it's been forgotten. In a browser
 /// that takes the API key, which lives in the app's container where nobody would find it; from the menu bar, the app
-/// sends the key itself.
+/// seals the PIN with the token it gave its server at launch, so neither the key nor the PIN reaches another program
+/// that might be answering on the port (the server's MacAppHost.OpenPinReset opens it).
 @MainActor
 struct AdminPinReset {
     let server: ServerProcess
@@ -47,13 +49,17 @@ struct AdminPinReset {
     }
 
     private func send(_ pin: String) async throws {
-        let config = try JSONSerialization.jsonObject(with: Data(contentsOf: server.configFile)) as? [String: Any]
-        guard let key = config?["apiKey"] as? String, !key.isEmpty else { throw ResetError(t("The server’s API key couldn’t be read.")) }
-        var request = URLRequest(url: server.loopbackAddress.appending(path: "api/v1/admin/pin"))
+        // HKDF-SHA256 over the launch token, salted with a fresh nonce; AES-256-GCM around the PIN and the time.
+        let nonce = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+        let key = HKDF<SHA256>.deriveKey(inputKeyMaterial: SymmetricKey(data: Data(server.launchToken.utf8)), salt: nonce,
+                                         info: Data("flexarr-admin-pin-reset".utf8), outputByteCount: 32)
+        let plaintext = try JSONSerialization.data(withJSONObject: ["pin": pin, "at": Int(Date().timeIntervalSince1970)] as [String: Any])
+        let box = try AES.GCM.seal(plaintext, using: key)
+        let sealed = Data(box.nonce) + box.ciphertext + box.tag // as SealedBox.combined: nonce, ciphertext, tag
+        var request = URLRequest(url: server.loopbackAddress.appending(path: "api/v1/admin/pin/mac-app"))
         request.httpMethod = "POST"
-        request.setValue(key, forHTTPHeaderField: "X-Api-Key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["pin": pin])
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["nonce": nonce.base64EncodedString(), "sealed": sealed.base64EncodedString()])
         let (_, response) = try await URLSession.shared.data(for: request)
         guard let status = (response as? HTTPURLResponse)?.statusCode, (200..<300).contains(status) else {
             throw ResetError(t("Flexarr said no ({status}). Try Restart Server, then again.", ["status": "\((response as? HTTPURLResponse)?.statusCode ?? 0)"]))

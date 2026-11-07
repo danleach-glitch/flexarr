@@ -162,6 +162,28 @@ async function spend(kind, ip, now = Date.now()) {
   return entry.count > max;
 }
 
+// --- Codes made from the TV's key (docs/remote-guests.md, "The code proves the key"). A TV app from before this makes
+// its code at random; one made from its key ends in a check character, so the server can refuse a key that doesn't
+// make the code typed, and this refuses to keep one under a code it doesn't make.
+
+/** The code publicKey (the base64 string exactly as the TV sends it) makes: 7 characters from its SHA-256, then the check. */
+function codeFor(publicKey) {
+  const h = crypto.createHash('sha256').update(publicKey, 'utf8').digest();
+  const first = Array.from({ length: 7 }, (_, i) => ALPHABET[h[i] % ALPHABET.length]).join('');
+  return first + checkCharacter(first);
+}
+
+function checkCharacter(first) {
+  let sum = 0;
+  for (let i = 0; i < 7; i++) sum += (i + 1) * ALPHABET.indexOf(first[i]);
+  return ALPHABET[sum % ALPHABET.length];
+}
+
+/** True when code ends in its check character: made from a key, by a TV app that does that. */
+function isKeyCode(code) {
+  return checkCharacter(code.slice(0, 7)) === code[7];
+}
+
 // --- Checks.
 
 function isPublicKey(value) {
@@ -242,6 +264,9 @@ module.exports = async (req, res) => {
       if (typeof wanted !== 'string' || !CODE.test(wanted)) return reply(res, 400, { reason: 'BadCode' });
       if (!isPublicKey(publicKey)) return reply(res, 400, { reason: 'BadPublicKey' });
       if (typeof secret !== 'string' || !SECRET.test(secret)) return reply(res, 400, { reason: 'BadSecret' });
+      // A key code that this key doesn't make. CodeTaken rather than BadCode: an older TV app whose random code ends
+      // in its check character by chance (one in 31) makes another on CodeTaken, where BadCode would stop it.
+      if (isKeyCode(wanted) && codeFor(publicKey) !== wanted) return reply(res, 409, { reason: 'CodeTaken' });
       if (overBudget('register', ip) || await spend('register', ip)) return reply(res, 429, { reason: 'TooManyRequests' });
       const added = await store.add(`pair:${wanted}`, JSON.stringify({ publicKey, secretHash: hash(secret) }));
       return added ? reply(res, 201, { expiresIn: TTL_SECONDS }) : reply(res, 409, { reason: 'CodeTaken' });
@@ -302,6 +327,8 @@ module.exports = async (req, res) => {
   }
 };
 
+module.exports.codeFor = codeFor;
+module.exports.isKeyCode = isKeyCode;
 module.exports._store = store;
 module.exports._memory = memory;
 module.exports._hits = hits;
