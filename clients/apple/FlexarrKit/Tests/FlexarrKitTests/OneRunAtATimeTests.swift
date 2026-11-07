@@ -51,4 +51,24 @@ struct OneRunAtATimeTests {
         #expect(seen.last == 1)
         await first.value
     }
+
+    /// A caller cancelled (background time running out, say) stops the run under way and stops waiting, but a run
+    /// another caller asked for meanwhile still happens, and isn't cancelled.
+    @Test func cancellingACallerLeavesTheFollowingRunAlone() async {
+        let runner = OneRunAtATime()
+        var cancelledRuns = 0, completedRuns = 0
+        let work: @MainActor () async -> Void = {
+            if (try? await Task.sleep(for: .milliseconds(100))) == nil { cancelledRuns += 1 } else { completedRuns += 1 }
+        }
+        let first = Task { await runner.run(work) }
+        try? await Task.sleep(for: .milliseconds(10)) // the first run is under way
+        let second = Task { await runner.run(work) }
+        try? await Task.sleep(for: .milliseconds(10))
+        first.cancel()
+        await first.value
+        #expect(cancelledRuns == 1)
+        #expect(completedRuns == 0) // the cancelled caller didn't wait for the run after
+        await second.value
+        #expect(completedRuns == 1)
+    }
 }
