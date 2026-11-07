@@ -1408,6 +1408,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         profiles = profiles.map { it.copy(isCurrent = false) }
         // The widget showed someone else's list: it's dropped, and asks who's watching until someone's chosen.
         scope.launch { WatchlistWidget.forget(context) }
+        // So is the TV home screen's row, until someone's chosen.
+        scope.launch { WatchNext.clear(context) }
     }
 
     /**

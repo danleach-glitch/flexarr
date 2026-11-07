@@ -130,10 +130,13 @@ object WatchNext {
         val credentials = context.appModel.credentials ?: CredentialStore(context).load()
         if (credentials == null || credentials.isGuest) return write(context, emptyList())
         val client = credentials.client()
-        // Before anyone's chosen, the server acts as the main profile.
         val profiles = client.profiles()
+        // Before anyone's chosen the server acts as the main profile, whose titles aren't for whoever's at "Who's
+        // watching?" in a house with several.
+        if (credentials.profileToken == null && profiles.size > 1) return write(context, emptyList())
         val watching = profiles.firstOrNull { it.isCurrent } ?: profiles.firstOrNull { it.isMain }
-        if (watching?.hasPin == true) return write(context, emptyList())
+        // Its PIN, or the admin PIN that choosing the main profile can take, guards it: so the row stays empty.
+        if (watching?.takesPin == true) return write(context, emptyList())
         val videos = client.continueWatching(take = MAX_VIDEOS)
         val albums = runCatching { client.home().rows.firstOrNull { it.id == RECENT_MUSIC }?.items.orEmpty() }.getOrDefault(emptyList())
         val cards = cards(videos, albums, System.currentTimeMillis()) { item ->
