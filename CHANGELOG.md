@@ -128,6 +128,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Devices that aren't signed in and come from the same IPv6 network now share one count of wrong PINs, so a device can no longer earn fresh guesses by switching to a new IPv6 address.
 - On the web, a link someone sends you can no longer make your browser change anything on your server just by being opened. A link to a channel, title or playlist only ever asks for that one thing.
 - The page a device's QR code opens before you've signed in shows a device code and nothing else: a link can no longer put words of its sender's choosing there.
+- On the web, switching profile in a browser forgets the audiobook places and the music or podcast queue the last profile left there, so the next profile (a child, say) can't find which books and tracks they were. Each profile's places are still on the server.
 - **Sign out of this browser** also forgets what was played in it: each audiobook's place and the play queue. A browser keeps a book's place for a month after it was last played there rather than for good; after that the book starts from the place your server has.
 - Switching straight to another profile while something plays no longer leaves the queue in the other profile's player, or your place in an audiobook for that profile to start from.
 - The Tailscale connection built into the apps for family invites takes in a fix for a fault that could crash an app while it's connected that way.

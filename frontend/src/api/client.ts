@@ -66,7 +66,7 @@ import type {
   SystemStatus,
   UpcomingItem,
 } from './types'
-import { forgetPlayed, PROFILE_STORAGE } from '../lib/profileScope'
+import { forgetOtherProfiles, forgetPlayed, PROFILE_STORAGE } from '../lib/profileScope'
 import { session } from '../lib/session'
 
 export type * from './types'
@@ -125,6 +125,8 @@ export function saveProfileToken(token: string | null) {
   } catch {
     // Storage unavailable: the profile lasts until the page reloads.
   }
+  // Another profile now: what the last one played here isn't left for it to find.
+  forgetOtherProfiles()
 }
 
 /**
