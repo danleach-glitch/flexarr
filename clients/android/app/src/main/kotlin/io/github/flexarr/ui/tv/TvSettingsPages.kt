@@ -329,9 +329,9 @@ internal fun TvPlaybackSettings(model: AppModel) {
                 t("Lossless surround"), sound.losslessSurround, { SoundSettings.update(context) { it.copy(losslessSurround = !it.losslessSurround) } },
                 icon = Icons.Filled.SurroundSound,
                 help = if (sound.losslessSurround && sound.decodesSurround) {
-                    t("Dialogue boost, night mode and speakers work on decoded sound, so while one of them is on, surround is decoded on this TV.")
+                    t("While dialogue boost, night mode or speakers is on, surround is decoded first: Dolby by this TV, DTS and TrueHD by your server.")
                 } else {
-                    t("Dolby Digital, Atmos, DTS and TrueHD go to your amplifier or soundbar as they are, when it takes them. Off, they’re decoded on this TV.")
+                    t("Dolby Digital, Atmos, DTS and TrueHD go to your receiver or soundbar as they are, when it takes them. Off, this TV decodes Dolby and your server converts DTS and TrueHD.")
                 },
             )
         }
