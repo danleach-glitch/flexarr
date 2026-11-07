@@ -34,6 +34,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Now Playing no longer redraws its whole sheet (cover, queue and notes) as the clock moves: only the scrubber, the times, the chapter and the lyrics follow it, so it does less while it's open.
 - While something downloads, posters and album covers on screen no longer redraw at every step of its progress: progress shows a few times a second at most, and a title's downloaded mark changes only when it arrives or goes.
 - Posters and covers you've already seen at home aren't downloaded again over mobile data when you leave, and pictures on screen no longer blank and reload as the app moves between your server's home and away-from-home addresses. Each picture is kept once, whichever address it came from.
+- Siri is taught the names of about 150 titles rather than up to 600: the podcasts you follow, what you're part way through, then the newest films and shows. Teaching it hundreds every day was heavy on the phone's memory. **Play something in Flexarr** still finds any other title.
 
 ### Mac
 

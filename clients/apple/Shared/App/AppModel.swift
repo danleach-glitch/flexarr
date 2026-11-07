@@ -1406,7 +1406,7 @@ final class AppModel {
 
     #if !os(tvOS)
     /// Siri learns the library's titles from the signed-in server, so "play the next <show>" is understood. Only when
-    /// the server or profile changed, or a day on: each time, the system reads up to 600 titles again, which is heavy.
+    /// the server or profile changed, or a day on: each time, the system reads its titles (about 150) again, which is heavy.
     private func teachSiriTitles() {
         let who = "\(credentials?.address.absoluteString ?? "")#\(currentProfile?.id ?? "")"
         let defaults = UserDefaults.standard
