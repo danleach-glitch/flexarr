@@ -577,10 +577,15 @@ public static partial class ProfileEndpoints
             {
                 signIns.ChooseProfile(signInId, profile.IsMain ? null : profile.Id);
             }
-            else if (mainPinGiven && http.User.FindFirst(FlexarrClaims.Method)?.Value != ApiKeyAuthenticationHandler.Methods.ApiKey)
+            else if ((mainPinGiven || profile.IsMain && profile.PinHash is not null
+                    && http.Request.Headers[ApiKeyAuthenticationHandler.ProfileChoiceHeader].ToString() == "1")
+                && http.User.FindFirst(FlexarrClaims.Method)?.Value != ApiKeyAuthenticationHandler.Methods.ApiKey)
             {
                 // Without a sign-in (over Tailscale, or at home with "only away from home"), the PIN signs this browser
-                // in as the main profile instead, so the unlock has somewhere to live (see AdminEndpoints).
+                // in as the main profile instead, so the unlock has somewhere to live (see AdminEndpoints). Its own PIN,
+                // from a client that asks who's watching (see ApiKeyAuthenticationHandler.ProfileChoiceHeader), does
+                // too, unlocking nothing: so the choice lasts, also when switching to it from another profile (a
+                // main-profile token alone is dropped by the web app, and it would be asked again).
                 signInId = AdminEndpoints.SignInForUnlock(http, signIns);
             }
 

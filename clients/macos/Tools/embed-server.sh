@@ -7,6 +7,7 @@ set -euo pipefail
 src="$SRCROOT/build/server"
 contents="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH"
 entitlements="$SRCROOT/FlexarrServer/Helper.entitlements"
+server_entitlements="$SRCROOT/FlexarrServer/ServerHelper.entitlements"
 identity="${EXPANDED_CODE_SIGN_IDENTITY:--}"
 
 ffmpeg="$SRCROOT/build/ffmpeg/$(sed -n 's/^version=//p' "$SRCROOT/Tools/build-ffmpeg.sh")-universal"
@@ -26,10 +27,19 @@ cp -R "$src/bin/" "$contents/Helpers/"
 cp "$ffmpeg/ffmpeg" "$ffmpeg/ffprobe" "$contents/Helpers/"
 cp -R "$src/content" "$contents/Resources/Server"
 
-# Libraries first, then the executables.
+# Libraries first, then the executables. Signed by a team, the executables run with the hardened runtime, so whatever
+# is set for every app on this Mac (DYLD_INSERT_LIBRARIES) can't load other code into them and their sandbox; the
+# server's only exception is .NET's JIT (ServerHelper.entitlements). Signed to run locally ("-"), they go without it:
+# the runtime only loads libraries signed by the same team, and an ad-hoc signature has none, so the server couldn't
+# open its SQLite library.
+runtime=()
+[ "$identity" = "-" ] || runtime=(--options runtime)
 for lib in "$contents/Helpers/"*.dylib; do
   codesign --force --sign "$identity" --timestamp=none "$lib"
 done
-for tool in Flexarr-arm64 Flexarr-x64 ffmpeg ffprobe; do
-  codesign --force --sign "$identity" --timestamp=none --entitlements "$entitlements" "$contents/Helpers/$tool"
+for tool in Flexarr-arm64 Flexarr-x64; do
+  codesign --force --sign "$identity" --timestamp=none ${runtime[@]+"${runtime[@]}"} --entitlements "$server_entitlements" "$contents/Helpers/$tool"
+done
+for tool in ffmpeg ffprobe; do
+  codesign --force --sign "$identity" --timestamp=none ${runtime[@]+"${runtime[@]}"} --entitlements "$entitlements" "$contents/Helpers/$tool"
 done

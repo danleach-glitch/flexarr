@@ -63,6 +63,14 @@ public sealed class SignIn
     /// <summary>The profile chosen on it; null is the main profile. Only the main profile may manage the server.</summary>
     public string? ProfileId { get; set; }
 
+    /// <summary>
+    /// Paired with no profile chosen on it yet (a new TV or phone): while the main profile has a PIN of its own, apps
+    /// that say they can ask who's watching are answered as no profile chosen rather than as the main profile, until
+    /// one is chosen (see <see cref="ApiKeyAuthenticationHandler.ProfileChoiceHeader"/>). False for sign-ins from before
+    /// 0.63, which carry on as the main profile.
+    /// </summary>
+    public bool AwaitsProfile { get; set; }
+
     /// <summary>For a device, what it is, as its app last said; null until an app that says has used it.</summary>
     public DeviceType? DeviceType { get; set; }
 
@@ -142,7 +150,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
 
     /// <summary>Creates a sign-in and returns its token, which is shown once and never stored.</summary>
     public (SignIn SignIn, string Token) Issue(SignInKind kind, string name, NetworkZone zone, string? address, string? profileId = null, bool pinVerified = false,
-        string? tailscaleLogin = null, DeviceType? deviceType = null, bool fromSharedCookie = false)
+        string? tailscaleLogin = null, DeviceType? deviceType = null, bool fromSharedCookie = false, bool awaitsProfile = false)
     {
         var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         var now = clock.GetUtcNow().UtcDateTime;
@@ -161,6 +169,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             TailscaleLogin = tailscaleLogin,
             DeviceType = deviceType,
             FromSharedCookie = fromSharedCookie,
+            AwaitsProfile = awaitsProfile && profileId is null,
         };
 
         lock (_lock)
@@ -438,6 +447,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             if (profileId is not null)
             {
                 signIn.ProfileId = profileId;
+                signIn.AwaitsProfile = false;
             }
 
             SaveLocked();
@@ -464,9 +474,10 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
     {
         lock (_lock)
         {
-            if (Loaded().Values.FirstOrDefault(s => s.Id == id) is { } signIn && signIn.ProfileId != profileId)
+            if (Loaded().Values.FirstOrDefault(s => s.Id == id) is { } signIn && (signIn.ProfileId != profileId || signIn.AwaitsProfile))
             {
                 signIn.ProfileId = profileId;
+                signIn.AwaitsProfile = false;
                 SaveLocked();
             }
         }

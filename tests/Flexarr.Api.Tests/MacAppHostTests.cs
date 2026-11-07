@@ -20,6 +20,39 @@ public class MacAppHostTests
     }
 
     [Theory]
+    [InlineData(true, "from-input\n", "from-input")]
+    [InlineData(true, "", "from-environment")]
+    [InlineData(false, "from-input\n", "from-environment")]
+    public void TheToken_ComesOnStandardInput_WhenTheAppSaysSo_ElseFromTheEnvironment(bool onInput, string input, string expected)
+    {
+        var configuration = new ConfigurationManager();
+        configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Flexarr:MacApp:Port"] = "1",
+            ["Flexarr:MacApp:Token"] = "from-environment",
+            [MacAppHost.TokenOnInputKey] = onInput ? "true" : null,
+        });
+        using var reader = new StringReader(input);
+
+        MacAppHost.ReadTokenFromInput(configuration, reader);
+
+        Assert.Equal(expected, configuration["Flexarr:MacApp:Token"]);
+        // Not read at all unless the app said it wrote there.
+        Assert.Equal(onInput ? -1 : input.Length > 0 ? 'f' : -1, reader.Peek());
+    }
+
+    [Fact]
+    public void WithTheTokenOnlyOnStandardInput_IsAvailable()
+    {
+        var configuration = new ConfigurationManager();
+        configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Flexarr:MacApp:Port"] = "1", [MacAppHost.TokenOnInputKey] = "true" });
+
+        MacAppHost.ReadTokenFromInput(configuration, new StringReader("secret\n"));
+
+        Assert.True(new MacAppHost(configuration).IsAvailable);
+    }
+
+    [Theory]
     [InlineData(null, "secret choose", "/Volumes/Media/Films", "/Volumes/Media/Films")]
     [InlineData("~/Library/Application Support/Plex Media Server", "secret choose\t~/Library/Application Support/Plex Media Server", "", null)]
     public async Task ChooseFolder_SendsTheToken_AndReadsTheAppsAnswer(string? start, string sent, string answer, string? expected)

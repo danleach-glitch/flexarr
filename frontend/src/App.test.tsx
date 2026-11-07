@@ -1749,6 +1749,57 @@ describe('Profiles', () => {
     expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
   })
 
+  it('asks who’s watching, with no way back, when the server says nobody has chosen here, even with one profile', async () => {
+    let me = { profileId: 'owner', method: 'local', zone: 'Local', isAdmin: false, tailscaleLogin: null, chooseProfile: true }
+    let sentChoice: string | null | undefined
+    const fetched = mockApi({
+      '/system/status': status,
+      '/profiles': [pinnedMain],
+      '/me': () => me,
+      'POST /profiles/owner/select': (init?: RequestInit) => {
+        sentChoice = (init?.headers as Record<string, string> | undefined)?.['X-Flexarr-Profile-Choice']
+        me = { ...me, chooseProfile: false }
+        return { token: 'owner.sig', profile: pinnedMain }
+      },
+      '/libraries': [],
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+    sessionStorage.setItem('flexarr.profileChosen', '1') // chosen in this tab before: the server's word wins
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Dan/ }))
+    expect(screen.queryByRole('button', { name: 'Not now' })).toBeNull()
+    fireEvent.change(await screen.findByLabelText('PIN'), { target: { value: '1357' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }))
+
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
+    expect(sentChoice).toBe('1')
+    // The app says it can ask on what it asks for, not only when choosing.
+    const home = fetched.mock.calls.find(([input]) => String(input).startsWith('/api/v1/home'))
+    expect((home?.[1]?.headers as Record<string, string> | undefined)?.['X-Flexarr-Profile-Choice']).toBe('1')
+    sessionStorage.clear()
+    clearApiCache()
+  })
+
+  it('asks who’s watching when a request is refused because nobody has chosen here', async () => {
+    let me = { profileId: 'owner', method: 'local', zone: 'Local', isAdmin: false, tailscaleLogin: null, chooseProfile: false }
+    mockApi({
+      '/system/status': status,
+      '/profiles': [pinnedMain],
+      '/me': () => me,
+      '/libraries': [],
+      '/home': () => {
+        me = { ...me, chooseProfile: true }
+        return new Response(JSON.stringify({ status: 403, chooseProfile: true }), { status: 403 })
+      },
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: /Dan/ })).toBeInTheDocument()
+    clearApiCache()
+  })
+
   it('over Tailscale, Switch profile opens the picker', async () => {
     sessionStorage.setItem('flexarr.pickProfile', '1') // what Switch profile leaves before reloading
     mockApi({ '/system/status': status, '/profiles': [pinnedMain], '/me': tailscaleOwner })

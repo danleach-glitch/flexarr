@@ -264,7 +264,14 @@ export default function App() {
         // Asked for one profile in particular (Switch to the main profile, in Settings): straight to its PIN.
         const initial = asked ? profiles.find((p) => p.id === session.get('flexarr.pickProfileFor')) : undefined
         session.remove('flexarr.pickProfileFor')
-        setState(profiles.length > 0 && (asked || (profiles.length > 1 && !chosen)) ? { kind: 'choose-profile', profiles, asked, initial } : { kind: 'ready' })
+        // The server answers as nobody chosen until one is (the main profile's own PIN wasn't given here): always ask,
+        // with no way back to what was showing.
+        const mustChoose = me?.chooseProfile === true
+        setState(
+          profiles.length > 0 && (mustChoose || asked || (profiles.length > 1 && !chosen))
+            ? { kind: 'choose-profile', profiles, asked: asked && !mustChoose, initial }
+            : { kind: 'ready' },
+        )
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return

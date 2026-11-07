@@ -38,6 +38,12 @@ using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+// In the Mac app, the token for its channel to the app comes on standard input (see MacAppHost).
+// Console.In only when the app says so: elsewhere, touching it would set up the terminal for nothing.
+if (string.Equals(builder.Configuration[MacAppHost.TokenOnInputKey], "true", StringComparison.OrdinalIgnoreCase))
+{
+    MacAppHost.ReadTokenFromInput(builder.Configuration, Console.In);
+}
 
 var dataDirectory = builder.Configuration[$"{FlexarrOptions.SectionName}:{nameof(FlexarrOptions.DataDirectory)}"] ?? "data";
 Directory.CreateDirectory(dataDirectory);
@@ -453,6 +459,7 @@ app.UseAuthentication();
 app.UseFlexarrRequestLanguage();
 app.UseFlexarrRequestForgeryGuard();
 app.UseAuthorization();
+app.UseFlexarrProfileChoiceGate();
 
 // The API description is for development; a public server needn't hand out a map of itself.
 if (app.Environment.IsDevelopment())
