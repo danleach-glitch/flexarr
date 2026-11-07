@@ -1240,6 +1240,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         upNext = emptyList()
         forgetWatchlist()
         if (saved) store.clear()
+        // The language packs that server sent go too: the next server's own (or the built-in ones) take over.
+        io.github.flexarr.core.i18n.Localization.forgetDownloaded()
         serverName = null
         profiles = emptyList()
         profilesLoaded = false

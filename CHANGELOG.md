@@ -39,6 +39,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - An audiobook with hundreds of chapters no longer makes its chapter list stutter while it plays, and the list opens straight away.
 - **Copy code and open Trakt** only ever opens a page on trakt.tv. If the server names anywhere else, the Android app opens trakt.tv/activate instead.
 - On Android TV, a kids profile no longer has **Settings** in the sidebar (so no **Sign out** either), as on the phone. A kids profile that's the only one on the server keeps it.
+- The Android app checks each language pack a server sends before keeping it, and forgets the packs it kept when it signs out, so another server's words don't follow it to the next one.
 
 ## 0.62.1 · 5 November 2026
 
