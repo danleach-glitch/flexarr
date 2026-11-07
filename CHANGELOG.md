@@ -66,6 +66,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Rows and grids of titles load much faster on a server with audiobooks. Once a library held a few thousand books in series, every list (films, shows and episodes too, and each row of Home) took several times longer than it needed to.
 - **Fix match** answers sooner as you change what you're searching for: with a few thousand films or shows in Radarr or Sonarr, every search after the first no longer waits several seconds for their whole list again.
 - Covers kept beside your media (a cover.jpg, the artwork inside an album's or a book's files) no longer wake a sleeping drive each time a page shows them: once the server has a copy, it serves it without looking at the original. A cover you replace is picked up at the next library scan.
+- On the web, jumping to a letter in a big library is quick: it loads just the titles from that letter on, instead of every title before it, which could hold the page up for seconds. **Show earlier** above them brings in the ones before, a page at a time.
 - On the web, Settings opens sooner on a big library: its overview, and Settings › Libraries, ask the server for library health's score alone instead of building the whole report each time.
 
 ### Playback

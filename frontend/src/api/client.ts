@@ -568,6 +568,27 @@ export function getLibraryItems(
   return (options.take ?? 0) > 200 ? timedGet<Paged<ItemSummary>>(path, signal) : cachedGet<Paged<ItemSummary>>(path, signal)
 }
 
+/** Where a letter's titles start in a library's A–Z list: `offset` is the `skip` that loads its first one. */
+export interface LetterRun {
+  /** "A" to "Z", or "#" for anything else (before A, and again after Z for accented titles). */
+  letter: string
+  offset: number
+  count: number
+}
+
+/**
+ * Where each letter starts in getLibraryItems sorted A–Z, for the same search and genre, so a letter jump loads only
+ * the page it lands on. Null from servers before the release after 0.62.1, which answer 404.
+ */
+export function getLibraryLetters(id: string, options: { search?: string; genre?: string }, signal?: AbortSignal) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(options)) if (value) params.set(key, value)
+  return apiGet<LetterRun[]>(`/libraries/${seg(id)}/items/letters${params.size ? `?${params}` : ''}`, signal).catch((e: unknown) => {
+    if (e instanceof ApiError && e.status === 404) return null
+    throw e
+  })
+}
+
 /** A music library's albums (its items are its artists), paged like its items. Servers before 0.59 answer 404. */
 export function getLibraryAlbums(
   id: string,
