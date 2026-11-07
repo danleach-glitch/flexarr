@@ -5,6 +5,7 @@ import { PageError, PageLoading } from '../components/PageStatus'
 import { Row } from '../components/Row'
 import { useApi } from '../hooks/useApi'
 import { t, Words } from '../i18n'
+import '../styles/settings.lazy.css'
 
 /** Discover's two halves: films and shows (through Seerr), and music (through Lidarr). Only shown when music requests are on. */
 export function DiscoverSwitch({ music }: { music: boolean }) {

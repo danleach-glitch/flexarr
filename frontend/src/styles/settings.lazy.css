@@ -1,0 +1,2475 @@
+/* Settings' own styles, and those of the forms and lists that open from it or share its look (Connect a device, sign-ins,
+   the folder picker, Discover's and Collections' subheadings), loaded with them rather than with the first page. Rules
+   that can match anything on the other pages stay in settings.css. */
+
+.settings-nav {
+  position: sticky;
+  top: calc(var(--nav-height) + 36px);
+  align-self: start;
+}
+
+.settings-nav h1 {
+  margin-bottom: 22px;
+  padding: 0 14px;
+  font-family: var(--text);
+  font-size: var(--step-1);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.settings-nav nav {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.settings-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* "Dan's profile", "Server": a small, dim label with a rule running from it, so it reads as a heading over its pages
+   rather than one of them. */
+.settings-nav-group h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 8px;
+  padding: 0 14px;
+  font-family: var(--text);
+  font-size: var(--step--1);
+  font-weight: 700;
+  color: color-mix(in srgb, var(--usher) 65%, transparent);
+}
+
+.settings-nav-group h2::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--aisle);
+}
+
+.settings-nav a {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 7px 14px;
+  /* One line each, so the row of sections on phones scrolls rather than wraps. */
+  white-space: nowrap;
+  border-radius: var(--radius-control);
+  color: color-mix(in srgb, var(--screen) 70%, var(--usher));
+  font-size: 0.94rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.settings-nav a:hover {
+  color: var(--screen);
+  background: var(--seat);
+}
+
+.settings-nav a.active {
+  color: var(--screen);
+  background: var(--seat-raised);
+  font-weight: 600;
+}
+
+/* Each page's mark, quieter than its name until it's the page open. */
+.settings-nav-icon {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.8;
+  opacity: 0.7;
+}
+
+.settings-nav a:hover .settings-nav-icon,
+.settings-nav a.active .settings-nav-icon {
+  opacity: 1;
+}
+
+.settings-content {
+  max-width: 820px;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.settings-content section {
+  display: grid;
+  gap: 32px;
+}
+
+/* A page's title (with an action beside it), what the page is for, and a way back for a page under another. */
+.settings-header {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 40px;
+}
+
+/* Titles in the text face, plain and tight: Settings is a control panel, not a marquee. */
+.settings-header h2 {
+  font-family: var(--text);
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.settings-header .settings-lede {
+  margin: 0;
+}
+
+.settings-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  margin-inline-start: -4px;
+  color: var(--usher);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.settings-back:hover {
+  color: var(--screen);
+}
+
+.settings-back svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* A group's label: a small heading in sentence case, so the settings under it carry the page. */
+.settings-subhead {
+  margin: 0;
+  font-family: var(--text);
+  font-size: 0.94rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--screen);
+}
+
+.settings-lede {
+  max-width: 40rem;
+  color: var(--usher);
+}
+
+/* A label, a panel of rows, and a short note under it. */
+.settings-group {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+}
+
+.settings-group > legend {
+  float: inline-start;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 0;
+}
+
+.settings-note {
+  max-width: 44rem;
+  margin: 0;
+  padding: 0 4px;
+  font-size: var(--step--1);
+  color: var(--usher);
+}
+
+.settings-note .settings-status {
+  font-size: inherit;
+}
+
+.settings-status {
+  margin: 0;
+  min-height: 1.5em;
+}
+
+.settings-status:empty {
+  display: none;
+}
+
+.field-help {
+  font-weight: 400;
+  color: var(--usher);
+}
+
+.folder-picker {
+  border: 1px solid var(--aisle);
+  border-radius: var(--radius-control);
+  font-weight: 400;
+}
+
+.folder-picker-mac {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 12px;
+}
+
+.folder-picker-mac p {
+  margin: 0;
+}
+
+.folder-picker-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--aisle);
+}
+
+.folder-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.folder-list button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  text-align: start;
+  cursor: pointer;
+}
+
+.folder-list svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--usher);
+}
+
+.folder-list button:hover,
+.folder-list button:focus-visible {
+  background: var(--seat-raised);
+}
+
+.form-errors {
+  margin: 14px 0 0;
+  padding-inline-start: 20px;
+}
+
+.connection-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+}
+
+.connection-line .setting-text {
+  flex: 1 1 auto;
+}
+
+.connection-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  flex: none;
+}
+
+.connection-form {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--aisle);
+}
+
+/* In an open edit form, Remove is red from the start: it's the one thing there that can't be undone. */
+.connection-form .button.icon.danger-icon {
+  color: var(--danger);
+}
+
+.connection-form > p {
+  margin: 0 0 8px;
+}
+
+/* A destructive action kept apart from the rest, at the far start of the row. */
+.form-actions-start {
+  margin-inline-end: auto;
+}
+
+.app-logo {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+
+/* A service with no logo here: one of Flexarr's own icons in its place. */
+.app-logo-icon {
+  display: grid;
+  place-items: center;
+  color: var(--usher);
+}
+
+/* Small print under a connection's field: where a key comes from, and credits. */
+.connection-form .field-hint {
+  margin: 6px 0 0;
+  font-size: var(--step--1);
+}
+
+.connection-ok {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: var(--step--1);
+}
+
+.connection-ok svg {
+  width: 16px;
+  height: 16px;
+  color: var(--go);
+}
+
+.app-logo-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.connection-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* An app's own web page: an icon beside its name. */
+.open-app {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-control);
+  flex: none;
+  color: var(--usher);
+  text-decoration: none;
+}
+
+.open-app:hover {
+  background: color-mix(in srgb, var(--screen) 10%, transparent);
+}
+
+.open-app:hover {
+  color: var(--screen);
+}
+
+.open-app svg {
+  width: 15px;
+  height: 15px;
+}
+
+.status-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--aisle);
+}
+
+.status-dot.ok {
+  background: var(--go);
+}
+
+/* A test that worked: a green tick on its button; one that failed, a red cross. */
+.button .test-ok {
+  color: var(--go);
+  stroke-width: 3;
+}
+
+.button .test-bad {
+  color: var(--danger);
+  stroke-width: 3;
+}
+
+.status-dot.bad {
+  background: var(--danger);
+}
+
+/* Connected, but something to see to (a media folder that isn't found here). */
+.status-dot.warn {
+  background: var(--warn);
+}
+
+.connection-warning {
+  color: var(--warn);
+  font-size: 0.92rem;
+}
+
+.connection-warning a {
+  color: inherit;
+}
+
+/* Settings › Live TV: the channels profiles with an age limit may watch. */
+.kids-channels {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+/* Under the media folders: the mappings saved, opened to edit them by hand. */
+.saved-mappings {
+  padding: 14px 0;
+}
+
+.connection + .saved-mappings {
+  border-top: 1px solid var(--aisle);
+}
+
+.mapping {
+  align-items: flex-end;
+  margin-top: 12px;
+}
+
+.mapping .text-button {
+  margin-bottom: 12px;
+}
+
+/* The Mac app's server side of a mapping: chosen with the folder picker, not typed. */
+.mapping-chosen {
+  display: flex;
+  flex: 1 1 220px;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 700;
+  font-size: var(--step--1);
+}
+
+.mapping-chosen-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+}
+
+.mapping-chosen-row code {
+  overflow-wrap: anywhere;
+}
+
+.mapping-picker {
+  display: grid;
+  flex-basis: 100%;
+  justify-items: start;
+  gap: 8px;
+}
+
+.mapping-picker .folder-picker {
+  width: 100%;
+}
+
+.meter {
+  display: grid;
+  gap: 8px;
+}
+
+/* A secret or long address in one line, like a read-only field: the API key (with its eye) and webhook addresses. */
+.secret-field {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 4px 0 12px;
+  border: 1px solid var(--aisle);
+  border-radius: var(--radius-control);
+  background: var(--room);
+  font-family: var(--mono);
+  font-size: var(--step--1);
+}
+
+.secret-field code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: inherit;
+  letter-spacing: 0.04em;
+  user-select: all;
+}
+
+.secret-field .icon-button {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  color: var(--usher);
+}
+
+.secret-field .icon-button:hover {
+  color: var(--screen);
+}
+
+.secret-field .icon-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.key-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.key-row .secret-field {
+  flex: 1 1 22rem;
+}
+
+.key-row + .field-help {
+  margin: 10px 0 0;
+}
+
+.key-note {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-control);
+  background: var(--room);
+}
+
+.webhook-lede {
+  margin: 0 0 14px;
+}
+
+/* Logo, name, the address cut to one line (all of it is on hover, and Copy takes all of it), Copy. */
+.plain-list.webhook-list {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px 12px;
+  margin: 0;
+}
+
+.webhook-hooks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.webhook-error {
+  grid-column: 1 / -1;
+  margin: -4px 0 0;
+}
+
+.plain-list.webhook-list li {
+  display: contents;
+}
+
+.webhook-app {
+  font-weight: 700;
+}
+
+.webhook-address {
+  display: block;
+  line-height: 34px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-inline-end: 12px;
+  user-select: all;
+}
+
+.webhook-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--aisle);
+}
+
+.webhook-footer .field-help {
+  flex: 1 1 20rem;
+  margin: 0;
+}
+
+@media (max-width: 600px) {
+  .plain-list.webhook-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .plain-list.webhook-list li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px 10px;
+  }
+
+  .webhook-address {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .webhook-hooks {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+.advice-more {
+  margin-top: 10px;
+}
+
+.advice-more summary {
+  cursor: pointer;
+  color: var(--silver);
+  width: fit-content;
+}
+
+.advice-more p {
+  margin: 8px 0 0;
+}
+
+@media (max-width: 860px) {
+  .settings-nav {
+    position: static;
+  }
+
+  /* One row of pages that scrolls sideways, the groups' labels left out. */
+  .settings-nav nav {
+    flex-direction: row;
+    gap: 2px;
+    overflow-x: auto;
+  }
+
+  .settings-nav-group {
+    flex-direction: row;
+  }
+
+  .settings-nav-group h2 {
+    display: none;
+  }
+
+  .settings-nav-group + .settings-nav-group {
+    padding-inline-start: 10px;
+    margin-inline-start: 8px;
+    border-inline-start: 1px solid var(--aisle);
+  }
+
+  .connection-line {
+    flex-wrap: wrap;
+  }
+
+  .connection-actions {
+    margin-inline-start: 22px;
+  }
+
+  /* A media folder's paths are long: they wrap within their column, beside the dot and logo, not under them. */
+  .media-folder .setting-text {
+    flex: 1 1 calc(100% - 60px);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.import-result {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-control);
+  background: var(--room);
+}
+
+.plain-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.plain-list li {
+  display: grid;
+  gap: 4px;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.swatch {
+  width: 26px;
+  height: 26px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.swatch[aria-checked='true'] {
+  border-color: var(--screen);
+  box-shadow: 0 0 0 3px var(--room) inset;
+}
+
+.connection-note {
+  font-weight: 700;
+}
+
+.key-confirm {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  max-width: 560px;
+}
+
+/* Changing the admin PIN: the fields, the help and the buttons one under another, as the key's forms. */
+.setting-row.admin-pin-form {
+  display: grid;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.admin-pin-form .field-row label {
+  flex: 1 1 160px;
+}
+
+.profile-pin > .field-help {
+  font-size: var(--step--1);
+}
+
+.key-confirm .checkbox {
+  align-items: flex-start;
+  margin-top: 0;
+}
+
+.remote-url {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 4px;
+}
+
+.remote-url-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.remote-url-row code {
+  padding: 8px 12px;
+  border-radius: var(--radius-control);
+  background: var(--room);
+  font-size: var(--step-0);
+}
+
+.tailnet-people li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.advice {
+  border-color: color-mix(in srgb, var(--silver) 40%, var(--aisle));
+}
+
+/* A file input dressed as a button; the input itself stays focusable for keyboards. */
+.file-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.file-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.file-button:focus-within {
+  outline: 2px solid var(--ambient);
+  outline-offset: 2px;
+}
+
+.connections-add {
+  margin: 16px 0 40px;
+}
+
+/* A switch over the whole list (combining libraries), set apart from the rows it changes. */
+.row-list > .setting-rows {
+  margin-bottom: 12px;
+}
+
+.health-check {
+  display: grid;
+  gap: 14px;
+}
+
+.health-check-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+}
+
+.health-check-head p {
+  margin: 4px 0 0;
+}
+
+.health-check-group h4 {
+  margin: 6px 0 8px;
+  font-size: var(--step-0);
+}
+
+.health-check-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.health-check-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-top: 1px solid color-mix(in srgb, var(--aisle) 60%, transparent);
+}
+
+.health-check-list li > span {
+  display: grid;
+  min-width: 0;
+}
+
+.health-check-list code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--step--1);
+  color: var(--usher);
+}
+
+.changelog-version {
+  margin: 0 0 4px;
+  font-family: var(--text);
+  font-size: var(--step-0);
+  font-weight: 700;
+}
+
+.changelog-release > p {
+  margin: 8px 0 0;
+}
+
+.changelog-more {
+  justify-self: start;
+}
+
+.changelog-entry {
+  padding: 14px 0;
+  border-top: 1px solid color-mix(in srgb, var(--aisle) 60%, transparent);
+}
+
+.changelog-entry h5 {
+  margin: 0 0 6px;
+  font-size: var(--step-0);
+}
+
+.changelog-entry ul {
+  margin: 0;
+  padding-inline-start: 1.2em;
+  color: color-mix(in srgb, var(--screen) 85%, transparent);
+}
+
+.changelog-entry li + li {
+  margin-top: 4px;
+}
+
+.health-score {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 32px;
+}
+
+.health-score-number {
+  display: grid;
+  justify-items: center;
+  min-width: 120px;
+}
+
+.health-score-value {
+  font-family: var(--text);
+  font-size: var(--step-5);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--silver);
+}
+
+.health-score[data-grade='fair'] .health-score-value {
+  color: var(--screen);
+}
+
+.health-score[data-grade='poor'] .health-score-value {
+  color: var(--danger);
+}
+
+.health-score-label {
+  font-size: var(--step--1);
+  color: var(--usher);
+}
+
+.health-score-summary {
+  margin: 0 0 8px;
+  font-weight: 700;
+}
+
+.health-score-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--usher);
+  font-size: var(--step--1);
+}
+
+.health-score-breakdown strong {
+  color: var(--screen);
+}
+
+.health-group {
+  display: grid;
+  gap: 10px;
+}
+
+.health-clear {
+  margin: 0;
+}
+
+.health-group > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 20px;
+}
+
+.health-group > header p {
+  margin: 4px 0 0;
+  max-width: 44rem;
+}
+
+.health-count {
+  margin-inline-start: 6px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--aisle);
+  font-family: var(--text);
+  font-size: var(--step--1);
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.health-rows {
+  padding: 4px 18px;
+}
+
+.health-row,
+.health-row-expandable > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+}
+
+.health-row + .health-row,
+.health-row-expandable + .health-row-expandable {
+  border-top: 1px solid color-mix(in srgb, var(--aisle) 60%, transparent);
+}
+
+.health-row-expandable > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.health-row-expandable > summary::-webkit-details-marker {
+  display: none;
+}
+
+.health-row-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.health-row-art {
+  flex: none;
+  width: 34px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--aisle);
+  aspect-ratio: 2 / 3;
+}
+
+.health-row-text {
+  display: grid;
+  min-width: 0;
+}
+
+.health-row-text > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.health-row-held {
+  flex-wrap: wrap;
+}
+
+.health-row-actions {
+  flex: none;
+  display: flex;
+  gap: 8px;
+}
+
+.health-row-text.health-row-wraps > * {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.health-row-path {
+  font-size: var(--step--1);
+  color: var(--usher);
+}
+
+.health-row-title {
+  color: var(--screen);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.health-row-title:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.health-row-text .muted {
+  font-size: var(--step--1);
+}
+
+.health-copies {
+  list-style: none;
+  margin: 0 0 10px 48px;
+  padding: 0;
+  font-size: var(--step--1);
+}
+
+.health-copies li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 4px 0;
+}
+
+.health-copies .tag.keep {
+  border-color: var(--silver);
+  color: var(--silver);
+}
+
+.health-progress {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.health-more {
+  margin: 10px 0;
+}
+
+.health-downloading {
+  flex: none;
+  border-color: var(--silver);
+  color: var(--silver);
+  white-space: nowrap;
+}
+
+.link-page {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: calc(var(--nav-height) + 40px) var(--edge) 0;
+}
+
+.connect-tv {
+  display: grid;
+  gap: 12px;
+}
+
+.connect-tv h2 {
+  font-size: var(--step-3);
+}
+
+/* Codes look the same as on the device showing them: the system font at its heaviest (SF Pro Black on Apple's). */
+.connect-tv-big-code {
+  margin: 0;
+  font-family: var(--code-face);
+  font-size: var(--step-6);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: var(--screen);
+}
+
+.connect-tv-error {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+
+.connect-tv-error .error {
+  margin: 0;
+}
+
+.connect-tv input {
+  font-size: var(--step-2);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Settings › Security › Connect a device: every device asking right now, above the code box. */
+.waiting-pairings {
+  display: grid;
+  gap: 12px;
+}
+
+.waiting-pairings h2 {
+  font-size: var(--step-1);
+}
+
+.waiting-pairings p {
+  margin: 0;
+}
+
+/* Icon, name and badges over one muted line, then the actions; rows split by hairlines. */
+.sign-in-list {
+  margin: 0;
+}
+
+.sign-in-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 12px 0;
+}
+
+.sign-in-list li + li {
+  border-top: 1px solid var(--aisle);
+}
+
+.sign-in-list > li:first-child {
+  padding-top: 0;
+}
+
+.sign-in-text {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.sign-in-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.sign-in-meta {
+  font-size: var(--step--1);
+}
+
+.pill {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--seat-raised);
+  color: var(--usher);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.pill.new {
+  background: color-mix(in srgb, var(--silver) 22%, transparent);
+  color: var(--silver);
+}
+
+.sign-in-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sign-in-each {
+  flex-basis: 100%;
+  margin: 4px 0 0 52px;
+}
+
+.sign-in-each li {
+  padding: 10px 0;
+}
+
+.sign-in-each > li:first-child {
+  border-top: 1px solid var(--aisle);
+}
+
+.sign-in-footer {
+  display: flex;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--aisle);
+}
+
+.sign-in-rename {
+  flex: 1 1 20rem;
+  display: grid;
+  gap: 8px;
+  max-width: 28rem;
+}
+
+.sign-in-rename .form-actions {
+  justify-content: flex-start;
+}
+
+.sign-in-done {
+  margin: 12px 0 0;
+}
+
+@media (max-width: 600px) {
+  .sign-in-list .sign-in-actions {
+    margin-inline-start: 52px;
+  }
+}
+
+/* A preference with its explanation beside it. */
+.checkbox.preference {
+  align-items: flex-start;
+}
+
+.checkbox.preference input {
+  margin-top: 4px;
+}
+
+.setting-rows {
+  padding-block: 4px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 60px;
+  padding: 12px 0;
+  cursor: pointer;
+}
+
+.setting-row + .setting-row,
+.setting-row + .podcast-folder-picker,
+.podcast-folder-picker + .setting-row {
+  border-top: 1px solid var(--aisle);
+}
+
+/* A row whose control is a button, or that's just there to read: not one big click target. */
+.setting-row.static {
+  cursor: default;
+}
+
+/* The server's name, renamed in place. A long name with no spaces wraps rather than running off a phone. */
+.server-name .library-rename {
+  flex: 1;
+  margin: 0;
+}
+
+.server-name .setting-text .muted {
+  overflow-wrap: anywhere;
+}
+
+.setting-rows > .muted:only-child,
+.setting-rows > p {
+  margin: 12px 0;
+}
+
+/* A row that opens another page. */
+.setting-link {
+  margin-inline: -22px;
+  padding-inline: 22px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.setting-link:hover {
+  background: color-mix(in srgb, var(--screen) 4%, transparent);
+}
+
+.setting-link:first-child {
+  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+  margin-top: -4px;
+}
+
+.setting-link:last-child {
+  border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+  margin-bottom: -4px;
+}
+
+.setting-link > svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--usher);
+}
+
+/* A value to read, on the inset-inline-end: a version, a folder. */
+.setting-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: end;
+  color: var(--usher);
+}
+
+.setting-row .folder {
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.setting-row.static .key-row {
+  width: 100%;
+}
+
+.setting-row.static:has(.key-row) {
+  display: grid;
+}
+
+.advice.inset {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--silver) 40%, var(--aisle));
+  border-radius: var(--radius-control);
+}
+
+.advice.inset p {
+  margin: 0;
+}
+
+.panel-title {
+  margin: 0 0 4px;
+  font-family: var(--text);
+  font-size: var(--step-0);
+  font-weight: 700;
+}
+
+.setting-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.setting-text strong {
+  font-weight: 600;
+}
+
+.setting-text .muted {
+  font-size: var(--step--1);
+}
+
+.setting-row select {
+  flex: none;
+  min-width: 120px;
+  max-width: 50%;
+}
+
+.setting-row input[type='text'] {
+  max-width: 50%;
+}
+
+@media (max-width: 600px) {
+  .setting-row {
+    flex-wrap: wrap;
+    gap: 10px 24px;
+  }
+
+  /* A switch is small enough to stay at the end of its row, however long the text beside it. */
+  .setting-row:has(> .switch) {
+    flex-wrap: nowrap;
+  }
+
+  .setting-row select {
+    max-width: 100%;
+  }
+}
+
+.remote-address {
+  margin-top: 2px;
+  font-size: var(--step-0);
+  color: var(--screen);
+  overflow-wrap: anywhere;
+}
+
+/* A destructive action as a quiet link, where buttons beside it would make a row heavy. */
+.text-button.danger-text:hover {
+  color: var(--danger);
+}
+
+.open-app {
+  font-size: var(--step--1);
+}
+
+.settings .setting-link {
+  margin-inline: -20px;
+  padding-inline: 20px;
+}
+
+.settings .setting-link:first-child {
+  border-radius: var(--radius-control) var(--radius-control) 0 0;
+}
+
+.settings .setting-link:last-child {
+  border-radius: 0 0 var(--radius-control) var(--radius-control);
+}
+
+.settings .button.quiet.small.icon.danger-icon:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  color: var(--danger);
+}
+
+.remote-address {
+  font-size: 0.9rem;
+}
+
+/* A status line among rows (Tailscale): the same height and divider as a row. */
+.setting-rows > .connection-line {
+  padding: 12px 0;
+}
+
+.setting-rows > .connection-line + .setting-row {
+  border-top: 1px solid var(--aisle);
+}
+
+.settings .advice {
+  font-size: 0.94rem;
+}
+
+@media (max-width: 600px) {
+  .setting-link {
+    flex-wrap: nowrap;
+  }
+}
+
+.settings .plain-list.webhook-list {
+  margin: 0;
+  padding-block: 14px;
+}
+
+.settings .meter > span:first-child {
+  font-size: 0.94rem;
+}
+
+/* Where the dragged row will land. */
+.row-list li.drop-above::before,
+.row-list li.drop-below::after {
+  content: '';
+  position: absolute;
+  inset-inline: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--silver);
+}
+
+.row-list li.drop-above::before {
+  top: -1px;
+}
+
+.row-list li.drop-below::after {
+  bottom: -1px;
+}
+
+.profile-list {
+  display: grid;
+  gap: 10px;
+}
+
+.profile-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding-block: 14px;
+}
+
+.profile-row .library-row-actions {
+  align-self: center;
+}
+
+.profile-you {
+  margin-inline-start: 8px;
+  font-size: 0.7rem;
+  vertical-align: 2px;
+}
+
+.profile-form {
+  display: grid;
+}
+
+/* The picture, and beside it the name and colour: who the profile is, at a glance. */
+.profile-identity {
+  display: flex;
+  gap: 22px;
+  align-items: flex-start;
+  padding-bottom: 18px;
+}
+
+.profile-picture {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  font-size: var(--step--1);
+}
+
+.profile-identity-fields {
+  flex: 1;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.profile-identity-fields .field + .field {
+  margin-top: 0;
+}
+
+/* PIN and libraries: a heading line each, under a divider, with their controls only when they're needed. */
+.profile-section {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 16px 0;
+  border: 0;
+  border-top: 1px solid var(--aisle);
+}
+
+.profile-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.profile-pin .field-row {
+  margin: 0;
+}
+
+.profile-pin .field-row label {
+  flex: 1 1 160px;
+}
+
+.profile-library-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 240px));
+  gap: 4px 36px;
+}
+
+.profile-library {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.profile-form > .form-actions {
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--aisle);
+}
+
+@media (max-width: 600px) {
+  .profile-identity {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .profile-picture {
+    justify-items: start;
+    grid-auto-flow: column;
+    align-items: center;
+    gap: 14px;
+  }
+}
+
+/* The main profile's crown, beside its name. */
+.profile-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.profile-crown {
+  display: inline-grid;
+  color: var(--screen);
+}
+
+.profile-crown svg {
+  width: 15px;
+  height: 15px;
+}
+
+.profile-name .profile-you {
+  margin-inline-start: 2px;
+}
+
+/* A group of settings inside a connection's form (Dispatcharr's Recordings). */
+.connection-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 4px 0 0;
+  padding: 14px 0 0;
+  border: 0;
+  border-top: 1px solid var(--aisle);
+}
+
+.connection-fieldset legend {
+  padding: 0;
+  font-weight: 700;
+}
+
+/* Backup & restore */
+.backup-row h3 {
+  font-family: var(--text);
+  font-size: var(--step-0);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.backup-folder {
+  flex-wrap: wrap;
+}
+
+.backup-folder-field,
+.folder-field {
+  display: flex;
+  gap: 8px;
+  flex: 1 1 280px;
+  max-width: 460px;
+}
+
+.folder-field {
+  justify-content: flex-end;
+}
+
+.backup-folder-field input,
+.folder-field input {
+  flex: 1;
+  min-width: 0;
+}
+
+.backup-file {
+  border-top: 1px solid var(--aisle);
+  padding: 14px 0;
+}
+
+.backup-file > p:first-child {
+  margin: 0 0 6px;
+}
+
+.backup-libraries {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding-inline-start: 14px;
+  border-inline-start: 2px solid var(--aisle);
+}
+
+.backup-libraries fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.backup-libraries fieldset:disabled {
+  opacity: 0.6;
+}
+
+.backup-library {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.backup-library-folder input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.backup-problems {
+  margin: 6px 0 0;
+  padding-inline-start: 18px;
+}
+
+.log-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.log-filters select,
+.log-filters input[type='search'] {
+  min-height: 36px;
+  font-size: var(--step--1);
+}
+
+.log-search {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.log-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-start: auto;
+  font-size: var(--step--1);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings .panel.log-panel {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.log-panel > p {
+  margin: 12px 20px;
+}
+
+.log-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.log-entry + .log-entry {
+  border-top: 1px solid color-mix(in srgb, var(--aisle) 50%, transparent);
+}
+
+.log-line {
+  display: grid;
+  grid-template-columns: auto 3.5ch 11ch minmax(0, 1fr);
+  gap: 10px;
+  width: 100%;
+  padding: 3px 20px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.log-line:hover,
+.log-line[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--screen) 4%, transparent);
+}
+
+.log-line time,
+.log-area {
+  color: var(--usher);
+  white-space: nowrap;
+}
+
+.log-area {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.log-level {
+  font-weight: 700;
+  color: var(--usher);
+}
+
+.level-warning .log-level {
+  color: var(--warn);
+}
+
+.level-error .log-level,
+.level-fatal .log-level,
+.level-error .log-message,
+.level-fatal .log-message {
+  color: var(--danger);
+}
+
+.log-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.log-detail {
+  padding: 4px 20px 10px;
+}
+
+.log-detail dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px 14px;
+  margin: 0;
+}
+
+.log-property {
+  display: contents;
+}
+
+.log-detail dt {
+  color: var(--usher);
+}
+
+.log-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.log-detail .text-button {
+  font: inherit;
+}
+
+.log-exception {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  background: var(--room);
+  overflow-x: auto;
+  white-space: pre;
+  font: inherit;
+}
+
+.log-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.log-foot .settings-status {
+  margin: 0;
+}
+
+.setting-row input.log-number {
+  flex: none;
+  width: 96px;
+  min-height: 36px;
+}
+
+@media (max-width: 600px) {
+  .log-line {
+    grid-template-columns: auto 3.5ch minmax(0, 1fr);
+    gap: 2px 8px;
+    padding-inline: 14px;
+  }
+
+  .log-message {
+    grid-column: 1 / -1;
+  }
+
+  .log-detail {
+    padding-inline: 14px;
+  }
+
+  .log-live {
+    margin-inline-start: 0;
+  }
+}
+
+/* What opt-in error reports send and never send, in plain sight under the switch. */
+.error-reports-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Opens and closes what's sent under the switch; the chevron turns when it's open. */
+.error-reports-disclosure {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 0;
+  border: 0;
+  border-top: 1px solid var(--aisle);
+  background: none;
+  color: var(--usher);
+  font: inherit;
+  font-size: var(--step--1);
+  text-align: start;
+  cursor: pointer;
+}
+
+.error-reports-disclosure:hover {
+  color: var(--screen);
+}
+
+.error-reports-disclosure svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.15s ease;
+}
+
+.error-reports-disclosure[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+.error-reports-privacy {
+  padding: 0 0 14px;
+  color: var(--usher);
+  font-size: var(--step--1);
+}
+
+.error-reports-privacy p {
+  margin: 10px 0 0;
+}
+
+.error-reports-privacy strong {
+  color: var(--screen);
+  font-weight: 600;
+}
+
+.error-reports-privacy a {
+  color: var(--screen);
+}
+
+/* A dot after a page's name in the list: something there wants a look (a release to install). */
+.settings-nav-badge {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-inline-start: -3px;
+  border-radius: 50%;
+  background: var(--silver);
+  vertical-align: middle;
+}
+
+.update-result {
+  margin: 0;
+  padding: 12px 0 4px;
+}
+
+.update-progress {
+  display: grid;
+  gap: 8px;
+  padding: 14px 0;
+}
+
+.update-progress progress {
+  width: 100%;
+  height: 6px;
+  accent-color: var(--silver);
+}
+
+.update-howto {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.update-howto p {
+  margin: 0;
+}
+
+.update-command {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  background: var(--room);
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  color: var(--screen);
+}
+
+/* An app that isn't connected yet: its logo greyed until it is. */
+.connection-line.unconnected .app-logo {
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+
+/* Under the server's pages while they're unlocked: a quiet way to lock them again before walking away. */
+.settings-lock {
+  align-self: flex-start;
+  margin: 6px 14px 0;
+  font-size: 0.85rem;
+}
+
+/* The server's settings, locked: the PIN (or the key and a new PIN), kept to a comfortable width. */
+.admin-unlock {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 460px;
+}
+
+.admin-unlock .field-help {
+  margin: -6px 0 0;
+}
+
+.admin-unlock .field-row label {
+  flex: 1;
+  min-width: 140px;
+}
+
+/* Family invites (Settings › Remote access): the three setup steps, the policy snippet, and an invite's link and QR code. */
+.guest-steps {
+  margin: 0;
+  padding: 14px 0 4px 1.4em;
+  display: grid;
+  gap: 18px;
+}
+
+.guest-steps li {
+  display: grid;
+  gap: 6px;
+}
+
+/* Each step reads like the rest of Settings: its name, then help at Settings' help size. */
+.guest-steps li > .muted {
+  font-size: var(--step--1);
+}
+
+.guest-steps li > .button {
+  justify-self: start;
+}
+
+.guest-snippet {
+  margin: 4px 0 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  background: var(--seat);
+  border: 1px solid var(--aisle);
+  border-radius: var(--radius-control);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  /* Wrapped rather than cut off at the inset-inline-end: the comments are meant to be read. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.guest-client {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+}
+
+.guest-client label {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 200px;
+}
+
+.guest-check {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0;
+}
+
+.guest-check.ok {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.guest-check ul {
+  margin: 0;
+  padding-inline-start: 1.2em;
+  font-size: 0.9rem;
+}
+
+.guest-tv {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.guest-tv input {
+  width: 9.5em;
+  font-family: var(--mono);
+  letter-spacing: 0.08em;
+}
+
+.guest-invite {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-start;
+  padding: 14px 0;
+  border-top: 1px solid var(--aisle);
+}
+
+.guest-qr {
+  flex: none;
+  width: 168px;
+  height: 168px;
+  padding: 8px;
+  background: var(--white);
+  border-radius: var(--radius-panel);
+}
+
+.guest-qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.guest-invite-text {
+  flex: 1 1 240px;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.guest-link-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.guest-link {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 8px 10px;
+  border: 1px solid var(--aisle);
+  border-radius: var(--radius-control);
+  font-size: 0.8rem;
+  color: var(--usher);
+}
+
+/* A guest and their devices: the name and Add device over its rows. */
+.guest-person-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0 4px;
+}
+
+/* Adding someone or a device: steps that sit in the group like its rows, Cancel at the right of the first line. */
+.guest-add {
+  position: relative;
+  padding: 16px 0 18px;
+}
+
+/* Adding a device: one panel that moves through its steps, Cancel in its corner. */
+.guest-person .guest-add {
+  padding-top: 6px;
+}
+
+.guest-add-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.guest-add-step {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.guest-add-step + .guest-add-step {
+  margin-top: 12px;
+}
+
+.guest-add-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+}
+
+.guest-code-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.guest-code {
+  width: 11em;
+  font-family: var(--mono);
+  font-size: 1.3rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.guest-waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.guest-joined {
+  color: var(--go);
+}
+
+.guest-spinner {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 2px solid var(--aisle);
+  border-top-color: var(--silver);
+  border-radius: 50%;
+  animation: guest-spin 0.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guest-spinner {
+    animation-duration: 2.4s;
+  }
+}
+
+.guest-new-tag {
+  margin-inline-start: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgb(127 209 160 / 0.16);
+  color: var(--go);
+  font-size: 0.75rem;
+  font-weight: 700;
+  vertical-align: 2px;
+}
+
+.guest-empty {
+  margin: 0;
+  padding: 14px 0;
+  font-size: var(--step--1);
+}
+
+.guest-add .field input {
+  width: min(320px, 100%);
+}
+
+.guest-add .guest-invite {
+  padding: 0;
+  border-top: 0;
+}
+
+.guest-add .field-help {
+  font-size: var(--step--1);
+}
+
+/* Guests: a card each, and one for someone being invited. */
+.guest-cards {
+  display: grid;
+  gap: 12px;
+}
+
+.guest-card .guest-person-head {
+  padding-top: 16px;
+}
+
+.guest-card .guest-empty {
+  padding: 0;
+}
+
+/* A guest's card: who on the left; their devices on the right, a row each, with Add device as the last row. */
+.guest-card.guest-person {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) 1fr;
+  gap: 4px 20px;
+  align-items: start;
+  padding: 4px 20px;
+}
+
+.guest-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+}
+
+.guest-name {
+  font-size: var(--step-1, 1.15rem);
+}
+
+.guest-devices {
+  display: grid;
+  min-width: 0;
+}
+
+.guest-device {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  font-size: var(--step--1);
+}
+
+.guest-device + .guest-device,
+.guest-device + .guest-add {
+  border-top: 1px solid var(--aisle);
+}
+
+.guest-device .setting-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.guest-add-row {
+  padding: 14px 0;
+}
+
+.guest-waiting-icon .guest-spinner {
+  width: 14px;
+  height: 14px;
+}
+
+.guest-person .guest-add {
+  padding: 14px 0 16px;
+}
+
+@media (max-width: 640px) {
+  .guest-card.guest-person {
+    grid-template-columns: 1fr;
+  }
+
+  .guest-who {
+    padding-bottom: 0;
+  }
+}
+
+/* Adding a guest: their picture as they type, the name, Continue and Cancel on one line; a line of help under it. */
+.guest-card.guest-new {
+  display: grid;
+  gap: 8px;
+  padding: 16px 20px;
+}
+
+.guest-new-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.guest-new-row input {
+  flex: 1 1 200px;
+  max-width: 320px;
+}
+
+.guest-new-help {
+  margin: 0;
+  padding-inline-start: 52px;
+  font-size: var(--step--1);
+}
+
+/* Cancel in adding a guest or a device: a quiet link at the right. */
+.guest-cancel {
+  margin-inline-start: auto;
+}
+
+/* Remove guest sits beside their name, quiet until hovered. */
+.guest-who .danger-icon {
+  margin-inline-start: -4px;
+}
+
+.guest-no-devices {
+  margin: 0;
+  padding: 14px 0 0;
+  font-size: var(--step--1);
+}
+
+/* The code to enter at trakt.tv/activate, set like a device's pairing code. */
+.trakt-code {
+  font-family: var(--code-face);
+  font-size: 1.6em;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.now-scanning {
+  color: var(--go);
+}
+
+/* Scanning, the button's own arrows turn rather than give way to the spinner. */
+.library-row .scan-button[aria-busy='true'] {
+  color: inherit !important;
+}
+
+.library-row .scan-button[aria-busy='true']::after {
+  content: none;
+}
+
+.library-row .scan-button[aria-busy='true'] svg {
+  animation: busy-spin 1.2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .library-row .scan-button[aria-busy='true'] svg {
+    animation: none;
+  }
+}
+
+/* Merge's choice of which album or artist to keep. */
+.health-merge-choices {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.health-merge-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}

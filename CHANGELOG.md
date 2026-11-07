@@ -177,6 +177,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Dragging a track into a new place in a long playlist or the queue keeps up with the pointer: each step redraws only the rows it passes over, and the playlist no longer redraws every row as the music moves on or pauses.
 - Music, podcasts and books paused or stopped in a browser tab let go of the computer's sound after a few seconds, so a tab that played something hours ago no longer costs battery or keeps a laptop from sleeping. Signing out or switching profile lets it go at once.
 - Now Playing's light costs your computer much less: the browser no longer blurs the whole window at every frame, and a few seconds after you pause, the light comes to rest and stops being drawn until the music plays again.
+- The first page has less style to download too: the player's and Settings' styles come with them the first time you open one.
 - In an audiobook library of more than a few hundred books, jumping to a letter no longer leaves books out of the grid.
 - On a podcast's page, **Show more episodes** carries on past 200 episodes, and each press loads just the next ones rather than the whole list again.
 - The Live TV guide opens and responds to a click more quickly when it has hundreds of channels.

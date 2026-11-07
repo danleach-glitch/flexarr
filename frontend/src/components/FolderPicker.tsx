@@ -3,6 +3,7 @@ import { browseFilesystem, chooseFolderOnMac } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { Folder, FolderUp } from './icons'
 import { t } from '../i18n'
+import '../styles/settings.lazy.css'
 
 type Props =
   /** Pick with the picker's own button, which `pickLabel` names. */

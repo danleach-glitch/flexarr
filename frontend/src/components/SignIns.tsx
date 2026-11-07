@@ -8,6 +8,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { DeviceTypeIcon } from './DeviceTypeIcon'
 import { Monitor } from './icons'
 import { locale, t, Words } from '../i18n'
+import '../styles/settings.lazy.css'
 
 const threeDays = 3 * 24 * 60 * 60 * 1000
 
