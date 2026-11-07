@@ -356,7 +356,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         val address = client.baseUrl.toString()
         val version = serverInfo?.takeIf { it.first == address }?.second
             ?: runCatching { client.systemStatus().version }.getOrNull()?.also { serverInfo = address to it }
-        return version to DeviceCapabilities.withServer(DeviceCapabilities.profile(context), version)
+        // Asking the system (decoders, the display, the HDMI output) takes a while: not on the main thread, which
+        // the TV's focus warm-ups call this from.
+        val profile = withContext(Dispatchers.Default) { DeviceCapabilities.profile(context) }
+        return version to DeviceCapabilities.withServer(profile, version)
     }
 
     /** The one warm-up being worked out (the server's version first), and for which title, so a drop can cancel it. */
