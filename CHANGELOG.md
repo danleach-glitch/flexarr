@@ -35,6 +35,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A profile can no longer cancel a film or show request that's headed for a library hidden from it. Its **Requested** list already left those out; now undoing one does nothing, as music's undo already did.
 - When someone listens to an audiobook in a library hidden from another profile, that profile is no longer told the name of the chapter being heard. It already saw only "Something private" in place of the title.
 - Family guests no longer see the household's Live TV recordings, and can't schedule, stop or delete them. A profile the Recordings library is hidden from no longer sees the list of what's recorded.
+- A Live TV source can no longer redirect a channel logo to somewhere else, such as a device on your home network, and have the server hand back what it found there. Logos only follow redirects that stay on the source.
 
 ## 0.62.1 · 5 November 2026
 

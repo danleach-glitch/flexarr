@@ -39,8 +39,16 @@ public sealed class XtreamException(string message, Exception? inner = null) : E
 /// Reads channels and the guide from an Xtream Codes API. Every address carries the password, so failures are
 /// reported in words and the HTTP client's own logging is off (see Program.cs).
 /// </summary>
-public sealed class XtreamClient(HttpClient http)
+public sealed class XtreamClient(HttpClient http, IHttpClientFactory clients)
 {
+    /// <summary>
+    /// The client logos are fetched with. It doesn't follow redirects itself: <see cref="GetLogoAsync"/> follows only
+    /// those that stay on the source or the community collection.
+    /// </summary>
+    public const string LogoClientName = "XtreamLogos";
+
+    private const int MaxLogoRedirects = 5;
+
     /// <summary>Most a channel logo may weigh.</summary>
     private const int MaxLogoBytes = 2 * 1024 * 1024;
 
@@ -111,13 +119,31 @@ public sealed class XtreamClient(HttpClient http)
     {
         ArgumentNullException.ThrowIfNull(account);
         ArgumentNullException.ThrowIfNull(logo);
-        // The source's own logos, or the community collection's; never anywhere else a channel list might point.
-        if (!account.Serves(logo) && !Core.LiveTv.CommunityLogos.IsCommunity(logo))
+        // The source's own logos, or the community collection's; never anywhere else a channel list might point, or a
+        // redirect from the source sends it.
+        var client = clients.CreateClient(LogoClientName);
+        var url = logo;
+        HttpResponseMessage? response = null;
+        for (var hop = 0; ; hop++)
         {
-            return null;
+            if (hop > MaxLogoRedirects || !account.Serves(url) && !Core.LiveTv.CommunityLogos.IsCommunity(url))
+            {
+                response?.Dispose();
+                return null;
+            }
+
+            response?.Dispose();
+            response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+            if ((int)response.StatusCode is >= 300 and < 400 && response.Headers.Location is { } location)
+            {
+                url = location.IsAbsoluteUri ? location : new Uri(url, location);
+                continue;
+            }
+
+            break;
         }
 
-        using var response = await http.GetAsync(logo, HttpCompletionOption.ResponseHeadersRead, ct);
+        using var _ = response;
         if (!response.IsSuccessStatusCode || response.Content.Headers.ContentType is not { MediaType: { } type } || !type.StartsWith("image/", StringComparison.Ordinal)
             || type.Contains("svg", StringComparison.Ordinal) || response.Content.Headers.ContentLength > MaxLogoBytes)
         {

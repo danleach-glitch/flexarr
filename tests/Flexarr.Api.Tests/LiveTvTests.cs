@@ -63,11 +63,16 @@ public sealed class FakeDispatcharr : HttpMessageHandler
             },
             "/xmltv.php" => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(Guide, Encoding.UTF8, "application/xml") },
             "/api/channels/logos/1/cache/" => Image(),
+            // Logos that redirect: to another of the source's own, and off it to a device on the home network.
+            "/api/channels/logos/8/cache/" => Redirect("/api/channels/logos/1/cache/"),
+            "/api/channels/logos/9/cache/" => Redirect("http://192.168.1.1/admin/logo.png"),
             // The community collection's file list (GitHub) and its logos.
             "/repos/tv-logo/tv-logos/git/trees/main" => Json("""{"tree":[{"path":"countries/united-kingdom/bbc-one-uk.png","type":"blob"},{"path":"countries/united-kingdom/sky-news-uk.png","type":"blob"}]}"""),
             _ => url.Host is "elsewhere.example" or "raw.githubusercontent.com" ? Image() : new HttpResponseMessage(HttpStatusCode.NotFound),
         });
     }
+
+    private static HttpResponseMessage Redirect(string to) => new(HttpStatusCode.Found) { Headers = { Location = new Uri(to, UriKind.RelativeOrAbsolute) } };
 
     private static HttpResponseMessage Json(string json) => new(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
 
@@ -90,6 +95,7 @@ public sealed class LiveTvTests : IDisposable
         _server = _factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
         {
             services.AddHttpClient<XtreamClient>().ConfigurePrimaryHttpMessageHandler(() => _dispatcharr);
+            services.AddHttpClient(XtreamClient.LogoClientName).ConfigurePrimaryHttpMessageHandler(() => _dispatcharr);
             // GitHub too, so tests never reach the internet.
             services.AddHttpClient(CommunityLogoIndex.ClientName).ConfigurePrimaryHttpMessageHandler(() => _dispatcharr);
         }));
@@ -599,6 +605,40 @@ public sealed class LiveTvTests : IDisposable
         Assert.DoesNotContain(_dispatcharr.Requests, u => u.Host == "elsewhere.example");
         // Sky News has no logo in Dispatcharr but one in the community collection, which it takes.
         Assert.Equal(JsonValueKind.String, channels[2].GetProperty("logoUrl").ValueKind);
+    }
+
+    [Fact]
+    public async Task A_logo_redirect_is_only_followed_while_it_stays_on_the_source()
+    {
+        // Channels the community collection has no logo for, so the source's own are used.
+        _dispatcharr.Channels[1] = _dispatcharr.Channels[1] with { Logo = $"{FakeDispatcharr.Root}/api/channels/logos/8/cache/" };
+        _dispatcharr.Channels.Add((4, 301, "Local TV", "UK General", $"{FakeDispatcharr.Root}/api/channels/logos/9/cache/"));
+        var client = Client();
+        await ConnectAsync(client);
+        var channels = await ChannelsAsync(client);
+        string? LogoOf(string name) => channels.Single(c => c.GetProperty("name").GetString() == name).GetProperty("logoUrl").GetString();
+
+        var own = await client.GetAsync(LogoOf("BBC Two"));
+        Assert.Equal(HttpStatusCode.OK, own.StatusCode);
+        Assert.Contains(_dispatcharr.Requests, u => u.AbsolutePath == "/api/channels/logos/1/cache/");
+
+        var away = await client.GetAsync(LogoOf("Local TV"));
+        Assert.Equal(HttpStatusCode.NotFound, away.StatusCode);
+        Assert.DoesNotContain(_dispatcharr.Requests, u => u.Host == "192.168.1.1");
+    }
+
+    [Fact]
+    public void The_logo_client_leaves_redirects_to_the_code_that_checks_them()
+    {
+        // Without the tests' stand-in: the server's own handler for logos.
+        using var factory = new FlexarrApiFactory();
+        var handler = factory.Services.GetRequiredService<IHttpMessageHandlerFactory>().CreateHandler(XtreamClient.LogoClientName);
+        while (handler is DelegatingHandler delegating)
+        {
+            handler = delegating.InnerHandler!;
+        }
+
+        Assert.False(Assert.IsType<SocketsHttpHandler>(handler).AllowAutoRedirect);
     }
 
     [Fact]
