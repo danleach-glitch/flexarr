@@ -46,9 +46,18 @@ public sealed partial class LanguageIndex(
     private DateTimeOffset _checkedAt = DateTimeOffset.MinValue;
     private DateTimeOffset _failedAt = DateTimeOffset.MinValue;
 
+    // One pack download at a time, and a pack version that failed isn't tried again for an hour: anyone may ask for a
+    // language, so a flexarr.io that's down (or a pack that doesn't match the index) mustn't start a download each time.
+    private readonly SemaphoreSlim _downloads = new(1, 1);
+    private readonly Dictionary<(string Code, long Version), DateTimeOffset> _packFailedAt = [];
+
     public LanguageCatalog Catalog { get; init; } = Loc.Catalog;
 
-    public void Dispose() => _gate.Dispose();
+    public void Dispose()
+    {
+        _gate.Dispose();
+        _downloads.Dispose();
+    }
 
     private string Folder => Path.Combine(options.CurrentValue.DataDirectory, "languages");
 
@@ -178,6 +187,34 @@ public sealed partial class LanguageIndex(
             return;
         }
 
+        await _downloads.WaitAsync(ct);
+        try
+        {
+            var now = clock.GetUtcNow();
+            if (_packFailedAt.TryGetValue((entry.Code, entry.Version), out var failed) && now - failed < RetryAfter)
+            {
+                return;
+            }
+
+            // Another request may have downloaded it while this one waited.
+            if (Catalog.Find(entry.Code) is { } have && have.Code == entry.Code && have.Version >= entry.Version)
+            {
+                return;
+            }
+
+            if (!await TryDownloadAsync(entry, url, ct))
+            {
+                _packFailedAt[(entry.Code, entry.Version)] = now;
+            }
+        }
+        finally
+        {
+            _downloads.Release();
+        }
+    }
+
+    private async Task<bool> TryDownloadAsync(LanguageIndexEntry entry, string url, CancellationToken ct)
+    {
         try
         {
             var packUrl = new Uri(new Uri(url), entry.Code + ".json");
@@ -185,14 +222,14 @@ public sealed partial class LanguageIndex(
             if (bytes.Length != entry.Size || !string.Equals(Convert.ToHexStringLower(SHA256.HashData(bytes)), entry.Sha256, StringComparison.Ordinal))
             {
                 LogBadPack(entry.Code, "its size or hash doesn't match the index");
-                return;
+                return false;
             }
 
             var pack = LanguagePack.Read(bytes);
             if (pack.Code != entry.Code)
             {
                 LogBadPack(entry.Code, $"it says it's {pack.Code}");
-                return;
+                return false;
             }
 
             Directory.CreateDirectory(Folder);
@@ -201,11 +238,14 @@ public sealed partial class LanguageIndex(
             {
                 LogInstalled(pack.Code, pack.Version);
             }
+
+            return true;
         }
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException or InvalidDataException or JsonException or IOException
                                       && !ct.IsCancellationRequested)
         {
             LogPackFailed(entry.Code, e.Message);
+            return false;
         }
     }
 

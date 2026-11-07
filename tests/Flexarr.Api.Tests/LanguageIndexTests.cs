@@ -29,16 +29,23 @@ public sealed class LanguageIndexTests : IDisposable
         public List<string> Asked { get; } = [];
         public bool Down { get; set; }
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        public TimeSpan Delay { get; set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri!.AbsolutePath;
-            Asked.Add(path);
+            lock (Asked)
+            {
+                Asked.Add(path);
+            }
+
             if (Down)
             {
                 throw new HttpRequestException("offline");
             }
 
-            return Task.FromResult(Files.TryGetValue(path, out var bytes)
+            await Task.Delay(Delay, cancellationToken);
+            return (Files.TryGetValue(path, out var bytes)
                 ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) }
                 : new HttpResponseMessage(HttpStatusCode.NotFound));
         }
@@ -101,6 +108,37 @@ public sealed class LanguageIndexTests : IDisposable
 
         Assert.Null(await index.EnsureAsync("de", CancellationToken.None));
         Assert.False(File.Exists(Path.Combine(_data, "languages", "de.json")));
+    }
+
+    [Fact]
+    public async Task A_pack_that_failed_isnt_downloaded_again_on_every_request()
+    {
+        Publish("de", 5, "Abspielen", sha: new string('0', 64));
+        var catalog = new LanguageCatalog();
+        using var index = Index(catalog);
+
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.Null(await index.EnsureAsync("de", CancellationToken.None));
+        }
+
+        await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => index.EnsureAsync("de", CancellationToken.None)));
+        Assert.Single(_site.Asked, "/languages/de.json");
+    }
+
+    [Fact]
+    public async Task Requests_at_once_for_a_language_download_its_pack_once()
+    {
+        Publish("de", 5, "Abspielen");
+        _site.Delay = TimeSpan.FromMilliseconds(200);
+        var catalog = new LanguageCatalog();
+        using var index = Index(catalog);
+        await index.RefreshAsync(CancellationToken.None);
+
+        var packs = await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => index.EnsureAsync("de", CancellationToken.None)));
+
+        Assert.All(packs, p => Assert.Equal("Abspielen", p!.Messages["Play"]));
+        Assert.Single(_site.Asked, "/languages/de.json");
     }
 
     [Fact]
