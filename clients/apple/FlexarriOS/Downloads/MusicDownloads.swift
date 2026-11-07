@@ -140,8 +140,7 @@ struct CollectionArtwork: View {
                 if let image = store.image(named: collection.imageFileName) {
                     Image(platformImage: image).resizable().scaledToFill()
                 } else {
-                    let names = store.tracks(in: collection).compactMap(\.imageFileName).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
-                    let covers = names.compactMap { store.image(named: $0) }
+                    let covers = mosaicCovers
                     if covers.count >= 4 {
                         VStack(spacing: 0) {
                             HStack(spacing: 0) { tile(covers[0]); tile(covers[1]) }
@@ -157,6 +156,17 @@ struct CollectionArtwork: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
+    }
+
+    /// The first four different covers of the tracks (or as many as there are), read no further than that.
+    private var mosaicCovers: [PlatformImage] {
+        var names = Set<String>(), covers: [PlatformImage] = []
+        for track in store.tracks(in: collection) {
+            guard let name = track.imageFileName, names.insert(name).inserted, let cover = store.image(named: name) else { continue }
+            covers.append(cover)
+            if covers.count == 4 { break }
+        }
+        return covers
     }
 
     private func tile(_ image: PlatformImage) -> some View {

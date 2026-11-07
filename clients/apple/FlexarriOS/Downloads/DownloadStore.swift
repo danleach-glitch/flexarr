@@ -902,6 +902,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             return nil
         }
         try? data.write(to: Self.folder.appending(path: name))
+        images.removeObject(forKey: name as NSString)
         return name
     }
 
@@ -945,6 +946,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     private func removeImageIfUnused(_ name: String?) {
         guard let name, !all.contains(where: { $0.imageFileName == name }), !collections.contains(where: { $0.imageFileName == name }) else { return }
         try? FileManager.default.removeItem(at: Self.folder.appending(path: name))
+        images.removeObject(forKey: name as NSString)
     }
 
     /// Signing out: every download goes, whoever's it was (the server keeps its record of what was declined).
@@ -1118,10 +1120,21 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         image(named: entry(for: trackId)?.imageFileName)
     }
 
+    /// Saved pictures already read from disk, by name: rows ask for theirs every time they're drawn (on each step of a
+    /// download's progress, say), and a playlist's mosaic for several.
+    @ObservationIgnored private let images: NSCache<NSString, PlatformImage> = {
+        let cache = NSCache<NSString, PlatformImage>()
+        cache.countLimit = 120
+        return cache
+    }()
+
     /// A saved picture, by the name a download or collection holds.
     func image(named name: String?) -> PlatformImage? {
         guard let name else { return nil }
-        return PlatformImage(contentsOfFile: Self.folder.appending(path: name).path(percentEncoded: false))
+        if let kept = images.object(forKey: name as NSString) { return kept }
+        guard let image = PlatformImage(contentsOfFile: Self.folder.appending(path: name).path(percentEncoded: false)) else { return nil }
+        images.setObject(image, forKey: name as NSString)
+        return image
     }
 
     // MARK: Saving
