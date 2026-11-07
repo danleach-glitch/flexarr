@@ -232,7 +232,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
     const timer = setTimeout(() => setQuery(search.trim()), 250)
     return () => clearTimeout(timer)
   }, [search])
-  const { items, total, error, moreError, busy, jumping, jumpFailed, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
+  const { items, end, total, error, moreError, busy, jumping, jumpFailed, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
     snapshotKey: `books-${view} ${library.id} ${key}`,
     query,
     pageSize: PAGE_SIZE,
@@ -306,7 +306,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
         </div>
         {letters && <AlphaRail jump={(l) => void jump(l)} jumping={jumping} failed={jumpFailed} empty={empty} />}
       </div>
-      <ShowMore loaded={items.length} total={total} pageSize={PAGE_SIZE} busy={busy} error={moreError} onMore={() => void loadMore()} />
+      <ShowMore loaded={end} total={total} pageSize={PAGE_SIZE} busy={busy} error={moreError} onMore={() => void loadMore()} />
     </>
   )
 }

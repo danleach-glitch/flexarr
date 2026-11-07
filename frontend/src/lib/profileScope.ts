@@ -70,11 +70,35 @@ export function forgetPlayed({ signedOut = false } = {}) {
 }
 
 /**
+ * Forgets the book places and play queues this browser kept for profiles other than the one chosen here now, as they
+ * name titles by their ids. For a change of profile: the next one (a child, say) finds none of the last one's. Settings
+ * that say nothing of what was played (the language, sound, the sidebar) stay, as do the chosen profile's own.
+ */
+export function forgetOtherProfiles() {
+  const own = profileKey('')
+  const others = (key: string) => (own ? !key.endsWith(own) : key.includes('.p-'))
+  try {
+    for (const key of storedKeys(localStorage, BOOK_PLACE_KEY).filter(others)) localStorage.removeItem(key)
+  } catch {
+    // Storage unavailable: nothing was kept.
+  }
+  try {
+    for (const key of storedKeys(sessionStorage, QUEUE_KEY).filter(others)) sessionStorage.removeItem(key)
+  } catch {
+    // The same.
+  }
+}
+
+/**
  * For the start of a page: when the last page in this tab signed out, forgets anything it still left as it went, and
- * keeps what's played from here on as usual.
+ * keeps what's played from here on as usual. Whatever the last page left for a profile no longer chosen here (it
+ * switched profile on its way out) goes too.
  */
 export function startKeepingPlayed() {
-  if (keepsPlayed()) return
+  if (keepsPlayed()) {
+    forgetOtherProfiles()
+    return
+  }
   forgetPlayed()
   try {
     sessionStorage.removeItem(SIGNED_OUT_KEY)

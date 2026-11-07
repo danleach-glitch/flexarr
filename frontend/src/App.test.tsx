@@ -1918,6 +1918,142 @@ describe('Library grid', () => {
     expect(within(rail).queryByRole('alert')).toBeNull()
   })
 
+  describe('jumping to a letter, where the server says where letters start', () => {
+    // 2,600 films, a hundred to each letter: A at 0, B at 100 … Z at 2,500.
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    const library = Array.from({ length: 2600 }, (_, i) => summary({ id: `a${i}`, title: `${alphabet[Math.floor(i / 100)]}film ${String(i).padStart(4, '0')}` }))
+    const runs = [...alphabet].map((letter, i) => ({ letter, offset: i * 100, count: 100 }))
+    function lettered(lettersAnswer: unknown = runs.filter((r) => r.letter !== 'Q')) {
+      const asked: { skip: number; take: number }[] = []
+      mockApi({
+        '/libraries': [{ ...movies, scan: null, itemCount: library.length }],
+        '/libraries/lib-movies/genres': [],
+        '/libraries/lib-movies/items/letters': lettersAnswer,
+        '/libraries/lib-movies/items': (_: RequestInit | undefined, url: URL) => {
+          const skip = Number(url.searchParams.get('skip') ?? 0)
+          const take = Number(url.searchParams.get('take'))
+          asked.push({ skip, take })
+          return { total: library.length, items: library.slice(skip, skip + take) }
+        },
+      })
+      return asked
+    }
+
+    it('loads only the page the letter starts on, with Show earlier and Show more around it', async () => {
+      const asked = lettered()
+      renderAt('/library/lib-movies?view=all')
+
+      const rail = await screen.findByRole('navigation', { name: 'Jump to letter' })
+      fireEvent.click(within(rail).getByRole('button', { name: 'T' }))
+
+      const first = await screen.findByRole('link', { name: 'Tfilm 1900' })
+      await vi.waitFor(() => expect(first).toHaveFocus())
+      expect(asked).toEqual([
+        { skip: 0, take: 200 },
+        { skip: 1900, take: 200 },
+      ])
+      expect(screen.getAllByRole('link', { name: /film \d+$/ })).toHaveLength(200)
+      expect(screen.queryByRole('link', { name: 'Afilm 0000' })).toBeNull()
+      // Q has no titles, so there's nothing to jump to.
+      expect(within(rail).getByRole('button', { name: 'Q' })).toBeDisabled()
+      expect(within(rail).getByRole('button', { name: 'Numbers and symbols' })).toBeDisabled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Show 200 more' }))
+      expect(await screen.findByRole('link', { name: 'Vfilm 2100' })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Show 200 earlier' }))
+      expect(await screen.findByRole('link', { name: 'Rfilm 1700' })).toBeInTheDocument()
+      expect(asked.slice(2)).toEqual([
+        { skip: 2100, take: 200 },
+        { skip: 1700, take: 200 },
+      ])
+      expect(screen.getAllByRole('link', { name: /film \d+$/ })).toHaveLength(600)
+      // In list order, the earlier page first.
+      const names = screen.getAllByRole('link', { name: /film \d+$/ }).map((l) => l.textContent)
+      expect(names[0]).toContain('Rfilm 1700')
+      expect(names[599]).toContain('Wfilm 2299')
+    })
+
+    it('grows the grid to a letter just past what’s loaded, as before', async () => {
+      const asked = lettered()
+      renderAt('/library/lib-movies?view=all')
+
+      const rail = await screen.findByRole('navigation', { name: 'Jump to letter' })
+      fireEvent.click(within(rail).getByRole('button', { name: 'D' }))
+
+      expect(await screen.findByRole('link', { name: 'Dfilm 0300' })).toBeInTheDocument()
+      expect(asked).toEqual([
+        { skip: 0, take: 200 },
+        { skip: 200, take: 300 },
+      ])
+      expect(screen.getByRole('link', { name: 'Afilm 0000' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /earlier/ })).toBeNull()
+    })
+
+    it('going back after a jump, has the same titles from the same place, without asking again', async () => {
+      const asked = lettered()
+      function Back() {
+        const navigate = useNavigate()
+        return <button onClick={() => navigate(-1)}>Back</button>
+      }
+      render(
+        <MemoryRouter initialEntries={['/library/lib-movies?view=all']}>
+          <Shell />
+          <Back />
+        </MemoryRouter>,
+      )
+      const rail = await screen.findByRole('navigation', { name: 'Jump to letter' })
+      fireEvent.click(within(rail).getByRole('button', { name: 'T' }))
+      fireEvent.click(await screen.findByRole('link', { name: 'Tfilm 1905' }))
+      await screen.findByRole('button', { name: 'Back' })
+      fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+      expect(await screen.findByRole('link', { name: 'Tfilm 1905' })).toBeInTheDocument()
+      expect(screen.getAllByRole('link', { name: /film \d+$/ })).toHaveLength(200)
+      expect(screen.getByRole('button', { name: 'Show 200 earlier' })).toBeInTheDocument()
+      expect(asked.filter((a) => a.skip === 1900)).toHaveLength(1)
+      fireEvent.click(screen.getByRole('button', { name: 'Show 200 more' }))
+      expect(await screen.findByRole('link', { name: 'Vfilm 2100' })).toBeInTheDocument()
+    })
+
+    it('keeps the letters after a jump to a last letter with only a few titles', async () => {
+      // 2,520 films: a hundred to each letter from A to Y, and twenty under Z.
+      const few = library.slice(0, 2500).concat(Array.from({ length: 20 }, (_, i) => summary({ id: `z${i}`, title: `Zfilm ${i}` })))
+      mockApi({
+        '/libraries': [{ ...movies, scan: null, itemCount: few.length }],
+        '/libraries/lib-movies/genres': [],
+        '/libraries/lib-movies/items/letters': runs.slice(0, 25).concat({ letter: 'Z', offset: 2500, count: 20 }),
+        '/libraries/lib-movies/items': (_: RequestInit | undefined, url: URL) => {
+          const skip = Number(url.searchParams.get('skip') ?? 0)
+          const take = Number(url.searchParams.get('take'))
+          return { total: few.length, items: few.slice(skip, skip + take) }
+        },
+      })
+      renderAt('/library/lib-movies?view=all')
+
+      const rail = await screen.findByRole('navigation', { name: 'Jump to letter' })
+      fireEvent.click(within(rail).getByRole('button', { name: 'Z' }))
+
+      expect(await screen.findByRole('link', { name: 'Zfilm 0' })).toBeInTheDocument()
+      expect(screen.getAllByRole('link', { name: /film \d+$/ })).toHaveLength(20)
+      const after = screen.getByRole('navigation', { name: 'Jump to letter' })
+      fireEvent.click(within(after).getByRole('button', { name: 'A' }))
+      expect(await screen.findByRole('link', { name: 'Afilm 0000' })).toBeInTheDocument()
+    })
+
+    it('on a server that can’t say, loads everything up to the letter', async () => {
+      const asked = lettered(new Response('', { status: 404 }))
+      renderAt('/library/lib-movies?view=all')
+
+      const rail = await screen.findByRole('navigation', { name: 'Jump to letter' })
+      fireEvent.click(within(rail).getByRole('button', { name: 'G' }))
+
+      expect(await screen.findByRole('link', { name: 'Gfilm 0600' })).toBeInTheDocument()
+      expect(asked[0]).toEqual({ skip: 0, take: 200 })
+      expect(asked.slice(1).map((a) => a.skip)).toEqual([200, 700, 1200, 1700])
+      expect(screen.getByRole('link', { name: 'Afilm 0000' })).toBeInTheDocument()
+    })
+  })
+
   it('dims letters with nothing to jump to, once the grid has loaded past them', async () => {
     grid()
     renderAt('/library/lib-movies?view=all')

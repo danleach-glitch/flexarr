@@ -44,6 +44,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The apps on iPhone, iPad, Mac and Apple TV download the guide again every half hour instead of every two to five minutes, which saves data away from home. Setting or cancelling a recording still updates it at once, and a recording starting or finishing still shows within a few minutes.
 - While you watch a channel on iPhone, iPad, Mac or Apple TV, the title over the picture no longer downloads the whole channel list every minute: it moves on to the next programme by itself, and asks your server only when it doesn't know what comes next.
 - When the Live TV source stops sending the guide part-way (its machine sleeps, or the network drops), the refresh gives up after two minutes and says so in Settings, instead of waiting until the server is restarted with no more guide or channel updates.
+- On the web, the guide opens sooner on Favourites: it downloads only your favourite channels while that's what's shown, leaves out programme descriptions until you open one, and an unchanged guide isn't downloaded again.
 
 ### Music
 
@@ -65,6 +66,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Rows and grids of titles load much faster on a server with audiobooks. Once a library held a few thousand books in series, every list (films, shows and episodes too, and each row of Home) took several times longer than it needed to.
 - **Fix match** answers sooner as you change what you're searching for: with a few thousand films or shows in Radarr or Sonarr, every search after the first no longer waits several seconds for their whole list again.
 - Covers kept beside your media (a cover.jpg, the artwork inside an album's or a book's files) no longer wake a sleeping drive each time a page shows them: once the server has a copy, it serves it without looking at the original. A cover you replace is picked up at the next library scan.
+- On the web, jumping to a letter in a big library is quick: it loads just the titles from that letter on, instead of every title before it, which could hold the page up for seconds. **Show earlier** above them brings in the ones before, a page at a time.
+- On the web, Settings opens sooner on a big library: its overview, and Settings › Libraries, ask the server for library health's score alone instead of building the whole report each time.
 
 ### Playback
 
@@ -76,7 +79,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Finding intros and credits gives way to people watching: it pauses before each episode while anything is playing, and holds off while the server is converting a stream for someone (the season you've just started is still done first). It used to work through a whole season at a time whatever else was going on.
 - Finding intros and credits no longer goes through a season again when its episodes were just done (after you change the audio track or quality, or start it on a second screen), and an episode that makes it hang no longer has the same season tried over and over: it moves on to the rest of the library and comes back to that season a day later.
 - Styled subtitles (the signs and songs of anime, say) appear sooner in the web player for a file with many fonts attached: the server lists a file's fonts once instead of once for every font the player asks for.
+- In the web player, styled subtitles only download the fonts their own lines use, not every font attached to the file, so they show sooner and get less in the way of the picture away from home.
 - On iPhone, iPad and Apple TV, the first play of a film or episode after the server restarts starts a moment sooner when its stream is sent as it is: when its sound begins is remembered with the rest of what the server knows about the file, instead of being read from the file again.
+
+### Backups
+
+- On the web, downloading a backup with a passphrase goes straight to your downloads as it's protected, as one without a passphrase already did, instead of the whole file being held in the page first, which could fail on a phone or with a big library.
 
 ### Security
 
@@ -122,6 +130,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Devices that aren't signed in and come from the same IPv6 network now share one count of wrong PINs, so a device can no longer earn fresh guesses by switching to a new IPv6 address.
 - On the web, a link someone sends you can no longer make your browser change anything on your server just by being opened. A link to a channel, title or playlist only ever asks for that one thing.
 - The page a device's QR code opens before you've signed in shows a device code and nothing else: a link can no longer put words of its sender's choosing there.
+- On the web, switching profile in a browser forgets the audiobook places and the music or podcast queue the last profile left there, so the next profile (a child, say) can't find which books and tracks they were. Each profile's places are still on the server.
 - **Sign out of this browser** also forgets what was played in it: each audiobook's place and the play queue. A browser keeps a book's place for a month after it was last played there rather than for good; after that the book starts from the place your server has.
 - Switching straight to another profile while something plays no longer leaves the queue in the other profile's player, or your place in an audiobook for that profile to start from.
 - The Tailscale connection built into the apps for family invites takes in a fix for a fault that could crash an app while it's connected that way.

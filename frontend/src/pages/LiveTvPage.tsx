@@ -1,7 +1,7 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PageLoading } from '../components/PageStatus'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { getLiveChannels, getLiveGuide, getLiveTvStatus, type LiveChannel, type LiveGuide, type LiveProgramme } from '../api/client'
+import { getLiveChannels, getLiveGuide, getLiveProgramme, getLiveTvStatus, type LiveChannel, type LiveGuide, type LiveProgramme } from '../api/client'
 import { FavouriteButton } from '../components/FavouriteButton'
 import { RecordControls } from '../components/RecordControls'
 import { ChannelLogo } from '../components/LiveChannelCard'
@@ -272,7 +272,9 @@ function Guide() {
   const { limited } = useAgeLimits()
   const [from] = useState(() => guideStart())
   const [hours, setHours] = useState(GUIDE_HOURS)
-  const [guide, setGuide] = useState<LiveGuide>()
+  /** The guide, and whether it was asked for the favourite channels only. */
+  const [loaded, setLoaded] = useState<{ guide: LiveGuide; favourites: boolean }>()
+  const guide = loaded?.guide
   const [failed, setFailed] = useState<string>()
   const [selected, setSelected] = useState<{ channel: LiveGuide['channels'][number]; programme: LiveProgramme }>()
   const [now, setNow] = useState(() => Date.now())
@@ -282,12 +284,34 @@ function Guide() {
   // Favourites first, as in On now, when there are any.
   const [favouritesChosen, setFavouritesOnly] = useState<boolean>()
   usePolling(() => setNow(Date.now()), 30_000)
+  // Until the guide says, as if there were favourites: asked for them alone first, a guide without any comes back
+  // empty, and every channel is asked for then.
+  const anyFavourite = guide ? guide.channels.some((c) => c.isFavourite) : true
+  const favouritesOnly = favouritesChosen ?? anyFavourite
+  // The favourites alone are asked for while they're what's shown. Asked for them, a server before the guide's filters
+  // sends every channel: then it has them all already.
+  const hasAll = !!loaded && (!loaded.favourites || loaded.guide.channels.some((c) => !c.isFavourite))
+  // A programme's description, fetched when its details open (the guide comes without them).
+  const [descriptions, setDescriptions] = useState<Record<number, string | null>>({})
+  const openId = selected?.programme.id
+  const openHasDescription = selected?.programme.description != null
+
+  useEffect(() => {
+    if (openId === undefined || openHasDescription || openId in descriptions) return
+    const controller = new AbortController()
+    getLiveProgramme(openId, controller.signal).then(
+      (p) => setDescriptions((all) => ({ ...all, [openId]: p?.description ?? null })),
+      () => undefined,
+    )
+    return () => controller.abort()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openId, openHasDescription])
 
   useEffect(() => {
     const controller = new AbortController()
-    getLiveGuide(from, hours, controller.signal).then(
+    getLiveGuide(from, hours, controller.signal, { favourites: favouritesOnly }).then(
       (loaded) => {
-        setGuide(loaded)
+        setLoaded({ guide: loaded, favourites: favouritesOnly })
         // The programme open in the details keeps up with its marks.
         setSelected((open) => {
           if (!open) return open
@@ -301,7 +325,7 @@ function Guide() {
       },
     )
     return () => controller.abort()
-  }, [from, hours, version])
+  }, [from, hours, version, favouritesOnly])
 
   const select = useCallback((channel: LiveGuide['channels'][number], programme: LiveProgramme) => setSelected({ channel, programme }), [])
   const minutes = (iso: string | number) => guideMinutes(from, iso)
@@ -309,9 +333,9 @@ function Guide() {
   const slots = Array.from({ length: hours * 2 }, (_, i) => new Date(from.getTime() + i * 30 * 60_000))
 
   if (failed) return <p className="error">{t('Couldn’t load the guide: {error}', { error: failed })}</p>
-  if (!guide) return <PageLoading label={t('Loading the guide')} />
-  const anyFavourite = guide.channels.some((c) => c.isFavourite)
-  const favouritesOnly = favouritesChosen ?? anyFavourite
+  // No favourites after all: on to every channel, still loading.
+  if (!guide || (!favouritesOnly && !hasAll && favouritesChosen === undefined)) return <PageLoading label={t('Loading the guide')} />
+  const description = selected && (selected.programme.description ?? descriptions[selected.programme.id])
   const rows = favouritesOnly ? guide.channels.filter((c) => c.isFavourite) : guide.channels
 
   return (
@@ -365,7 +389,7 @@ function Guide() {
             {selected.programme.isNew && '\u2003' + t('New')}
           </p>
           {selected.programme.subtitle && <p>{selected.programme.subtitle}</p>}
-          {selected.programme.description && <p>{selected.programme.description}</p>}
+          {description && <p>{description}</p>}
           <div className="livetv-details-actions">
             {Date.parse(selected.programme.start) <= now && Date.parse(selected.programme.end) > now && (
               <button className="button small" onClick={() => navigate(`/live/${selected.channel.id}`)}>

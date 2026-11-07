@@ -40,6 +40,16 @@ async function inTurn<T, R>(items: T[], limit: number, task: (item: T) => Promis
 }
 
 /**
+ * The address of the fonts `subtitle` (a styled track's key) is drawn with: the server sends only the fonts its script
+ * names, rather than every font attached to the file. Servers before the release after 0.62.1 ignore `subtitle` and
+ * send them all, which still works.
+ */
+export function fontsFor(fontsUrl: string | null | undefined, subtitle: string): string | null {
+  if (!fontsUrl) return null
+  return `${fontsUrl}${fontsUrl.includes('?') ? '&' : '?'}subtitle=${encodeURIComponent(subtitle)}`
+}
+
+/**
  * Draws ASS/SSA subtitles over `video` with libass (JASSUB, loaded only when needed): their fonts, colours, positions,
  * karaoke and effects. The file and the fonts attached to the video are fetched here, with the profile's headers, and
  * handed over, so the renderer's worker never needs to be signed in. Fonts aren't looked for on this computer, which

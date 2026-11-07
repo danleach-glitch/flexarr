@@ -4,6 +4,7 @@ import type {
   Activity,
   LiveChannel,
   LiveGuide,
+  LiveProgramme,
   LiveTvStatus,
   LiveTvTest,
   LiveWatch,
@@ -66,7 +67,7 @@ import type {
   SystemStatus,
   UpcomingItem,
 } from './types'
-import { forgetPlayed, PROFILE_STORAGE } from '../lib/profileScope'
+import { forgetOtherProfiles, forgetPlayed, PROFILE_STORAGE } from '../lib/profileScope'
 import { session } from '../lib/session'
 
 export type * from './types'
@@ -125,6 +126,8 @@ export function saveProfileToken(token: string | null) {
   } catch {
     // Storage unavailable: the profile lasts until the page reloads.
   }
+  // Another profile now: what the last one played here isn't left for it to find.
+  forgetOtherProfiles()
 }
 
 /**
@@ -565,6 +568,27 @@ export function getLibraryItems(
   return (options.take ?? 0) > 200 ? timedGet<Paged<ItemSummary>>(path, signal) : cachedGet<Paged<ItemSummary>>(path, signal)
 }
 
+/** Where a letter's titles start in a library's A–Z list: `offset` is the `skip` that loads its first one. */
+export interface LetterRun {
+  /** "A" to "Z", or "#" for anything else (before A, and again after Z for accented titles). */
+  letter: string
+  offset: number
+  count: number
+}
+
+/**
+ * Where each letter starts in getLibraryItems sorted A–Z, for the same search and genre, so a letter jump loads only
+ * the page it lands on. Null from servers before the release after 0.62.1, which answer 404.
+ */
+export function getLibraryLetters(id: string, options: { search?: string; genre?: string }, signal?: AbortSignal) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(options)) if (value) params.set(key, value)
+  return apiGet<LetterRun[]>(`/libraries/${seg(id)}/items/letters${params.size ? `?${params}` : ''}`, signal).catch((e: unknown) => {
+    if (e instanceof ApiError && e.status === 404) return null
+    throw e
+  })
+}
+
 /** A music library's albums (its items are its artists), paged like its items. Servers before 0.59 answer 404. */
 export function getLibraryAlbums(
   id: string,
@@ -938,8 +962,20 @@ export const getLiveTvStatus = (signal?: AbortSignal) => cachedGet<LiveTvStatus>
 export const getLiveChannels = (signal?: AbortSignal) => apiGet<LiveChannel[]>('/livetv/channels', signal)
 /** Whether profiles with an age limit may watch a channel (the main profile picks them). */
 export const setChannelFineForKids = (id: string, fineForKids: boolean) => request<void>('PUT', `/livetv/channels/${seg(id)}/kids`, { fineForKids })
-export const getLiveGuide = (from: Date, hours: number, signal?: AbortSignal) =>
-  apiGet<LiveGuide>(`/livetv/guide?from=${encodeURIComponent(from.toISOString())}&hours=${hours}`, signal)
+/**
+ * The guide from `from` for `hours`, without programmes' descriptions (getLiveProgramme has one), and with `favourites`
+ * only the profile's favourite channels. Servers before the release after 0.62.1 ignore both, sending every channel
+ * with descriptions, so a caller still picks out the favourites itself. Ask with the same `from` (on the half hour) for
+ * the browser to have an unchanged guide confirmed by its ETag rather than sent again.
+ */
+export const getLiveGuide = (from: Date, hours: number, signal?: AbortSignal, { favourites = false } = {}) =>
+  apiGet<LiveGuide>(`/livetv/guide?from=${encodeURIComponent(from.toISOString())}&hours=${hours}&descriptions=false${favourites ? '&favourites=true' : ''}`, signal)
+/** One programme, with its description; null when there's no such programme, or on a server before the endpoint (404). */
+export const getLiveProgramme = (id: number, signal?: AbortSignal) =>
+  apiGet<LiveProgramme>(`/livetv/programmes/${seg(id)}`, signal).catch((e: unknown) => {
+    if (e instanceof ApiError && e.status === 404) return null
+    throw e
+  })
 /** Starts watching a channel; `replaces` is the viewer's previous channel, let go first so its connection is free. */
 export const watchLiveChannel = (id: string, replaces?: string) => request<LiveWatch>('POST', `/livetv/channels/${seg(id)}/watch`, { replaces })
 
@@ -1238,16 +1274,33 @@ export const saveBackupSettings = (update: { folder?: string; nightly?: boolean 
 export const backUpNow = () => request<Backup>('POST', '/backups')
 export const deleteBackup = (name: string) => request<void>('DELETE', `/backups/${encodeURIComponent(name)}`)
 /**
- * Saves a backup to this computer, protected with `passphrase` when there is one. Without one it's a plain link (bought
- * with the admin PIN, as the file holds every key), so the browser writes it straight to disk rather than holding it
- * all in the page first.
+ * Whether a server of `version` (as /system/status says it) takes a passphrase on a backup's download link: releases
+ * after 0.62.1. Dev builds ("0.63.0-dev.<commit>") may be from before it, so they count as older.
+ */
+export function linksTakePassphrase(version: string | undefined): boolean {
+  const core = version?.split('+')[0]
+  if (!core || core.includes('-')) return false
+  const parts = core.split('.').map(Number)
+  if (parts.length !== 3 || parts.some((n) => !Number.isInteger(n))) return false
+  const [major, minor, patch] = parts
+  return major > 0 || minor > 62 || (minor === 62 && patch > 1)
+}
+
+/**
+ * Saves a backup to this computer, protected with `passphrase` when there is one. It's a one-use link (bought with the
+ * admin PIN, as the file holds every key, and carrying the passphrase when there is one), so the browser writes it
+ * straight to disk rather than holding it all in the page first.
  */
 export async function downloadBackup(name: string, confirmation: KeyConfirmation, passphrase?: string) {
-  if (passphrase) return download(`/backups/${encodeURIComponent(name)}/download`, { passphrase, ...confirmation }, name)
-  const { url } = await request<{ url: string }>('POST', `/backups/${encodeURIComponent(name)}/download-link`, confirmation)
+  // A link carrying the passphrase streams the protected backup to disk too. A server before them would ignore the
+  // passphrase and link the backup unprotected, so the page holds it while it's protected there instead.
+  if (passphrase && !linksTakePassphrase(await getSystemStatus().then((s) => s.version, () => undefined)))
+    return download(`/backups/${encodeURIComponent(name)}/download`, { passphrase, ...confirmation }, name)
+  const { url } = await request<{ url: string }>('POST', `/backups/${encodeURIComponent(name)}/download-link`, passphrase ? { ...confirmation, passphrase } : confirmation)
   const link = document.createElement('a')
   link.href = url
-  link.download = name
+  // The server names a protected backup as POST /download does: `.flexarr-backup` in place of `.zip`.
+  link.download = passphrase ? `${name.replace(/\.[^.]*$/, '')}.flexarr-backup` : name
   document.body.append(link)
   link.click()
   link.remove()
@@ -1393,6 +1446,16 @@ export const confirmHeldRemoval = (f: HeldFolder) =>
   request<void>('POST', `/library-health/held/${seg(f.folderId)}/confirm`, { since: f.since, missing: f.missing, known: f.known })
 
 export const getLibraryHealth = (signal?: AbortSignal) => apiGet<LibraryHealth>('/library-health', signal)
+
+/**
+ * Library health's score alone, which the server keeps for a few minutes, for Settings' summary lines. Servers before
+ * /library-health/score (after 0.62.1) answer 404: then the score comes from the whole report, as before.
+ */
+export const getLibraryHealthScore = (signal?: AbortSignal) =>
+  apiGet<LibraryHealth['score']>('/library-health/score', signal).catch(async (e: unknown) => {
+    if (e instanceof ApiError && e.status === 404) return (await getLibraryHealth(signal)).score
+    throw e
+  })
 
 export interface HealthCheckReport {
   running: boolean

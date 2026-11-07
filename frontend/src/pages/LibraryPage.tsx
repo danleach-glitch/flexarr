@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { PageError } from '../components/PageStatus'
 import { Link, Navigate, useNavigationType, useParams, useSearchParams } from 'react-router'
-import { forgetPage, getGenreTracks, getLibraryAlbumGenres, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, getMusicRequestStatus, getRequestStatusCached, imageUrl, keepPage, keptPage, type HomeRow, type Library } from '../api/client'
+import { forgetPage, getGenreTracks, getLibraryAlbumGenres, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, getLibraryLetters, getMusicRequestStatus, getRequestStatusCached, imageUrl, keepPage, keptPage, type HomeRow, type Library } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { GenreCovers } from '../components/GenreCovers'
@@ -17,7 +17,7 @@ import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
 import { LibraryRequested } from './LibraryRequested'
-import { AlphaPicker, AlphaRail, ShowMore, useLibraryGrid } from './libraryGrid'
+import { AlphaPicker, AlphaRail, ShowEarlier, ShowMore, useLibraryGrid } from './libraryGrid'
 import { t, Words } from '../i18n'
 
 const PAGE_SIZE = 200
@@ -402,13 +402,16 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
     const timer = setTimeout(() => setQuery(search.trim()), 250)
     return () => clearTimeout(timer)
   }, [search])
-  const { items, total, error, moreError, busy, jumping, jumpFailed, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
-    snapshotKey,
-    query,
-    pageSize: PAGE_SIZE,
-    itemCount: library?.itemCount,
-    load: (page, signal) => getPage(id, { search: query, sort, genre, ...page }, signal),
-  })
+  const { items, start, end, total, error, moreError, earlierError, busy, jumping, jumpFailed, grid, empty, small, grown, loadedCount, onGridClick, loadMore, loadEarlier, jump, restart } =
+    useLibraryGrid({
+      snapshotKey,
+      query,
+      pageSize: PAGE_SIZE,
+      itemCount: library?.itemCount,
+      load: (page, signal) => getPage(id, { search: query, sort, genre, ...page }, signal),
+      // Where letters start is known for titles, not albums.
+      letters: albums ? undefined : (signal) => getLibraryLetters(id, { search: query, genre }, signal),
+    })
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(params)
@@ -417,7 +420,9 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
     setParams(next, { replace: true })
   }
 
-  const letters = !sort && !query && items.length > 40
+  // Counted to the end of what's loaded: after a jump near the end the grid may hold only a few titles, and the
+  // letters still have to be there to jump back.
+  const letters = !sort && !query && end > 40
 
   if (!library) return null
 
@@ -491,6 +496,7 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
         </p>
       )}
 
+      <ShowEarlier start={start} pageSize={PAGE_SIZE} busy={busy} error={earlierError} onEarlier={() => void loadEarlier()} />
       <div className="library-body">
         {letters && <AlphaPicker jump={(l) => void jump(l)} jumping={jumping} failed={jumpFailed} empty={empty} />}
         <div
@@ -507,7 +513,7 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
         {letters && <AlphaRail jump={(l) => void jump(l)} jumping={jumping} failed={jumpFailed} empty={empty} />}
       </div>
 
-      <ShowMore loaded={items.length} total={total} pageSize={PAGE_SIZE} busy={busy} error={moreError} onMore={() => void loadMore()} />
+      <ShowMore loaded={end} total={total} pageSize={PAGE_SIZE} busy={busy} error={moreError} onMore={() => void loadMore()} />
     </div>
   )
 }

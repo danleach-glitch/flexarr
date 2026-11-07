@@ -68,4 +68,77 @@ describe('the Live TV guide', () => {
     expect(show).not.toHaveClass('selected')
     expect(times.mock.calls.length).toBeLessThanOrEqual(12 + 2)
   })
+
+  const status = { configured: true, channels: 20, refreshing: false, refreshedAt: null, error: null, rewindMinutes: 0 }
+  const answer = (list: typeof channels) => ({ from: new Date(start).toISOString(), until: new Date(start + 6 * hour).toISOString(), channels: list })
+  const starred = channels.map((c, i) => ({ ...c, isFavourite: i < 2 }))
+  const open = () =>
+    render(
+      <MemoryRouter initialEntries={['/livetv?view=guide']}>
+        <LiveTvPage />
+      </MemoryRouter>,
+    )
+  const guideAsks = (fetchMock: ReturnType<typeof mockApi>) =>
+    fetchMock.mock.calls.map(([input]) => new URL(String(input), 'http://localhost')).filter((u) => u.pathname === '/api/v1/livetv/guide')
+
+  it('asks for the favourite channels alone, without descriptions, when they’re what’s shown', async () => {
+    const fetchMock = mockApi({
+      '/livetv/status': status,
+      '/livetv/channels': [],
+      '/livetv/guide': (_: unknown, url: URL) => answer(url.searchParams.get('favourites') === 'true' ? starred.filter((c) => c.isFavourite) : starred),
+    })
+    open()
+
+    expect(await screen.findByRole('button', { name: /Show 2\.1/ })).toBeInTheDocument()
+    expect(document.querySelectorAll('.livetv-guide-row')).toHaveLength(2)
+    const asks = guideAsks(fetchMock)
+    expect(asks).toHaveLength(1)
+    expect(asks[0].searchParams.get('favourites')).toBe('true')
+    expect(asks[0].searchParams.get('descriptions')).toBe('false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'All channels' }))
+    await waitFor(() => expect(document.querySelectorAll('.livetv-guide-row')).toHaveLength(20))
+    expect(guideAsks(fetchMock).at(-1)?.searchParams.get('favourites')).toBeNull()
+  })
+
+  it('with no favourites, shows every channel', async () => {
+    const fetchMock = mockApi({
+      '/livetv/status': status,
+      '/livetv/channels': [],
+      '/livetv/guide': (_: unknown, url: URL) => answer(url.searchParams.get('favourites') === 'true' ? [] : channels),
+    })
+    open()
+
+    await waitFor(() => expect(document.querySelectorAll('.livetv-guide-row')).toHaveLength(20))
+    expect(screen.getByRole('button', { name: 'All channels' })).toHaveClass('active')
+    expect(screen.queryByText(/No favourites yet/)).not.toBeInTheDocument()
+    expect(guideAsks(fetchMock)).toHaveLength(2)
+  })
+
+  it('on a server that sends every channel whatever it’s asked, still shows the favourites alone', async () => {
+    mockApi({ '/livetv/status': status, '/livetv/channels': [], '/livetv/guide': answer(starred) })
+    open()
+
+    expect(await screen.findByRole('button', { name: /Show 1\.1/ })).toBeInTheDocument()
+    expect(document.querySelectorAll('.livetv-guide-row')).toHaveLength(2)
+    expect(screen.getByRole('button', { name: /Favourites/ })).toHaveClass('active')
+  })
+
+  it('fetches a programme’s description when its details open', async () => {
+    const fetchMock = mockApi({
+      '/livetv/status': status,
+      '/livetv/channels': [],
+      '/livetv/guide': answer(channels),
+      '/livetv/programmes/602': { ...programme(602, 2, 'Show 7.3'), description: 'A long story.' },
+    })
+    open()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Show 7\.3/ }))
+
+    expect(await screen.findByText('A long story.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Show 2\.1/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Show 7\.3/ }))
+    expect(await screen.findByText('A long story.')).toBeInTheDocument()
+    expect(fetchMock.mock.calls.filter(([input]) => String(input).includes('/livetv/programmes/602'))).toHaveLength(1)
+  })
 })
