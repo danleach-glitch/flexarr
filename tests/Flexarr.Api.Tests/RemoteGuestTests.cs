@@ -274,6 +274,23 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
     }
 
     [Fact]
+    public async Task A_guest_doesnt_see_or_change_the_households_recordings()
+    {
+        var (_, key) = await JoinAsync("Gran DVR");
+        using var guest = factory.From(RemoteGuestFactory.Guest, key);
+
+        var list = await guest.GetFromJsonAsync<JsonElement>("/api/v1/livetv/recordings");
+        Assert.Empty(list.GetProperty("upcoming").EnumerateArray());
+        Assert.Empty(list.GetProperty("recent").EnumerateArray());
+        // Refused before the recording is even looked up.
+        Assert.Equal(HttpStatusCode.Forbidden, (await guest.DeleteAsync($"/api/v1/livetv/recordings/{Guid.NewGuid()}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await guest.DeleteAsync($"/api/v1/livetv/recordings/series/{Guid.NewGuid()}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await guest.PutAsJsonAsync($"/api/v1/livetv/recordings/series/{Guid.NewGuid()}", new { newOnly = true })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await guest.PostAsJsonAsync("/api/v1/livetv/recordings", new { programmeId = 1 })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await guest.PostAsJsonAsync("/api/v1/livetv/recordings/series", new { programmeId = 1 })).StatusCode);
+    }
+
+    [Fact]
     public async Task A_guest_stays_on_its_profile_and_never_manages_the_server()
     {
         var (gran, key) = await JoinAsync("Gran7");

@@ -313,6 +313,36 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task A_profile_kept_out_of_the_Recordings_library_doesnt_see_the_recordings_list()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        var doctorWho = (await GuideProgrammeAsync(client, "Doctor Who")).GetProperty("id").GetInt64();
+        (await client.PostAsJsonAsync(Api("livetv/recordings"), new { programmeId = doctorWho })).EnsureSuccessStatusCode();
+
+        string hiddenFrom, sees;
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var recordings = db.Libraries.Add(new Library { Name = RecordingsLibrary.Name, Type = LibraryType.TvShows }).Entity;
+            var other = db.Libraries.Add(new Library { Name = "Films", Type = LibraryType.Movies }).Entity;
+            await db.SaveChangesAsync();
+            hiddenFrom = db.Profiles.Add(new Flexarr.Core.Media.Profile { Id = Flexarr.Core.Media.Profile.NewId(), Name = "Lodger", HiddenLibraryIds = [recordings.Id] }).Entity.Id;
+            sees = db.Profiles.Add(new Flexarr.Core.Media.Profile { Id = Flexarr.Core.Media.Profile.NewId(), Name = "Claire", HiddenLibraryIds = [other.Id] }).Entity.Id;
+            await db.SaveChangesAsync();
+        }
+
+        async Task<JsonElement> ListAsync(string profileId)
+        {
+            var token = (await (await client.PostAsJsonAsync(Api($"profiles/{profileId}/select"), new { })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+            return await Client(token).GetFromJsonAsync<JsonElement>(Api("livetv/recordings"));
+        }
+
+        Assert.Empty((await ListAsync(hiddenFrom)).GetProperty("upcoming").EnumerateArray());
+        Assert.Single((await ListAsync(sees)).GetProperty("upcoming").EnumerateArray());
+    }
+
+    [Fact]
     public async Task A_programme_can_be_set_to_record_and_taken_off_again()
     {
         var client = Client();

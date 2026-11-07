@@ -1,6 +1,8 @@
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Localization;
 using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
 using Flexarr.Core.LiveTv;
 using Flexarr.Core.Scanning;
 using Microsoft.EntityFrameworkCore;
@@ -42,7 +44,8 @@ public static class DvrEndpoints
         group.MapGet("/", async (FlexarrDbContext db, DvrService dvr, IOptionsMonitor<FlexarrOptions> options, TimeProvider clock, CurrentProfile profile,
             CancellationToken ct) =>
         {
-            if (db.IsLimited())
+            // A family guest isn't the household's, and a profile kept out of the Recordings library doesn't see what's in it.
+            if (db.IsLimited() || profile.IsGuest || await RecordingsHiddenAsync(db, ct))
             {
                 return new RecordingsDto([], [], [], 0, "", null);
             }
@@ -91,7 +94,7 @@ public static class DvrEndpoints
             await db.SaveChangesAsync(ct);
             signal.Request();
             return Results.Ok(await DtoAsync(db, dvr, recording, ct));
-        }).NotForAgeLimited();
+        }).NotForAgeLimited().NotForGuests();
 
         group.MapDelete("/{id:guid}", async (Guid id, FlexarrDbContext db, DvrService dvr, DvrSignal signal, ILibraryScanQueue scans, CancellationToken ct) =>
         {
@@ -128,7 +131,7 @@ public static class DvrEndpoints
             await db.SaveChangesAsync(ct);
             signal.Request();
             return Results.NoContent();
-        }).NotForAgeLimited();
+        }).NotForAgeLimited().NotForGuests();
 
         group.MapPost("/series", async (RecordSeriesRequest request, FlexarrDbContext db, DvrSignal signal, CurrentProfile profile, CancellationToken ct) =>
         {
@@ -151,7 +154,7 @@ public static class DvrEndpoints
             await db.SaveChangesAsync(ct);
             signal.Request();
             return Results.Ok((await RulesAsync(db, ct)).First(r => r.Id == rule.Id));
-        }).NotForAgeLimited();
+        }).NotForAgeLimited().NotForGuests();
 
         group.MapPut("/series/{id:guid}", async (Guid id, SeriesUpdate update, FlexarrDbContext db, DvrSignal signal, CancellationToken ct) =>
         {
@@ -170,7 +173,7 @@ public static class DvrEndpoints
             await db.SaveChangesAsync(ct);
             signal.Request();
             return Results.Ok((await RulesAsync(db, ct)).First(r => r.Id == rule.Id));
-        }).NotForAgeLimited();
+        }).NotForAgeLimited().NotForGuests();
 
         // A series stops: its scheduled showings come off the list; what it recorded stays.
         group.MapDelete("/series/{id:guid}", async (Guid id, FlexarrDbContext db, DvrSignal signal, CancellationToken ct) =>
@@ -185,9 +188,28 @@ public static class DvrEndpoints
             await db.SaveChangesAsync(ct);
             signal.Request();
             return Results.NoContent();
-        }).NotForAgeLimited();
+        }).NotForAgeLimited().NotForGuests();
 
         return api;
+    }
+
+    /// <summary>Turns away family guests: recordings are the household's to schedule, stop and delete.</summary>
+    private static RouteHandlerBuilder NotForGuests(this RouteHandlerBuilder builder) =>
+        builder.AddEndpointFilter(async (context, next) =>
+            context.HttpContext.RequestServices.GetRequiredService<CurrentProfile>().IsGuest
+                ? Problems.Of("Guests can’t change recordings.", status: 403)
+                : await next(context));
+
+    /// <summary>The Recordings library is one of those hidden from the profile <paramref name="db"/> serves.</summary>
+    private static async Task<bool> RecordingsHiddenAsync(FlexarrDbContext db, CancellationToken ct)
+    {
+        if (db.HiddenLibraryIds.Count == 0)
+        {
+            return false;
+        }
+
+        var ids = await db.Libraries.IgnoreQueryFilters().Where(l => l.Type == LibraryType.TvShows && l.Name == RecordingsLibrary.Name).Select(l => l.Id).ToListAsync(ct);
+        return ids.Any(db.HiddenLibraryIds.Contains);
     }
 
     /// <summary>What the guide shows on a programme: set to record, recording now, and whether a series covers it.</summary>

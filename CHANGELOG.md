@@ -34,6 +34,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Film and show requests have a daily limit, as music's already had: a profile can ask for up to 50 a day, counting titles its watchlist requests for it, so one profile or a guest's device can't have Radarr and Sonarr fill the disk. The main profile isn't limited.
 - A profile can no longer cancel a film or show request that's headed for a library hidden from it. Its **Requested** list already left those out; now undoing one does nothing, as music's undo already did.
 - When someone listens to an audiobook in a library hidden from another profile, that profile is no longer told the name of the chapter being heard. It already saw only "Something private" in place of the title.
+- Family guests no longer see the household's Live TV recordings, and can't schedule, stop or delete them. A profile the Recordings library is hidden from no longer sees the list of what's recorded.
 
 ## 0.62.1 · 5 November 2026
 
