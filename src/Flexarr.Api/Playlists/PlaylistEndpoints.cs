@@ -189,17 +189,35 @@ public static class PlaylistEndpoints
                 return Results.NotFound();
             }
 
-            var items = await db.PlaylistItems.Where(i => i.PlaylistId == id).OrderBy(i => i.Position).ToListAsync(ct);
-            if (items.FirstOrDefault(i => i.Id == entryId) is not { } entry)
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            if (await DenseCountAsync(db, id, ct) is not null)
             {
-                return Results.NotFound();
+                // Only the entries after it move up one.
+                if (await db.PlaylistItems.FirstOrDefaultAsync(i => i.PlaylistId == id && i.Id == entryId, ct) is not { } gone)
+                {
+                    return Results.NotFound();
+                }
+
+                db.PlaylistItems.Remove(gone);
+                await db.PlaylistItems.Where(i => i.PlaylistId == id && i.Position > gone.Position)
+                    .ExecuteUpdateAsync(u => u.SetProperty(i => i.Position, i => i.Position - 1), ct);
+            }
+            else
+            {
+                var items = await db.PlaylistItems.Where(i => i.PlaylistId == id).OrderBy(i => i.Position).ToListAsync(ct);
+                if (items.FirstOrDefault(i => i.Id == entryId) is not { } entry)
+                {
+                    return Results.NotFound();
+                }
+
+                items.Remove(entry);
+                db.PlaylistItems.Remove(entry);
+                Renumber(items);
             }
 
-            items.Remove(entry);
-            db.PlaylistItems.Remove(entry);
-            Renumber(items);
             playlist.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
             return Results.NoContent();
         });
 
@@ -210,17 +228,46 @@ public static class PlaylistEndpoints
                 return Results.NotFound();
             }
 
-            var items = await db.PlaylistItems.Where(i => i.PlaylistId == id).OrderBy(i => i.Position).ToListAsync(ct);
-            if (items.FirstOrDefault(i => i.Id == entryId) is not { } entry)
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            if (await DenseCountAsync(db, id, ct) is { } count)
             {
-                return Results.NotFound();
+                // Only the entries between its old place and its new one shift, by one.
+                if (await db.PlaylistItems.FirstOrDefaultAsync(i => i.PlaylistId == id && i.Id == entryId, ct) is not { } moving)
+                {
+                    return Results.NotFound();
+                }
+
+                var from = moving.Position;
+                var to = Math.Clamp(request.Position, 0, count - 1);
+                if (to < from)
+                {
+                    await db.PlaylistItems.Where(i => i.PlaylistId == id && i.Position >= to && i.Position < from)
+                        .ExecuteUpdateAsync(u => u.SetProperty(i => i.Position, i => i.Position + 1), ct);
+                }
+                else if (to > from)
+                {
+                    await db.PlaylistItems.Where(i => i.PlaylistId == id && i.Position > from && i.Position <= to)
+                        .ExecuteUpdateAsync(u => u.SetProperty(i => i.Position, i => i.Position - 1), ct);
+                }
+
+                moving.Position = to;
+            }
+            else
+            {
+                var items = await db.PlaylistItems.Where(i => i.PlaylistId == id).OrderBy(i => i.Position).ToListAsync(ct);
+                if (items.FirstOrDefault(i => i.Id == entryId) is not { } entry)
+                {
+                    return Results.NotFound();
+                }
+
+                items.Remove(entry);
+                items.Insert(Math.Clamp(request.Position, 0, items.Count), entry);
+                Renumber(items);
             }
 
-            items.Remove(entry);
-            items.Insert(Math.Clamp(request.Position, 0, items.Count), entry);
-            Renumber(items);
             playlist.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
             return Results.NoContent();
         });
 
@@ -244,6 +291,19 @@ public static class PlaylistEndpoints
     {
         var trimmed = name?.Trim();
         return string.IsNullOrEmpty(trimmed) ? null : trimmed[..Math.Min(trimmed.Length, 120)];
+    }
+
+    /// <summary>
+    /// How many entries the playlist has when their positions run 0, 1, 2… with no gaps or repeats, so a move or a
+    /// removal need only shift the entries in between; else null (a track gone from the library left a gap), and the
+    /// whole list is numbered again.
+    /// </summary>
+    private static async Task<int?> DenseCountAsync(FlexarrDbContext db, Guid id, CancellationToken ct)
+    {
+        var shape = await db.PlaylistItems.Where(i => i.PlaylistId == id).GroupBy(i => i.PlaylistId)
+            .Select(g => new { Count = g.Count(), Lowest = g.Min(i => i.Position), Highest = g.Max(i => i.Position), Distinct = g.Select(i => i.Position).Distinct().Count() })
+            .FirstOrDefaultAsync(ct);
+        return shape is not null && shape.Lowest == 0 && shape.Highest == shape.Count - 1 && shape.Distinct == shape.Count ? shape.Count : null;
     }
 
     /// <summary>Positions from 0 without gaps, in the order given.</summary>

@@ -52,6 +52,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - **Play** and **Shuffle** on an artist or an album start sooner on a big library, most of all on a slower server: gathering the tracks no longer reads through every title you have.
 - A song's volume levelling (ReplayGain) is read when the library scans the file, not the first time the song is played, so the first play of music added from now on starts a touch sooner, most of all from a drive that was asleep. Music already in your library works as before.
 - Home, a music library's Browse and the playlists page open sooner when you have long playlists: a playlist's track count, length and covers are worked out by the server's database instead of reading every song in every playlist each time.
+- Moving or removing a song in a long playlist is quicker: only the songs between its old place and its new one are renumbered, instead of every song in the playlist.
 
 ### Security
 

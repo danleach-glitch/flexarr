@@ -70,6 +70,73 @@ public class PlaylistTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApi
     }
 
     [Fact]
+    public async Task MovesAndRemovals_KeepTheOrderAListWould_WithOrWithoutGapsInThePositions()
+    {
+        var music = await SeedAsync();
+        var artist = await SeedArtistAsync(music.Library, 12);
+        var client = Client();
+        var created = await (await client.PostAsJsonAsync(Api("/playlists"), new { name = "Shuffle" })).Content.ReadFromJsonAsync<PlaylistSummaryDto>(Json);
+        (await client.PostAsJsonAsync(Api($"/playlists/{created!.Id}/items"), new { itemIds = new[] { artist } })).EnsureSuccessStatusCode();
+        var expected = (await client.GetFromJsonAsync<PlaylistDetailDto>(Api($"/playlists/{created.Id}"), Json))!.Tracks.Select(t => (t.EntryId, t.Track.Title)).ToList();
+
+        async Task CheckAsync()
+        {
+            var detail = (await client.GetFromJsonAsync<PlaylistDetailDto>(Api($"/playlists/{created.Id}"), Json))!;
+            Assert.Equal(expected, detail.Tracks.Select(t => (t.EntryId, t.Track.Title)));
+            using var scope = factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            Assert.Equal(Enumerable.Range(0, expected.Count), db.PlaylistItems.Where(i => i.PlaylistId == created.Id).OrderBy(i => i.Position).Select(i => i.Position).ToList());
+        }
+
+        async Task MoveAsync(int index, int position)
+        {
+            var entry = expected[index];
+            (await client.PutAsJsonAsync(Api($"/playlists/{created.Id}/items/{entry.EntryId}/position"), new { position })).EnsureSuccessStatusCode();
+            expected.RemoveAt(index);
+            expected.Insert(Math.Clamp(position, 0, expected.Count), entry);
+            await CheckAsync();
+        }
+
+        async Task RemoveAsync(int index)
+        {
+            (await client.DeleteAsync(Api($"/playlists/{created.Id}/items/{expected[index].EntryId}"))).EnsureSuccessStatusCode();
+            expected.RemoveAt(index);
+            await CheckAsync();
+        }
+
+        // From the end to the start and back, within the middle, onto itself, and past either end.
+        await MoveAsync(11, 0);
+        await MoveAsync(0, 11);
+        await MoveAsync(3, 7);
+        await MoveAsync(8, 2);
+        await MoveAsync(5, 5);
+        await MoveAsync(4, 99);
+        await MoveAsync(6, -3);
+        await RemoveAsync(0);
+        await RemoveAsync(5);
+        await RemoveAsync(expected.Count - 1);
+
+        // A track gone from the library leaves a gap: the next change numbers the list again, in the same order.
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var entry = db.PlaylistItems.Single(i => i.Id == expected[3].EntryId);
+            db.PlaylistItems.Remove(entry);
+            db.SaveChanges();
+        }
+
+        expected.RemoveAt(3);
+        await MoveAsync(1, 6);
+        await RemoveAsync(2);
+        await MoveAsync(expected.Count - 1, 0);
+
+        // A missing entry is still not found.
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync(Api($"/playlists/{created.Id}/items/999999"))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsJsonAsync(Api($"/playlists/{created.Id}/items/999999/position"), new { position = 0 })).StatusCode);
+        await CheckAsync();
+    }
+
+    [Fact]
     public async Task APlaylist_CanBeRenamed_GivenACover_AndDeleted()
     {
         var music = await SeedAsync();
