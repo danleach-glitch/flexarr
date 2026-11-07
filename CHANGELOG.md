@@ -40,7 +40,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Live TV
 
-- On iPhone, iPad and Mac, the guide draws faster with a long channel list, and tapping a channel's logo no longer redraws the whole grid.
+- On iPhone, iPad and Mac, the guide opens and scrolls smoothly with hundreds of channels: it lays out only the channels near the screen, and tapping a channel's logo no longer redraws the whole grid.
 - The apps on iPhone, iPad, Mac and Apple TV download the guide again every half hour instead of every two to five minutes, which saves data away from home. Setting or cancelling a recording still updates it at once, and a recording starting or finishing still shows within a few minutes.
 - On iPhone, iPad, Mac and Apple TV, the guide downloads without each programme's description, so it's much smaller; the description is fetched when you open a programme. With a server before this release, the guide comes as before.
 - On Apple TV, the guide downloads the next few hours rather than the whole day, and more as you page on through it; on iPhone, iPad, Mac and Apple TV, Favourites downloads only your favourite channels' guide, and a guide that hasn't changed isn't downloaded again.
