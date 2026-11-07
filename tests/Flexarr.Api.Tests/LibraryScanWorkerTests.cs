@@ -84,15 +84,9 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
-    public async Task TheScheduledScan_IsFullOnceADay_AndOtherwiseOnlyWhatChanged()
+    public async Task TheScheduledScan_SkipsAFolderScannedInFullWithinTwelveHours_AndQueuesItWhenTheyreUp()
     {
         var root = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, $"films-{Guid.NewGuid():N}")).FullName;
-        foreach (var film in new[] { "Dune (2021)", "Heat (1995)" })
-        {
-            Directory.CreateDirectory(Path.Combine(root, film));
-            File.WriteAllText(Path.Combine(root, film, $"{film}.mkv"), "x");
-        }
-
         var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = root }] };
         using (var scope = factory.Services.CreateScope())
         {
@@ -102,15 +96,15 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
         }
 
         var queue = new LibraryScanQueue();
-        using var worker = new LibraryScanWorker(queue, factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+        LibraryScanWorker Worker() => new(queue, factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
             factory.Services.GetRequiredService<LibraryWorkGate>());
-        async Task<List<string>> QueuedAsync()
+        async Task<List<string>> QueuedAsync(LibraryScanWorker worker)
         {
-            await worker.EnqueueAllAsync("Scheduled", default);
+            await worker.EnqueueAllAsync("Startup", default);
             var queued = new List<string>();
             while (queue.TryDequeue(out var request))
             {
-                if (request.Path.StartsWith(root, StringComparison.Ordinal))
+                if (request.Path == root)
                 {
                     queued.Add(request.Path);
                 }
@@ -126,25 +120,88 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
             await db.LibraryFolders.Where(f => f.LibraryId == library.Id).ExecuteUpdateAsync(u => u.SetProperty(f => f.FullScanAt, at));
         }
 
-        // Never scanned in full: in full.
-        Assert.Equal([root], await QueuedAsync());
-
-        // Scanned in full an hour ago, nothing changed since: nothing.
-        foreach (var folder in Directory.EnumerateDirectories(root).Append(root))
+        // Never scanned in full: queued, and not again while that's still to do.
+        using (var worker = Worker())
         {
-            Directory.SetLastWriteTimeUtc(folder, DateTime.UtcNow.AddHours(-2));
+            Assert.Equal([root], await QueuedAsync(worker));
+            Assert.Empty(await QueuedAsync(worker));
         }
 
+        // Started again an hour after a full scan: left until the 12 hours are up.
         await FullScanAtAsync(DateTime.UtcNow.AddHours(-1));
-        Assert.Empty(await QueuedAsync());
+        using (var worker = Worker())
+        {
+            Assert.Empty(await QueuedAsync(worker));
+        }
 
-        // A film's folder changed: just that one.
-        File.WriteAllText(Path.Combine(root, "Heat (1995)", "Heat (1995).srt"), "x");
-        Assert.Equal([Path.Combine(root, "Heat (1995)")], await QueuedAsync());
+        // Started again 13 hours after: queued.
+        await FullScanAtAsync(DateTime.UtcNow.AddHours(-13));
+        using (var worker = Worker())
+        {
+            Assert.Equal([root], await QueuedAsync(worker));
+        }
 
-        // A day on: in full again.
-        await FullScanAtAsync(DateTime.UtcNow - LibraryScanWorker.FullScanAfter - TimeSpan.FromMinutes(1));
-        Assert.Equal([root], await QueuedAsync());
+        // A clock put back since: queued rather than waited for.
+        await FullScanAtAsync(DateTime.UtcNow.AddHours(5));
+        using (var worker = Worker())
+        {
+            Assert.Equal([root], await QueuedAsync(worker));
+        }
+    }
+
+    [Fact]
+    public async Task AScanOfTheWholeFolder_RecordsWhenItFinished_AndAScanOfPartOfItDoesnt()
+    {
+        using var host = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<IMediaProbe>(new FixedProbe())));
+        var root = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, $"films-{Guid.NewGuid():N}")).FullName;
+        foreach (var film in new[] { "Dune (2021)", "Heat (1995)" })
+        {
+            Directory.CreateDirectory(Path.Combine(root, film));
+            File.WriteAllText(Path.Combine(root, film, $"{film}.mkv"), "x");
+        }
+
+        // Scanned in full an hour ago: the worker's start leaves it alone.
+        var hourAgo = DateTime.UtcNow.AddHours(-1);
+        var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = root, FullScanAt = hourAgo }] };
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.Libraries.Add(library);
+            await db.SaveChangesAsync();
+        }
+
+        var queue = new LibraryScanQueue();
+        using var worker = new LibraryScanWorker(queue, host.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            host.Services.GetRequiredService<LibraryWorkGate>());
+        async Task<(int Items, DateTime? FullScanAt)> StateAsync()
+        {
+            using var scope = host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            return (await db.MediaItems.CountAsync(m => m.LibraryId == library.Id && m.Kind == MediaKind.Movie),
+                (await db.LibraryFolders.AsNoTracking().SingleAsync(f => f.LibraryId == library.Id)).FullScanAt);
+        }
+
+        await queue.EnqueueAsync(new LibraryScanRequest(Path.Combine(root, "Dune (2021)"), "Radarr Download"));
+        await worker.StartAsync(default);
+        for (var i = 0; i < 100 && (await StateAsync()).Items == 0; i++)
+        {
+            await Task.Delay(100);
+        }
+
+        Assert.Equal((1, (DateTime?)hourAgo), await StateAsync());
+
+        var before = DateTime.UtcNow;
+        await queue.EnqueueAsync(new LibraryScanRequest(root, "Library scan"));
+        for (var i = 0; i < 100 && (await StateAsync()).FullScanAt == hourAgo; i++)
+        {
+            await Task.Delay(100);
+        }
+
+        var (items, at) = await StateAsync();
+        await worker.StopAsync(default);
+        Assert.Equal(2, items);
+        Assert.NotNull(at);
+        Assert.InRange(at.Value, before, DateTime.UtcNow);
     }
 
     [Fact]

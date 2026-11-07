@@ -1035,56 +1035,6 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         Assert.NotEmpty(await _db.MediaStreams.Where(s => s.MediaFileId == changed.Id).ToListAsync());
     }
 
-    [Fact]
-    public async Task ASweep_FindsTheChangedNewAndRemovedFolders_AndScanningThemLeavesAFullScanNothingToDo()
-    {
-        var root = Touch(
-            "tv/Changed/Season 01/Changed - S01E01.mkv",
-            "tv/Removed/Season 01/Removed - S01E01.mkv",
-            "tv/Untouched/Season 01/Untouched - S01E01.mkv",
-            "tv/Untouched/Season 02/Untouched - S02E01.mkv");
-        var tv = Path.Combine(root, "tv");
-        var library = await AddLibrary(LibraryType.TvShows, tv);
-        var before = DateTime.UtcNow;
-        await Scanner().ScanAsync(library, null, default);
-        var fullScanAt = (await _db.LibraryFolders.AsNoTracking().SingleAsync(f => f.LibraryId == library.Id)).FullScanAt;
-        Assert.True(fullScanAt >= before.AddSeconds(-1), "a full scan records when it began");
-
-        // Every folder as it was an hour ago: nothing has changed since.
-        var since = DateTime.UtcNow;
-        foreach (var folder in Directory.EnumerateDirectories(tv, "*", SearchOption.AllDirectories).Append(tv))
-        {
-            Directory.SetLastWriteTimeUtc(folder, since.AddHours(-1));
-        }
-
-        Assert.Empty(await LibrarySweep.ChangedAsync(_db, library, tv, since, default));
-
-        // A new episode, a series deleted, and one moved in from elsewhere keeping its own older times.
-        Touch("tv/Changed/Season 01/Changed - S01E02.mkv");
-        Directory.Delete(Path.Combine(tv, "Removed"), recursive: true);
-        Touch("tv/Moved In/Season 01/Moved In - S01E01.mkv");
-        Directory.SetLastWriteTimeUtc(Path.Combine(tv, "Moved In", "Season 01"), since.AddDays(-3));
-        Directory.SetLastWriteTimeUtc(Path.Combine(tv, "Moved In"), since.AddDays(-3));
-
-        var changed = await LibrarySweep.ChangedAsync(_db, library, tv, since, default);
-
-        Assert.Equal([Path.Combine(tv, "Changed", "Season 01"), Path.Combine(tv, "Moved In"), Path.Combine(tv, "Removed")], changed.Order(StringComparer.Ordinal));
-        foreach (var path in changed)
-        {
-            await Scanner().ScanAsync(library, path, default);
-        }
-
-        var episodes = await _db.MediaItems.Where(i => i.Kind == MediaKind.Episode)
-            .Select(i => new { Series = i.Parent!.Parent!.Title, Season = i.SeasonNumber!.Value, Episode = i.EpisodeNumber!.Value }).ToListAsync();
-        Assert.Equal([("Changed", 1, 1), ("Changed", 1, 2), ("Moved In", 1, 1), ("Untouched", 1, 1), ("Untouched", 2, 1)],
-            episodes.Select(e => (e.Series, e.Season, e.Episode)).OrderBy(e => e.Series, StringComparer.Ordinal).ThenBy(e => e.Season).ThenBy(e => e.Episode));
-        Assert.Equal(fullScanAt, (await _db.LibraryFolders.AsNoTracking().SingleAsync(f => f.LibraryId == library.Id)).FullScanAt); // only full scans move it
-
-        // A full scan now finds nothing the sweep missed.
-        var full = await Scanner().ScanAsync(library, null, default);
-        Assert.Equal((0, 0, 0, 5), (full.Added, full.Updated, full.Missing, full.Unchanged));
-    }
-
     private LibraryScanner Scanner() => new(_db, _probe, new ScanProgress(), NullLogger<LibraryScanner>.Instance);
 
     private async Task<Library> AddLibrary(LibraryType type, string folder)

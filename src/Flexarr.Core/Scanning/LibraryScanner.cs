@@ -82,7 +82,6 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             ? roots.Select(r => (Root: r, Scope: r)).ToList()
             : roots.Where(r => PathComparison.IsUnder(scope, r)).Select(r => (Root: r, Scope: OnDiskSpelling(r, scope))).ToList();
 
-        var began = DateTime.UtcNow;
         var state = await ItemIndex.LoadAsync(db, library, scope is null ? null : targets, cancellationToken).ConfigureAwait(false);
         int added = 0, updated = 0, removed = 0, unchanged = 0, unmatched = 0, failures = 0, missing = 0;
         var held = false; // A folder looked unmounted: remove nothing this time.
@@ -322,11 +321,6 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             if (full && !suspicious && folder is not null && (folder.Hold is not null || folder.ReleasedAt is not null))
             {
                 Clear(folder, releasedAt: null); // Looks normal again.
-            }
-
-            if (full && !holding && folder is not null)
-            {
-                folder.FullScanAt = began; // What changes from here on, a sweep finds by the folders' times.
             }
 
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
