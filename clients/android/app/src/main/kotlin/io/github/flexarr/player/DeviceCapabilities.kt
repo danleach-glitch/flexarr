@@ -129,6 +129,42 @@ object DeviceCapabilities {
         return ENCODINGS.filter { (encoding, _) -> capabilities.supportsEncoding(encoding) }.map { it.second }.toSet()
     }
 
+    /** The screen as it is now, and the refresh rates it can switch to (Settings › Diagnostics). */
+    data class Screen(val width: Int, val height: Int, val refreshRate: Float, val refreshRates: List<Float>)
+
+    fun screen(context: Context): Screen? {
+        val display = context.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY) ?: return null
+        val mode = display.mode
+        val rates = display.supportedModes.filter { it.physicalWidth == mode.physicalWidth && it.physicalHeight == mode.physicalHeight }
+            .map { it.refreshRate }.distinct().sorted()
+        return Screen(mode.physicalWidth, mode.physicalHeight, mode.refreshRate, rates)
+    }
+
+    /** HDR types by their names, Dolby Vision first. */
+    fun hdrNames(types: Set<Int>): List<String> =
+        listOf(DOLBY_VISION to "Dolby Vision", HDR10 to "HDR10", HDR10_PLUS to "HDR10+", HLG to "HLG").filter { it.first in types }.map { it.second }
+
+    /** Passed-through formats by their names. */
+    fun surroundNames(formats: Set<String>): List<String> = listOf(
+        "ac3" to "Dolby Digital", "eac3" to "Dolby Digital Plus", "eac3-joc" to "Dolby Atmos",
+        "dts" to "DTS", "dts-hd" to "DTS-HD", "truehd" to "Dolby TrueHD",
+    ).filter { it.first in formats }.map { it.second }
+
+    /** What the TV reports, in English, for the log sent with diagnostics. */
+    fun report(context: Context): List<String> {
+        val facts = facts(context)
+        val profile = profile(facts)
+        return listOfNotNull(
+            screen(context)?.let { "Screen: ${it.width}×${it.height} at ${rate(it.refreshRate)} Hz; switches to ${it.refreshRates.joinToString { r -> rate(r) }} Hz" },
+            "HDR: ${hdrNames(facts.hdrTypes).ifEmpty { listOf("none") }.joinToString()}",
+            "4K decoding: ${if (profile.maxHeight >= 2160) "yes" else "no"}",
+            "Surround to the output: ${surroundNames(facts.passthrough).ifEmpty { listOf("none") }.joinToString()}${if (facts.passesThrough) "" else " (decoded here)"}",
+            "Sent to the server: video ${profile.videoCodecs.joinToString()}; audio ${profile.audioCodecs.joinToString()}",
+        )
+    }
+
+    fun rate(hz: Float): String = String.format(java.util.Locale.ROOT, "%.3f", hz).trimEnd('0').trimEnd('.')
+
     const val HDR10 = 2 // Display.HdrCapabilities.HDR_TYPE_HDR10
     const val HLG = 3 // HDR_TYPE_HLG
     const val HDR10_PLUS = 4 // HDR_TYPE_HDR10_PLUS

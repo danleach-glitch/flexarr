@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.SurroundSound
+import androidx.compose.material.icons.filled.HdrOn
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.GridView
@@ -78,6 +80,7 @@ import io.github.flexarr.core.shownSubtitlePosition
 import io.github.flexarr.core.shownSubtitleSize
 import io.github.flexarr.data.PlayerSettings
 import io.github.flexarr.data.SoundSettings
+import io.github.flexarr.player.DeviceCapabilities
 import io.github.flexarr.logging.ErrorReports
 import io.github.flexarr.logging.LogHub
 import io.github.flexarr.ui.components.Load
@@ -611,6 +614,11 @@ internal fun TvServerSettings(model: AppModel, libraries: Loader<List<Library>>,
 @Composable
 internal fun TvDiagnosticsSettings(model: AppModel) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    // What this TV says it takes, asked once as the page opens.
+    val facts = remember { DeviceCapabilities.facts(context) }
+    val screen = remember { DeviceCapabilities.screen(context) }
+    val profile = remember(facts) { DeviceCapabilities.profile(facts) }
     var note by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
     var outcome by remember { mutableStateOf<String?>(null) }
@@ -625,7 +633,7 @@ internal fun TvDiagnosticsSettings(model: AppModel) {
         outcome = null
         scope.launch {
             outcome = try {
-                val id = LogHub.sendDiagnostics(client, diagnosticsHeader(model), note)
+                val id = LogHub.sendDiagnostics(client, diagnosticsHeader(model, context), note)
                 note = ""
                 t("Sent to your server ({id}). Mention that if you ask for help.", "id" to id)
             } catch (e: FlexarrException) {
@@ -662,6 +670,30 @@ internal fun TvDiagnosticsSettings(model: AppModel) {
             } else {
                 outcome?.let { Text(it, fontSize = 13.5.sp, color = Flexarr.usher, lineHeight = 17.5.sp, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp)) }
             }
+        }
+        item { TvSettingsGroupLabel(t("What this TV reports")) }
+        screen?.let { screen ->
+            item {
+                TvSettingsRow(
+                    t("Screen"), onClick = {}, icon = Icons.Filled.Tv,
+                    value = t("{width}×{height}, {rate} Hz", "width" to screen.width, "height" to screen.height, "rate" to DeviceCapabilities.rate(screen.refreshRate)),
+                    help = t("Refresh rates it can switch to: {rates} Hz. Whether it switches to a film’s is the TV’s own setting, Match content frame rate.", "rates" to screen.refreshRates.joinToString { DeviceCapabilities.rate(it) }),
+                )
+            }
+        }
+        item {
+            TvSettingsRow(
+                t("HDR"), onClick = {}, icon = Icons.Filled.HdrOn,
+                value = DeviceCapabilities.hdrNames(facts.hdrTypes).joinToString().ifEmpty { t("None") },
+                help = if (profile.maxHeight >= 2160) t("This TV plays 4K files.") else t("This TV doesn’t play 4K files, so your server sends them at 1080p."),
+            )
+        }
+        item {
+            TvSettingsRow(
+                t("Surround to your amplifier"), onClick = {}, icon = Icons.Filled.SurroundSound,
+                value = DeviceCapabilities.surroundNames(facts.passthrough).joinToString().ifEmpty { t("None") },
+                help = t("The formats what’s connected to this TV says it takes as they are. Lossless surround in Playback sends them that way."),
+            )
         }
     }
 
