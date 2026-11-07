@@ -292,6 +292,7 @@ public static partial class RequestEndpoints
                 var seasons = request.MediaType == "tv" && request.Seasons is { Count: > 0 } chosen ? chosen.Where(n => n > 0).Distinct().Order().ToList() : null;
                 await PlaceAsync(seerr, instance, options.CurrentValue, db, current.Id, request.MediaType, request.TmdbId, ct, seasons);
                 RequestRequested.Forget();
+                Watchlist.WatchlistService.Forget(cache, request.MediaType, request.TmdbId);
                 if (seasons is not null)
                 {
                     // The show's page asks Sonarr again, so the seasons show as requested.

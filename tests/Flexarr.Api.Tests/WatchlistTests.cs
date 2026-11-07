@@ -618,6 +618,32 @@ public sealed class WatchlistTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TheList_DoesntWaitOnSeerr_AndPicksUpWhatItSaysNextTime()
+    {
+        SeerrKnows("movie", 9041, "Requested Elsewhere", "2023-06-01");
+        (await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 9041 })).EnsureSuccessStatusCode();
+        // Since then it was requested in Seerr itself, and what Flexarr was told has gone; Seerr is slow to answer.
+        SeerrKnows("movie", 9041, "Requested Elsewhere", "2023-06-01", status: 3);
+        using (var scope = _server.Services.CreateScope())
+        {
+            ((Microsoft.Extensions.Caching.Memory.MemoryCache)scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>()).Clear();
+        }
+
+        var answer = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _seerr.Before = (_, ct) => answer.Task.WaitAsync(ct);
+
+        // Answered from what the entry holds, without waiting for Seerr.
+        var first = await ListAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal("NotAvailable", first.EnumerateArray().Single().GetProperty("status").GetString());
+
+        answer.SetResult();
+        await Watchlist.WatchlistService.LastLookup.WaitAsync(TimeSpan.FromSeconds(10));
+        _seerr.Before = null;
+        var next = await ListAsync();
+        Assert.Equal("OnItsWay", next.EnumerateArray().Single().GetProperty("status").GetString());
+    }
+
+    [Fact]
     public async Task OneTitleSeerrAnswersBadly_DoesntStopTheOthersSayingWhereTheyAre()
     {
         SeerrKnows("movie", 9021, "Broken", "2023-06-01");

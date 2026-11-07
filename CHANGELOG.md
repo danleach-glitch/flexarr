@@ -165,6 +165,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A library's **Requested** view opens sooner when many titles are waiting: Radarr and Sonarr are asked about four at a time instead of one after another, and only the requested titles are looked up in your library rather than every film and show.
 - When Seerr's machine is off or asleep, the pages that offer requests (libraries, search, Discover on the apps) no longer wait fifteen seconds for it and then get an error. Seerr gets five seconds to answer, counts as away if it doesn't, and is asked again half a minute later.
 
+### Watchlist
+
+- Your watchlist opens straight away however many titles on it aren't in your library yet. It shows what Flexarr already knows about each one and asks Seerr about the rest in the background, so where a title has got to (or where it streams) can take until the next time you open the list to show. What Seerr says is kept for a few hours, and asking for a title through Flexarr shows straight away.
+
 ### Search
 
 - Search answers sooner when what you've typed is part of someone's name ("tom", "ann"): finding the people in titles you can see took most of a second on a large library at every letter, and is now several times quicker.
