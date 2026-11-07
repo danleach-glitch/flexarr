@@ -18,8 +18,8 @@ TV interface of its own. Fire TV isn't planned for now (only older Fire TVs run 
 ## Stages
 
 Each stage is a pull request. Stages 1–3 shipped in debug builds only; since the Google Play closed test (stage 5,
-brought forward) every build has the TV interface and the manifest offers the app to TVs. Stage 4 lands before
-production.
+brought forward) every build has the TV interface and the manifest offers the app to TVs. Stage 4 (built November 2026, on the
+`google-play` branch) lands before production.
 
 1. **Something you can watch.** The manifest changes (touchscreen and Android TV support both optional, a TV launcher
    entry, a 320×180 banner, landscape on TV), the sidebar, code sign-in with a QR code (`ConnectView`), "Who's
@@ -29,7 +29,7 @@ production.
    Discover; Settings (playback, home screen, libraries, sidebar order, profile, server, diagnostics).
 3. **Live TV and music.** The guide grid and guide overlay, live player, recordings; the music library, artist, album
    and playlist pages, Now Playing with the aurora, and the Now Playing sidebar entry.
-4. **Using the TV well.**
+4. **Using the TV well.** Built 7 November 2026; proving passthrough and HDR waits for a real TV and amplifier.
    - Continue Watching in the Google TV home screen's Watch Next row, plus a Flexarr channel on the home screen (the
      equivalent of the Apple TV's Top Shelf).
    - The TV switches to the film's frame rate (Android 11 and later; a setting, as on Apple TV).

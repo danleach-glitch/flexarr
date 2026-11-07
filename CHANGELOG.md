@@ -12,6 +12,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### iPhone, iPad and Apple TV
 - While an episode plays, the lock screen and Control Center show the show's poster instead of the episode's still.
 
+### Android TV
+- What you're part way through, your shows' next episodes and albums you've played lately show in **Continue watching** on the Google TV and Android TV home screen. Choose one to carry on; remove it there and it leaves Flexarr's Continue Watching too. It stays empty while a profile with a PIN is watching.
+- Movies ask the TV for their own frame rate, so 24-frame movies play without judder when the TV's **Match content frame rate** setting allows.
+- **Lossless surround** in **Settings › Playback** sends Dolby Digital, Dolby Atmos, DTS, DTS-HD and TrueHD to your receiver or soundbar as they are. Movies with DTS or TrueHD sound now play without the server converting them. While Dialogue boost, Night mode or Speakers is on, the sound is decoded on the TV so they apply.
+- The TV tells your server what it really shows (HDR10, HLG or Dolby Vision, and whether it plays 4K), and **Settings › Diagnostics** lists it, with the TV's refresh rates and the surround formats your equipment takes.
+
 ### Apple TV
 - A show's page opens with **Play** in focus, not **Shuffle**. Play is there from the start and fills in the episode once it's known.
 - Pressing down from a row of buttons onto **Play** (on Browse, say) lands on Play wherever you were along the row, rather than skipping to the row of titles below. Up from far along a row comes back to a page's buttons the same way.
