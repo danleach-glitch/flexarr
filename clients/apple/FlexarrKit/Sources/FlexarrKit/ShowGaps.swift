@@ -125,12 +125,13 @@ public struct ShowGaps: Codable, Sendable, Hashable {
     }
 
     /// *Not in your library*'s one row, by season number: the seasons the library has none of, and (`partial`) those it
-    /// has some of, whose `episodes` is then how many of theirs are missing. A partial season's poster is the library's
-    /// own (`posters`, by season number), else the show's.
+    /// has some of, whose `episodes` is then how many of theirs are missing (Requested when Sonarr is already looking
+    /// for every one). A partial season's poster is the library's own (`posters`, by season number), else the show's.
     public func row(posters: [Int: String] = [:], showPoster: String? = nil) -> [(season: MissingSeason, partial: Bool)] {
         let partial = episodesBySeason.map { group in
             (season: MissingSeason(seasonNumber: group.season, name: nil, episodes: group.episodes.count, year: nil,
-                                   poster: posters[group.season] ?? showPoster, availability: .none), partial: true)
+                                   poster: posters[group.season] ?? showPoster,
+                                   availability: group.episodes.allSatisfy(\.monitored) ? .requested : .none), partial: true)
         }
         return (seasons.map { (season: $0, partial: false) } + partial).sorted { $0.season.seasonNumber < $1.season.seasonNumber }
     }

@@ -2,15 +2,24 @@ import { useState } from 'react'
 import { ApiError, imageUrl, searchMissing, type ShowEpisode, type ShowMissing } from '../api/client'
 import { airDay } from '../lib/format'
 import { AsyncButton } from './AsyncButton'
+import { icon } from './icons.generated'
 import { RequestButton } from './RequestButton'
 import { t, Words } from '../i18n'
 
 const code = (e: ShowEpisode) => t(Words.seasonEpisodeShort, { season: String(e.seasonNumber), episode: String(e.episodeNumber) })
 
-/** Asks Sonarr to look for a season's missing episodes, then says it did. */
-function SearchButton({ showId, season, label }: { showId: string; season: number; label: string }) {
+/**
+ * Request, as the rest of the row says it: asks Sonarr to look for a season's missing episodes (it monitors them, then
+ * searches), then says Requested. `requested` when Sonarr is already looking for every one.
+ */
+function SonarrRequestButton({ showId, season, label, requested = false }: { showId: string; season: number; label: string; requested?: boolean }) {
   const [state, setState] = useState<'idle' | 'sent' | string>('idle')
-  if (state === 'sent') return <span className="external-state">{t('Searching')}</span>
+  if (requested || state === 'sent')
+    return (
+      <span className="external-state">
+        <icon.requested aria-hidden /> {t(Words.requested)}
+      </span>
+    )
   return (
     <AsyncButton
       className="button small quiet"
@@ -25,7 +34,13 @@ function SearchButton({ showId, season, label }: { showId: string; season: numbe
         }
       }}
     >
-      {state === 'idle' ? t(Words.search) : t('Try again')}
+      {state === 'idle' ? (
+        <>
+          <icon.request aria-hidden /> {t(Words.request)}
+        </>
+      ) : (
+        t('Try again')
+      )}
     </AsyncButton>
   )
 }
@@ -33,7 +48,7 @@ function SearchButton({ showId, season, label }: { showId: string; season: numbe
 /**
  * Below a show's seasons: the episodes coming next, then what Sonarr (or Seerr) knows that the library doesn't, in one
  * row of seasons: one it has none of, with Request (Seerr), and one it has some of, with how many episodes are missing
- * and Search for them (Sonarr, main profile). `posters` are the library's own seasons' posters, by number, for the latter.
+ * and Request for them (Sonarr, main profile), or Requested when Sonarr is already looking for them. `posters` are the library's own seasons' posters, by number, for the latter.
  */
 export function ShowGaps({ showId, tmdbId, gaps, posters = new Map(), showPoster = null }: {
   showId: string
@@ -45,8 +60,8 @@ export function ShowGaps({ showId, tmdbId, gaps, posters = new Map(), showPoster
   const bySeason = new Map<number, ShowEpisode[]>()
   for (const e of gaps.episodes) bySeason.set(e.seasonNumber, [...(bySeason.get(e.seasonNumber) ?? []), e])
   const cards = [
-    ...gaps.seasons.map((s) => ({ season: s.seasonNumber, missing: s, episodes: 0 })),
-    ...[...bySeason].map(([season, episodes]) => ({ season, missing: null, episodes: episodes.length })),
+    ...gaps.seasons.map((s) => ({ season: s.seasonNumber, missing: s, episodes: 0, looking: false })),
+    ...[...bySeason].map(([season, episodes]) => ({ season, missing: null, episodes: episodes.length, looking: episodes.every((e) => e.monitored) })),
   ].sort((a, b) => a.season - b.season)
 
   return (
@@ -69,7 +84,7 @@ export function ShowGaps({ showId, tmdbId, gaps, posters = new Map(), showPoster
         <section className="show-gaps" aria-labelledby="show-missing">
           <h2 id="show-missing">{t(Words.notInYourLibrary)}</h2>
           <div className="poster-grid gap-seasons">
-            {cards.map(({ season, missing: s, episodes }) => {
+            {cards.map(({ season, missing: s, episodes, looking }) => {
               if (!s) {
                 const name = t('Season {season}', { season })
                 const poster = posters.get(season) ?? showPoster
@@ -83,7 +98,13 @@ export function ShowGaps({ showId, tmdbId, gaps, posters = new Map(), showPoster
                     <span className="card-title">{name}</span>
                     <span className="card-subtitle">{t('{count, plural, one {# episode missing} other {# episodes missing}}', { count: episodes })}</span>
                     <div className="external-card-actions">
-                      {gaps.canSearch && <SearchButton showId={showId} season={season} label={t('Search for season {season}’s missing episodes', { season })} />}
+                      {looking ? (
+                        <span className="external-state">
+                          <icon.requested aria-hidden /> {t(Words.requested)}
+                        </span>
+                      ) : gaps.canSearch ? (
+                        <SonarrRequestButton showId={showId} season={season} label={t('Request season {season}’s missing episodes', { season })} />
+                      ) : null}
                     </div>
                   </div>
                 )
@@ -104,7 +125,7 @@ export function ShowGaps({ showId, tmdbId, gaps, posters = new Map(), showPoster
                     ) : s.availability === 'Requested' ? (
                       <span className="external-state">{t(Words.requested)}</span>
                     ) : gaps.canSearch ? (
-                      <SearchButton showId={showId} season={s.seasonNumber} label={t('Search for {name}', { name })} />
+                      <SonarrRequestButton showId={showId} season={s.seasonNumber} label={t('Request {name}', { name })} />
                     ) : null}
                   </div>
                 </div>
