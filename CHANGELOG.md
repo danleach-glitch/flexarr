@@ -5,23 +5,28 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Shows
+
 - **Not in your library** on a show's page is one row of seasons: a season you have none of, with **Request**, and a season you have part of, saying how many episodes it's missing, with **Search**. It no longer lists every missing episode. On every app and the web.
 - Missing seasons without their own poster show the show's poster instead of a blank tile.
 - On iPhone and iPad, **Requested** under a missing season stays on one line.
 
 ### iPhone, iPad and Apple TV
+
 - While an episode plays, the lock screen and Control Center show the show's poster instead of the episode's still.
 
 ### CarPlay
+
 - Lists appear as soon as your server answers, with covers filling in as they arrive, instead of staying on "Nothing here yet." until every cover had loaded one by one. The four tabs load together.
 
 ### iPhone, iPad, Apple TV and Mac
+
 - Tapping a title or **Play** straight after a fast scroll no longer waits behind the posters still loading: the app's requests to your server have connections of their own.
 - After you watch or mark something, only the library grid on screen fetches its titles again. Grids left open behind other pages or tabs used to do so every time, and now catch up once, when you go back to them.
 - Flexarr opens a little sooner on a slow connection: it asks your server for its languages once rather than twice before the first screen, asks for podcasts, Live TV and the watchlist alongside your libraries rather than one after another, and reuses the server's version it already knows.
 - Scrubbing through a film or episode no longer fills the app's memory with preview sheets and pushes out the posters, which used to load again after the film. Only the few sheets around where you're scrubbing are kept.
 
 ### iPhone, iPad and Mac
+
 - Away from home, Flexarr opens a couple of seconds sooner: it starts with your server's away-from-home address when that's the one that answered last time, instead of waiting on the home address first.
 - Scrolling no longer stutters while a big album or playlist downloads: the list of downloads is saved in the background, every couple of seconds at most, instead of in full at every step of every track.
 - Signing out sends only what the profile signing out watched from downloads and hadn't sent yet. Another profile's unsent viewing no longer turns up in that profile's history and Continue watching.
@@ -29,19 +34,27 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Posters and covers you've already seen at home aren't downloaded again over mobile data when you leave, and pictures on screen no longer blank and reload as the app moves between your server's home and away-from-home addresses. Each picture is kept once, whichever address it came from.
 
 ### Mac
+
 - Clicking back into Flexarr's window no longer sends your server four or five requests every time: what it brings up to date (Up Next, downloads, the server's status) is checked once a minute at most.
 
 ### Live TV
+
 - On iPhone, iPad and Mac, the guide draws faster with a long channel list, and tapping a channel's logo no longer redraws the whole grid.
 - The apps on iPhone, iPad, Mac and Apple TV download the guide again every half hour instead of every two to five minutes, which saves data away from home. Setting or cancelling a recording still updates it at once, and a recording starting or finishing still shows within a few minutes.
 - While you watch a channel on iPhone, iPad, Mac or Apple TV, the title over the picture no longer downloads the whole channel list every minute: it moves on to the next programme by itself, and asks your server only when it doesn't know what comes next.
+- When the Live TV source stops sending the guide part-way (its machine sleeps, or the network drops), the refresh gives up after two minutes and says so in Settings, instead of waiting until the server is restarted with no more guide or channel updates.
 
 ### Music
+
 - A long playlist's page no longer stutters as it plays or downloads, on iPhone, iPad, Mac and Apple TV, and on iPhone, iPad and Mac it opens without building every row first.
 - On Apple TV, the visualiser's light comes to rest a few seconds after you pause, and moves again when the music does. Paused music left on Now Playing no longer keeps the Apple TV drawing 30 times a second.
 - Music, podcasts and books use a little less battery while they play on iPhone, iPad, Mac and Apple TV: the app no longer hands the lock screen its playing time every second, only when it has changed from what the lock screen counts by itself.
+- **Play** and **Shuffle** on an artist or an album start sooner on a big library, most of all on a slower server: gathering the tracks no longer reads through every title you have.
+- A song's volume levelling (ReplayGain) is read when the library scans the file, not the first time the song is played, so the first play of music added from now on starts a touch sooner, most of all from a drive that was asleep. Music already in your library works as before.
+- Home, a music library's Browse and the playlists page open sooner when you have long playlists: a playlist's track count, length and covers are worked out by the server's database instead of reading every song in every playlist each time.
 
 ### Security
+
 - On iPhone, iPad, Apple TV and Mac, away from home, your sign-in goes to your server's home address only after it has shown it's your server, so another network using the same address never receives it and can't sign the app out.
 - On iPhone, iPad, Apple TV and Mac, what your server tells the app (profiles, Home's rows, what each profile is part way through) is no longer kept in the app's picture cache on disk, where it could outlast a change of profile. Updating empties that cache once, to clear what earlier versions kept there, and so does signing out.
 - On iPhone, iPad, Apple TV and Mac, a language downloaded from a server is only kept when it's the language the app asked for, under that language's own name, so a server you've joined as a guest can't use it to damage the app's other saved files.
@@ -49,59 +62,6 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On a locked iPhone or iPad, **Play on Apple TV** and **Download** on a Flexarr notification, and asking Siri to add a title to your watchlist, now ask for Face ID or your passcode first.
 - On iPhone, iPad and Mac, **Copy code and open Trakt** only opens a web page. Whatever else a server's answer gives there, such as another app's link or a phone number, is no longer opened.
 - On iPhone, iPad, Apple TV and Mac, signing in to a different server empties the app's own log and the warnings still waiting to be sent, so what you played on one server never goes to the next one's log or its **Send diagnostics**.
-
-### Apple TV
-- On an Apple TV set to **Ask who's watching**, the Home screen's Top Shelf no longer shows a profile's titles when that profile asks for a PIN, and Play on the Top Shelf waits for **Who's watching?** rather than starting as whoever watched last.
-- A show's page opens with **Play** in focus, not **Shuffle**. Play is there from the start and fills in the episode once it's known.
-- Pressing down from a row of buttons onto **Play** (on Browse, say) lands on Play wherever you were along the row, rather than skipping to the row of titles below. Up from far along a row comes back to a page's buttons the same way.
-- Moving around a big library's grid feels less sticky after jumping to a late letter: the A to Z rail is no longer worked out again from every loaded title at each press of the remote.
-
-### Playback
-- Reading the closed captions out of a recording no longer competes with the stream you've just started: it runs in the background and gives way to playback.
-- Subtitles inside a very large file (a 60 GB film on a network share, say) are given up to an hour to be read instead of ten minutes, so they arrive rather than never turning up.
-- When a file's subtitles or captions can't be read, the server remembers it instead of reading the whole file again at every play; choosing the track tries it again. One bad subtitle track no longer stops a file's other tracks from working.
-- Watching a show at 1.5× or 2× no longer freezes every few seconds when the server is converting it: the stream is made as fast as you're watching. For films this works on iPhone, iPad and Apple TV for now.
-- Finding intros and credits gives way to people watching: it pauses before each episode while anything is playing, and holds off while the server is converting a stream for someone (the season you've just started is still done first). It used to work through a whole season at a time whatever else was going on.
-- Finding intros and credits no longer goes through a season again when its episodes were just done (after you change the audio track or quality, or start it on a second screen), and an episode that makes it hang no longer has the same season tried over and over: it moves on to the rest of the library and comes back to that season a day later.
-- Styled subtitles (the signs and songs of anime, say) appear sooner in the web player for a file with many fonts attached: the server lists a file's fonts once instead of once for every font the player asks for.
-- On iPhone, iPad and Apple TV, the first play of a film or episode after the server restarts starts a moment sooner when its stream is sent as it is: when its sound begins is remembered with the rest of what the server knows about the file, instead of being read from the file again.
-
-### Libraries
-- Posters and other artwork are no longer downloaded again by every app and browser after each weekly look-up of your library: a picture keeps its address until it actually changes (a new poster, a cover you replaced), so screens of posters come from the device's own cache, which matters most away from home. Each picture is fetched once more after this update.
-- Rows and grids of titles load much faster on a server with audiobooks. Once a library held a few thousand books in series, every list (films, shows and episodes too, and each row of Home) took several times longer than it needed to.
-- **Fix match** answers sooner as you change what you're searching for: with a few thousand films or shows in Radarr or Sonarr, every search after the first no longer waits several seconds for their whole list again.
-- Covers kept beside your media (a cover.jpg, the artwork inside an album's or a book's files) no longer wake a sleeping drive each time a page shows them: once the server has a copy, it serves it without looking at the original. A cover you replace is picked up at the next library scan.
-
-### Downloads
-- Downloading an album or a playlist no longer leaves it at **Getting ready** for three seconds a song (a minute for 20 songs, a quarter of an hour for 300). Files that are sent as they are, which is most music and any film your phone already plays, are all ready within a few seconds, even while a film is being converted for download or someone is watching.
-
-### Music
-- **Play** and **Shuffle** on an artist or an album start sooner on a big library, most of all on a slower server: gathering the tracks no longer reads through every title you have.
-- A song's volume levelling (ReplayGain) is read when the library scans the file, not the first time the song is played, so the first play of music added from now on starts a touch sooner, most of all from a drive that was asleep. Music already in your library works as before.
-- Home, a music library's Browse and the playlists page open sooner when you have long playlists: a playlist's track count, length and covers are worked out by the server's database instead of reading every song in every playlist each time.
-
-### Discover
-- Discover opens sooner: Seerr's four lists are asked for together instead of one after another, and coming back to Discover within a few minutes (from a title's page, say) doesn't ask for them again. What's in your library, on your watchlist or just requested is still marked afresh every time. A list Seerr is slow to answer is left out rather than failing the page.
-- Discover, searching everything and the page of a title you don't have are a little quicker on a big library, most of all while you type a search: marking what you already have looks up just the titles on screen instead of every film and show.
-
-### Requests
-- A library's **Requested** view opens sooner when many titles are waiting: Radarr and Sonarr are asked about four at a time instead of one after another, and only the requested titles are looked up in your library rather than every film and show.
-- When Seerr's machine is off or asleep, the pages that offer requests (libraries, search, Discover on the apps) no longer wait fifteen seconds for it and then get an error. Seerr gets five seconds to answer, counts as away if it doesn't, and is asked again half a minute later.
-
-### Backups
-- Backups no longer carry the Live TV guide, which a big channel list makes most of the database: they're smaller and quicker to make. A server restored from one fetches its guide again as it starts. Channels, favourites and recordings are kept as before.
-
-### Search
-- Search answers sooner when what you've typed is part of someone's name ("tom", "ann"): finding the people in titles you can see took most of a second on a large library at every letter, and is now several times quicker.
-- Once you've typed enough to narrow things down, search finds episodes, albums, songs and audiobooks in one pass over your library instead of four, so results keep up with your typing on a big library or a slow server. One or two letters, and very common words, take as long as before.
-
-### Live TV
-- When the Live TV source stops sending the guide part-way (its machine sleeps, or the network drops), the refresh gives up after two minutes and says so in Settings, instead of waiting until the server is restarted with no more guide or channel updates.
-
-### Notifications
-- A server nobody is using no longer writes to its database three times a minute to note that there was nothing to tell phones about, so the drive it's on (a NAS's, say) can sleep. It notes it every quarter of an hour instead, and straight away whenever something is sent.
-
-### Security
 - Downloading a subtitle you picked from **Search for subtitles…** only sends Bazarr a result it found itself. With Bazarr 1.5.6 or older, a made-up result could have run code on the machine Bazarr runs on; Bazarr 1.6.0 and newer wasn't affected.
 - Telling a device to play something as another profile no longer tells you how far that profile is into it, or which episode they're up to. The device still plays their next episode, and you're told all of it when the profile is your own.
 - Getting downloads ready for phones can no longer fill the server's disk. A converted copy isn't made, and a podcast episode isn't fetched, unless the drive would still have room to spare; the download says the server is short of space instead, and can be tried again later.
@@ -133,14 +93,66 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Family guests can no longer move a title's sound earlier or later. Audio sync is kept on the file for the whole household, so only the household's own profiles change it.
 - On a home network with IPv6, a podcast feed or its artwork can no longer point the server at the router, a NAS or the server itself by their IPv6 addresses. Anything on the networks the server is connected to counts as home, not the internet.
 - A device that guesses at a profile's PIN slowly, waiting out each lockout, now gets 20 wrong guesses at that profile a day, then can't try it again until the day is out. A right PIN clears the count, and other devices aren't held up.
-
-### Security
 - On the web, a link someone sends you can no longer make your browser change anything on your server just by being opened. A link to a channel, title or playlist only ever asks for that one thing.
 - The page a device's QR code opens before you've signed in shows a device code and nothing else: a link can no longer put words of its sender's choosing there.
 - **Sign out of this browser** also forgets what was played in it: each audiobook's place and the play queue. A browser keeps a book's place for a month after it was last played there rather than for good; after that the book starts from the place your server has.
 - Switching straight to another profile while something plays no longer leaves the queue in the other profile's player, or your place in an audiobook for that profile to start from.
+- The Tailscale connection built into the apps for family invites takes in a fix for a fault that could crash an app while it's connected that way.
+
+### Apple TV
+
+- On an Apple TV set to **Ask who's watching**, the Home screen's Top Shelf no longer shows a profile's titles when that profile asks for a PIN, and Play on the Top Shelf waits for **Who's watching?** rather than starting as whoever watched last.
+- A show's page opens with **Play** in focus, not **Shuffle**. Play is there from the start and fills in the episode once it's known.
+- Pressing down from a row of buttons onto **Play** (on Browse, say) lands on Play wherever you were along the row, rather than skipping to the row of titles below. Up from far along a row comes back to a page's buttons the same way.
+- Moving around a big library's grid feels less sticky after jumping to a late letter: the A to Z rail is no longer worked out again from every loaded title at each press of the remote.
+
+### Playback
+
+- Reading the closed captions out of a recording no longer competes with the stream you've just started: it runs in the background and gives way to playback.
+- Subtitles inside a very large file (a 60 GB film on a network share, say) are given up to an hour to be read instead of ten minutes, so they arrive rather than never turning up.
+- When a file's subtitles or captions can't be read, the server remembers it instead of reading the whole file again at every play; choosing the track tries it again. One bad subtitle track no longer stops a file's other tracks from working.
+- Watching a show at 1.5× or 2× no longer freezes every few seconds when the server is converting it: the stream is made as fast as you're watching. For films this works on iPhone, iPad and Apple TV for now.
+- Finding intros and credits gives way to people watching: it pauses before each episode while anything is playing, and holds off while the server is converting a stream for someone (the season you've just started is still done first). It used to work through a whole season at a time whatever else was going on.
+- Finding intros and credits no longer goes through a season again when its episodes were just done (after you change the audio track or quality, or start it on a second screen), and an episode that makes it hang no longer has the same season tried over and over: it moves on to the rest of the library and comes back to that season a day later.
+- Styled subtitles (the signs and songs of anime, say) appear sooner in the web player for a file with many fonts attached: the server lists a file's fonts once instead of once for every font the player asks for.
+- On iPhone, iPad and Apple TV, the first play of a film or episode after the server restarts starts a moment sooner when its stream is sent as it is: when its sound begins is remembered with the rest of what the server knows about the file, instead of being read from the file again.
+
+### Libraries
+
+- Posters and other artwork are no longer downloaded again by every app and browser after each weekly look-up of your library: a picture keeps its address until it actually changes (a new poster, a cover you replaced), so screens of posters come from the device's own cache, which matters most away from home. Each picture is fetched once more after this update.
+- Rows and grids of titles load much faster on a server with audiobooks. Once a library held a few thousand books in series, every list (films, shows and episodes too, and each row of Home) took several times longer than it needed to.
+- **Fix match** answers sooner as you change what you're searching for: with a few thousand films or shows in Radarr or Sonarr, every search after the first no longer waits several seconds for their whole list again.
+- Covers kept beside your media (a cover.jpg, the artwork inside an album's or a book's files) no longer wake a sleeping drive each time a page shows them: once the server has a copy, it serves it without looking at the original. A cover you replace is picked up at the next library scan.
+
+### Downloads
+
+- Downloading an album or a playlist no longer leaves it at **Getting ready** for three seconds a song (a minute for 20 songs, a quarter of an hour for 300). Files that are sent as they are, which is most music and any film your phone already plays, are all ready within a few seconds, even while a film is being converted for download or someone is watching.
+
+### Discover
+
+- Discover opens sooner: Seerr's four lists are asked for together instead of one after another, and coming back to Discover within a few minutes (from a title's page, say) doesn't ask for them again. What's in your library, on your watchlist or just requested is still marked afresh every time. A list Seerr is slow to answer is left out rather than failing the page.
+- Discover, searching everything and the page of a title you don't have are a little quicker on a big library, most of all while you type a search: marking what you already have looks up just the titles on screen instead of every film and show.
+
+### Requests
+
+- A library's **Requested** view opens sooner when many titles are waiting: Radarr and Sonarr are asked about four at a time instead of one after another, and only the requested titles are looked up in your library rather than every film and show.
+- When Seerr's machine is off or asleep, the pages that offer requests (libraries, search, Discover on the apps) no longer wait fifteen seconds for it and then get an error. Seerr gets five seconds to answer, counts as away if it doesn't, and is asked again half a minute later.
+
+### Backups
+
+- Backups no longer carry the Live TV guide, which a big channel list makes most of the database: they're smaller and quicker to make. A server restored from one fetches its guide again as it starts. Channels, favourites and recordings are kept as before.
+
+### Search
+
+- Search answers sooner when what you've typed is part of someone's name ("tom", "ann"): finding the people in titles you can see took most of a second on a large library at every letter, and is now several times quicker.
+- Once you've typed enough to narrow things down, search finds episodes, albums, songs and audiobooks in one pass over your library instead of four, so results keep up with your typing on a big library or a slow server. One or two letters, and very common words, take as long as before.
+
+### Notifications
+
+- A server nobody is using no longer writes to its database three times a minute to note that there was nothing to tell phones about, so the drive it's on (a NAS's, say) can sleep. It notes it every quarter of an hour instead, and straight away whenever something is sent.
 
 ### Web
+
 - In an audiobook library of more than a few hundred books, jumping to a letter no longer leaves books out of the grid.
 - On a podcast's page, **Show more episodes** carries on past 200 episodes, and each press loads just the next ones rather than the whole list again.
 - The Live TV guide opens and responds to a click more quickly when it has hundreds of channels.
@@ -154,6 +166,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On a phone or a small window, the page of a film, show, episode or collection (in your library or in Discover) downloads its backdrop at a size that fits the screen, as Home already did, rather than always the largest.
 
 ### Android
+
 - Away from home, the Android app checks that it's your server answering at its home address before it listens for commands from other devices or carries on a download there, as it already did for everything else. Until then it uses the server's remote address, or waits.
 - A paused film, episode or Live TV channel no longer keeps the screen on for ever: the phone's screen times out as usual, and an Android TV's screensaver starts. The screen still stays on while something plays or loads.
 - On Android TV sticks and phones that give an app little memory, the player holds less of a high-bitrate film or Live TV channel in memory at once, so it's less likely to stutter or close the app. Other devices buffer as before.
@@ -177,9 +190,6 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - **Copy code and open Trakt** only ever opens a page on trakt.tv. If the server names anywhere else, the Android app opens trakt.tv/activate instead.
 - On Android TV, a kids profile no longer has **Settings** in the sidebar (so no **Sign out** either), as on the phone. A kids profile that's the only one on the server keeps it.
 - The Android app checks each language pack a server sends before keeping it, and forgets the packs it kept when it signs out, so another server's words don't follow it to the next one.
-
-### Security
-- The Tailscale connection built into the apps for family invites takes in a fix for a fault that could crash an app while it's connected that way.
 
 ## 0.62.1 · 5 November 2026
 
