@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { drawStyled, FONTS_AT_ONCE } from './styledSubtitles'
+import { drawStyled, FONTS_AT_ONCE, fontsFor } from './styledSubtitles'
 
 const made: { subContent: string; fonts: Uint8Array[]; timeOffset: number }[] = []
 vi.mock('jassub', () => ({
@@ -75,5 +75,12 @@ describe('styled subtitles', () => {
 
     expect(made.map((m) => m.fonts)).toEqual([[], []])
     expect(state.asked).toEqual([])
+  })
+
+  it('asks for only the fonts the chosen track names', () => {
+    expect(fontsFor('/api/v1/playback/s1/fonts.json', 'e3')).toBe('/api/v1/playback/s1/fonts.json?subtitle=e3')
+    expect(fontsFor('/fonts.json?v=2', 'a b')).toBe('/fonts.json?v=2&subtitle=a%20b')
+    expect(fontsFor(null, 'e3')).toBeNull()
+    expect(fontsFor(undefined, 'e3')).toBeNull()
   })
 })

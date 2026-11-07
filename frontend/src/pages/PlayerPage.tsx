@@ -45,7 +45,7 @@ import { episodeCode, formatClock } from '../lib/format'
 import { belongsToFocused } from '../lib/focusedKeys'
 import { mediaErrorRecovery } from '../lib/hlsRecovery'
 import { speedLabel } from '../lib/podcasts'
-import { drawStyled, type StyledSubtitles } from '../lib/styledSubtitles'
+import { drawStyled, fontsFor, type StyledSubtitles } from '../lib/styledSubtitles'
 import { cueLine, pictureIn } from '../lib/subtitlePlacement'
 import { skipAt, skipCancelled, skipFresh, skipPressed, skipSeeked, type SkipNow, type SkipState } from '../lib/skipTiming'
 import { NEXT_EPISODE_COUNTDOWN_SECONDS, nextEpisodeTiming, upNextAt, upNextAtEnd, upNextFresh, upNextMoved, type UpNextState } from '../lib/upNext'
@@ -696,7 +696,8 @@ export function PlayerPage() {
   const styledTrack = info?.subtitles.find((s) => s.key === subtitleKey && s.styledUrl && `${info.sessionId}:${s.key}` !== styledFailed)
   const styledSource = styledTrack?.styledUrl ? `${styledTrack.styledUrl}${subtitleVersion ? `?v=${subtitleVersion}` : ''}` : undefined
   const sessionId = info?.sessionId
-  const fontsUrl = info?.fontsUrl
+  // Only the fonts this track's script names (the key is part of `styledSource`, so a new track draws afresh).
+  const fontsUrl = styledTrack ? fontsFor(info?.fontsUrl, styledTrack.key) : null
   useEffect(() => {
     const el = video.current
     if (!el || !styledSource || !sessionId) return
