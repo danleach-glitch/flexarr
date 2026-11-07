@@ -12,6 +12,7 @@ import io.github.flexarr.tunnel.Tunnel
 import kotlinx.serialization.Serializable
 import java.io.File
 import java.io.IOException
+import java.security.SecureRandom
 import kotlin.random.Random
 
 private val flexarrLog = FlexarrLog("tunnel")
@@ -19,7 +20,8 @@ private val flexarrLog = FlexarrLog("tunnel")
 /**
  * The Tailscale node inside the app that a family guest reaches its host's server through (clients/tunnel, see
  * docs/remote-guests.md). It listens on 127.0.0.1 and forwards each connection to the server on the host's tailnet, so
- * the API, artwork, ExoPlayer and downloads all just use `http://127.0.0.1:<port>`.
+ * the API, artwork, ExoPlayer and downloads all just use `http://127.0.0.1:<port>`. Only those carrying [token] (added
+ * by [LoopbackTunnel.interceptor], on the app's own connections) get through.
  *
  * It runs in the app's process. A minute after the app goes to the background it stops, unless music, a podcast or a
  * download is still using it ([io.github.flexarr.AppModel.wentToBackground]). Requests made before it's up wait for it
@@ -84,6 +86,12 @@ class GuestTunnel(context: Context, private val available: Boolean = BuildConfig
     val isInUse: Boolean get() = info != null
 
     /**
+     * Asked of every connection to the tunnel's port (127.0.0.1 is open to every app on the phone), so only this app's
+     * requests reach the server through it. New each time the app starts; never stored.
+     */
+    override val token: String = ByteArray(32).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
+
+    /**
      * Starts the node, or gives its port if it's up already. Blocks until it's on the tailnet (up to a minute), so only
      * off the main thread. [authKey] is needed only the first time; after that the saved identity is used. Throws
      * [TunnelException] when it can't start.
@@ -95,6 +103,7 @@ class GuestTunnel(context: Context, private val available: Boolean = BuildConfig
         listening?.let { port -> if (state() == "running") return port }
         loadLibrary()
         Tunnel.setPreferredPort(preferredPort.toLong())
+        Tunnel.setClientToken(token)
         val port = try {
             Tunnel.start(stateDir.path, info.hostname, authKey, info.target, "").toInt()
         } catch (e: Exception) {

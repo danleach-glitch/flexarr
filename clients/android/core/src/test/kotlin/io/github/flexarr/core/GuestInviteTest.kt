@@ -135,6 +135,26 @@ class GuestInviteTest {
     }
 
     @Test
+    fun `loopback requests carry the tunnel's token, and no other request does`() {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder().body("ok").build())
+            server.enqueue(MockResponse.Builder().body("ok").build())
+            val tunnel = object : LoopbackTunnel {
+                override fun port() = server.port
+                override fun restart(failed: Int) = server.port
+                override val token = "app-secret"
+            }
+            val http = OkHttpClient.Builder().addInterceptor(LoopbackTunnel.interceptor { tunnel }).build()
+            http.newCall(Request.Builder().url(server.url("/x").newBuilder().host("127.0.0.1").build()).build()).execute().close()
+            assertEquals("app-secret", server.takeRequest().headers[LoopbackTunnel.TOKEN_HEADER])
+            // Anywhere else (the server at home, say) never hears it.
+            http.newCall(Request.Builder().url(server.url("/y").newBuilder().host("localhost").build()).build()).execute().close()
+            assertEquals(null, server.takeRequest().headers[LoopbackTunnel.TOKEN_HEADER])
+        }
+    }
+
+    @Test
     fun `a TV opens the shared vector as the server seals it`() {
         val vector = FlexarrClient.json.parseToJsonElement(javaClass.classLoader!!.getResource("tv-invite.json")!!.readText()).jsonObject
         fun bytes(name: String) = Base64.getDecoder().decode(vector[name]!!.jsonPrimitive.content)

@@ -136,6 +136,7 @@ class PlayerActivity : ComponentActivity() {
     /** Its titles going to a Chromecast while the phone is connected to one. */
     private var casting: VideoCasting? = null
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class) // setBitmapLoader
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(SystemBarStyle.dark(AndroidColor.TRANSPARENT), SystemBarStyle.dark(AndroidColor.TRANSPARENT))
         super.onCreate(savedInstanceState)
@@ -153,7 +154,7 @@ class PlayerActivity : ComponentActivity() {
         val tv = usesTvInterface
         val casting = Casting.shared?.takeIf { !tv }?.let { VideoCasting(this, controller, it) }.also { casting = it }
         // Headphone and Bluetooth buttons, the system's media controls and the corner window's play and pause.
-        session = MediaSession.Builder(this, VideoSessionPlayer(controller)).setId("video").build()
+        session = MediaSession.Builder(this, VideoSessionPlayer(controller)).setId("video").setBitmapLoader(sessionBitmapLoader(this)).build()
         // Another picture still up (a live channel in the corner, say) gives way: one at a time, as on iPhone.
         model.commands.active?.stop()
         model.commands.active = playback

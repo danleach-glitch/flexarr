@@ -180,12 +180,24 @@ interface LoopbackTunnel {
     /** Nothing was listening on [failed]: starts it again, and gives the port it listens on now. */
     fun restart(failed: Int): Int
 
+    /**
+     * What the tunnel asks each connection for ([TOKEN_HEADER]), so another app on the phone can't use its port; null
+     * when it asks for nothing.
+     */
+    val token: String? get() = null
+
     companion object {
-        /** Sends loopback requests to [current]'s port, once it's up, and starts it again once if it had gone. */
+        /** The header the token goes in (the tunnel's TokenHeader). */
+        const val TOKEN_HEADER = "X-Flexarr-Tunnel"
+
+        /**
+         * Sends loopback requests to [current]'s port, once it's up, with its token, and starts it again once if it had
+         * gone.
+         */
         fun interceptor(current: () -> LoopbackTunnel?): Interceptor = Interceptor { chain ->
-            val request = chain.request()
             val tunnel = current()
-            if (tunnel == null || request.url.host != "127.0.0.1") return@Interceptor chain.proceed(request)
+            if (tunnel == null || chain.request().url.host != "127.0.0.1") return@Interceptor chain.proceed(chain.request())
+            val request = tunnel.token?.let { chain.request().newBuilder().header(TOKEN_HEADER, it).build() } ?: chain.request()
             val port = tunnel.port()
             try {
                 chain.proceed(request.toPort(port))
