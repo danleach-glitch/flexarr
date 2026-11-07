@@ -293,7 +293,7 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             download.Error = "The server is too short of space to get this ready. Try again later.";
             await db.SaveChangesAsync(ct);
             LogShortOfSpace(download.Id, folder);
-            return;
+            return true;
         }
 
         download.Status = DownloadStatus.Preparing;

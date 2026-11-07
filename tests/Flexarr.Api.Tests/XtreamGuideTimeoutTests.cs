@@ -14,7 +14,7 @@ public class XtreamGuideTimeoutTests
     public async Task A_guide_that_stops_arriving_part_way_fails_in_words()
     {
         using var http = new HttpClient(new Handler(stallAfterFirstChunk: true));
-        var client = new XtreamClient(http) { GuideIdleTimeout = TimeSpan.FromMilliseconds(200) };
+        var client = new XtreamClient(http, new NoClients()) { GuideIdleTimeout = TimeSpan.FromMilliseconds(200) };
 
         await using var guide = await client.OpenGuideAsync(Account, CancellationToken.None);
         var read = Task.Run(async () =>
@@ -34,7 +34,7 @@ public class XtreamGuideTimeoutTests
     public async Task A_guide_that_keeps_arriving_is_read_whole()
     {
         using var http = new HttpClient(new Handler(stallAfterFirstChunk: false));
-        var client = new XtreamClient(http) { GuideIdleTimeout = TimeSpan.FromSeconds(10) };
+        var client = new XtreamClient(http, new NoClients()) { GuideIdleTimeout = TimeSpan.FromSeconds(10) };
 
         await using var guide = await client.OpenGuideAsync(Account, CancellationToken.None);
         var titles = new List<string>();
@@ -89,5 +89,11 @@ public class XtreamGuideTimeoutTests
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    /// <summary>Guide downloads use the given client; only logos ask the factory, and these tests fetch none.</summary>
+    private sealed class NoClients : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => throw new InvalidOperationException("A guide test shouldn't fetch a logo.");
     }
 }
