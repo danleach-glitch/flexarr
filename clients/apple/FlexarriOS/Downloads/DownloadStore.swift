@@ -949,20 +949,30 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     /// Signing out: every download goes, whoever's it was (the server keeps its record of what was declined).
     /// Watched offline and not yet sent, kept from downloads deleted by signing out until the sign-in has sent it.
-    private var leftoverProgress: [(itemId: String, progress: UnsentProgress, isBook: Bool)] = []
+    private var leftoverProgress: [(profileId: String, itemId: String, progress: UnsentProgress, isBook: Bool)] = []
+    /// The profile that was watching when the downloads were deleted by signing out: whose leftovers the sign-in sends.
+    @ObservationIgnored private var signedOutProfileId: String?
 
-    /// Signing out: sends what was watched offline and not yet sent, with the sign-in that's still working, whether
-    /// or not the downloads have been deleted yet.
+    /// Signing out: sends what this profile watched offline and not yet sent, with the sign-in that's still working,
+    /// whether or not the downloads have been deleted yet. Another profile's goes unsent: the sign-in is this
+    /// profile's, so it would land in the wrong history.
     func sendLeftoverProgress(with client: FlexarrClient) async {
-        let pending = leftoverProgress + all.compactMap { d in d.unsent.map { (d.item.id, $0, d.book != nil) } }
+        let pending = leftoverProgress + unsentProgress()
+        let owner = profileId ?? signedOutProfileId
         leftoverProgress = []
-        for (itemId, unsent, isBook) in pending {
+        signedOutProfileId = nil
+        for (profile, itemId, unsent, isBook) in pending where profile == owner {
             try? await send(unsent, itemId: itemId, isBook: isBook, with: client)
         }
     }
 
+    private func unsentProgress() -> [(profileId: String, itemId: String, progress: UnsentProgress, isBook: Bool)] {
+        all.compactMap { d in d.unsent.map { (d.profileId, d.item.id, $0, d.book != nil) } }
+    }
+
     func deleteAll() {
-        leftoverProgress += all.compactMap { d in d.unsent.map { (d.item.id, $0, d.book != nil) } }
+        leftoverProgress += unsentProgress()
+        signedOutProfileId = profileId ?? signedOutProfileId
         for id in all.map(\.id) { delete(id) }
         let pictures = collections.compactMap(\.imageFileName)
         collections = []
