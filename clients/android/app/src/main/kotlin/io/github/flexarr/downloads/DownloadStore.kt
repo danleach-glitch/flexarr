@@ -447,19 +447,25 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
                 break // still out of reach
             }
         }
-        for (download in all.filter { it.profileId == profileId && it.unsent != null }) {
-            val unsent = download.unsent ?: continue
-            try {
-                client.reportOfflineProgress(download.item.id, unsent.position, unsent.finished, Instant.ofEpochMilli(unsent.playedAtMillis))
-                update(download.id) { if (it.unsent == unsent) it.copy(unsent = null) else it }
-                model.watchStateChanged()
-            } catch (e: FlexarrException.Http) {
-                // The title's gone from the server: there's nothing left to tell it about.
-                if (e.status == 404) update(download.id) { if (it.unsent == unsent) it.copy(unsent = null) else it }
-                else flexarrLog.warning("Couldn't send offline progress", e)
-            } catch (e: FlexarrException) {
-                if (e !is FlexarrException.Unreachable) flexarrLog.warning("Couldn't send offline progress", e)
+        // Once for all the plays sent, not once each: every screen listening fetches its titles again.
+        var sent = false
+        try {
+            for (download in all.filter { it.profileId == profileId && it.unsent != null }) {
+                val unsent = download.unsent ?: continue
+                try {
+                    client.reportOfflineProgress(download.item.id, unsent.position, unsent.finished, Instant.ofEpochMilli(unsent.playedAtMillis))
+                    update(download.id) { if (it.unsent == unsent) it.copy(unsent = null) else it }
+                    sent = true
+                } catch (e: FlexarrException.Http) {
+                    // The title's gone from the server: there's nothing left to tell it about.
+                    if (e.status == 404) update(download.id) { if (it.unsent == unsent) it.copy(unsent = null) else it }
+                    else flexarrLog.warning("Couldn't send offline progress", e)
+                } catch (e: FlexarrException) {
+                    if (e !is FlexarrException.Unreachable) flexarrLog.warning("Couldn't send offline progress", e)
+                }
             }
+        } finally {
+            if (sent) model.watchStateChanged()
         }
         removeFinished() // podcast episodes whose play was waiting to be sent
         removePlayedPodcasts(client)
