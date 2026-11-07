@@ -38,6 +38,7 @@ class AppLinkTest {
         assertEquals(AppLink.AsProfile("Kids", AppLink.Watchlist), parse("flexarr://watchlist?profile=Kids"))
         assertEquals(AppLink.Live(id), parse("flexarr://live/$id"))
         assertEquals(AppLink.LiveTv, parse("flexarr://livetv"))
+        assertEquals(AppLink.Album(id), parse("flexarr://album/$id"))
         assertEquals(AppLink.Pairing("ABC-DEF"), parse("flexarr://pairing/ABC-DEF"))
     }
 
@@ -98,6 +99,16 @@ class AppLinkTest {
         for (link in links) {
             assertEquals(link, AppLink.received(context, link.intent(context)))
         }
+    }
+
+    @Test
+    fun `the home screen's cards play, and don't carry the app's secret`() {
+        val intent = AppLink.Play(id).launcherIntent(context)
+        assertEquals(AppLink.Play(id), AppLink.received(context, intent))
+        assertNull(intent.getStringExtra("io.github.flexarr.fromApp"))
+        // A made-up token is someone else's link.
+        val forged = Intent(Intent.ACTION_VIEW, AppLink.Play(id).uri).putExtra("io.github.flexarr.fromLauncher", "guess")
+        assertEquals(AppLink.Item(id), AppLink.received(context, forged))
     }
 
     @Test
