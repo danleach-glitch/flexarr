@@ -107,8 +107,17 @@ public sealed partial class TraktSync(FlexarrDbContext db, TraktClient trakt, Tr
     /// <summary>Applies plays to the profile's watch state, keeping each state it adds for the next.</summary>
     private async Task ApplyAsync(string profileId, IEnumerable<(Play Play, Guid Item)> found, Dictionary<Guid, PlaybackState>? byItem, CancellationToken ct)
     {
-        byItem ??= await db.PlaybackStates.Where(p => p.UserId == profileId).ToDictionaryAsync(s => s.MediaItemId, ct);
-        foreach (var (play, item) in found)
+        var plays = found.ToList();
+        if (byItem is null)
+        {
+            // Only the states of the titles played, not every one the profile has (music and podcasts included). As one
+            // JSON parameter: a reconcile can match more plays than SQLite takes parameters.
+            var ids = plays.Select(f => f.Item).Distinct().ToList();
+            byItem = ids.Count == 0 ? []
+                : await db.PlaybackStates.Where(p => p.UserId == profileId && EF.Parameter(ids).Contains(p.MediaItemId)).ToDictionaryAsync(s => s.MediaItemId, ct);
+        }
+
+        foreach (var (play, item) in plays)
         {
             byItem.TryGetValue(item, out var state);
             var (_, after) = TraktMerge.ApplyPlay(db, state, profileId, item, play.WatchedAt);
@@ -216,7 +225,12 @@ public sealed partial class TraktSync(FlexarrDbContext db, TraktClient trakt, Tr
             return;
         }
 
-        var existing = await db.TraktHistoryHolds.Where(h => h.ProfileId == profileId).ToListAsync(ct);
+        // Only holds that could be these titles: one sharing any of their ids (a hold matches on all of them).
+        var tmdb = plays.Select(p => p.Key.TmdbId).OfType<string>().Distinct().ToList();
+        var tvdb = plays.Select(p => p.Key.TvdbId).OfType<string>().Distinct().ToList();
+        var imdb = plays.Select(p => p.Key.ImdbId).OfType<string>().Distinct().ToList();
+        var existing = await db.TraktHistoryHolds.Where(h => h.ProfileId == profileId
+            && (EF.Parameter(tmdb).Contains(h.TmdbId!) || EF.Parameter(tvdb).Contains(h.TvdbId!) || EF.Parameter(imdb).Contains(h.ImdbId!))).ToListAsync(ct);
         // Tolerant of a title held twice (it can't happen now, but a duplicate mustn't stop every later sync).
         var byKey = existing.GroupBy(h => new TitleKey(h.Kind, h.TmdbId, h.TvdbId, h.ImdbId, h.SeasonNumber, h.EpisodeNumber)).ToDictionary(g => g.Key, g => g.First());
         foreach (var play in plays)
