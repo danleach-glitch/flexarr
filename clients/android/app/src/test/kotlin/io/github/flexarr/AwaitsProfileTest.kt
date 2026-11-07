@@ -40,4 +40,16 @@ class AwaitsProfileTest {
         assertFalse(awaitsProfile(chosenHere = true, loaded = false, needsProfile = false, keptProfiles = unread))
         assertTrue(awaitsProfile(chosenHere = false, loaded = true, needsProfile = true, keptProfiles = unread))
     }
+
+    @Test
+    fun `Who's watching is up for a choice, or when the server asks even with one profile`() {
+        assertTrue(needsProfile(chosenHere = false, profiles = 2, serverAsks = false))
+        assertFalse(needsProfile(chosenHere = true, profiles = 2, serverAsks = false))
+        assertFalse(needsProfile(chosenHere = false, profiles = 1, serverAsks = false))
+        // The main profile has a PIN of its own that wasn't given here (a newly paired device): asked, even alone.
+        assertTrue(needsProfile(chosenHere = false, profiles = 1, serverAsks = true))
+        assertTrue(needsProfile(chosenHere = true, profiles = 1, serverAsks = true))
+        // Nobody to show: never an empty picker.
+        assertFalse(needsProfile(chosenHere = false, profiles = 0, serverAsks = true))
+    }
 }

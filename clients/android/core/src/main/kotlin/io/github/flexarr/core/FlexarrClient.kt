@@ -52,8 +52,10 @@ sealed class FlexarrException(message: String) : Exception(message) {
     /**
      * [detail]: the server's own words for what went wrong (its problem details' `detail`), when it gave some.
      * [guestRemoved]: a 403 saying this is a family guest's device its host removed (servers from 0.57).
+     * [chooseProfile]: a 403 saying nobody has chosen who's watching here yet, and being the main profile takes its own
+     * PIN (servers from 0.63, see [SignInInfo.chooseProfile]).
      */
-    class Http(val status: Int, message: String?, val detail: String? = null, val guestRemoved: Boolean = false) :
+    class Http(val status: Int, message: String?, val detail: String? = null, val guestRemoved: Boolean = false, val chooseProfile: Boolean = false) :
         FlexarrException(message ?: t("The server answered with an error (HTTP {status}).", "status" to status.toString()))
 
     /**
@@ -417,6 +419,8 @@ class FlexarrClient(
         apiKey?.takeIf { it.isNotEmpty() }?.let { header("X-Api-Key", it) }
         profileToken?.takeIf { it.isNotEmpty() }?.let { header("X-Flexarr-Profile", it) }
         deviceType?.let { header("X-Flexarr-Device", it) }
+        // This app asks who's watching when nobody has chosen here yet (see SignInInfo.chooseProfile). Older servers ignore it.
+        header(PROFILE_CHOICE_HEADER, "1")
     }
 
     private suspend fun exchange(
@@ -462,6 +466,11 @@ class FlexarrClient(
                 it.code == 403 && problemFlag(text, "guestRemoved") -> {
                     onUnauthorized?.invoke()
                     throw FlexarrException.Http(it.code, problemMessage(text), problemDetail(text), guestRemoved = true)
+                }
+                // Nobody has chosen who's watching here (the main profile's own PIN wasn't given): the app asks.
+                it.code == 403 && problemFlag(text, "chooseProfile") -> {
+                    onChooseProfile?.invoke()
+                    throw FlexarrException.Http(it.code, problemMessage(text), problemDetail(text), chooseProfile = true)
                 }
                 else -> throw FlexarrException.Http(it.code, problemMessage(text), problemDetail(text))
             }
@@ -729,6 +738,19 @@ class FlexarrClient(
          */
         @Volatile
         var onAnswered: (() -> Unit)? = null
+
+        /**
+         * Called whenever the server refuses a request because nobody has chosen who's watching here yet (a 403 with
+         * `chooseProfile`, see [SignInInfo.chooseProfile]), so the app can show "Who's watching?". Set once at launch.
+         */
+        @Volatile
+        var onChooseProfile: (() -> Unit)? = null
+
+        /**
+         * Sent with every request: this app can ask who's watching, so a server whose main profile has a PIN of its own
+         * answers a device nobody has chosen a profile on as no profile chosen rather than as the main profile.
+         */
+        const val PROFILE_CHOICE_HEADER = "X-Flexarr-Profile-Choice"
 
         /** When a server last answered a request (or the reachability check) from this app; 0 if none has yet. */
         @Volatile

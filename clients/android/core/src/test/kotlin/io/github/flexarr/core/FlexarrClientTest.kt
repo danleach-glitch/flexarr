@@ -228,6 +228,41 @@ class FlexarrClientTest {
     }
 
     @Test
+    fun `says on every request that it can ask who's watching`() = runTest {
+        server.enqueue(json("[]"))
+        client().libraries()
+        assertEquals("1", server.takeRequest().headers["X-Flexarr-Profile-Choice"])
+    }
+
+    @Test
+    fun `the server saying nobody has chosen here is read, and older servers never say it`() = runTest {
+        server.enqueue(json("""{"profileId":"default","method":"device","isAdmin":false,"canUnlock":true,"chooseProfile":true}"""))
+        assertTrue(client().me().chooseProfile)
+        server.enqueue(json("""{"profileId":"default","method":"device","isAdmin":false}"""))
+        assertFalse(client().me().chooseProfile)
+    }
+
+    @Test
+    fun `a request refused until someone is chosen tells the app`() = runTest {
+        var told = 0
+        FlexarrClient.onChooseProfile = { told++ }
+        try {
+            server.enqueue(json("""{"status":403,"detail":"Choose who’s watching first.","chooseProfile":true}""", code = 403))
+            val error = runCatching { client().libraries() }.exceptionOrNull()
+            assertTrue(error is FlexarrException.Http && error.status == 403 && error.chooseProfile)
+            assertEquals(1, told)
+
+            // Any other refusal isn't that.
+            server.enqueue(json("""{"status":403,"detail":"No."}""", code = 403))
+            val other = runCatching { client().libraries() }.exceptionOrNull()
+            assertTrue(other is FlexarrException.Http && !other.chooseProfile)
+            assertEquals(1, told)
+        } finally {
+            FlexarrClient.onChooseProfile = null
+        }
+    }
+
+    @Test
     fun `an HTML page is not a Flexarr server`() = runTest {
         server.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/html").body("<html></html>").build())
         val error = runCatching { client().systemStatus() }.exceptionOrNull()
