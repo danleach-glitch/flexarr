@@ -85,18 +85,25 @@ final class LogHub: Sendable {
     let file: ClientLogFile
     private let uploader: ClientLogUploader
     private let redactor = OSAllocatedUnfairLock(initialState: LogRedactor())
-    private let client: OSAllocatedUnfairLock<FlexarrClient?>
+    private let client: OSAllocatedUnfairLock<SendingTo>
+
+    /// The server warnings go to, and which sign-in set it: one to another server is held back (nil) until what was
+    /// waiting for the last one has been dropped, and a later sign-in isn't overwritten by an earlier one's.
+    private struct SendingTo {
+        var client: FlexarrClient?
+        var turn = 0
+    }
 
     private init() {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first ?? FileManager.default.temporaryDirectory
         let directory = caches.appending(path: "Logs")
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         file = ClientLogFile(directory: directory)
-        let client = OSAllocatedUnfairLock<FlexarrClient?>(initialState: nil)
+        let client = OSAllocatedUnfairLock(initialState: SendingTo())
         self.client = client
         let version = Bundle.main.shortVersion
         uploader = ClientLogUploader(storage: directory.appending(path: "waiting.json")) { entries in
-            guard let client = client.withLock({ $0 }) else { return .unavailable }
+            guard let client = client.withLock({ $0.client }) else { return .unavailable }
             do {
                 try await client.sendLogs(platform: LogHub.platform, appVersion: version, entries: entries)
                 return .delivered
@@ -124,16 +131,30 @@ final class LogHub: Sendable {
 
     /// The server to send to (nil when signed out), whose sign-in is also kept out of the log from now on.
     func signedIn(_ client: FlexarrClient?) {
-        self.client.withLock { $0 = client }
+        // Another server than the log was written for: what it holds, and the warnings still waiting, aren't sent there.
+        let other = client.map { file.claim(for: $0.addresses.home.absoluteString) } ?? false
+        // Until those are dropped nothing is sent (a batch or a timer already under way would otherwise take them there).
+        let turn = self.client.withLock { sending in
+            sending.turn += 1
+            sending.client = other ? nil : client
+            return sending.turn
+        }
         redactor.withLock { redactor in
             redactor.secrets = [client?.apiKey, client?.profileToken].compactMap { $0 }.filter { !$0.isEmpty }
         }
         guard let client else { return }
-        // Another server than the log was written for: what it holds, and the warnings still waiting, aren't sent there.
-        let other = file.claim(for: client.addresses.home.absoluteString)
         let uploader = uploader
+        let sending = self.client
         Task.detached(priority: .utility) {
-            if other { await uploader.clear() }
+            if other {
+                await uploader.clear()
+                let current = sending.withLock { sending in
+                    guard sending.turn == turn else { return false }
+                    sending.client = client
+                    return true
+                }
+                guard current else { return }
+            }
             await uploader.kick()
         }
     }
