@@ -20,6 +20,9 @@ struct LiveTvView: View {
     @State private var asking: LiveGuideRequest?
     /// The end of the window the guide shows, once it has been moved on from where it opens.
     @State private var showingUntil: Date?
+    /// A recording was set or taken off while the guide couldn't be fetched for it (Recordings was shown, or the guide
+    /// was already being asked for): the next fetch is for its marks, whatever is kept.
+    @State private var marksChanged = false
     /// How many recordings are coming up, for the sidebar.
     @State private var upcoming: Int?
 
@@ -76,7 +79,8 @@ struct LiveTvView: View {
                 try? await Task.sleep(for: .seconds(300))
             }
         }
-        .onChange(of: channels != nil) { Task { await loadGuide() } }
+        // The list shown changes when the channels arrive, and when a favourite is starred on another device.
+        .onChange(of: channels(in: category).map(\.id)) { Task { await loadGuide() } }
         .onChange(of: category) { Task { await loadGuide() } }
         .onChange(of: showingUntil) { Task { await loadGuide() } }
         .onChange(of: focusedCategory) { _, category in
@@ -181,15 +185,28 @@ struct LiveTvView: View {
     private func loadGuide(force: Bool = false, countsUpcoming: Bool = false) async {
         guard let client = model.client else { return }
         if !model.hasAgeLimit, force || countsUpcoming { upcoming = try? await client.recordings().upcoming.count }
-        guard channels != nil, category != .recordings else { return }
+        let force = force || marksChanged
+        guard channels != nil, category != .recordings else {
+            if force { marksChanged = true }
+            return
+        }
         let opens = LiveGuideGrid.halfHour(before: Date()).addingTimeInterval(LiveGuideGrid.window)
         guard let request = LiveGuidePlan.next(kept: kept, scope: category == .favourites ? .favourites : .all,
                                                shown: channels(in: category).map(\.id), showingUntil: max(showingUntil ?? opens, opens),
-                                               keepAhead: LiveGuideGrid.keepAhead, askAhead: LiveGuideGrid.askAhead, force: force),
-              request != asking else { return }
+                                               keepAhead: LiveGuideGrid.keepAhead, askAhead: LiveGuideGrid.askAhead, force: force) else { return }
+        guard request != asking else {
+            // The one being asked for may have gone before the recording changed.
+            if force { marksChanged = true }
+            return
+        }
         asking = request
         defer { if asking == request { asking = nil } }
-        if let loaded = try? await client.liveGuide(request, kept: kept) { kept = loaded }
+        if let loaded = try? await client.liveGuide(request, kept: kept) {
+            kept = loaded
+            if force { marksChanged = false }
+        } else if force {
+            marksChanged = true
+        }
     }
 
     private func load() async {

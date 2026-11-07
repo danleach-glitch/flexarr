@@ -86,6 +86,8 @@ struct LiveGuideView: View {
         }
         // Favourites has only its own channels' guide: another list may want more.
         .onChange(of: favouritesOnly) { Task { await load() } }
+        // A favourite starred on another device, or another list: its channels may not be in the guide kept.
+        .onChange(of: channels.map(\.id)) { Task { await load() } }
         .alert(details?.programme.displayTitle ?? "", isPresented: Binding(get: { details != nil }, set: { if !$0 { details = nil } })) {
             if let channel = details?.channel, let programme = details?.programme {
                 Button(t("Watch {channel} now", ["channel": channel.name])) { model.watch(channel, among: order) }
