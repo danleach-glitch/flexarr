@@ -56,4 +56,48 @@ public sealed class RemuxIndexTests : IDisposable
 
         Assert.Single(File.ReadAllLines(runs));
     }
+
+    [Fact]
+    public async Task AnAudioTracksFirstPacket_IsProbedOnce_AndRememberedAcrossARestart()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var runs = Path.Combine(_dir, "runs");
+        var ffprobe = Path.Combine(_dir, "ffprobe");
+        File.WriteAllText(ffprobe, $$"""
+            #!/bin/sh
+            echo run >> '{{runs}}'
+            printf 'pts_time=21.391000\nstart_time=0.500000\n'
+            """);
+        File.SetUnixFileMode(ffprobe, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var film = Path.Combine(_dir, "film.mkv");
+        File.WriteAllText(film, "x");
+        var settings = new TranscodeSettings { CacheDirectory = Path.Combine(_dir, "cache") };
+
+        using (var index = new RemuxIndex(settings, ffprobe, NullLogger<RemuxIndex>.Instance))
+        {
+            Assert.Equal(20.891, (await index.FirstPacketSecondsAsync(film, 1, CancellationToken.None))!.Value, 6);
+            Assert.Equal(20.891, (await index.FirstPacketSecondsAsync(film, 1, CancellationToken.None))!.Value, 6);
+        }
+
+        using (var index = new RemuxIndex(settings, ffprobe, NullLogger<RemuxIndex>.Instance))
+        {
+            Assert.Equal(20.891, (await index.FirstPacketSecondsAsync(film, 1, CancellationToken.None))!.Value, 6);
+        }
+
+        Assert.Single(File.ReadAllLines(runs));
+
+        // Another track is its own question; a changed file is asked about again.
+        using (var index = new RemuxIndex(settings, ffprobe, NullLogger<RemuxIndex>.Instance))
+        {
+            await index.FirstPacketSecondsAsync(film, 2, CancellationToken.None);
+            File.SetLastWriteTimeUtc(film, File.GetLastWriteTimeUtc(film).AddMinutes(1));
+            await index.FirstPacketSecondsAsync(film, 1, CancellationToken.None);
+        }
+
+        Assert.Equal(3, File.ReadAllLines(runs).Length);
+    }
 }

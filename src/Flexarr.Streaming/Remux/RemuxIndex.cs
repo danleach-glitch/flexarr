@@ -103,10 +103,40 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
             return known;
         }
 
+        // Kept on disk beside the keyframe index, so the first play after a restart doesn't wait for ffprobe again.
+        var saved = Path.Combine(CacheDirectory, string.Create(CultureInfo.InvariantCulture, $"{key}.first{streamIndex}.txt"));
+        try
+        {
+            if (File.Exists(saved))
+            {
+                var text = File.ReadAllText(saved).Trim();
+                double? remembered = text.Length == 0 ? null : double.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture);
+                _firstPackets[(key, streamIndex)] = remembered;
+                return remembered;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or FormatException or OverflowException or UnauthorizedAccessException)
+        {
+            // Read again below.
+        }
+
         var output = await RunAsync(["-v", "error", .. FfmpegCommand.LocalFile, "-select_streams", streamIndex.ToString(CultureInfo.InvariantCulture),
             "-read_intervals", "%+#1", "-show_entries", "packet=pts_time:format=start_time", "-of", "default=noprint_wrappers=1", path], ct).ConfigureAwait(false);
         var seconds = output is null ? null : ParseFirstPacket(output);
         _firstPackets[(key, streamIndex)] = seconds;
+        if (output is not null)
+        {
+            try
+            {
+                Directory.CreateDirectory(CacheDirectory);
+                File.WriteAllText(saved, seconds?.ToString("R", CultureInfo.InvariantCulture) ?? "");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Kept in memory regardless.
+            }
+        }
+
         return seconds;
     }
 
