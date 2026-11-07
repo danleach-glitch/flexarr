@@ -337,7 +337,7 @@ public sealed partial class MetadataRefresher(
             .DistinctBy(c => (c.Credit.PersonTmdbId, c.Role))
             .ToList();
 
-        var people = await PeopleAsync(tmdb: true, ct).ConfigureAwait(false);
+        var people = await PeopleAsync(tmdb: true, wanted.Select(c => c.Credit.PersonTmdbId.ToString(CultureInfo.InvariantCulture)), ct).ConfigureAwait(false);
 
         db.Credits.RemoveRange(item.Credits);
         item.Credits.Clear();
@@ -1176,7 +1176,7 @@ public sealed partial class MetadataRefresher(
             .DistinctBy(c => (c.Person.Id, c.Role))
             .ToList();
 
-        var people = await PeopleAsync(tmdb: false, ct).ConfigureAwait(false);
+        var people = await PeopleAsync(tmdb: false, wanted.Select(c => c.Person.Id.ToString(CultureInfo.InvariantCulture)), ct).ConfigureAwait(false);
 
         db.Credits.RemoveRange(item.Credits);
         item.Credits.Clear();
@@ -1329,7 +1329,7 @@ public sealed partial class MetadataRefresher(
             .DistinctBy(c => (c.Id, c.Role))
             .ToList();
 
-        var people = await PeopleAsync(tmdb: true, ct).ConfigureAwait(false);
+        var people = await PeopleAsync(tmdb: true, wanted.Select(c => c.Id.ToString(CultureInfo.InvariantCulture)), ct).ConfigureAwait(false);
 
         db.Credits.RemoveRange(item.Credits);
         item.Credits.Clear();
@@ -1649,27 +1649,26 @@ public sealed partial class MetadataRefresher(
 
     /// <summary>
     /// People shared across the whole refresh, so an actor in two films processed before the next save
-    /// isn't created twice.
+    /// isn't created twice. Only the people with <paramref name="keys"/> not looked up yet are read, not everyone.
     /// </summary>
-    private async Task<Dictionary<string, Person>> PeopleAsync(bool tmdb, CancellationToken ct)
+    private async Task<Dictionary<string, Person>> PeopleAsync(bool tmdb, IEnumerable<string> keys, CancellationToken ct)
     {
-        if (tmdb)
+        var map = tmdb ? _peopleByTmdb ??= new(StringComparer.Ordinal) : _peopleByTvMaze ??= new(StringComparer.Ordinal);
+        var wanted = keys.Where(k => !map.ContainsKey(k)).Distinct(StringComparer.Ordinal).ToList();
+        if (wanted.Count == 0)
         {
-            return _peopleByTmdb ??= Unique(await db.People.Where(p => p.TmdbId != null).ToListAsync(ct).ConfigureAwait(false), p => p.TmdbId!);
-        }
-
-        return _peopleByTvMaze ??= Unique(await db.People.Where(p => p.TvMazeId != null).ToListAsync(ct).ConfigureAwait(false), p => p.TvMazeId!);
-
-        static Dictionary<string, Person> Unique(List<Person> people, Func<Person, string> key)
-        {
-            var map = new Dictionary<string, Person>(StringComparer.Ordinal);
-            foreach (var person in people)
-            {
-                map.TryAdd(key(person), person);
-            }
-
             return map;
         }
+
+        var people = tmdb
+            ? await db.People.Where(p => wanted.Contains(p.TmdbId!)).ToListAsync(ct).ConfigureAwait(false)
+            : await db.People.Where(p => wanted.Contains(p.TvMazeId!)).ToListAsync(ct).ConfigureAwait(false);
+        foreach (var person in people)
+        {
+            map.TryAdd(tmdb ? person.TmdbId! : person.TvMazeId!, person);
+        }
+
+        return map;
     }
 
     private async Task SetGenresAsync(MediaItem item, IReadOnlyList<string> names, CancellationToken ct)

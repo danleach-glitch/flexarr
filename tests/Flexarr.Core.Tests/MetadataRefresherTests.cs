@@ -175,6 +175,41 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ACast_IsMatchedToThePeopleItCredits_WithoutReadingEveryoneElse()
+    {
+        await AddMovieAsync("Dune", null, poster: null, arrId: 7);
+        await AddMovieAsync("Heat", null, poster: null, arrId: 8);
+        _db.People.AddRange(
+            new Person { Name = "Known", TmdbId = "3" },
+            new Person { Name = "Elsewhere", TmdbId = "99" });
+        await _db.SaveChangesAsync();
+        _db.ChangeTracker.Clear();
+        _radarr.Responses["/api/v3/movie"] = """
+            [{"id":7,"title":"Dune","year":2021,"path":"/movies/Dune"},{"id":8,"title":"Heat","year":1995,"path":"/movies/Heat"}]
+            """;
+        _radarr.Responses["/api/v3/credit?movieId=7"] = """
+            [{"personName":"Known","personTmdbId":3,"type":"cast","order":0,"images":[]},
+             {"personName":"Newcomer","personTmdbId":4,"type":"cast","order":1,"images":[]}]
+            """;
+        _radarr.Responses["/api/v3/credit?movieId=8"] = """
+            [{"personName":"Newcomer","personTmdbId":4,"type":"cast","order":0,"images":[]},
+             {"personName":"Known","personTmdbId":3,"type":"crew","job":"Director","images":[]}]
+            """;
+
+        await Refresher().RefreshLibraryAsync(_library, force: true, default);
+
+        // Someone the films don't credit was never read.
+        Assert.DoesNotContain(_db.ChangeTracker.Entries<Person>(), e => e.Entity.Name == "Elsewhere");
+        // The one already known is reused, and the newcomer in both films made once.
+        var people = await _db.People.AsNoTracking().OrderBy(p => p.TmdbId).Select(p => new { p.Name, p.TmdbId }).ToListAsync();
+        Assert.Equal([("Known", "3"), ("Newcomer", "4"), ("Elsewhere", "99")], people.Select(p => (p.Name, p.TmdbId!)));
+        var credits = await _db.Credits.AsNoTracking().Select(c => new { c.MediaItem!.Title, c.Person!.Name, c.Role, c.Order }).ToListAsync();
+        Assert.Equal(
+            [("Dune", "Known", CreditRole.Actor, 0), ("Dune", "Newcomer", CreditRole.Actor, 1), ("Heat", "Newcomer", CreditRole.Actor, 0), ("Heat", "Known", CreditRole.Director, 1)],
+            credits.OrderBy(c => c.Title).ThenBy(c => c.Order).Select(c => (c.Title, c.Name, c.Role, c.Order)));
+    }
+
+    [Fact]
     public async Task APhotoUploadedDuringARefresh_IsntOverwritten()
     {
         await AddMovieAsync("Dune", null, poster: null, arrId: 7);
