@@ -2015,6 +2015,31 @@ describe('Library grid', () => {
       expect(await screen.findByRole('link', { name: 'Vfilm 2100' })).toBeInTheDocument()
     })
 
+    it('keeps the letters after a jump to a last letter with only a few titles', async () => {
+      // 2,520 films: a hundred to each letter from A to Y, and twenty under Z.
+      const few = library.slice(0, 2500).concat(Array.from({ length: 20 }, (_, i) => summary({ id: `z${i}`, title: `Zfilm ${i}` })))
+      mockApi({
+        '/libraries': [{ ...movies, scan: null, itemCount: few.length }],
+        '/libraries/lib-movies/genres': [],
+        '/libraries/lib-movies/items/letters': runs.slice(0, 25).concat({ letter: 'Z', offset: 2500, count: 20 }),
+        '/libraries/lib-movies/items': (_: RequestInit | undefined, url: URL) => {
+          const skip = Number(url.searchParams.get('skip') ?? 0)
+          const take = Number(url.searchParams.get('take'))
+          return { total: few.length, items: few.slice(skip, skip + take) }
+        },
+      })
+      renderAt('/library/lib-movies?view=all')
+
+      const rail = await screen.findByRole('navigation', { name: 'Jump to letter' })
+      fireEvent.click(within(rail).getByRole('button', { name: 'Z' }))
+
+      expect(await screen.findByRole('link', { name: 'Zfilm 0' })).toBeInTheDocument()
+      expect(screen.getAllByRole('link', { name: /film \d+$/ })).toHaveLength(20)
+      const after = screen.getByRole('navigation', { name: 'Jump to letter' })
+      fireEvent.click(within(after).getByRole('button', { name: 'A' }))
+      expect(await screen.findByRole('link', { name: 'Afilm 0000' })).toBeInTheDocument()
+    })
+
     it('on a server that can’t say, loads everything up to the letter', async () => {
       const asked = lettered(new Response('', { status: 404 }))
       renderAt('/library/lib-movies?view=all')

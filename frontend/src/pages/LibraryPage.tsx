@@ -420,7 +420,9 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
     setParams(next, { replace: true })
   }
 
-  const letters = !sort && !query && items.length > 40
+  // Counted to the end of what's loaded: after a jump near the end the grid may hold only a few titles, and the
+  // letters still have to be there to jump back.
+  const letters = !sort && !query && end > 40
 
   if (!library) return null
 
