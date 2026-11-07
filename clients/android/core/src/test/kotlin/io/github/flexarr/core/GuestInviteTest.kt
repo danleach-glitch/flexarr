@@ -158,6 +158,17 @@ class GuestInviteTest {
     }
 
     @Test
+    fun `a TV code is made from its public key, as the server and relay check it`() {
+        // The vectors in docs/remote-guests.md ("The code proves the key"), also in relay/test/pair.test.js and RemoteGuestTests.
+        assertEquals("P5GSPMQP", GuestTvCode.codeFor("BAabxf2q9hMu/dxG+nGp5nYWsRDth260mBqx6U/8TU9miOPz86o/f4xuMSzrZ/YVxS1EHcdBY/JxFPKujcWATRA="))
+        assertEquals("VFAZC453", GuestTvCode.codeFor("BJeO6XNfhIDBbIdQxtPpYlj3Cjk7nlUzjg+xJFmk20ChvzfI1jdWs2T5CgsWu1MmBW4iXHxrMfK9/MTDb9Nb1mM="))
+        assertEquals("7EAR565J", GuestTvCode.codeFor("BBikfwYmLGipShyfrqxMWA/kv+NWBDrgrZotgMESONlNQfZ0um1pjfF8J+1iarUDMOzmd5+F9czYFE5xxV+pIvo="))
+        val tv = GuestTvCode.create()
+        assertEquals(GuestTvCode.codeFor(tv.publicKey), tv.code)
+        assertTrue(GuestTvCode.create().code != tv.code)
+    }
+
+    @Test
     fun `a TV registers, waits, and collects its invite from the relay once`() = runTest {
         MockWebServer().use { relay ->
             relay.start()
