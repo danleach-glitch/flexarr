@@ -181,4 +181,42 @@ public class ProfileChoiceTests
         Assert.True((await MeAsync(Browser())).GetProperty("chooseProfile").GetBoolean());
         Assert.Equal(HttpStatusCode.OK, (await Browser(asks: false).GetAsync(Api("/libraries"))).StatusCode);
     }
+
+    [Fact]
+    public async Task AtHome_SwitchingToTheMainProfileFromAnother_WithItsOwnPin_SignsTheBrowserIn_SoItIsntAskedAgain()
+    {
+        using var server = new RemoteAccessFactory();
+        var sam = await SetUpAsync(server.Services);
+        HttpClient Browser(string? profileToken = null, string? cookie = null)
+        {
+            var client = server.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Test-Peer", "192.168.1.61");
+            client.DefaultRequestHeaders.Add("X-Requested-With", "flexarr");
+            client.DefaultRequestHeaders.Add(ChoiceHeader, "1");
+            if (profileToken is not null)
+            {
+                client.DefaultRequestHeaders.Add("X-Flexarr-Profile", profileToken);
+            }
+
+            if (cookie is not null)
+            {
+                client.DefaultRequestHeaders.Add("Cookie", cookie);
+            }
+
+            return client;
+        }
+
+        var asSam = (await (await Browser().PostAsJsonAsync(Api($"/profiles/{sam}/select"), new { })).Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("token").GetString()!;
+        Assert.False((await MeAsync(Browser(asSam))).GetProperty("chooseProfile").GetBoolean());
+
+        var chosen = await Browser(asSam).PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = OwnPin });
+
+        Assert.Equal(HttpStatusCode.OK, chosen.StatusCode);
+        var cookie = chosen.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith("flexarr.session=", StringComparison.Ordinal)).Split(';')[0];
+        var after = await MeAsync(Browser(cookie: cookie));
+        Assert.Equal(PlaybackState.DefaultUser, after.GetProperty("profileId").GetString());
+        Assert.False(after.GetProperty("chooseProfile").GetBoolean());
+        Assert.False(after.GetProperty("isAdmin").GetBoolean());
+    }
 }
