@@ -657,7 +657,34 @@ public static partial class ProfileEndpoints
         }
 
         var address = $"address:{http.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
-        return (http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value is { } login ? [$"tailscale:{login.ToLowerInvariant()}", address] : [address], browser);
+        if (http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value is { } login)
+        {
+            return ([$"tailscale:{login.ToLowerInvariant()}", address], browser);
+        }
+
+        return (PinRange(http.Connection.RemoteIpAddress) is { } range ? [address, range] : [address], browser);
+    }
+
+    /// <summary>
+    /// The IPv6 /64 an address without a sign-in also counts under, as "range:…/64": one device can take a fresh
+    /// address in its /64 for nothing, so it mustn't earn fresh PIN guesses with each. Null for IPv4 (an IPv4-mapped
+    /// address counts as IPv4) and for a tailnet address, which is fixed to its device.
+    /// </summary>
+    internal static string? PinRange(System.Net.IPAddress? address)
+    {
+        if (address is not { AddressFamily: System.Net.Sockets.AddressFamily.InterNetworkV6 } || address.IsIPv4MappedToIPv6)
+        {
+            return null;
+        }
+
+        var bytes = address.GetAddressBytes();
+        if (bytes[0] == 0xfd && bytes[1] == 0x7a && bytes[2] == 0x11 && bytes[3] == 0x5c && bytes[4] == 0xa1 && bytes[5] == 0xe0)
+        {
+            return null; // Tailscale's fd7a:115c:a1e0::/48
+        }
+
+        Array.Clear(bytes, 8, 8);
+        return $"range:{new System.Net.IPAddress(bytes)}/64";
     }
 
     /// <summary>A 429 saying how long to wait, with Retry-After.</summary>

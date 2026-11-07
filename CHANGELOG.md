@@ -93,6 +93,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Family guests can no longer move a title's sound earlier or later. Audio sync is kept on the file for the whole household, so only the household's own profiles change it.
 - On a home network with IPv6, a podcast feed or its artwork can no longer point the server at the router, a NAS or the server itself by their IPv6 addresses. Anything on the networks the server is connected to counts as home, not the internet.
 - A device that guesses at a profile's PIN slowly, waiting out each lockout, now gets 20 wrong guesses at that profile a day, then can't try it again until the day is out. A right PIN clears the count, and other devices aren't held up.
+- Devices that aren't signed in and come from the same IPv6 network now share one count of wrong PINs, so a device can no longer earn fresh guesses by switching to a new IPv6 address.
 - On the web, a link someone sends you can no longer make your browser change anything on your server just by being opened. A link to a channel, title or playlist only ever asks for that one thing.
 - The page a device's QR code opens before you've signed in shows a device code and nothing else: a link can no longer put words of its sender's choosing there.
 - **Sign out of this browser** also forgets what was played in it: each audiobook's place and the play queue. A browser keeps a book's place for a month after it was last played there rather than for good; after that the book starts from the place your server has.
