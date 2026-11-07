@@ -154,6 +154,9 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
 
         /// <summary>A device's own retry just after "Don't allow": listed, but not asked about.</summary>
         public bool Quiet { get; } = quiet;
+
+        /// <summary>The main profile's phones were sent a notification of this code.</summary>
+        public bool Announced { get; set; }
         public NetworkZone Zone { get; } = zone;
         public string? Address { get; } = address;
         public bool Approved { get; set; }
@@ -217,11 +220,13 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         }
 
         Tell(new PairingNotice(Details(pending), null));
-        // Already announced with this code: the phones' notification still matches.
-        var alreadyAnnounced = kept is not null && kept.Code == code && !kept.Quiet;
-        if (!quiet && !alreadyAnnounced && MayAnnounce(now))
+        // Already announced with this code: the phones' notification still matches. One the hourly limit held back
+        // is announced when it asks again, if the limit allows by then.
+        pending.Announced = kept is not null && kept.Code == code && kept.Announced;
+        if (!quiet && !pending.Announced && MayAnnounce(now))
         {
             announced = Details(pending);
+            pending.Announced = true;
         }
 
         return new PairingStartDto(pending.Id, Format(code), pending.ExpiresAt);

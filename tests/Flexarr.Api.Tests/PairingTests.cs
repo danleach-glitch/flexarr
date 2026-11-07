@@ -298,6 +298,31 @@ public class PairingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     }
 
     [Fact]
+    public void ACodeTheLimitHeldBack_IsAnnounced_WhenItAsksAgainLater()
+    {
+        var clock = new Clock();
+        using var server = new FlexarrApiFactory();
+        using var app = server.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<TimeProvider>(clock)));
+        var pairings = app.Services.GetRequiredService<Pairings>();
+        for (var i = 0; i < 20; i++)
+        {
+            pairings.Decline(pairings.Start($"TV {i}", NetworkZone.Local, $"192.168.4.{i + 1}", out _)!.Code);
+        }
+
+        clock.Now += TimeSpan.FromMinutes(59);
+        var held = pairings.Start("Hall TV", NetworkZone.Local, "192.168.4.100", out var heldBack)!;
+        clock.Now += TimeSpan.FromMinutes(2);
+        var again = pairings.Start("Hall TV", NetworkZone.Local, "192.168.4.100", out var later)!;
+        var once = pairings.Start("Hall TV", NetworkZone.Local, "192.168.4.100", out var repeated)!;
+
+        Assert.Null(heldBack);
+        Assert.Equal(held.Code, again.Code);
+        Assert.Equal(held.Code, once.Code);
+        Assert.NotNull(later);
+        Assert.Null(repeated);
+    }
+
+    [Fact]
     public async Task ACodeStillOnScreen_KeepsGoing_AndOneNobodysShowingRunsOut()
     {
         var clock = new Clock();
