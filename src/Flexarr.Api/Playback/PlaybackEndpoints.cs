@@ -432,8 +432,11 @@ public static partial class PlaybackEndpoints
             return text is null ? Problems.Of("These subtitles couldn’t be read.", status: 422) : Results.Text(text, "text/x-ssa");
         });
 
-        // The fonts attached to the file, which its styled subtitles are drawn with.
-        group.MapGet("/fonts.json", async (string sid, PlaybackSessions sessions, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+        // The fonts attached to the file, which its styled subtitles are drawn with. Optional `subtitle=<key>` (a styled
+        // track's key, as in its .ass address; absent from servers before the release after 0.62.1, which send every
+        // font): only the fonts that track's script names, plus any whose names can't be read. Unchanged without it.
+        group.MapGet("/fonts.json", async (string sid, string? subtitle, PlaybackSessions sessions, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options,
+            SubtitleCache subtitles, CancellationToken ct) =>
         {
             if (sessions.Get(sid) is not { } session)
             {
@@ -442,6 +445,11 @@ public static partial class PlaybackEndpoints
 
             var file = await db.MediaFiles.AsNoTracking().FirstAsync(f => f.Id == session.FileId, ct);
             var fonts = await SubtitleFonts.ListAsync(file, options.CurrentValue.FfprobePath, ct);
+            if (!string.IsNullOrEmpty(subtitle))
+            {
+                fonts = await FontsNamedByAsync(file, session, subtitle, fonts, subtitles, TranscodeSettingsFor(options.CurrentValue), ct);
+            }
+
             return Results.Ok(fonts.Select(f => new SubtitleFontDto(f.Name, $"/api/v1/playback/{sid}/fonts/{f.StreamIndex}")).ToList());
         });
 

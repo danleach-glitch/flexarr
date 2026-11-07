@@ -205,7 +205,8 @@ public static class SubtitleFonts
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-        var partial = target + ".tmp";
+        // Its own partial file: fonts.json?subtitle= reads every font, so two asks (a track switched mid-read) can extract one at once.
+        var partial = $"{target}.{Guid.NewGuid():N}.tmp";
         // FFmpeg dumps the attachment as it opens the file, then complains that no output was given: the file is what counts.
         await RunAsync(settings.FfmpegPath, ["-hide_banner", "-v", "error", "-nostdin", "-y", "-protocol_whitelist", "file",
             $"-dump_attachment:{font.StreamIndex}", partial, "-i", file.Path], null, ct).ConfigureAwait(false);
