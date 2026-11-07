@@ -24,7 +24,10 @@ public sealed class SearchIndexFreshnessTests(FlexarrApiFactory factory) : IClas
 
         public override long TimestampFrequency => TimeSpan.TicksPerSecond;
 
-        public override long GetTimestamp() => Ticks;
+        /// <summary>How far each reading moves the clock on, to make a build look slow.</summary>
+        public long Step { get; set; }
+
+        public override long GetTimestamp() => Ticks += Step;
     }
 
     [Fact]
@@ -66,6 +69,31 @@ public sealed class SearchIndexFreshnessTests(FlexarrApiFactory factory) : IClas
         clock.Ticks += (SearchIndex.Fresh + TimeSpan.FromSeconds(1)).Ticks;
         Assert.Contains(second, await FindAsync(index, $"renamd{word}", SearchIndex.Group.Title));
         Assert.Equal(3, index.StampChecks);
+    }
+
+    [Fact]
+    public async Task ASlowBuild_IsNotRepeatedForEverySave_UntilTenTimesItsLengthHasPassed()
+    {
+        var clock = new ManualClock();
+        using var index = new SearchIndex(clock);
+        var word = $"zq{Guid.NewGuid().ToString("N")[..8]}";
+        var first = await SeedAsync($"Breaking{word} Saga");
+        Assert.Contains(first, await FindAsync(index, $"braeking{word}", SearchIndex.Group.Title));
+
+        // A save, and a rebuild that takes a second (a big catalog): the new title is found.
+        var second = await SeedAsync($"Shoegazing{word} Days");
+        clock.Step = TimeSpan.TicksPerSecond;
+        Assert.Contains(second, await FindAsync(index, $"shoegazng{word}", SearchIndex.Group.Title));
+        clock.Step = 0;
+
+        // Another save straight after: the index as it was serves for now, the earlier titles and all.
+        var third = await SeedAsync($"Moonlighting{word} Nights");
+        Assert.DoesNotContain(third, await FindAsync(index, $"moonlghting{word}", SearchIndex.Group.Title));
+        Assert.Contains(second, await FindAsync(index, $"shoegazng{word}", SearchIndex.Group.Title));
+
+        // Ten seconds on (ten times the build), it's rebuilt.
+        clock.Ticks += SearchIndex.RebuildSpacing * TimeSpan.TicksPerSecond;
+        Assert.Contains(third, await FindAsync(index, $"moonlghting{word}", SearchIndex.Group.Title));
     }
 
     private async Task<List<Guid>> FindAsync(SearchIndex index, string text, SearchIndex.Group group)
