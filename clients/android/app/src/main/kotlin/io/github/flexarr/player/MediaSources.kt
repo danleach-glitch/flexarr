@@ -9,7 +9,7 @@ import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
-import androidx.media3.session.CacheBitmapLoader
+import androidx.media3.session.MediaSession
 import io.github.flexarr.core.FlexarrClient
 
 /**
@@ -23,8 +23,13 @@ fun mediaSources(context: Context): MediaSource.Factory =
 
 /**
  * How a media session loads the artwork it shows (the notification, the lock screen): over the app's own connections
- * too, so a family guest's reaches its server through the tunnel, which takes only the app's requests.
+ * too, so a family guest's reaches its server through the tunnel, which takes only the app's requests. Decoded no
+ * bigger than the session's own loader would (a downloaded poster can be thousands of pixels high); the session adds its
+ * cache and size limits around it.
  */
 @OptIn(UnstableApi::class)
 fun sessionBitmapLoader(context: Context): BitmapLoader =
-    CacheBitmapLoader(DataSourceBitmapLoader.Builder(context).setDataSourceFactory(DefaultDataSource.Factory(context, OkHttpDataSource.Factory(FlexarrClient.sharedHttp))).build())
+    DataSourceBitmapLoader.Builder(context)
+        .setDataSourceFactory(DefaultDataSource.Factory(context, OkHttpDataSource.Factory(FlexarrClient.sharedHttp)))
+        .setMaximumOutputDimension(MediaSession.getBitmapDimensionLimit(context) * 2 - 1)
+        .build()
