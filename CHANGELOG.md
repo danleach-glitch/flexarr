@@ -35,6 +35,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Mac
 
+- **Reset Admin PIN** in the Flexarr Server menu no longer sends the server's API key. The new PIN goes sealed so only the app's own server can read it, so no other program on the Mac can pick up the key or the PIN.
 - Clicking back into Flexarr's window no longer sends your server four or five requests every time: what it brings up to date (Up Next, downloads, the server's status) is checked once a minute at most.
 
 ### Live TV

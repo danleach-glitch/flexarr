@@ -26,6 +26,8 @@ final class ServerProcess {
     /// While nobody has set the server up: the code its welcome page asks for, which it keeps in its data folder.
     private(set) var setupCode: String?
     private let requests: AppRequests
+    /// The token this run's server was given (Flexarr:MacApp:Token): what Reset Admin PIN seals the new PIN with.
+    var launchToken: String { requests.token }
     private var requestsPort: UInt16?
     private var process: Process?
     private var quickExits = 0

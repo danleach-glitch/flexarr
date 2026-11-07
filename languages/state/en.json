@@ -2742,7 +2742,6 @@
   "The server this TV uses: its address, how it’s reached and what it’s running.": "n",
   "The server took too long to answer.": "w",
   "The server took too long to answer. Is it on the same network as this {device}?": "a",
-  "The server’s API key couldn’t be read.": "a",
   "The server’s address couldn’t be read.": "a",
   "The server’s https certificate isn’t trusted. Try its http address on your local network.": "a",
   "The server’s log has it, and a link that fills it in for you.": "w",

@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Flexarr.Api.Authentication;
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Endpoints;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
@@ -18,6 +19,9 @@ public sealed record AdminUnlockRequest(string? Pin, string? ApiKey = null);
 /// <param name="ApiKey">When there's an admin PIN already and it's been forgotten.</param>
 /// <param name="CurrentPin">When there's an admin PIN already: changing it knowing the one it has now. Absent from servers before 0.57.</param>
 public sealed record AdminPinRequest(string Pin, string? ApiKey = null, string? CurrentPin = null);
+
+/// <summary>The Mac app's Reset Admin PIN: a random nonce (base64, at least 16 bytes) and the sealed PIN (see <see cref="Endpoints.MacAppHost.OpenPinReset"/>).</summary>
+public sealed record MacAppPinResetRequest(string? Nonce, string? Sealed);
 
 /// <param name="UnlockedUntil">When managing the server takes the PIN again; null for the API key, which always may.</param>
 /// <param name="Token">After a new PIN, the main profile's new <c>X-Flexarr-Profile</c> token (the old one stops working).</param>
@@ -167,6 +171,46 @@ public static class AdminEndpoints
             signIns.ChooseProfile(signInId, null);
             return Results.Ok(new AdminUnlockDto(unlocks.Unlock(signInId), current.TokenFor(main)));
         });
+
+        // The Mac app's Reset Admin PIN (clients/macos AdminPinReset.swift): the PIN sealed with the app's launch token
+        // (Flexarr:MacApp:Token; see MacAppHost.OpenPinReset), so the app never sends the API key, or the PIN, to
+        // whatever else might answer on the port. Only from this Mac, and only in the Mac app; 204 when it's set. The
+        // app's earlier way, POST /pin with the API key, still works.
+        api.MapPost("/admin/pin/mac-app", async (MacAppPinResetRequest request, HttpContext http, FlexarrDbContext db, SignIns signIns, AdminUnlocks unlocks,
+            MacAppHost mac, TimeProvider clock, CancellationToken ct) =>
+        {
+            if (!mac.IsAvailable || http.Connection.RemoteIpAddress is not { } peer || !System.Net.IPAddress.IsLoopback(peer))
+            {
+                return Results.NotFound();
+            }
+
+            if (mac.OpenPinReset(request.Nonce, request.Sealed, clock.GetUtcNow()) is not { } pin)
+            {
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+            }
+
+            if (!IsPin(pin))
+            {
+                return Problems.Field("A PIN is 4 to 8 digits.", field: "pin");
+            }
+
+            if (await db.Profiles.FindAsync([PlaybackState.DefaultUser], ct) is not { } main)
+            {
+                return Results.NotFound();
+            }
+
+            var replacing = main.AdminPinHash is not null;
+            main.SetAdminPin(pin);
+            await db.SaveChangesAsync(ct);
+            if (replacing)
+            {
+                // Whoever knew the old one starts again, as with the API key.
+                signIns.RevokePinVerifiedExcept(null);
+                unlocks.LockAllExcept(null);
+            }
+
+            return Results.NoContent();
+        }).WithTags("Profiles").AllowAnonymous();
 
         return api;
     }
