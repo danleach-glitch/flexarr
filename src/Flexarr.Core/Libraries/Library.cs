@@ -95,4 +95,10 @@ public sealed class LibraryFolder
     /// and go, rather than the folder (still empty) being held again.
     /// </summary>
     public DateTime? ReleasedAt { get; set; }
+
+    /// <summary>
+    /// When the last scan of the whole folder began that saw it through (it wasn't held). The scheduled sweeps in
+    /// between look only at the folders changed since; null until a full scan has.
+    /// </summary>
+    public DateTime? FullScanAt { get; set; }
 }

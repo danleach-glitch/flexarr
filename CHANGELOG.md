@@ -56,6 +56,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Libraries
 
+- Files added by hand, without Sonarr, Radarr or Lidarr, show up within four hours instead of twelve, and the drives your media is on are woken less often. Every four hours, and when it starts, the server looks only in the folders that changed since it last looked; it reads through every file of a library once a day.
 - New episodes, films and albums no longer wait behind a whole library's weekly refresh of details. Titles that are out of date are refreshed in the background, 25 at a time every ten minutes, the longest due first; a scan only fetches details for new titles and for the folder it was told about.
 - A library scan holds much less in the server's memory: of the files it already knows, it keeps only the ones that changed, not every file of the library, which matters on a NAS or a small Docker host.
 - The Apple TV's Top Shelf cards for titles whose artwork is kept beside the media no longer wake a sleeping drive once the server has made them, as covers already didn't, and a cover the server already has a copy of is served without looking at the drive again when the title is looked up afresh.

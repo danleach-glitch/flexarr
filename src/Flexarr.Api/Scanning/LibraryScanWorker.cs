@@ -19,14 +19,30 @@ public sealed partial class LibraryScanWorker(
     LibraryWorkGate gate) : BackgroundService
 {
     private static readonly TimeSpan Debounce = TimeSpan.FromSeconds(2);
-    private static readonly TimeSpan ScheduledScanInterval = TimeSpan.FromHours(12);
+    private static readonly TimeSpan ScheduledScanInterval = TimeSpan.FromHours(4);
+
+    /// <summary>
+    /// A folder whose last full scan began longer ago than this is scanned in full again: about once a day at these
+    /// ticks. In between, a sweep looks only at the folders that changed.
+    /// </summary>
+    public static readonly TimeSpan FullScanAfter = TimeSpan.FromHours(22);
+
+    /// <summary>Folder times a little older than the last scan still count: the drive's clock and the server's can differ.</summary>
+    private static readonly TimeSpan Slack = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// More changed folders than this and the library folder is scanned in full instead: each scan of a folder also
+    /// looks over the library's titles, which for this many costs more than one look at every file.
+    /// </summary>
+    private const int SweepAtMost = 50;
+
+    /// <summary>When the last sweep of each library folder began, since the server started.</summary>
+    private readonly Dictionary<string, DateTime> _swept = new(StringComparer.Ordinal);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Catch up on anything that changed while the server was down (and finish interrupted scans).
-        // Unchanged files are only stat'ed, so this is cheap after the first scan.
-        await EnqueueAllSafelyAsync("Startup", stoppingToken);
-
+        // Catch up on anything that changed while the server was down (and finish interrupted scans): a sweep of what
+        // changed since the last full scan, or a full scan when that's a day old.
         _ = ScheduleAsync(stoppingToken);
 
         await foreach (var first in queue.ReadAllAsync(stoppingToken))
@@ -75,6 +91,7 @@ public sealed partial class LibraryScanWorker(
     /// <summary>Picks up changes the *arr webhooks don't cover (files added by hand, other tools).</summary>
     private async Task ScheduleAsync(CancellationToken ct)
     {
+        await EnqueueAllSafelyAsync("Startup", ct);
         using var timer = new PeriodicTimer(ScheduledScanInterval);
         while (await timer.WaitForNextTickAsync(ct))
         {
@@ -95,13 +112,45 @@ public sealed partial class LibraryScanWorker(
         }
     }
 
-    private async Task EnqueueAllAsync(string reason, CancellationToken ct)
+    /// <summary>
+    /// Each library folder in full when its last full scan is a day old (or it's never had one), otherwise just the
+    /// folders in it changed since that scan or the last sweep, whichever is later.
+    /// </summary>
+    internal async Task EnqueueAllAsync(string reason, CancellationToken ct)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-        foreach (var folder in await db.LibraryFolders.Select(f => f.Path).ToListAsync(ct))
+        foreach (var library in await db.Libraries.AsNoTracking().Include(l => l.Folders).ToListAsync(ct))
         {
-            await queue.EnqueueAsync(new LibraryScanRequest(folder, reason), ct);
+            foreach (var folder in library.Folders)
+            {
+                var now = DateTime.UtcNow;
+                if (folder.FullScanAt is not { } full || now - full > FullScanAfter || library.Type == LibraryType.Podcasts)
+                {
+                    await queue.EnqueueAsync(new LibraryScanRequest(folder.Path, reason), ct);
+                    _swept[folder.Path] = now;
+                    continue;
+                }
+
+                var since = (_swept.TryGetValue(folder.Path, out var swept) && swept > full ? swept : full) - Slack;
+                List<string> changed;
+                try
+                {
+                    changed = await LibrarySweep.ChangedAsync(db, library, folder.Path, since, ct);
+                }
+                catch (Exception ex) when (!ct.IsCancellationRequested)
+                {
+                    LogSweepFailed(ex, PathComparison.Printable(folder.Path));
+                    continue; // Looked at again next time, from the same point.
+                }
+
+                foreach (var path in changed.Count > SweepAtMost ? [folder.Path] : changed)
+                {
+                    await queue.EnqueueAsync(new LibraryScanRequest(path, $"{reason}: changed since the last scan"), ct);
+                }
+
+                _swept[folder.Path] = now;
+            }
         }
     }
 
@@ -232,6 +281,9 @@ public sealed partial class LibraryScanWorker(
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Scan of {Path} failed")]
     private partial void LogScanFailed(Exception exception, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't look for what changed in {Path}")]
+    private partial void LogSweepFailed(Exception exception, string path);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Couldn't queue the {Reason} scan of every library")]
     private partial void LogEnqueueFailed(Exception exception, string reason);

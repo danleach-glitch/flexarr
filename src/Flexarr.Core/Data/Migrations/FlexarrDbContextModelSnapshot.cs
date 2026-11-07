@@ -210,6 +210,9 @@ namespace Flexarr.Core.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("FullScanAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("HeldKnown")
                         .HasColumnType("INTEGER");
 

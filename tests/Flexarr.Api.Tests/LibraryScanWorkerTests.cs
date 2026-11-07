@@ -84,6 +84,70 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task TheScheduledScan_IsFullOnceADay_AndOtherwiseOnlyWhatChanged()
+    {
+        var root = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, $"films-{Guid.NewGuid():N}")).FullName;
+        foreach (var film in new[] { "Dune (2021)", "Heat (1995)" })
+        {
+            Directory.CreateDirectory(Path.Combine(root, film));
+            File.WriteAllText(Path.Combine(root, film, $"{film}.mkv"), "x");
+        }
+
+        var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = root }] };
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.Libraries.Add(library);
+            await db.SaveChangesAsync();
+        }
+
+        var queue = new LibraryScanQueue();
+        using var worker = new LibraryScanWorker(queue, factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            factory.Services.GetRequiredService<LibraryWorkGate>());
+        async Task<List<string>> QueuedAsync()
+        {
+            await worker.EnqueueAllAsync("Scheduled", default);
+            var queued = new List<string>();
+            while (queue.TryDequeue(out var request))
+            {
+                if (request.Path.StartsWith(root, StringComparison.Ordinal))
+                {
+                    queued.Add(request.Path);
+                }
+            }
+
+            return queued;
+        }
+
+        async Task FullScanAtAsync(DateTime? at)
+        {
+            using var scope = factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            await db.LibraryFolders.Where(f => f.LibraryId == library.Id).ExecuteUpdateAsync(u => u.SetProperty(f => f.FullScanAt, at));
+        }
+
+        // Never scanned in full: in full.
+        Assert.Equal([root], await QueuedAsync());
+
+        // Scanned in full an hour ago, nothing changed since: nothing.
+        foreach (var folder in Directory.EnumerateDirectories(root).Append(root))
+        {
+            Directory.SetLastWriteTimeUtc(folder, DateTime.UtcNow.AddHours(-2));
+        }
+
+        await FullScanAtAsync(DateTime.UtcNow.AddHours(-1));
+        Assert.Empty(await QueuedAsync());
+
+        // A film's folder changed: just that one.
+        File.WriteAllText(Path.Combine(root, "Heat (1995)", "Heat (1995).srt"), "x");
+        Assert.Equal([Path.Combine(root, "Heat (1995)")], await QueuedAsync());
+
+        // A day on: in full again.
+        await FullScanAtAsync(DateTime.UtcNow - LibraryScanWorker.FullScanAfter - TimeSpan.FromMinutes(1));
+        Assert.Equal([root], await QueuedAsync());
+    }
+
+    [Fact]
     public void Coalesce_DropsDuplicatesAndNestedPaths()
     {
         var requests = new[]
