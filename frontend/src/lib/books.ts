@@ -1,6 +1,6 @@
 import type { BookChapter, BookFile, BookProgress, BookSeriesRef, ItemSummary } from '../api/types'
 import { formatClock } from './format'
-import { profileKey } from './profileScope'
+import { BOOK_PLACE_KEY, keepsPlayed, profileKey, storedKeys } from './profileScope'
 import { locale, t } from '../i18n'
 
 /** A book, rather than a film, track or episode. */
@@ -209,12 +209,35 @@ export function startDecision(progress: BookProgress, local: LocalPlace | null, 
   return { start: local.position, offer: { position: server, device: progress.device } }
 }
 
-/** This browser's place in a book, for the profile chosen here (a child never starts at a parent's place). */
-const placeKey = (bookId: string) => profileKey(`flexarr.bookPlace.${bookId}`)
+/** Where this browser keeps its place in a book, for the profile chosen here (a child never starts at a parent's place). */
+export const localPlaceKey = (bookId: string) => profileKey(`${BOOK_PLACE_KEY}${bookId}`)
+
+/**
+ * How long this browser keeps its own place in a book it hasn't played since, in milliseconds. The server has the place
+ * too, and that's the one a book starts from once this is gone; kept for good, they'd list every book ever played here.
+ */
+const PLACE_KEPT_FOR = 30 * 24 * 60 * 60 * 1000
+
+/** Forgets the places kept here that are older than a month (or unreadable), whichever profile's they were. */
+export function forgetOldPlaces(now = Date.now()) {
+  try {
+    for (const key of storedKeys(localStorage, BOOK_PLACE_KEY)) {
+      let savedAt: unknown
+      try {
+        savedAt = (JSON.parse(localStorage.getItem(key) ?? 'null') as Partial<LocalPlace> | null)?.savedAt
+      } catch {
+        savedAt = undefined
+      }
+      if (typeof savedAt !== 'number' || !Number.isFinite(savedAt) || now - savedAt > PLACE_KEPT_FOR) localStorage.removeItem(key)
+    }
+  } catch {
+    // Storage blocked: nothing is kept there.
+  }
+}
 
 export function readLocalPlace(bookId: string): LocalPlace | null {
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(placeKey(bookId)) ?? 'null')
+    const parsed: unknown = JSON.parse(localStorage.getItem(localPlaceKey(bookId)) ?? 'null')
     if (parsed && typeof parsed === 'object' && 'position' in parsed && 'savedAt' in parsed) {
       const { position, savedAt } = parsed as LocalPlace
       if (Number.isFinite(position) && Number.isFinite(savedAt)) return { position, savedAt }
@@ -225,9 +248,15 @@ export function readLocalPlace(bookId: string): LocalPlace | null {
   return null
 }
 
-export function saveLocalPlace(bookId: string, position: number, now = Date.now()) {
+/**
+ * Keeps this browser's place in a book. A book that's playing passes the `key` it started with (`localPlaceKey` then):
+ * "Switch to …" saves the new profile just before the page goes, and the place written on the way out is still the
+ * old profile's. Nothing is kept once this page has signed out.
+ */
+export function saveLocalPlace(bookId: string, position: number, now = Date.now(), key = localPlaceKey(bookId)) {
+  if (!keepsPlayed()) return
   try {
-    localStorage.setItem(placeKey(bookId), JSON.stringify({ position: Math.max(0, Math.floor(position)), savedAt: now }))
+    localStorage.setItem(key, JSON.stringify({ position: Math.max(0, Math.floor(position)), savedAt: now }))
   } catch {
     // Storage blocked: the next start just won't know where this browser was.
   }

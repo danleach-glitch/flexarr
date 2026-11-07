@@ -101,6 +101,11 @@ export function Aurora({ colours, analyser, playing, still }: { colours: Rgb[]; 
     }
 
     const tick = (now: number) => {
+      frame = requestAnimationFrame(tick)
+      // Thirty frames a second is plenty for light this soft, and once a pause has slowed it nearly to a stop, ten: the
+      // browser blurs the whole window each time it's drawn. (A little slack, so a 60 Hz screen draws every other frame.)
+      const settled = !live.current.playing && pace < 0.012
+      if (now - last < (settled ? 100 : 1000 / 30) - 4) return
       // A long gap (the tab was hidden) counts as one ordinary frame, so nothing leaps when it comes back.
       const dt = Math.min(0.1, (now - last) / 1000)
       last = now
@@ -115,7 +120,6 @@ export function Aurora({ colours, analyser, playing, still }: { colours: Rgb[]; 
       pace += (target - pace) * (1 - Math.exp(-dt * 1.5))
       clock += pace * dt * 4
       draw(level)
-      frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
     return () => {

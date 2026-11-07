@@ -44,6 +44,8 @@ import { episodeAsTrack, episodeDate, episodeLength, episodeProgress, looksLikeF
 import { locale, t, Words } from '../i18n'
 
 const PAGE = 50
+/** The most episodes the server gives in one answer. */
+const MAX_PAGE = 200
 
 /** A trailer or bonus episode's kind, as shown beside it. */
 const episodeKind = (type: PodcastEpisode['episodeType']) => (type === 'Trailer' ? t(Words.trailer) : type === 'Bonus' ? t('Bonus') : type)
@@ -582,6 +584,18 @@ function DirectoryCard({ podcast, rank }: { podcast: DirectoryPodcast; rank?: nu
 
 // ---------- A show
 
+/** Adds episodes to a list, skipping any it already has (a new episode, or one marked played, shifts what's on each page). */
+function appendEpisodes(loaded: PodcastEpisode[], more: PodcastEpisode[]) {
+  const seen = new Set(loaded.map((e) => e.id))
+  const all = [...loaded]
+  for (const episode of more) {
+    if (seen.has(episode.id)) continue
+    seen.add(episode.id)
+    all.push(episode)
+  }
+  return all
+}
+
 export function PodcastPage() {
   return (
     <PodcastsGate>
@@ -600,9 +614,14 @@ function PodcastShow() {
   const [sortChosen, setSortChosen] = useState<'newest' | 'oldest'>()
   const [search, setSearch] = useState('')
   const [q, setQ] = useState('')
-  const [pages, setPages] = useState(1)
-  const [pagesShown, setPagesShown] = useState(1)
+  // How many pages the list runs to (Show more adds one), which load of the whole list is the latest, and whether
+  // it's still under way. `again` asks for the whole list once more (Show more, when adding a page won't do).
+  const pages = useRef(1)
+  const load = useRef(0)
+  const reloading = useRef(false)
+  const [again, setAgain] = useState(0)
   const [episodes, setEpisodes] = useState<{ total: number; items: PodcastEpisode[] }>()
+  const [moreBusy, setMoreBusy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [marking, setMarking] = useState<'asking' | 'busy' | 'failed' | null>(null)
   const [expanded, setExpanded] = useState(false)
@@ -616,23 +635,78 @@ function PodcastShow() {
   const sort = sortChosen ?? (show.data?.subscription?.oldestFirst ? 'oldest' : 'newest')
   const loaded = show.data !== undefined
 
-  // Every page so far, fetched again when anything changes (a played tick, a filter), so the list stays as long as it was.
+  // Every page so far, fetched again when anything changes (a played tick, a filter), so the list stays as long as it
+  // was: in as few answers as the server allows. Show more doesn't come through here; it adds its own page below.
   useEffect(() => {
     if (!loaded) return
+    const run = ++load.current
+    reloading.current = true
     const controller = new AbortController()
-    getPodcastEpisodes(id, { limit: PAGE * pages, sort, unplayed: filter === 'unplayed', q }, controller.signal).then((list) => {
-      setEpisodes(list)
-      setPagesShown(pages)
-    }, () => undefined)
+    const wanted = PAGE * pages.current
+    const offsets = Array.from({ length: Math.ceil(wanted / MAX_PAGE) }, (_, i) => i * MAX_PAGE)
+    // The latest load over, either way: Show more may have been waiting on it.
+    const over = () => {
+      if (run !== load.current) return false
+      reloading.current = false
+      setMoreBusy(false)
+      return true
+    }
+    Promise.all(
+      offsets.map((offset) => getPodcastEpisodes(id, { offset, limit: Math.min(MAX_PAGE, wanted - offset), sort, unplayed: filter === 'unplayed', q }, controller.signal)),
+    ).then((lists) => {
+      if (over()) setEpisodes({ total: lists[0].total, items: appendEpisodes([], lists.flatMap((list) => list.items)) })
+    }, over)
     return () => controller.abort()
-  }, [id, pages, sort, filter, q, version, loaded])
+  }, [id, sort, filter, q, version, loaded, again])
 
-  // A show only being looked at is checked for new episodes when opened: look again shortly for what that found.
+  // Show more: just the next page, after the episodes already here. It's asked for from the last episode here, so the
+  // answer says whether the server's list still lines up with this one: an episode heard to the end since (here or on
+  // a phone) or a new one moves every later episode along, and a page taken by count alone would skip or repeat one.
+  // When it doesn't line up, or the whole list is already on its way a page short, the whole list is asked for instead.
+  async function showMore() {
+    if (!episodes || moreBusy) return
+    setMoreBusy(true)
+    pages.current += 1
+    if (reloading.current) return setAgain((n) => n + 1)
+    const run = load.current
+    const last = episodes.items.length ? episodes.items[episodes.items.length - 1] : undefined
+    try {
+      const list = await getPodcastEpisodes(id, { offset: Math.max(0, episodes.items.length - 1), limit: PAGE + 1, sort, unplayed: filter === 'unplayed', q })
+      // The list was loaded afresh meanwhile (a tick, a filter), this page included; that load ends the wait.
+      if (run !== load.current) return
+      if (last && list.items[0]?.id !== last.id) return setAgain((n) => n + 1)
+      setEpisodes((current) => current && { total: list.total, items: appendEpisodes(current.items, list.items) })
+      setMoreBusy(false)
+    } catch {
+      // Nothing more arrived: the button is there to press again.
+      if (run !== load.current) return
+      pages.current -= 1
+      setMoreBusy(false)
+    }
+  }
+
+  // A show only being looked at is checked for new episodes when opened: look again shortly for what that found. Once
+  // per show (the second look loads the show afresh, which would otherwise start the wait over), and not in a hidden
+  // tab: then it waits until the page is seen again.
+  const lookedAgain = useRef<string>(undefined)
+  const notFollowed = show.data !== undefined && !show.data.subscription
   useEffect(() => {
-    if (!show.data || show.data.subscription) return
-    const timer = setTimeout(changed, 70_000)
-    return () => clearTimeout(timer)
-  }, [show.data, changed])
+    if (!notFollowed || lookedAgain.current === id) return
+    const look = () => {
+      if (document.visibilityState === 'hidden') return
+      lookedAgain.current = id
+      document.removeEventListener('visibilitychange', look)
+      changed()
+    }
+    const timer = setTimeout(() => {
+      look()
+      if (lookedAgain.current !== id) document.addEventListener('visibilitychange', look)
+    }, 70_000)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('visibilitychange', look)
+    }
+  }, [id, notFollowed, changed])
 
   if (show.error) return <PageError error={show.error} message={show.error instanceof ApiError && show.error.status === 404 ? t('This podcast is no longer here.') : undefined} onRetry={show.reload} />
   if (!show.data) return <PageLoading />
@@ -775,7 +849,7 @@ function PodcastShow() {
         )}
         <EpisodeList episodes={items} onChanged={changed} onMarked={marked} />
         {episodes && episodes.items.length < episodes.total && (
-          <AsyncButton className="button quiet podcast-more" busy={pagesShown < pages} onClick={() => setPages(pages + 1)}>
+          <AsyncButton className="button quiet podcast-more" busy={moreBusy} onClick={showMore}>
             {t('Show more episodes')}
           </AsyncButton>
         )}

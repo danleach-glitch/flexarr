@@ -94,6 +94,25 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On a home network with IPv6, a podcast feed or its artwork can no longer point the server at the router, a NAS or the server itself by their IPv6 addresses. Anything on the networks the server is connected to counts as home, not the internet.
 - A device that guesses at a profile's PIN slowly, waiting out each lockout, now gets 20 wrong guesses at that profile a day, then can't try it again until the day is out. A right PIN clears the count, and other devices aren't held up.
 
+### Security
+- On the web, a link someone sends you can no longer make your browser change anything on your server just by being opened. A link to a channel, title or playlist only ever asks for that one thing.
+- The page a device's QR code opens before you've signed in shows a device code and nothing else: a link can no longer put words of its sender's choosing there.
+- **Sign out of this browser** also forgets what was played in it: each audiobook's place and the play queue. A browser keeps a book's place for a month after it was last played there rather than for good; after that the book starts from the place your server has.
+- Switching straight to another profile while something plays no longer leaves the queue in the other profile's player, or your place in an audiobook for that profile to start from.
+
+### Web
+- In an audiobook library of more than a few hundred books, jumping to a letter no longer leaves books out of the grid.
+- On a podcast's page, **Show more episodes** carries on past 200 episodes, and each press loads just the next ones rather than the whole list again.
+- The Live TV guide opens and responds to a click more quickly when it has hundreds of channels.
+- Flexarr opens a little sooner in a browser: it asks the server for everything the first screen needs at once, and a server that's slow to say which languages it has no longer holds the screen at **Connecting…**.
+- The first page has less to download: Now Playing, playlists, audiobook pages and the main profile's editors are fetched the first time you open them.
+- With music, a podcast or a book playing, a long grid of posters no longer redraws every card each time the track changes or pauses.
+- Search asks your server once you pause typing rather than at nearly every letter, and no longer says nothing matches before it has looked.
+- Reloading the page with a long music queue brings the queue back at once, rather than asking your server for every album in it ahead of the page itself.
+- A film or episode whose styled subtitles come with dozens of fonts no longer fetches them all at once, so the picture isn't kept waiting behind them.
+- For the main profile, going back to Home from a title shows it at once, as it does for everyone else, rather than after one more answer from your server.
+- On a phone or a small window, the page of a film, show, episode or collection (in your library or in Discover) downloads its backdrop at a size that fits the screen, as Home already did, rather than always the largest.
+
 ## 0.62.1 · 5 November 2026
 
 ### Apple TV

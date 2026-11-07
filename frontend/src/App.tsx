@@ -19,7 +19,7 @@ import {
   type Profile,
 } from './api/client'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { currentLanguage, onLanguageChange, settleLanguage, t, Words } from './i18n'
+import { beginLanguage, currentLanguage, onLanguageChange, t, Words } from './i18n'
 import { ProfilePicker } from './components/ProfilePicker'
 import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
@@ -30,9 +30,11 @@ import { HomePage } from './pages/HomePage'
 import { ItemPage } from './pages/ItemPage'
 import { LibraryPage } from './pages/LibraryPage'
 import { PersonPage } from './pages/PersonPage'
-import { LinkPage } from './pages/LinkPage'
 import { errorReporter } from './lib/errorReporter'
+import { onDemand } from './lib/onDemand'
+import { deviceCode } from './lib/pairing'
 import { configureSentry } from './lib/sentry'
+import { forgetPlayed, startKeepingPlayed } from './lib/profileScope'
 import { session } from './lib/session'
 import './styles/tokens.generated.css'
 import './styles/tokens.css'
@@ -48,10 +50,6 @@ import { setServerTitle } from './lib/serverTitle'
 
 // The player (with hls.js) and settings load on demand to keep the first page light.
 /**
- * Loads a page on demand. A tab opened before an update can ask for a file the update replaced; then the page reloads
- * once to pick up the new version rather than going blank. (Deploys also keep a week of old files.)
- */
-/**
  * A page that starts afresh for each title it shows: going from one to another (a Similar title, a person's film)
  * never shows the last one's details, or its Play button, under the new address while the new one loads.
  */
@@ -60,21 +58,9 @@ function Fresh({ children }: { children: ReactNode }) {
   return <Fragment key={Object.values(params).join('/')}>{children}</Fragment>
 }
 
+/** A page loaded on demand (see onDemand for a tab opened before an update). */
 function lazyPage<T extends { default: ComponentType }>(load: () => Promise<T>) {
-  return lazy(async () => {
-    try {
-      const page = await load()
-      session.remove('flexarr.reloadedForUpdate')
-      return page
-    } catch (error) {
-      if (!session.get('flexarr.reloadedForUpdate')) {
-        session.set('flexarr.reloadedForUpdate', '1')
-        location.reload()
-        return new Promise<T>(() => {}) // the reload replaces this page
-      }
-      throw error
-    }
-  })
+  return lazy(() => onDemand(load))
 }
 
 const PlayerPage = lazyPage(() => import('./pages/PlayerPage').then((m) => ({ default: m.PlayerPage })))
@@ -90,6 +76,7 @@ const ExternalTitlePage = lazyPage(() => import('./pages/ExternalTitlePage').the
 const MusicExternalAlbumPage = lazyPage(() => import('./pages/MusicExternalPages').then((m) => ({ default: m.MusicExternalAlbumPage })))
 const MusicExternalArtistPage = lazyPage(() => import('./pages/MusicExternalPages').then((m) => ({ default: m.MusicExternalArtistPage })))
 const MixPage = lazyPage(() => import('./pages/MixPage').then((m) => ({ default: m.MixPage })))
+const LinkPage = lazyPage(() => import('./pages/LinkPage').then((m) => ({ default: m.LinkPage })))
 const BookSeriesPage = lazyPage(() => import('./pages/BookSeriesPage').then((m) => ({ default: m.BookSeriesPage })))
 const PlaylistsPage = lazyPage(() => import('./pages/PlaylistsPage').then((m) => ({ default: m.PlaylistsPage })))
 const PlaylistPage = lazyPage(() => import('./pages/PlaylistsPage').then((m) => ({ default: m.PlaylistPage })))
@@ -204,6 +191,8 @@ export default function App() {
     clearApiCache()
   }, [language])
   const [attempt, setAttempt] = useState(0)
+  // The last page in this tab signed out: nothing it left on its way out is here for this one, however it's signed in.
+  useEffect(() => startKeepingPlayed(), [])
   // Unlocking or locking to kids profiles asks who's watching straight away (see pickProfileWith).
   useEffect(() => {
     const again = () => setAttempt((n) => n + 1)
@@ -228,26 +217,31 @@ export default function App() {
 
   useEffect(() => {
     const controller = new AbortController()
+    // Everything the first screen waits for is asked for together, not one after the other. The languages need no
+    // sign-in, so they go first of all.
+    const language = beginLanguage(controller.signal)
     migrateStoredApiKey()
-      .then(() => getSystemStatus(controller.signal))
-      // Signed in from here: this browser's errors go to the server's log, as the version the server serves.
-      // And to Flexarr's developer too, only when the main profile has switched error reports on.
-      .then((status) => {
-        setServerTitle(status.serverName)
-        const version = status.version.split('+')[0]
-        errorReporter.enable(version)
-        configureSentry(status.errorReports, version)
-      })
-      // An older server without profiles still works: carry on as the main profile.
       .then(() =>
         Promise.all([
+          getSystemStatus(controller.signal),
+          // An older server without profiles still works: carry on as the main profile.
           getProfiles(controller.signal).catch((e: unknown) => (e instanceof UnauthorizedError ? Promise.reject(e) : [])),
           getMe(controller.signal).catch(() => null),
         ]),
       )
-      // The profile's language (or the browser's) before the first real screen, so it doesn't change under you.
+      // Signed in from here: this browser's errors go to the server's log, as the version the server serves.
+      // And to Flexarr's developer too, only when the main profile has switched error reports on.
+      .then(([status, profiles, me]) => {
+        setServerTitle(status.serverName)
+        const version = status.version.split('+')[0]
+        errorReporter.enable(version)
+        configureSentry(status.errorReports, version)
+        return [profiles, me] as const
+      })
+      // The profile's language (or the browser's) before the first real screen, so it doesn't change under you; a
+      // server slow to say which doesn't hold the screen up for long.
       .then(async ([profiles, me]) => {
-        await settleLanguage(me?.language ?? null, controller.signal)
+        await language(me?.language ?? null)
         return [profiles, me] as const
       })
       .then(([profiles, me]) => {
@@ -276,7 +270,10 @@ export default function App() {
         if (controller.signal.aborted) return
         if (error instanceof UnauthorizedError) {
           errorReporter.disable()
-          void settleLanguage(null, controller.signal)
+          // Not signed in (signed out here or from elsewhere, or the key changed): whoever signs in next finds nothing
+          // of what was played before. The page a sign-out leaves may write its queue once more as it goes; this is after.
+          forgetPlayed()
+          void language(null)
           // A new server nobody has signed in to yet: this browser can set it up, no key needed.
           void setupStatus().then(({ open, install }) => {
             if (controller.signal.aborted) return
@@ -288,8 +285,9 @@ export default function App() {
     return () => controller.abort()
   }, [attempt])
 
-  // A TV's QR code opens /link?code=…; the code is worth showing even before this device signs in.
-  const tvCode = window.location.pathname === '/link' ? new URLSearchParams(window.location.search).get('code') : null
+  // A TV's QR code opens /link?code=…; the code is worth showing even before this device signs in. Only a code,
+  // though: anything else in its place would be shown large, in Flexarr's name, to whoever was sent the link.
+  const tvCode = window.location.pathname === '/link' ? deviceCode(new URLSearchParams(window.location.search).get('code')) : null
 
   function submitApiKey(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

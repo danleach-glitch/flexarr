@@ -14,6 +14,32 @@ async function fetchOk(url: string, signal: AbortSignal): Promise<Response> {
 }
 
 /**
+ * How many attached fonts are fetched at once. A release can attach dozens (tens of MB); asked for all together they
+ * take every connection the browser allows a server, and the video's own requests wait behind them.
+ */
+export const FONTS_AT_ONCE = 3
+
+/** `task` for each of `items`, at most `limit` at a time, answers in the items' order. One failing fails the lot, and nothing more is started. */
+async function inTurn<T, R>(items: T[], limit: number, task: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let next = 0
+  let failed = false
+  const lane = async () => {
+    while (next < items.length && !failed) {
+      const i = next++
+      try {
+        results[i] = await task(items[i])
+      } catch (e) {
+        failed = true
+        throw e
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, lane))
+  return results
+}
+
+/**
  * Draws ASS/SSA subtitles over `video` with libass (JASSUB, loaded only when needed): their fonts, colours, positions,
  * karaoke and effects. The file and the fonts attached to the video are fetched here, with the profile's headers, and
  * handed over, so the renderer's worker never needs to be signed in. Fonts aren't looked for on this computer, which
@@ -26,7 +52,7 @@ export async function drawStyled(video: HTMLVideoElement, url: string, fontsUrl:
     fontsUrl
       ? fetchOk(fontsUrl, signal)
           .then((r) => r.json() as Promise<SubtitleFont[]>)
-          .then((list) => Promise.all(list.map((f) => fetchOk(f.url, signal).then(async (r) => new Uint8Array(await r.arrayBuffer())))))
+          .then((list) => inTurn(list, FONTS_AT_ONCE, (f) => fetchOk(f.url, signal).then(async (r) => new Uint8Array(await r.arrayBuffer()))))
           // Without its fonts the subtitles still show, in a plainer face.
           .catch((e: unknown) => (signal.aborted ? Promise.reject(e) : []))
       : Promise.resolve([]),

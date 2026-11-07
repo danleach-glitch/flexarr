@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ItemSummary } from '../api/types'
 import { summary } from '../test/mockApi'
-import { emptyQueue, queueReducer, readStoredQueue, rebuildQueue, serializeQueue, upcoming, type QueueAction, type QueueState } from './queue'
+import { emptyQueue, keptTracksAreCurrent, queueReducer, readStoredQueue, readStoredTracks, rebuildQueue, serializeQueue, serializeQueueTracks, upcoming, type QueueAction, type QueueState } from './queue'
 
 const track = (id: string, album = 'album-1') => summary({ id, kind: 'Track', title: id, parentId: album, seriesTitle: 'Artist' }) as unknown as ItemSummary
 const [a, b, c, d, e] = ['a', 'b', 'c', 'd', 'e'].map((id) => track(id))
@@ -219,6 +219,37 @@ describe('queue storage', () => {
     expect(readStoredQueue(JSON.stringify({ ids: [] }))).toBeNull()
     expect(readStoredQueue(JSON.stringify({ ids: [1, 2] }))).toBeNull()
     expect(readStoredQueue(JSON.stringify({ ids: ['a'] }))).toEqual({ ids: ['a'], albums: [], index: 0, position: 0 })
+  })
+
+  it('keeps each track once, and reads back only what could be a track', () => {
+    const kept = serializeQueueTracks(playing(a, b, a))
+    expect(kept.map((t) => t.id)).toEqual(['a', 'b'])
+    expect([...readStoredTracks(JSON.stringify(kept)).keys()]).toEqual(['a', 'b'])
+    expect(readStoredTracks(JSON.stringify(kept)).get('b')).toEqual(b)
+    expect(readStoredTracks(null).size).toBe(0)
+    expect(readStoredTracks('not json').size).toBe(0)
+    expect(readStoredTracks(JSON.stringify({ a })).size).toBe(0)
+    expect([...readStoredTracks(JSON.stringify([null, 'a', { id: 1 }, { id: 'x' }, c])).keys()]).toEqual(['c'])
+    // Without its artwork (which the player draws at once) it isn't a track as this version knows them.
+    expect([...readStoredTracks(JSON.stringify([{ id: 'x', kind: 'Track', title: 'X' }, { ...d, artwork: null }, c])).keys()]).toEqual(['c'])
+  })
+
+  it('keeps tracks as the server gave them, without where this page was asked to start one', () => {
+    const kept = serializeQueueTracks(playing({ ...a, playFrom: 0 }, { ...b, playFrom: 90 }))
+    expect(kept).toEqual([a, b])
+    expect(kept.some((t) => 'playFrom' in t)).toBe(false)
+  })
+
+  it('takes kept tracks as they are for a day after the queue was written, and never without knowing when', () => {
+    const queue = { ids: ['a'], albums: [], index: 0, position: 0 }
+    const now = Date.UTC(2026, 10, 6, 12)
+    expect(keptTracksAreCurrent({ ...queue, savedAt: now - 1000 }, now)).toBe(true)
+    expect(keptTracksAreCurrent({ ...queue, savedAt: now - 25 * 60 * 60 * 1000 }, now)).toBe(false)
+    // The clock went back: not to be trusted.
+    expect(keptTracksAreCurrent({ ...queue, savedAt: now + 60_000 }, now)).toBe(false)
+    expect(keptTracksAreCurrent(queue, now)).toBe(false)
+    expect(readStoredQueue(JSON.stringify({ ...queue, savedAt: now }))?.savedAt).toBe(now)
+    expect(readStoredQueue(JSON.stringify({ ...queue, savedAt: 'yesterday' }))).toEqual(queue)
   })
 
   it('rebuilds the queue in order, dropping tracks that are gone and keeping the index on the same track', () => {

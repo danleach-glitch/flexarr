@@ -1,5 +1,5 @@
 import Hls from 'hls.js/light'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { ApiError, getLiveChannels, liveHeartbeat, removeRecording, stopLiveChannel, watchLiveChannel, type LiveChannel, type LiveWatch } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
@@ -43,6 +43,7 @@ export default function LivePlayerPage() {
   const [playing, setPlaying] = useState(false)
   const [waiting, setWaiting] = useState(true)
   const [window_, setWindow] = useState({ start: 0, end: 0, time: 0 })
+  const shown = useRef(window_)
   // This browser's sound settings, as over a film; Safari plays the channel itself, and is left as it comes.
   const shaping = useSoundShaping(useSoundSettings())
   useSoundChain(video, 0, prefersNativeHls() ? unshaped : shaping, null)
@@ -154,7 +155,13 @@ export default function LivePlayerPage() {
     const el = video.current
     if (!el || el.seekable.length === 0) return
     const last = el.seekable.length - 1
-    setWindow({ start: el.seekable.start(0), end: el.seekable.end(last), time: el.currentTime })
+    // In whole seconds (inside what can be reached), and only when one moves: the player reports several times a
+    // second, and each new value would draw the whole page again.
+    const next = { start: Math.ceil(el.seekable.start(0)), end: Math.floor(el.seekable.end(last)), time: Math.round(el.currentTime) }
+    const now = shown.current
+    if (now.start === next.start && now.end === next.end && now.time === next.time) return
+    shown.current = next
+    setWindow(next)
   }
 
   const behind = Math.max(0, window_.end - window_.time)
@@ -204,6 +211,13 @@ export default function LivePlayerPage() {
   }, [])
 
   const exit = () => navigate('/livetv')
+  const pick = useCallback(
+    (c: LiveChannel) => {
+      setList(false)
+      if (c.id !== id) navigate(`/live/${c.id}`, { replace: true })
+    },
+    [id, navigate],
+  )
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -346,36 +360,7 @@ export default function LivePlayerPage() {
         </div>
       )}
 
-      {list && (
-        <aside className="live-channel-list" aria-label={t('Channels')}>
-          <ol>
-            {/* Favourites first, then the rest in number order. */}
-            {[...channels.filter(isFavourite), ...channels.filter((c) => !isFavourite(c))].map((c) => (
-              <li key={c.id}>
-                <button
-                  className={c.id === id ? 'live-channel-row current' : 'live-channel-row'}
-                  aria-current={c.id === id ? 'true' : undefined}
-                  autoFocus={c.id === id}
-                  onClick={() => {
-                    setList(false)
-                    if (c.id !== id) navigate(`/live/${c.id}`, { replace: true })
-                  }}
-                >
-                  <span className="live-channel-number">{c.number}</span>
-                  <ChannelLogo channel={c} />
-                  <span className="live-channel-text">
-                    <strong>
-                      {c.name}
-                      {isFavourite(c) && <Star filled className="chip-star live-list-star" aria-label={t('Favourite')} />}
-                    </strong>
-                    <span className="muted">{c.now?.title ?? t('No listings')}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ol>
-        </aside>
-      )}
+      {list && <ChannelList channels={channels} current={id} isFavourite={isFavourite} onPick={pick} />}
 
       <footer className="player-controls" hidden={!!error} inert={!!error}>
         {now && (
@@ -452,3 +437,44 @@ export default function LivePlayerPage() {
     </div>
   )
 }
+
+/** The channels to switch to, favourites first: drawn again only when they or the choice change, not as the picture plays. */
+const ChannelList = memo(function ChannelList({
+  channels,
+  current,
+  isFavourite,
+  onPick,
+}: {
+  channels: LiveChannel[]
+  current: string
+  isFavourite: (c: LiveChannel) => boolean
+  onPick: (c: LiveChannel) => void
+}) {
+  return (
+    <aside className="live-channel-list" aria-label={t('Channels')}>
+      <ol>
+        {/* Favourites first, then the rest in number order. */}
+        {[...channels.filter(isFavourite), ...channels.filter((c) => !isFavourite(c))].map((c) => (
+          <li key={c.id}>
+            <button
+              className={c.id === current ? 'live-channel-row current' : 'live-channel-row'}
+              aria-current={c.id === current ? 'true' : undefined}
+              autoFocus={c.id === current}
+              onClick={() => onPick(c)}
+            >
+              <span className="live-channel-number">{c.number}</span>
+              <ChannelLogo channel={c} />
+              <span className="live-channel-text">
+                <strong>
+                  {c.name}
+                  {isFavourite(c) && <Star filled className="chip-star live-list-star" aria-label={t('Favourite')} />}
+                </strong>
+                <span className="muted">{c.now?.title ?? t('No listings')}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ol>
+    </aside>
+  )
+})

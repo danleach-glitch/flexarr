@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi, movies } from '../test/mockApi'
-import { apiGet, clearApiCache, FETCH_TIMEOUT_MS, getLibraries, liveHeartbeat, reportProgress, getLibraryGenres, getLibraryItems, keepPage, keptPage, onAdminLapsed, onLockedChange, savePlayerPreferences, setWatched } from './client'
+import { apiGet, backdropSources, parseAnswer, beaconBookProgress, clearApiCache, FETCH_TIMEOUT_MS, getLibraries, liveHeartbeat, reportProgress, getLibraryGenres, getLibraryItems, keepPage, keptPage, onAdminLapsed, onLockedChange, savePlayerPreferences, setWatched, signOut, stopPlayback, watchLiveChannel } from './client'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -124,6 +124,35 @@ describe('API cache', () => {
   })
 })
 
+describe('Signing out of this browser', () => {
+  it('forgets the profile chosen here and what was played here, once the server has let the session go', async () => {
+    const keep = () => {
+      localStorage.setItem('flexarr.profile', 'kid-1.signature')
+      localStorage.setItem('flexarr.bookPlace.book-1.p-kid-1', '{"position":600,"savedAt":1}')
+      localStorage.setItem('flexarr.sound', '{}')
+      sessionStorage.setItem('flexarr.musicQueue.p-kid-1', '{"ids":["t1"]}')
+      sessionStorage.setItem('flexarr.profileChosen', '1')
+    }
+    try {
+      // The server can't be reached: still signed in, so nothing is forgotten.
+      keep()
+      mockApi({ 'DELETE /session': new Response('', { status: 500 }) })
+      await expect(signOut()).rejects.toThrow()
+      expect(localStorage.length).toBe(3)
+      expect(sessionStorage.length).toBe(2)
+
+      mockApi({ 'DELETE /session': undefined })
+      await signOut()
+      expect(Object.keys(localStorage)).toEqual(['flexarr.sound'])
+      // Only the note that this page signed out, so it keeps nothing more as it goes (see profileScope).
+      expect(Object.keys(sessionStorage)).toEqual(['flexarr.signedOut'])
+    } finally {
+      localStorage.clear()
+      sessionStorage.clear()
+    }
+  })
+})
+
 describe('Playback preferences', () => {
   it('leaves books and podcasts in Continue out of a save from the player', async () => {
     const sent: unknown[] = []
@@ -141,6 +170,17 @@ describe('Playback preferences', () => {
   })
 })
 
+describe('A backdrop across the page', () => {
+  it('is offered in three widths for the browser to choose from by the screen’s, with the widest as the fallback', () => {
+    expect(backdropSources('/api/v1/images/items/m1/backdrop?v=3')).toEqual({
+      src: '/api/v1/images/items/m1/backdrop?v=3&w=1920',
+      srcSet: '/api/v1/images/items/m1/backdrop?v=3&w=780 780w, /api/v1/images/items/m1/backdrop?v=3&w=1280 1280w, /api/v1/images/items/m1/backdrop?v=3&w=1920 1920w',
+      sizes: '100vw',
+    })
+    expect(backdropSources(null)).toEqual({ src: undefined, srcSet: undefined, sizes: '100vw' })
+  })
+})
+
 describe('Times', () => {
   it('reads times sent without a zone as UTC, and leaves dates and zoned times alone', async () => {
     mockApi({ '/libraries': [{ ...movies, lastScannedAt: '2026-10-27T01:53:49.215901', created: '2026-10-27T01:53:49Z', aired: '2026-10-27', name: '2026-10-27T01:53:49 notes' }] })
@@ -151,6 +191,47 @@ describe('Times', () => {
     expect(library.created).toBe('2026-10-27T01:53:49Z')
     expect(library.aired).toBe('2026-10-27')
     expect(library.name).toBe('2026-10-27T01:53:49 notes')
+  })
+})
+
+describe('Parsing an answer', () => {
+  /** What every answer went through before: each value checked as it's parsed. */
+  const checkingEveryValue = (text: string) =>
+    JSON.parse(text, (_key, value: unknown) => (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(value) ? `${value}Z` : value)) as unknown
+
+  it('only checks each value when the text could hold a time without a zone', async () => {
+    const parse = vi.spyOn(JSON, 'parse')
+    try {
+      mockApi({ '/libraries': [{ ...movies, lastScannedAt: '2026-10-27T01:53:49.215901Z', aired: '2026-10-27' }] })
+      await apiGet('/libraries')
+      expect(parse).toHaveBeenCalledTimes(1)
+      expect(parse.mock.calls[0]).toHaveLength(1)
+
+      mockApi({ '/libraries': [{ ...movies, lastScannedAt: '2026-10-27T01:53:49.215901' }] })
+      const [library] = await apiGet<{ lastScannedAt: string }[]>('/libraries')
+      expect(parse.mock.calls[1][1]).toBeTypeOf('function')
+      expect(library.lastScannedAt).toBe('2026-10-27T01:53:49.215901Z')
+    } finally {
+      parse.mockRestore()
+    }
+  })
+
+  it.each([
+    ['a time with no zone', '{"at":"2026-10-27T01:53:49"}'],
+    ['one with fractions of a second', '{"at":"2026-10-27T01:53:49.215901"}'],
+    ['one deep inside lists', '{"a":[{"b":[null,1,"2026-10-27T01:53:49",{"c":"2026-10-27T01:53:50"}]}]}'],
+    ['one that is the whole answer', '"2026-10-27T01:53:49"'],
+    ['one written with an escaped digit', '{"at":"\\u0032026-10-27T01:53:49"}'],
+    ['one written with an escaped colon, dash, dot and T', '{"at":"2026\\u002d10-27\\u005401\\u003A53:49\\u002E5"}'],
+    ['a zoned time', '{"at":"2026-10-27T01:53:49Z","other":"2026-10-27T01:53:49+01:00"}'],
+    ['a date', '{"aired":"2026-10-27"}'],
+    ['a time inside a sentence', '{"note":"2026-10-27T01:53:49 notes","more":"at 2026-10-27T01:53:49"}'],
+    ['a time in quotes inside a sentence', '{"note":"she said \\"2026-10-27T01:53:49\\" twice","end":"x\\"2026-10-27T01:53:49"}'],
+    ['a time as a name, not a value', '{"2026-10-27T01:53:49":1}'],
+    ['other escapes', '{"title":"Tom \\u0026 Jerry\\u0027s \\u003Cb\\u003E caf\\u00E9","n":12.5,"ok":true,"none":null}'],
+    ['nothing at all', '[]'],
+  ])('reads %s exactly as checking every value would', (_what, text) => {
+    expect(parseAnswer(text)).toEqual(checkingEveryValue(text))
   })
 })
 
@@ -170,5 +251,42 @@ describe('an admin read after the PIN ran out here', () => {
       stopAsking()
       stopListening()
     }
+  })
+})
+
+describe('ids in paths', () => {
+  // What the browser would make of each address asked for.
+  const asked = (fetchMock: ReturnType<typeof mockApi>) => fetchMock.mock.calls.map(([input]) => new URL(String(input), 'http://localhost').pathname)
+
+  it('keeps an id from a crafted address inside its own request', async () => {
+    const fetchMock = mockApi({ 'POST /pairing/code/ABC123/approve': undefined, 'PUT /settings': undefined, 'DELETE /settings': undefined })
+    const crafted = '%2E%2E/%2E%2E/pairing/code/ABC123/approve?'
+    await expect(watchLiveChannel(crafted)).rejects.toMatchObject({ status: 404 })
+    beaconBookProgress('../../settings?', 10, 'web')
+    await stopPlayback('../settings#')
+
+    const paths = asked(fetchMock)
+    expect(paths).toHaveLength(3)
+    expect(paths[0]).toBe(`/api/v1/livetv/channels/${encodeURIComponent(crafted)}/watch`)
+    expect(paths[1]).toMatch(/^\/api\/v1\/items\/[^/]+\/progress$/)
+    expect(paths[2]).toMatch(/^\/api\/v1\/playback\/[^/]+$/)
+  })
+
+  it('leaves an ordinary id as it is', async () => {
+    const fetchMock = mockApi({ 'POST /items/3f2b8c1e-5d4a-4c6b-9e7f-0a1b2c3d4e5f/watched': undefined })
+    await setWatched('3f2b8c1e-5d4a-4c6b-9e7f-0a1b2c3d4e5f', true)
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual(['/api/v1/items/3f2b8c1e-5d4a-4c6b-9e7f-0a1b2c3d4e5f/watched'])
+  })
+
+  it('sends nothing for a path with a step up, a second ?, or a character browsers drop or read as a slash', async () => {
+    const fetchMock = mockApi({})
+    const strays = ['/items/../settings', '/items/%2e%2E/settings', '/items/.%2e/settings', '/items/./x', '/items/a?b=1?c=2', '/items/a#b', '/items/..\\settings', '/items/.\t./settings']
+    for (const path of strays) await expect(apiGet(path)).rejects.toMatchObject({ status: 404 })
+    await expect(setWatched('..', true)).rejects.toMatchObject({ status: 404 })
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    // A dot in a name, or one question mark, is an ordinary path.
+    await expect(apiGet('/items/a.b/x..y?q=..')).rejects.toMatchObject({ status: 404 })
+    expect(asked(fetchMock)).toEqual(['/api/v1/items/a.b/x..y'])
   })
 })

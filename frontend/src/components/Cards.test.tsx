@@ -1,9 +1,11 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { Profiler } from 'react'
 import { MemoryRouter, Route, Routes, useParams } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import type { ItemSummary } from '../api/types'
-import { AudioPlayerContext, type AudioPlayer } from '../hooks/audioPlayerContext'
-import { summary } from '../test/mockApi'
+import { AudioPlayerProvider } from '../hooks/audioPlayer'
+import { AudioPlayerContext, useAudioPlayer, type AudioPlayer } from '../hooks/audioPlayerContext'
+import { mockApi, summary } from '../test/mockApi'
 import { PosterCard } from './Cards'
 
 const tracks = [summary({ id: 't1', kind: 'Track', title: 'Telegraph Road' }), summary({ id: 't2', kind: 'Track', title: 'Private Investigations' })] as unknown as ItemSummary[]
@@ -54,5 +56,44 @@ describe('PosterCard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: label }))
     expect(await screen.findByText(`Playing ${playing}`)).toBeInTheDocument()
+  })
+
+  it('doesn’t redraw as the player changes, and its play button still plays', async () => {
+    mockApi({})
+    try {
+      const book = summary({ id: 'book', kind: 'Audiobook', title: 'Piranesi' }) as unknown as ItemSummary
+      const film = summary({ id: 'film', kind: 'Movie', title: 'Sintel' }) as unknown as ItemSummary
+      let player!: AudioPlayer
+      function Player() {
+        player = useAudioPlayer()
+        return null
+      }
+      const drawn = vi.fn()
+      render(
+        <MemoryRouter>
+          <AudioPlayerProvider>
+            <Player />
+            <Profiler id="cards" onRender={drawn}>
+              <PosterCard item={book} />
+              <PosterCard item={film} />
+            </Profiler>
+          </AudioPlayerProvider>
+        </MemoryRouter>,
+      )
+      const before = player
+      drawn.mockClear()
+
+      // The player's state moves on (Now Playing opens, as a track change or a pause would move it): the cards stay as drawn.
+      act(() => player.setNowPlayingOpen(true))
+      expect(player).not.toBe(before)
+      expect(player.nowPlayingOpen).toBe(true)
+      expect(drawn).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Play Piranesi' }))
+      await waitFor(() => expect(player.current?.id).toBe('book'))
+      expect(drawn).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

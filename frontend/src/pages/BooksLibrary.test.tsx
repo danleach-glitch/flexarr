@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearApiCache, type Library } from '../api/client'
@@ -128,5 +128,27 @@ describe('Audiobooks library', () => {
     mockApi({ '/libraries/lib-books/books': { total: 45, items } })
     show('/library/lib-books?view=all')
     expect(await screen.findByRole('navigation', { name: 'Jump to letter' })).toBeInTheDocument()
+  })
+
+  it('loads every book up to a letter jumped to, a server page (200) at a time', async () => {
+    window.HTMLElement.prototype.scrollIntoView = vi.fn()
+    // 650 under B, then 50 under T, as the server sorts them; it gives 200 at most, whatever is asked.
+    const books = Array.from({ length: 700 }, (_, i) => summary({ id: `b${i}`, kind: 'Audiobook', title: `${i < 650 ? 'B' : 'T'} Book ${String(i).padStart(3, '0')}` }))
+    const asked: string[] = []
+    mockApi({
+      '/libraries/lib-books/books': (_init: RequestInit | undefined, url: URL) => {
+        const skip = Number(url.searchParams.get('skip') ?? 0)
+        asked.push(`${skip}+${url.searchParams.get('take')}`)
+        return { total: books.length, items: books.slice(skip, skip + Math.min(Number(url.searchParams.get('take') ?? 60), 200)) }
+      },
+    })
+    const { container } = show('/library/lib-books?view=all')
+    const rail = await screen.findByRole('navigation', { name: 'Jump to letter' })
+    fireEvent.click(within(rail).getByRole('button', { name: 'T' }))
+
+    await waitFor(() => expect(container.querySelector('[data-id="b650"]')).toBeInTheDocument())
+    // Nothing between the pages is left out, and the books stay in order.
+    expect(Array.from(container.querySelectorAll('.poster-grid > [data-id]'), (card) => card.getAttribute('data-id'))).toEqual(books.map((b) => b.id))
+    expect(asked).toEqual(['0+60', '60+200', '260+200', '460+200', '660+200'])
   })
 })

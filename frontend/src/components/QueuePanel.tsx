@@ -82,7 +82,7 @@ export function QueuePanel({ onClose, style }: { onClose: () => void; style?: CS
 
   const art = (track: ItemSummary) => (
     <span className="queue-art" aria-hidden="true">
-      {track.artwork.poster && <img src={imageUrl(track.artwork.poster, 92)} alt="" />}
+      {track.artwork.poster && <img src={imageUrl(track.artwork.poster, 92)} alt="" loading="lazy" />}
     </span>
   )
   const text = (track: ItemSummary) => (

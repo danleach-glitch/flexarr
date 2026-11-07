@@ -1,5 +1,5 @@
 import { bookSpeedPresets } from '../lib/books'
-import { createContext, useContext } from 'react'
+import { createContext, use, useContext } from 'react'
 import type { BookManifest, ItemSummary } from '../api/types'
 import type { SleepTimer } from '../lib/sleepTimer'
 
@@ -88,5 +88,24 @@ export const useAudioTime = () => useContext(AudioTimeContext)
 export function useAudioPlayer(): AudioPlayer {
   const player = useContext(AudioPlayerContext)
   if (!player) throw new Error('useAudioPlayer must be used inside AudioPlayerProvider')
+  return player
+}
+
+/** The ways to start something playing. They stay the same for as long as the player is there. */
+export type AudioActions = Pick<AudioPlayer, 'play' | 'enqueue' | 'playNext'>
+
+/**
+ * The player's actions on their own, which never change: what a card needs for its play button. A grid can hold
+ * thousands of cards, and one that read the whole player would re-render with every track, pause and length.
+ */
+export const AudioActionsContext = createContext<AudioActions | null>(null)
+
+/** For something that plays but doesn't show what's playing (a card's play button): it doesn't follow the player. */
+export function useAudioActions(): AudioActions {
+  const actions = use(AudioActionsContext)
+  if (actions) return actions
+  // Given a player but no actions of their own (a stand-in player in a test): the player's.
+  const player = use(AudioPlayerContext)
+  if (!player) throw new Error('useAudioActions must be used inside AudioPlayerProvider')
   return player
 }

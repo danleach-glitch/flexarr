@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PageLoading } from '../components/PageStatus'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { getLiveChannels, getLiveGuide, getLiveTvStatus, type LiveChannel, type LiveGuide, type LiveProgramme } from '../api/client'
@@ -203,6 +203,70 @@ function ChannelRow({ channel: c, favourite, onToggle }: { channel: LiveChannel;
   )
 }
 
+/** Minutes from the guide's start to a time. */
+const guideMinutes = (from: Date, iso: string | number) => ((typeof iso === 'number' ? iso : Date.parse(iso)) - from.getTime()) / 60_000
+
+/**
+ * A channel's line in the guide. Drawn again only when its own programmes, the time or its chosen programme change, so
+ * choosing a programme redraws the line it's on (and the one it left), not hundreds.
+ */
+const GuideRow = memo(function GuideRow({
+  channel: c,
+  from,
+  hours,
+  now,
+  selected,
+  onSelect,
+}: {
+  channel: LiveGuide['channels'][number]
+  from: Date
+  hours: number
+  now: number
+  selected: LiveProgramme['id'] | undefined
+  onSelect: (channel: LiveGuide['channels'][number], programme: LiveProgramme) => void
+}) {
+  const minutes = (iso: string | number) => guideMinutes(from, iso)
+  const width = hours * 60 * PX_PER_MINUTE
+  return (
+    <div className="livetv-guide-row">
+      <Link className="livetv-guide-channel" to={`/live/${c.id}`} aria-label={t('Watch {name}', { name: c.name })}>
+        <ChannelLogo channel={c} />
+        <span>
+          <span className="muted">{c.number}</span> {c.name}
+        </span>
+      </Link>
+      <div className="livetv-guide-programmes" style={{ width }}>
+        {c.programmes.length === 0 && <span className="livetv-guide-none muted">{t('No listings')}</span>}
+        {c.programmes.map((p) => {
+          const left = Math.max(0, minutes(p.start)) * PX_PER_MINUTE
+          const right = Math.min(hours * 60, minutes(p.end)) * PX_PER_MINUTE
+          const onNow = Date.parse(p.start) <= now && Date.parse(p.end) > now
+          const past = Date.parse(p.end) <= now
+          const time = programmeTime(p)
+          return (
+            <button
+              key={p.id}
+              className={['livetv-guide-programme', onNow && 'now', past && 'past', p.recording && 'recording', selected === p.id && 'selected']
+                .filter(Boolean)
+                .join(' ')}
+              style={{ left, width: Math.max(0, right - left - 2) }}
+              title={[p.title, time, p.recording ? (p.recording === 'recording' ? t('Recording now') : t('Set to record')) : null].filter(Boolean).join('\u2003')}
+              onClick={() => onSelect(c, p)}
+            >
+              <strong>
+                {p.recording && <RecordMark programme={p} />}
+                {p.series && !p.recording && <SeriesDots className="record-dot" aria-label={t(Words.series)} />}
+                {programmeTitle(p)}
+              </strong>
+              <span className="muted">{time}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+})
+
 function Guide() {
   const navigate = useNavigate()
   const { limited } = useAgeLimits()
@@ -239,7 +303,8 @@ function Guide() {
     return () => controller.abort()
   }, [from, hours, version])
 
-  const minutes = (iso: string | number) => ((typeof iso === 'number' ? iso : Date.parse(iso)) - from.getTime()) / 60_000
+  const select = useCallback((channel: LiveGuide['channels'][number], programme: LiveProgramme) => setSelected({ channel, programme }), [])
+  const minutes = (iso: string | number) => guideMinutes(from, iso)
   const width = hours * 60 * PX_PER_MINUTE
   const slots = Array.from({ length: hours * 2 }, (_, i) => new Date(from.getTime() + i * 30 * 60_000))
 
@@ -275,41 +340,7 @@ function Guide() {
             ))}
           </div>
           {rows.map((c) => (
-            <div key={c.id} className="livetv-guide-row">
-              <Link className="livetv-guide-channel" to={`/live/${c.id}`} aria-label={t('Watch {name}', { name: c.name })}>
-                <ChannelLogo channel={c} />
-                <span>
-                  <span className="muted">{c.number}</span> {c.name}
-                </span>
-              </Link>
-              <div className="livetv-guide-programmes" style={{ width }}>
-                {c.programmes.length === 0 && <span className="livetv-guide-none muted">{t('No listings')}</span>}
-                {c.programmes.map((p) => {
-                  const left = Math.max(0, minutes(p.start)) * PX_PER_MINUTE
-                  const right = Math.min(hours * 60, minutes(p.end)) * PX_PER_MINUTE
-                  const onNow = Date.parse(p.start) <= now && Date.parse(p.end) > now
-                  const past = Date.parse(p.end) <= now
-                  return (
-                    <button
-                      key={p.id}
-                      className={['livetv-guide-programme', onNow && 'now', past && 'past', p.recording && 'recording', selected?.programme.id === p.id && 'selected']
-                        .filter(Boolean)
-                        .join(' ')}
-                      style={{ left, width: Math.max(0, right - left - 2) }}
-                      title={[p.title, programmeTime(p), p.recording ? (p.recording === 'recording' ? t('Recording now') : t('Set to record')) : null].filter(Boolean).join('\u2003')}
-                      onClick={() => setSelected({ channel: c, programme: p })}
-                    >
-                      <strong>
-                        {p.recording && <RecordMark programme={p} />}
-                        {p.series && !p.recording && <SeriesDots className="record-dot" aria-label={t(Words.series)} />}
-                        {programmeTitle(p)}
-                      </strong>
-                      <span className="muted">{programmeTime(p)}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
+            <GuideRow key={c.id} channel={c} from={from} hours={hours} now={now} selected={selected?.channel.id === c.id ? selected.programme.id : undefined} onSelect={select} />
           ))}
           <span className="livetv-guide-now" style={{ left: 200 + minutes(now) * PX_PER_MINUTE }} aria-hidden="true" />
         </div>

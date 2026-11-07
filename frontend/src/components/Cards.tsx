@@ -5,7 +5,7 @@ import { episodeCode, episodeHeading, episodeName, progressOf, year } from '../l
 import { authorsLine, isBook } from '../lib/books'
 import { itemLink } from '../lib/links'
 import { getTracks, imageUrl } from '../api/client'
-import { useAudioPlayer } from '../hooks/audioPlayerContext'
+import { useAudioActions, useAudioPlayer } from '../hooks/audioPlayerContext'
 import { usePlay } from '../hooks/usePlay'
 import { Artwork } from './Artwork'
 import { AsyncButton } from './AsyncButton'
@@ -160,7 +160,8 @@ function EpisodeText({ item }: { item: ItemSummary }) {
  */
 export const PosterCard = memo(function PosterCard({ item, playLoneEpisode = false }: { item: ItemSummary; playLoneEpisode?: boolean }) {
   const play = usePlay()
-  const player = useAudioPlayer()
+  // Its play button only starts things: reading the whole player would redraw every card in a grid at each track.
+  const player = useAudioActions()
   const lone = playLoneEpisode && item.kind === 'Series' && item.userData.unwatchedCount === 1
   const music = item.kind === 'Artist' || item.kind === 'Album'
   const book = isBook(item)
@@ -265,7 +266,7 @@ export function WideCard({ item, showSeries = true, continueWatching = false }: 
  * darkened copy of itself. The cover resumes it in the audio player, as the book's page and the episode's play button do.
  */
 function ListenCard({ item, continueWatching }: { item: ItemSummary; continueWatching: boolean }) {
-  const player = useAudioPlayer()
+  const player = useAudioActions()
   const book = isBook(item)
   const page = book ? itemLink(item) : `/podcasts/episode/${item.id}`
   const podcast = item.seriesId ?? item.parentId
