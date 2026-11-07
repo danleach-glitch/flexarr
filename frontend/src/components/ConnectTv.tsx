@@ -3,6 +3,7 @@ import { ApiError, approvePairing, askForProfile, declinePairing, getPairing, ty
 import { askedFrom, pairingError, setPairingOpenElsewhere } from '../lib/pairing'
 import { AsyncButton } from './AsyncButton'
 import { t } from '../i18n'
+import '../styles/settings.lazy.css'
 
 /**
  * Approving a TV: it shows a code (and a QR code that opens this with the code filled in). Approving gives the TV a

@@ -55,6 +55,7 @@ import { EARLY_STALL_MS, reportEarlyStall, reportStart, type StartTiming } from 
 import { drop as dropPrepared, getReady, holds as holdsPrepared, take as takePrepared } from '../lib/preparedPlayback'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
 import { t, tk, Words } from '../i18n'
+import '../styles/player.lazy.css'
 
 type Quality = 'auto' | 1080 | 720 | 480
 const qualities: { value: Quality; label: string; bitrate?: number }[] = [

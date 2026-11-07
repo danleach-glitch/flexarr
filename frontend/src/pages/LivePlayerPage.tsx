@@ -17,6 +17,7 @@ import { unshaped, useSoundSettings, useSoundShaping } from '../lib/soundSetting
 import { useSoundChain } from '../hooks/soundChain'
 import { programmeTime, progress } from '../lib/livetv'
 import { t, Words } from '../i18n'
+import '../styles/player.lazy.css'
 
 const HIDE_CHROME_MS = 3000
 /** Within this many seconds of the newest segment counts as live (players sit a few segments back). */

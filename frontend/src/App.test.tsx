@@ -2013,6 +2013,8 @@ describe('Library grid', () => {
       expect(await screen.findByRole('link', { name: 'Vfilm 2100' })).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Show 200 earlier' }))
       expect(await screen.findByRole('link', { name: 'Rfilm 1700' })).toBeInTheDocument()
+      // Keyboard focus goes to the first title it brought, rather than being dropped while the button was busy.
+      await vi.waitFor(() => expect(document.activeElement?.closest('[data-id]')).toHaveAttribute('data-id', 'a1700'))
       expect(asked.slice(2)).toEqual([
         { skip: 2100, take: 200 },
         { skip: 1700, take: 200 },

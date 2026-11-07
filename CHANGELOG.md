@@ -87,6 +87,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Finding intros and credits no longer goes through a season again when its episodes were just done (after you change the audio track or quality, or start it on a second screen), and an episode that makes it hang no longer has the same season tried over and over: it moves on to the rest of the library and comes back to that season a day later.
 - Styled subtitles (the signs and songs of anime, say) appear sooner in the web player for a file with many fonts attached: the server lists a file's fonts once instead of once for every font the player asks for.
 - In the web player, styled subtitles only download the fonts their own lines use, not every font attached to the file, so they show sooner and get less in the way of the picture away from home.
+- In the web player, styled subtitles start showing as soon as their lines are here, in a plainer face, and each line takes on its own font when that font arrives, instead of showing nothing until every font had downloaded.
 - On iPhone, iPad and Apple TV, the first play of a film or episode after the server restarts starts a moment sooner when its stream is sent as it is: when its sound begins is remembered with the rest of what the server knows about the file, instead of being read from the file again.
 
 ### Backups
@@ -184,6 +185,11 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Web
 
+- In a library's grid after jumping to a letter, **Show earlier** moves keyboard focus to the first of the titles it brings, so Tab carries on among them, instead of dropping focus back to the top of the page. The page stays where it was, with the new titles under the button.
+- Dragging a track into a new place in a long playlist or the queue keeps up with the pointer: each step redraws only the rows it passes over, and the playlist no longer redraws every row as the music moves on or pauses.
+- Music, podcasts and books paused or stopped in a browser tab let go of the computer's sound after a few seconds, so a tab that played something hours ago no longer costs battery or keeps a laptop from sleeping. Signing out or switching profile lets it go at once.
+- Now Playing's light costs your computer much less: the browser no longer blurs the whole window at every frame, and a few seconds after you pause, the light comes to rest and stops being drawn until the music plays again.
+- The first page has less style to download too: the player's and Settings' styles come with them the first time you open one.
 - In an audiobook library of more than a few hundred books, jumping to a letter no longer leaves books out of the grid.
 - On a podcast's page, **Show more episodes** carries on past 200 episodes, and each press loads just the next ones rather than the whole list again.
 - The Live TV guide opens and responds to a click more quickly when it has hundreds of channels.

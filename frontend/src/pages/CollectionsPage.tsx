@@ -27,6 +27,7 @@ import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { usePlay } from '../hooks/usePlay'
 import { t, Words } from '../i18n'
+import '../styles/settings.lazy.css'
 
 /** All collections: suggestions to add, then yours, the household's and the franchises Radarr knows. */
 export function CollectionsPage() {

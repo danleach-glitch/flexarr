@@ -266,6 +266,21 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, jumpPageSize = JU
     }
   }
 
+  // After Show earlier, the first title it brought, for keyboard focus: the button is disabled while it loads (which
+  // drops focus) and goes once the list is complete, and Tab should carry on among the titles just shown.
+  const earlierShown = useRef<string>(undefined)
+  useLayoutEffect(() => {
+    const id = earlierShown.current
+    if (!id) return
+    earlierShown.current = undefined
+    const link = grid.current?.querySelector<HTMLElement>(`[data-id="${id}"] a:not([tabindex="-1"])`)
+    if (!link) return
+    // The page stays where it was (the new titles fill in under the button, where the viewer is looking), moving only
+    // if that title is off screen.
+    link.focus({ preventScroll: true })
+    link.closest('[data-id]')?.scrollIntoView({ block: 'nearest' })
+  })
+
   /** The page before the titles loaded, after a letter jump started the grid part way down. */
   async function loadEarlier() {
     if (busy || start === 0) return
@@ -276,6 +291,7 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, jumpPageSize = JU
       const skip = Math.max(0, start - pageSize)
       const page = await loader.current({ skip, take: start - skip })
       if (run !== generation.current) return
+      earlierShown.current = page.items.find((i) => !items.some((loaded) => loaded.id === i.id))?.id
       setItems((current) => prepend(current, page.items))
       setStart(skip)
       setTotal(page.total)

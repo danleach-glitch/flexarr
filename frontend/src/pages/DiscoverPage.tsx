@@ -7,6 +7,7 @@ import { PosterCard } from '../components/Cards'
 import { useApi } from '../hooks/useApi'
 import { DiscoverSwitch, MusicDiscover, MusicGenrePage, MusicSearchResults } from './DiscoverMusic'
 import { t, Words } from '../i18n'
+import '../styles/settings.lazy.css'
 
 export function DiscoverPage() {
   const [params, setParams] = useSearchParams()
