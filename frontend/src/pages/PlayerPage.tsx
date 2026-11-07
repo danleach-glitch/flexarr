@@ -51,6 +51,7 @@ import { skipAt, skipCancelled, skipFresh, skipPressed, skipSeeked, type SkipNow
 import { NEXT_EPISODE_COUNTDOWN_SECONDS, nextEpisodeTiming, upNextAt, upNextAtEnd, upNextFresh, upNextMoved, type UpNextState } from '../lib/upNext'
 import { dialogueBoostChoices, isShaping, nightModeChoices, readSoundSettings, shapingFor, speakerChoices, timeOfDay, unshaped, useSoundSettings, useSoundShaping, writeSoundSettings } from '../lib/soundSettings'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
+import { prepareVideo, rememberCopyingFailed, startVideo, wasCopyAsked } from '../lib/copiedVideo'
 import { EARLY_STALL_MS, reportEarlyStall, reportStart, type StartTiming } from '../lib/startTiming'
 import { drop as dropPrepared, getReady, holds as holdsPrepared, take as takePrepared } from '../lib/preparedPlayback'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
@@ -161,6 +162,8 @@ interface StartOptions {
   startPositionSeconds?: number
   quality?: Quality
   forceTranscode?: boolean
+  /** Asked the old way, with the picture converted: a copied one just failed to play (lib/copiedVideo). */
+  noCopy?: boolean
 }
 
 /** Why the server ended this transcode for another viewer, if it did (its playlist answers 410 with the reason). */
@@ -197,6 +200,10 @@ export function PlayerPage() {
   const hideTimer = useRef<number | undefined>(undefined)
   const recoverRef = useRef<() => Promise<void>>(async () => undefined)
   const convertInsteadRef = useRef<() => void>(() => undefined)
+  /** Whether the stream playing was asked for with its picture copied (lib/copiedVideo). */
+  const copyAsked = useRef(false)
+  /** A copied stream failed to play: true when it's asked for again the old way (once), false when it wasn't one. */
+  const copyFailedRef = useRef<() => boolean>(() => false)
   const recovering = useRef(false)
   const lastRecovery = useRef(0)
   // Ends when the item changes or the page closes, so a recovery in progress gives up.
@@ -336,11 +343,12 @@ export function PlayerPage() {
       // ever one quality, so no bandwidth test first.
       const player = new Hls({ startPosition: position, maxBufferLength: 60, backBufferLength: 90, startFragPrefetch: true, testBandwidth: false })
       // Media errors get hls.js's own recovery first; one that keeps coming back asks the server for a fresh stream.
-      const onMediaError = mediaErrorRecovery(player, () => void recoverRef.current())
+      // A stream with its picture copied that this browser can't play after all is asked for again the old way.
+      const onMediaError = mediaErrorRecovery(player, () => void (copyFailedRef.current() || recoverRef.current()))
       player.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal) return
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR) onMediaError()
-        else void recoverRef.current()
+        else if (data.type === Hls.ErrorTypes.NETWORK_ERROR || !copyFailedRef.current()) void recoverRef.current()
       })
       player.loadSource(`${playback.url}?subtitles=false`)
       player.attachMedia(el)
@@ -378,7 +386,7 @@ export function PlayerPage() {
         // stream: it opens straight away. Anything else got ready is let go.
         const ready = replaces ? null : await takePrepared(wanted)
         if (replaces) dropPrepared()
-        const playback = ready ?? await startPlayback({ ...wanted, profile: detectProfile(), replacesSessionId: replaces })
+        const playback = ready ?? await startVideo({ ...wanted, replacesSessionId: replaces }, startPlayback, !options.noCopy)
         if (!life.alive || life !== lifetime.current || request !== requests.current) {
           void stopPlayback(playback.sessionId)
           // Nothing left for this request to do: a newer one (or none, the page has moved on) is in charge.
@@ -389,6 +397,7 @@ export function PlayerPage() {
           Object.assign(timing.current, { answeredAt: performance.now(), warmed: ready !== null, method: playback.method, playbackId: playback.playbackId })
         }
         session.current = playback.sessionId
+        copyAsked.current = wasCopyAsked(playback)
         // The same title again (another audio track, a recovery) keeps its speed; another starts at its show's.
         const sameTitle = playingItem.current === playback.item.id
         playingItem.current = playback.item.id
@@ -463,9 +472,18 @@ export function PlayerPage() {
   // A browser that claimed it could play the file but can't: converted instead, on the audio and subtitles chosen.
   const convertInstead = () =>
     void restartHere({ forceTranscode: true, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
+  // A copied stream this browser can't play: asked for again the old way from where it got to, and from now on.
+  const copyFailed = () => {
+    if (!copyAsked.current) return false
+    copyAsked.current = false
+    rememberCopyingFailed()
+    void restartHere({ noCopy: true, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
+    return true
+  }
   useEffect(() => {
     recoverRef.current = recover
     convertInsteadRef.current = convertInstead
+    copyFailedRef.current = copyFailed
   })
 
   useEffect(() => {
@@ -589,8 +607,11 @@ export function PlayerPage() {
       setMuted(el.muted)
     }
     const onError = () => {
+      // Safari's own player can't decode a copied stream (rather than losing the connection): asked the old way.
+      // MediaError's MEDIA_ERR_DECODE (3) and MEDIA_ERR_SRC_NOT_SUPPORTED (4).
+      const undecodable = el.error?.code === 3 || el.error?.code === 4
       if (method.current === 'DirectPlay') convertInsteadRef.current()
-      else if (method.current === 'Transcode') void recoverRef.current()
+      else if (method.current === 'Transcode') void ((undecodable && copyFailedRef.current()) || recoverRef.current())
       else setError({ message: t('This file couldn’t be played.'), kind: 'other' })
     }
     const onEnded = () => {
@@ -1071,7 +1092,7 @@ export function PlayerPage() {
       maxBitrate: preset?.bitrate,
       forceTranscode: q !== 'auto' || undefined,
       shuffle: shuffle || undefined,
-    })
+    }, prepareVideo)
   }, [wantReady, info, ended, quality, shuffle])
 
   // Leaving the player lets an unused next episode go.

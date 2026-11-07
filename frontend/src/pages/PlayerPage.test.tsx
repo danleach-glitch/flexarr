@@ -13,10 +13,11 @@ beforeAll(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 function playback(overrides: Record<string, unknown> = {}) {
+  const sessionId = (overrides.sessionId as string | undefined) ?? 's1'
   return {
-    sessionId: 's1',
+    sessionId,
     method: 'Transcode',
-    url: '/api/v1/playback/s1/master.m3u8',
+    url: `/api/v1/playback/${sessionId}/master.m3u8`,
     reasons: [],
     durationSeconds: 600,
     startPositionSeconds: 0,
@@ -90,6 +91,43 @@ describe('Player speed', () => {
     fireEvent.click(page.getByRole('menuitemradio', { name: '2×' }))
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(speeds).toEqual([])
+    await act(async () => page.unmount())
+  })
+})
+
+// Last: a copied stream's failure is remembered for the rest of the visit.
+describe('Player with a copied picture', () => {
+  it('asks again the old way, from where it got to, when the browser can’t play the copied stream', async () => {
+    localStorage.clear()
+    const asked: { fmp4?: boolean; replacesSessionId?: string; startPositionSeconds?: number }[] = []
+    mockApi({
+      'POST /playback': (init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as { profile: { fmp4?: boolean }; replacesSessionId?: string; startPositionSeconds?: number }
+        asked.push({ fmp4: body.profile.fmp4, replacesSessionId: body.replacesSessionId, startPositionSeconds: body.startPositionSeconds })
+        return body.profile.fmp4
+          ? playback({ sessionId: 'copied', transcodeSummary: 'Original H.264, repackaged' })
+          : playback({ sessionId: 'converted', transcodeSummary: '720p H.264 at 3 Mbps' })
+      },
+      'DELETE /playback/copied': undefined,
+    })
+    const page = renderPlayer()
+    await waitFor(() => expect(asked).toHaveLength(1))
+    expect(asked[0].fmp4).toBe(true)
+    const video = page.container.querySelector('video')!
+    await waitFor(() => expect(video.getAttribute('src')).toContain('/playback/copied/'))
+
+    Object.defineProperty(video, 'currentTime', { configurable: true, get: () => 42, set: () => undefined })
+    Object.defineProperty(video, 'error', { configurable: true, get: () => ({ code: 3 }) })
+    fireEvent.error(video)
+    await waitFor(() => expect(asked).toHaveLength(2))
+    expect(asked[1]).toEqual({ fmp4: undefined, replacesSessionId: 'copied', startPositionSeconds: 42 })
+    await waitFor(() => expect(video.getAttribute('src')).toContain('/playback/converted/'))
+    expect(localStorage.getItem('flexarr.copiedVideoFailed')).not.toBeNull()
+
+    // The converted one failing isn't the copying's: it recovers as before rather than asking the old way again.
+    fireEvent.error(video)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(asked.slice(2).every((a) => a.fmp4 === undefined)).toBe(true)
     await act(async () => page.unmount())
   })
 })
