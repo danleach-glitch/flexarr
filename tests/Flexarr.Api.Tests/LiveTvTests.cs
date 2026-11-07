@@ -445,6 +445,39 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task A_series_with_more_showings_than_SQLite_takes_parameters_is_still_planned()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        var now = DateTime.UtcNow;
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var channel = new Flexarr.Core.LiveTv.LiveChannel { Name = "Rolling News" };
+            db.LiveChannels.Add(channel);
+            // Repeats only, so a new-only rule plans none of them: the look-up is what's under test.
+            db.LiveProgrammes.AddRange(Enumerable.Range(0, 33_000).Select(i => new Flexarr.Core.LiveTv.LiveProgramme
+            {
+                ChannelId = channel.Id, Title = "Rolling News", Start = now.AddSeconds(10 * i + 60), End = now.AddSeconds(10 * i + 70),
+            }));
+            db.RecordingRules.Add(new Flexarr.Core.LiveTv.RecordingRule { Title = "Rolling News", NewOnly = true });
+            await db.SaveChangesAsync();
+        }
+
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var scheduler = new DvrScheduler(services.GetRequiredService<IServiceScopeFactory>(), services.GetRequiredService<DvrService>(),
+                services.GetRequiredService<DvrSignal>(), services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Flexarr.Api.Configuration.FlexarrOptions>>(),
+                TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<DvrScheduler>.Instance);
+            await scheduler.RunOnceAsync(CancellationToken.None);
+        }
+
+        var list = await client.GetFromJsonAsync<JsonElement>(Api("livetv/recordings"));
+        Assert.Empty(list.GetProperty("upcoming").EnumerateArray());
+    }
+
+    [Fact]
     public async Task The_dvr_settings_are_kept_with_the_connection()
     {
         var client = Client();
