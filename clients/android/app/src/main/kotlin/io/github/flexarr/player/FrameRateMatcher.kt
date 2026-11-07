@@ -25,7 +25,10 @@ import io.github.flexarr.logging.FlexarrLog
 @OptIn(UnstableApi::class)
 internal class FrameRateMatcher(private val player: Player, private val view: SurfaceView) :
     Player.Listener, SurfaceHolder.Callback, VideoFrameMetadataListener {
+    /** The rate the video wants, and the one last asked of the surface (−1: a new surface, nothing asked yet). */
+    private var wanted = 0f
     private var asked = 0f
+    private var stopped = false
 
     /** Frame times (microseconds) while the format hasn't said its rate; touched only on the playback thread. */
     private val times = ArrayDeque<Long>()
@@ -34,6 +37,7 @@ internal class FrameRateMatcher(private val player: Player, private val view: Su
 
     fun start() {
         if (Build.VERSION.SDK_INT < 30) return
+        stopped = false
         val exo = player as? ExoPlayer
         // This sets the rate itself; Media3's own (seamless only) would undo it.
         exo?.videoChangeFrameRateStrategy = C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF
@@ -45,6 +49,7 @@ internal class FrameRateMatcher(private val player: Player, private val view: Su
 
     fun stop() {
         if (Build.VERSION.SDK_INT < 30) return
+        stopped = true
         measuring = false
         (player as? ExoPlayer)?.clearVideoFrameMetadataListener(this)
         player.removeListener(this)
@@ -71,19 +76,25 @@ internal class FrameRateMatcher(private val player: Player, private val view: Su
         val rate = measured(times) ?: return
         measuring = false
         times.clear()
-        view.post { apply(rate) }
+        view.post { if (!stopped) apply(rate) }
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        val rate = asked
         asked = -1f
-        apply(rate)
+        ask()
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
     override fun surfaceDestroyed(holder: SurfaceHolder) = Unit
 
     private fun apply(rate: Float) {
+        wanted = rate
+        ask()
+    }
+
+    /** Asks the surface for [wanted], once it's there: a rate known before the picture's surface waits for it. */
+    private fun ask() {
+        val rate = wanted
         if (rate == asked) return
         val surface = view.holder.surface?.takeIf { it.isValid } ?: return
         asked = rate
