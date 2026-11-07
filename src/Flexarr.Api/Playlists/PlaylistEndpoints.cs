@@ -291,37 +291,44 @@ public static class PlaylistEndpoints
         await SummariesAsync(db, await db.Playlists.Where(p => p.ProfileId == profileId).OrderByDescending(p => p.UpdatedAt).ThenBy(p => p.Name).ToListAsync(ct), ct);
 
     /// <summary>
-    /// What a list of playlists shows (count, length and four covers each) without summarising every track: one query
-    /// over the entries of them all, one for any chosen covers.
+    /// What a list of playlists shows (count, length and four covers each) without reading every entry: the counts
+    /// and lengths added up in the database, each playlist's covers as the distinct ones with where each first comes,
+    /// and one query for the covers' versions and any chosen covers.
     /// </summary>
     private static async Task<List<PlaylistSummaryDto>> SummariesAsync(FlexarrDbContext db, IReadOnlyList<Playlist> playlists, CancellationToken ct)
     {
         var ids = playlists.Select(p => p.Id).ToList();
-        var entries = ids.Count == 0 ? []
-            : await db.PlaylistItems.Where(i => ids.Contains(i.PlaylistId) && i.MediaItem != null)
-                .Select(i => new
-                {
-                    i.PlaylistId,
-                    i.Position,
-                    Duration = i.MediaItem!.Files.Max(f => f.DurationSeconds),
-                    // A track's cover is its album's, unless it has one of its own.
-                    CoverOf = i.MediaItem.PosterUrl != null ? i.MediaItem.Id : i.MediaItem.Parent!.PosterUrl != null ? i.MediaItem.ParentId : null,
-                    CoverVersion = i.MediaItem.PosterUrl != null ? i.MediaItem.MetadataUpdatedAt : i.MediaItem.Parent!.MetadataUpdatedAt,
-                    CoverChanged = i.MediaItem.PosterUrl != null ? i.MediaItem.ArtworkChangedAt : i.MediaItem.Parent!.ArtworkChangedAt,
-                })
-                .ToListAsync(ct);
-        var byPlaylist = entries.ToLookup(e => e.PlaylistId);
+        var entries = db.PlaylistItems.Where(i => ids.Contains(i.PlaylistId) && i.MediaItem != null);
+        var totals = ids.Count == 0 ? []
+            : await entries
+                .Select(i => new { i.PlaylistId, Duration = i.MediaItem!.Files.Max(f => f.DurationSeconds) ?? 0 })
+                .GroupBy(e => e.PlaylistId)
+                .Select(g => new { PlaylistId = g.Key, Count = g.Count(), Duration = g.Sum(e => e.Duration) })
+                .ToDictionaryAsync(t => t.PlaylistId, ct);
+        // A track's cover is its album's, unless it has one of its own.
+        var mosaics = ids.Count == 0 ? []
+            : (await entries
+                .Select(i => new { i.PlaylistId, i.Position, CoverOf = i.MediaItem!.PosterUrl != null ? i.MediaItem.Id : i.MediaItem.Parent!.PosterUrl != null ? i.MediaItem.ParentId : null })
+                .Where(e => e.CoverOf != null)
+                .GroupBy(e => new { e.PlaylistId, e.CoverOf })
+                .Select(g => new { g.Key.PlaylistId, CoverOf = g.Key.CoverOf!.Value, First = g.Min(e => e.Position) })
+                .ToListAsync(ct))
+            .GroupBy(e => e.PlaylistId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(e => e.First).Take(4).Select(e => e.CoverOf).ToList());
 
-        var coverIds = playlists.Where(p => p.CoverItemId != null).Select(p => p.CoverItemId!.Value).Distinct().ToList();
-        var covers = coverIds.Count == 0 ? []
-            : await db.MediaItems.Where(i => coverIds.Contains(i.Id) && i.PosterUrl != null).Select(i => new { i.Id, i.MetadataUpdatedAt, i.ArtworkChangedAt }).ToDictionaryAsync(i => i.Id, ct);
+        var chosen = playlists.Where(p => p.CoverItemId != null).Select(p => p.CoverItemId!.Value).ToList();
+        var pictureIds = mosaics.Values.SelectMany(m => m).Concat(chosen).Distinct().ToList();
+        var pictures = pictureIds.Count == 0 ? []
+            : await db.MediaItems.Where(i => pictureIds.Contains(i.Id)).Select(i => new { i.Id, HasPoster = i.PosterUrl != null, i.MetadataUpdatedAt, i.ArtworkChangedAt })
+                .ToDictionaryAsync(i => i.Id, ct);
 
         return playlists.Select(p =>
         {
-            var items = byPlaylist[p.Id].OrderBy(e => e.Position).ToList();
-            var mosaic = items.Where(e => e.CoverOf != null).DistinctBy(e => e.CoverOf).Take(4).Select(e => Poster(e.CoverOf!.Value, ArtworkUrls.Version(e.CoverVersion, e.CoverChanged))).ToList();
-            var cover = p.CoverItemId is { } id && covers.TryGetValue(id, out var c) ? Poster(id, ArtworkUrls.Version(c.MetadataUpdatedAt, c.ArtworkChangedAt)) : null;
-            return new PlaylistSummaryDto(p.Id, p.Name, items.Count, items.Sum(e => e.Duration ?? 0), mosaic, cover, p.CreatedAt, p.UpdatedAt);
+            var total = totals.GetValueOrDefault(p.Id);
+            var mosaic = mosaics.GetValueOrDefault(p.Id, []).Where(pictures.ContainsKey)
+                .Select(id => Poster(id, ArtworkUrls.Version(pictures[id].MetadataUpdatedAt, pictures[id].ArtworkChangedAt))).ToList();
+            var cover = p.CoverItemId is { } id && pictures.TryGetValue(id, out var c) && c.HasPoster ? Poster(id, ArtworkUrls.Version(c.MetadataUpdatedAt, c.ArtworkChangedAt)) : null;
+            return new PlaylistSummaryDto(p.Id, p.Name, total?.Count ?? 0, total?.Duration ?? 0, mosaic, cover, p.CreatedAt, p.UpdatedAt);
         }).ToList();
     }
 

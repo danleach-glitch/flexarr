@@ -124,6 +124,75 @@ public class PlaylistTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApi
         Assert.Contains(layout!.Home, r => r.Id == "music-playlists");
     }
 
+    [Fact]
+    public async Task APlaylistsSummary_CountsAndTimesEveryEntry_AndShowsTheFirstFourDistinctCovers()
+    {
+        Guid a1, a2, a5, ownCover;
+        Guid full, empty;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var music = new Library { Name = $"Music {Guid.NewGuid():N}", Type = LibraryType.Music };
+            db.Add(music);
+            var artist = new MediaItem { LibraryId = music.Id, Kind = MediaKind.Artist, Title = "Artist", SortTitle = "artist" };
+            db.Add(artist);
+            MediaItem Album(string title, bool poster)
+            {
+                var album = new MediaItem { LibraryId = music.Id, ParentId = artist.Id, Kind = MediaKind.Album, Title = title, SortTitle = title, PosterUrl = poster ? $"https://covers.example/{title}.jpg" : null };
+                db.Add(album);
+                return album;
+            }
+
+            MediaItem Track(MediaItem album, string title, params double?[] durations)
+            {
+                var track = new MediaItem { LibraryId = music.Id, ParentId = album.Id, Kind = MediaKind.Track, Title = title, SortTitle = title };
+                foreach (var (d, i) in durations.Select((d, i) => (d, i)))
+                {
+                    track.Files.Add(new MediaFile { Path = $"/music/{music.Id}/{title}/{i}.flac", DurationSeconds = d });
+                }
+
+                db.Add(track);
+                return track;
+            }
+
+            var (album1, album2, album3, album4, album5, album6) = (Album("A1", true), Album("A2", true), Album("A3", false), Album("A4", true), Album("A5", true), Album("A6", true));
+            var t1 = Track(album1, "t1", 200);
+            var t2 = Track(album2, "t2", 100, 300); // Two copies: the longer counts. It has a cover of its own.
+            t2.PosterUrl = "https://covers.example/t2.jpg";
+            var t3 = Track(album2, "t3", 200);
+            var t4 = Track(album3, "t4", 50); // No cover anywhere.
+            var t5 = Track(album4, "t5", [null]); // Length unknown.
+            var t6 = Track(album5, "t6", 200);
+            var t7 = Track(album6, "t7", 200);
+            var t8 = Track(album1, "t8", 200);
+            (a1, a2, a5, ownCover) = (album1.Id, album2.Id, album5.Id, t2.Id);
+
+            var playlist = new Playlist { ProfileId = "owner", Name = $"Summary {Guid.NewGuid():N}", UpdatedAt = DateTime.UtcNow.AddYears(1) };
+            var nothing = new Playlist { ProfileId = "owner", Name = $"Empty {Guid.NewGuid():N}", UpdatedAt = DateTime.UtcNow.AddYears(1).AddMinutes(-1) };
+            db.AddRange(playlist, nothing);
+            (full, empty) = (playlist.Id, nothing.Id);
+            // Added out of order: the positions are what count.
+            foreach (var (track, position) in new[] { (t7, 7), (t1, 4), (t8, 0), (t6, 5), (t3, 1), (t5, 6), (t4, 2), (t2, 3) })
+            {
+                db.PlaylistItems.Add(new PlaylistItem { PlaylistId = playlist.Id, MediaItemId = track.Id, Position = position });
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        var all = await Client().GetFromJsonAsync<List<PlaylistSummaryDto>>(Api("/playlists"), Json);
+        var summary = Assert.Single(all!, p => p.Id == full);
+        Assert.Equal(8, summary.TrackCount);
+        Assert.Equal(200 + 200 + 50 + 300 + 200 + 200 + 0 + 200, summary.DurationSeconds);
+        Assert.Equal([a1, a2, ownCover, a5], summary.Covers.Select(c => Guid.Parse(c.Split('/')[5])));
+        var nothingIn = Assert.Single(all!, p => p.Id == empty);
+        Assert.Equal((0, 0d), (nothingIn.TrackCount, nothingIn.DurationSeconds));
+        Assert.Empty(nothingIn.Covers);
+        // Most recently changed first.
+        Assert.True(all!.FindIndex(p => p.Id == full) < all.FindIndex(p => p.Id == empty));
+        Assert.Equal(summary, (await Client().GetFromJsonAsync<PlaylistDetailDto>(Api($"/playlists/{full}"), Json))!.Summary with { Covers = summary.Covers });
+    }
+
     private HttpClient Client(string? profileToken = null)
     {
         var client = factory.CreateClient();
