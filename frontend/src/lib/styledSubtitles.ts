@@ -19,16 +19,18 @@ async function fetchOk(url: string, signal: AbortSignal): Promise<Response> {
  */
 export const FONTS_AT_ONCE = 3
 
-/** `task` for each of `items`, at most `limit` at a time, answers in the items' order. One failing fails the lot, and nothing more is started. */
-async function inTurn<T, R>(items: T[], limit: number, task: (item: T) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length)
+/**
+ * `task` for each of `items`, at most `limit` at a time, each answer handed to `each` as it lands. One failing stops
+ * anything more being started, and rejects once those already on their way have finished.
+ */
+async function inTurn<T, R>(items: T[], limit: number, task: (item: T) => Promise<R>, each: (result: R) => void): Promise<void> {
   let next = 0
   let failed = false
   const lane = async () => {
     while (next < items.length && !failed) {
-      const i = next++
+      const item = items[next++]
       try {
-        results[i] = await task(items[i])
+        each(await task(item))
       } catch (e) {
         failed = true
         throw e
@@ -36,7 +38,6 @@ async function inTurn<T, R>(items: T[], limit: number, task: (item: T) => Promis
     }
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, lane))
-  return results
 }
 
 /**
@@ -54,21 +55,14 @@ export function fontsFor(fontsUrl: string | null | undefined, subtitle: string):
  * karaoke and effects. The file and the fonts attached to the video are fetched here, with the profile's headers, and
  * handed over, so the renderer's worker never needs to be signed in. Fonts aren't looked for on this computer, which
  * would ask the viewer for permission; a style whose font isn't attached falls back to JASSUB's own.
+ *
+ * Drawing starts as soon as the file is here: the fonts follow as each arrives (a release can attach dozens, tens of
+ * MB), and a line takes its own face once its font has come.
  */
 export async function drawStyled(video: HTMLVideoElement, url: string, fontsUrl: string | null | undefined, delay: number, signal: AbortSignal): Promise<StyledSubtitles> {
-  const [{ default: Renderer }, content, fonts] = await Promise.all([
-    import('jassub'),
-    fetchOk(url, signal).then((r) => r.text()),
-    fontsUrl
-      ? fetchOk(fontsUrl, signal)
-          .then((r) => r.json() as Promise<SubtitleFont[]>)
-          .then((list) => inTurn(list, FONTS_AT_ONCE, (f) => fetchOk(f.url, signal).then(async (r) => new Uint8Array(await r.arrayBuffer()))))
-          // Without its fonts the subtitles still show, in a plainer face.
-          .catch((e: unknown) => (signal.aborted ? Promise.reject(e) : []))
-      : Promise.resolve([]),
-  ])
+  const [{ default: Renderer }, content] = await Promise.all([import('jassub'), fetchOk(url, signal).then((r) => r.text())])
   signal.throwIfAborted()
-  const renderer: JASSUB = new Renderer({ video, subContent: content, fonts, queryFonts: false, timeOffset: -delay })
+  const renderer: JASSUB = new Renderer({ video, subContent: content, fonts: [], queryFonts: false, timeOffset: -delay })
   try {
     await renderer.ready
     signal.throwIfAborted()
@@ -76,10 +70,57 @@ export async function drawStyled(video: HTMLVideoElement, url: string, fontsUrl:
     void renderer.destroy()
     throw e
   }
+  // Stopped (a new track, the player closed): no more fonts are fetched or handed over.
+  const stop = new AbortController()
+  signal.addEventListener('abort', () => stop.abort(), { once: true })
+  if (fontsUrl) void addFonts(renderer, fontsUrl, stop.signal)
   return {
     set delay(seconds: number) {
       renderer.timeOffset = -seconds
     },
-    destroy: () => void renderer.destroy(),
+    destroy: () => {
+      stop.abort()
+      void renderer.destroy()
+    },
+  }
+}
+
+/**
+ * Fetches the fonts listed at `fontsUrl` a few at a time and hands them to `renderer` as they land: those that arrive
+ * while it's taking the last ones go over together, since each handover makes libass look through all its fonts again.
+ * A paused picture is drawn again with them. Without its fonts (the list or one of them can't be fetched) the
+ * subtitles go on showing, in the faces they have.
+ */
+async function addFonts(renderer: JASSUB, fontsUrl: string, signal: AbortSignal) {
+  let waiting: Uint8Array[] = []
+  let handing: Promise<void> | null = null
+  const handOver = () => {
+    if (handing || !waiting.length || signal.aborted) return
+    const fonts = waiting
+    waiting = []
+    handing = renderer.renderer
+      .addFonts(fonts)
+      .then(() => {
+        if (!signal.aborted) void renderer.resize().catch(() => undefined)
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        handing = null
+        handOver()
+      })
+  }
+  try {
+    const list = (await fetchOk(fontsUrl, signal).then((r) => r.json())) as SubtitleFont[]
+    const fetchFont = async (f: SubtitleFont) => {
+      signal.throwIfAborted()
+      return new Uint8Array(await (await fetchOk(f.url, signal)).arrayBuffer())
+    }
+    await inTurn(list, FONTS_AT_ONCE, fetchFont, (font) => {
+      signal.throwIfAborted()
+      waiting.push(font)
+      handOver()
+    })
+  } catch {
+    // Those that came are kept; the rest are done without.
   }
 }
