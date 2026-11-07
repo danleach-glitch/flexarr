@@ -286,3 +286,54 @@ fun ItemSummary.asPodcastEpisode(): PodcastEpisode = PodcastEpisode(
     accentColor = accentColor,
     userData = userData,
 )
+
+@Serializable
+internal data class OfflineCheckRequest(val itemIds: List<String>)
+
+/**
+ * Which of the titles a device kept the profile may still see (`POST offline/check`, OfflineCheckDto): every id asked
+ * about is in one list. Absent from servers before 0.63.
+ */
+@Serializable
+data class OfflineCheck(
+    /** Still allowed: kept. */
+    val allowed: List<String> = emptyList(),
+    /** Kept from this profile now (blocked, above its age limit, or in a library hidden from it): taken off the device. */
+    val hidden: List<String> = emptyList(),
+    /** Allowed, but its files can't be found just now (a drive not mounted, say): never a reason to take it off. */
+    val missing: List<String> = emptyList(),
+    /** The server has no such title (deleted, or from another server): taken off the device. */
+    val gone: List<String> = emptyList(),
+) {
+    /**
+     * Of [asked], the ones to take off the device: hidden or gone, and in no other list. Ids are matched whatever their
+     * case; anything the answer doesn't mention is kept.
+     */
+    fun toRemove(asked: Collection<String>): Set<String> {
+        fun Iterable<String>.lower() = mapTo(HashSet()) { it.lowercase() }
+        val keep = allowed.lower() + missing.lower()
+        val remove = hidden.lower() + gone.lower() - keep
+        return asked.filterTo(HashSet()) { it.lowercase() in remove }
+    }
+
+    companion object {
+        /** The most ids the server takes in one question. */
+        const val MOST_IDS = 5000
+    }
+}
+
+/**
+ * Asks which of [itemIds] (films, episodes, tracks, podcast episodes, books this device kept for the profile) it may still
+ * see. Null from a server before 0.63, which doesn't know the question (whatever it answers that isn't the list), so
+ * nothing is taken off then.
+ */
+suspend fun FlexarrClient.checkOffline(itemIds: List<String>): OfflineCheck? {
+    if (itemIds.isEmpty()) return OfflineCheck()
+    return try {
+        sendDecoding<OfflineCheckRequest, OfflineCheck>("POST", "offline/check", OfflineCheckRequest(itemIds))
+    } catch (e: FlexarrException.Http) {
+        if (e.status == 404 || e.status == 405) null else throw e
+    } catch (_: FlexarrException.UnexpectedResponse) {
+        null
+    }
+}

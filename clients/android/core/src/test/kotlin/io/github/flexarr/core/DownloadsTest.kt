@@ -227,4 +227,35 @@ class DownloadsTest {
         assertEquals("key", file.header("X-Api-Key"))
         assertNull(client.downloadFileRequest("abc").header("Range"))
     }
+
+    @Test
+    fun `the offline check takes off only what's hidden or gone, never what's missing`() = runTest {
+        val client = FlexarrClient(server.url("/"), apiKey = "key")
+        server.enqueue(json("""{"allowed":["a"],"hidden":["B"],"missing":["c"],"gone":["d"]}"""))
+        val check = client.checkOffline(listOf("a", "b", "c", "d"))!!
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/v1/offline/check", request.url.encodedPath)
+        assertEquals("""{"itemIds":["a","b","c","d"]}""", request.body!!.utf8())
+        assertEquals(setOf("b", "d"), check.toRemove(listOf("a", "b", "c", "d", "e")))
+        // Named in a list that keeps it as well: kept.
+        assertEquals(emptySet<String>(), OfflineCheck(allowed = listOf("a"), hidden = listOf("a"), missing = listOf("b"), gone = listOf("b")).toRemove(listOf("a", "b")))
+    }
+
+    @Test
+    fun `a server before the offline check takes nothing off`() = runTest {
+        val client = FlexarrClient(server.url("/"), apiKey = "key")
+        server.enqueue(MockResponse.Builder().code(404).build())
+        assertNull(client.checkOffline(listOf("a")))
+        // Or the web app's page, as an unknown path falls through to it.
+        server.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/html").body("<html></html>").build())
+        assertNull(client.checkOffline(listOf("a")))
+        // An answer without the lists: nothing to take off.
+        server.enqueue(json("{}"))
+        assertEquals(emptySet<String>(), client.checkOffline(listOf("a"))!!.toRemove(listOf("a")))
+        // Nothing kept: nothing asked.
+        assertEquals(3, server.requestCount)
+        assertEquals(emptySet<String>(), client.checkOffline(emptyList())!!.toRemove(emptyList()))
+        assertEquals(3, server.requestCount)
+    }
 }
