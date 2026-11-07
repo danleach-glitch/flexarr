@@ -32,6 +32,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - When a phone its server signed out connects to a different server, the audiobooks downloaded from the old one are deleted with the other downloads, instead of staying on the phone and showing up in Downloads.
 - Connecting with an API key to an address on the internet typed without `http://` or `https://` only ever uses https. The Android app used to fall back to plain http when https didn’t answer, which sent the key unencrypted; now it says so, and you can type `http://` yourself if your server really has no https. Home, `.local` and Tailscale addresses connect as before.
 - On phones with Android 11 or older, a notification about a device asking to connect no longer has an **Allow** button, which worked without unlocking the phone. Tap the notification to allow it in the app; **Don’t allow** is still there.
+- On Android 12 and later, **Download** on a new-episode notification asks for the phone to be unlocked first, as **Allow** on a device asking to connect already did.
 
 ## 0.62.1 · 5 November 2026
 

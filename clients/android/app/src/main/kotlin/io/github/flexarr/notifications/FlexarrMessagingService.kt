@@ -117,7 +117,14 @@ class FlexarrMessagingService : FirebaseMessagingService() {
                 PushPayload.PODCAST -> info["episode"]
                 else -> null
             }
-            download?.let { builder.addAction(0, t(Words.download), DownloadReceiver.intent(context, id, it, podcast = payload.category == PushPayload.PODCAST)) }
+            // Like Allow on a pairing notification, it asks for a locked phone to be unlocked first (Android 12 and later).
+            download?.let {
+                builder.addAction(
+                    NotificationCompat.Action.Builder(0, t(Words.download), DownloadReceiver.intent(context, id, it, podcast = payload.category == PushPayload.PODCAST))
+                        .setAuthenticationRequired(true)
+                        .build(),
+                )
+            }
             runCatching {
                 NotificationManagerCompat.from(context).notify(id, builder.build())
                 payload.thread?.let { thread -> NotificationManagerCompat.from(context).notify(summaryId(thread), summary(context, payload, thread, opens)) }
