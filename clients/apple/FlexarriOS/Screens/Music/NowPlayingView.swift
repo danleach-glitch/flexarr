@@ -694,8 +694,8 @@ struct NowPlayingView: View {
                 FactsLine(facts: [episode.dateLine, episode.durationSeconds.flatMap(Format.runtime(seconds:)), episode.explicit ? t("Explicit") : nil].compactMap { $0 })
                     .font(.caption)
                     .padding(.horizontal, 12)
-                if let text = episode.overview {
-                    Text(episodeNotes(text, duration: episode.durationSeconds))
+                if let text = playing.notes {
+                    Text(text)
                         .font(.subheadline)
                         .foregroundStyle(Color.screen.opacity(0.85))
                         .tint(Color.silver)
