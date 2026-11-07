@@ -62,7 +62,10 @@ describe('Live player', () => {
     const video = page.container.querySelector('video')!
     let time = 100
     Object.defineProperty(video, 'seekable', { value: { length: 1, start: () => 40.2, end: () => 130.7 } })
-    Object.defineProperty(video, 'currentTime', { get: () => time, set: (v: number) => (time = v) })
+    Object.defineProperty(video, 'currentTime', { get: () => time, set: (v: number) => {
+        time = v
+      },
+    })
     fireEvent.click(page.container.querySelector('.player-quality')!)
     await waitFor(() => expect(page.container.querySelectorAll('.live-channel-row')).toHaveLength(2))
     expect(Array.from(page.container.querySelectorAll('.live-channel-row strong'), (row) => row.textContent)).toEqual(['Two', 'One'])
