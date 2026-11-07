@@ -577,11 +577,21 @@ export function PlayerPage() {
     const timer = setInterval(() => !video.current?.paused && report(), 10_000)
     const onHide = () => document.visibilityState === 'hidden' && session.current && beaconProgress(session.current, video.current?.currentTime ?? 0)
     document.addEventListener('visibilitychange', onHide)
+    // A closed tab or window never unmounts the page, so its stream would run on for nobody until the server's idle
+    // check. Hiding sent the place already; this ends the session. Not for a page kept to come back to (`persisted`).
+    const onPageHide = (event: PageTransitionEvent) => {
+      if (event.persisted || !session.current) return
+      const ending = session.current
+      session.current = undefined
+      void stopPlayback(ending)
+    }
+    window.addEventListener('pagehide', onPageHide)
     const el = video.current
     el?.addEventListener('pause', report)
     return () => {
       clearInterval(timer)
       document.removeEventListener('visibilitychange', onHide)
+      window.removeEventListener('pagehide', onPageHide)
       el?.removeEventListener('pause', report)
     }
   }, [])

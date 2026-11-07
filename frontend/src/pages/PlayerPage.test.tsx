@@ -95,6 +95,33 @@ describe('Player speed', () => {
   })
 })
 
+describe('Player when the tab closes', () => {
+  it('ends the stream, unless the page is kept to come back to', async () => {
+    const stopped: string[] = []
+    mockApi({
+      'POST /playback': () => playback(),
+      'DELETE /playback/s1': () => {
+        stopped.push('s1')
+        return undefined
+      },
+    })
+    const page = renderPlayer()
+    await waitFor(() => expect(page.container.querySelector('video')?.getAttribute('src')).toContain('/playback/s1/'))
+
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(stopped).toEqual([])
+
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false }))
+    await waitFor(() => expect(stopped).toEqual(['s1']))
+    // Ended once: unmounting afterwards doesn't stop it again.
+    await act(async () => page.unmount())
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(stopped).toEqual(['s1'])
+  })
+
+})
+
 // Last: a copied stream's failure is remembered for the rest of the visit.
 describe('Player with a copied picture', () => {
   it('recovers as before, without blaming copying, when the copied stream is gone from the server', async () => {
