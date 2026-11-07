@@ -37,9 +37,11 @@ struct ProfilePickerView: View {
     @State private var asking: Profile?
     /// Leaving a kids profile: the pad asks for the admin PIN, keeping the chosen profile's own if it had one.
     @State private var parent: ParentPin?
-    /// The admin PIN, once it's been given right here (to unlock, or before a wrong PIN of the chosen
-    /// profile's own): sent with the next choice, so it isn't asked for twice. Forgotten when the picker closes.
-    @State private var knownParentPin: String?
+    /// The admin PIN, once it's been given right here before a wrong PIN of the chosen profile's own: sent with the
+    /// next choice, so it isn't asked for twice. Kept for a minute, like the app's own (`recentParentPin`), so a
+    /// picker left open doesn't let the main profile in; forgotten when the picker closes.
+    @State private var knownParentPin: (pin: String, until: Date)?
+    private var heldParentPin: String? { knownParentPin.flatMap { $0.until > Date() ? $0.pin : nil } }
     /// Locking this Apple TV to kids profiles, or unlocking it: the pad asks for the admin PIN.
     @State private var kidsLockPin: KidsLockStep?
     /// Lock to kids profiles is on its way to the server, so another press doesn't send a second.
@@ -189,7 +191,7 @@ struct ProfilePickerView: View {
         if profile.needsPinToChoose {
             // The admin PIN was just given here (child lock off): it goes with this choice, rather than the
             // keypad again. A profile with a PIN of its own (other than the main profile) still asks for that.
-            if let held = knownParentPin ?? model.recentParentPin, profile.isMain || !profile.hasPin {
+            if let held = heldParentPin ?? model.recentParentPin, profile.isMain || !profile.hasPin {
                 await choose(profile, pin: profile.isMain ? held : nil, parentPin: held)
                 return
             }
@@ -212,7 +214,7 @@ struct ProfilePickerView: View {
 
     /// `parentPin` is one just typed on the main profile's pad; otherwise the one given earlier here goes, if any.
     private func choose(_ profile: Profile, pin: String?, parentPin: String? = nil) async {
-        let sentParentPin = parentPin ?? knownParentPin
+        let sentParentPin = parentPin ?? heldParentPin
         switching = profile.id
         defer { switching = nil }
         do {
@@ -228,8 +230,9 @@ struct ProfilePickerView: View {
                 self.error = message ?? t("That PIN isn’t right.")
             }
         } catch FlexarrClientError.ownPinWrong {
-            // The admin PIN was right, so it's kept; back to the chosen profile's own.
-            knownParentPin = sentParentPin
+            // The admin PIN was right, so it's kept; back to the chosen profile's own. Only one just typed starts
+            // its minute: wrong tries with the one kept don't stretch it.
+            if let parentPin { knownParentPin = (parentPin, Date().addingTimeInterval(60)) }
             asking = profile
             parent = nil
             self.error = t("That isn’t {name}’s PIN.", ["name": profile.name])
