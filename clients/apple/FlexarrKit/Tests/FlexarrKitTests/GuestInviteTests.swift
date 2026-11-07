@@ -101,4 +101,15 @@ struct GuestInviteTests {
         #expect(tv.secret.count >= 32)
         #expect(Data(base64Encoded: tv.publicKey)?.count == 65)
     }
+
+    /// The vectors in docs/remote-guests.md ("The code proves the key"), which relay/test/pair.test.js checks too.
+    @Test func aTvCodeIsMadeFromItsPublicKey() {
+        #expect(GuestTvCode.code(forPublicKey: "BAabxf2q9hMu/dxG+nGp5nYWsRDth260mBqx6U/8TU9miOPz86o/f4xuMSzrZ/YVxS1EHcdBY/JxFPKujcWATRA=") == "P5GSPMQP")
+        #expect(GuestTvCode.code(forPublicKey: "BJeO6XNfhIDBbIdQxtPpYlj3Cjk7nlUzjg+xJFmk20ChvzfI1jdWs2T5CgsWu1MmBW4iXHxrMfK9/MTDb9Nb1mM=") == "VFAZC453")
+        #expect(GuestTvCode.code(forPublicKey: "BBikfwYmLGipShyfrqxMWA/kv+NWBDrgrZotgMESONlNQfZ0um1pjfF8J+1iarUDMOzmd5+F9czYFE5xxV+pIvo=") == "7EAR565J")
+
+        let tv = GuestTvCode()
+        #expect(tv.code == GuestTvCode.code(forPublicKey: tv.publicKey))
+        #expect(GuestTvCode().code != tv.code)
+    }
 }
