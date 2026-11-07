@@ -10,7 +10,15 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
 
+/// <summary>
+/// Run alone: <see cref="DataVersion"/> is one number for the process, so other tests' servers writing alongside would
+/// keep dropping what's kept here.
+/// </summary>
+[CollectionDefinition(nameof(HomeCacheTests), DisableParallelization = true)]
+public sealed class HomeCacheCollection;
+
 /// <summary>Home is kept a minute per profile, and dropped by any write: what comes back is always what working it out afresh gives.</summary>
+[Collection(nameof(HomeCacheTests))]
 public sealed class HomeCacheTests : IDisposable
 {
     private readonly FlexarrApiFactory factory = new();
