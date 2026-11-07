@@ -76,7 +76,9 @@ public static class ImageEndpoints
                 return Results.NotFound();
             }
 
-            return await SourceAsync(db, memory, id, kind, v, ct) is { Url: { } url } ? await ServeAsync(cache, url, w, http, ct) : Results.NotFound();
+            return await SourceAsync(db, memory, id, kind, v, ct) is { Url: { } url } source
+                ? await ServeAsync(() => cache.GetAsync(url, source.Stamp, w, ct), http)
+                : Results.NotFound();
         });
 
         // Artwork for things not in the library yet (Coming soon, downloads). Only images on known artwork hosts, so
@@ -139,7 +141,7 @@ public static class ImageEndpoints
         for (Guid? current = id; current is { } itemId;)
         {
             var item = await db.MediaItems.AsNoTracking().Where(i => i.Id == itemId)
-                .Select(i => new { i.ParentId, i.LibraryId, i.PosterUrl, i.BackdropUrl, i.LogoUrl, i.ThumbUrl, i.Kind, i.MetadataUpdatedAt, i.ArtworkChangedAt })
+                .Select(i => new { i.ParentId, i.LibraryId, i.PosterUrl, i.BackdropUrl, i.LogoUrl, i.ThumbUrl, i.Kind, i.MetadataUpdatedAt, i.ArtworkChangedAt, i.ArtworkStamp })
                 .FirstOrDefaultAsync(ct);
             if (item is null)
             {
@@ -169,7 +171,8 @@ public static class ImageEndpoints
 
             if (url is not null || kind == "thumb")
             {
-                return new ImageSource(url, version);
+                // Local artwork by the scan's stamp of it, so a cached copy is served without looking at the media drive.
+                return new ImageSource(url, version, ArtworkUrl.IsLocal(url) ? item.ArtworkStamp : null);
             }
 
             current = item.ParentId;
@@ -178,7 +181,8 @@ public static class ImageEndpoints
         return new ImageSource(null, version);
     }
 
-    private sealed record ImageSource(string? Url, string? Version);
+    /// <param name="Stamp">For local artwork, the item's <see cref="MediaItem.ArtworkStamp"/>, when the scan has made one.</param>
+    private sealed record ImageSource(string? Url, string? Version, string? Stamp = null);
 
     /// <summary>Whether a photo's ?v= (seconds) is newer than the one remembered; one that isn't a number never is.</summary>
     internal static bool IsNewer(string? v, string? remembered) =>

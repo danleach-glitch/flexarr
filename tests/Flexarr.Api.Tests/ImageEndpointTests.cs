@@ -6,6 +6,7 @@ using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Flexarr.Metadata;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
@@ -158,6 +159,59 @@ public class ImageEndpointTests(FlexarrApiFactory factory) : IClassFixture<Flexa
             File.SetLastWriteTimeUtc(cover, DateTime.UtcNow.AddMinutes(1));
             var after = await client.GetByteArrayAsync(new Uri($"/api/v1/images/items/{id}/poster?w=64&v=2", UriKind.Relative));
 
+            Assert.NotEqual(before, after);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task AScannedCover_IsServedFromTheCache_WithoutLookingAtTheFile_UntilItsStampChanges()
+    {
+        if (!await HasFfmpegAsync())
+        {
+            return; // CI without ffmpeg: nothing to make the covers with
+        }
+
+        var root = Directory.CreateTempSubdirectory("flexarr-cover-").FullName;
+        try
+        {
+            var cover = Path.Combine(root, "Book", "cover.jpg");
+            Directory.CreateDirectory(Path.GetDirectoryName(cover)!);
+            await RunAsync("ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=red:s=64x64", "-frames:v", "1", cover);
+            Guid id;
+            using (var scope = factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+                var library = new Library { Name = $"Books {Guid.NewGuid():N}", Type = LibraryType.Audiobooks, Folders = [new LibraryFolder { Path = root }] };
+                var item = new MediaItem
+                {
+                    LibraryId = library.Id, Kind = MediaKind.Audiobook, Title = "Book", SortTitle = "book", PosterUrl = $"file://{cover}", ArtworkStamp = "first",
+                };
+                db.AddRange(library, item);
+                await db.SaveChangesAsync();
+                id = item.Id;
+            }
+
+            var client = factory.CreateClient();
+            var before = await client.GetByteArrayAsync(new Uri($"/api/v1/images/items/{id}/poster?w=64", UriKind.Relative));
+
+            // The drive asleep (or the file gone): the cached copy is still served, by the scan's stamp.
+            File.Move(cover, cover + ".away");
+            Assert.Equal(before, await client.GetByteArrayAsync(new Uri($"/api/v1/images/items/{id}/poster?w=64", UriKind.Relative)));
+
+            // Replaced, and a scan noticed (a new stamp, a new ?v=): read again.
+            await RunAsync("ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=blue:s=128x128", "-frames:v", "1", cover);
+            File.Delete(cover + ".away");
+            using (var scope = factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+                await db.MediaItems.Where(i => i.Id == id).ExecuteUpdateAsync(u => u.SetProperty(i => i.ArtworkStamp, "second").SetProperty(i => i.ArtworkChangedAt, DateTime.UtcNow));
+            }
+
+            var after = await client.GetByteArrayAsync(new Uri($"/api/v1/images/items/{id}/poster?w=64&v=2", UriKind.Relative));
             Assert.NotEqual(before, after);
         }
         finally
