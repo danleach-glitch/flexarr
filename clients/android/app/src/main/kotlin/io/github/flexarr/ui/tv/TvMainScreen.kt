@@ -439,6 +439,11 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
     }
     AnimatedVisibility(open, enter = slideInHorizontally { -it } + fadeIn(), exit = slideOutHorizontally { -it } + fadeOut()) {
         val first = remember { FocusRequester() }
+        val profileRow = remember { FocusRequester() }
+        val showsProfile = model.profiles.size > 1 && model.currentProfile != null
+        // Up from the list's top row goes to who's watching. Left to itself, focus looks for the nearest thing above,
+        // which is often a poster on the screen behind the sidebar, and the sidebar closes.
+        val upToProfile = Modifier.focusProperties { if (showsProfile) up = profileRow }
         var hasFocus by remember { mutableStateOf(false) }
         val list = rememberLazyListState()
         val nowPlaying = model.music.current != null
@@ -474,7 +479,7 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
         ) {
             if (model.profiles.size > 1) {
                 model.currentProfile?.let { current ->
-                    SidebarRow(current.name, selected = false, onClick = onProfile, icon = { ProfileAvatar(model, current, size = 22) })
+                    SidebarRow(current.name, selected = false, onClick = onProfile, modifier = Modifier.focusRequester(profileRow), icon = { ProfileAvatar(model, current, size = 22) })
                     Spacer(Modifier.height(8.dp))
                 }
             }
@@ -483,7 +488,7 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
                 // Music that's playing gets a place of its own, as the Music app does: the surest way to reach it.
                 if (nowPlaying) {
                     item(key = "now-playing") {
-                        SidebarRow(t(Words.nowPlaying), selected = false, onClick = onNowPlaying, icon = { Icon(FlexarrIcons.nowPlaying, contentDescription = null, modifier = Modifier.size(20.dp)) })
+                        SidebarRow(t(Words.nowPlaying), selected = false, onClick = onNowPlaying, modifier = upToProfile, icon = { Icon(FlexarrIcons.nowPlaying, contentDescription = null, modifier = Modifier.size(20.dp)) })
                     }
                 }
                 items(tabs, key = { it.route }) { tab ->
@@ -495,7 +500,8 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
                         tab.title,
                         selected = tab.route == selected,
                         onClick = { onSelect(tab) },
-                        modifier = if (tab.route == focusRoute) Modifier.focusRequester(first) else Modifier,
+                        modifier = (if (tab.route == focusRoute) Modifier.focusRequester(first) else Modifier)
+                            .then(if (!nowPlaying && tab == tabs.first()) upToProfile else Modifier),
                         icon = { Icon(tab.icon, contentDescription = null, modifier = Modifier.size(20.dp)) },
                     )
                 }

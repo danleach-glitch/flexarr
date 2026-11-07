@@ -213,6 +213,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Android
 
+- On Android TV, pressing up from the top of the sidebar now reaches who's watching, instead of closing the sidebar and landing on a poster behind it.
 - With a PIN on the main profile, a newly connected Android phone or TV starts on **Who’s watching?**, even with only one profile, and being the main profile there takes its PIN. Before, it was the main profile straight away, with its watch history and where you’d got to.
 - Away from home, the Android app checks that it's your server answering at its home address before it listens for commands from other devices or carries on a download there, as it already did for everything else. Until then it uses the server's remote address, or waits.
 - A paused film, episode or Live TV channel no longer keeps the screen on for ever: the phone's screen times out as usual, and an Android TV's screensaver starts. The screen still stays on while something plays or loads.
