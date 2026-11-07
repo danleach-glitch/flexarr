@@ -1,4 +1,8 @@
 using Flexarr.Api.Playback;
+using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
+using Flexarr.Core.Media;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
 
@@ -55,5 +59,53 @@ public class MarkerDetectionWorkerTests
         await stopping.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting);
+    }
+
+    [Fact]
+    public void A_season_asked_for_again_while_it_waits_is_queued_once()
+    {
+        var queue = new MarkerQueue();
+        var (first, second) = (Guid.NewGuid(), Guid.NewGuid());
+
+        queue.Prioritize(first);
+        queue.Prioritize(second);
+        queue.Prioritize(first);
+
+        Assert.True(queue.TryNext(out var a));
+        Assert.True(queue.TryNext(out var b));
+        Assert.False(queue.TryNext(out _));
+        Assert.Equal([first, second], [a, b]);
+
+        // Once it's been taken, asking again queues it again (the re-analyse button, say).
+        queue.Prioritize(first);
+        Assert.True(queue.TryNext(out var again));
+        Assert.Equal(first, again);
+    }
+
+    [Fact]
+    public async Task A_season_needs_analysing_only_while_a_readable_file_of_it_is_unscanned()
+    {
+        await using var factory = new FlexarrApiFactory();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = "Shows", Type = LibraryType.TvShows };
+        var show = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Series, Title = "Show", SortTitle = "show" };
+        var season = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Season, Title = "Season 1", SortTitle = "season 1", ParentId = show.Id };
+        var scanned = new MediaFile { Path = "/tv/show/s1e1.mkv", Size = 1, MarkersScannedAt = DateTime.UtcNow };
+        var unreadable = new MediaFile { Path = "/tv/show/s1e2.mkv", Size = 1, ProbeError = "bad" };
+        var waiting = new MediaFile { Path = "/tv/show/s1e3.mkv", Size = 1 };
+        MediaItem Episode(int n, MediaFile file) => new()
+        {
+            LibraryId = library.Id, Kind = MediaKind.Episode, Title = $"Episode {n}", SortTitle = $"episode {n}", ParentId = season.Id, Files = [file],
+        };
+        db.Libraries.Add(library);
+        db.MediaItems.AddRange(show, season, Episode(1, scanned), Episode(2, unreadable), Episode(3, waiting));
+        await db.SaveChangesAsync();
+
+        Assert.True(await MarkerDetectionWorker.NeedsAnalysisAsync(db, season.Id, CancellationToken.None));
+
+        waiting.MarkersScannedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        Assert.False(await MarkerDetectionWorker.NeedsAnalysisAsync(db, season.Id, CancellationToken.None));
     }
 }

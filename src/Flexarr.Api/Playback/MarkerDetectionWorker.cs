@@ -13,10 +13,27 @@ namespace Flexarr.Api.Playback;
 public sealed class MarkerQueue
 {
     private readonly ConcurrentQueue<Guid> _seasons = new();
+    private readonly ConcurrentDictionary<Guid, bool> _waiting = new();
 
-    public void Prioritize(Guid seasonId) => _seasons.Enqueue(seasonId);
+    /// <summary>Puts the season next in line, once: asking again while it waits (another episode started) changes nothing.</summary>
+    public void Prioritize(Guid seasonId)
+    {
+        if (_waiting.TryAdd(seasonId, true))
+        {
+            _seasons.Enqueue(seasonId);
+        }
+    }
 
-    public bool TryNext(out Guid seasonId) => _seasons.TryDequeue(out seasonId);
+    public bool TryNext(out Guid seasonId)
+    {
+        if (!_seasons.TryDequeue(out seasonId))
+        {
+            return false;
+        }
+
+        _waiting.TryRemove(seasonId, out _);
+        return true;
+    }
 }
 
 /// <summary>Works through the library finding intros and credits, one season at a time, while the server is idle.</summary>
@@ -36,6 +53,12 @@ public sealed partial class MarkerDetectionWorker(
     /// is always converting something still gets its intros found, an episode at a time.
     /// </summary>
     private const int MostPauses = 30;
+
+    /// <summary>How long the sweep leaves a season whose analysis failed (an episode that makes FFmpeg hang) before trying it again.</summary>
+    private static readonly TimeSpan FailedSeasonRest = TimeSpan.FromDays(1);
+
+    /// <summary>Seasons whose analysis failed, and when, so the sweep moves on to the rest of the library.</summary>
+    private readonly ConcurrentDictionary<Guid, DateTime> _failed = new();
 
     private bool Watched => sessions.Playing.Any(s => DateTime.UtcNow - s.LastSeen < TimeSpan.FromMinutes(2));
 
@@ -105,11 +128,20 @@ public sealed partial class MarkerDetectionWorker(
 
         var asked = queue.TryNext(out var prioritized);
         Guid? seasonId = asked ? prioritized : null;
+        // Asked for again while it was being analysed (another episode, a new audio track): nothing left to do.
+        if (seasonId is { } next && !await NeedsAnalysisAsync(db, next, ct))
+        {
+            return true;
+        }
+
         if (seasonId is null)
         {
+            var now = DateTime.UtcNow;
+            var resting = _failed.Where(f => now - f.Value < FailedSeasonRest).Select(f => f.Key).ToList();
             // Seasons of shows being watched first, then the most recently added.
             seasonId = await db.MediaItems
                 .Where(s => s.Kind == MediaKind.Season && s.Children.Any(e => e.Files.Any(f => f.MarkersScannedAt == null && f.ProbeError == null)))
+                .Where(s => !resting.Contains(s.Id))
                 .OrderByDescending(s => s.Parent!.Children.SelectMany(x => x.Children).SelectMany(e => e.PlaybackStates).Max(p => (DateTime?)p.LastPlayedAt))
                 .ThenByDescending(s => s.Children.Max(e => e.AddedAt))
                 .Select(s => (Guid?)s.Id)
@@ -118,7 +150,17 @@ public sealed partial class MarkerDetectionWorker(
 
         if (seasonId is { } id)
         {
-            await AnalyseSeasonAsync(db, detector, id, asked, ct);
+            try
+            {
+                await AnalyseSeasonAsync(db, detector, id, asked, ct);
+                _failed.TryRemove(id, out _);
+            }
+            catch (Exception) when (!ct.IsCancellationRequested)
+            {
+                _failed[id] = DateTime.UtcNow;
+                throw;
+            }
+
             return true;
         }
 
@@ -133,6 +175,10 @@ public sealed partial class MarkerDetectionWorker(
         await db.SaveChangesAsync(ct);
         return movies.Count > 0;
     }
+
+    /// <summary>Whether any of the season's files is still to be analysed.</summary>
+    internal static Task<bool> NeedsAnalysisAsync(FlexarrDbContext db, Guid seasonId, CancellationToken ct) =>
+        db.MediaFiles.AnyAsync(f => f.MediaItem!.ParentId == seasonId && f.MarkersScannedAt == null && f.ProbeError == null, ct);
 
     private async Task AnalyseSeasonAsync(FlexarrDbContext db, MarkerDetector detector, Guid seasonId, bool asked, CancellationToken ct)
     {
