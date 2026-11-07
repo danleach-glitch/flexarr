@@ -676,7 +676,7 @@ internal fun TvDiagnosticsSettings(model: AppModel) {
             item {
                 TvSettingsRow(
                     t("Screen"), onClick = {}, icon = Icons.Filled.Tv,
-                    value = t("{width}×{height}, {rate} Hz", "width" to screen.width, "height" to screen.height, "rate" to DeviceCapabilities.rate(screen.refreshRate)),
+                    value = t("{width}×{height}, {rate} Hz", "width" to screen.width.toString(), "height" to screen.height.toString(), "rate" to DeviceCapabilities.rate(screen.refreshRate)),
                     help = t("Refresh rates it can switch to: {rates} Hz. Whether it switches to a film’s is the TV’s own setting, Match content frame rate.", "rates" to screen.refreshRates.joinToString { DeviceCapabilities.rate(it) }),
                 )
             }

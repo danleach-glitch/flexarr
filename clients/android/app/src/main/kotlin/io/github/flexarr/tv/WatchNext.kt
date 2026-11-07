@@ -161,13 +161,20 @@ object WatchNext {
         for ((id, row) in existing) {
             if (id !in wanted) resolver.delete(TvContractCompat.buildWatchNextProgramUri(row.first), null, null)
         }
+        var added = 0
+        var kept = 0
         for (card in cards) {
             val row = existing[card.id]
             if (row != null && !row.second) continue
             val values = program(context, card).toContentValues()
-            if (row != null) resolver.update(TvContractCompat.buildWatchNextProgramUri(row.first), values, null, null)
-            else resolver.insert(TvContractCompat.WatchNextPrograms.CONTENT_URI, values)
+            if (row != null) {
+                resolver.update(TvContractCompat.buildWatchNextProgramUri(row.first), values, null, null)
+                kept++
+            } else if (resolver.insert(TvContractCompat.WatchNextPrograms.CONTENT_URI, values) != null) {
+                added++
+            }
         }
+        log.info("Watch Next: $added added, $kept updated, ${existing.keys.count { it !in wanted }} removed")
     }
 
     @SuppressLint("RestrictedApi")
