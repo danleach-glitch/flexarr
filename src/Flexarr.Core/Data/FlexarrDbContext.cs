@@ -117,6 +117,10 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasIndex(i => new { i.LibraryId, i.ParentId, i.SortTitle });
             // A music library's albums (they all have a parent, so the index above doesn't narrow to them).
             e.HasIndex(i => new { i.LibraryId, i.Kind, i.SortTitle });
+            // Search looks for a word anywhere in the names of episodes, albums, tracks and books, and reads only those
+            // names here instead of every item. Only a query that repeats this filter word for word uses it (search's
+            // NamedItems.Searched), so queries for one kind by its parent, path or ids keep the indexes they have.
+            e.HasIndex(i => new { i.Kind, i.Title }).HasFilter("\"Kind\" IN ('Episode', 'Album', 'Track', 'Audiobook')");
             e.HasIndex(i => i.Path);
             e.HasIndex(i => i.AddedAt);
             e.HasIndex(i => i.FirstSeenAt);

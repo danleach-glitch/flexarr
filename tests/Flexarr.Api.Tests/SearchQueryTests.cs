@@ -203,8 +203,8 @@ public sealed class SearchQueryTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Episodes, albums, tracks and books as the query each kind has finds them: what a search gave before one pass
-    /// found all four, and still gives when too many names match.
+    /// Episodes, albums, tracks and books as the query each kind has finds them, with names that tie in id order: what
+    /// a search gives whether one pass finds all four or too many names match for that.
     /// </summary>
     private async Task<(List<Guid> Episodes, List<Guid> Albums, List<Guid> Tracks, List<Guid> Books)> EachKindsOwnQueryAsync(string term, params Guid[] hidden)
     {
@@ -214,14 +214,14 @@ public sealed class SearchQueryTests : IAsyncLifetime
         var contains = $"%{term}%";
         var prefix = $"{term}%";
         var episodes = await db.MediaItems.Where(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains))
-            .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).Take(8).Select(i => i.Id).ToListAsync();
+            .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenBy(i => i.Id).Take(8).Select(i => i.Id).ToListAsync();
         var albums = await db.MediaItems.Where(i => i.Kind == MediaKind.Album && EF.Functions.Like(i.Title, contains))
-            .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenByDescending(i => i.Year).Take(8).Select(i => i.Id).ToListAsync();
+            .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenByDescending(i => i.Year).ThenBy(i => i.Id).Take(8).Select(i => i.Id).ToListAsync();
         var tracks = await db.MediaItems.Where(i => i.Kind == MediaKind.Track && EF.Functions.Like(i.Title, contains))
-            .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenBy(i => i.SortTitle).Take(8).Select(i => i.Id).ToListAsync();
+            .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenBy(i => i.SortTitle).ThenBy(i => i.Id).Take(8).Select(i => i.Id).ToListAsync();
         var books = await db.MediaItems.Where(i => i.Kind == MediaKind.Audiobook && i.MissingSince == null
                 && (EF.Functions.Like(i.Title, contains) || (i.Book!.Subtitle != null && EF.Functions.Like(i.Book.Subtitle, contains))))
-            .OrderByDescending(i => EF.Functions.Like(i.Title, prefix) || EF.Functions.Like(i.SortTitle, prefix)).ThenBy(i => i.SortTitle)
+            .OrderByDescending(i => EF.Functions.Like(i.Title, prefix) || EF.Functions.Like(i.SortTitle, prefix)).ThenBy(i => i.SortTitle).ThenBy(i => i.Id)
             .Take(8).Select(i => i.Id).ToListAsync();
         return (episodes, albums, tracks, books);
     }
@@ -243,7 +243,7 @@ public sealed class SearchQueryTests : IAsyncLifetime
         var artist = new MediaItem { LibraryId = music.Id, Kind = MediaKind.Artist, Title = "An Artist", SortTitle = "artist" };
         var album = new MediaItem { LibraryId = music.Id, Kind = MediaKind.Album, Title = "Their Album", SortTitle = "their album", ParentId = artist.Id };
         await SeedAsync(db => db.AddRange(tv, music, books, show, season, artist, album));
-        // In a few saves, so the order the database holds them in isn't just the order of their ids.
+        // In a few saves, with random ids, so the order the database holds them in isn't the order of their ids.
         for (var batch = 0; batch < 3; batch++)
         {
             await SeedAsync(db =>
@@ -253,24 +253,24 @@ public sealed class SearchQueryTests : IAsyncLifetime
                     var starts = (n + batch) % 2 == 0;
                     db.Add(new MediaItem
                     {
-                        LibraryId = tv.Id, Kind = MediaKind.Episode, ParentId = season.Id, SeasonNumber = 1, EpisodeNumber = batch * 5 + n,
+                        Id = Guid.NewGuid(), LibraryId = tv.Id, Kind = MediaKind.Episode, ParentId = season.Id, SeasonNumber = 1, EpisodeNumber = batch * 5 + n,
                         Title = starts ? $"{word} Part {batch}{n}" : $"The {word} {batch}{n}", SortTitle = $"{batch}{n}",
                     });
                     db.Add(new MediaItem
                     {
-                        LibraryId = music.Id, Kind = MediaKind.Album, ParentId = artist.Id, Title = starts ? $"{word} Sessions {batch}{n}" : $"Live {word} {batch}{n}",
+                        Id = Guid.NewGuid(), LibraryId = music.Id, Kind = MediaKind.Album, ParentId = artist.Id, Title = starts ? $"{word} Sessions {batch}{n}" : $"Live {word} {batch}{n}",
                         SortTitle = $"album {batch}{n}", Year = n == 4 ? null : 2000 + ((n + batch) % 3),
                     });
                     // Sort titles that repeat, and ones only the database's order (by code point) puts right: a
                     // fullwidth letter comes before an emoji there, after it in .NET's ordinal order.
                     db.Add(new MediaItem
                     {
-                        LibraryId = music.Id, Kind = MediaKind.Track, ParentId = album.Id, Title = starts ? $"{word} Song {batch}{n}" : $"My {word} {batch}{n}",
+                        Id = Guid.NewGuid(), LibraryId = music.Id, Kind = MediaKind.Track, ParentId = album.Id, Title = starts ? $"{word} Song {batch}{n}" : $"My {word} {batch}{n}",
                         SortTitle = n switch { 0 => "\uFF21 song", 1 => "\U0001F600 song", 2 => "same", _ => $"song {(batch * 7 + n * 3) % 5}" },
                     });
                     var book = new MediaItem
                     {
-                        LibraryId = books.Id, Kind = MediaKind.Audiobook,
+                        Id = Guid.NewGuid(), LibraryId = books.Id, Kind = MediaKind.Audiobook,
                         Title = n switch { 0 => $"{word} Rising {batch}", 1 => $"The {word} Road {batch}", 2 => $"Nothing To See {batch}", _ => $"A {word} Tale {batch}{n}" },
                         SortTitle = n switch { 1 => $"{word} road {batch}", _ => $"book {(batch * 3 + n) % 4}" },
                         MissingSince = n == 4 && batch == 2 ? DateTime.UtcNow : null,
@@ -285,7 +285,7 @@ public sealed class SearchQueryTests : IAsyncLifetime
         {
             await SeedAsync(db => db.AddRange(Enumerable.Range(0, extraTracks).Select(n => new MediaItem
             {
-                LibraryId = music.Id, Kind = MediaKind.Track, ParentId = album.Id, Title = $"Filler {word} {n}", SortTitle = $"filler {n % 50:D2}",
+                Id = Guid.NewGuid(), LibraryId = music.Id, Kind = MediaKind.Track, ParentId = album.Id, Title = $"Filler {word} {n}", SortTitle = $"filler {n % 50:D2}",
             })));
         }
 
@@ -337,25 +337,72 @@ public sealed class SearchQueryTests : IAsyncLifetime
     }
 
     [Fact]
-    public void Picks_KeepTiesInTheOrderTheyCame_AndSortTextAsTheDatabaseDoes()
+    public void Picks_PutTiesInIdOrder_AndSortTextAsTheDatabaseDoes()
     {
-        static NamedItems.Named Item(MediaKind kind, bool starts, string sortTitle = "", int? year = null, bool sortStarts = false) =>
-            new(Guid.NewGuid(), kind, starts, sortStarts, year, sortTitle);
+        // Ids that come in the reverse of their order, so a tie kept in the order it came would show.
+        var next = 100;
+        NamedItems.Named Item(MediaKind kind, bool starts, string sortTitle = "", int? year = null, bool sortStarts = false) =>
+            new(Guid.Parse($"{next--:x8}-0000-0000-0000-000000000000"), kind, starts, sortStarts, year, sortTitle);
         var episodes = new[] { Item(MediaKind.Episode, false), Item(MediaKind.Episode, true), Item(MediaKind.Episode, false), Item(MediaKind.Episode, true) };
         var albums = new[] { Item(MediaKind.Album, true, year: null), Item(MediaKind.Album, true, year: 1999), Item(MediaKind.Album, false, year: 2024), Item(MediaKind.Album, true, year: 2005), Item(MediaKind.Album, true, year: 1999) };
         var tracks = new[] { Item(MediaKind.Track, true, "\U0001F600"), Item(MediaKind.Track, true, "\uFF21"), Item(MediaKind.Track, true, "b"), Item(MediaKind.Track, false, "a"), Item(MediaKind.Track, true, "B"), Item(MediaKind.Track, true, "b") };
-        var books = new[] { Item(MediaKind.Audiobook, false, "c"), Item(MediaKind.Audiobook, false, "b", sortStarts: true), Item(MediaKind.Audiobook, true, "d"), Item(MediaKind.Audiobook, false, "a") };
+        var books = new[] { Item(MediaKind.Audiobook, false, "c"), Item(MediaKind.Audiobook, false, "b", sortStarts: true), Item(MediaKind.Audiobook, true, "b"), Item(MediaKind.Audiobook, false, "a") };
 
         var picks = NamedItems.Pick([.. episodes, .. albums, .. tracks, .. books]);
 
-        Assert.Equal(new[] { 1, 3, 0, 2 }.Select(n => episodes[n].Id), picks.Episodes);
-        Assert.Equal(new[] { 3, 1, 4, 0, 2 }.Select(n => albums[n].Id), picks.Albums);
-        Assert.Equal(new[] { 4, 2, 5, 1, 0, 3 }.Select(n => tracks[n].Id), picks.Tracks);
-        Assert.Equal(new[] { 1, 2, 3, 0 }.Select(n => books[n].Id), picks.Books);
+        Assert.Equal(new[] { 3, 1, 2, 0 }.Select(n => episodes[n].Id), picks.Episodes);
+        Assert.Equal(new[] { 3, 4, 1, 0, 2 }.Select(n => albums[n].Id), picks.Albums);
+        Assert.Equal(new[] { 4, 5, 2, 1, 0, 3 }.Select(n => tracks[n].Id), picks.Tracks);
+        Assert.Equal(new[] { 2, 1, 3, 0 }.Select(n => books[n].Id), picks.Books);
         Assert.True(NamedItems.DatabaseOrder.Instance.Compare("\uFF21", "\U0001F600") < 0);
         Assert.True(string.CompareOrdinal("\uFF21", "\U0001F600") > 0);
         Assert.True(NamedItems.DatabaseOrder.Instance.Compare("ab", "abc") < 0);
         Assert.Equal(0, NamedItems.DatabaseOrder.Instance.Compare("\U0001F600x", "\U0001F600x"));
         Assert.True(NamedItems.DatabaseOrder.Instance.Compare("\U0001F600", "\U0001F601") < 0);
+        Assert.True(NamedItems.IdOrder.Instance.Compare(Guid.Parse("00000009-0000-0000-0000-00000000000f"), Guid.Parse("0000000a-0000-0000-0000-000000000000")) < 0);
+        Assert.True(NamedItems.IdOrder.Instance.Compare(Guid.Parse("10000000-0000-0000-0000-000000000000"), Guid.Parse("0fffffff-ffff-ffff-ffff-ffffffffffff")) > 0);
+    }
+
+    [Fact]
+    public async Task ASearchsNamesOfEpisodesAlbumsTracksAndBooks_AreReadFromTheirIndex_WhichOtherQueriesForAKindLeaveAlone()
+    {
+        var word = Unique();
+        await SeedNamedAsync(word, extraTracks: NamedItems.AtOnce);
+
+        var (_, sql) = await SearchAsync(word);
+
+        // The pass that gave up and the four queries kind by kind all name the index's filter word for word.
+        const string Filter = "\"Kind\" IN ('Episode', 'Album', 'Track', 'Audiobook')";
+        Assert.Equal(5, sql.Count(s => s.Contains("\"Title\" LIKE @contains", StringComparison.Ordinal) && s.Contains(Filter, StringComparison.Ordinal)));
+
+        using var scope = _server.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var contains = $"%{word}%";
+        var anyId = Guid.NewGuid();
+        Assert.Contains("IX_MediaItems_Kind_Title", await PlanAsync(NamedItems.Searched(db).Where(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains)).Select(i => i.Id)), StringComparison.Ordinal);
+        Assert.Contains("IX_MediaItems_Kind_Title", await PlanAsync(NamedItems.Searched(db).Where(i => i.Kind == MediaKind.Audiobook && EF.Functions.Like(i.Title, contains)).Select(i => i.Id)), StringComparison.Ordinal);
+        Assert.DoesNotContain("IX_MediaItems_Kind_Title", await PlanAsync(db.MediaItems.Where(i => i.ParentId == anyId && i.Kind == MediaKind.Episode).Select(i => i.Id)), StringComparison.Ordinal);
+        Assert.DoesNotContain("IX_MediaItems_Kind_Title", await PlanAsync(db.MediaItems.Where(i => i.Kind == MediaKind.Track && i.Path == "/a.flac").Select(i => i.Id)), StringComparison.Ordinal);
+        Assert.DoesNotContain("IX_MediaItems_Kind_Title", await PlanAsync(db.MediaItems.Where(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains)).Select(i => i.Id)), StringComparison.Ordinal);
+    }
+
+    /// <summary>How SQLite says it will run a query.</summary>
+    private static async Task<string> PlanAsync<T>(IQueryable<T> query)
+    {
+        using var command = query.CreateDbCommand();
+        command.CommandText = "EXPLAIN QUERY PLAN " + command.CommandText;
+        if (command.Connection!.State != System.Data.ConnectionState.Open)
+        {
+            await command.Connection.OpenAsync();
+        }
+
+        using var reader = await command.ExecuteReaderAsync();
+        var plan = new List<string>();
+        while (await reader.ReadAsync())
+        {
+            plan.Add(reader.GetString(3));
+        }
+
+        return string.Join('\n', plan);
     }
 }

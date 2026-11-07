@@ -995,6 +995,9 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.HasIndex("TvdbId");
 
+                    b.HasIndex("Kind", "Title")
+                        .HasFilter("\"Kind\" IN ('Episode', 'Album', 'Track', 'Audiobook')");
+
                     b.HasIndex("LibraryId", "Kind", "SortTitle");
 
                     b.HasIndex("LibraryId", "ParentId", "SortTitle");

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
@@ -5,10 +6,10 @@ using Microsoft.EntityFrameworkCore;
 namespace Flexarr.Api.Search;
 
 /// <summary>
-/// The episodes, albums, tracks and books a search finds by name. Nothing indexes an item's kind with its title, so
-/// finding each kind with a query of its own reads every item four times. When the words are particular enough to
-/// match few names, one pass finds all four kinds and the best of each are picked here, in the order the queries
-/// gave them; otherwise search goes back to a query per kind.
+/// The episodes, albums, tracks and books a search finds by name. Their names are indexed by kind (only these four
+/// kinds, see <see cref="Searched"/>), so a search reads those names rather than every item. When the words are
+/// particular enough to match few names, one pass finds all four kinds and the best of each are picked here, in the
+/// order the queries give them; otherwise search goes back to a query per kind.
 /// </summary>
 internal static class NamedItems
 {
@@ -27,13 +28,23 @@ internal static class NamedItems
     internal sealed record Named(Guid Id, MediaKind Kind, bool Starts, bool SortStarts, int? Year, string SortTitle);
 
     /// <summary>
+    /// Items of the four kinds search finds by name, in the words the index of their names is filtered by (SQLite uses
+    /// that index only for a query that says so word for word): every query for them by name starts here.
+    /// </summary>
+    internal static IQueryable<MediaItem> Searched(FlexarrDbContext db) =>
+        db.MediaItems.Where(i => new[] { MediaKind.Episode, MediaKind.Album, MediaKind.Track, MediaKind.Audiobook }.Contains(i.Kind));
+
+    /// <summary>
     /// The best matches of each kind for these LIKE patterns, among what the profile can see, found in one pass; null
     /// when more than <see cref="AtOnce"/> names match (the caller then asks kind by kind).
     /// </summary>
     internal static async Task<Picks?> FindAsync(FlexarrDbContext db, string contains, string prefix, CancellationToken ct)
     {
-        // Books match on their subtitle too, looked up only for books (a join would look it up for every item).
-        var named = await db.MediaItems
+        // Books match on their subtitle too, looked up only for books (a join would look it up for every item). The
+        // first condition follows from the second, and needs only what the index holds, so only the names that match
+        // (and books) are read from the items.
+        var named = await Searched(db)
+            .Where(i => EF.Functions.Like(i.Title, contains) || i.Kind == MediaKind.Audiobook)
             .Where(i => ((i.Kind == MediaKind.Episode || i.Kind == MediaKind.Album || i.Kind == MediaKind.Track) && EF.Functions.Like(i.Title, contains))
                 || (i.Kind == MediaKind.Audiobook && i.MissingSince == null && (EF.Functions.Like(i.Title, contains)
                     || db.BookDetails.Any(b => b.MediaItemId == i.Id && b.Subtitle != null && EF.Functions.Like(b.Subtitle, contains)))))
@@ -44,18 +55,29 @@ internal static class NamedItems
 
     /// <summary>
     /// The best of each kind, as its own query orders them: names that start with the words first, then albums newest
-    /// first and tracks and books by sort title. The sorts are stable, so names that tie stay in the order they came
-    /// in (the database's), as they do in the queries.
+    /// first and tracks and books by sort title, and names that still tie by id, so the same search always gives the
+    /// same answer whatever order the database hands them over in.
     /// </summary>
     internal static Picks Pick(IReadOnlyList<Named> named)
     {
         IEnumerable<Named> Of(MediaKind kind) => named.Where(n => n.Kind == kind);
-        static List<Guid> Best(IEnumerable<Named> ordered) => [.. ordered.Take(Shown).Select(n => n.Id)];
+        static List<Guid> Best(IOrderedEnumerable<Named> ordered) => [.. ordered.ThenBy(n => n.Id, IdOrder.Instance).Take(Shown).Select(n => n.Id)];
         return new Picks(
             Best(Of(MediaKind.Episode).OrderByDescending(n => n.Starts)),
             Best(Of(MediaKind.Album).OrderByDescending(n => n.Starts).ThenByDescending(n => n.Year)),
             Best(Of(MediaKind.Track).OrderByDescending(n => n.Starts).ThenBy(n => n.SortTitle, DatabaseOrder.Instance)),
             Best(Of(MediaKind.Audiobook).OrderByDescending(n => n.Starts || n.SortStarts).ThenBy(n => n.SortTitle, DatabaseOrder.Instance)));
+    }
+
+    /// <summary>
+    /// Ids in the order SQLite sorts them: it keeps a Guid as its text (upper case), so they compare as that text,
+    /// hex digit by hex digit (digits before letters in either case).
+    /// </summary>
+    internal sealed class IdOrder : IComparer<Guid>
+    {
+        public static readonly IdOrder Instance = new();
+
+        public int Compare(Guid x, Guid y) => string.CompareOrdinal(x.ToString("D", CultureInfo.InvariantCulture), y.ToString("D", CultureInfo.InvariantCulture));
     }
 
     /// <summary>
