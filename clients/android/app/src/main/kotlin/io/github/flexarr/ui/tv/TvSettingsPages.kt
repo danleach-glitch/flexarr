@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.CallToAction
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.SurroundSound
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.GridView
@@ -318,6 +319,17 @@ internal fun TvPlaybackSettings(model: AppModel) {
                 t("Speakers"), onClick = { choosing = PlaybackChoice.Speakers }, modifier = Modifier.focusFor(PlaybackChoice.Speakers),
                 icon = Icons.Filled.Speaker, value = speakersLabel(sound.speakers), accessory = TvSettingAccessory.Chevron,
                 help = t("Auto plays every channel what’s connected takes."),
+            )
+        }
+        item {
+            TvSettingsToggle(
+                t("Lossless surround"), sound.losslessSurround, { SoundSettings.update(context) { it.copy(losslessSurround = !it.losslessSurround) } },
+                icon = Icons.Filled.SurroundSound,
+                help = if (sound.losslessSurround && sound.decodesSurround) {
+                    t("Dialogue boost, night mode and speakers work on decoded sound, so while one of them is on, surround is decoded on this TV.")
+                } else {
+                    t("Dolby Digital, Atmos, DTS and TrueHD go to your amplifier or soundbar as they are, when it takes them. Off, they’re decoded on this TV.")
+                },
             )
         }
     }
