@@ -73,9 +73,17 @@ public static partial class DiscoveryEndpoints
             var me = profile.Id;
             var options = services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>().CurrentValue;
             // The profile's own rows, or the server's while it hasn't chosen.
+            var cache = services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
+            // Kept a minute, until anything is written or the settings change (see HomeCache).
+            var version = DataVersion.Current;
+            var homeKey = HomeCache.Key(db, profile, listening, DateTime.UtcNow);
+            if (HomeCache.TryGet(cache, homeKey, version, options, out var kept))
+            {
+                return kept;
+            }
+
             var homeLayout = await LayoutEndpoints.ForProfileAsync(db, options, me, ct);
             var arr = services.GetRequiredService<Flexarr.Integrations.Arr.ArrClient>();
-            var cache = services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
             var rows = new List<HomeRowDto>();
             var states = db.PlaybackStates.Where(p => p.UserId == me);
             var topLevel = db.MediaItems.Where(i => i.ParentId == null);
@@ -260,7 +268,9 @@ public static partial class DiscoveryEndpoints
                 arranged.Insert(arranged.FindIndex(r => r.Id == "continue") + 1, row);
             }
 
-            return new HomeDto(rotation, overviews, arranged, upcoming, downloading, resume, resumes, PlacesPodcasts: true);
+            var home = new HomeDto(rotation, overviews, arranged, upcoming, downloading, resume, resumes, PlacesPodcasts: true);
+            HomeCache.Set(cache, homeKey, version, options, home, DateTime.UtcNow);
+            return home;
         }).WithTags("Discovery");
 
         api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>

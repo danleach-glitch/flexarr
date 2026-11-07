@@ -74,6 +74,12 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     /// <summary>The profile this context serves is a kids profile (see <see cref="Profile.IsKids"/>).</summary>
     public bool ServesKids { get; set; }
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(optionsBuilder);
+        optionsBuilder.AddInterceptors(DataVersion.Interceptors);
+    }
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         ArgumentNullException.ThrowIfNull(configurationBuilder);
@@ -502,6 +508,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         ChangeTracker.DetectChanges();
         ChangeTracker.AutoDetectChangesEnabled = false;
         var catalog = CatalogVersion.Touches(ChangeTracker);
+        var changes = ChangeTracker.HasChanges();
         try
         {
             var rated = Rate();
@@ -542,6 +549,11 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             if (catalog)
             {
                 CatalogVersion.Bump();
+            }
+
+            if (changes)
+            {
+                DataVersion.Bump();
             }
         }
     }

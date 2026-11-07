@@ -58,6 +58,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Home, a music library's Browse and the playlists page open sooner when you have long playlists: a playlist's track count, length and covers are worked out by the server's database instead of reading every song in every playlist each time.
 - Moving or removing a song in a long playlist is quicker: only the songs between its old place and its new one are renumbered, instead of every song in the playlist.
 
+### Home
+
+- Opening Home again within a minute is near-instant on every app and the web: your server keeps each profile's Home for up to a minute instead of working it all out afresh each time. Anything that changes it (watching, marking something watched, a new title, a change to your layout or watchlist) shows straight away.
+
 ### Libraries
 
 - Restarting the server no longer reads through every library again when it already did in the last 12 hours: each library is still looked through every 12 hours, counted from when it last was, so the drives your media is on are woken less after a restart or an update.
