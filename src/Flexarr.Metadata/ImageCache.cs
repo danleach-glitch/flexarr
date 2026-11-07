@@ -340,8 +340,18 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
                 target = Path.ChangeExtension(target, ".png");
             }
 
-            if (!await ResizeAsync(source, downloaded, false, snapped, target, ct).ConfigureAwait(false))
+            var tooLarge = false;
+            if (!await ResizeAsync(source, downloaded, false, snapped, target, ct, failed: error => tooLarge = error.Contains(TooManyPixels, StringComparison.Ordinal))
+                    .ConfigureAwait(false))
             {
+                if (tooLarge)
+                {
+                    // Small as a file but enormous once drawn: not something to hand an app either.
+                    LogNotAnImage(remoteUrl);
+                    job.RetryAfter = GoneFor;
+                    return null;
+                }
+
                 File.Move(source, target, overwrite: true); // Serve the original rather than nothing.
             }
 
@@ -583,6 +593,15 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
         return labels.Length <= 2 ? host : $"{labels[^2]}.{labels[^1]}";
     }
 
+    /// <summary>
+    /// The most pixels a picture may have to be resized (8,000 × 5,000, say). A PNG under a megabyte can be 16,000 ×
+    /// 16,000, which takes ffmpeg nearly a gigabyte to draw; one per core at once could swamp a small server.
+    /// </summary>
+    internal const int MaxPixels = 40_000_000;
+
+    /// <summary>What ffmpeg says when a picture is over <see cref="MaxPixels"/>.</summary>
+    private const string TooManyPixels = "max pixel count";
+
     /// <summary>Resizes into a temporary file and moves it into place, so a half-written image is never served.</summary>
     /// <param name="input">An image, or a media file (<paramref name="embedded"/>) whose first picture is taken.</param>
     /// <param name="format">The image's format, when it's an image.</param>
@@ -591,7 +610,9 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     /// <param name="target">Where the result goes.</param>
     /// <param name="ct">Stops ffmpeg.</param>
     /// <param name="seek">For a video, how many seconds in the frame is.</param>
-    private async Task<bool> ResizeAsync(string input, string? format, bool embedded, int width, string target, CancellationToken ct, double? seek = null)
+    /// <param name="failed">Told what ffmpeg said, when it fails.</param>
+    private async Task<bool> ResizeAsync(string input, string? format, bool embedded, int width, string target, CancellationToken ct, double? seek = null,
+        Action<string>? failed = null)
     {
         var png = target.EndsWith(".png", StringComparison.Ordinal);
         var partial = Path.Combine(Path.GetDirectoryName(target)!, $"{Path.GetFileNameWithoutExtension(target)}.{Guid.NewGuid():N}.tmp{Path.GetExtension(target)}");
@@ -599,12 +620,13 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
         {
             string[] args =
             [
-                "-v", "error", "-y", "-protocol_whitelist", "file", .. format is null ? Array.Empty<string>() : ["-f", format],
+                "-v", "error", "-y", "-protocol_whitelist", "file", "-max_pixels", MaxPixels.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                .. format is null ? Array.Empty<string>() : ["-f", format],
                 .. seek is { } at ? new[] { "-ss", at.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) } : [], "-i", input,
                 .. embedded ? new[] { "-map", "0:v:0", "-an" } : [],
                 "-vf", $"scale='min({width},iw)':-2", "-frames:v", "1", "-update", "1", .. png ? Array.Empty<string>() : ["-q:v", "3"], partial,
             ];
-            if (await RunFfmpegAsync(args, captureOutput: false, ct).ConfigureAwait(false) is null || !File.Exists(partial))
+            if (await RunFfmpegAsync(args, captureOutput: false, ct, failed).ConfigureAwait(false) is null || !File.Exists(partial))
             {
                 return false;
             }
@@ -619,7 +641,7 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     }
 
     /// <summary>Runs ffmpeg (a few at a time); its stdout if asked for, else empty, or null if it failed.</summary>
-    private async Task<byte[]?> RunFfmpegAsync(string[] args, bool captureOutput, CancellationToken ct)
+    private async Task<byte[]?> RunFfmpegAsync(string[] args, bool captureOutput, CancellationToken ct, Action<string>? failed = null)
     {
         var start = new ProcessStartInfo(settings.FfmpegPath) { RedirectStandardOutput = captureOutput, RedirectStandardError = true, UseShellExecute = false };
         foreach (var arg in args)
@@ -641,7 +663,9 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
                 await process.WaitForExitAsync(ct).ConfigureAwait(false);
                 if (process.ExitCode != 0)
                 {
-                    LogResizeFailed((await stderr.ConfigureAwait(false)).Trim());
+                    var error = (await stderr.ConfigureAwait(false)).Trim();
+                    LogResizeFailed(error);
+                    failed?.Invoke(error);
                     return null;
                 }
 
