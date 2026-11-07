@@ -88,6 +88,56 @@ class DownloadsTest {
     }
 
     @Test
+    fun `a download is asked after every three seconds at first, whatever the server says`() {
+        for (status in listOf(DownloadStatus.Queued, DownloadStatus.Preparing, DownloadStatus.Unknown)) {
+            assertEquals(List(5) { 3_000L }, (1..5).map { DownloadRules.pollMillis(status, it) })
+        }
+    }
+
+    @Test
+    fun `one being converted is then asked after every ten seconds`() {
+        assertEquals(List(6) { 10_000L }, listOf(6, 7, 8, 20, 400, Int.MAX_VALUE).map { DownloadRules.pollMillis(DownloadStatus.Preparing, it) })
+    }
+
+    @Test
+    fun `one waiting its turn is asked after less and less often, up to every half minute`() {
+        assertEquals(listOf(6_000L, 12_000L, 24_000L, 30_000L, 30_000L), (6..10).map { DownloadRules.pollMillis(DownloadStatus.Queued, it) })
+        // However long it waits (hours, behind a season), never longer, and never back to every three seconds.
+        assertEquals(List(4) { 30_000L }, listOf(11, 100, 100_000, Int.MAX_VALUE).map { DownloadRules.pollMillis(DownloadStatus.Queued, it) })
+        // A status from a newer server waits the same way.
+        assertEquals(30_000L, DownloadRules.pollMillis(DownloadStatus.Unknown, 50))
+    }
+
+    @Test
+    fun `a season waiting an hour to be converted is asked after a tenth as often`() {
+        fun asks(status: DownloadStatus): Int {
+            var waited = 0L
+            var heard = 0
+            while (waited < 3_600_000) waited += DownloadRules.pollMillis(status, ++heard)
+            return heard
+        }
+        // Every three seconds was 1,200 an hour for each episode.
+        assertTrue(asks(DownloadStatus.Queued) <= 130)
+        assertTrue(asks(DownloadStatus.Preparing) <= 370)
+    }
+
+    @Test
+    fun `the server is told a download has come only once the saved list says so`() {
+        val here = local(itemId = "ep1")
+        val coming = local(itemId = "ep2", phase = LocalPhase.Downloading)
+        val longHere = local(itemId = "ep3")
+        val waiting = setOf(here.id, coming.id, "d-deleted")
+
+        // Here in the list on disk, and not yet told: told now. One told before isn't told again.
+        assertEquals(setOf(here.id), DownloadRules.savedArrivals(waiting, listOf(here, coming, longHere)))
+        // The list was taken before it came, or it's been deleted since: it waits for a save that has it.
+        assertEquals(emptySet<String>(), DownloadRules.savedArrivals(waiting, listOf(here.copy(phase = LocalPhase.Downloading, fileName = null), coming)))
+        assertEquals(emptySet<String>(), DownloadRules.savedArrivals(waiting, emptyList()))
+        // Nothing waiting: nothing to tell, however long the list.
+        assertEquals(emptySet<String>(), DownloadRules.savedArrivals(emptySet(), listOf(here, longHere)))
+    }
+
+    @Test
     fun `only downloads the phone starts by itself wait for Wi-Fi`() {
         assertTrue(DownloadRules.isWiFiOnly(local(automatic = true), automaticOnWiFiOnly = true))
         assertEquals(false, DownloadRules.isWiFiOnly(local(automatic = true), automaticOnWiFiOnly = false))

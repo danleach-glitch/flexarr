@@ -109,7 +109,7 @@ fun AlbumCard(item: ItemSummary, modifier: Modifier = Modifier, width: Dp? = nul
     val navigator = LocalNavigator.current
     val downloads = LocalContext.current.appModel.downloads
     var menu by remember { mutableStateOf(false) }
-    val actions = musicMenuActions(MusicMenuSubject.Item(item), MusicMenu.Place.CARD, showsArtist = !onArtistPage)
+    val actions = musicMenuActionsLater(MusicMenuSubject.Item(item), MusicMenu.Place.CARD, showsArtist = !onArtistPage)
     Box(modifier.then(if (width != null) Modifier.width(width) else Modifier)) {
         Column(
             Modifier.fillMaxWidth().pressable({ navigator.open(item) }, onLongClick = { menu = true }).menuActions(actions),

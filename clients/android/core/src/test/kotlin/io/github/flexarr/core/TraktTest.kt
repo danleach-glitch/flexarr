@@ -231,4 +231,18 @@ class TraktTest {
         assertEquals("Yesterday", relativeTime(now.minusSeconds(30 * 3600), now))
         assertEquals("4 days ago", relativeTime(now.minusSeconds(4 * 86400), now))
     }
+
+    @Test
+    fun `opens only an https page on trakt as the place to enter the code`() {
+        fun open(url: String) = TraktPendingConnect(verificationUrl = url).openableVerificationUrl
+        assertEquals("https://trakt.tv/activate", open("https://trakt.tv/activate"))
+        assertEquals("https://api.trakt.tv/activate", open("https://api.trakt.tv/activate"))
+        val fallback = TraktPendingConnect.TRAKT_ACTIVATE
+        assertEquals(fallback, open("http://trakt.tv/activate"))
+        assertEquals(fallback, open("https://trakt.tv.example.com/activate"))
+        assertEquals(fallback, open("https://nottrakt.tv/activate"))
+        assertEquals(fallback, open("https://trakt.tv@evil.example/activate"))
+        assertEquals(fallback, open("javascript:alert(1)"))
+        assertEquals(fallback, open(""))
+    }
 }

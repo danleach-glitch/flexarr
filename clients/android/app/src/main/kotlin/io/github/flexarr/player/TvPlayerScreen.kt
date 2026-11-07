@@ -215,7 +215,7 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
                 }
             },
     ) {
-        VideoSurface(controller.player)
+        VideoSurface(controller.player, controller.keepsScreenOn)
         SubtitleLayer(controller)
         if ((controller.isBuffering || controller.isOpening) && controller.error == null) {
             CircularProgressIndicator(Modifier.align(Alignment.Center), color = Flexarr.screen)

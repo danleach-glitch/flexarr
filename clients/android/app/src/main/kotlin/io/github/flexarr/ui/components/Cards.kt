@@ -64,6 +64,7 @@ import io.github.flexarr.core.isResumable
 import io.github.flexarr.core.listeningSubtitle
 import io.github.flexarr.core.progress
 import io.github.flexarr.core.releaseYear
+import io.github.flexarr.AppModel
 import io.github.flexarr.ui.Navigator
 import io.github.flexarr.ui.books.bookActions
 import io.github.flexarr.ui.theme.Flexarr
@@ -96,7 +97,7 @@ fun RemoteImage(path: String?, width: Int, modifier: Modifier = Modifier, placeh
 fun PosterCard(item: ItemSummary, modifier: Modifier = Modifier, width: Dp? = PosterWidth, onOpen: (() -> Unit)? = null, onClick: (() -> Unit)? = null) {
     val navigator = LocalNavigator.current
     var menu by remember { mutableStateOf(false) }
-    val actions = itemActions(item, showsDetails = onClick != null)
+    val actions = itemActionsLater(item, showsDetails = onClick != null)
     Box(modifier) {
         Column(
             (if (width != null) Modifier.width(width) else Modifier.fillMaxWidth())
@@ -155,7 +156,7 @@ fun PosterArtwork(item: ItemSummary, modifier: Modifier = Modifier) {
 fun WideCard(item: ItemSummary, width: Dp = WideWidth, onClick: (() -> Unit)? = null) {
     val navigator = LocalNavigator.current
     var menu by remember { mutableStateOf(false) }
-    val actions = itemActions(item, showsDetails = true)
+    val actions = itemActionsLater(item, showsDetails = true)
     val play = {
         when (item.kind) {
             MediaKind.Audiobook -> navigator.playBook(item)
@@ -257,14 +258,26 @@ class MenuAction(val label: String, val icon: ImageVector? = null, val run: () -
  * gives TalkBack the same list. A TV keeps nothing, so offers no [downloads].
  */
 @Composable
-fun itemActions(item: ItemSummary, showsDetails: Boolean = false, downloads: Boolean = true): List<MenuAction> {
+fun itemActions(item: ItemSummary, showsDetails: Boolean = false, downloads: Boolean = true): List<MenuAction> =
+    itemActionsLater(item, showsDetails, downloads)()
+
+/**
+ * [itemActions], built only when something asks: the open menu, or TalkBack reading the card's actions. A grid's cards
+ * are drawn far more often than their menus open, so they don't build the list (and look downloads up) each time.
+ */
+@Composable
+fun itemActionsLater(item: ItemSummary, showsDetails: Boolean = false, downloads: Boolean = true): () -> List<MenuAction> {
     val navigator = LocalNavigator.current
     val inContinueWatching = LocalInContinueWatching.current
     val model = androidx.compose.ui.platform.LocalContext.current.appModel
+    return { buildItemActions(item, showsDetails, downloads, navigator, model, inContinueWatching) }
+}
+
+private fun buildItemActions(item: ItemSummary, showsDetails: Boolean, downloads: Boolean, navigator: Navigator, model: AppModel, inContinueWatching: Boolean): List<MenuAction> {
     // In Continue watching, a book or podcast episode can leave it without being marked finished.
     val leave = if (inContinueWatching) listOf(MenuAction(t("Remove"), FlexarrIcons.removeFromRow) { navigator.removeFromContinueWatching(item) }) else emptyList()
-    if (item.kind == MediaKind.Audiobook) return bookActions(item, showsDetails, downloads) + leave
-    if (item.kind == MediaKind.PodcastEpisode) return podcastEpisodeActions(item, showsDetails, kids = model.isKids) + leave
+    if (item.kind == MediaKind.Audiobook) return bookActions(item, showsDetails, downloads, navigator, model) + leave
+    if (item.kind == MediaKind.PodcastEpisode) return podcastEpisodeActions(item, showsDetails, kids = model.isKids, navigator) + leave
     // Albums, artists and tracks aren't watched: until music has a menu of its own, they have none.
     if (item.kind.isMusic) return emptyList()
     return buildList {
@@ -304,9 +317,7 @@ fun itemActions(item: ItemSummary, showsDetails: Boolean = false, downloads: Boo
 }
 
 /** A podcast episode listed as a title (Continue watching): play it, its podcast, played or not. */
-@Composable
-private fun podcastEpisodeActions(item: ItemSummary, showsDetails: Boolean, kids: Boolean): List<MenuAction> {
-    val navigator = LocalNavigator.current
+private fun podcastEpisodeActions(item: ItemSummary, showsDetails: Boolean, kids: Boolean, navigator: Navigator): List<MenuAction> {
     val played = item.userData.watched
     return buildList {
         add(MenuAction(if (item.isResumable) t("Resume") else t(Words.play), FlexarrIcons.play) { navigator.playEpisode(item) })
@@ -317,14 +328,21 @@ private fun podcastEpisodeActions(item: ItemSummary, showsDetails: Boolean, kids
 }
 
 /** A card's menu as TalkBack actions, so it's there without the long press. */
-fun Modifier.menuActions(actions: List<MenuAction>): Modifier =
-    semantics { customActions = actions.map { action -> CustomAccessibilityAction(action.label) { action.run(); true } } }
+fun Modifier.menuActions(actions: List<MenuAction>): Modifier = menuActions { actions }
+
+/** The same, built only when TalkBack (or a test) asks for the card's actions; the state it reads keeps them current. */
+fun Modifier.menuActions(actions: () -> List<MenuAction>): Modifier =
+    semantics { customActions = actions().map { action -> CustomAccessibilityAction(action.label) { action.run(); true } } }
 
 /** The long-press menu shared by cards. */
 @Composable
-fun ItemMenu(actions: List<MenuAction>, expanded: Boolean, onDismiss: () -> Unit) {
+fun ItemMenu(actions: List<MenuAction>, expanded: Boolean, onDismiss: () -> Unit) = ItemMenu({ actions }, expanded, onDismiss)
+
+/** The same, its list built only while it shows. */
+@Composable
+fun ItemMenu(actions: () -> List<MenuAction>, expanded: Boolean, onDismiss: () -> Unit) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
-        actions.forEach { action ->
+        actions().forEach { action ->
             DropdownMenuItem(text = { Text(action.label) }, leadingIcon = action.icon?.let { icon -> { Icon(icon, contentDescription = null) } }, onClick = {
                 onDismiss()
                 action.run()

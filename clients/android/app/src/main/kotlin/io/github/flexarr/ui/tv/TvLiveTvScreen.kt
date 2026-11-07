@@ -95,6 +95,10 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Duration
@@ -119,28 +123,58 @@ private sealed interface Category {
  * fetch it again. Fetched a few hours at a time ([hours]), more as the guide is moved on; kept four minutes, so the
  * five-minute refresh always fetches.
  */
-internal object TvGuideCache {
+internal object TvGuideCache : GuideKeeper(CoroutineScope(SupervisorJob() + Dispatchers.Main)) {
+    /** The guide's first fetch, and how much more each move past its end asks for, up to a day. */
+    const val FIRST_HOURS = 6
+    const val MORE_HOURS = 6
+    const val MOST_HOURS = 24
+}
+
+/**
+ * What [TvGuideCache] does. A guide is let go once it's too old to be given again, or when Android asks for memory
+ * back ([clear]): every channel's programmes for up to a day is tens of megabytes for a big line-up, which a TV stick
+ * was holding for as long as the app ran. The wait to let it go runs in [scope].
+ */
+internal open class GuideKeeper(private val scope: CoroutineScope) {
     private class Entry(val sign: String, val guide: LiveGuide, val fetched: Instant, val hours: Int)
 
+    // Read and changed on the main thread, where the screens ask and [scope] waits.
     private var entry: Entry? = null
+    private var letGo: Job? = null
+
+    /** A guide is being kept. */
+    val holds: Boolean get() = entry != null
 
     /**
      * At least [hours] from an hour ago; [fresh] after something changed it (a recording set). Kept for one server and
      * one profile ([profile]): another profile may not see the same channels.
      */
-    suspend fun guide(client: FlexarrClient, hours: Int, profile: String?, fresh: Boolean = false): LiveGuide {
-        val sign = "${client.baseUrl} $profile"
+    suspend fun guide(client: FlexarrClient, hours: Int, profile: String?, fresh: Boolean = false): LiveGuide =
+        guide("${client.baseUrl} $profile", hours, fresh) { client.liveGuide(Instant.now().minusSeconds(3600), hours) }
+
+    /** The guide kept for [sign] if it'll do, or else what [fetch] brings, kept in its place. */
+    internal suspend fun guide(sign: String, hours: Int, fresh: Boolean, fetch: suspend () -> LiveGuide): LiveGuide {
         entry?.takeIf { !fresh && it.sign == sign && it.hours >= hours && Duration.between(it.fetched, Instant.now()) < MAX_AGE }?.let { return it.guide }
-        val guide = client.liveGuide(Instant.now().minusSeconds(3600), hours)
-        entry = Entry(sign, guide, Instant.now(), hours)
+        val guide = fetch()
+        val kept = Entry(sign, guide, Instant.now(), hours)
+        entry = kept
+        letGo?.cancel()
+        letGo = scope.launch {
+            delay(MAX_AGE.toMillis())
+            if (entry === kept) entry = null
+        }
         return guide
     }
 
-    /** The guide's first fetch, and how much more each move past its end asks for, up to a day. */
-    const val FIRST_HOURS = 6
-    const val MORE_HOURS = 6
-    const val MOST_HOURS = 24
-    private val MAX_AGE: Duration = Duration.ofMinutes(4)
+    /** Lets the kept guide go now; the next asked for is fetched. */
+    fun clear() {
+        letGo?.cancel()
+        entry = null
+    }
+
+    private companion object {
+        val MAX_AGE: Duration = Duration.ofMinutes(4)
+    }
 }
 
 /** Favourites' star: projected white, never gold. */

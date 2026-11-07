@@ -209,9 +209,15 @@ fun FlexarrClient.commandStream(): Flow<DeviceCommand> = deviceEvents().filterIs
 fun FlexarrClient.deviceEvents(
     accepts: List<DeviceCommandKind> = listOf(DeviceCommandKind.Sound, DeviceCommandKind.Sleep),
 ): Flow<DeviceEvent> = flow {
+    // The sign-in goes only where every other request's would: never to a home address that hasn't shown it's this server.
+    val base = try {
+        signInBase()
+    } catch (e: IOException) {
+        throw FlexarrException.Unreachable(e)
+    }
     val request = Request.Builder()
         // The commands beyond the basic ones this app takes (servers from 0.56 send only those).
-        .url(baseUrl.newBuilder().addPathSegments("api/v1/devices/commands").addQueryParameter("accepts", accepts.joinToString(",") { it.raw }).build())
+        .url(base.newBuilder().addPathSegments("api/v1/devices/commands").addQueryParameter("accepts", accepts.joinToString(",") { it.raw }).build())
         .header("Accept", "text/event-stream")
         .signIn()
         .build()

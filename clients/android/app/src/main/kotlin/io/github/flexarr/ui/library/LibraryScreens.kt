@@ -302,7 +302,7 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
     val genres = rememberLoader(libraryId) { runCatching { client.libraryGenres(libraryId) }.getOrDefault(emptyList()) }
     // Genre tiles have their pictures from servers of 0.54 on; older ones keep to the menu's genres.
     val tilesServer = rememberLoader(model.credentials) {
-        runCatching { ServerVersion.atLeast(client.systemStatus().version, 0, 54) }.getOrDefault(false)
+        model.serverVersion()?.let { ServerVersion.atLeast(it, 0, 54) } ?: false
     }
     val items = remember(libraryId, sort, genre) { mutableStateListOf<ItemSummary>() }
     var total by remember(libraryId, sort, genre) { mutableIntStateOf(0) }

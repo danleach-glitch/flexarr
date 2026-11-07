@@ -1,5 +1,6 @@
 package io.github.flexarr.core
 
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -10,6 +11,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.IOException
 import java.net.ServerSocket
 
 class ServerAddressesTest {
@@ -131,6 +133,137 @@ class ServerAddressesTest {
             assertEquals(1, elsewhere.requestCount)
         } finally {
             elsewhere.close()
+        }
+    }
+
+    @Test
+    fun `the command stream and a download's file go away rather than to a stranger at home`() = runTest {
+        val elsewhere = MockWebServer().apply { start() }
+        try {
+            val addresses = ServerAddresses(elsewhere.url("/"), away.url("/")).apply { serverId = "abc" }
+            // Each of the three asks home who it is first, without the sign-in.
+            repeat(3) { elsewhere.enqueue(json("""{"open":false,"serverId":"someone-else"}""")) }
+            away.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/event-stream").body(": hello\n\n").build())
+            val client = FlexarrClient(addresses, apiKey = "token")
+
+            client.deviceEvents().toList()
+            val film = client.downloadFileRequest("abc")
+            val book = client.bookFileRequest("/api/v1/items/book/file/0", fromByte = 10)!!
+
+            // Counted before it's taken: taking a request that never came would wait for ever.
+            assertEquals(1, away.requestCount)
+            val stream = away.takeRequest()
+            assertEquals("/api/v1/devices/commands", stream.url.encodedPath)
+            assertEquals("token", stream.headers["X-Api-Key"])
+            assertEquals(away.port, film.url.port)
+            assertEquals("/api/v1/offline/abc/file", film.url.encodedPath)
+            assertEquals(away.port, book.url.port)
+            assertEquals("/api/v1/items/book/file/0", book.url.encodedPath)
+            assertEquals("bytes=10-", book.header("Range"))
+            assertEquals(3, elsewhere.requestCount)
+            repeat(3) {
+                val probe = elsewhere.takeRequest()
+                assertEquals("/api/v1/setup", probe.url.encodedPath)
+                assertEquals(null, probe.headers["X-Api-Key"])
+            }
+        } finally {
+            elsewhere.close()
+        }
+    }
+
+    @Test
+    fun `with no other address, the command stream and downloads wait rather than sign in to a stranger`() = runTest {
+        val elsewhere = MockWebServer().apply { start() }
+        try {
+            val addresses = ServerAddresses(elsewhere.url("/"), null).apply { serverId = "abc" }
+            repeat(3) { elsewhere.enqueue(json("""{"open":false,"serverId":"someone-else"}""")) }
+            val client = FlexarrClient(addresses, apiKey = "token")
+
+            assertTrue(runCatching { client.deviceEvents().toList() }.exceptionOrNull() is FlexarrException.Unreachable)
+            assertTrue(runCatching { client.downloadFileRequest("abc") }.exceptionOrNull() is IOException)
+            assertTrue(runCatching { client.bookFileRequest("/api/v1/items/book/file/0") }.exceptionOrNull() is IOException)
+
+            assertEquals(3, elsewhere.requestCount)
+            repeat(3) { assertEquals(null, elsewhere.takeRequest().headers["X-Api-Key"]) }
+        } finally {
+            elsewhere.close()
+        }
+    }
+
+    @Test
+    fun `at home, the command stream and a download's file stay at home once it has answered with the server's id`() = runTest {
+        val atHome = MockWebServer().apply { start() }
+        try {
+            val addresses = ServerAddresses(atHome.url("/"), away.url("/")).apply { serverId = "abc" }
+            atHome.enqueue(json("""{"open":false,"serverId":"abc"}"""))
+            atHome.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/event-stream").body(": hello\n\n").build())
+            val client = FlexarrClient(addresses, apiKey = "token")
+
+            client.deviceEvents().toList()
+            val film = client.downloadFileRequest("abc")
+            val book = client.bookFileRequest("/api/v1/items/book/file/0")!!
+
+            // Asked once: the answer holds until the network changes.
+            assertEquals(2, atHome.requestCount)
+            assertEquals(0, away.requestCount)
+            assertEquals(null, atHome.takeRequest().headers["X-Api-Key"])
+            assertEquals("token", atHome.takeRequest().headers["X-Api-Key"])
+            assertEquals(atHome.port, film.url.port)
+            assertEquals(atHome.port, book.url.port)
+            assertEquals("token", book.header("X-Api-Key"))
+            // Somewhere that isn't the server's is never sent the sign-in.
+            assertEquals(null, client.bookFileRequest("http://example.com/file"))
+        } finally {
+            atHome.close()
+        }
+    }
+
+    @Test
+    fun `away, the command stream and a download's file go to the remote address and home isn't asked`() = runTest {
+        val elsewhere = MockWebServer().apply { start() }
+        try {
+            val addresses = ServerAddresses(elsewhere.url("/"), away.url("/")).apply { serverId = "abc" }
+            addresses.reached(away.url("/"))
+            away.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/event-stream").body(": hello\n\n").build())
+            val client = FlexarrClient(addresses, apiKey = "token")
+
+            client.deviceEvents().toList()
+            val film = client.downloadFileRequest("abc")
+            val book = client.bookFileRequest("/api/v1/items/book/files/0?convert=aac")!!
+
+            assertEquals(0, elsewhere.requestCount)
+            assertEquals(1, away.requestCount)
+            assertEquals("/api/v1/devices/commands", away.takeRequest().url.encodedPath)
+            assertEquals(away.port, film.url.port)
+            assertEquals(away.port, book.url.port)
+            // The file's own question (convert it) goes with it.
+            assertEquals("aac", book.url.queryParameter("convert"))
+        } finally {
+            elsewhere.close()
+        }
+    }
+
+    @Test
+    fun `on another network, a download's file asks home again before it's sent the sign-in`() = runTest {
+        val atHome = MockWebServer().apply { start() }
+        try {
+            val addresses = ServerAddresses(atHome.url("/"), away.url("/")).apply { serverId = "abc" }
+            val client = FlexarrClient(addresses, apiKey = "token")
+            atHome.enqueue(json("""{"open":false,"serverId":"abc"}"""))
+            assertEquals(atHome.port, client.downloadFileRequest("abc").url.port)
+            assertEquals(atHome.port, client.bookFileRequest("/api/v1/items/book/files/0")!!.url.port)
+
+            // The phone moved: the same private address is someone else's there.
+            addresses.networkChanged()
+            atHome.enqueue(json("""{"open":false,"serverId":"someone-else"}"""))
+            atHome.enqueue(json("""{"open":false,"serverId":"someone-else"}"""))
+
+            assertEquals(away.port, client.downloadFileRequest("abc").url.port)
+            assertEquals(away.port, client.bookFileRequest("/api/v1/items/book/files/0")!!.url.port)
+            assertEquals(3, atHome.requestCount)
+            repeat(3) { assertEquals(null, atHome.takeRequest().headers["X-Api-Key"]) }
+        } finally {
+            atHome.close()
         }
     }
 

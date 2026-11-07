@@ -153,6 +153,31 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - For the main profile, going back to Home from a title shows it at once, as it does for everyone else, rather than after one more answer from your server.
 - On a phone or a small window, the page of a film, show, episode or collection (in your library or in Discover) downloads its backdrop at a size that fits the screen, as Home already did, rather than always the largest.
 
+### Android
+- Away from home, the Android app checks that it's your server answering at its home address before it listens for commands from other devices or carries on a download there, as it already did for everything else. Until then it uses the server's remote address, or waits.
+- A paused film, episode or Live TV channel no longer keeps the screen on for ever: the phone's screen times out as usual, and an Android TV's screensaver starts. The screen still stays on while something plays or loads.
+- On Android TV sticks and phones that give an app little memory, the player holds less of a high-bitrate film or Live TV channel in memory at once, so it's less likely to stutter or close the app. Other devices buffer as before.
+- Opening a title or pressing **Play** no longer waits behind posters that are still loading, which showed after scrolling a long grid on a slow connection.
+- Downloading a long playlist no longer makes its page and the Downloads tab stutter while the tracks come in.
+- Live TV's guide on the phone uses less data: it's fetched again every five minutes rather than every two, and the channel list behind it as often. The line for now still moves each minute. An Android TV no longer holds the whole guide in memory after you've left Live TV.
+- While downloads wait for the server to convert them (a season at 720p can take hours), the phone asks after each one far less often than every three seconds, which is easier on the battery and on mobile data. A download still starts within half a minute of being ready.
+- The Android app takes about 18 MB less space on each phone and TV.
+- Opening the Android app, or coming back to it, asks the server the same small questions once rather than several times, so Home has less to wait behind on mobile data.
+- A phone or tablet left on **Who’s watching?** no longer opens the last profile’s downloads when it goes offline, if that profile has a PIN. A child’s profile takes over if there is one; otherwise **Who’s watching?** stays until the server can be reached again.
+- While the app is on **Who’s watching?**, the Continue Watching, Continue listening and Up Next widgets ask you to open Flexarr and choose, rather than go on showing the last profile’s titles. The Watchlist widget already did.
+- While the app is on **Who’s watching?**, Android Auto, “Hey Google, play … on Flexarr”, the headset’s play button and requests to play from other devices no longer act as the profile used last: there’s nothing to browse or resume until someone is chosen, and a title sent from another device plays once they are. Going back to **Who’s watching?** also stops what that profile was casting.
+- When a phone its server signed out connects to a different server, the audiobooks downloaded from the old one are deleted with the other downloads, instead of staying on the phone and showing up in Downloads.
+- Connecting with an API key to an address on the internet typed without `http://` or `https://` only ever uses https. The Android app used to fall back to plain http when https didn’t answer, which sent the key unencrypted; now it says so, and you can type `http://` yourself if your server really has no https. Home, `.local` and Tailscale addresses connect as before.
+- On phones with Android 11 or older, a notification about a device asking to connect no longer has an **Allow** button, which worked without unlocking the phone. Tap the notification to allow it in the app; **Don’t allow** is still there.
+- On Android 12 and later, **Download** on a new-episode notification asks for the phone to be unlocked first, as **Allow** on a device asking to connect already did.
+- When the Android app signs in to a different server, the log it keeps on the phone, and the warnings waiting to be sent, are cleared first, so the new server never gets the old one’s titles or address, by itself or in **Send diagnostics**.
+- The first title you look at or play after opening the Android app no longer pauses the screen while the app works out which formats the device can play: it finds out as the app opens, in the background.
+- Watching a Live TV channel uses less data: the player fetches what’s on when the programme on screen ends (and every ten minutes in case the guide changes), rather than the whole channel list every minute.
+- An audiobook with hundreds of chapters no longer makes its chapter list stutter while it plays, and the list opens straight away.
+- **Copy code and open Trakt** only ever opens a page on trakt.tv. If the server names anywhere else, the Android app opens trakt.tv/activate instead.
+- On Android TV, a kids profile no longer has **Settings** in the sidebar (so no **Sign out** either), as on the phone. A kids profile that's the only one on the server keeps it.
+- The Android app checks each language pack a server sends before keeping it, and forgets the packs it kept when it signs out, so another server's words don't follow it to the next one.
+
 ## 0.62.1 · 5 November 2026
 
 ### Apple TV

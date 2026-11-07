@@ -190,7 +190,7 @@ internal fun TvLivePlayerScreen(controller: LiveTvController, onClose: () -> Uni
                 }
             },
     ) {
-        VideoSurface(controller.player)
+        VideoSurface(controller.player, controller.keepsScreenOn)
         if ((controller.isBuffering || controller.startingChannel != null) && controller.error == null) {
             CircularProgressIndicator(Modifier.align(Alignment.Center), color = Flexarr.screen)
         }

@@ -104,10 +104,13 @@ suspend fun FlexarrClient.podcastAutoDownloads(): List<PodcastAutoDownload> = ge
 /** Episodes this phone has downloaded that have since been played, wherever. Absent from servers before 0.56. */
 suspend fun FlexarrClient.podcastPlayedDownloads(): List<PodcastPlayedDownload> = get("podcasts/played-downloads")
 
-/** The request for a ready download's file, signed in, from [fromByte] on (to carry on a transfer that stopped). */
-fun FlexarrClient.downloadFileRequest(id: String, fromByte: Long = 0): Request =
+/**
+ * The request for a ready download's file, signed in, from [fromByte] on (to carry on a transfer that stopped). Made
+ * for the address the sign-in may go to ([FlexarrClient.signInBase]); an IOException when that's nowhere on this network.
+ */
+suspend fun FlexarrClient.downloadFileRequest(id: String, fromByte: Long = 0): Request =
     Request.Builder()
-        .url(baseUrl.newBuilder().addPathSegments("api/v1/offline/$id/file").build())
+        .url(signInBase().newBuilder().addPathSegments("api/v1/offline/$id/file").build())
         .signIn()
         .apply { if (fromByte > 0) header("Range", "bytes=$fromByte-") }
         .build()
@@ -212,6 +215,32 @@ object DownloadRules {
         DownloadStatus.Failed -> ServerAnswer.Failed(remote.error ?: t("The server couldn’t get this ready."))
         DownloadStatus.Unknown -> ServerAnswer.None
     }
+
+    /**
+     * How long a transfer waits before asking the server after a download again, having heard the same [status]
+     * [heard] times running. Every three seconds at first, the server's own pace: a file that needs no converting is
+     * ready in a moment. After that, one being converted is asked after every ten seconds, which keeps how far it's got
+     * moving on screen; one only waiting its turn (behind the rest of a season, for hours) less and less often, up to
+     * every half minute. It was every three seconds throughout, for every download waiting, for as long as it took.
+     */
+    fun pollMillis(status: DownloadStatus, heard: Int): Long = when {
+        heard <= QUICK_POLLS -> QUICK_POLL_MS
+        status == DownloadStatus.Preparing -> PREPARING_POLL_MS
+        else -> (QUICK_POLL_MS shl (heard - QUICK_POLLS).coerceAtMost(8)).coerceAtMost(WAITING_POLL_MS)
+    }
+
+    private const val QUICK_POLLS = 5
+    private const val QUICK_POLL_MS = 3_000L
+    private const val PREPARING_POLL_MS = 10_000L
+    private const val WAITING_POLL_MS = 30_000L
+
+    /**
+     * Of the downloads that have come but whose server hasn't been told ([waiting], by id), those the list just written
+     * to disk ([saved]) has as here. Only these are told to the server, which lets its own copy go on hearing: one the
+     * saved list doesn't have yet (it came after the list was taken, or was deleted since) waits for the next save.
+     */
+    fun savedArrivals(waiting: Set<String>, saved: List<LocalDownload>): Set<String> =
+        if (waiting.isEmpty()) emptySet() else saved.filter { it.isDownloaded && it.id in waiting }.mapTo(mutableSetOf()) { it.id }
 
     /** Fetched by itself while automatic downloads are kept to Wi-Fi: it never comes over mobile data. */
     fun isWiFiOnly(download: LocalDownload, automaticOnWiFiOnly: Boolean): Boolean = automaticOnWiFiOnly && download.automatic

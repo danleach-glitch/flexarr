@@ -249,18 +249,20 @@ private fun LivePlayerScreen(controller: LiveTvController, onClose: () -> Unit, 
         }
     }
 
+    // The screen stays on only while the channel plays or loads: paused, it times out as usual.
+    val keepAwake = controller.keepsScreenOn
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
             factory = { context ->
                 PlayerView(context).apply {
                     useController = false
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    keepScreenOn = true
                     setShutterBackgroundColor(AndroidColor.BLACK)
                     player = controller.player
                 }
             },
             modifier = Modifier.fillMaxSize(),
+            update = { it.keepScreenOn = keepAwake },
         )
         // In the corner window, the picture is all there is.
         if (inPictureInPicture) return@Box

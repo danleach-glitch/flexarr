@@ -6,6 +6,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.EncodeDefault
@@ -298,6 +299,17 @@ class ClientLogUploader(
         }
     }
 
+    /**
+     * Lets go of everything waiting, here and in [storage]: it was about another server. Done before it returns, so
+     * nothing waiting is sent to the server signed in to next.
+     */
+    fun clear() = runBlocking {
+        lock.withLock {
+            queue = ClientLogQueue()
+            runCatching { storage?.delete() }
+        }
+    }
+
     /** Sends what's waiting soon: there's a server to send to now, say. */
     fun kick() {
         scope.launch { if (lock.withLock { queue.pending.isNotEmpty() }) schedule(debounceMs) }
@@ -389,6 +401,16 @@ class ClientLogFile(val directory: File, private val maxFileBytes: Long = 1_000_
         (previous.takeIf { it.exists() }?.readText().orEmpty()) + (current.takeIf { it.exists() }?.readText().orEmpty())
     }.get()
 
+    /** Empties both files, after the lines appended so far (they go too). */
+    fun clear() {
+        writer.execute {
+            runCatching {
+                previous.delete()
+                current.delete()
+            }
+        }
+    }
+
     private fun write(line: String) {
         runCatching {
             directory.mkdirs()
@@ -398,6 +420,39 @@ class ClientLogFile(val directory: File, private val maxFileBytes: Long = 1_000_
                 current.renameTo(previous)
             }
             current.appendBytes(data)
+        }
+    }
+}
+
+/**
+ * Which server the log on the device is about, kept in [file], so a sign-in to another server starts afresh: the log
+ * names titles, channels and the last server's address, and neither what's waiting nor Send diagnostics should take
+ * them to someone else's server.
+ */
+class ClientLogOwner(private val file: File) {
+    /**
+     * The app signed in to [address]. True when the log was about another server and should be emptied. The first time
+     * (nothing kept yet, as after an update) it's taken to be about this one.
+     */
+    fun signedIn(address: String): Boolean {
+        val kept = runCatching { file.takeIf { it.exists() }?.readText() }.getOrNull()
+        if (kept == address) return false
+        runCatching {
+            file.parentFile?.mkdirs()
+            file.writeText(address)
+        }
+        return kept != null
+    }
+
+    /**
+     * Signed out with nothing kept yet (as on the first launch after an update): what's in the log is about a server
+     * no longer known, so the next sign-in, wherever it is, starts afresh.
+     */
+    fun signedOut() {
+        if (runCatching { file.exists() }.getOrDefault(true)) return
+        runCatching {
+            file.parentFile?.mkdirs()
+            file.writeText("")
         }
     }
 }

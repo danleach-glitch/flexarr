@@ -4,7 +4,6 @@ import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.i18n.tk
 import kotlinx.serialization.Serializable
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 
 // Audiobooks, as the server's BookDtos: a library's shelves, its books, series, authors and narrators, a book's own
@@ -443,11 +442,16 @@ suspend fun FlexarrClient.bookListening(): BookListening = get("books/listening"
 
 suspend fun FlexarrClient.setBookListening(update: BookListeningUpdate): BookListening = sendDecoding("PUT", "books/listening", update)
 
-/** The request for one of a downloaded book's files (an item address, which needs the sign-in), from [fromByte] on. */
-fun FlexarrClient.bookFileRequest(relativeUrl: String, fromByte: Long = 0): Request? {
-    val url = url(relativeUrl).toHttpUrlOrNull() ?: return null
-    // Only the server's own addresses carry the sign-in.
-    if (url.host != baseUrl.host || url.port != baseUrl.port) return null
+/**
+ * The request for one of a downloaded book's files (an item address, which needs the sign-in), from [fromByte] on.
+ * Made for the address the sign-in may go to ([FlexarrClient.signInBase]); an IOException when that's nowhere on this
+ * network.
+ */
+suspend fun FlexarrClient.bookFileRequest(relativeUrl: String, fromByte: Long = 0): Request? {
+    val base = signInBase()
+    val url = base.resolve(relativeUrl) ?: return null
+    // Only the server's own address carries the sign-in.
+    if (url.host != base.host || url.port != base.port) return null
     return Request.Builder().url(url).signIn().apply { if (fromByte > 0) header("Range", "bytes=$fromByte-") }.build()
 }
 

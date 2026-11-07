@@ -128,6 +128,63 @@ class ClientLogsTest {
     }
 
     @Test
+    fun theLogStartsAfreshForAnotherServerOnly() {
+        val directory = java.nio.file.Files.createTempDirectory("logs").toFile()
+        try {
+            val owner = ClientLogOwner(java.io.File(directory, "server.txt"))
+            assertFalse(owner.signedIn("https://home.example"))
+            assertFalse(owner.signedIn("https://home.example"))
+            assertTrue(owner.signedIn("https://other.example"))
+            assertFalse(ClientLogOwner(java.io.File(directory, "server.txt")).signedIn("https://other.example"))
+            // Signing out keeps it about that server.
+            owner.signedOut()
+            assertFalse(owner.signedIn("https://other.example"))
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun aLogFromBeforeTheOwnerWasKeptGoesAtTheFirstSignInAfterSigningOut() {
+        val directory = java.nio.file.Files.createTempDirectory("logs").toFile()
+        try {
+            // Updated while signed out: whichever server is signed in to next gets a fresh log.
+            val owner = ClientLogOwner(java.io.File(directory, "server.txt"))
+            owner.signedOut()
+            assertTrue(owner.signedIn("https://new.example"))
+            assertFalse(owner.signedIn("https://new.example"))
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun clearingLetsGoOfWhatWaitsAndTheFile() = runBlocking {
+        val directory = java.nio.file.Files.createTempDirectory("logs").toFile()
+        try {
+            val storage = java.io.File(directory, "waiting.json")
+            val uploader = ClientLogUploader(storage, debounceMs = 60_000) { ClientLogDelivery.Unavailable }
+            uploader.add(entry("about the old server"))
+            repeat(50) { if (uploader.pending().isEmpty()) kotlinx.coroutines.delay(20) }
+            assertEquals(1, uploader.pending().size)
+            assertTrue(storage.exists())
+            uploader.clear()
+            assertTrue(uploader.pending().isEmpty())
+            assertFalse(storage.exists())
+            assertTrue(ClientLogUploader(storage) { ClientLogDelivery.Unavailable }.pending().isEmpty())
+
+            val file = ClientLogFile(directory)
+            file.append("watched The Matrix")
+            file.clear()
+            assertEquals("", file.contents())
+            file.append("after")
+            assertEquals("after\n", file.contents())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun anEntryMadeNowStillSaysWhen() {
         val text = FlexarrClient.json.encodeToString(ClientLogEntry.serializer(), ClientLogEntry(level = ClientLogLevel.Error, category = "c", message = "m"))
         assertTrue(text, text.contains("\"timestamp\":"))

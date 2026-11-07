@@ -103,8 +103,7 @@ fun TvLibraryTab(model: AppModel, library: Library, takeFocus: Boolean, onFocusT
     val saved = TvLibraryOpening.saved(LocalContext.current)
     // Genres' tiles have pictures from servers of 0.54 on; before that they're plain, so those libraries open on Browse
     // and offer no Genres, as the phone does. Taken as able until the server says.
-    val client = model.client
-    val tiles = rememberLoader(model.credentials) { client?.let { ServerVersion.atLeast(it.systemStatus().version, 0, 54) } ?: true }
+    val tiles = rememberLoader(model.credentials) { model.serverVersion()?.let { ServerVersion.atLeast(it, 0, 54) } ?: true }
     val hasGenres = TvLibraryOpening.hasGenres(library) && (tiles.state as? Load.Loaded)?.value != false
     var picked by rememberSaveable(library.id, saved) { mutableStateOf<TvLibraryOpening?>(null) }
     // Just switched: the view taking over gives its switch focus, as the word pressed has gone.

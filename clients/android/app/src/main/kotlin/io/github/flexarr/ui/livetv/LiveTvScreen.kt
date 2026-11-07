@@ -93,6 +93,7 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.components.RepeatWhileShowing
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -140,8 +141,17 @@ fun LiveTvScreen(model: AppModel) {
             if (channels == null) error = e.message
         }
     }
-    // What's on moves on: fetched again each minute while the screen is up.
-    RepeatWhileShowing(60_000, model.credentials) { load() }
+    // What's on moves on: fetched again each minute while the list is up. Under the guide, which has every programme
+    // itself, the list is only the channels and their stars: fetched every five minutes, and at once on going back to
+    // the list.
+    RepeatWhileShowing(if (showsGuide) GUIDE_REFRESH_MS else 60_000, model.credentials, showsGuide) {
+        load()
+        // No channels yet (the server couldn't be reached): tried again each minute, as it was, not left five.
+        while (showsGuide && channels == null) {
+            delay(60_000)
+            load()
+        }
+    }
 
     val all = channels.orEmpty()
     val favourites = all.filter { it.isFavourite }
@@ -344,6 +354,16 @@ internal fun RecordMark(recordingNow: Boolean) {
 
 private const val GUIDE_HOURS = 6
 
+/**
+ * How often the guide is fetched again while it's up: every five minutes, as on the TV. It's every channel's programmes
+ * for hours ahead (megabytes, for a big line-up) and changes only when the server reads its source again or a recording
+ * is set elsewhere; one set here fetches it at once.
+ */
+private const val GUIDE_REFRESH_MS = 300_000L
+
+/** Until the guide has come once, it's asked for again this often. */
+private const val GUIDE_RETRY_MS = 120_000L
+
 /** Figures of one width, so times line up. */
 private val Tabular = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum")
 
@@ -374,10 +394,17 @@ private fun LiveGuideView(
     suspend fun load() {
         runCatching { client.liveGuide(Instant.now().minusSeconds(3600), GUIDE_HOURS + 2) }.onSuccess { guide = it }
     }
-    RepeatWhileShowing(120_000) {
+    RepeatWhileShowing(GUIDE_REFRESH_MS) {
         load()
-        now = Instant.now()
+        // No guide yet (the server couldn't be reached, or it took too long to come): tried again every two minutes,
+        // as it was, rather than left loading for five.
+        while (guide == null) {
+            delay(GUIDE_RETRY_MS)
+            load()
+        }
     }
+    // The line for now, and what's on, move on each minute without fetching anything.
+    RepeatWhileShowing(60_000) { now = Instant.now() }
     /** Does a recording action, then fetches the guide again for its marks; says why if it couldn't be done. */
     fun act(action: suspend () -> String?) {
         scope.launch {

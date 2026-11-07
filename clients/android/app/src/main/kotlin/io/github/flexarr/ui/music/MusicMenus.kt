@@ -2,6 +2,7 @@ package io.github.flexarr.ui.music
 
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
+import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import io.github.flexarr.appModel
@@ -13,6 +14,7 @@ import io.github.flexarr.core.MusicMenu
 import io.github.flexarr.core.PlaylistSummary
 import io.github.flexarr.core.playlist
 import io.github.flexarr.core.tracks
+import io.github.flexarr.ui.Navigator
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.MenuAction
 import io.github.flexarr.ui.theme.FlexarrIcons
@@ -51,12 +53,28 @@ fun musicMenuActions(
     platform: MusicActions.Platform = MusicActions.Platform.PHONE,
     showsArtist: Boolean = true,
     onPlay: (() -> Unit)? = null,
-): List<MenuAction> {
-    val model = LocalContext.current.appModel
-    val kind = subjectKind(subject) ?: return emptyList()
-    val artistId = (subject as? MusicMenuSubject.Item)?.item?.seriesId?.takeIf { showsArtist }
-    val canDownload = platform == MusicActions.Platform.PHONE && model.downloads.collection(subject.id) == null
-    return musicActions(subject, MusicMenu.of(kind, place, platform, hasArtist = artistId != null, canDownload = canDownload), onPlay)
+): List<MenuAction> = musicMenuActionsLater(subject, place, platform, showsArtist, onPlay)()
+
+/** [musicMenuActions], built only when the menu opens or TalkBack asks, not each time the card is drawn. */
+@Composable
+fun musicMenuActionsLater(
+    subject: MusicMenuSubject,
+    place: MusicMenu.Place,
+    platform: MusicActions.Platform = MusicActions.Platform.PHONE,
+    showsArtist: Boolean = true,
+    onPlay: (() -> Unit)? = null,
+): () -> List<MenuAction> {
+    val navigator = LocalNavigator.current
+    val context = LocalContext.current
+    return {
+        val model = context.appModel
+        val kind = subjectKind(subject)
+        if (kind == null) emptyList() else {
+            val artistId = (subject as? MusicMenuSubject.Item)?.item?.seriesId?.takeIf { showsArtist }
+            val canDownload = platform == MusicActions.Platform.PHONE && model.downloads.collection(subject.id) == null
+            musicActions(subject, MusicMenu.of(kind, place, platform, hasArtist = artistId != null, canDownload = canDownload), onPlay, navigator, context)
+        }
+    }
 }
 
 /**
@@ -64,8 +82,10 @@ fun musicMenuActions(
  * everything it has.
  */
 @Composable
-fun musicPageMenuActions(item: ItemSummary, menu: List<MusicActions.MenuItem>): List<MenuAction> =
-    musicActions(
+fun musicPageMenuActions(item: ItemSummary, menu: List<MusicActions.MenuItem>): List<MenuAction> {
+    val navigator = LocalNavigator.current
+    val context = LocalContext.current
+    return musicActions(
         MusicMenuSubject.Item(item),
         menu.map {
             when (it) {
@@ -75,7 +95,10 @@ fun musicPageMenuActions(item: ItemSummary, menu: List<MusicActions.MenuItem>): 
             }
         },
         onPlay = null,
+        navigator,
+        context,
     )
+}
 
 private fun subjectKind(subject: MusicMenuSubject): MusicMenu.Subject? = when (subject) {
     is MusicMenuSubject.Playlist -> MusicMenu.Subject.PLAYLIST
@@ -88,10 +111,7 @@ private fun subjectKind(subject: MusicMenuSubject): MusicMenu.Subject? = when (s
 }
 
 /** [items] as actions on [subject]. */
-@Composable
-private fun musicActions(subject: MusicMenuSubject, items: List<MusicMenu.Item>, onPlay: (() -> Unit)?): List<MenuAction> {
-    val navigator = LocalNavigator.current
-    val context = LocalContext.current
+private fun musicActions(subject: MusicMenuSubject, items: List<MusicMenu.Item>, onPlay: (() -> Unit)?, navigator: Navigator, context: Context): List<MenuAction> {
     val model = context.appModel
     val kind = subjectKind(subject) ?: return emptyList()
     val artistId = (subject as? MusicMenuSubject.Item)?.item?.seriesId
