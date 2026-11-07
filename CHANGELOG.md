@@ -12,6 +12,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### iPhone, iPad and Apple TV
 
+- **Next Episode** starts the next one sooner: the app no longer waits for your server to end the old episode before asking for the new one. On shuffle, the next episode is also got ready half a minute into each one, not only once the credits start.
 - While an episode plays, the lock screen and Control Center show the show's poster instead of the episode's still.
 
 ### CarPlay
