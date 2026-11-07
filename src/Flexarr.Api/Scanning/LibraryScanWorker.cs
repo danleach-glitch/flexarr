@@ -15,7 +15,8 @@ namespace Flexarr.Api.Scanning;
 public sealed partial class LibraryScanWorker(
     ILibraryScanQueue queue,
     IServiceScopeFactory scopes,
-    ILogger<LibraryScanWorker> logger) : BackgroundService
+    ILogger<LibraryScanWorker> logger,
+    LibraryWorkGate gate) : BackgroundService
 {
     private static readonly TimeSpan Debounce = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan ScheduledScanInterval = TimeSpan.FromHours(12);
@@ -59,6 +60,7 @@ public sealed partial class LibraryScanWorker(
             {
                 try
                 {
+                    using var entered = await gate.EnterAsync(stoppingToken);
                     await ScanAsync(request, stoppingToken);
                 }
                 // Anything but shutdown, including an HTTP timeout (a TaskCanceledException), is one failed scan.
@@ -70,7 +72,7 @@ public sealed partial class LibraryScanWorker(
         }
     }
 
-    /// <summary>Picks up changes the *arr webhooks don't cover (files added by hand, other tools) and stale metadata.</summary>
+    /// <summary>Picks up changes the *arr webhooks don't cover (files added by hand, other tools).</summary>
     private async Task ScheduleAsync(CancellationToken ct)
     {
         using var timer = new PeriodicTimer(ScheduledScanInterval);
@@ -187,13 +189,14 @@ public sealed partial class LibraryScanWorker(
         foreach (var library in targets.Select(t => t.Library).DistinctBy(l => l.Id))
         {
             // A scan of one folder (a webhook) also refreshes the films or series in it, so new episodes get their
-            // titles straight away rather than when the series is next due.
+            // titles straight away rather than when the series is next due. Titles merely out of date are left to
+            // MetadataRefreshWorker, a few at a time.
             var folders = library.Folders.Select(f => f.Path).ToList();
             var scopes = targets.Where(t => t.Library.Id == library.Id).Select(t => t.Scope).ToList();
             var within = scopes.Any(s => folders.Any(f => PathComparison.IsUnder(f, s))) ? [] : scopes;
 
             var started = TimeProvider.System.GetTimestamp();
-            var refreshed = await metadata.RefreshLibraryAsync(library, request.ForceMetadata, within, request.TmdbId, request.TvdbId, ct);
+            var refreshed = await metadata.RefreshScannedAsync(library, request.ForceMetadata, within, request.TmdbId, request.TvdbId, ct);
             if (refreshed.FromArr + refreshed.FromLookup + refreshed.FromLocal + refreshed.Unmatched > 0)
             {
                 var seconds = TimeProvider.System.GetElapsedTime(started).TotalSeconds;

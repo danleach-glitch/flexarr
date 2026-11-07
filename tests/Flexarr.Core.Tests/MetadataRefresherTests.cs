@@ -48,6 +48,75 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ATimedRefresh_TakesTheLongestDueFirst_AFewAtATime()
+    {
+        var now = DateTime.UtcNow;
+        for (var n = 0; n < 30; n++)
+        {
+            await AddMovieAsync($"Old {n:D2}", now.AddDays(-8 - ((n * 7) % 30)), poster: "https://image.test/old.jpg");
+        }
+
+        await AddMovieAsync("Fresh", now.AddDays(-1), poster: "https://image.test/fresh.jpg");
+        var before = await _db.MediaItems.AsNoTracking().ToDictionaryAsync(i => i.Title, i => i.MetadataUpdatedAt);
+        var longestDue = before.Where(b => b.Key != "Fresh").OrderBy(b => b.Value).Select(b => b.Key).ToList();
+
+        var first = await Refresher().RefreshDueAsync(_library, 25, [], default);
+
+        Assert.Equal(25, first.FromArr + first.FromLookup + first.Unmatched + first.FromLocal);
+        var after = await _db.MediaItems.AsNoTracking().ToDictionaryAsync(i => i.Title, i => i.MetadataUpdatedAt);
+        Assert.Equal(longestDue.Take(25).Order(), after.Where(a => a.Value != before[a.Key]).Select(a => a.Key).Order());
+
+        var second = await Refresher().RefreshDueAsync(_library, 25, [], default);
+        Assert.Equal(5, second.FromArr + second.FromLookup + second.Unmatched + second.FromLocal);
+        var third = await Refresher().RefreshDueAsync(_library, 25, [], default);
+        Assert.Equal(new MetadataRefreshResult(0, 0, 0), third);
+        Assert.Equal(before["Fresh"], (await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Title == "Fresh")).MetadataUpdatedAt);
+    }
+
+    [Fact]
+    public async Task AScansRefresh_TakesNewTitlesAndItsOwnFolder_AndLeavesTheMerelyOutOfDate()
+    {
+        var month = DateTime.UtcNow.AddDays(-30);
+        await AddMovieAsync("Stale", month, poster: "https://image.test/stale.jpg");
+        await AddMovieAsync("New", null, poster: null);
+        await AddMovieAsync("Heat", DateTime.UtcNow.AddDays(-1), poster: "https://image.test/heat.jpg");
+
+        var webhook = await Refresher().RefreshScannedAsync(_library, false, ["/movies/Heat"], null, null, default);
+        Assert.Equal(2, webhook.FromArr + webhook.FromLookup + webhook.Unmatched + webhook.FromLocal);
+        Assert.Equal(month, (await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Title == "Stale")).MetadataUpdatedAt);
+
+        await AddMovieAsync("Newer", null, poster: null);
+        var full = await Refresher().RefreshScannedAsync(_library, false, [], null, null, default);
+        Assert.Equal(1, full.FromArr + full.FromLookup + full.Unmatched + full.FromLocal);
+        Assert.Equal(month, (await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Title == "Stale")).MetadataUpdatedAt);
+
+        // Asked to refresh everything, it still does.
+        var forced = await Refresher().RefreshScannedAsync(_library, true, [], null, null, default);
+        Assert.Equal(4, forced.FromArr + forced.FromLookup + forced.Unmatched + forced.FromLocal);
+    }
+
+    [Fact]
+    public async Task ATimedRefresh_SaysWhatRadarrNotAnsweringLeftDue_AndLeavesWhatItsToldToForNow()
+    {
+        var month = DateTime.UtcNow.AddDays(-30);
+        await AddMovieAsync("Dune", month, poster: "https://image.test/dune.jpg", arrId: 7);
+        _radarr.Unreachable.Add("/api/v3/movie/7");
+        _radarr.Unreachable.Add("/api/v3/movie");
+
+        var refresher = Refresher();
+        await refresher.RefreshDueAsync(_library, 25, [], default);
+
+        var dune = await _db.MediaItems.AsNoTracking().SingleAsync();
+        Assert.Equal([dune.Id], refresher.LeftDue);
+        Assert.Equal(month, dune.MetadataUpdatedAt);
+
+        await AddMovieAsync("Heat", month.AddDays(1), poster: "https://image.test/heat.jpg");
+        var next = await Refresher().RefreshDueAsync(_library, 1, [dune.Id], default);
+        Assert.Equal(1, next.FromArr + next.FromLookup + next.Unmatched + next.FromLocal);
+        Assert.NotEqual(month.AddDays(1), (await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Title == "Heat")).MetadataUpdatedAt);
+    }
+
+    [Fact]
     public async Task ScannedFolder_IsRefreshed_EvenWhenNotStale()
     {
         await AddMovieAsync("Dune", DateTime.UtcNow.AddDays(-1), poster: "https://image.test/dune.jpg");

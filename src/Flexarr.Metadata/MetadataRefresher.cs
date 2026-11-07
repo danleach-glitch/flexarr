@@ -70,6 +70,60 @@ public sealed partial class MetadataRefresher(
     private Dictionary<string, Person>? _peopleByTmdb;
     private Dictionary<string, Person>? _peopleByTvMaze;
 
+    /// <summary>A timed refresh's limit: at most this many titles of each kind, the longest since refreshed first.</summary>
+    private int? _dueAtMost;
+
+    /// <summary>A timed refresh's titles to leave for now.</summary>
+    private IReadOnlyCollection<Guid> _notNow = [];
+
+    /// <summary>A scan's refresh: only titles never refreshed yet and those in the folders just scanned.</summary>
+    private bool _scannedOnly;
+
+    /// <summary>
+    /// Titles a refresh left due because their Radarr or Sonarr didn't answer (see <see cref="RefreshDueAsync"/>).
+    /// </summary>
+    public List<Guid> LeftDue { get; } = [];
+
+    /// <summary>
+    /// Refreshes the <paramref name="atMost"/> titles of the library longest due (and as many of their seasons,
+    /// episodes or albums as come with them), on a timer of its own, so a whole library falling due together isn't
+    /// refreshed inside one scan. Titles a Radarr or Sonarr that didn't answer left due are in <see cref="LeftDue"/>,
+    /// for the caller to pass back as <paramref name="notNow"/> a while, so they don't hold up the rest.
+    /// </summary>
+    public async Task<MetadataRefreshResult> RefreshDueAsync(Library library, int atMost, IReadOnlyCollection<Guid> notNow, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(notNow);
+        _dueAtMost = atMost;
+        _notNow = notNow;
+        try
+        {
+            return await RefreshLibraryAsync(library, false, [], null, null, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _dueAtMost = null;
+            _notNow = [];
+        }
+    }
+
+    /// <summary>
+    /// What a scan refreshes: titles new since the last refresh and those in <paramref name="within"/> (or, with
+    /// <paramref name="force"/>, everything). Titles merely out of date are left to <see cref="RefreshDueAsync"/>.
+    /// </summary>
+    public async Task<MetadataRefreshResult> RefreshScannedAsync(Library library, bool force, IReadOnlyCollection<string> within, int? tmdbId, int? tvdbId, CancellationToken ct)
+    {
+        _scannedOnly = true;
+        try
+        {
+            return await RefreshLibraryAsync(library, force, within, tmdbId, tvdbId, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _scannedOnly = false;
+        }
+    }
+
     public Task<MetadataRefreshResult> RefreshLibraryAsync(Library library, bool force, CancellationToken ct) =>
         RefreshLibraryAsync(library, force, [], ct);
 
@@ -150,7 +204,8 @@ public sealed partial class MetadataRefresher(
         }
 
         var radarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Radarr).ToList();
-        var onlyWithin = !force && items.All(i => also.Contains(i.Id)); // Just the webhook's: ask for just those.
+        // Just the webhook's, or a timed refresh's few: ask for just those.
+        var onlyWithin = !force && (_dueAtMost is not null || items.All(i => also.Contains(i.Id)));
         var (fetched, allAnswered) = await KnownAsync(radarrs, onlyWithin ? items : null, Hinted(also, tmdbId, i => i.TmdbId),
             arr.GetMoviesAsync, arr.GetMovieAsync, arr.GetMoviesByTmdbIdAsync, ct).ConfigureAwait(false);
         var known = fetched.Select(k => (k.Instance, Movie: k.Entry)).ToList();
@@ -166,6 +221,7 @@ public sealed partial class MetadataRefresher(
             // are, still linked and still due, rather than re-sourcing them from TMDB unlinked for a week.
             if (!allAnswered && Unconfirmed(item, known.Select(k => (k.Instance, k.Movie.Id))))
             {
+                LeftDue.Add(item.Id);
                 continue;
             }
 
@@ -367,6 +423,11 @@ public sealed partial class MetadataRefresher(
     private async Task<MetadataRefreshResult> RefreshMusicAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
     {
         var lidarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Lidarr).ToList();
+        if (lidarrs.Count == 0 && _dueAtMost is not null)
+        {
+            return new MetadataRefreshResult(0, 0, 0); // Nothing goes out of date: the tags are read when scanned.
+        }
+
         if (lidarrs.Count == 0)
         {
             // Followed artists still waiting for their first album were followed through a Lidarr that's gone.
@@ -848,7 +909,8 @@ public sealed partial class MetadataRefresher(
         }
 
         var sonarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Sonarr).ToList();
-        var onlyWithin = !force && items.All(i => also.Contains(i.Id)); // Just the webhook's: ask for just those.
+        // Just the webhook's, or a timed refresh's few: ask for just those.
+        var onlyWithin = !force && (_dueAtMost is not null || items.All(i => also.Contains(i.Id)));
         var (fetched, allAnswered) = await KnownAsync(sonarrs, onlyWithin ? items : null, Hinted(also, tvdbId, i => i.TvdbId),
             arr.GetSeriesAsync, arr.GetOneSeriesAsync, arr.GetSeriesByTvdbIdAsync, ct).ConfigureAwait(false);
         var known = fetched.Select(k => (k.Instance, Series: k.Entry)).ToList();
@@ -863,6 +925,7 @@ public sealed partial class MetadataRefresher(
             // As for films: a Sonarr that didn't answer leaves its shows linked and due, not re-sourced from TVmaze.
             if (!allAnswered && Unconfirmed(item, known.Select(k => (k.Instance, k.Series.Id))))
             {
+                LeftDue.Add(item.Id);
                 continue;
             }
 
@@ -1690,6 +1753,22 @@ public sealed partial class MetadataRefresher(
     }
 
     private IQueryable<MediaItem> Stale(Guid libraryId, MediaKind kind, bool force, List<Guid> also)
+    {
+        if (_scannedOnly && !force)
+        {
+            return db.MediaItems.Where(i => i.LibraryId == libraryId && i.Kind == kind && (also.Contains(i.Id) || i.MetadataUpdatedAt == null));
+        }
+
+        if (_dueAtMost is { } atMost)
+        {
+            var notNow = _notNow.ToList();
+            return Due(libraryId, kind, force, also).Where(i => !notNow.Contains(i.Id)).OrderBy(i => i.MetadataUpdatedAt).ThenBy(i => i.Id).Take(atMost);
+        }
+
+        return Due(libraryId, kind, force, also);
+    }
+
+    private IQueryable<MediaItem> Due(Guid libraryId, MediaKind kind, bool force, List<Guid> also)
     {
         var now = DateTime.UtcNow;
         var cutoff = now - StaleAfter;

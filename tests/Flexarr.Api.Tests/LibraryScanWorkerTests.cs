@@ -33,7 +33,8 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
         // Path.GetFullPath throws on a null: in the same batch as a good request, it used to stop the server.
         await queue.EnqueueAsync(new LibraryScanRequest($"{root}/Bad\0Path", "Sonarr Download"));
         await queue.EnqueueAsync(new LibraryScanRequest(Path.Combine(root, "Dune (2021)"), "Sonarr Download"));
-        using var worker = new LibraryScanWorker(queue, host.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance);
+        using var worker = new LibraryScanWorker(queue, host.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            host.Services.GetRequiredService<LibraryWorkGate>());
         await worker.StartAsync(default);
 
         var scanned = false;
@@ -47,6 +48,39 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
         Assert.True(scanned, "the good request in the batch should still be scanned");
         Assert.False(worker.ExecuteTask!.IsCompleted, "the worker should still be running");
         await worker.StopAsync(default);
+    }
+
+    [Fact]
+    public async Task TheMetadataTimer_RefreshesOutOfDateTitles_AFewAtATime()
+    {
+        var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = $"/films-{Guid.NewGuid():N}" }] };
+        var month = DateTime.UtcNow.AddDays(-30);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.Libraries.Add(library);
+            for (var n = 0; n < MetadataRefreshWorker.BatchSize + 3; n++)
+            {
+                db.MediaItems.Add(new MediaItem
+                {
+                    LibraryId = library.Id, Kind = MediaKind.Movie, Title = $"Film {n}", SortTitle = $"film {n:D2}", Path = $"{library.Folders[0].Path}/Film {n}",
+                    MetadataUpdatedAt = month.AddMinutes(n),
+                });
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        using var worker = new MetadataRefreshWorker(factory.Services.GetRequiredService<IServiceScopeFactory>(), factory.Services.GetRequiredService<LibraryWorkGate>(),
+            NullLogger<MetadataRefreshWorker>.Instance);
+        await worker.RefreshDueAsync(default);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var stillDue = await db.MediaItems.Where(i => i.LibraryId == library.Id && i.MetadataUpdatedAt < DateTime.UtcNow.AddDays(-7)).OrderBy(i => i.SortTitle).Select(i => i.Title).ToListAsync();
+            Assert.Equal([$"Film {MetadataRefreshWorker.BatchSize}", $"Film {MetadataRefreshWorker.BatchSize + 1}", $"Film {MetadataRefreshWorker.BatchSize + 2}"], stillDue);
+        }
     }
 
     [Fact]

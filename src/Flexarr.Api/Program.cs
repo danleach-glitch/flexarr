@@ -338,7 +338,9 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<CacheJanitor>());
 builder.Services.AddHostedService<MarkerDetectionWorker>();
 
 builder.Services.AddSingleton<ILibraryScanQueue, LibraryScanQueue>();
+builder.Services.AddSingleton<LibraryWorkGate>();
 builder.Services.AddHostedService<LibraryScanWorker>();
+builder.Services.AddHostedService<MetadataRefreshWorker>();
 
 // JSON, the web app and playlists shrink a lot; video segments and images are compressed already, so aren't listed.
 builder.Services.AddResponseCompression(o =>
