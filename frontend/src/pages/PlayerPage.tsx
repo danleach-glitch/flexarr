@@ -174,6 +174,12 @@ async function takenOverReason(sessionId: string): Promise<string | undefined> {
   return problem?.detail ?? t(TAKEN_OVER)
 }
 
+/** Whether the server still serves this stream: one that stopped (a server restart, another screen) isn't the browser's fault. */
+async function streamAnswers(sessionId: string): Promise<boolean> {
+  const response = await fetch(`/api/v1/playback/${sessionId}/main.m3u8`, { signal: AbortSignal.timeout(REASON_TIMEOUT_MS) }).catch(() => null)
+  return response?.ok === true
+}
+
 export function PlayerPage() {
   const { id = '' } = useParams()
   const [params] = useSearchParams()
@@ -203,7 +209,7 @@ export function PlayerPage() {
   /** Whether the stream playing was asked for with its picture copied (lib/copiedVideo). */
   const copyAsked = useRef(false)
   /** A copied stream failed to play: true when it's asked for again the old way (once), false when it wasn't one. */
-  const copyFailedRef = useRef<() => boolean>(() => false)
+  const copyFailedRef = useRef<() => Promise<boolean>>(async () => false)
   const recovering = useRef(false)
   const lastRecovery = useRef(0)
   // Ends when the item changes or the page closes, so a recovery in progress gives up.
@@ -344,11 +350,12 @@ export function PlayerPage() {
       const player = new Hls({ startPosition: position, maxBufferLength: 60, backBufferLength: 90, startFragPrefetch: true, testBandwidth: false })
       // Media errors get hls.js's own recovery first; one that keeps coming back asks the server for a fresh stream.
       // A stream with its picture copied that this browser can't play after all is asked for again the old way.
-      const onMediaError = mediaErrorRecovery(player, () => void (copyFailedRef.current() || recoverRef.current()))
+      const onMediaError = mediaErrorRecovery(player, () => void copyFailedRef.current().then((done) => (done ? undefined : recoverRef.current())))
       player.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal) return
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR) onMediaError()
-        else if (data.type === Hls.ErrorTypes.NETWORK_ERROR || !copyFailedRef.current()) void recoverRef.current()
+        else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) void recoverRef.current()
+        else void copyFailedRef.current().then((done) => (done ? undefined : recoverRef.current()))
       })
       player.loadSource(`${playback.url}?subtitles=false`)
       player.attachMedia(el)
@@ -472,10 +479,20 @@ export function PlayerPage() {
   // A browser that claimed it could play the file but can't: converted instead, on the audio and subtitles chosen.
   const convertInstead = () =>
     void restartHere({ forceTranscode: true, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
-  // A copied stream this browser can't play: asked for again the old way from where it got to, and from now on.
-  const copyFailed = () => {
-    if (!copyAsked.current) return false
+  // A copied stream this browser can't play: asked for again the old way from where it got to, and from now on. Only
+  // while the server still serves it: a stream lost to a server restart or another screen (which Safari can report as
+  // unplayable too) is a recovery's, and isn't remembered against copying.
+  const copyFailed = async () => {
+    const failed = session.current
+    if (!copyAsked.current || failed === undefined) return false
     copyAsked.current = false
+    const answers = await streamAnswers(failed)
+    // Another stream started meanwhile (a recovery, another audio track): it's in charge.
+    if (session.current !== failed) return true
+    if (!answers) {
+      copyAsked.current = true
+      return false
+    }
     rememberCopyingFailed()
     void restartHere({ noCopy: true, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
     return true
@@ -611,7 +628,10 @@ export function PlayerPage() {
       // MediaError's MEDIA_ERR_DECODE (3) and MEDIA_ERR_SRC_NOT_SUPPORTED (4).
       const undecodable = el.error?.code === 3 || el.error?.code === 4
       if (method.current === 'DirectPlay') convertInsteadRef.current()
-      else if (method.current === 'Transcode') void ((undecodable && copyFailedRef.current()) || recoverRef.current())
+      else if (method.current === 'Transcode') {
+        if (undecodable) void copyFailedRef.current().then((done) => (done ? undefined : recoverRef.current()))
+        else void recoverRef.current()
+      }
       else setError({ message: t('This file couldn’t be played.'), kind: 'other' })
     }
     const onEnded = () => {

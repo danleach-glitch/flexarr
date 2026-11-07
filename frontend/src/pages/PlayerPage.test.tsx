@@ -97,6 +97,30 @@ describe('Player speed', () => {
 
 // Last: a copied stream's failure is remembered for the rest of the visit.
 describe('Player with a copied picture', () => {
+  it('recovers as before, without blaming copying, when the copied stream is gone from the server', async () => {
+    localStorage.clear()
+    const asked: { fmp4?: boolean; replacesSessionId?: string }[] = []
+    mockApi({
+      'POST /playback': (init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as { profile: { fmp4?: boolean }; replacesSessionId?: string }
+        asked.push({ fmp4: body.profile.fmp4, replacesSessionId: body.replacesSessionId })
+        return playback({ sessionId: asked.length === 1 ? 'copied' : 'again', transcodeSummary: 'Original H.264, repackaged' })
+      },
+      // No 'GET /playback/copied/main.m3u8': the server restarted and forgot it (404). Safari calls that unplayable.
+    })
+    const page = renderPlayer()
+    await waitFor(() => expect(asked).toHaveLength(1))
+    const video = page.container.querySelector('video')!
+    await waitFor(() => expect(video.getAttribute('src')).toContain('/playback/copied/'))
+
+    Object.defineProperty(video, 'error', { configurable: true, get: () => ({ code: 4 }) })
+    fireEvent.error(video)
+    await waitFor(() => expect(asked).toHaveLength(2))
+    expect(asked[1]).toEqual({ fmp4: true, replacesSessionId: 'copied' })
+    expect(localStorage.getItem('flexarr.copiedVideoFailed')).toBeNull()
+    await act(async () => page.unmount())
+  })
+
   it('asks again the old way, from where it got to, when the browser can’t play the copied stream', async () => {
     localStorage.clear()
     const asked: { fmp4?: boolean; replacesSessionId?: string; startPositionSeconds?: number }[] = []
@@ -109,6 +133,8 @@ describe('Player with a copied picture', () => {
           : playback({ sessionId: 'converted', transcodeSummary: '720p H.264 at 3 Mbps' })
       },
       'DELETE /playback/copied': undefined,
+      // Still served: the browser's the trouble, not the stream.
+      'GET /playback/copied/main.m3u8': () => new Response('#EXTM3U\n'),
     })
     const page = renderPlayer()
     await waitFor(() => expect(asked).toHaveLength(1))
