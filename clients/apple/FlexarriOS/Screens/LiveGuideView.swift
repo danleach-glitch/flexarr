@@ -23,6 +23,8 @@ struct LiveGuideView: View {
     @State private var details: (programme: LiveProgramme, channel: LiveChannel)?
     @State private var now = Date()
     @State private var notice: String?
+    /// The channel rows built: those near the screen (`GuideRowWindow`), kept up to date as the guide scrolls.
+    @State private var shownRows = 0..<40
 
     private static let hours: Double = 6
     /// Kept while the language shown stays the same: every programme in the grid reads it three times.
@@ -42,31 +44,52 @@ struct LiveGuideView: View {
     private var rowHeight: CGFloat { sizeClass == .regular ? 64 : 56 }
     private var width: CGFloat { CGFloat(Self.hours * 60) * perMinute }
     private var windowEnd: Date { windowStart.addingTimeInterval(Self.hours * 3600) }
+    /// The times along the top and every channel's row below, as tall as if all the rows were built.
+    private var columnHeight: CGFloat {
+        channels.isEmpty ? 30 : 30 + CGFloat(channels.count) * (rowHeight + 4)
+    }
 
     var body: some View {
         Group {
             if let guide = kept?.guide {
                 // Each channel's programmes, found once rather than searched for in every row.
                 let listings = Dictionary(guide.channels.map { ($0.id, $0.programmes) }, uniquingKeysWith: { first, _ in first })
+                // Only the rows near the screen are built (`GuideRowWindow`), the same in both columns, each column
+                // its full height so the rows line up and the scroll bar is right: a lazy stack in the programmes'
+                // sideways scroll view would still build every row.
+                let built = shownRows.clamped(to: 0..<channels.count)
+                let skipped = CGFloat(built.lowerBound) * (rowHeight + 4)
                 ScrollView(.vertical) {
                     HStack(alignment: .top, spacing: 0) {
                         // The channels stay put while the programmes scroll across.
                         VStack(spacing: 4) {
                             Color.clear.frame(height: 30)
-                            ForEach(channels) { channelCell($0) }
+                            VStack(spacing: 4) {
+                                ForEach(channels[built]) { channelCell($0) }
+                            }
+                            .padding(.top, skipped)
                         }
-                        .frame(width: channelWidth)
+                        .frame(width: channelWidth, height: columnHeight, alignment: .top)
                         ScrollView(.horizontal, showsIndicators: false) {
                             VStack(alignment: .leading, spacing: 4) {
                                 timeline
-                                ForEach(channels) { row($0, listings[$0.id] ?? []) }
+                                VStack(alignment: .leading, spacing: 4) {
+                                    ForEach(channels[built]) { row($0, listings[$0.id] ?? []) }
+                                }
+                                .padding(.top, skipped)
                             }
-                            .frame(width: width, alignment: .leading)
+                            .frame(width: width, height: columnHeight, alignment: .topLeading)
                             .overlay(alignment: .topLeading) { nowLine }
                             .padding(.trailing, Layout.edge)
                         }
                     }
                     .padding(.vertical, 8)
+                }
+                .onScrollGeometryChange(for: Range<Int>.self) { geometry in
+                    GuideRowWindow.rows(visibleTop: geometry.visibleRect.minY, visibleHeight: geometry.visibleRect.height,
+                                        firstRowAt: 8 + 30 + 4, pitch: rowHeight + 4)
+                } action: { _, rows in
+                    shownRows = rows
                 }
             } else {
                 StatusView(state: .loading)

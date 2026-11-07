@@ -22,6 +22,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 - Tapping a title or **Play** straight after a fast scroll no longer waits behind the posters still loading: the app's requests to your server have connections of their own.
 - After you watch or mark something, only the library grid on screen fetches its titles again. Grids left open behind other pages or tabs used to do so every time, and now catch up once, when you go back to them.
+- In a long library, watching or marking something fetches again only the titles around where you are in the grid, rather than every title you've scrolled past.
 - Flexarr opens a little sooner on a slow connection: it asks your server for its languages once rather than twice before the first screen, asks for podcasts, Live TV and the watchlist alongside your libraries rather than one after another, and reuses the server's version it already knows.
 - Scrubbing through a film or episode no longer fills the app's memory with preview sheets and pushes out the posters, which used to load again after the film. Only the few sheets around where you're scrubbing are kept.
 
@@ -30,6 +31,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Away from home, Flexarr opens a couple of seconds sooner: it starts with your server's away-from-home address when that's the one that answered last time, instead of waiting on the home address first.
 - Scrolling no longer stutters while a big album or playlist downloads: the list of downloads is saved in the background, every couple of seconds at most, instead of in full at every step of every track.
 - Signing out sends only what the profile signing out watched from downloads and hadn't sent yet. Another profile's unsent viewing no longer turns up in that profile's history and Continue watching.
+- Now Playing no longer redraws its whole sheet (cover, queue and notes) as the clock moves: only the scrubber, the times, the chapter and the lyrics follow it, so it does less while it's open.
 - While something downloads, posters and album covers on screen no longer redraw at every step of its progress: progress shows a few times a second at most, and a title's downloaded mark changes only when it arrives or goes.
 - Posters and covers you've already seen at home aren't downloaded again over mobile data when you leave, and pictures on screen no longer blank and reload as the app moves between your server's home and away-from-home addresses. Each picture is kept once, whichever address it came from.
 
@@ -40,7 +42,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Live TV
 
-- On iPhone, iPad and Mac, the guide draws faster with a long channel list, and tapping a channel's logo no longer redraws the whole grid.
+- On iPhone, iPad and Mac, the guide opens and scrolls smoothly with hundreds of channels: it lays out only the channels near the screen, and tapping a channel's logo no longer redraws the whole grid.
 - The apps on iPhone, iPad, Mac and Apple TV download the guide again every half hour instead of every two to five minutes, which saves data away from home. Setting or cancelling a recording still updates it at once, and a recording starting or finishing still shows within a few minutes.
 - On iPhone, iPad, Mac and Apple TV, the guide downloads without each programme's description, so it's much smaller; the description is fetched when you open a programme. With a server before this release, the guide comes as before.
 - On Apple TV, the guide downloads the next few hours rather than the whole day, and more as you page on through it; on iPhone, iPad, Mac and Apple TV, Favourites downloads only your favourite channels' guide, and a guide that hasn't changed isn't downloaded again.

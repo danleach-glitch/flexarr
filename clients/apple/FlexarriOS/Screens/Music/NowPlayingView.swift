@@ -195,7 +195,8 @@ struct NowPlayingView: View {
                 Spacer(minLength: 0)
             }
             .padding(.top, 8)
-            LyricsView(lyrics: found, position: music.position) { music.seek(to: $0) }
+            // The words follow the clock in a view of their own.
+            NowPlayingLyrics(lyrics: found)
                 .frame(maxHeight: .infinity)
             scrubber
             controls
@@ -258,87 +259,15 @@ struct NowPlayingView: View {
         }
     }
 
-    /// What the scrubber spans: a book's chapter playing (unless the whole book was chosen), else the whole track.
-    private var scope: (start: Double, length: Double, isChapter: Bool) {
-        if music.isBook, !wholeBook, let chapter = music.chapter, music.chapters.count > 1, chapter.durationSeconds > 0 {
-            return (chapter.startSeconds, chapter.durationSeconds, true)
-        }
-        return (0, music.duration, false)
-    }
-
-    /// Where the scrubber's thumb is, on the whole timeline.
-    private var shownPosition: Double { scrubbing.map { $0 + scope.start } ?? music.position }
-
+    /// The scrubber and its times, which follow the clock in a view of their own (audit perf-79).
     private var scrubber: some View {
-        let scope = scope
-        let into = max(0, (scrubbing ?? (music.position - scope.start)))
-        // A book's time left is at the speed it plays.
-        let left = max(0, scope.length - into) / (music.isBook ? max(0.5, music.speed) : 1)
-        return VStack(spacing: 2) {
-            PlayerScrubber(position: music.position - scope.start, duration: scope.length,
-                           chapterStarts: scope.isChapter ? [] : chapters.map(\.startSeconds),
-                           step: music.isBook ? music.skipForward : nil, scrubbing: $scrubbing) { music.seek(to: $0 + scope.start) }
-            HStack {
-                Text(Format.timestamp(into))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                if music.isPodcast, music.duration > 0 {
-                    // When it'll finish, at the speed it's playing.
-                    Text(t("Ends {time}", ["time": Date().addingTimeInterval(max(0, music.duration - music.position) / max(0.5, music.speed)).formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: Localization.locale))]))
-                } else if music.isBook, music.chapters.count > 1 {
-                    // Which the scrubber spans: a tap switches.
-                    Button(scope.isChapter ? t("Chapter") : t("Book")) { wholeBook.toggle() }
-                        .buttonStyle(.plain)
-                        // A full-size target, overlapping the space around it so the row keeps its height.
-                        .frame(minWidth: 64, minHeight: 44)
-                        .contentShape(Rectangle())
-                        .padding(.vertical, -6)
-                        .accessibilityLabel(scope.isChapter ? t("Showing the chapter") : t("Showing the whole book"))
-                        .accessibilityHint(t("Switches between the chapter and the whole book"))
-                }
-                Text(scope.length > 0 ? "-" + Format.timestamp(left) : "")
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-            .font(.caption.weight(.medium))
-            .monospacedDigit()
-            .foregroundStyle(Color.usher)
-        }
+        NowPlayingScrubber(scrubbing: $scrubbing, wholeBook: $wholeBook, chapters: chapters)
     }
 
-    /// The chapter playing, with the ones either side a tap away.
+    /// The chapter playing, with the ones either side a tap away; it follows the clock in a view of its own.
     private var chapterStrip: some View {
-        let current = chapters.index(at: shownPosition)
-        return HStack(spacing: 4) {
-            Button {
-                // Back to the start of this chapter, or (near its start already) to the one before.
-                guard let current else { return music.seek(to: 0) }
-                let start = chapters[current].startSeconds
-                music.seek(to: music.position - start > 3 || current == 0 ? start : chapters[current - 1].startSeconds)
-            } label: { Label(t("Previous chapter"), systemImage: "chevron.backward") }
-            .buttonStyle(ChapterStepStyle())
-            Button {
-                openAtChapters = !showingDetails
-                withAnimation(.easeInOut(duration: 0.3)) { showingDetails = true }
-            } label: {
-                Text(current.map { chapters[$0].title } ?? chapters[0].title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.screen)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, minHeight: 36)
-                    .contentShape(Rectangle())
-                    .contentTransition(.opacity)
-                    .animation(.easeOut(duration: 0.2), value: current)
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint(t("Shows the chapters"))
-            Button {
-                let next = (current ?? -1) + 1
-                if chapters.indices.contains(next) { music.seek(to: chapters[next].startSeconds) }
-            } label: { Label(t("Next chapter"), systemImage: "chevron.forward") }
-            .buttonStyle(ChapterStepStyle())
-            .disabled((current ?? -1) + 1 >= chapters.count)
-        }
-        .padding(.horizontal, 4)
-        .background(Capsule().fill(Color.screen.opacity(0.08)))
+        NowPlayingChapterStrip(chapters: chapters, scrubbing: $scrubbing, wholeBook: wholeBook,
+                               showingDetails: $showingDetails, openAtChapters: $openAtChapters)
     }
 
     @ViewBuilder
@@ -649,37 +578,9 @@ struct NowPlayingView: View {
     @ViewBuilder
     private var chapterList: some View {
         if !chapters.isEmpty {
-            let current = chapters.index(at: music.position)
             VStack(alignment: .leading, spacing: 2) {
                 sectionTitle(t("Chapters"))
-                ForEach(Array(chapters.enumerated()), id: \.offset) { offset, chapter in
-                    Button { music.seek(to: chapter.startSeconds) } label: {
-                        HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text(Format.timestamp(chapter.startSeconds))
-                                .font(.caption.weight(.semibold))
-                                .monospacedDigit()
-                                .foregroundStyle(Color.usher)
-                                .frame(minWidth: 44, alignment: .leading)
-                            Text(chapter.title)
-                                .font(.subheadline.weight(offset == current ? .bold : .regular))
-                                .foregroundStyle(offset == current ? Color.screen : Color.screen.opacity((current ?? -1) > offset ? 0.55 : 0.85))
-                                .multilineTextAlignment(.leading)
-                            Spacer(minLength: 0)
-                            if offset == current {
-                                Image(systemName: music.isPlaying ? "waveform" : "pause.fill")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(Color.silver)
-                                    .symbolEffect(.variableColor.iterative, isActive: music.isPlaying)
-                            }
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(t("{chapter}, at {time}", ["chapter": chapter.title, "time": Format.timestamp(chapter.startSeconds)]))
-                    .accessibilityAddTraits(offset == current ? .isSelected : [])
-                }
+                NowPlayingChapterRows(chapters: chapters)
             }
         }
     }
@@ -775,6 +676,168 @@ struct NowPlayingView: View {
                 }
             }
         }
+    }
+}
+
+/// What Now Playing's scrubber spans: a book's chapter playing (unless the whole book was chosen), else the whole track.
+@MainActor
+private enum NowPlayingScope {
+    static func of(_ music: MusicPlayer, wholeBook: Bool) -> (start: Double, length: Double, isChapter: Bool) {
+        if music.isBook, !wholeBook, let chapter = music.chapter, music.chapters.count > 1, chapter.durationSeconds > 0 {
+            return (chapter.startSeconds, chapter.durationSeconds, true)
+        }
+        return (0, music.duration, false)
+    }
+}
+
+// The parts of Now Playing that follow the clock, each a view of its own that reads `music.position`, so the clock
+// moving twice a second draws these again rather than the whole sheet, cover, queue and notes (audit perf-79).
+
+/// The scrubber, with the time in and the time left (or when an episode ends, or a book's Chapter and Book switch).
+private struct NowPlayingScrubber: View {
+    @Environment(AppModel.self) private var model
+    @Binding var scrubbing: Double?
+    @Binding var wholeBook: Bool
+    let chapters: [PodcastChapter]
+
+    private var music: MusicPlayer { model.music }
+
+    var body: some View {
+        let scope = NowPlayingScope.of(music, wholeBook: wholeBook)
+        let into = max(0, (scrubbing ?? (music.position - scope.start)))
+        // A book's time left is at the speed it plays.
+        let left = max(0, scope.length - into) / (music.isBook ? max(0.5, music.speed) : 1)
+        return VStack(spacing: 2) {
+            PlayerScrubber(position: music.position - scope.start, duration: scope.length,
+                           chapterStarts: scope.isChapter ? [] : chapters.map(\.startSeconds),
+                           step: music.isBook ? music.skipForward : nil, scrubbing: $scrubbing) { music.seek(to: $0 + scope.start) }
+            HStack {
+                Text(Format.timestamp(into))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if music.isPodcast, music.duration > 0 {
+                    // When it'll finish, at the speed it's playing.
+                    Text(t("Ends {time}", ["time": Date().addingTimeInterval(max(0, music.duration - music.position) / max(0.5, music.speed)).formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: Localization.locale))]))
+                } else if music.isBook, music.chapters.count > 1 {
+                    // Which the scrubber spans: a tap switches.
+                    Button(scope.isChapter ? t("Chapter") : t("Book")) { wholeBook.toggle() }
+                        .buttonStyle(.plain)
+                        // A full-size target, overlapping the space around it so the row keeps its height.
+                        .frame(minWidth: 64, minHeight: 44)
+                        .contentShape(Rectangle())
+                        .padding(.vertical, -6)
+                        .accessibilityLabel(scope.isChapter ? t("Showing the chapter") : t("Showing the whole book"))
+                        .accessibilityHint(t("Switches between the chapter and the whole book"))
+                }
+                Text(scope.length > 0 ? "-" + Format.timestamp(left) : "")
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .font(.caption.weight(.medium))
+            .monospacedDigit()
+            .foregroundStyle(Color.usher)
+        }
+    }
+}
+
+/// The chapter playing, with the ones either side a tap away.
+private struct NowPlayingChapterStrip: View {
+    @Environment(AppModel.self) private var model
+    let chapters: [PodcastChapter]
+    @Binding var scrubbing: Double?
+    let wholeBook: Bool
+    @Binding var showingDetails: Bool
+    @Binding var openAtChapters: Bool
+
+    private var music: MusicPlayer { model.music }
+
+    var body: some View {
+        let scope = NowPlayingScope.of(music, wholeBook: wholeBook)
+        // Where the scrubber's thumb is, on the whole timeline.
+        let shownPosition = scrubbing.map { $0 + scope.start } ?? music.position
+        let current = chapters.index(at: shownPosition)
+        return HStack(spacing: 4) {
+            Button {
+                // Back to the start of this chapter, or (near its start already) to the one before.
+                guard let current else { return music.seek(to: 0) }
+                let start = chapters[current].startSeconds
+                music.seek(to: music.position - start > 3 || current == 0 ? start : chapters[current - 1].startSeconds)
+            } label: { Label(t("Previous chapter"), systemImage: "chevron.backward") }
+            .buttonStyle(ChapterStepStyle())
+            Button {
+                openAtChapters = !showingDetails
+                withAnimation(.easeInOut(duration: 0.3)) { showingDetails = true }
+            } label: {
+                Text(current.map { chapters[$0].title } ?? chapters[0].title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.screen)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, minHeight: 36)
+                    .contentShape(Rectangle())
+                    .contentTransition(.opacity)
+                    .animation(.easeOut(duration: 0.2), value: current)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(t("Shows the chapters"))
+            Button {
+                let next = (current ?? -1) + 1
+                if chapters.indices.contains(next) { music.seek(to: chapters[next].startSeconds) }
+            } label: { Label(t("Next chapter"), systemImage: "chevron.forward") }
+            .buttonStyle(ChapterStepStyle())
+            .disabled((current ?? -1) + 1 >= chapters.count)
+        }
+        .padding(.horizontal, 4)
+        .background(Capsule().fill(Color.screen.opacity(0.08)))
+    }
+}
+
+/// The chapters' rows: the one playing is lit, and those heard are dimmed.
+private struct NowPlayingChapterRows: View {
+    @Environment(AppModel.self) private var model
+    let chapters: [PodcastChapter]
+
+    private var music: MusicPlayer { model.music }
+
+    var body: some View {
+        let current = chapters.index(at: music.position)
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(Array(chapters.enumerated()), id: \.offset) { offset, chapter in
+                Button { music.seek(to: chapter.startSeconds) } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(Format.timestamp(chapter.startSeconds))
+                            .font(.caption.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(Color.usher)
+                            .frame(minWidth: 44, alignment: .leading)
+                        Text(chapter.title)
+                            .font(.subheadline.weight(offset == current ? .bold : .regular))
+                            .foregroundStyle(offset == current ? Color.screen : Color.screen.opacity((current ?? -1) > offset ? 0.55 : 0.85))
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 0)
+                        if offset == current {
+                            Image(systemName: music.isPlaying ? "waveform" : "pause.fill")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.silver)
+                                .symbolEffect(.variableColor.iterative, isActive: music.isPlaying)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(t("{chapter}, at {time}", ["chapter": chapter.title, "time": Format.timestamp(chapter.startSeconds)]))
+                .accessibilityAddTraits(offset == current ? .isSelected : [])
+            }
+        }
+    }
+}
+
+/// The words, lit as they're sung.
+private struct NowPlayingLyrics: View {
+    @Environment(AppModel.self) private var model
+    let lyrics: Lyrics
+
+    var body: some View {
+        LyricsView(lyrics: lyrics, position: model.music.position) { model.music.seek(to: $0) }
     }
 }
 
