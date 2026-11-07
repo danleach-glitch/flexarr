@@ -175,6 +175,41 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ACast_IsMatchedToThePeopleItCredits_WithoutReadingEveryoneElse()
+    {
+        await AddMovieAsync("Dune", null, poster: null, arrId: 7);
+        await AddMovieAsync("Heat", null, poster: null, arrId: 8);
+        _db.People.AddRange(
+            new Person { Name = "Known", TmdbId = "3" },
+            new Person { Name = "Elsewhere", TmdbId = "99" });
+        await _db.SaveChangesAsync();
+        _db.ChangeTracker.Clear();
+        _radarr.Responses["/api/v3/movie"] = """
+            [{"id":7,"title":"Dune","year":2021,"path":"/movies/Dune"},{"id":8,"title":"Heat","year":1995,"path":"/movies/Heat"}]
+            """;
+        _radarr.Responses["/api/v3/credit?movieId=7"] = """
+            [{"personName":"Known","personTmdbId":3,"type":"cast","order":0,"images":[]},
+             {"personName":"Newcomer","personTmdbId":4,"type":"cast","order":1,"images":[]}]
+            """;
+        _radarr.Responses["/api/v3/credit?movieId=8"] = """
+            [{"personName":"Newcomer","personTmdbId":4,"type":"cast","order":0,"images":[]},
+             {"personName":"Known","personTmdbId":3,"type":"crew","job":"Director","images":[]}]
+            """;
+
+        await Refresher().RefreshLibraryAsync(_library, force: true, default);
+
+        // Someone the films don't credit was never read.
+        Assert.DoesNotContain(_db.ChangeTracker.Entries<Person>(), e => e.Entity.Name == "Elsewhere");
+        // The one already known is reused, and the newcomer in both films made once.
+        var people = await _db.People.AsNoTracking().OrderBy(p => p.TmdbId).Select(p => new { p.Name, p.TmdbId }).ToListAsync();
+        Assert.Equal([("Known", "3"), ("Newcomer", "4"), ("Elsewhere", "99")], people.Select(p => (p.Name, p.TmdbId!)));
+        var credits = await _db.Credits.AsNoTracking().Select(c => new { c.MediaItem!.Title, c.Person!.Name, c.Role, c.Order }).ToListAsync();
+        Assert.Equal(
+            [("Dune", "Known", CreditRole.Actor, 0), ("Dune", "Newcomer", CreditRole.Actor, 1), ("Heat", "Newcomer", CreditRole.Actor, 0), ("Heat", "Known", CreditRole.Director, 1)],
+            credits.OrderBy(c => c.Title).ThenBy(c => c.Order).Select(c => (c.Title, c.Name, c.Role, c.Order)));
+    }
+
+    [Fact]
     public async Task APhotoUploadedDuringARefresh_IsntOverwritten()
     {
         await AddMovieAsync("Dune", null, poster: null, arrId: 7);
@@ -197,6 +232,44 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
 
         var anyone = await _db.People.AsNoTracking().SingleAsync(p => p.Name == "Anyone");
         Assert.Equal(("file:///data/person-images/anyone.jpg", "upload", true), (anyone.ImageUrl, anyone.PhotoSource, anyone.InfoLocked));
+    }
+
+    [Fact]
+    public async Task LookingAFilmUpAgain_OnlyMovesItsArtworkOn_WhenTheArtworkChanged()
+    {
+        const string Radarrs = """[{"id":1,"title":"Dune","year":2021,"path":"/movies/Dune","images":[{"coverType":"poster","remoteUrl":"https://image.test/POSTER.jpg"}]}]""";
+        var lastMonth = DateTime.UtcNow.AddDays(-30);
+        await AddMovieAsync("Dune", lastMonth, poster: "https://image.test/dune.jpg", arrId: 1);
+        await _db.MediaItems.ExecuteUpdateAsync(u => u.SetProperty(i => i.ArtworkChangedAt, (DateTime?)null)); // as an earlier version left it
+        _db.ChangeTracker.Clear();
+        _radarr.Responses["/api/v3/movie"] = Radarrs.Replace("POSTER", "dune", StringComparison.Ordinal);
+        _radarr.DropArtwork = true;
+        async Task<MediaItem> RefreshedAsync()
+        {
+            Assert.Equal(1, (await Refresher().RefreshLibraryAsync(_library, force: false, default)).FromArr);
+            _db.ChangeTracker.Clear();
+            return await _db.MediaItems.AsNoTracking().SingleAsync();
+        }
+
+        // From before artwork had a time of its own: it's given one the first time the film is looked up.
+        var first = await RefreshedAsync();
+        Assert.True(first.MetadataUpdatedAt > DateTime.UtcNow.AddMinutes(-1));
+        Assert.Equal(first.MetadataUpdatedAt, first.ArtworkChangedAt);
+
+        // A week on (a month, here), looked up again and the same poster found: looked up now, the artwork as it was.
+        var lastWeek = DateTime.UtcNow.AddDays(-8);
+        await _db.MediaItems.ExecuteUpdateAsync(u => u.SetProperty(i => i.MetadataUpdatedAt, lastWeek).SetProperty(i => i.ArtworkChangedAt, lastWeek));
+        var again = await RefreshedAsync();
+        Assert.Equal("https://image.test/dune.jpg", again.PosterUrl);
+        Assert.True(again.MetadataUpdatedAt > DateTime.UtcNow.AddMinutes(-1));
+        Assert.Equal(lastWeek, again.ArtworkChangedAt);
+
+        // And when Radarr has a new poster for it, the artwork is as new as the look-up.
+        await _db.MediaItems.ExecuteUpdateAsync(u => u.SetProperty(i => i.MetadataUpdatedAt, lastWeek));
+        _radarr.Responses["/api/v3/movie"] = Radarrs.Replace("POSTER", "dune-part-two", StringComparison.Ordinal);
+        var redrawn = await RefreshedAsync();
+        Assert.Equal("https://image.test/dune-part-two.jpg", redrawn.PosterUrl);
+        Assert.True(redrawn.ArtworkChangedAt > DateTime.UtcNow.AddMinutes(-1));
     }
 
     private async Task AddMovieAsync(string title, DateTime? updatedAt, string? poster, int? arrId = null, string? tmdbId = null)

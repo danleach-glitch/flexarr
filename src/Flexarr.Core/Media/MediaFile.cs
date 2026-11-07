@@ -52,6 +52,13 @@ public sealed class MediaFile
     /// </summary>
     public string? BookProbe { get; set; }
 
+    /// <summary>
+    /// A track's ReplayGain as its tags gave it when the file was last read (<see cref="Parsing.Loudness.ToJson"/>), so
+    /// playing it needn't read the tags again. Replaced when the file changes; null for anything but music, and for
+    /// tracks last read before this was kept.
+    /// </summary>
+    public string? Loudness { get; set; }
+
     public string? AudioCodec { get; set; }
     public int? AudioChannels { get; set; }
 

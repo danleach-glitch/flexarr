@@ -124,6 +124,53 @@ public class KidsProfileTests
     }
 
     [Fact]
+    public async Task AnAgeLimit_KeepsTheCastAndEpisodesOfWhatsAboveIt_OutOfSearch()
+    {
+        using var server = new FlexarrApiFactory();
+        await server.SetMainPinAsync(MainPin);
+        var items = await SeedAsync(server);
+        var both = new Person { Name = "Xylo Both" };
+        var grownUp = new Person { Name = "Xylo Grownup" };
+        Guid late;
+        using (var scope = server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var shows = (await db.MediaItems.FindAsync(items["bluey"]))!.LibraryId;
+            MediaItem Item(MediaKind kind, string title, string? rating, Guid? parent = null) =>
+                new() { LibraryId = shows, Kind = kind, Title = title, SortTitle = title.ToLowerInvariant(), ContentRating = rating, ParentId = parent };
+            var show = Item(MediaKind.Series, "Kids Late Show", "TV-MA");
+            db.AddRange(show, both, grownUp);
+            db.AddRange(new[] { (both, items["paddington"]), (both, items["alien"]), (grownUp, items["alien"]), (grownUp, show.Id) }
+                .Select(c => new Credit { PersonId = c.Item1.Id, MediaItemId = c.Item2, Role = CreditRole.Actor }));
+            await db.SaveChangesAsync();
+            var season = Item(MediaKind.Season, "Season 1", null, show.Id);
+            db.Add(season);
+            await db.SaveChangesAsync();
+            var episode = Item(MediaKind.Episode, "Xylophone Blues", null, season.Id);
+            db.Add(episode);
+            await db.SaveChangesAsync();
+            late = episode.Id;
+        }
+
+        var ada = await CreateAsync(server, "Ada", 8, isKids: true);
+        var tv = await TvAsync(server);
+        await SelectAsync(tv, ada);
+        static List<(Guid Id, int Credits)> People(JsonElement search) =>
+            [.. search.GetProperty("people").EnumerateArray().Select(p => (p.GetProperty("id").GetGuid(), p.GetProperty("credits").GetInt32()))];
+        static List<Guid> Episodes(JsonElement search) => [.. search.GetProperty("episodes").EnumerateArray().Select(e => e.GetProperty("id").GetGuid())];
+
+        var grownUps = await Admin(server).GetFromJsonAsync<JsonElement>(Api("/search?q=Xylo"));
+        var kids = await tv.GetFromJsonAsync<JsonElement>(Api("/search?q=Xylo"));
+
+        // The main profile: both people with every title they're in, and both episodes, the one that starts with the word first.
+        Assert.Equal([(both.Id, 2), (grownUp.Id, 2)], People(grownUps).OrderBy(p => p.Id == both.Id ? 0 : 1));
+        Assert.Equal([late, items["episode"]], Episodes(grownUps));
+        // Ada: someone only in what's above her limit isn't found, and the other counts only the film she may see.
+        Assert.Equal([(both.Id, 1)], People(kids));
+        Assert.Equal([items["episode"]], Episodes(kids));
+    }
+
+    [Fact]
     public async Task ATeensAgeLimit_LeavesWhatFlexarrCantCheckEmpty_RatherThanRefused()
     {
         using var server = new FlexarrApiFactory();

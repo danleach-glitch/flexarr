@@ -185,8 +185,11 @@ public sealed class MediaItem
     public string? ArtworkStamp { get; set; }
 
     /// <summary>
-    /// When the scan last saw <see cref="ArtworkStamp"/> change. Artwork addresses carry the later of this and
-    /// <see cref="MetadataUpdatedAt"/>, so apps fetch a replaced picture; it never stands in for a metadata refresh.
+    /// When the title's artwork last changed: the scan saw <see cref="ArtworkStamp"/> change, or its poster, backdrop,
+    /// logo or thumb was pointed somewhere else (the save notices: see <c>FlexarrDbContext.Redraw</c>), or that of a
+    /// title it borrows artwork from was. Artwork addresses carry it, so apps fetch a replaced picture and keep one
+    /// that hasn't changed, however often the title is looked up; it never stands in for a metadata refresh. Until it's
+    /// first set they carry <see cref="MetadataUpdatedAt"/>.
     /// </summary>
     public DateTime? ArtworkChangedAt { get; set; }
 

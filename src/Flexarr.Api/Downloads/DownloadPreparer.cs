@@ -13,13 +13,29 @@ namespace Flexarr.Api.Downloads;
 /// <summary>
 /// Gets downloads ready, one at a time and at low priority: it waits while anyone is watching something that's being
 /// converted, so it never slows a stream down. Films and episodes become MP4s, tracks stay as they are or become M4As.
-/// Downloads not fetched within a week are deleted.
+/// Downloads whose file is sent as it is have nothing to wait for: they're made ready together, on a clock of their own.
+/// Downloads not fetched within a week are deleted. With nothing queued it asks the database nothing: queueing a download
+/// wakes it, and it looks once an hour for downloads whose week is up.
 /// </summary>
 public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptionsMonitor<FlexarrOptions> options, TranscodeManager transcodes,
     ILogger<DownloadPreparer> logger) : BackgroundService
 {
     private static readonly TimeSpan Tick = TimeSpan.FromSeconds(3);
+
+    /// <summary>How often it looks with nothing queued: only to delete the downloads nobody fetched in their week.</summary>
+    private static readonly TimeSpan IdleTick = TimeSpan.FromHours(1);
+
+    private TaskCompletionSource _queued = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>A download was queued: both clocks look now, rather than when they next would.</summary>
+    public void Wake() => Interlocked.Exchange(ref _queued, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
     public static readonly TimeSpan KeptFor = TimeSpan.FromDays(7);
+
+    /// <summary>
+    /// Queued downloads already found to need converting or fetching (or to have no file): they wait their turn in
+    /// <see cref="PrepareNextAsync"/>, and <see cref="SendAsIsAsync"/> doesn't look at them again every round.
+    /// </summary>
+    private readonly HashSet<Guid> _needTheirTurn = [];
 
     /// <summary>Where prepared downloads are kept until they're fetched.</summary>
     public static string Folder(FlexarrOptions options) => Path.Combine(options.ResolvedCacheDirectory, "downloads");
@@ -36,29 +52,108 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             LogRecoverFailed(ex);
         }
 
-        using var timer = new PeriodicTimer(Tick);
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        // Two clocks: a round of RunOnceAsync lasts as long as the film it converts, and the downloads that need no
+        // converting mustn't wait behind it.
+        // A round of SendAsIsAsync leaves nothing for its next: what it didn't make ready waits for the other clock.
+        await Task.WhenAll(EveryTickAsync(RunOnceAsync, stoppingToken), EveryTickAsync(async ct =>
         {
+            await SendAsIsAsync(ct);
+            return false;
+        }, stoppingToken));
+    }
+
+    /// <param name="round">One look; true when downloads are still waiting, so it looks again in a few seconds.</param>
+    private async Task EveryTickAsync(Func<CancellationToken, Task<bool>> round, CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            // Taken before looking, so a download queued while this round looks isn't left until the next idle look.
+            var queued = Volatile.Read(ref _queued).Task;
+            var waiting = true;
             try
             {
-                await RunOnceAsync(stoppingToken);
+                waiting = await round(stoppingToken);
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {
                 LogFailed(ex);
             }
+
+            if (waiting)
+            {
+                await Task.Delay(Tick, stoppingToken);
+                continue;
+            }
+
+            try
+            {
+                await queued.WaitAsync(IdleTick, stoppingToken);
+            }
+            catch (TimeoutException)
+            {
+                // Nothing was queued this hour: time to look for downloads that have run out.
+            }
         }
     }
 
+    /// <summary>
+    /// Makes ready every queued download whose file is sent as it is (a track or an MP4 the phone plays): there's
+    /// nothing to wait for, so they neither queue behind a conversion nor stop for someone watching. An album or a
+    /// playlist is one download per track, and one a round kept a 300-track playlist at Getting ready for 15 minutes.
+    /// </summary>
+    internal async Task SendAsIsAsync(CancellationToken ct)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var queued = await db.Downloads.IgnoreQueryFilters().Where(d => d.Status == DownloadStatus.Queued).OrderBy(d => d.CreatedAt)
+            .Select(d => new { d.Id, d.MediaItemId, d.Quality }).ToListAsync(ct);
+        _needTheirTurn.IntersectWith(queued.Select(d => d.Id));
+        foreach (var download in queued.Where(d => !_needTheirTurn.Contains(d.Id)))
+        {
+            var file = await BestFileAsync(db, download.MediaItemId, ct);
+            if (file is not null && DownloadPlanner.Plan(file, download.Quality, Subtitles.For(file)) is { SendAsIs: true })
+            {
+                await SentAsItIsAsync(db, download.Id, file, ct);
+            }
+            else
+            {
+                _needTheirTurn.Add(download.Id);
+            }
+        }
+    }
+
+    /// <summary>The file a download is made from: the title's best one that can be read.</summary>
+    private static Task<MediaFile?> BestFileAsync(FlexarrDbContext db, Guid itemId, CancellationToken ct) =>
+        db.MediaFiles.AsNoTracking().Include(f => f.Streams)
+            .Where(f => f.MediaItemId == itemId && f.ProbeError == null && f.MissingSince == null)
+            .OrderByDescending(f => f.Height).ThenByDescending(f => f.Bitrate).FirstOrDefaultAsync(ct);
+
+    /// <summary>
+    /// A queued download is ready as the library's own file. Only while it's still queued: both clocks can reach the
+    /// same download, and it may have been deleted (or already made ready, fetched and received) meanwhile.
+    /// </summary>
+    private static Task<int> SentAsItIsAsync(FlexarrDbContext db, Guid id, MediaFile file, CancellationToken ct) =>
+        db.Downloads.IgnoreQueryFilters().Where(d => d.Id == id && d.Status == DownloadStatus.Queued).ExecuteUpdateAsync(u => u
+            .SetProperty(d => d.FilePath, file.Path)
+            .SetProperty(d => d.IsLibraryFile, true)
+            .SetProperty(d => d.SizeBytes, file.Size)
+            .SetProperty(d => d.Progress, 1)
+            .SetProperty(d => d.Status, DownloadStatus.Ready)
+            .SetProperty(d => d.ReadyAt, DateTime.UtcNow), ct);
+
     /// <summary>One round: expire what's been waiting too long, then prepare the next download unless someone's watching.</summary>
-    internal async Task RunOnceAsync(CancellationToken ct)
+    /// <returns>True when a download was queued (it may not be the last, or it's waiting for whoever's watching): another round is due.</returns>
+    internal async Task<bool> RunOnceAsync(CancellationToken ct)
     {
         await ExpireAsync(ct);
         // Someone's watching something being converted: they come first.
         if (transcodes.ActiveCount == 0)
         {
-            await PrepareNextAsync(ct);
+            return await PrepareNextAsync(ct);
         }
+
+        await using var scope = scopes.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().Downloads.IgnoreQueryFilters().AnyAsync(d => d.Status == DownloadStatus.Queued, ct);
     }
 
     /// <summary>A preparation the server stopped in the middle of (a restart) starts again, from scratch.</summary>
@@ -130,23 +225,22 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         download.FilePath = null;
     }
 
-    private async Task PrepareNextAsync(CancellationToken ct)
+    /// <returns>False when nothing was queued.</returns>
+    private async Task<bool> PrepareNextAsync(CancellationToken ct)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
         var download = await db.Downloads.IgnoreQueryFilters().Where(d => d.Status == DownloadStatus.Queued).OrderBy(d => d.CreatedAt).FirstOrDefaultAsync(ct);
         if (download is null)
         {
-            return;
+            return false;
         }
 
-        var file = await db.MediaFiles.AsNoTracking().Include(f => f.Streams)
-            .Where(f => f.MediaItemId == download.MediaItemId && f.ProbeError == null && f.MissingSince == null)
-            .OrderByDescending(f => f.Height).ThenByDescending(f => f.Bitrate).FirstOrDefaultAsync(ct);
+        var file = await BestFileAsync(db, download.MediaItemId, ct);
         if (file is null && await db.PodcastEpisodes.AsNoTracking().FirstOrDefaultAsync(e => e.MediaItemId == download.MediaItemId, ct) is { } enclosure)
         {
             await PreparePodcastAsync(scope.ServiceProvider, db, download, enclosure, ct);
-            return;
+            return true;
         }
 
         var plan = file is null ? null : DownloadPlanner.Plan(file, download.Quality, Subtitles.For(file));
@@ -159,19 +253,13 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
                     ? "This track's file has no sound in it that can be played."
                     : "This file can't be kept on a phone as it is. Choose another size.";
             await db.SaveChangesAsync(ct);
-            return;
+            return true;
         }
 
         if (plan.SendAsIs)
         {
-            download.FilePath = file.Path;
-            download.IsLibraryFile = true;
-            download.SizeBytes = file.Size;
-            download.Progress = 1;
-            download.Status = DownloadStatus.Ready;
-            download.ReadyAt = DateTime.UtcNow;
-            await db.SaveChangesAsync(ct);
-            return;
+            await SentAsItIsAsync(db, download.Id, file, ct);
+            return true;
         }
 
         download.Status = DownloadStatus.Preparing;
@@ -194,6 +282,8 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             TryDelete(partial);
             await MarkFailedAsync(download.Id, CancellationToken.None);
         }
+
+        return true;
     }
 
     private async Task ConvertAsync(FlexarrDbContext db, Download download, MediaFile file, DownloadPlan plan, string folder, string partial, string extension,

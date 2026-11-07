@@ -27,13 +27,13 @@ public sealed partial class TraktRecommendations(FlexarrDbContext db, TraktClien
     private sealed record Pick(string MediaType, int TmdbId);
 
     /// <summary>The row, or null when the profile isn't connected or Trakt has nothing.</summary>
-    internal async Task<ExternalRowDto?> RowAsync(string profileId, SeerrInstance instance, Dictionary<string, Guid> library, IReadOnlySet<string> watchlist,
+    internal async Task<ExternalRowDto?> RowAsync(string profileId, SeerrInstance instance, IReadOnlySet<string> watchlist,
         IReadOnlySet<Flexarr.Core.Libraries.LibraryType> hidden, CancellationToken ct)
     {
         // Trakt's picks are a bonus: nothing about them may break Discover.
         try
         {
-            return await BuildAsync(profileId, instance, library, watchlist, hidden, ct);
+            return await BuildAsync(profileId, instance, watchlist, hidden, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
@@ -42,7 +42,7 @@ public sealed partial class TraktRecommendations(FlexarrDbContext db, TraktClien
         }
     }
 
-    private async Task<ExternalRowDto?> BuildAsync(string profileId, SeerrInstance instance, Dictionary<string, Guid> library, IReadOnlySet<string> watchlist,
+    private async Task<ExternalRowDto?> BuildAsync(string profileId, SeerrInstance instance, IReadOnlySet<string> watchlist,
         IReadOnlySet<Flexarr.Core.Libraries.LibraryType> hidden, CancellationToken ct)
     {
         if (!await TraktOutbox.ConnectedAsync(db, profileId, ct))
@@ -56,6 +56,8 @@ public sealed partial class TraktRecommendations(FlexarrDbContext db, TraktClien
             return null;
         }
 
+        // Which of the picks are in the library: just those are looked up.
+        var library = await RequestEndpoints.LibraryIndexAsync(db, picks.Select(p => p.TmdbId), ct);
         var watched = await db.PlaybackStates.Where(p => p.UserId == profileId && p.Watched && p.MediaItem!.Kind == MediaKind.Movie)
             .Select(p => p.MediaItemId).ToListAsync(ct);
         var titles = await Task.WhenAll(picks.Where(p => !hidden.Hides(RequestEndpoints.KindOf(p.MediaType)) || library.ContainsKey(Key(p)))

@@ -16,6 +16,51 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A show's page opens with **Play** in focus, not **Shuffle**. Play is there from the start and fills in the episode once it's known.
 - Pressing down from a row of buttons onto **Play** (on Browse, say) lands on Play wherever you were along the row, rather than skipping to the row of titles below. Up from far along a row comes back to a page's buttons the same way.
 
+### Playback
+- Reading the closed captions out of a recording no longer competes with the stream you've just started: it runs in the background and gives way to playback.
+- Subtitles inside a very large file (a 60 GB film on a network share, say) are given up to an hour to be read instead of ten minutes, so they arrive rather than never turning up.
+- When a file's subtitles or captions can't be read, the server remembers it instead of reading the whole file again at every play; choosing the track tries it again. One bad subtitle track no longer stops a file's other tracks from working.
+- Watching a show at 1.5× or 2× no longer freezes every few seconds when the server is converting it: the stream is made as fast as you're watching. For films this works on iPhone, iPad and Apple TV for now.
+- Finding intros and credits gives way to people watching: it pauses before each episode while anything is playing, and holds off while the server is converting a stream for someone (the season you've just started is still done first). It used to work through a whole season at a time whatever else was going on.
+- Finding intros and credits no longer goes through a season again when its episodes were just done (after you change the audio track or quality, or start it on a second screen), and an episode that makes it hang no longer has the same season tried over and over: it moves on to the rest of the library and comes back to that season a day later.
+- Styled subtitles (the signs and songs of anime, say) appear sooner in the web player for a file with many fonts attached: the server lists a file's fonts once instead of once for every font the player asks for.
+- On iPhone, iPad and Apple TV, the first play of a film or episode after the server restarts starts a moment sooner when its stream is sent as it is: when its sound begins is remembered with the rest of what the server knows about the file, instead of being read from the file again.
+
+### Libraries
+- Posters and other artwork are no longer downloaded again by every app and browser after each weekly look-up of your library: a picture keeps its address until it actually changes (a new poster, a cover you replaced), so screens of posters come from the device's own cache, which matters most away from home. Each picture is fetched once more after this update.
+- Rows and grids of titles load much faster on a server with audiobooks. Once a library held a few thousand books in series, every list (films, shows and episodes too, and each row of Home) took several times longer than it needed to.
+- **Fix match** answers sooner as you change what you're searching for: with a few thousand films or shows in Radarr or Sonarr, every search after the first no longer waits several seconds for their whole list again.
+- Covers kept beside your media (a cover.jpg, the artwork inside an album's or a book's files) no longer wake a sleeping drive each time a page shows them: once the server has a copy, it serves it without looking at the original. A cover you replace is picked up at the next library scan.
+
+### Downloads
+- Downloading an album or a playlist no longer leaves it at **Getting ready** for three seconds a song (a minute for 20 songs, a quarter of an hour for 300). Files that are sent as they are, which is most music and any film your phone already plays, are all ready within a few seconds, even while a film is being converted for download or someone is watching.
+
+### Music
+- **Play** and **Shuffle** on an artist or an album start sooner on a big library, most of all on a slower server: gathering the tracks no longer reads through every title you have.
+- A song's volume levelling (ReplayGain) is read when the library scans the file, not the first time the song is played, so the first play of music added from now on starts a touch sooner, most of all from a drive that was asleep. Music already in your library works as before.
+- Home, a music library's Browse and the playlists page open sooner when you have long playlists: a playlist's track count, length and covers are worked out by the server's database instead of reading every song in every playlist each time.
+
+### Discover
+- Discover opens sooner: Seerr's four lists are asked for together instead of one after another, and coming back to Discover within a few minutes (from a title's page, say) doesn't ask for them again. What's in your library, on your watchlist or just requested is still marked afresh every time. A list Seerr is slow to answer is left out rather than failing the page.
+- Discover, searching everything and the page of a title you don't have are a little quicker on a big library, most of all while you type a search: marking what you already have looks up just the titles on screen instead of every film and show.
+
+### Requests
+- A library's **Requested** view opens sooner when many titles are waiting: Radarr and Sonarr are asked about four at a time instead of one after another, and only the requested titles are looked up in your library rather than every film and show.
+- When Seerr's machine is off or asleep, the pages that offer requests (libraries, search, Discover on the apps) no longer wait fifteen seconds for it and then get an error. Seerr gets five seconds to answer, counts as away if it doesn't, and is asked again half a minute later.
+
+### Backups
+- Backups no longer carry the Live TV guide, which a big channel list makes most of the database: they're smaller and quicker to make. A server restored from one fetches its guide again as it starts. Channels, favourites and recordings are kept as before.
+
+### Search
+- Search answers sooner when what you've typed is part of someone's name ("tom", "ann"): finding the people in titles you can see took most of a second on a large library at every letter, and is now several times quicker.
+- Once you've typed enough to narrow things down, search finds episodes, albums, songs and audiobooks in one pass over your library instead of four, so results keep up with your typing on a big library or a slow server. One or two letters, and very common words, take as long as before.
+
+### Live TV
+- When the Live TV source stops sending the guide part-way (its machine sleeps, or the network drops), the refresh gives up after two minutes and says so in Settings, instead of waiting until the server is restarted with no more guide or channel updates.
+
+### Notifications
+- A server nobody is using no longer writes to its database three times a minute to note that there was nothing to tell phones about, so the drive it's on (a NAS's, say) can sleep. It notes it every quarter of an hour instead, and straight away whenever something is sent.
+
 ## 0.62.1 · 5 November 2026
 
 ### Apple TV

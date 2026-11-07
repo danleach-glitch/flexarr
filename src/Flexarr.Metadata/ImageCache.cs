@@ -83,12 +83,19 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     /// whoever asks next, and then stop if nobody has.
     /// </param>
     /// <exception cref="ImageCacheBusyException"><see cref="MaxJobs"/> other images are being fetched; try again shortly.</exception>
-    public async Task<string?> GetAsync(string remoteUrl, int? width, CancellationToken ct)
+    public Task<string?> GetAsync(string remoteUrl, int? width, CancellationToken ct) => GetAsync(remoteUrl, null, width, ct);
+
+    /// <inheritdoc cref="GetAsync(string, int?, CancellationToken)"/>
+    /// <param name="localStamp">
+    /// For a file:// or embedded:// URL, the scan's stamp of the title's local artwork (its files' dates and sizes),
+    /// which a replaced file changes: the cached copy is found by it, without looking at the file. Null to look.
+    /// </param>
+    public async Task<string?> GetAsync(string remoteUrl, string? localStamp, int? width, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(remoteUrl);
 
         var snapped = ArtworkUrl.Snap(width);
-        var key = Hash(Versioned(remoteUrl));
+        var key = Hash(localStamp is not null && ArtworkUrl.IsLocal(remoteUrl) ? $"{remoteUrl}\nstamp\n{localStamp}" : Versioned(remoteUrl));
         var target = Path.Combine(Directory, key[..2], $"{key}_w{snapped}.jpg");
         if (Cached(target) is { } hit)
         {

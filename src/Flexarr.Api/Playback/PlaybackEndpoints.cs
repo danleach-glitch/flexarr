@@ -135,7 +135,8 @@ public static partial class PlaybackEndpoints
         }).WithTags("Playback");
 
         // Each profile's own, kept for the show an episode belongs to.
-        api.MapPut("/items/{id:guid}/playback-speed", async (Guid id, PlaybackSpeedRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        api.MapPut("/items/{id:guid}/playback-speed", async (Guid id, PlaybackSpeedRequest request, FlexarrDbContext db, CurrentProfile profile, PlaybackSessions sessions,
+            CancellationToken ct) =>
         {
             if (!double.IsFinite(request.Speed) || request.Speed is < 0.25 or > 4)
             {
@@ -145,6 +146,15 @@ public static partial class PlaybackEndpoints
             if (await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct) is not { } item)
             {
                 return Results.NotFound();
+            }
+
+            // Being converted for this profile right now: made as fast as it's now watched.
+            foreach (var playing in sessions.Active.Where(s => s.ItemId == id && s.ProfileId == profile.Id))
+            {
+                if (playing.Transcode is { } converting)
+                {
+                    converting.Speed = request.Speed;
+                }
             }
 
             // A book keeps its own speed, even 1× when the profile's default for books is something else.

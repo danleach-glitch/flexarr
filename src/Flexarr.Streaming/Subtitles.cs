@@ -88,7 +88,12 @@ public static partial class Subtitles
     /// single pass, because getting even one means reading the whole file (minutes for a large film on a slow drive).
     /// Returns the cached paths of the tracks that converted.
     /// </summary>
-    public static async Task<IReadOnlyDictionary<string, string>> ToWebVttAsync(MediaFile file, IReadOnlyList<SubtitleTrack> tracks, TranscodeSettings settings, CancellationToken ct)
+    /// <param name="retryFailed">
+    /// Whether tracks that didn't convert from this file before (<see cref="Failed"/>) are tried again. Not when it's only
+    /// getting ready as playback starts: every play would read the whole file, or decode the whole film, to fail again.
+    /// </param>
+    public static async Task<IReadOnlyDictionary<string, string>> ToWebVttAsync(MediaFile file, IReadOnlyList<SubtitleTrack> tracks, TranscodeSettings settings, CancellationToken ct,
+        bool retryFailed = true)
     {
         ArgumentNullException.ThrowIfNull(tracks);
 
@@ -110,7 +115,7 @@ public static partial class Subtitles
                     done[track.Key] = target;
                 }
             }
-            else
+            else if (retryFailed || !Failed(file, track, settings))
             {
                 (track.InVideo ? captions : track.IsTeletext ? teletext : embedded).Add((track, target));
             }
@@ -122,24 +127,77 @@ public static partial class Subtitles
             var outputs = embedded.Select(e => (e.Track, Format: "webvtt", e.Target))
                 .Concat(embedded.Where(e => e.Track.IsStyled).Select(e => (e.Track, Format: "ass", Target: CachePath(file, e.Track, settings, ".ass"))))
                 .ToList();
-            await ExtractAsync([], file.Path, outputs, done, settings, ct).ConfigureAwait(false);
+            await NotingFailuresAsync(file, embedded.Select(e => e.Track), done, settings,
+                () => ExtractAsync([], file.Path, outputs, done, settings, ct)).ConfigureAwait(false);
         }
 
         if (teletext.Count > 0)
         {
             // Its own pass, with the teletext decoder's options: subtitle pages, as text rather than pictures of the page.
-            await ExtractAsync(TeletextOptions(), file.Path, teletext.Select(e => (e.Track, Format: "webvtt", e.Target)).ToList(), done, settings, ct).ConfigureAwait(false);
+            await NotingFailuresAsync(file, teletext.Select(e => e.Track), done, settings,
+                () => ExtractAsync(TeletextOptions(), file.Path, teletext.Select(e => (e.Track, Format: "webvtt", e.Target)).ToList(), done, settings, ct)).ConfigureAwait(false);
         }
 
         foreach (var (track, target) in captions)
         {
-            if (await ExtractCaptionsAsync(file.Path, target, settings, ct).ConfigureAwait(false))
+            await NotingFailuresAsync(file, [track], done, settings, async () =>
             {
-                done[track.Key] = target;
-            }
+                if (await ExtractCaptionsAsync(file.Path, target, settings, ct).ConfigureAwait(false))
+                {
+                    done[track.Key] = target;
+                }
+            }).ConfigureAwait(false);
         }
 
         return done;
+    }
+
+    /// <summary>
+    /// A track that couldn't be converted from the file as it is: the read failed, or ran out of time. Noted beside where
+    /// its WebVTT would be (so a changed file starts afresh), until it converts.
+    /// </summary>
+    public static bool Failed(MediaFile file, SubtitleTrack track, TranscodeSettings settings) => File.Exists(CachePath(file, track, settings, ".failed"));
+
+    /// <summary>
+    /// Runs one pass over the file for <paramref name="tracks"/>, then notes which of them didn't convert (also when the
+    /// pass ran out of time, which is how a file too slow to read fails) and forgets that of those that did.
+    /// </summary>
+    private static async Task NotingFailuresAsync(MediaFile file, IEnumerable<SubtitleTrack> tracks, Dictionary<string, string> done, TranscodeSettings settings, Func<Task> pass)
+    {
+        void Note()
+        {
+            foreach (var track in tracks)
+            {
+                var note = CachePath(file, track, settings, ".failed");
+                try
+                {
+                    if (done.ContainsKey(track.Key))
+                    {
+                        File.Delete(note);
+                    }
+                    else
+                    {
+                        File.WriteAllBytes(note, []);
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // Not noted: it's tried again next time, which is all that's lost.
+                }
+            }
+        }
+
+        try
+        {
+            await pass().ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            Note();
+            throw;
+        }
+
+        Note();
     }
 
     /// <summary>A teletext page number: three digits, the first (the magazine) 1 to 8.</summary>
@@ -223,9 +281,10 @@ public static partial class Subtitles
             // The movie filter opens the file itself, past the input's whitelist: held to local files through its own
             // options where this FFmpeg has them.
             var local = FfmpegFilters.MovieTakesFormatOptions(settings.FfmpegPath) ? ":format_opts=protocol_whitelist=file" : "";
+            // Decoding a whole film takes every core for minutes: below anyone watching, whose stream is starting just now.
             var ok = await RunAsync(settings.FfmpegPath, ["-hide_banner", "-v", "error", "-nostdin", "-y", .. FfmpegCommand.LocalFile, "-f", "lavfi",
                 "-i", $"movie={link}{local}[out0+subcc]",
-                "-map", "0:1", "-c:s", "webvtt", "-f", "webvtt", partial], ct, folder).ConfigureAwait(false);
+                "-map", "0:1", "-c:s", "webvtt", "-f", "webvtt", partial], ct, folder, background: true).ConfigureAwait(false);
             if (ok && File.Exists(partial))
             {
                 File.Move(partial, target, overwrite: true);
@@ -295,7 +354,7 @@ public static partial class Subtitles
         _ => [],
     };
 
-    private static async Task<bool> RunAsync(string ffmpeg, IEnumerable<string> args, CancellationToken ct, string? workingDirectory = null)
+    private static async Task<bool> RunAsync(string ffmpeg, IEnumerable<string> args, CancellationToken ct, string? workingDirectory = null, bool background = false)
     {
         var start = new ProcessStartInfo(ffmpeg) { UseShellExecute = false, RedirectStandardError = true, WorkingDirectory = workingDirectory ?? "" };
         foreach (var arg in args)
@@ -304,6 +363,18 @@ public static partial class Subtitles
         }
 
         using var process = Process.Start(start)!;
+        if (background)
+        {
+            try
+            {
+                process.PriorityClass = ProcessPriorityClass.BelowNormal;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or PlatformNotSupportedException)
+            {
+                // Already finished, or not ours to change: it runs as it would have.
+            }
+        }
+
         try
         {
             await process.StandardError.ReadToEndAsync(ct).ConfigureAwait(false);

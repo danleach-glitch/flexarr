@@ -10,7 +10,8 @@ namespace Flexarr.Api.Podcasts;
 /// <param name="Feed">The feed, unless it hadn't changed (<paramref name="NotModified"/>) or couldn't be read.</param>
 /// <param name="MovedTo">Where the feed now lives, when every redirect on the way was permanent.</param>
 /// <param name="Error">Why it couldn't be read, in words for the viewer.</param>
-public sealed record FeedFetch(ParsedFeed? Feed, bool NotModified, string? ETag, string? LastModified, string? MovedTo, string? Error);
+/// <param name="ContentHash">A hash of the feed's bytes, so a host that never answers 304 still costs little when nothing changed.</param>
+public sealed record FeedFetch(ParsedFeed? Feed, bool NotModified, string? ETag, string? LastModified, string? MovedTo, string? Error, string? ContentHash = null);
 
 /// <summary>
 /// Fetches podcast feeds and episodes from the internet, and only the internet: anyone signed in can add a feed, and a
@@ -222,8 +223,9 @@ public sealed class PodcastFetcher(HttpClient http)
                 await CopyLimitedAsync(body, buffer, MaxFeedBytes, token).ConfigureAwait(false);
                 buffer.Position = 0;
                 var feed = FeedParser.Parse(buffer);
+                var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(buffer.GetBuffer().AsSpan(0, (int)buffer.Length)));
                 return new FeedFetch(feed, false, response.Headers.ETag?.ToString(),
-                    response.Content.Headers.LastModified?.ToString("R", System.Globalization.CultureInfo.InvariantCulture), movedTo, null);
+                    response.Content.Headers.LastModified?.ToString("R", System.Globalization.CultureInfo.InvariantCulture), movedTo, null, hash);
             }
         }
         catch (FormatException ex)

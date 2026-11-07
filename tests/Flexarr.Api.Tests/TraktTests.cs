@@ -543,6 +543,66 @@ public sealed class TraktTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ANewPlay_ReadsOnlyThePlayedTitlesStates_AndOnlyHoldsThatCouldBeIt()
+    {
+        var dune = Film("Dune", "438631");
+        var heat = Film("Heat", "949");
+        var music = new Library { Name = "Music", Type = LibraryType.Music };
+        var track = new MediaItem { LibraryId = music.Id, Kind = MediaKind.Track, Title = "Tunnel of Love", SortTitle = "tunnel of love" };
+        var heldAt = new DateTime(2025, 3, 4, 0, 0, 0, DateTimeKind.Utc);
+        await SeedAsync(db =>
+        {
+            db.AddRange(Films, dune, heat, music, track);
+            db.PlaybackStates.Add(new PlaybackState { MediaItemId = heat.Id, DurationSeconds = 6000, PositionSeconds = 100, LastPlayedAt = DateTime.UtcNow.AddDays(-2) });
+            db.PlaybackStates.Add(new PlaybackState { MediaItemId = track.Id, DurationSeconds = 480, PositionSeconds = 30, LastPlayedAt = DateTime.UtcNow.AddDays(-2) });
+            db.TraktHistoryHolds.Add(new TraktHistoryHold { ProfileId = Owner, Kind = MediaKind.Movie, TmdbId = "777", WatchedAt = heldAt });
+            db.TraktHistoryHolds.Add(new TraktHistoryHold { ProfileId = Owner, Kind = MediaKind.Movie, TmdbId = "1", WatchedAt = heldAt });
+        });
+        await ConnectAsync(importedAt: DateTime.UtcNow.AddDays(-1));
+        Activities();
+        var playedAt = DateTime.UtcNow.AddHours(-1);
+        _trakt.Set("GET /sync/history", $$$$"""
+            [{"id":1,"watched_at":"{{{{playedAt:O}}}}","type":"movie","movie":{"ids":{"tmdb":438631}}},
+             {"id":2,"watched_at":"{{{{playedAt:O}}}}","type":"movie","movie":{"ids":{"tmdb":777}}}]
+            """);
+
+        var sql = new Statements();
+        using (var server = _server.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.ConfigureDbContext<FlexarrDbContext>(o => o.AddInterceptors(sql)))))
+        using (var scope = server.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<TraktSync>().SyncAsync(Owner, default);
+        }
+
+        var states = await InDbAsync(db => db.PlaybackStates.AsNoTracking().ToDictionaryAsync(p => p.MediaItemId));
+        Assert.True(states[dune.Id].Watched);
+        Assert.Equal((false, 100d), (states[heat.Id].Watched, states[heat.Id].PositionSeconds));
+        Assert.Equal((false, 30d), (states[track.Id].Watched, states[track.Id].PositionSeconds));
+        var holds = await InDbAsync(db => db.TraktHistoryHolds.AsNoTracking().OrderBy(h => h.TmdbId).ToListAsync());
+        Assert.Equal(["1", "777"], holds.Select(h => h.TmdbId));
+        Assert.Equal(heldAt, holds[0].WatchedAt);
+        Assert.True(Math.Abs((holds[1].WatchedAt - playedAt).TotalSeconds) < 1);
+
+        // Neither the profile's states nor its holds are read whole.
+        var reads = sql.Run.Where(q => q.Contains("FROM \"PlaybackStates\"", StringComparison.Ordinal) || q.Contains("FROM \"TraktHistoryHolds\"", StringComparison.Ordinal)).ToList();
+        Assert.NotEmpty(reads);
+        Assert.All(reads, q => Assert.Contains("json_each", q, StringComparison.Ordinal));
+    }
+
+    /// <summary>Every statement the server sent the database.</summary>
+    private sealed class Statements : Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<string> Run { get; } = new();
+
+        public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+            System.Data.Common.DbCommand command, Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            Run.Enqueue(command.CommandText);
+            return ValueTask.FromResult(result);
+        }
+    }
+
+    [Fact]
     public async Task AResumePointFromAnotherApp_BecomesTheirPlace()
     {
         var film = Film("Dune", "438631");

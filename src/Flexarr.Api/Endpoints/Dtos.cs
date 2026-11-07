@@ -188,14 +188,13 @@ public static class ArtworkUrls
     }
 
     /// <summary>
-    /// The ?v= of a title's artwork: the later of when it was last looked up and when the scan saw its local artwork
-    /// change, in seconds. Called in a query's final projection, so it runs on the rows read.
+    /// The ?v= of a title's artwork: when it last changed, in seconds, or for a title that hasn't been given that yet,
+    /// when it was last looked up. Not the later of the two: a title is looked up again every week, and its pictures
+    /// would get new addresses (and every app and browser fetch them afresh) though nothing about them had changed.
+    /// Called in a query's final projection, so it runs on the rows read.
     /// </summary>
-    public static long Version(DateTime? metadataUpdatedAt, DateTime? artworkChangedAt)
-    {
-        var latest = metadataUpdatedAt is null || artworkChangedAt > metadataUpdatedAt ? artworkChangedAt : metadataUpdatedAt;
-        return (latest?.Ticks ?? 0) / 10_000_000;
-    }
+    public static long Version(DateTime? metadataUpdatedAt, DateTime? artworkChangedAt) =>
+        ((artworkChangedAt ?? metadataUpdatedAt)?.Ticks ?? 0) / 10_000_000;
 
     /// <summary>A person's photo, at a ?v= of when it last changed (none for one from before that was kept).</summary>
     public static string? Person(Guid id, bool has, DateTime? changedAt) =>

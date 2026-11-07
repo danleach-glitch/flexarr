@@ -752,6 +752,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<int?>("Height")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Loudness")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("MarkersScannedAt")
                         .HasColumnType("TEXT");
 
@@ -1996,6 +1999,9 @@ namespace Flexarr.Core.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("CheckedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContentHash")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ETag")

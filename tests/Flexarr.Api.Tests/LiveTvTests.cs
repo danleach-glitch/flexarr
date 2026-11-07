@@ -414,6 +414,70 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task A_series_finds_its_showings_whatever_their_case_and_spacing_and_nothing_else()
+    {
+        var now = DateTime.UtcNow;
+        _dispatcharr.Guide = $"""
+            <?xml version="1.0" encoding="UTF-8"?><tv>
+            <programme start="{Xmltv(now.AddMinutes(10))}" stop="{Xmltv(now.AddMinutes(70))}" channel="101"><title>Doctor Who</title><sub-title>The Star Beast</sub-title><desc>One</desc><new/></programme>
+            <programme start="{Xmltv(now.AddDays(1))}" stop="{Xmltv(now.AddDays(1).AddHours(1))}" channel="101"><title>  DOCTOR WHO </title><sub-title>Wild Blue Yonder</sub-title><desc>Two</desc><new/></programme>
+            <programme start="{Xmltv(now.AddDays(2))}" stop="{Xmltv(now.AddDays(2).AddHours(1))}" channel="101"><title>Doctor Who Confidential</title><new/></programme>
+            <programme start="{Xmltv(now.AddDays(9))}" stop="{Xmltv(now.AddDays(9).AddHours(1))}" channel="101"><title>Doctor Who</title><sub-title>Too far ahead</sub-title><new/></programme>
+            </tv>
+            """;
+        var client = Client();
+        await ConnectAsync(client);
+        var doctorWho = (await GuideProgrammeAsync(client, "Doctor Who")).GetProperty("id").GetInt64();
+        (await client.PostAsJsonAsync(Api("livetv/recordings/series"), new { programmeId = doctorWho, newOnly = true })).EnsureSuccessStatusCode();
+
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var scheduler = new DvrScheduler(services.GetRequiredService<IServiceScopeFactory>(), services.GetRequiredService<DvrService>(),
+                services.GetRequiredService<DvrSignal>(), services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Flexarr.Api.Configuration.FlexarrOptions>>(),
+                TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<DvrScheduler>.Instance);
+            await scheduler.RunOnceAsync(CancellationToken.None);
+        }
+
+        var list = await client.GetFromJsonAsync<JsonElement>(Api("livetv/recordings"));
+        Assert.Equal(["The Star Beast", "Wild Blue Yonder"],
+            list.GetProperty("upcoming").EnumerateArray().OrderBy(u => u.GetProperty("start").GetDateTime()).Select(u => u.GetProperty("subtitle").GetString()).ToList());
+    }
+
+    [Fact]
+    public async Task A_series_with_more_showings_than_SQLite_takes_parameters_is_still_planned()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        var now = DateTime.UtcNow;
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var channel = new Flexarr.Core.LiveTv.LiveChannel { Name = "Rolling News" };
+            db.LiveChannels.Add(channel);
+            // Repeats only, so a new-only rule plans none of them: the look-up is what's under test.
+            db.LiveProgrammes.AddRange(Enumerable.Range(0, 33_000).Select(i => new Flexarr.Core.LiveTv.LiveProgramme
+            {
+                ChannelId = channel.Id, Title = "Rolling News", Start = now.AddSeconds(10 * i + 60), End = now.AddSeconds(10 * i + 70),
+            }));
+            db.RecordingRules.Add(new Flexarr.Core.LiveTv.RecordingRule { Title = "Rolling News", NewOnly = true });
+            await db.SaveChangesAsync();
+        }
+
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var scheduler = new DvrScheduler(services.GetRequiredService<IServiceScopeFactory>(), services.GetRequiredService<DvrService>(),
+                services.GetRequiredService<DvrSignal>(), services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Flexarr.Api.Configuration.FlexarrOptions>>(),
+                TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<DvrScheduler>.Instance);
+            await scheduler.RunOnceAsync(CancellationToken.None);
+        }
+
+        var list = await client.GetFromJsonAsync<JsonElement>(Api("livetv/recordings"));
+        Assert.Empty(list.GetProperty("upcoming").EnumerateArray());
+    }
+
+    [Fact]
     public async Task The_dvr_settings_are_kept_with_the_connection()
     {
         var client = Client();

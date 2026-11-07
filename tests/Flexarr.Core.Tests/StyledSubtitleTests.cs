@@ -47,6 +47,14 @@ public sealed class StyledSubtitleTests : IDisposable
         Assert.Equal(("Sign Font.ttf", "font/ttf"), (font.Name, font.ContentType));
         var extracted = await SubtitleFonts.ExtractAsync(file, font, settings, default);
         Assert.Equal("not really a font", await File.ReadAllTextAsync(extracted!));
+
+        // Asked again (a player wants every font at once): the list is remembered, not read with ffprobe each time.
+        var missing = Path.Combine(_dir, "no-ffprobe-here");
+        Assert.Equal(font, Assert.Single(await SubtitleFonts.ListAsync(file, missing, default)));
+        // A file that changed is read again.
+        File.SetLastWriteTimeUtc(file.Path, File.GetLastWriteTimeUtc(file.Path).AddMinutes(1));
+        await Assert.ThrowsAsync<System.ComponentModel.Win32Exception>(() => SubtitleFonts.ListAsync(file, missing, default));
+        Assert.Equal(font, Assert.Single(await SubtitleFonts.ListAsync(file, "ffprobe", default)));
     }
 
     [Fact]

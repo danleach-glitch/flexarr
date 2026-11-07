@@ -246,6 +246,60 @@ public sealed class NotificationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task QuietMinutes_DontWriteTheCursors_YetNothingIsMissedOrToldTwice()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        var worker = Worker();
+        async Task<int> RunAsync(DateTime at)
+        {
+            _clock.Now = at;
+            var before = _relay.Sent.Count;
+            await worker.RunOnceAsync(CancellationToken.None);
+            return _relay.Sent.Count - before;
+        }
+
+        async Task<DateTime> SavedAsync()
+        {
+            using var scope = _server.Services.CreateScope();
+            return (await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().NotificationCursors.AsNoTracking().SingleAsync(c => c.Kind == "library")).Through;
+        }
+
+        var start = _clock.Now;
+        await RunAsync(start);
+        await RunAsync(start.AddMinutes(1));
+        var saved = await SavedAsync();
+
+        // Nothing happens for a few minutes: the cursor moves on in memory only.
+        await RunAsync(start.AddMinutes(2));
+        await RunAsync(start.AddMinutes(3));
+        Assert.Equal(saved, await SavedAsync());
+
+        // A film lands; it's told once, and telling it saves the cursor.
+        var library = OldLibrary(LibraryType.Movies);
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.MediaItems.Add(Film(library, "Arrival", start.AddMinutes(3).AddSeconds(30)));
+        });
+        Assert.Equal(0, await RunAsync(start.AddMinutes(6)));
+        Assert.Equal(1, await RunAsync(start.AddMinutes(7)));
+        Assert.Equal(start.AddMinutes(7) - NotificationWorker.Settle, await SavedAsync());
+        Assert.Equal(0, await RunAsync(start.AddMinutes(8)));
+
+        // Quiet again: saved at least every quarter of an hour, and on the way out.
+        Assert.Equal(start.AddMinutes(7) - NotificationWorker.Settle, await SavedAsync());
+        await RunAsync(start.AddMinutes(23));
+        Assert.Equal(start.AddMinutes(23) - NotificationWorker.Settle, await SavedAsync());
+        await RunAsync(start.AddMinutes(24));
+        await worker.SaveHeldCursorsAsync();
+        Assert.Equal(start.AddMinutes(24) - NotificationWorker.Settle, await SavedAsync());
+
+        // A restart (a new worker) carries on from there: the film isn't told again.
+        Assert.Empty(await RunAtAsync(start.AddMinutes(25)));
+    }
+
+    [Fact]
     public async Task NewFilm_IsTold_InItsProfilesLanguage()
     {
         // A pseudo-language of this test's own (en-XA is LanguageEndpointTests'; the catalog is shared, newest version wins).
@@ -354,6 +408,45 @@ public sealed class NotificationTests : IAsyncLifetime
         Assert.Equal("Dune (2020) is in the library.", sent.GetProperty("b").GetString());
         using var scope = _server.Services.CreateScope();
         Assert.NotNull((await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaRequests.SingleAsync()).FulfilledAt);
+    }
+
+    [Fact]
+    public async Task ShowRequests_AreAnsweredOnlyByAnEpisodeSinceTheirOwnRequest()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var library = OldLibrary(LibraryType.TvShows);
+        MediaItem Show(string title, string tmdb) => new() { LibraryId = library.Id, Kind = MediaKind.Series, Title = title, SortTitle = title.ToLowerInvariant(), TmdbId = tmdb, AddedAt = _clock.Now.AddDays(-30) };
+        MediaItem Season(MediaItem show, int n) => new() { LibraryId = library.Id, Kind = MediaKind.Season, Title = $"Season {n}", SortTitle = $"season {n}", ParentId = show.Id, SeasonNumber = n, AddedAt = show.AddedAt };
+        MediaItem Episode(MediaItem season, int n, DateTime added) => new()
+        {
+            LibraryId = library.Id, Kind = MediaKind.Episode, Title = $"Episode {n}", SortTitle = $"episode {n}", ParentId = season.Id, SeasonNumber = season.SeasonNumber,
+            EpisodeNumber = n, AddedAt = added,
+        };
+        var severance = Show("Severance", "95396");
+        var slowHorses = Show("Slow Horses", "95480");
+        var (s2, sh1) = (Season(severance, 2), Season(slowHorses, 1));
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.MediaItems.AddRange(severance, slowHorses, s2, sh1);
+            // Asked for before Slow Horses' episode came in, and answered by Severance's new one.
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Series, TmdbId = 95396, RequestedAt = _clock.Now.AddDays(-3) });
+            // Asked for after its latest episode: still waiting.
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Series, TmdbId = 95480, RequestedAt = _clock.Now.AddDays(-1) });
+            // A film nobody has yet.
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 1, RequestedAt = _clock.Now.AddDays(-1) });
+            db.MediaItems.Add(Episode(sh1, 1, _clock.Now.AddDays(-2)));
+            db.MediaItems.Add(Episode(s2, 1, _clock.Now.AddMinutes(1)));
+        });
+
+        var sent = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(5)), m => m.GetProperty("t").GetString() == "Your request is ready");
+
+        Assert.Equal("Severance S2 E1 is in the library.", sent.GetProperty("b").GetString());
+        using var scope = _server.Services.CreateScope();
+        var open = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaRequests.Where(r => r.FulfilledAt == null).Select(r => r.TmdbId).OrderBy(t => t).ToListAsync();
+        Assert.Equal([1, 95480], open);
     }
 
     private static (MediaItem Artist, MediaItem Album) Album(Library library, string artist, string title, DateTime added, string? releaseGroup = null, string? artistMbid = null)
