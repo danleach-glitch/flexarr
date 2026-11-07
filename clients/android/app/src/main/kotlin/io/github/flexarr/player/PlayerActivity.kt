@@ -84,6 +84,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import io.github.flexarr.isTelevision
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -446,6 +447,11 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
 /** The picture, filling the screen at its own shape, kept awake while it's up. The phone's players and the TV's. */
 @Composable
 internal fun VideoSurface(player: androidx.media3.common.Player) {
+    var matcher by remember { mutableStateOf<FrameRateMatcher?>(null) }
+    DisposableEffect(matcher) {
+        matcher?.start()
+        onDispose { matcher?.stop() }
+    }
     AndroidView(
         factory = { context ->
             PlayerView(context).apply {
@@ -456,6 +462,8 @@ internal fun VideoSurface(player: androidx.media3.common.Player) {
                 // Subtitles are drawn by SubtitleLayer, at the profile's size and height.
                 subtitleView?.visibility = android.view.View.GONE
                 this.player = player
+                // A TV switches to the film's frame rate when its own setting allows.
+                if (context.isTelevision) (videoSurfaceView as? android.view.SurfaceView)?.let { matcher = FrameRateMatcher(player, it) }
             }
         },
         modifier = Modifier.fillMaxSize(),
