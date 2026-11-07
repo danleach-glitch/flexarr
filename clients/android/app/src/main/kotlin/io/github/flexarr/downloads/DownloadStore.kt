@@ -489,7 +489,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /**
      * Titles kept here that the profile may no longer see (a parent blocked one, lowered its age limit or hid its library
      * since), or that the server no longer has: the server says which ([checkOffline]) and they go, books too. One whose
-     * file is only missing on the server stays, and nothing goes with a server before 0.63 or one out of reach.
+     * file is only missing on the server stays, and nothing goes with a server up to 0.62.1 or one out of reach.
      */
     private suspend fun removeKeptFromProfile(client: FlexarrClient) {
         // Asked only as the profile the downloads are kept for (not, say, on Who's watching).

@@ -292,7 +292,7 @@ internal data class OfflineCheckRequest(val itemIds: List<String>)
 
 /**
  * Which of the titles a device kept the profile may still see (`POST offline/check`, OfflineCheckDto): every id asked
- * about is in one list. Absent from servers before 0.63.
+ * about is in one list. Absent from servers up to 0.62.1.
  */
 @Serializable
 data class OfflineCheck(
@@ -324,7 +324,7 @@ data class OfflineCheck(
 
 /**
  * Asks which of [itemIds] (films, episodes, tracks, podcast episodes, books this device kept for the profile) it may still
- * see. Null from a server before 0.63, which doesn't know the question (whatever it answers that isn't the list), so
+ * see. Null from a server up to 0.62.1, which doesn't know the question (whatever it answers that isn't the list), so
  * nothing is taken off then.
  */
 suspend fun FlexarrClient.checkOffline(itemIds: List<String>): OfflineCheck? {
