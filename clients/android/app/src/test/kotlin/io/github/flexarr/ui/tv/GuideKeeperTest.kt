@@ -154,4 +154,15 @@ class GuideKeeperTest {
         assertNull(tags.last())
         assertEquals(4, fetches)
     }
+
+    @Test
+    fun `a guide covers a question it was asked, every channel's, or one with every channel shown`() {
+        val some = KeptGuide(channels("a", "b"), GuideFilter(mapOf("channels" to "a,b")), "ask", null)
+        assertTrue(some.covers(GuideFilter(mapOf("channels" to "a,b")), listOf("a", "b")))
+        assertTrue(some.covers(favourites, listOf("b")))
+        assertFalse(some.covers(favourites, listOf("b", "c")))
+        // Nothing shown is no proof it has the channels of another question.
+        assertFalse(some.covers(GuideFilter.Everything, emptyList()))
+        assertTrue(KeptGuide(channels(), GuideFilter.Everything, "ask", null).covers(favourites, listOf("z")))
+    }
 }

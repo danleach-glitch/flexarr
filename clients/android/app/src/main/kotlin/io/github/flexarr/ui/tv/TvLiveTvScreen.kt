@@ -43,6 +43,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -292,15 +293,28 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     val shown = if (showsGuide) channelsIn(category) else emptyList()
     val shownIds = remember(shown) { shown.map { it.id } }
     val ask = remember(shown, all, category) { GuideFilter.forShown(shown, all, category == Category.Favourites) }
-    suspend fun loadGuide(fresh: Boolean = false) {
+    // What the screen shows now, for a load launched before it changed (a recording set, a favourite starred).
+    val currentAsk by rememberUpdatedState(ask)
+    val currentIds by rememberUpdatedState(shownIds)
+    val currentShowsGuide by rememberUpdatedState(showsGuide)
+    suspend fun loadUpcoming() {
         upcoming = runCatching { client.recordings().upcoming.size }.getOrNull() ?: upcoming
-        if (!showsGuide) {
+    }
+    suspend fun loadGuide(fresh: Boolean = false) {
+        if (fresh) loadUpcoming()
+        if (!currentShowsGuide) {
             // Changed with no guide up: the kept one's out of date.
             if (fresh) TvGuideCache.clear()
             return
         }
-        runCatching { TvGuideCache.guide(client, guideHours, model.currentProfile?.id, ask, shownIds, kept, fresh) }.onSuccess { kept = it }
+        val asking = currentAsk
+        runCatching { TvGuideCache.guide(client, guideHours, model.currentProfile?.id, asking, currentIds, kept, fresh) }.onSuccess {
+            // A slower answer to an earlier question doesn't replace the guide of a category chosen since.
+            if (asking == currentAsk || kept?.covers(currentAsk, currentIds) != true) kept = it
+        }
     }
+    // The count of what's set to record every five minutes, on its own: not again for each category moved onto.
+    RepeatWhileShowing(300_000, model.credentials) { loadUpcoming() }
     // The guide (a few hours of it) every five minutes, and more of it as the guide's moved on or another category's
     // chosen (kept, it's given again at once).
     RepeatWhileShowing(300_000, model.credentials, guideHours, ask, showsGuide) { loadGuide() }
@@ -312,7 +326,7 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
         scope.launch {
             runCatching { client.setFavouriteChannel(channel.id, favourite) }.onSuccess {
                 // A guide of the favourites, as the server has them: asked again for the one starred or unstarred.
-                if (ask.query.containsKey("favourites")) loadGuide(fresh = true)
+                if (currentAsk.query.containsKey("favourites")) loadGuide(fresh = true)
             }.onFailure {
                 channels = channels?.map { if (it.id == channel.id) it.copy(isFavourite = !favourite) else it }
             }
