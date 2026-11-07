@@ -53,6 +53,19 @@ describe('PlaylistPage', () => {
     expect(player.play).toHaveBeenLastCalledWith(tracks, 1)
   })
 
+  it('asks for a track’s cover only as it nears the screen, decoding it off the main thread', async () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ entryId: i + 1, track: { ...track(`c${i}`, `Song ${i + 1}`), artwork: { poster: `/art/${i}.jpg`, backdrop: null, logo: null, thumb: null } } }))
+    mockApi({ '/playlists/p1': { ...detail(), tracks: many } })
+    renderPage()
+    await screen.findByRole('heading', { level: 1, name: 'Road trip' })
+    const covers = screen.getByRole('list', { name: 'Tracks in Road trip' }).querySelectorAll('img')
+    expect(covers).toHaveLength(30)
+    for (const cover of covers) {
+      expect(cover).toHaveAttribute('loading', 'lazy')
+      expect(cover).toHaveAttribute('decoding', 'async')
+    }
+  })
+
   it('moves a track with the arrow buttons, showing the new order at once and telling the server where it went', async () => {
     const moves: { entry: string; body: unknown }[] = []
     mockApi({

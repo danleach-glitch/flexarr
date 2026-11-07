@@ -24,7 +24,10 @@ describe('the queue', () => {
     )
     const covers = container.querySelectorAll('.queue-list img')
     expect(covers).toHaveLength(39)
-    for (const cover of covers) expect(cover).toHaveAttribute('loading', 'lazy')
+    for (const cover of covers) {
+      expect(cover).toHaveAttribute('loading', 'lazy')
+      expect(cover).toHaveAttribute('decoding', 'async')
+    }
   })
 
   it('drags a track to a new place, redrawing only the rows the drag passes over', () => {

@@ -13,6 +13,7 @@ import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { clock, programmeTime, programmeTitle, progress, tidyGroup } from '../lib/livetv'
 import { locale, t, Words } from '../i18n'
+import '../styles/livetv.lazy.css'
 
 const LiveRecordings = lazy(() => import('./LiveRecordings'))
 
