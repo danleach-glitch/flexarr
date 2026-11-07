@@ -107,7 +107,15 @@ public enum LiveTitleRefresh {
         let since = now.timeIntervalSince(checkedAt)
         // A clock put back counts as time having passed.
         let mayFetch = since < 0 || since >= atMost
-        guard let showing else { return since < 0 || since >= withoutGuide ? .fetch : .keep }
+        guard let showing else {
+            // A gap in the guide with the programme after it known: that one is shown once it starts.
+            if let next {
+                if now < next.start { return .keep }
+                if now < next.end { return .show(next) }
+                return mayFetch ? .fetch : .keep
+            }
+            return since < 0 || since >= withoutGuide ? .fetch : .keep
+        }
         if now < showing.end { return .keep }
         if let next, next.start <= now, now < next.end, next != showing { return .show(next) }
         return mayFetch ? .fetch : .keep

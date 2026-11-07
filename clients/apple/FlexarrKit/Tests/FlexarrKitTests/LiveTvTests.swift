@@ -37,6 +37,12 @@ struct LiveTvTests {
         // No guide for the channel: every half hour.
         #expect(step(600, showing: nil, next: nil) == .keep)
         #expect(step(1800, showing: nil, next: nil) == .fetch)
+        // A gap in the guide before a programme already known: kept until it starts, then shown, with no fetch.
+        #expect(step(1500, showing: nil, next: film) == .keep)
+        #expect(step(1815, showing: nil, next: film) == .show(film))
+        // And once that one has ended too, asked again (at most once a minute).
+        #expect(step(9015, showing: nil, next: film) == .fetch)
+        #expect(step(9030, showing: nil, next: film, checked: 9015) == .keep)
     }
 
     @Test func programmeProgressAndTitle() {
