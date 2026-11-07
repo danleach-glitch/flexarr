@@ -53,6 +53,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Live TV
 - When the Live TV source stops sending the guide part-way (its machine sleeps, or the network drops), the refresh gives up after two minutes and says so in Settings, instead of waiting until the server is restarted with no more guide or channel updates.
 
+### Notifications
+- A server nobody is using no longer writes to its database three times a minute to note that there was nothing to tell phones about, so the drive it's on (a NAS's, say) can sleep. It notes it every quarter of an hour instead, and straight away whenever something is sent.
+
 ## 0.62.1 · 5 November 2026
 
 ### Apple TV
