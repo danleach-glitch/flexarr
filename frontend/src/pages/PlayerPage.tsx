@@ -1143,9 +1143,19 @@ export function PlayerPage() {
   function chooseSpeed(next: number) {
     setMenu(null)
     setSpeed(next)
-    // Kept for the show (a film's is for this time only).
-    if (info?.item.kind === 'Episode') void setPlaybackSpeed(info.item.id, next).catch(() => undefined)
+    // Kept for the show (a film's is for this time only). A film's is said too, so a stream being converted is made as
+    // fast as it's watched rather than falling behind at 1.5× or 2×.
+    if (info?.item.kind === 'Episode' || info?.method === 'Transcode') void setPlaybackSpeed(info.item.id, next).catch(() => undefined)
   }
+
+  // A new converted stream of a film watched faster or slower (another audio track, a recovery) starts at normal pace
+  // on the server: it's told the speed again. An episode's new stream already starts at its show's.
+  const streamId = info?.sessionId
+  useEffect(() => {
+    if (!info || info.method !== 'Transcode' || info.item.kind === 'Episode' || speed === 1) return
+    void setPlaybackSpeed(info.item.id, speed).catch(() => undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per stream; choosing a speed says it itself
+  }, [streamId])
 
   // ---------- Sleep timer
 
