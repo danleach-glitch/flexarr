@@ -37,6 +37,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The first title you look at or play after opening the Android app no longer pauses the screen while the app works out which formats the device can play: it finds out as the app opens, in the background.
 - Watching a Live TV channel uses less data: the player fetches what’s on when the programme on screen ends (and every ten minutes in case the guide changes), rather than the whole channel list every minute.
 - An audiobook with hundreds of chapters no longer makes its chapter list stutter while it plays, and the list opens straight away.
+- **Copy code and open Trakt** only ever opens a page on trakt.tv. If the server names anywhere else, the Android app opens trakt.tv/activate instead.
 
 ## 0.62.1 · 5 November 2026
 
