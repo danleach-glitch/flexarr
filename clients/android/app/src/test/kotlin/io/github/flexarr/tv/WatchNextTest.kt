@@ -78,4 +78,15 @@ class WatchNextTest {
             WatchNext.playedAt(item("a", MediaKind.Movie, playedAt = "2027-01-15T08:00:00")),
         )
     }
+
+    @Test fun aNextEpisodeWithoutATime_keepsTheServersOrder() {
+        // The server puts a film paused yesterday before a show last watched last week, whose next episode was never played.
+        val row = cards(listOf(
+            item("film", MediaKind.Movie, position = 600.0, playedAt = "2027-01-14T08:00:00Z"),
+            item("next", MediaKind.Episode, series = "Show"),
+            item("older", MediaKind.Movie, position = 60.0, playedAt = "2027-01-01T08:00:00Z"),
+        ))
+        assertEquals(listOf("film", "next", "older"), row.map { it.id })
+        assertEquals(java.time.Instant.parse("2027-01-14T08:00:00Z").toEpochMilli(), row[0].lastEngagement)
+    }
 }

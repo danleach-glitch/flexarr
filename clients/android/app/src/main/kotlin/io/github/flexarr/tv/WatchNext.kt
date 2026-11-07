@@ -60,8 +60,12 @@ object WatchNext {
      * [albums] (recently played), newest first. [image] is a card's picture.
      */
     fun cards(watching: List<ItemSummary>, albums: List<ItemSummary>, now: Long, image: (ItemSummary) -> String?): List<Card> {
-        val videos = watching.mapIndexedNotNull { index, item ->
-            val engaged = playedAt(item) ?: (now - (index + 1) * MINUTE)
+        // Google TV orders the row by these times. The server's order (by when each film or show was last played)
+        // holds: a show's next episode has never been played and so has no time of its own, so each card's time is
+        // its own or, if that's later, just after the card before.
+        var previous = now + SECOND
+        val videos = watching.mapNotNull { item ->
+            val engaged = minOf(playedAt(item) ?: Long.MAX_VALUE, previous - SECOND).also { previous = it }
             val position = item.userData.positionSeconds.takeIf { it > 0 && !item.userData.watched }
             val duration = item.durationSeconds?.takeIf { it > 0 } ?: item.runtimeMinutes?.takeIf { it > 0 }?.let { it * 60.0 }
             when (item.kind) {
@@ -213,6 +217,7 @@ object WatchNext {
 
     private fun millis(seconds: Double): Int = (seconds * 1000).toLong().coerceIn(0, Int.MAX_VALUE.toLong()).toInt()
 
+    private const val SECOND = 1_000L
     private const val MINUTE = 60_000L
     private const val MAX_VIDEOS = 12
     private const val MAX_ALBUMS = 4
