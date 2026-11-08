@@ -782,7 +782,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
     }
 
     internal val profile by lazy {
-        DeviceCapabilities.profile(context).let { it.copy(containers = it.containers + listOf("mp3", "m4a", "m4b", "aac", "flac", "ogg", "opus", "wav")) }
+        DeviceCapabilities.decodedProfile(context).let { it.copy(containers = it.containers + listOf("mp3", "m4a", "m4b", "aac", "flac", "ogg", "opus", "wav")) }
     }
 
     companion object {

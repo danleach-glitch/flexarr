@@ -84,6 +84,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import io.github.flexarr.isTelevision
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -449,8 +450,14 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
  * loading, see [screenStaysOn]): paused, the phone's screen times out and the TV's screensaver starts as usual. The
  * phone's player and the TV's.
  */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 internal fun VideoSurface(player: androidx.media3.common.Player, keepAwake: Boolean) {
+    var matcher by remember { mutableStateOf<FrameRateMatcher?>(null) }
+    DisposableEffect(matcher) {
+        matcher?.start()
+        onDispose { matcher?.stop() }
+    }
     AndroidView(
         factory = { context ->
             PlayerView(context).apply {
@@ -460,6 +467,8 @@ internal fun VideoSurface(player: androidx.media3.common.Player, keepAwake: Bool
                 // Subtitles are drawn by SubtitleLayer, at the profile's size and height.
                 subtitleView?.visibility = android.view.View.GONE
                 this.player = player
+                // A TV switches to the film's frame rate when its own setting allows.
+                if (context.isTelevision) (videoSurfaceView as? android.view.SurfaceView)?.let { matcher = FrameRateMatcher(player, it) }
             }
         },
         modifier = Modifier.fillMaxSize(),

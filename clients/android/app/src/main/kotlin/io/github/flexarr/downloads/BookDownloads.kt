@@ -374,7 +374,7 @@ class BookDownloads(private val context: Context, private val model: AppModel) {
     internal fun fileIn(name: String): File? = DownloadStore.fileIn(folder, name)
 
     /** The sounds this phone decodes: files in any other come converted to AAC. */
-    val codecs: List<String> get() = DeviceCapabilities.profile(context).audioCodecs
+    val codecs: List<String> get() = DeviceCapabilities.decodedProfile(context).audioCodecs
 
     companion object {
         private const val MANIFEST = "books.json"

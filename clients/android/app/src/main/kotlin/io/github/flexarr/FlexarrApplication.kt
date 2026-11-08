@@ -1,6 +1,7 @@
 package io.github.flexarr
 
 import android.app.Application
+import kotlinx.coroutines.launch
 import android.app.UiModeManager
 import android.content.Context
 import android.content.res.Configuration
@@ -41,6 +42,8 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         model = AppModel(this, signIn)
         // A TV is what's cast to, not from; and on a slow box Cast's route scan at launch stalls the app into an ANR.
         if (!isTelevision) Casting.start(this, model)
+        // The TV home screen's Watch Next row: kept fresh in the background, and put right each time the app comes to the front.
+        io.github.flexarr.tv.WatchNext.schedule(this)
         FlexarrMessagingService.createChannels(this)
         ReviewPrompt.start(this)
         // Commands from other devices are taken while the app is in front; a guest's tunnel is checked on coming back, and
@@ -49,6 +52,7 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
             override fun onStart(owner: LifecycleOwner) {
                 model.cameToFront()
                 model.listenForCommands()
+                model.scope.launch { io.github.flexarr.tv.WatchNext.refresh(this@FlexarrApplication) }
             }
 
             override fun onStop(owner: LifecycleOwner) {

@@ -86,8 +86,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         .setSeekBackIncrementMs(skipSeconds * 1000L)
         .setSeekForwardIncrementMs(skipSeconds * 1000L)
         .build()
-    private val deviceProfile = DeviceCapabilities.profile(context)
-    /** [deviceProfile] once the server's version is known, which decides whether it can have fragmented MP4. */
+    /** Only if the app's own can't be had ([AppModel.server]): built when it's wanted, not with every player. */
+    private val deviceProfile by lazy { DeviceCapabilities.profile(context) }
+    /**
+     * [deviceProfile] once the server's version is known, which decides whether it can have fragmented MP4. Worked out
+     * afresh for each title, since what's plugged in can change (a receiver switched off).
+     */
     private var serverProfile: DeviceProfile? = null
     /** The server reads a chosen teletext page (0.55 on), known with [serverProfile]. */
     private var serverReadsTeletextPages = false
@@ -252,6 +256,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         private set
     /** This title's file couldn't be decoded here: it's converted from now on (until another title starts). */
     private var forcedTranscode = false
+    /** This title's sound stopped being playable (the receiver taking it as it is went away) and was asked for again. */
+    private var reaskedForSound = false
     /** The player has closed: nothing more is opened, and a session arriving late is ended. */
     private var closed = false
     /** Bumped by every session asked for, so one that arrives after another was asked for is ended rather than played. */
@@ -335,6 +341,16 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
             override fun onTracksChanged(tracks: Tracks) {
                 pendingSubtitle?.let { if (applySubtitle(it)) pendingSubtitle = null }
+                // The file's sound went to the receiver as it is (DTS, TrueHD) and the receiver's gone (switched off, the
+                // TV on another input): nothing here decodes it, so the picture would play on in silence. Once, asked
+                // for again with what the output takes now, so the server converts it.
+                val soundless = tracks.containsType(C.TRACK_TYPE_AUDIO) && !tracks.isTypeSupported(C.TRACK_TYPE_AUDIO)
+                if (soundless && info?.method == PlaybackMethod.DirectPlay && !reaskedForSound && !isOpening) {
+                    reaskedForSound = true
+                    serverProfile = null
+                    log.warning("The sound can't be played here any more; asking for it again")
+                    reopen()
+                }
             }
 
             override fun onCues(cueGroup: CueGroup) {
@@ -433,6 +449,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         model.music.pause()
         model.books.pause()
         forcedTranscode = false
+        reaskedForSound = false
+        serverProfile = null
         viewerChoseSubtitle = debugSubtitleKey != null || subtitlesOff
         viewerSubtitleKey = debugSubtitleKey
         debugSubtitleKey = null

@@ -125,7 +125,7 @@ private fun Notes(footer: String?, content: @Composable () -> Unit) {
 }
 
 /** The lines on top of a diagnostics upload: which app, which device, which server (its host only), who's watching. */
-internal fun diagnosticsHeader(model: AppModel): String = buildList {
+internal fun diagnosticsHeader(model: AppModel, tv: android.content.Context? = null): String = buildList {
     add("Flexarr for Android ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
     add("Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) on ${Build.MANUFACTURER} ${Build.MODEL}")
     add("Sent ${Instant.now()}")
@@ -136,4 +136,6 @@ internal fun diagnosticsHeader(model: AppModel): String = buildList {
         add("Connected: ${if (model.client?.addresses?.isAway == true) "away, over Tailscale" else "at home"}")
     }
     model.currentProfile?.let { add("Profile: ${it.name}") }
+    // What a TV says it takes: there's often no other way to see it on a real TV.
+    tv?.let { addAll(io.github.flexarr.player.DeviceCapabilities.report(it)) }
 }.joinToString("\n")

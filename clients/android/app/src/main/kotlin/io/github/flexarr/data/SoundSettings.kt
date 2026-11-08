@@ -22,7 +22,13 @@ data class SoundSettings(
     /** Minutes after midnight that a scheduled night mode starts and stops; it runs past midnight when start > end. */
     val nightStart: Int = 22 * 60,
     val nightEnd: Int = 7 * 60,
+    /** Surround the output takes (Dolby Digital, Atmos, DTS, TrueHD) goes to it as it is, rather than decoded here. */
+    val losslessSurround: Boolean = true,
 ) {
+    /** Surround is decoded here: Lossless surround is off, or something that works on decoded sound is on. */
+    val decodesSurround: Boolean
+        get() = !losslessSurround || speakers != Speakers.Auto || dialogueBoost != DialogueBoost.Off || nightMode != NightMode.Off
+
     enum class Speakers(private val english: String, val channels: Int?) {
         Auto(tk("Auto"), null), Stereo(tk("Stereo"), 2), Surround("5.1", 6);
 
@@ -83,6 +89,7 @@ data class SoundSettings(
                 putString("nightMode", next.nightMode.name)
                 putInt("nightStart", next.nightStart)
                 putInt("nightEnd", next.nightEnd)
+                putBoolean("losslessSurround", next.losslessSurround)
             }
         }
 
@@ -96,6 +103,7 @@ data class SoundSettings(
                 nightMode = NightMode.entries.firstOrNull { it.name == p.getString("nightMode", null) } ?: d.nightMode,
                 nightStart = minutes("nightStart", d.nightStart),
                 nightEnd = minutes("nightEnd", d.nightEnd),
+                losslessSurround = p.getBoolean("losslessSurround", d.losslessSurround),
             )
         }
 

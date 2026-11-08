@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Localization
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import androidx.compose.material.icons.filled.Language
@@ -22,6 +23,9 @@ import androidx.compose.material.icons.filled.CallToAction
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.SurroundSound
+import androidx.compose.material.icons.filled.HdrOn
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.GridView
@@ -77,6 +81,7 @@ import io.github.flexarr.core.shownSubtitlePosition
 import io.github.flexarr.core.shownSubtitleSize
 import io.github.flexarr.data.PlayerSettings
 import io.github.flexarr.data.SoundSettings
+import io.github.flexarr.player.DeviceCapabilities
 import io.github.flexarr.logging.ErrorReports
 import io.github.flexarr.logging.LogHub
 import io.github.flexarr.ui.components.Load
@@ -318,6 +323,17 @@ internal fun TvPlaybackSettings(model: AppModel) {
                 t("Speakers"), onClick = { choosing = PlaybackChoice.Speakers }, modifier = Modifier.focusFor(PlaybackChoice.Speakers),
                 icon = Icons.Filled.Speaker, value = speakersLabel(sound.speakers), accessory = TvSettingAccessory.Chevron,
                 help = t("Auto plays every channel what’s connected takes."),
+            )
+        }
+        item {
+            TvSettingsToggle(
+                t("Lossless surround"), sound.losslessSurround, { SoundSettings.update(context) { it.copy(losslessSurround = !it.losslessSurround) } },
+                icon = Icons.Filled.SurroundSound,
+                help = if (sound.losslessSurround && sound.decodesSurround) {
+                    t("While dialogue boost, night mode or speakers is on, surround is decoded first: Dolby by this TV, DTS and TrueHD by your server.")
+                } else {
+                    t("Dolby Digital, Atmos, DTS and TrueHD go to your receiver or soundbar as they are, when it takes them. Off, this TV decodes Dolby and your server converts DTS and TrueHD.")
+                },
             )
         }
     }
@@ -599,6 +615,11 @@ internal fun TvServerSettings(model: AppModel, libraries: Loader<List<Library>>,
 @Composable
 internal fun TvDiagnosticsSettings(model: AppModel) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    // What this TV says it takes, asked once as the page opens.
+    val facts = remember { DeviceCapabilities.facts(context) }
+    val screen = remember { DeviceCapabilities.screen(context) }
+    val profile = remember(facts) { DeviceCapabilities.profile(facts) }
     var note by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
     var outcome by remember { mutableStateOf<String?>(null) }
@@ -613,7 +634,7 @@ internal fun TvDiagnosticsSettings(model: AppModel) {
         outcome = null
         scope.launch {
             outcome = try {
-                val id = LogHub.sendDiagnostics(client, diagnosticsHeader(model), note)
+                val id = LogHub.sendDiagnostics(client, diagnosticsHeader(model, context), note)
                 note = ""
                 t("Sent to your server ({id}). Mention that if you ask for help.", "id" to id)
             } catch (e: FlexarrException) {
@@ -650,6 +671,30 @@ internal fun TvDiagnosticsSettings(model: AppModel) {
             } else {
                 outcome?.let { Text(it, fontSize = 13.5.sp, color = Flexarr.usher, lineHeight = 17.5.sp, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp)) }
             }
+        }
+        item { TvSettingsGroupLabel(t("What this TV reports")) }
+        screen?.let { screen ->
+            item {
+                TvSettingsRow(
+                    t("Screen"), onClick = {}, icon = Icons.Filled.Tv, reportOnly = true,
+                    value = t("{width}×{height}, {rate} Hz", "width" to screen.width.toString(), "height" to screen.height.toString(), "rate" to DeviceCapabilities.rate(screen.refreshRate, Localization.locale)),
+                    help = t("It can switch to {rates} Hz.", "rates" to screen.refreshRates.joinToString { DeviceCapabilities.rate(it, Localization.locale) }),
+                )
+            }
+        }
+        item {
+            TvSettingsRow(
+                t("HDR"), onClick = {}, icon = Icons.Filled.HdrOn, reportOnly = true,
+                value = DeviceCapabilities.hdrNames(facts.hdrTypes).joinToString().ifEmpty { t("None") },
+                help = if (profile.maxHeight >= 2160) t("This TV plays 4K files.") else t("This TV doesn’t play 4K files, so your server sends them at 1080p."),
+            )
+        }
+        item {
+            TvSettingsRow(
+                t("Surround out"), onClick = {}, icon = Icons.Filled.SurroundSound, reportOnly = true,
+                value = DeviceCapabilities.surroundShortNames(facts.passthrough).joinToString().ifEmpty { t("None") },
+                help = t("Formats your receiver or soundbar takes as they are."),
+            )
         }
     }
 

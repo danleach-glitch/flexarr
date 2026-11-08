@@ -2,6 +2,15 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Android TV
+
+- What you're part way through, your shows' next episodes and albums you've played lately show in **Continue watching** on the Google TV and Android TV home screen. Choose one to carry on; remove it there and it leaves Flexarr's Continue Watching too. It stays empty while a profile with a PIN is watching.
+- Movies ask the TV for their own frame rate, so 24-frame movies play without judder when the TV's **Match content frame rate** setting allows.
+- **Lossless surround** in **Settings › Playback** sends Dolby Digital, Dolby Atmos, DTS, DTS-HD and TrueHD to your receiver or soundbar as they are. Movies with DTS or TrueHD sound now play without the server converting them. While Dialogue boost, Night mode or Speakers is on, the sound is decoded first so they apply: Dolby on the TV, DTS and TrueHD by the server.
+- The TV tells your server what it really shows (HDR10, HLG or Dolby Vision, and whether it plays 4K), and **Settings › Diagnostics** lists it, with the TV's refresh rates and the surround formats your equipment takes.
+
 ## 0.63.0 · 8 November 2026
 
 ### Shows

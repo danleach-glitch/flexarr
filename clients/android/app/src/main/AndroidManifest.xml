@@ -179,6 +179,13 @@
         <receiver android:name=".notifications.PairingReceiver" android:exported="false" />
         <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="new" />
 
+        <!-- A card taken out of a TV home screen's Watch Next row (sent by the TV's system). -->
+        <receiver android:name=".tv.WatchNextReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.media.tv.action.WATCH_NEXT_PROGRAM_BROWSABLE_DISABLED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Continue Watching on the home screen. -->
         <receiver
             android:name=".widget.ContinueWatchingWidgetReceiver"

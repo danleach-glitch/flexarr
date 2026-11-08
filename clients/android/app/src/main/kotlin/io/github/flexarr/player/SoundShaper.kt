@@ -8,6 +8,7 @@ import androidx.media3.common.audio.AudioProcessor.AudioFormat
 import androidx.media3.common.audio.BaseAudioProcessor
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.RenderersFactory
+import androidx.media3.exoplayer.audio.AudioCapabilities
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import io.github.flexarr.data.SoundSettings
@@ -224,6 +225,12 @@ class SoundShaper : BaseAudioProcessor() {
                 .setEnableFloatOutput(enableFloatOutput)
                 .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                 .setAudioProcessors(arrayOf(this@SoundShaper))
+                .apply {
+                    // Passed-through sound never reaches this processor, so while it has work to do (or Lossless surround
+                    // is off) surround is decoded here. Decided as the player opens: a change applies from the next title.
+                    @Suppress("DEPRECATION")
+                    if (SoundSettings.current(context).decodesSurround) setAudioCapabilities(AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
+                }
                 .build()
     }
 

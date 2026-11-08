@@ -23,6 +23,8 @@ sealed interface AppLink {
      * plays a show's episodes in a random order.
      */
     data class Play(val id: String, val startAt: Int? = null, val shuffle: Boolean = false) : AppLink
+    /** An album's page (a Watch Next card on a TV's home screen). */
+    data class Album(val id: String) : AppLink
     /** Puts a Live TV channel on. */
     data class Live(val channelId: String) : AppLink
     /** The Live TV guide. */
@@ -60,6 +62,7 @@ sealed interface AppLink {
                 startAt?.let { appendQueryParameter("t", it.toString()) }
                 if (shuffle) appendQueryParameter("shuffle", "1")
             }.build()
+            is Album -> Uri.parse("flexarr://album/${Uri.encode(id)}")
             is Live -> Uri.parse("flexarr://live/${Uri.encode(channelId)}")
             LiveTv -> Uri.parse("flexarr://livetv")
             is Podcast -> Uri.parse("flexarr://podcast/${Uri.encode(id)}")
@@ -80,8 +83,18 @@ sealed interface AppLink {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             .putExtra(FROM_APP, secret(context))
 
+    /**
+     * An intent for the TV's home screen (a Watch Next card), which keeps it: marked with a token of its own rather than
+     * [intent]'s secret, so the secret never leaves the app. It plays (a card resumes), as the app's own links do.
+     */
+    fun launcherIntent(context: Context): Intent =
+        Intent(Intent.ACTION_VIEW, uri, context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            .putExtra(FROM_LAUNCHER, kept(context, LAUNCHER))
+
     companion object {
         private const val FROM_APP = "io.github.flexarr.fromApp"
+        private const val FROM_LAUNCHER = "io.github.flexarr.fromLauncher"
 
         @Volatile
         private var cachedSecret: String? = null
@@ -91,13 +104,25 @@ sealed interface AppLink {
          * MainActivity a `flexarr://play/…` link, but not this.
          */
         private fun secret(context: Context): String = cachedSecret ?: synchronized(this) {
-            cachedSecret ?: run {
-                val prefs = context.getSharedPreferences("links", Context.MODE_PRIVATE)
-                prefs.getString(SECRET, null) ?: UUID.randomUUID().toString().also { prefs.edit { putString(SECRET, it) } }
-            }.also { cachedSecret = it }
+            cachedSecret ?: kept(context, SECRET).also { cachedSecret = it }
+        }
+
+        /** A random value kept under [key], made the first time it's asked for. */
+        private fun kept(context: Context, key: String): String {
+            val prefs = context.getSharedPreferences("links", Context.MODE_PRIVATE)
+            return prefs.getString(key, null) ?: UUID.randomUUID().toString().also { prefs.edit { putString(key, it) } }
+        }
+
+        /**
+         * Gives the home screen's cards a new token (at sign-out): the cards made with the old one, or anything that
+         * learnt it, can no longer open the app as the launcher.
+         */
+        fun newLauncherToken(context: Context) {
+            context.getSharedPreferences("links", Context.MODE_PRIVATE).edit { remove(LAUNCHER) }
         }
 
         private const val SECRET = "secret"
+        private const val LAUNCHER = "launcher"
 
         /**
          * The link [intent] opened the app with. One that didn't come from this app (another app sent it) never
@@ -107,6 +132,8 @@ sealed interface AppLink {
         fun received(context: Context, intent: Intent): AppLink? {
             val link = parse(intent.data) ?: return null
             if (intent.getStringExtra(FROM_APP) == secret(context)) return link
+            // A home-screen card only ever plays a title or opens an album: nothing else gets past [fromOutside] with it.
+            if ((link is Play || link is Album) && intent.getStringExtra(FROM_LAUNCHER)?.let { it == kept(context, LAUNCHER) } == true) return link
             return fromOutside(link)
         }
 
@@ -135,6 +162,7 @@ sealed interface AppLink {
                         shuffle = uri.getQueryParameter("shuffle") == "1",
                     )
                 }
+                "album" -> id?.let(::Album)
                 "live" -> id?.let(::Live)
                 "livetv" -> LiveTv
                 "podcast" -> id?.let(::Podcast)

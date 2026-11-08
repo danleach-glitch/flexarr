@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HDR and Dolby Atmos · Flexarr guide</title>
-  <meta name="description" content="How Flexarr gets HDR10, HLG, Dolby Vision, Atmos and lossless surround to your Apple TV, and the Apple TV settings that matter.">
+  <meta name="description" content="How Flexarr gets HDR10, HLG, Dolby Vision, Atmos and lossless surround to your Apple TV or Android TV, and the settings that matter.">
   <meta name="theme-color" content="#1b1720">
   <meta name="color-scheme" content="dark">
   <meta name="apple-itunes-app" content="app-id=6826618084">
@@ -12,7 +12,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta property="og:title" content="HDR and Dolby Atmos · Flexarr guide">
-  <meta property="og:description" content="How Flexarr gets HDR10, HLG, Dolby Vision, Atmos and lossless surround to your Apple TV, and the Apple TV settings that matter.">
+  <meta property="og:description" content="How Flexarr gets HDR10, HLG, Dolby Vision, Atmos and lossless surround to your Apple TV or Android TV, and the settings that matter.">
   <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
   <meta property="og:url" content="https://flexarr.io/guide/hdr-and-atmos">
   <meta name="twitter:card" content="summary_large_image">
@@ -116,21 +116,22 @@
       <article>
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Watching and listening</p>
         <h1>HDR and Dolby Atmos</h1>
-        <p class="lede">How Flexarr gets HDR10, HLG, Dolby Vision, Atmos and lossless surround to your Apple TV, and the Apple TV settings that matter.</p>
-        <p class="meta">5 min read</p>
+        <p class="lede">How Flexarr gets HDR10, HLG, Dolby Vision, Atmos and lossless surround to your Apple TV or Android TV, and the settings that matter.</p>
+        <p class="meta">7 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
             <li><a href="#set-up-the-apple-tv-first">Set up the Apple TV first</a></li>
             <li><a href="#hdr-what-reaches-your-tv">HDR: what reaches your TV</a></li>
             <li><a href="#sound-atmos-truehd-and-dts">Sound: Atmos, TrueHD and DTS</a></li>
+            <li><a href="#on-android-tv-and-google-tv">On Android TV and Google TV</a></li>
             <li><a href="#watching-away-from-home">Watching away from home</a></li>
             <li><a href="#other-screens">Other screens</a></li>
             <li><a href="#checking-what-you-re-getting">Checking what you&#39;re getting</a></li>
           </ol>
         </nav>
         <div class="prose">
-<p>If you have a 4K HDR television and a soundbar or receiver, you want the picture and sound to arrive as they are in the file. Flexarr is built to do that on Apple TV, without converting anything. This page explains what reaches your TV, and the few settings on the Apple TV itself that make the difference.</p>
+<p>If you have a 4K HDR television and a soundbar or receiver, you want the picture and sound to arrive as they are in the file. Flexarr is built to do that on Apple TV and Android TV, without converting anything. This page explains what reaches your TV, and the few settings on the TV box itself that make the difference.</p>
 <blockquote class="callout note"><p><strong>Note</strong> The Apple TV app isn&#39;t on the App Store yet. Until it is, you can <a href="/guide/apple-tv-xcode">install it from Xcode</a>.</p>
 </blockquote>
 <h2 id="set-up-the-apple-tv-first"><a class="anchor" href="#set-up-the-apple-tv-first" aria-hidden="true" tabindex="-1">#</a>Set up the Apple TV first</h2>
@@ -208,6 +209,14 @@
 <li><strong>Speakers</strong> folds the sound to <strong>Stereo</strong> or <strong>5.1</strong>. <strong>Auto</strong> plays every channel your equipment takes; leave it there for headphones, so the iPhone&#39;s Spatial Audio gets the whole mix.</li>
 </ul>
 <p>On Apple TV and iPhone they need <strong>Play files directly</strong>. While any is on, Atmos plays without its height channels, so leave them off (and <strong>Speakers</strong> on <strong>Auto</strong>) for the full Atmos. Over AirPlay the sound plays as it is. The web has them too, for live TV as well, except in Safari.</p>
+<h2 id="on-android-tv-and-google-tv"><a class="anchor" href="#on-android-tv-and-google-tv" aria-hidden="true" tabindex="-1">#</a>On Android TV and Google TV</h2>
+<p>The Flexarr app on Android TV and Google TV plays the file itself too, so HDR10, HLG and Dolby Vision reach the television as they are when the TV takes them. It tells your server what the TV really shows: a TV without HDR gets SDR, and one that can&#39;t play 4K gets 1080p.</p>
+<ul>
+<li><strong>Frame rate:</strong> Flexarr asks the TV for each movie&#39;s frame rate, and the TV&#39;s own setting decides whether it switches. On Google TV it&#39;s <strong>Settings › Display &amp; Sound › Advanced display settings › Match content frame rate</strong> (the wording varies a little between TVs). <strong>Seamless only</strong> switches when there&#39;s no blink; <strong>Always</strong> switches for every movie. Most movies switch before they start; an MKV file doesn&#39;t say its frame rate, so with one the switch comes a couple of seconds in.</li>
+<li><strong>Lossless surround:</strong> in Flexarr&#39;s <strong>Settings › Playback</strong>, under <strong>This TV</strong>. On (the default), Dolby Digital, Dolby Atmos, DTS, DTS-HD and TrueHD go to your receiver or soundbar as they are, whenever it says it takes them, so those movies play without the server converting them. While <strong>Dialogue boost</strong>, <strong>Night mode</strong> or <strong>Speakers</strong> is on, the sound is decoded first so they apply: Dolby on the TV, DTS and TrueHD by the server. Turn Lossless surround off if a movie plays with no sound. (On the Apple TV the switch of the same name does the opposite: there it decodes lossless sound for your receiver.)</li>
+<li><strong>What your TV reports:</strong> <strong>Settings › Diagnostics</strong> lists the TV&#39;s screen and refresh rates, its HDR types, whether it plays 4K, and the surround formats your equipment takes.</li>
+<li><strong>Continue watching on the home screen:</strong> what you&#39;re part way through, the next episode of your shows and albums you&#39;ve played lately show in the <strong>Continue watching</strong> row on the TV&#39;s home screen. Choose one to carry on; remove it there and it leaves Flexarr&#39;s Continue Watching too. The row stays empty while the profile watching has a PIN, since anyone at the TV can see it.</li>
+</ul>
 <h2 id="watching-away-from-home"><a class="anchor" href="#watching-away-from-home" aria-hidden="true" tabindex="-1">#</a>Watching away from home</h2>
 <p>With a quality limit set in <strong>Settings › Streaming</strong>, anything above it is converted down. Lossless sound becomes compressed and HDR becomes SDR, because neither fits through a small connection. See <a href="/guide/away-from-home">Away from home</a>.</p>
 <h2 id="other-screens"><a class="anchor" href="#other-screens" aria-hidden="true" tabindex="-1">#</a>Other screens</h2>

@@ -61,6 +61,7 @@ import io.github.flexarr.logging.ErrorReports
 import io.github.flexarr.logging.FlexarrLog
 import io.github.flexarr.logging.LogHub
 import io.github.flexarr.notifications.PushNotifications
+import io.github.flexarr.tv.WatchNext
 import io.github.flexarr.widget.ContinueWatchingWidget
 import io.github.flexarr.widget.PodcastWidgets
 import io.github.flexarr.widget.WatchlistWidget
@@ -384,21 +385,18 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     suspend fun serverVersion(): String? = credentials?.let { serverStatus(it, VERSION_FRESH_MS) }?.version
 
-    /** The server's version and the video profile the player asks with, worked out once per server (not on a failure). */
-    private var serverInfo: Triple<String, String, DeviceProfile>? = null
-
     /**
      * The server's version (null if it couldn't be asked) and the video profile the player asks with
      * ([DeviceCapabilities.withServer]): shared by the player and warm-ups, so both ask for exactly the same stream.
+     * The profile is worked out each time, since what's plugged in (an amplifier switched on) and the sound settings change it.
      */
     suspend fun server(): Pair<String?, DeviceProfile>? {
-        val client = client ?: return null
-        val address = client.baseUrl.toString()
-        serverInfo?.let { (forServer, version, profile) -> if (forServer == address) return version to profile }
+        if (client == null) return null
         val version = serverVersion()
-        val profile = DeviceCapabilities.withServer(DeviceCapabilities.profile(context), version)
-        if (version != null) serverInfo = Triple(address, version, profile)
-        return version to profile
+        // Asking the system (decoders, the display, the HDMI output) takes a while: not on the main thread, which
+        // the TV's focus warm-ups call this from.
+        val profile = withContext(Dispatchers.Default) { DeviceCapabilities.profile(context) }
+        return version to DeviceCapabilities.withServer(profile, version)
     }
 
     /** The one warm-up being worked out (the server's version first), and for which title, so a drop can cancel it. */
@@ -1271,6 +1269,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             ContinueWatchingWidget.refresh(context)
             PodcastWidgets.refresh(context)
             WatchlistWidget.forget(context)
+            WatchNext.clear(context)
+            // Cards made for this sign-in can no longer open anything.
+            AppLink.newLauncherToken(context)
         }
     }
 
@@ -1514,6 +1515,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             WatchlistWidget.forget(context)
             ContinueWatchingWidget.refresh(context)
             PodcastWidgets.refresh(context)
+            // So is the TV home screen's row.
+            WatchNext.clear(context)
         }
     }
 
@@ -1640,6 +1643,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         scope.launch {
             ContinueWatchingWidget.refresh(context)
             PodcastWidgets.refresh(context)
+            WatchNext.refresh(context)
         }
     }
 

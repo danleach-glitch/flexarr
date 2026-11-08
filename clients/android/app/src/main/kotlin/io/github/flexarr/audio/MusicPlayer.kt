@@ -675,7 +675,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
 
     private val profile by lazy {
         // Music files come as they are where the phone reads them (FLAC, MP3, AAC, Ogg), and converted otherwise.
-        DeviceCapabilities.profile(context).let { it.copy(containers = it.containers + listOf("flac", "mp3", "m4a", "aac", "ogg", "opus", "wav")) }
+        DeviceCapabilities.decodedProfile(context).let { it.copy(containers = it.containers + listOf("flac", "mp3", "m4a", "aac", "ogg", "opus", "wav")) }
     }
 
     private companion object {
