@@ -176,7 +176,7 @@ public static class LibraryEndpoints
     {
         var scan = progress.Current is { } p && p.LibraryId == library.Id ? new ScanStatusDto(paths ? p.Path : "", p.Total, p.Processed) : null;
         var folders = library.Folders.Select(f => f.Path).Order().ToList();
-        // A folder the watcher hasn't looked at yet (just added, or the server just started) is told as it will be.
+        // A folder the watcher hasn't looked at yet (just added, or the server just started) is left out until it has.
         var watch = paths
             ? folders.Select(f => watcher.StatusOf(f) is { } status ? new FolderWatchDto(f, status.State, status.Problem) : null).OfType<FolderWatchDto>().ToList()
             : null;
