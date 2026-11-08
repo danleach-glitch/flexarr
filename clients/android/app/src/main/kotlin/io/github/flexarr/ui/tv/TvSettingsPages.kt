@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.core.i18n.Localization
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import androidx.compose.material.icons.filled.Language
@@ -675,24 +676,24 @@ internal fun TvDiagnosticsSettings(model: AppModel) {
         screen?.let { screen ->
             item {
                 TvSettingsRow(
-                    t("Screen"), onClick = {}, icon = Icons.Filled.Tv,
-                    value = t("{width}×{height}, {rate} Hz", "width" to screen.width.toString(), "height" to screen.height.toString(), "rate" to DeviceCapabilities.rate(screen.refreshRate)),
-                    help = t("Refresh rates it can switch to: {rates} Hz. Whether it switches to a film’s is the TV’s own setting, Match content frame rate.", "rates" to screen.refreshRates.joinToString { DeviceCapabilities.rate(it) }),
+                    t("Screen"), onClick = {}, icon = Icons.Filled.Tv, reportOnly = true,
+                    value = t("{width}×{height}, {rate} Hz", "width" to screen.width.toString(), "height" to screen.height.toString(), "rate" to DeviceCapabilities.rate(screen.refreshRate, Localization.locale)),
+                    help = t("It can switch to {rates} Hz.", "rates" to screen.refreshRates.joinToString { DeviceCapabilities.rate(it, Localization.locale) }),
                 )
             }
         }
         item {
             TvSettingsRow(
-                t("HDR"), onClick = {}, icon = Icons.Filled.HdrOn,
+                t("HDR"), onClick = {}, icon = Icons.Filled.HdrOn, reportOnly = true,
                 value = DeviceCapabilities.hdrNames(facts.hdrTypes).joinToString().ifEmpty { t("None") },
                 help = if (profile.maxHeight >= 2160) t("This TV plays 4K files.") else t("This TV doesn’t play 4K files, so your server sends them at 1080p."),
             )
         }
         item {
             TvSettingsRow(
-                t("Surround to your amplifier"), onClick = {}, icon = Icons.Filled.SurroundSound,
-                value = DeviceCapabilities.surroundNames(facts.passthrough).joinToString().ifEmpty { t("None") },
-                help = t("The formats what’s connected to this TV says it takes as they are. Lossless surround in Playback sends them that way."),
+                t("Surround out"), onClick = {}, icon = Icons.Filled.SurroundSound, reportOnly = true,
+                value = DeviceCapabilities.surroundShortNames(facts.passthrough).joinToString().ifEmpty { t("None") },
+                help = t("Formats your receiver or soundbar takes as they are."),
             )
         }
     }

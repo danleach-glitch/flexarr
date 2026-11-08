@@ -59,6 +59,7 @@ import androidx.tv.material3.SwitchDefaults
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.Role
@@ -160,6 +161,8 @@ internal fun TvSettingsRow(
     help: String? = null,
     accessory: TvSettingAccessory = TvSettingAccessory.None,
     destructive: Boolean = false,
+    /** A row that only shows something (Diagnostics' report): it takes focus for its help, but isn't a button. */
+    reportOnly: Boolean = false,
 ) {
     val showHelp = LocalShowSettingHelp.current
     val rowHelp = help?.let { TvSettingHelp(icon, it) }
@@ -168,7 +171,8 @@ internal fun TvSettingsRow(
     LaunchedEffect(rowHelp, focused) { if (focused) showHelp(rowHelp) }
     Surface(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().heightIn(min = 39.dp).onFocusChanged { focused = it.isFocused },
+        modifier = modifier.fillMaxWidth().heightIn(min = 39.dp).onFocusChanged { focused = it.isFocused }
+            .then(if (reportOnly) Modifier.clearAndSetSemantics { contentDescription = listOfNotNull(title, value).joinToString(", ") } else Modifier),
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Flexarr.screen.copy(alpha = 0.07f),
