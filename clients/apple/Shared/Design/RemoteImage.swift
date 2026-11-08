@@ -136,7 +136,14 @@ struct RemoteImage<Placeholder: View>: View {
             }
         }
         .task(id: url) {
-            guard let url, ImageCache.shared.image(for: url) == nil else { return }
+            guard let url else { return }
+            // Shown from the memory cache: held here too, so the cache letting it go (it does under memory pressure)
+            // doesn't turn a picture on screen back into its placeholder, with nothing to load it again.
+            if let cached = ImageCache.shared.image(for: url) {
+                loaded = cached
+                loadedURL = url
+                return
+            }
             let image = await ImageLoader.shared.load(url)
             guard !Task.isCancelled else { return }
             withAnimation(.easeOut(duration: 0.25)) {
