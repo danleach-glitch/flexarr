@@ -42,7 +42,12 @@ describe('the Live TV guide', () => {
   it('opens a programme’s details by redrawing its own channel’s line, not every channel’s', async () => {
     mockApi({
       '/livetv/status': { configured: true, channels: 20, refreshing: false, refreshedAt: null, error: null, rewindMinutes: 0 },
-      '/livetv/guide': { from: new Date(start).toISOString(), until: new Date(start + 6 * hour).toISOString(), channels },
+      // No favourites, as a server answers: the rows come with the last guide request, so none lands mid-test and redraws them.
+      '/livetv/guide': (_: unknown, url: URL) => ({
+        from: new Date(start).toISOString(),
+        until: new Date(start + 6 * hour).toISOString(),
+        channels: url.searchParams.get('favourites') === 'true' ? [] : channels,
+      }),
       '/livetv/channels': [],
     })
     render(

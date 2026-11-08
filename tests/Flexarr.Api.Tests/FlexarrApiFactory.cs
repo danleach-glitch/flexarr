@@ -77,6 +77,9 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
             services.AddSingleton<IStartupFilter, PeerFromHeader>();
             services.AddSingleton<ITailnetWhois>(Whois);
             services.AddSingleton<Flexarr.Api.Backups.IServerRestart>(Restart);
+            // A busy machine can make a test-sized build look slow, and a slow build holds off the next, leaving just-seeded
+            // titles out of typo searches. SearchIndexFreshnessTests has its own index and clock for the hold-off itself.
+            services.AddSingleton(_ => new Flexarr.Api.Search.SearchIndex(new FrozenClock()));
             // Tests never reach TVmaze or TMDB: they know no titles unless a test says otherwise.
             services.AddHttpClient<Flexarr.Metadata.TvMazeClient>().ConfigurePrimaryHttpMessageHandler(() => new Offline());
             services.AddHttpClient<Flexarr.Metadata.TmdbClient>().ConfigurePrimaryHttpMessageHandler(() => new Offline());
@@ -113,6 +116,12 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
         var db = scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>();
         change((await db.Profiles.FindAsync(Flexarr.Core.Media.PlaybackState.DefaultUser))!);
         await db.SaveChangesAsync();
+    }
+
+    /// <summary>A clock whose timestamps never move, so everything it times takes no time at all.</summary>
+    private sealed class FrozenClock : TimeProvider
+    {
+        public override long GetTimestamp() => 0;
     }
 
     /// <summary>A web service that knows nothing.</summary>

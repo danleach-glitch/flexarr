@@ -81,10 +81,12 @@ public sealed class HomeCacheTests : IDisposable
 
         // Something only the kept copy holds shows the second answer came from it. Other tests in this process write to
         // their own databases and move the version on too (on a server, every write is its own), so it's tried a few times.
-        var entry = Assert.IsType<HomeCache.Entry>(Cache.Get(key));
+        // What's kept is read afresh each time: settings reloading replaces the options an answer is kept against, and a
+        // copy with the old ones would never be used.
         var kept = false;
         for (var i = 0; i < 20 && !kept; i++)
         {
+            var entry = Assert.IsType<HomeCache.Entry>(Cache.Get(key));
             Cache.Set(key, entry with { Version = DataVersion.Current, Home = entry.Home with { Rows = [] } }, HomeCache.KeptFor);
             kept = Row(await HomeAsync(), "recent-movies").Count == 0;
         }
