@@ -12,6 +12,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### iPhone, iPad and Apple TV
 
+- **Next Episode** starts the next one sooner: the app no longer waits for your server to end the old episode before asking for the new one. On shuffle, the next episode is also got ready half a minute into each one, not only once the credits start.
 - While an episode plays, the lock screen and Control Center show the show's poster instead of the episode's still.
 
 ### CarPlay
@@ -194,6 +195,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Web
 
+- Closing the tab or window while a film or episode plays ends its stream straight away, rather than leaving your server converting it for nobody for another two minutes.
+- The label at the top of the player says **Original H.264, repackaged** on its own for a film whose picture is copied as it is, rather than calling it **Converting**.
 - In a library's grid after jumping to a letter, **Show earlier** moves keyboard focus to the first of the titles it brings, so Tab carries on among them, instead of dropping focus back to the top of the page. The page stays where it was, with the new titles under the button.
 - Dragging a track into a new place in a long playlist or the queue keeps up with the pointer: each step redraws only the rows it passes over, and the playlist no longer redraws every row as the music moves on or pauses.
 - Music, podcasts and books paused or stopped in a browser tab let go of the computer's sound after a few seconds, so a tab that played something hours ago no longer costs battery or keeps a laptop from sleeping. Signing out or switching profile lets it go at once.
@@ -213,6 +216,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Android
 
+- On Android TV, pressing up from the top of the sidebar now reaches who's watching, instead of closing the sidebar.
 - With a PIN on the main profile, a newly connected Android phone or TV starts on **Who’s watching?**, even with only one profile, and being the main profile there takes its PIN. Before, it was the main profile straight away, with its watch history and where you’d got to.
 - Away from home, the Android app checks that it's your server answering at its home address before it listens for commands from other devices or carries on a download there, as it already did for everything else. Until then it uses the server's remote address, or waits.
 - A paused film, episode or Live TV channel no longer keeps the screen on for ever: the phone's screen times out as usual, and an Android TV's screensaver starts. The screen still stays on while something plays or loads.

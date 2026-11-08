@@ -467,6 +467,9 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
                     if (hasFocus && !it.hasFocus) onFocusLeft()
                     hasFocus = it.hasFocus
                 }
+                // One group, so focus moving inside it (from the tabs up to who's watching) isn't seen as leaving: without
+                // it the sidebar read as unfocused for a moment on the way to the profile row, and closed.
+                .focusGroup()
                 .onKeyEvent { event ->
                     (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight).also { if (it) onClose() }
                 },
