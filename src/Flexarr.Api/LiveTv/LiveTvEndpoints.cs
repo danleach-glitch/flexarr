@@ -18,10 +18,12 @@ using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.LiveTv;
 
-/// <param name="ChannelsWithoutListings">Channels with nothing listed from now on.</param>
-/// <param name="DownloadError">Why Dispatcharr couldn't be asked to download its guides, last time it was.</param>
+/// <param name="Error">How the last refresh failed; to the main profile only since the release after 0.63.</param>
+/// <param name="ChannelsWithoutListings">Channels with nothing listed from now on; null to any other profile, or without Live TV.</param>
+/// <param name="DownloadError">Why Dispatcharr couldn't be asked to download its guides, last time it was. Main profile only.</param>
+/// <param name="RefreshesFinished">Goes up as each refresh finishes, however it went, for telling when one pressed has. Main profile only.</param>
 public sealed record LiveTvStatusDto(bool Configured, int Channels, bool Refreshing, DateTime? RefreshedAt, string? Error, int RewindMinutes,
-    int ChannelsWithoutListings = 0, string? DownloadError = null);
+    int? ChannelsWithoutListings = null, string? DownloadError = null, int? RefreshesFinished = null);
 
 /// <param name="Recording">"scheduled" or "recording" when it's on the DVR's list (the guide says); otherwise null.</param>
 /// <param name="Series">A series covers it (every showing of its title is recorded).</param>
@@ -59,12 +61,15 @@ public static partial class LiveTvEndpoints
     internal static string? DownloadErrorText(GuideDownloadProblem problem) => problem switch
     {
         GuideDownloadProblem.None => null,
-        GuideDownloadProblem.KeyRefused => Loc.T("Dispatcharr refused the admin API key, or it isn’t an admin’s."),
+        GuideDownloadProblem.KeyRefused => Loc.T("Dispatcharr refused the key. It needs an admin’s key, on Dispatcharr 0.20 or later."),
         GuideDownloadProblem.NotSupported => Loc.T("This version of Dispatcharr can’t be asked to download its guides."),
-        GuideDownloadProblem.SourceFailed => Loc.T("Dispatcharr couldn’t download one of its guides."),
+        GuideDownloadProblem.SourceFailed => Loc.T("Dispatcharr couldn’t download one of its guides. Check its guide sources."),
         GuideDownloadProblem.TimedOut => Loc.T("Dispatcharr is taking a while to download its guides. They’ll come in at the next refresh."),
         _ => Loc.T("Flexarr couldn’t ask Dispatcharr to download its guides."),
     };
+
+    /// <summary>The status is asked for a lot, and the count only changes as programmes run out or a refresh finishes (which clears it).</summary>
+    private static readonly TimeSpan MissingKeptFor = TimeSpan.FromMinutes(1);
 
     private static readonly TimeSpan FormatKeptFor = TimeSpan.FromHours(12);
     private static readonly TimeSpan MaxGuideWindow = TimeSpan.FromHours(24);
@@ -84,8 +89,19 @@ public static partial class LiveTvEndpoints
             var now = clock.GetUtcNow().UtcDateTime;
             // For the main profile, who can do something about them: the others' apps ask for the status too.
             var main = profile.IsMainProfile;
-            var missing = available && main ? await db.LiveChannels.CountAsync(c => !db.LiveProgrammes.Any(p => p.ChannelId == c.Id && p.End > now), ct) : 0;
-            return new LiveTvStatusDto(available, channels, status.Refreshing, refreshed, status.Error, o?.RewindMinutes ?? 60, missing, main ? DownloadErrorText(status.DownloadProblem) : null);
+            int? missing = null;
+            if (available && main)
+            {
+                missing = status.MissingCount(now, MissingKeptFor);
+                if (missing is null)
+                {
+                    missing = await db.LiveChannels.CountAsync(c => !db.LiveProgrammes.Any(p => p.ChannelId == c.Id && p.End > now), ct);
+                    status.RememberMissing(missing.Value, now);
+                }
+            }
+
+            return new LiveTvStatusDto(available, channels, status.Refreshing, refreshed, main ? status.Error : null, o?.RewindMinutes ?? 60, missing,
+                main && !string.IsNullOrEmpty(o?.AdminApiKey) ? DownloadErrorText(status.DownloadProblem) : null, main ? status.RefreshesFinished : null);
         }).WithTags("Live TV");
 
         group.MapGet("/channels", async (FlexarrDbContext db, CurrentProfile profile, TimeProvider clock, CancellationToken ct) =>
@@ -275,7 +291,8 @@ public static partial class LiveTvEndpoints
             viewers.All.Select(v => new LiveWatcherDto(v.ChannelId, v.ChannelName, v.ProfileId, v.StartedAt)).ToList())
             .RequireAuthorization(FlexarrClaims.AdminPolicy);
 
-        // The main profile even while it's locked: a guide read costs little, and how often Dispatcharr's sources are asked has its own limit.
+        // The main profile even while it's locked, which at home with sign-in only away from home is any device on the
+        // network. It's safe to open up: only one refresh waits at a time, and how often Dispatcharr's sources are asked has its own limit.
         group.MapPost("/refresh", (LiveTvRefreshSignal signal) =>
         {
             signal.Request(download: true);

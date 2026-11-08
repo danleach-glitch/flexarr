@@ -328,9 +328,9 @@ public static class SettingsEndpoints
                 }
             }, ct: ct);
 
-            // Only a new source (or login) needs the channels again: the rewind or the DVR's settings don't.
+            // Only a new source (or login, or admin key: what it ran into goes with it) needs the channels again: the rewind or the DVR's settings don't.
             if (update.LiveTv is { } savedLive && (!SameServer(current.LiveTv?.BaseUrl, savedLive.BaseUrl) || savedLive.BaseUrl.Length == 0
-                || (savedLive.Username is { } user && user.Trim() != current.LiveTv?.Username) || !string.IsNullOrEmpty(savedLive.Password)))
+                || (savedLive.Username is { } user && user.Trim() != current.LiveTv?.Username) || !string.IsNullOrEmpty(savedLive.Password) || savedLive.AdminApiKey is not null))
             {
                 // The refresh reads the options, so it waits until they hold the new source (or its removal): asked for
                 // before then, it found none and cleared the channels instead.

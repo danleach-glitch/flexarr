@@ -5,7 +5,7 @@ description: Watch TV channels in Flexarr with a guide, favourites and rewind, a
 
 Flexarr can show TV channels next to your movies and shows, with a programme guide, favourites, pause and rewind, and recording. It doesn't come with any channels. You bring your own, through Dispatcharr.
 
-Live TV is on the web, Apple TV, iPhone and iPad. Kids profiles don't have it, and a profile with an age limit sees only the channels the main profile picks under **Channels for kids** in **Settings › Live TV**.
+Live TV is on the web, Apple TV, iPhone, iPad, Mac, Android and Android TV. Kids profiles don't have it, and a profile with an age limit sees only the channels the main profile picks under **Channels for kids** in **Settings › Live TV**.
 
 ## What you need
 
@@ -49,7 +49,9 @@ Flexarr shows the guide Dispatcharr gives it, so **No listings** means Dispatcha
 
 **Refresh guide** normally reads what Dispatcharr already has. To have it make Dispatcharr download its guides first, add an **Admin API key** in **Settings › Connections › Dispatcharr**, using the API key of a Dispatcharr admin. **Test** checks that the key works. API keys need Dispatcharr 0.20 or later. If a correct key is refused and you use Network Access rules in Dispatcharr, check that its **UI** rule lets your Flexarr server in.
 
-This is optional, and it gives Flexarr admin rights in Dispatcharr, so leave it out if you'd rather not. Your guide sources are contacted at most once every 15 minutes, however often Refresh is pressed.
+This is optional, and it gives Flexarr admin rights in Dispatcharr, so leave it out if you'd rather not. If Dispatcharr is on another network, use an `https://` address or a tunnel, so the key isn't sent in the clear. Settings files leave the key out, so add it again after moving to a new server.
+
+Your guide sources are contacted at most once every 15 minutes, however often Refresh is pressed. Schedules Direct sources wait two hours, as Dispatcharr asks.
 
 Channel logos come from a community logo collection where it has a match, and from Dispatcharr where it doesn't.
 

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -15,6 +17,9 @@ public enum GuideDownloadProblem
     TimedOut,
 }
 
+/// <param name="Asked">Whether any source was asked before it went wrong, which counts against how often they may be.</param>
+public readonly record struct GuideDownload(GuideDownloadProblem Problem, bool Asked);
+
 /// <summary>
 /// Asks Dispatcharr to download its guide sources again, with an optional admin API key. Flexarr's usual sign-in can only
 /// list and play channels, and Dispatcharr only keeps what its last download held, so this is what fills a guide that
@@ -30,9 +35,20 @@ public sealed class DispatcharrGuides(HttpClient http)
     /// <summary>The level Dispatcharr's admins have, which starting a download takes.</summary>
     private const int AdminLevel = 10;
 
-    private sealed record Source(int Id, string? Status, string? UpdatedAt)
+    /// <summary>
+    /// How long Dispatcharr holds off Schedules Direct: asked sooner, it skips the download but restarts that wait all the
+    /// same, so asking often would keep the source from ever updating.
+    /// </summary>
+    private static readonly TimeSpan SchedulesDirectEvery = TimeSpan.FromHours(2);
+
+    /// <param name="Message">Only ever compared with its earlier self: it can quote the source's address.</param>
+    private sealed record Source(int Id, string? Type, string? Status, string? UpdatedAt, string? Message)
     {
         public bool Busy => Status is "fetching" or "parsing";
+
+        public bool TooSoonToAsk => Type == "schedules_direct" && DateTimeOffset.TryParse(UpdatedAt, CultureInfo.InvariantCulture, out var at) && DateTimeOffset.UtcNow - at < SchedulesDirectEvery;
+
+        public bool DiffersFrom(Source before) => Status != before.Status || UpdatedAt != before.UpdatedAt || Message != before.Message;
     }
 
     /// <summary>How often Dispatcharr is asked whether it has finished.</summary>
@@ -40,6 +56,12 @@ public sealed class DispatcharrGuides(HttpClient http)
 
     /// <summary>How long a download is waited for before the guide is read anyway.</summary>
     internal TimeSpan WaitAtMost { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>How long a source may show no sign of starting, with nothing else under way, before it isn't waited for.</summary>
+    internal TimeSpan StartsWithin { get; init; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>How many looks in a row may fail before Dispatcharr counts as gone.</summary>
+    internal int BadLooksAtMost { get; init; } = 10;
 
     /// <summary>Whether the key is an admin's on that server.</summary>
     public async Task<GuideDownloadProblem> CheckKeyAsync(Uri root, string key, CancellationToken ct)
@@ -64,39 +86,46 @@ public sealed class DispatcharrGuides(HttpClient http)
     }
 
     /// <summary>Starts a download of each active source, and waits for them to finish.</summary>
-    public async Task<GuideDownloadProblem> DownloadAsync(Uri root, string key, CancellationToken ct)
+    public async Task<GuideDownload> DownloadAsync(Uri root, string key, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(root);
+        var asked = false;
         try
         {
             var (before, listing) = await SourcesAsync(root, key, ct);
             if (listing != GuideDownloadProblem.None)
             {
-                return listing;
+                return new GuideDownload(listing, asked);
             }
 
-            foreach (var source in before)
+            var wanted = before.Where(s => !s.TooSoonToAsk).ToList();
+            foreach (var source in wanted)
             {
                 using var response = await SendAsync(HttpMethod.Post, root, "api/epg/import/", key, new { id = source.Id }, ct);
                 if (Problem(response) is var problem and not GuideDownloadProblem.None)
                 {
-                    return problem;
+                    return new GuideDownload(problem, asked);
                 }
+
+                asked = true;
             }
 
-            return await WaitAsync(root, key, before, ct);
+            return new GuideDownload(await WaitAsync(root, key, wanted, ct), asked);
         }
         catch (Exception ex) when (Unreachable(ex, ct))
         {
-            return GuideDownloadProblem.Unreachable;
+            return new GuideDownload(GuideDownloadProblem.Unreachable, asked);
         }
     }
 
-    private async Task<GuideDownloadProblem> WaitAsync(Uri root, string key, IReadOnlyList<Source> before, CancellationToken ct)
+    private async Task<GuideDownloadProblem> WaitAsync(Uri root, string key, IReadOnlyList<Source> asked, CancellationToken ct)
     {
-        var last = before.ToDictionary(s => s.Id, s => s.UpdatedAt);
-        var waiting = last.Keys.ToHashSet();
+        var before = asked.ToDictionary(s => s.Id);
+        var waiting = before.Keys.ToHashSet();
+        var seenBusy = new HashSet<int>();
         var failed = false;
+        var badLooks = 0;
+        var lastMoved = Stopwatch.GetTimestamp();
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
         limit.CancelAfter(WaitAtMost);
         try
@@ -104,27 +133,52 @@ public sealed class DispatcharrGuides(HttpClient http)
             while (waiting.Count > 0)
             {
                 await Task.Delay(CheckEvery, limit.Token);
-                var (sources, problem) = await SourcesAsync(root, key, limit.Token);
+                IReadOnlyList<Source> sources = [];
+                GuideDownloadProblem problem;
+                try
+                {
+                    (sources, problem) = await SourcesAsync(root, key, limit.Token);
+                }
+                catch (Exception ex) when (Unreachable(ex, limit.Token))
+                {
+                    problem = GuideDownloadProblem.Unreachable;
+                }
+
+                // Dispatcharr can be slow to answer while it parses a big guide, so one bad look doesn't end the wait.
+                if (problem == GuideDownloadProblem.Unreachable && ++badLooks < BadLooksAtMost)
+                {
+                    continue;
+                }
+
                 if (problem != GuideDownloadProblem.None)
                 {
                     return problem;
                 }
 
-                foreach (var source in sources)
+                badLooks = 0;
+                var quiet = Stopwatch.GetElapsedTime(lastMoved) > StartsWithin;
+                foreach (var source in sources.Where(s => waiting.Contains(s.Id)))
                 {
-                    // Finished once it's been stamped since it was asked and isn't busy. A source that went away is
-                    // removed below, so it isn't waited for.
-                    if (waiting.Contains(source.Id) && !source.Busy && source.UpdatedAt != last[source.Id])
+                    if (source.Busy)
+                    {
+                        seenBusy.Add(source.Id);
+                        lastMoved = Stopwatch.GetTimestamp();
+                    }
+                    // A failed download changes the status or the message but not updated_at, which only says when one last
+                    // worked. One that has shown no sign of starting while nothing else is under way isn't going to.
+                    else if (seenBusy.Contains(source.Id) || source.DiffersFrom(before[source.Id]) || quiet)
                     {
                         waiting.Remove(source.Id);
                         failed |= source.Status == "error";
+                        lastMoved = Stopwatch.GetTimestamp();
                     }
                 }
 
+                // A source that went away isn't waited for.
                 waiting.IntersectWith(sources.Select(s => s.Id));
             }
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        catch (OperationCanceledException) when (limit.IsCancellationRequested && !ct.IsCancellationRequested)
         {
             return GuideDownloadProblem.TimedOut;
         }
@@ -156,7 +210,7 @@ public sealed class DispatcharrGuides(HttpClient http)
                 && !(s.TryGetProperty("is_active", out var active) && active.ValueKind == JsonValueKind.False)
                 && Text(s, "source_type") != "dummy")
             {
-                sources.Add(new Source(number, Text(s, "status"), Text(s, "updated_at")));
+                sources.Add(new Source(number, Text(s, "source_type"), Text(s, "status"), Text(s, "updated_at"), Text(s, "last_message")));
             }
         }
 

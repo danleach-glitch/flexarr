@@ -117,7 +117,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Watching and listening</p>
         <h1>Live TV and recording</h1>
         <p class="lede">Watch TV channels in Flexarr with a guide, favourites and rewind, and record programmes and series, using Dispatcharr as the source.</p>
-        <p class="meta">6 min read</p>
+        <p class="meta">7 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -130,7 +130,7 @@
         </nav>
         <div class="prose">
 <p>Flexarr can show TV channels next to your movies and shows, with a programme guide, favourites, pause and rewind, and recording. It doesn&#39;t come with any channels. You bring your own, through Dispatcharr.</p>
-<p>Live TV is on the web, Apple TV, iPhone and iPad. Kids profiles don&#39;t have it, and a profile with an age limit sees only the channels the main profile picks under <strong>Channels for kids</strong> in <strong>Settings › Live TV</strong>.</p>
+<p>Live TV is on the web, Apple TV, iPhone, iPad, Mac, Android and Android TV. Kids profiles don&#39;t have it, and a profile with an age limit sees only the channels the main profile picks under <strong>Channels for kids</strong> in <strong>Settings › Live TV</strong>.</p>
 <h2 id="what-you-need"><a class="anchor" href="#what-you-need" aria-hidden="true" tabindex="-1">#</a>What you need</h2>
 <p>Flexarr reads channels and their guide from <a href="https://github.com/Dispatcharr/Dispatcharr" rel="noopener">Dispatcharr</a>, a free, self-hosted app that gathers TV sources into one channel list. Dispatcharr is the only source Flexarr supports. You can&#39;t give Flexarr an M3U playlist or XMLTV guide address directly; add them to Dispatcharr instead.</p>
 <p>Into Dispatcharr you can bring:</p>
@@ -164,7 +164,8 @@
 </ul>
 <h3 id="letting-refresh-update-dispatcharr"><a class="anchor" href="#letting-refresh-update-dispatcharr" aria-hidden="true" tabindex="-1">#</a>Letting Refresh update Dispatcharr</h3>
 <p><strong>Refresh guide</strong> normally reads what Dispatcharr already has. To have it make Dispatcharr download its guides first, add an <strong>Admin API key</strong> in <strong>Settings › Connections › Dispatcharr</strong>, using the API key of a Dispatcharr admin. <strong>Test</strong> checks that the key works. API keys need Dispatcharr 0.20 or later. If a correct key is refused and you use Network Access rules in Dispatcharr, check that its <strong>UI</strong> rule lets your Flexarr server in.</p>
-<p>This is optional, and it gives Flexarr admin rights in Dispatcharr, so leave it out if you&#39;d rather not. Your guide sources are contacted at most once every 15 minutes, however often Refresh is pressed.</p>
+<p>This is optional, and it gives Flexarr admin rights in Dispatcharr, so leave it out if you&#39;d rather not. If Dispatcharr is on another network, use an <code>https://</code> address or a tunnel, so the key isn&#39;t sent in the clear. Settings files leave the key out, so add it again after moving to a new server.</p>
+<p>Your guide sources are contacted at most once every 15 minutes, however often Refresh is pressed. Schedules Direct sources wait two hours, as Dispatcharr asks.</p>
 <p>Channel logos come from a community logo collection where it has a match, and from Dispatcharr where it doesn&#39;t.</p>
 <h2 id="watching"><a class="anchor" href="#watching" aria-hidden="true" tabindex="-1">#</a>Watching</h2>
 <p><strong>Live TV</strong> sits with your libraries.</p>
