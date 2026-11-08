@@ -26,7 +26,7 @@ Setting up Dispatcharr itself is covered in its own documentation. Once it has c
 First, in Dispatcharr:
 
 1. Add a user for Flexarr, at **Streamer** level.
-2. Give it a long, random XC password. This works as Flexarr's key. It can only list and play channels, never sign in to Dispatcharr or change anything. (The optional admin key described under [Letting Refresh update Dispatcharr's guides](#letting-refresh-update-dispatcharrs-guides) can do more.)
+2. Give it a long, random XC password. This works as Flexarr's key. It can only list and play channels, never sign in to Dispatcharr or change anything. (The optional admin key described under [Letting Refresh update Dispatcharr](#letting-refresh-update-dispatcharr) can do more.)
 3. Give that user the channels you want in Flexarr.
 
 Then in Flexarr, as the main profile:
@@ -45,7 +45,7 @@ Flexarr shows the guide Dispatcharr gives it, so **No listings** means Dispatcha
 - **The channel isn't matched to a guide entry.** Choose one for it in Dispatcharr, then use **Refresh guide**.
 - **The guide entry has no listings.** Sources can hold several entries for one channel, and only some have programmes. Try another entry, or add another guide source in Dispatcharr.
 
-### Letting Refresh update Dispatcharr's guides
+### Letting Refresh update Dispatcharr
 
 **Refresh guide** normally reads what Dispatcharr already has. To have it make Dispatcharr download its guides first, add an **Admin API key** in **Settings › Connections › Dispatcharr**, using the API key of a Dispatcharr admin. **Test** checks that the key works.
 
