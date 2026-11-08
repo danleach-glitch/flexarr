@@ -54,13 +54,20 @@ data class LiveTvStatus(
     val channelsWithoutListings: Int? = null,
     /** Why Dispatcharr couldn't be asked to download its guides, last time it was. Absent from servers before the release after 0.63. */
     val downloadError: String? = null,
+    /** Goes up as each refresh finishes, however it went. Absent from servers before the release after 0.63. */
+    val refreshesFinished: Int? = null,
 ) {
     /**
-     * Whether a refresh asked for when the status was [before] has finished. A quick refresh can come and go between
-     * looks, so an answer that's changed says so as well as having seen it under way.
+     * Whether a refresh asked for when the status was [before] has finished, [looks] looks later. Older servers don't count
+     * finished refreshes: a quick one can come and go between looks, so an answer that's changed says so as well as having
+     * seen it under way, and one that fails as the last did changes nothing, so it's only waited for so long.
      */
-    fun finishedRefresh(before: LiveTvStatus?, sawRefreshing: Boolean): Boolean =
-        !refreshing && (sawRefreshing || refreshedAt != before?.refreshedAt || error != before?.error || downloadError != before?.downloadError)
+    fun finishedRefresh(before: LiveTvStatus?, sawRefreshing: Boolean, looks: Int = 0): Boolean {
+        if (refreshing) return false
+        val was = before?.refreshesFinished
+        if (refreshesFinished != null && was != null) return refreshesFinished != was
+        return sawRefreshing || refreshedAt != before?.refreshedAt || error != before?.error || downloadError != before?.downloadError || looks >= 8
+    }
 }
 
 /** A programme in the guide. */
@@ -288,11 +295,20 @@ suspend fun FlexarrClient.refreshLiveTv(): LiveTvStatus? {
     val before = liveTvStatus()
     send("POST", "livetv/refresh")
     var sawRefreshing = false
-    repeat(180) {
+    var badLooks = 0
+    repeat(180) { look ->
         kotlinx.coroutines.delay(2_000)
-        val status = liveTvStatus() ?: return null
+        val status = try {
+            liveTvStatus().also { badLooks = 0 } ?: return null
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // The server carries on without us: a phone changing network doesn't make the refresh a failure.
+            if (++badLooks >= 3) throw e
+            return@repeat
+        }
         sawRefreshing = sawRefreshing || status.refreshing
-        if (status.finishedRefresh(before, sawRefreshing)) return status
+        if (status.finishedRefresh(before, sawRefreshing, looks = look + 1)) return status
     }
     return liveTvStatus()
 }

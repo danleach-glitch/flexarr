@@ -10,6 +10,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -61,6 +63,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
@@ -120,7 +123,7 @@ private sealed interface Filter {
  * hours across). Favourites first, and shown on their own when there are any; tap to watch, hold for Watch, Record
  * and Favourites. As the iPhone's LiveTvView.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun LiveTvScreen(model: AppModel) {
     val client = model.client ?: return
@@ -155,7 +158,7 @@ fun LiveTvScreen(model: AppModel) {
     // the list.
     RepeatWhileShowing(if (showsGuide) GUIDE_REFRESH_MS else 60_000, model.credentials, showsGuide) {
         load()
-        if (model.isMainProfile) model.loadLiveTvStatus()
+        if (model.isMainProfile) model.reloadLiveTvStatus()
         // No channels yet (the server couldn't be reached): tried again each minute, as it was, not left five.
         while (showsGuide && channels == null) {
             delay(60_000)
@@ -202,25 +205,17 @@ fun LiveTvScreen(model: AppModel) {
     RoomBackground(ambient = null) {
         Column {
             PageTitle(t(Words.liveTv), onBack = { navigator.back() }) {
-                if (all.isNotEmpty()) {
-                    if (model.canRefreshLiveTv) {
-                        IconButton(
-                            enabled = !model.isRefreshingLiveTv,
-                            onClick = {
-                                scope.launch {
-                                    notice = model.refreshLiveTv()
-                                    load()
-                                    refreshed++
-                                }
-                            },
-                        ) {
-                            if (model.isRefreshingLiveTv) {
-                                CircularProgressIndicator(Modifier.size(20.dp), color = Flexarr.screen, strokeWidth = 2.dp)
-                            } else {
-                                Icon(FlexarrIcons.refresh, contentDescription = t("Refresh guide"), tint = Flexarr.screen)
-                            }
+                if (model.canRefreshLiveTv) {
+                    val refreshLabel = if (model.isRefreshingLiveTv) t("Refreshing…") else t("Refresh guide")
+                    IconButton(enabled = !model.isRefreshingLiveTv, onClick = model::refreshLiveTv, modifier = Modifier.semantics { contentDescription = refreshLabel }) {
+                        if (model.isRefreshingLiveTv) {
+                            CircularProgressIndicator(Modifier.size(20.dp), color = Flexarr.screen, strokeWidth = 2.dp)
+                        } else {
+                            Icon(FlexarrIcons.refresh, contentDescription = null, tint = Flexarr.screen)
                         }
                     }
+                }
+                if (all.isNotEmpty()) {
                     if (records) IconButton(onClick = navigator::openRecordings) { Icon(Icons.Filled.RadioButtonChecked, contentDescription = t("Recordings"), tint = Flexarr.screen) }
                     IconButton(onClick = {
                         showsGuide = !showsGuide
@@ -240,9 +235,16 @@ fun LiveTvScreen(model: AppModel) {
                     val missing = model.liveTvStatus?.channelsWithoutListings ?: 0
                     if (model.isMainProfile && missing > 0) {
                         val links = LocalUriHandler.current
-                        Row(Modifier.padding(horizontal = Edge, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", "count" to missing), fontSize = 13.sp, color = Flexarr.usher)
-                            Text(t("Why?"), fontSize = 13.sp, color = Flexarr.screen, modifier = Modifier.clickable { links.openUri("https://flexarr.io/guide/live-tv#channels-with-no-listings") })
+                        FlowRow(Modifier.padding(horizontal = Edge, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", "count" to missing), fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(vertical = 14.dp))
+                            Text(
+                                t("Why?"),
+                                fontSize = 13.sp,
+                                color = Flexarr.screen,
+                                modifier = Modifier
+                                    .pressable(onClick = { runCatching { links.openUri("https://flexarr.io/guide/live-tv#channels-with-no-listings") } }, role = Role.Button, onClickLabel = t("Open the guide"))
+                                    .padding(vertical = 14.dp, horizontal = 6.dp),
+                            )
                         }
                     }
                     if (showsGuide) {
@@ -273,6 +275,15 @@ fun LiveTvScreen(model: AppModel) {
                 }
             }
         }
+    }
+    // How a refresh went, once each. Back on this screen after one ended elsewhere, the first load has it anyway.
+    var refreshesSeen by remember { mutableIntStateOf(model.liveTvRefreshesEnded) }
+    LaunchedEffect(model.liveTvRefreshesEnded) {
+        if (model.liveTvRefreshesEnded == refreshesSeen) return@LaunchedEffect
+        refreshesSeen = model.liveTvRefreshesEnded
+        load()
+        refreshed++
+        navigator.notices.showSnackbar(model.liveTvRefreshProblem ?: t("Guide refreshed"))
     }
     notice?.let { message ->
         AlertDialog(
