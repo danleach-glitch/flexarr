@@ -12,6 +12,12 @@ import AppKit
 
 private let log = FlexarrLog("signin")
 
+/// How a refresh of the Live TV guide went.
+enum LiveTvRefreshResult {
+    case worked
+    case failed(String)
+}
+
 /// App-wide state: the signed-in server, who's watching, their libraries and the player.
 @MainActor
 @Observable
@@ -51,6 +57,7 @@ final class AppModel {
     var canRefreshLiveTv: Bool { isMainProfile && (isAdmin || liveTvStatus?.channelsWithoutListings != nil) }
     /// The Live TV guide is being refreshed at this profile's asking.
     private(set) var isRefreshingLiveTv = false
+    @ObservationIgnored private var liveTvRefreshWait: Task<LiveTvStatus?, Error>?
     /// How this profile listens to podcasts (auto-download, how many to keep, speed, and from 0.58 the skips and smart
     /// rewind it shares with books); nil until loaded. The podcast player follows it.
     private(set) var podcastPreferences: PodcastPreferences? {
@@ -529,6 +536,7 @@ final class AppModel {
 
     /// `stoppingTunnel`: false only for a guest's sign-out, which stops the tunnel itself once the server has heard.
     private func forget(stoppingTunnel: Bool = true) {
+        callOffLiveTvRefresh()
         endPlayback()
         music.stop()
         // A guest leaving leaves its host's tailnet too: nothing of the tunnel stays on the device.
@@ -1200,6 +1208,7 @@ final class AppModel {
     private func chose(_ selection: ProfileSelection, among list: [Profile]) {
         guard var credentials else { return }
         let profile = selection.profile
+        callOffLiveTvRefresh()
         endPlayback()
         music.stop()
         // What the last profile got ready is theirs.
@@ -1245,22 +1254,39 @@ final class AppModel {
 
     /// Live TV's status again, for how many channels have no listings.
     func reloadLiveTvStatus() async {
-        guard isMainProfile, let client, let status = try? await client.liveTvStatus() else { return }
+        let asked = credentials
+        guard isMainProfile, let client, let status = try? await client.liveTvStatus(), credentials == asked else { return }
         liveTvStatus = status
     }
 
-    /// Refreshes the channels and guide, and waits for it. Says what went wrong, or nil.
-    func refreshLiveTv() async -> String? {
+    /// Refreshes the channels and guide, and waits for it. Says how it went; nil when the wait was called off (someone
+    /// else was chosen meanwhile, whose status this isn't).
+    func refreshLiveTv() async -> LiveTvRefreshResult? {
         guard let client, !isRefreshingLiveTv else { return nil }
         isRefreshingLiveTv = true
-        defer { isRefreshingLiveTv = false }
-        do {
-            let status = try await client.refreshLiveTv()
-            if let status { liveTvStatus = status }
-            return status?.error ?? status?.downloadError
-        } catch {
-            return ConnectionError(error).message
+        let wait = Task { try await client.refreshLiveTv() }
+        liveTvRefreshWait = wait
+        defer {
+            if liveTvRefreshWait == wait {
+                liveTvRefreshWait = nil
+                isRefreshingLiveTv = false
+            }
         }
+        do {
+            let status = try await wait.value
+            guard !wait.isCancelled else { return nil }
+            if let status { liveTvStatus = status }
+            return (status?.error ?? status?.downloadError).map(LiveTvRefreshResult.failed) ?? .worked
+        } catch {
+            return wait.isCancelled ? nil : .failed(ConnectionError(error).message)
+        }
+    }
+
+    /// A refresh is waited for on behalf of whoever's signed in: another profile, or nobody, doesn't take over the wait.
+    private func callOffLiveTvRefresh() {
+        liveTvRefreshWait?.cancel()
+        liveTvRefreshWait = nil
+        isRefreshingLiveTv = false
     }
 
     func loadLibraries() async {

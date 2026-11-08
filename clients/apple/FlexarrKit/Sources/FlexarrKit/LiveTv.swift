@@ -17,12 +17,16 @@ public struct LiveTvStatus: Codable, Sendable, Hashable {
     /// Why Dispatcharr couldn't be asked to download its guides, last time it was. Absent from servers before the
     /// release after 0.63.
     public var downloadError: String? = nil
+    /// Goes up as each refresh finishes, however it went. Absent from servers before the release after 0.63.
+    public var refreshesFinished: Int? = nil
 
-    /// Whether a refresh asked for when the status was `before` has finished. A quick refresh can come and go between
-    /// looks, so an answer that's changed says so as well as having seen it under way.
-    public func finishedRefresh(since before: LiveTvStatus?, sawRefreshing: Bool) -> Bool {
+    /// Whether a refresh asked for when the status was `before` has finished, `looks` looks later. Older servers don't
+    /// count finished refreshes: a quick one can come and go between looks, so an answer that's changed says so as well as
+    /// having seen it under way, and one that fails as the last did changes nothing, so it's only waited for so long.
+    public func finishedRefresh(since before: LiveTvStatus?, sawRefreshing: Bool, looks: Int = 0) -> Bool {
         guard !refreshing else { return false }
-        return sawRefreshing || refreshedAt != before?.refreshedAt || error != before?.error || downloadError != before?.downloadError
+        if let refreshesFinished, let was = before?.refreshesFinished { return refreshesFinished != was }
+        return sawRefreshing || refreshedAt != before?.refreshedAt || error != before?.error || downloadError != before?.downloadError || looks >= 8
     }
 }
 
@@ -314,11 +318,23 @@ extension FlexarrClient {
         let before = try await liveTvStatus()
         _ = try await send("POST", "livetv/refresh")
         var sawRefreshing = false
-        for _ in 0..<180 {
+        var badLooks = 0
+        for look in 1...180 {
             try await Task.sleep(for: .seconds(2))
-            guard let status = try await liveTvStatus() else { return nil }
+            let status: LiveTvStatus?
+            do {
+                status = try await liveTvStatus()
+                badLooks = 0
+            } catch {
+                // The server carries on without us: a phone changing network doesn't make the refresh a failure.
+                try Task.checkCancellation()
+                badLooks += 1
+                if badLooks >= 3 { throw error }
+                continue
+            }
+            guard let status else { return nil }
             sawRefreshing = sawRefreshing || status.refreshing
-            if status.finishedRefresh(since: before, sawRefreshing: sawRefreshing) { return status }
+            if status.finishedRefresh(since: before, sawRefreshing: sawRefreshing, looks: look) { return status }
         }
         return try await liveTvStatus()
     }

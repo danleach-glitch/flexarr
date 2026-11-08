@@ -11,6 +11,8 @@ struct LiveTvView: View {
     @State private var error: String?
     /// Something to say about a recording just set.
     @State private var notice: String?
+    @State private var refreshNotice: String?
+    @State private var refreshProblem: String?
     /// Unchosen, the view is Favourites when there are some, otherwise All.
     @State private var chosen: Filter?
     /// The list or the guide, remembered on this device.
@@ -83,8 +85,8 @@ struct LiveTvView: View {
         .pageActions { refreshButton }
         #else
         .pageActions {
+            refreshButton
             if channels?.isEmpty == false {
-                refreshButton
                 // A recording is for everyone, so a profile with an age limit has none to see or set.
                 if !model.hasAgeLimit {
                     NavigationLink { LiveRecordingsView() } label: {
@@ -102,13 +104,17 @@ struct LiveTvView: View {
         .task(id: scenePhase == .active) {
             guard scenePhase == .active else { return }
             while !Task.isCancelled {
-                await load()
-                await model.reloadLiveTvStatus()
+                // A channel plays over this screen rather than replacing it.
+                if !model.liveTv.isWatching {
+                    await load()
+                    await model.reloadLiveTvStatus()
+                }
                 try? await Task.sleep(for: .seconds(60))
             }
         }
         .refreshable { await load() }
         .banner($notice, systemImage: "record.circle")
+        .banner($refreshNotice, systemImage: refreshProblem == nil ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
     }
 
     /// For the main profile: refreshes the guide (and has Dispatcharr download it, with an admin key).
@@ -116,32 +122,55 @@ struct LiveTvView: View {
         if model.canRefreshLiveTv {
             Button {
                 Task {
-                    notice = await model.refreshLiveTv()
+                    refreshProblem = nil
+                    guard let result = await model.refreshLiveTv() else { return }
+                    switch result {
+                    case .worked: refreshNotice = t("Guide refreshed")
+                    case .failed(let problem):
+                        refreshProblem = problem
+                        refreshNotice = problem
+                    }
                     await load()
                     refreshed += 1
                 }
             } label: {
-                if model.isRefreshingLiveTv {
-                    ProgressView()
-                } else {
-                    Label(t("Refresh guide"), systemImage: Symbol.refresh)
+                // The same size either way, or the Mac's labelled button jumps.
+                Label {
+                    Text(t("Refresh guide"))
+                } icon: {
+                    if model.isRefreshingLiveTv {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: Symbol.refresh)
+                    }
                 }
             }
             .disabled(model.isRefreshingLiveTv)
+            .accessibilityLabel(model.isRefreshingLiveTv ? t("Refreshing…") : t("Refresh guide"))
         }
     }
 
     /// For the main profile, who can do something about it, with where it says how.
     @ViewBuilder private var missingListings: some View {
-        if model.isMainProfile, let count = model.liveTvStatus?.channelsWithoutListings, count > 0 {
-            HStack(spacing: 6) {
-                Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", ["count": count]))
-                    .foregroundStyle(Color.usher)
-                Link(t("Why?"), destination: URL(string: "https://flexarr.io/guide/live-tv#channels-with-no-listings")!)
+        if model.isMainProfile {
+            VStack(alignment: .leading, spacing: 2) {
+                if let refreshProblem {
+                    Text(refreshProblem).foregroundStyle(Color.usher)
+                }
+                if let count = model.liveTvStatus?.channelsWithoutListings, count > 0 {
+                    let text = Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", ["count": count]))
+                        .foregroundStyle(Color.usher)
+                    let why = Link(t("Why?"), destination: URL(string: "https://flexarr.io/guide/live-tv#channels-with-no-listings")!)
+                    // Beside each other when they fit; at the largest text sizes, one under the other.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 6) { text; why }
+                        VStack(alignment: .leading, spacing: 2) { text; why }
+                    }
+                }
             }
-                .font(.footnote)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 16)
+            .font(.footnote)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Layout.edge)
         }
     }
 
