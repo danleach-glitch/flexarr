@@ -587,6 +587,23 @@ public sealed partial class FolderWatcher(
                     continue; // Something changed while it was read: it waits again.
                 }
 
+                if (snapshot == Gone)
+                {
+                    // A whole title gone looks the same as the first of many. Only a scan of the library folder asks whether
+                    // most of it has vanished, and holds it if so, so all that goes at once waits for one of those.
+                    _pending.Remove(path);
+                    if (_pending.TryGetValue(pending.Root, out var whole))
+                    {
+                        whole.LastEvent = time.GetUtcNow();
+                    }
+                    else
+                    {
+                        _pending[pending.Root] = new Pending(pending.Root, time.GetUtcNow());
+                    }
+
+                    continue;
+                }
+
                 if (settled || (pending.Snapshot is { } before && before == snapshot))
                 {
                     _pending.Remove(path);
@@ -607,9 +624,11 @@ public sealed partial class FolderWatcher(
         }
     }
 
+    private const string Gone = "gone";
+
     private bool Overdue(Pending pending, DateTimeOffset now) => now - pending.FirstEvent >= WaitsAtMost;
 
-    /// <summary>The sizes and change times of the files at <paramref name="path"/> (a folder or a file), or "gone".</summary>
+    /// <summary>The sizes and change times of the files at <paramref name="path"/> (a folder or a file), or <see cref="Gone"/>.</summary>
     private static string Snapshot(string path)
     {
         try
@@ -622,7 +641,7 @@ public sealed partial class FolderWatcher(
 
             if (!Directory.Exists(path))
             {
-                return "gone";
+                return Gone;
             }
 
             long count = 0, total = 0, newest = 0;

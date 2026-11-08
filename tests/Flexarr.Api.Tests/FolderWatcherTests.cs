@@ -167,6 +167,32 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
+    public async Task TitlesDeleted_ScanTheWholeFolderOnce_SoTheMassRemovalGuardDecides()
+    {
+        using var setup = await WatchAsync();
+        foreach (var name in new[] { "Heat (1995)", "Dune (2021)", "Alien (1979)" })
+        {
+            setup.Watcher.Changed(setup.Root, $"{name}/{name}.mkv"); // Deleted: nothing's there.
+        }
+
+        var requests = await WaitForAsync(setup, r => r.Path == setup.Root);
+        Assert.Equal(setup.Root, Assert.Single(requests).Path);
+        Assert.False(requests[0].ForceMetadata);
+    }
+
+    [Fact]
+    public async Task AFileReplacedInATitle_StillScansJustTheTitle()
+    {
+        using var setup = await WatchAsync();
+        var title = Directory.CreateDirectory(Path.Combine(setup.Root, "Heat (1995)")).FullName;
+        await File.WriteAllTextAsync(Path.Combine(title, "Heat (1995) 4K.mkv"), "x");
+        setup.Watcher.Changed(setup.Root, "Heat (1995)/Heat (1995) HD.mkv");
+
+        var requests = await WaitForAsync(setup, r => r.Path == title);
+        Assert.Equal(title, Assert.Single(requests).Path);
+    }
+
+    [Fact]
     public async Task ManyTitlesAtOnce_ScanTheWholeFolder()
     {
         using var setup = await WatchAsync();
