@@ -122,6 +122,9 @@ public sealed class FlexarrOptions
     /// <summary>Requests for music, which go straight to Lidarr (Seerr has none). See docs/music-requests.md.</summary>
     public MusicRequestOptions MusicRequests { get; set; } = new();
 
+    /// <summary>Whether library folders are watched for new files (Settings › Libraries). See <c>FolderWatcher</c>.</summary>
+    public WatchFolderOptions WatchFolders { get; set; } = new();
+
     public TranscodingOptions Transcoding { get; set; } = new();
 
     /// <summary>Optional Seerr/Overseerr/Jellyseerr server for "not in your library" discovery and requests.</summary>
@@ -363,6 +366,15 @@ public sealed class SeerrOptions
     public string ApiKey { get; set; } = "";
 
     public SeerrInstance? Instance => Uri.TryCreate(BaseUrl, UriKind.Absolute, out var url) && ApiKey.Length > 0 ? new SeerrInstance(url, ApiKey) : null;
+}
+
+public sealed class WatchFolderOptions
+{
+    /// <summary>
+    /// Notices files added, changed or removed in library folders as it happens, and scans just that title. Off leaves
+    /// it to the scans every 12 hours (and the *arr webhooks).
+    /// </summary>
+    public bool Enabled { get; set; } = true;
 }
 
 public sealed class MusicRequestOptions

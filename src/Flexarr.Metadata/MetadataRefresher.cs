@@ -80,6 +80,12 @@ public sealed partial class MetadataRefresher(
     private bool _scannedOnly;
 
     /// <summary>
+    /// A scan's forced refresh of the folders just scanned (a cover or <c>.nfo</c> changed there): those titles are read
+    /// afresh, and the rest of the library is left alone.
+    /// </summary>
+    private bool _forcedWithin;
+
+    /// <summary>
     /// Titles a refresh left due because their Radarr or Sonarr didn't answer (see <see cref="RefreshDueAsync"/>).
     /// </summary>
     public List<Guid> LeftDue { get; } = [];
@@ -108,12 +114,15 @@ public sealed partial class MetadataRefresher(
     }
 
     /// <summary>
-    /// What a scan refreshes: titles new since the last refresh and those in <paramref name="within"/> (or, with
-    /// <paramref name="force"/>, everything). Titles merely out of date are left to <see cref="RefreshDueAsync"/>.
+    /// What a scan refreshes: titles new since the last refresh and those in <paramref name="within"/>, read afresh with
+    /// <paramref name="force"/>; with <paramref name="force"/> and no <paramref name="within"/>, everything. Titles merely
+    /// out of date are left to <see cref="RefreshDueAsync"/>.
     /// </summary>
     public async Task<MetadataRefreshResult> RefreshScannedAsync(Library library, bool force, IReadOnlyCollection<string> within, int? tmdbId, int? tvdbId, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(within);
         _scannedOnly = true;
+        _forcedWithin = force && within.Count > 0;
         try
         {
             return await RefreshLibraryAsync(library, force, within, tmdbId, tvdbId, ct).ConfigureAwait(false);
@@ -121,6 +130,7 @@ public sealed partial class MetadataRefresher(
         finally
         {
             _scannedOnly = false;
+            _forcedWithin = false;
         }
     }
 
@@ -205,7 +215,7 @@ public sealed partial class MetadataRefresher(
 
         var radarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Radarr).ToList();
         // Just the webhook's, or a timed refresh's few: ask for just those.
-        var onlyWithin = !force && (_dueAtMost is not null || items.All(i => also.Contains(i.Id)));
+        var onlyWithin = (!force || _forcedWithin) && (_dueAtMost is not null || items.All(i => also.Contains(i.Id)));
         var (fetched, allAnswered) = await KnownAsync(radarrs, onlyWithin ? items : null, Hinted(also, tmdbId, i => i.TmdbId),
             arr.GetMoviesAsync, arr.GetMovieAsync, arr.GetMoviesByTmdbIdAsync, ct).ConfigureAwait(false);
         var known = fetched.Select(k => (k.Instance, Movie: k.Entry)).ToList();
@@ -433,7 +443,7 @@ public sealed partial class MetadataRefresher(
             // Followed artists still waiting for their first album were followed through a Lidarr that's gone.
             await db.MediaItems.Where(i => i.LibraryId == libraryId && i.Kind == MediaKind.Artist && i.Placeholder && !i.Children.Any())
                 .ExecuteDeleteAsync(ct).ConfigureAwait(false);
-            return await RefreshMusicFromTagsAsync(libraryId, force, ct).ConfigureAwait(false);
+            return await RefreshMusicFromTagsAsync(libraryId, force, within, ct).ConfigureAwait(false);
         }
 
         // Albums in the folders just scanned (a Lidarr import) make their artist due, so new albums get their cover
@@ -546,10 +556,20 @@ public sealed partial class MetadataRefresher(
     }
 
     /// <summary>No Lidarr: the tags stand, and the artwork the scanner found gets its ambient colour.</summary>
-    private async Task<MetadataRefreshResult> RefreshMusicFromTagsAsync(Guid libraryId, bool force, CancellationToken ct)
+    private async Task<MetadataRefreshResult> RefreshMusicFromTagsAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
     {
+        // Forced for the folders just scanned: those albums and their artists, not every colour in the library.
+        List<Guid> forced = [];
+        if (_forcedWithin)
+        {
+            var albums = await WithinAsync(libraryId, MediaKind.Album, within, ct).ConfigureAwait(false);
+            forced = [.. albums, .. await WithinAsync(libraryId, MediaKind.Artist, within, ct).ConfigureAwait(false)];
+        }
+
+        var everything = force && !_forcedWithin;
         var items = await db.MediaItems
-            .Where(i => i.LibraryId == libraryId && (i.Kind == MediaKind.Album || i.Kind == MediaKind.Artist) && i.PosterUrl != null && (force || i.AccentColor == null))
+            .Where(i => i.LibraryId == libraryId && (i.Kind == MediaKind.Album || i.Kind == MediaKind.Artist) && i.PosterUrl != null
+                && (everything || forced.Contains(i.Id) || i.AccentColor == null))
             .ToListAsync(ct).ConfigureAwait(false);
         foreach (var item in items)
         {
@@ -910,7 +930,7 @@ public sealed partial class MetadataRefresher(
 
         var sonarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Sonarr).ToList();
         // Just the webhook's, or a timed refresh's few: ask for just those.
-        var onlyWithin = !force && (_dueAtMost is not null || items.All(i => also.Contains(i.Id)));
+        var onlyWithin = (!force || _forcedWithin) && (_dueAtMost is not null || items.All(i => also.Contains(i.Id)));
         var (fetched, allAnswered) = await KnownAsync(sonarrs, onlyWithin ? items : null, Hinted(also, tvdbId, i => i.TvdbId),
             arr.GetSeriesAsync, arr.GetOneSeriesAsync, arr.GetSeriesByTvdbIdAsync, ct).ConfigureAwait(false);
         var known = fetched.Select(k => (k.Instance, Series: k.Entry)).ToList();
@@ -1754,7 +1774,7 @@ public sealed partial class MetadataRefresher(
 
     private IQueryable<MediaItem> Stale(Guid libraryId, MediaKind kind, bool force, List<Guid> also)
     {
-        if (_scannedOnly && !force)
+        if (_scannedOnly && (!force || _forcedWithin))
         {
             // Never refreshed, or set to be on the next scan (PathMappingFinder.RematchAsync: a new mapping or connection
             // may link them).

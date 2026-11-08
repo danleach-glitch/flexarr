@@ -73,7 +73,7 @@ Choose **Connect** beside **Bazarr**, type its **Address** and **API key**, and 
 
 ## Webhooks: new downloads appear straight away
 
-Without webhooks, Flexarr finds new files on its own scan every 12 hours. With them, Sonarr, Radarr and Lidarr tell Flexarr the moment they import, upgrade, rename or delete something, and Flexarr rescans only that folder.
+Flexarr notices new files in your library folders by itself, but not always on a network share, where files another computer adds may wait for its scan every 12 hours. With webhooks, Sonarr, Radarr and Lidarr tell Flexarr the moment they import, upgrade, rename or delete something, wherever the files are, and Flexarr rescans only that folder.
 
 Usually there's nothing to do: connecting an app adds a webhook called **Flexarr** to it, which you'll see under **Settings › Connect** in the app. If it isn't there, the app couldn't reach Flexarr at any address Flexarr tried: add it by hand.
 

@@ -52,7 +52,9 @@ public sealed record SettingsDto(
     // What the server is called (Settings › Overview): the name an admin gave it, or null for the machine's name,
     // which is the default (absent from servers before 0.61).
     string? ServerName = null,
-    string? DefaultServerName = null);
+    string? DefaultServerName = null,
+    // Whether library folders are watched for new files (Settings › Libraries; absent from servers before 0.64).
+    bool? WatchFolders = null);
 
 /// <summary>The admin's own Trakt app, used instead of Flexarr's; the secret is never sent back, only whether there is one.</summary>
 public sealed record TraktAppDto(string ClientId, bool HasSecret);
@@ -104,7 +106,9 @@ public sealed record SettingsUpdate(
     string? Pin = null,
     bool? Confirm = null,
     // A new name for the server; empty goes back to the machine's name. Absent from web apps before 0.61.
-    string? ServerName = null);
+    string? ServerName = null,
+    // Whether library folders are watched for new files. Absent from web apps before 0.64.
+    bool? WatchFolders = null);
 
 /// <param name="ApiKey">TMDB's API key or read access token; empty to remove it.</param>
 public sealed record TmdbKeyUpdate(string ApiKey);
@@ -246,6 +250,11 @@ public static class SettingsEndpoints
                 if (update.AllowMusicRequests is { } allowMusic)
                 {
                     config["musicRequests"] = new JsonObject { ["enabled"] = allowMusic };
+                }
+
+                if (update.WatchFolders is { } watch)
+                {
+                    config["watchFolders"] = new JsonObject { ["enabled"] = watch };
                 }
 
                 if (update.Bazarr is { } bazarr)
@@ -539,7 +548,8 @@ public static class SettingsEndpoints
         o.MusicRequests.Enabled,
         Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true",
         o.ServerName?.Trim() is { Length: > 0 } name ? name : null,
-        ServerName.Default);
+        ServerName.Default,
+        o.WatchFolders.Enabled);
 
     /// <summary>
     /// This machine's name on the network ("Dans-Mac-Mini"), which the web app puts in place of localhost in links to

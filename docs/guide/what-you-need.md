@@ -54,7 +54,7 @@ You can run Flexarr without them, but what you get differs by library.
 
 A few other things depend on the \*arrs too:
 
-- **New downloads appear straight away** when Sonarr, Radarr or Lidarr tell Flexarr about them with a webhook, which Flexarr adds to each app for you. Without that, Flexarr finds new files on its own scan, every 12 hours, or when you start one in **Settings › Libraries**.
+- **New downloads appear straight away** when Sonarr, Radarr or Lidarr tell Flexarr about them with a webhook, which Flexarr adds to each app for you. Flexarr also notices new files by itself, whoever adds them, except files another computer adds to a network share.
 - **Coming soon**, showing episodes about to air and movies about to be released, comes from Sonarr and Radarr.
 
 Some features don't need any of them: podcasts are built in, [Live TV](live-tv.md) uses Dispatcharr, and the web app, profiles, downloads to your phone and [importing your history from Plex](import-from-plex.md) all work on their own.

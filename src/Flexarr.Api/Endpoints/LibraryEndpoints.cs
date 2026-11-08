@@ -2,6 +2,7 @@ using Flexarr.Api.Configuration;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
+using Flexarr.Api.Scanning;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Paths;
 using Flexarr.Core.Scanning;
@@ -21,7 +22,7 @@ public static class LibraryEndpoints
         // all=true (admins, for Settings) lists libraries hidden from the current profile too. Neither lists the DVR's
         // recordings while there's Live TV to find them in.
         group.MapGet("/", async (bool? all, FlexarrDbContext db, CurrentProfile profile, ScanProgress progress, IOptionsMonitor<FlexarrOptions> options,
-            CancellationToken ct) =>
+            FolderWatcher watcher, CancellationToken ct) =>
         {
             if (all == true && profile.IsAdmin)
             {
@@ -37,15 +38,15 @@ public static class LibraryEndpoints
             // A profile with an age limit isn't shown libraries with nothing in them for it: a child's menu is what they can watch.
             var limited = db.IsLimited();
             return InOrder(libraries, order).Where(l => !(liveTv && RecordingsLibrary.Is(l)) && (!limited || counts.GetValueOrDefault(l.Id) > 0))
-                .Select(l => ToDto(l, counts.GetValueOrDefault(l.Id), progress, profile.IsMainProfile)).ToList();
+                .Select(l => ToDto(l, counts.GetValueOrDefault(l.Id), progress, watcher, profile.IsMainProfile)).ToList();
         });
 
-        group.MapGet("/{id:guid}", async (Guid id, FlexarrDbContext db, ScanProgress progress, CurrentProfile profile, CancellationToken ct) =>
+        group.MapGet("/{id:guid}", async (Guid id, FlexarrDbContext db, ScanProgress progress, CurrentProfile profile, FolderWatcher watcher, CancellationToken ct) =>
             await db.Libraries.Include(l => l.Folders).FirstOrDefaultAsync(l => l.Id == id, ct) is { } library
-                ? Results.Ok(ToDto(library, await db.MediaItems.CountAsync(i => i.LibraryId == id && i.ParentId == null, ct), progress, profile.IsMainProfile))
+                ? Results.Ok(ToDto(library, await db.MediaItems.CountAsync(i => i.LibraryId == id && i.ParentId == null, ct), progress, watcher, profile.IsMainProfile))
                 : Results.NotFound());
 
-        group.MapPost("/", async (LibraryRequest request, FlexarrDbContext db, ILibraryScanQueue queue, ScanProgress progress, CancellationToken ct) =>
+        group.MapPost("/", async (LibraryRequest request, FlexarrDbContext db, ILibraryScanQueue queue, ScanProgress progress, FolderWatcher watcher, CancellationToken ct) =>
         {
             if (request.Type == LibraryType.Podcasts)
             {
@@ -68,10 +69,11 @@ public static class LibraryEndpoints
             await db.SaveChangesAsync(ct);
             await EnqueueAsync(library, queue, "Library added", ct);
 
-            return Results.Created($"/api/v1/libraries/{library.Id}", ToDto(library, 0, progress));
+            return Results.Created($"/api/v1/libraries/{library.Id}", ToDto(library, 0, progress, watcher));
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
-        group.MapPut("/{id:guid}", async (Guid id, LibraryRequest request, FlexarrDbContext db, ILibraryScanQueue queue, ScanProgress progress, CancellationToken ct) =>
+        group.MapPut("/{id:guid}", async (Guid id, LibraryRequest request, FlexarrDbContext db, ILibraryScanQueue queue, ScanProgress progress, FolderWatcher watcher,
+            CancellationToken ct) =>
         {
             db.HiddenLibraryIds = []; // Settings manages every library
             var library = await db.Libraries.Include(l => l.Folders).FirstOrDefaultAsync(l => l.Id == id, ct);
@@ -94,11 +96,8 @@ public static class LibraryEndpoints
             var removed = library.Folders.Where(f => !folders.Contains(f.Path)).ToList();
             var added = folders.Where(p => library.Folders.All(f => f.Path != p)).Select(p => new LibraryFolder { Path = p }).ToList();
             library.Name = request.Name.Trim();
-            if (request.FineForKids is { } fine && fine != library.FineForKids)
-            {
-                library.FineForKids = fine;
-                LibraryVisibility.KidsSettingsChanged();
-            }
+            var kidsChanged = request.FineForKids is { } fine && fine != library.FineForKids;
+            library.FineForKids = request.FineForKids ?? library.FineForKids;
             library.Folders.RemoveAll(removed.Contains);
             library.Folders.AddRange(added);
 
@@ -118,6 +117,10 @@ public static class LibraryEndpoints
             }
 
             await db.SaveChangesAsync(ct);
+            if (kidsChanged)
+            {
+                LibraryVisibility.KidsSettingsChanged(); // After saving, or a stream reading now keeps the old answer.
+            }
 
             // Only new folders need a scan: a rename, or dropping a folder, leaves the rest as they were.
             foreach (var folder in added)
@@ -125,7 +128,7 @@ public static class LibraryEndpoints
                 await queue.EnqueueAsync(new LibraryScanRequest(folder.Path, "Library updated"), ct);
             }
 
-            return Results.Ok(ToDto(library, await db.MediaItems.CountAsync(i => i.LibraryId == id && i.ParentId == null, ct), progress));
+            return Results.Ok(ToDto(library, await db.MediaItems.CountAsync(i => i.LibraryId == id && i.ParentId == null, ct), progress, watcher));
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         // Podcasts are part of Flexarr: their library stays (Settings › Libraries moves its folder).
@@ -169,11 +172,15 @@ public static class LibraryEndpoints
 
     /// <param name="paths">False for any profile but the main one: where the library's folders are on the server's disk, and the
     /// file a scan has reached, are left empty (the fields stay, as apps read them).</param>
-    private static LibraryDto ToDto(Library library, int itemCount, ScanProgress progress, bool paths = true)
+    private static LibraryDto ToDto(Library library, int itemCount, ScanProgress progress, FolderWatcher watcher, bool paths = true)
     {
         var scan = progress.Current is { } p && p.LibraryId == library.Id ? new ScanStatusDto(paths ? p.Path : "", p.Total, p.Processed) : null;
-        return new LibraryDto(library.Id, library.Name, library.Type, paths ? library.Folders.Select(f => f.Path).Order().ToList() : [],
-            itemCount, library.LastScannedAt, scan, library.FineForKids);
+        var folders = library.Folders.Select(f => f.Path).Order().ToList();
+        // A folder the watcher hasn't looked at yet (just added, or the server just started) is left out until it has.
+        var watch = paths
+            ? folders.Select(f => watcher.StatusOf(f) is { } status ? new FolderWatchDto(f, status.State, status.Problem) : null).OfType<FolderWatchDto>().ToList()
+            : null;
+        return new LibraryDto(library.Id, library.Name, library.Type, paths ? folders : [], itemCount, library.LastScannedAt, scan, library.FineForKids, watch);
     }
 
     private static List<string> Normalize(IEnumerable<string> folders) =>

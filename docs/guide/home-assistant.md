@@ -103,7 +103,7 @@ Change `Living room TV` to your device's name in Flexarr, and `light.living_room
 
 ## For other automation tools
 
-The integration is built on Flexarr's event stream, which anything else can use too. `GET /api/v1/events` on your server is a stream of server-sent events: one `playback` event, as JSON, for each change, with a keep-alive comment every twenty seconds. Because it shows what everyone is watching, it needs the API key, sent as an `X-Api-Key` header.
+The integration is built on Flexarr's event stream, which anything else can use too. `GET /api/v1/events` on your server is a stream of server-sent events: one `playback` event, as JSON, for each change, one `added` event for each film, episode, album or book new to your library (with its title, show, season and episode), and a keep-alive comment every twenty seconds. A scan that finds more than 25 new titles at once (a new library, a big import) sends no `added` events. A title first found by a later scan, such as on a network share, is announced when that scan finds it. A film or show that only moved isn't announced, and `added` says nothing about who has watched what. Because it shows what everyone is watching, it needs the API key, sent as an `X-Api-Key` header.
 
 ```bash
 curl -N -H "X-Api-Key: <your key>" http://<server>:8383/api/v1/events

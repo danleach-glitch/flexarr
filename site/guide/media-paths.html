@@ -117,7 +117,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Your *arrs</p>
         <h1>Media paths</h1>
         <p class="lede">Why Flexarr needs to see your files at the same paths as Sonarr, Radarr and Lidarr, how to line them up in Docker, and how to use path mappings when you can&#39;t.</p>
-        <p class="meta">4 min read</p>
+        <p class="meta">5 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -228,7 +228,7 @@
 </tbody></table></div>
 <h2 id="signs-the-paths-don-t-match"><a class="anchor" href="#signs-the-paths-don-t-match" aria-hidden="true" tabindex="-1">#</a>Signs the paths don&#39;t match</h2>
 <ul>
-<li><strong>New downloads don&#39;t appear until the next scan.</strong> Webhooks arrive, but Flexarr can&#39;t find the folder they name, so nothing happens until its scheduled scan every 12 hours.</li>
+<li><strong>New downloads on a network share don&#39;t appear until the next scan.</strong> Webhooks arrive, but Flexarr can&#39;t find the folder they name, so nothing happens until its scheduled scan every 12 hours. (On a drive of its own, Flexarr notices the files by itself, so this shows less.)</li>
 <li><strong>Deleting a movie or show offers to delete the files itself.</strong> The delete box says Radarr or Sonarr &quot;doesn&#39;t manage&quot; a title you know it does, because Flexarr couldn&#39;t match the paths.</li>
 <li><strong>Importing your history from Plex</strong> matches fewer titles than expected, if Plex saw your files at other paths too.</li>
 <li><strong>Albums don&#39;t pick up Lidarr&#39;s artwork</strong>, because Flexarr matches them to Lidarr by folder.</li>

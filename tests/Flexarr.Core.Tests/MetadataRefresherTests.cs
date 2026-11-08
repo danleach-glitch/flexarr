@@ -36,6 +36,22 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AForcedRefreshOfAScannedTitle_LeavesTheRestOfTheLibraryAlone()
+    {
+        var yesterday = DateTime.UtcNow.AddDays(-1);
+        await AddMovieAsync("Heat", yesterday, poster: "https://image.test/heat.jpg");
+        await AddMovieAsync("Dune", yesterday, poster: "https://image.test/dune.jpg");
+        await AddMovieAsync("Alien", yesterday, poster: "https://image.test/alien.jpg");
+
+        var title = await Refresher().RefreshScannedAsync(_library, true, ["/movies/Heat"], null, null, default);
+        Assert.Equal(1, title.FromArr + title.FromLookup + title.Unmatched + title.FromLocal);
+
+        // The refresh button on a whole library still means everything.
+        var whole = await Refresher().RefreshScannedAsync(_library, true, [], null, null, default);
+        Assert.Equal(3, whole.FromArr + whole.FromLookup + whole.Unmatched + whole.FromLocal);
+    }
+
+    [Fact]
     public async Task NothingStale_DoesNotFetchTheArrLibrary()
     {
         await AddMovieAsync("Dune", DateTime.UtcNow.AddDays(-1), poster: "https://image.test/dune.jpg");

@@ -45,7 +45,16 @@ Full details are in [Away from home](away-from-home.md).
 
 ### New downloads don't appear
 
-Flexarr rescans each library every 12 hours, and straight away when Sonarr, Radarr or Lidarr tell it something's arrived. Connecting one of them in Flexarr adds that webhook to it for you. If new downloads take hours to show up, the webhook is missing or failing: add it by hand.
+Flexarr notices files copied into your library folders within a minute, and Sonarr, Radarr and Lidarr also tell it straight away with a webhook (connecting one of them in Flexarr adds the webhook for you). A folder it can't watch says why under it in **Settings › Libraries**, and is checked every 12 hours instead:
+
+- **Network share:** files another computer adds to a NAS often aren't reported, and nor are files written straight to one of the disks in a pool (Unraid, mergerfs). The webhooks still arrive, so if downloads take hours to show up, the webhook is missing or failing: add it by hand (below).
+- **Watch limit reached:** on Linux and Docker, a big library can need more than the system allows. Raise it on the computer running Flexarr (the Docker host): `printf 'fs.inotify.max_user_watches=524288\nfs.inotify.max_user_instances=1024\n' | sudo tee /etc/sysctl.d/40-flexarr.conf && sudo sysctl --system`. Flexarr notices the new limit within a minute. On Docker Desktop this doesn't come up, because its folders count as network shares.
+- **Folder not found:** the drive or share isn't connected. Flexarr watches it within five minutes of it coming back, and looks for anything it missed.
+- **Can't be watched:** the system refused for another reason, usually that Flexarr isn't allowed to read the folder. Check its permissions. Flexarr tries again every 12 hours, or when you turn the switch below off and on.
+
+If **Notice new files straight away**, under the list, is off, no folder is watched. Turning it back on looks through your folders once, for anything added while it was off.
+
+To add a webhook by hand:
 
 1. In Flexarr, open **Settings › Connections** and find **Webhooks**. Copy the address for each app.
 2. In Sonarr (and Radarr, and Lidarr), go to **Settings › Connect › + › Webhook**, paste the address, set the method to **POST**, and tick **On Import**, **On Upgrade**, **On Rename** and **On Delete**.

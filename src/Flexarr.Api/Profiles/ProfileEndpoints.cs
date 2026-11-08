@@ -143,7 +143,6 @@ public static partial class ProfileEndpoints
             if (request.HiddenLibraryIds is { } hidden)
             {
                 profile.HiddenLibraryIds = hidden.Distinct().ToList();
-                LibraryVisibility.KidsSettingsChanged();
             }
 
             if (request.RemovePin == true)
@@ -157,6 +156,11 @@ public static partial class ProfileEndpoints
 
             // The main profile's PIN is its own, like anyone's: the admin PIN is apart (see /admin/pin).
             await db.SaveChangesAsync(ct);
+            if (request.HiddenLibraryIds is not null)
+            {
+                LibraryVisibility.KidsSettingsChanged(); // After saving, or a stream reading now keeps the old answer.
+            }
+
             return Results.Ok(ToDto(profile, current));
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 

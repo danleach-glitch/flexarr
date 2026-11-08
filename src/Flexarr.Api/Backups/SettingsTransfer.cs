@@ -49,6 +49,7 @@ public static class SettingsTransfer
     /// <summary>The settings in each section, as config.json names them.</summary>
     public static readonly IReadOnlyDictionary<string, string[]> Sections = new Dictionary<string, string[]>
     {
+        [LibrariesSection] = ["watchFolders"],
         ["connections"] = ["arr", "musicRequests", "seerr", "bazarr", "tmdb", "trakt", "pathMappings"],
         ["liveTv"] = ["liveTv"],
         ["streaming"] = ["transcoding"],
@@ -64,7 +65,7 @@ public static class SettingsTransfer
     };
 
     /// <summary>Settings added to a section later: a file without them leaves this server's as they are.</summary>
-    private static readonly HashSet<string> KeptUnlessGiven = new(StringComparer.OrdinalIgnoreCase) { "trakt", "tmdb", "musicRequests" };
+    private static readonly HashSet<string> KeptUnlessGiven = new(StringComparer.OrdinalIgnoreCase) { "trakt", "tmdb", "musicRequests", "watchFolders" };
 
     /// <summary>
     /// What of a setting goes between servers: for Trakt, only the app's id and secret, never where its token calls go
@@ -233,6 +234,7 @@ public static class SettingsTransfer
         var sections = settings.Select(p => SectionOf(p.Key)).OfType<string>().Distinct().ToList();
         if (libraries.Count > 0)
         {
+            sections.Remove(LibrariesSection);
             sections.Insert(0, LibrariesSection);
         }
 
@@ -250,7 +252,7 @@ public static class SettingsTransfer
         ArgumentNullException.ThrowIfNull(queue);
 
         var settings = document["settings"] as JsonObject ?? [];
-        var chosen = request.Sections.Where(s => s != LibrariesSection).ToHashSet();
+        var chosen = request.Sections.ToHashSet();
         var applied = new List<string>();
         if (chosen.Count > 0)
         {
@@ -346,6 +348,7 @@ public static class SettingsTransfer
 
             if (added > 0)
             {
+                applied.Remove(LibrariesSection);
                 applied.Insert(0, LibrariesSection);
             }
         }

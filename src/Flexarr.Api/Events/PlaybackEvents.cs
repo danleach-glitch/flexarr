@@ -39,6 +39,12 @@ public sealed record PlaybackEventDto(PlaybackEventKind Kind, string SessionId, 
     ItemSummaryDto? Item, double PositionSeconds, double DurationSeconds, DateTime At, string? Chapter = null);
 
 /// <summary>
+/// Something new in the library, for Home Assistant and the like: "a new episode of a show you follow is here". Films,
+/// episodes, albums and books, once a scan has found them and their details are in.
+/// </summary>
+public sealed record LibraryAddedEventDto(ItemSummaryDto Item, DateTime At);
+
+/// <summary>
 /// Works out playback events from the progress players report (started, paused, resumed, credits, ended, stopped) and
 /// hands them to everyone listening on <c>GET /events</c>. Events are noticed on the request path and filled in
 /// (title, device and profile names) off it, by <see cref="PlaybackEventPublisher"/>.
@@ -66,18 +72,28 @@ public sealed class PlaybackEvents
         internal Channel<PlaybackEventDto> Channel { get; } =
             System.Threading.Channels.Channel.CreateBounded<PlaybackEventDto>(new BoundedChannelOptions(256) { SingleReader = true, FullMode = BoundedChannelFullMode.DropOldest });
 
+        internal bool WantsAdded { get; init; }
+
+        internal Channel<LibraryAddedEventDto> AddedChannel { get; } =
+            System.Threading.Channels.Channel.CreateBounded<LibraryAddedEventDto>(new BoundedChannelOptions(256) { SingleReader = true, FullMode = BoundedChannelFullMode.DropOldest });
+
         public ChannelReader<PlaybackEventDto> Events => Channel.Reader;
+
+        /// <summary>What arrived in the library (see <see cref="LibraryAddedEventDto"/>).</summary>
+        public ChannelReader<LibraryAddedEventDto> Added => AddedChannel.Reader;
 
         public void Dispose()
         {
             _owner._listeners.TryRemove(this, out _);
             Channel.Writer.TryComplete();
+            AddedChannel.Writer.TryComplete();
         }
     }
 
-    public Listener Listen()
+    /// <param name="added">Whether it wants to hear of what's new in the library too.</param>
+    public Listener Listen(bool added = false)
     {
-        var listener = new Listener(this);
+        var listener = new Listener(this) { WantsAdded = added };
         _listeners[listener] = 0;
         return listener;
     }
@@ -89,6 +105,17 @@ public sealed class PlaybackEvents
         foreach (var listener in _listeners.Keys)
         {
             listener.Channel.Writer.TryWrite(dto);
+        }
+    }
+
+    internal void PublishAdded(LibraryAddedEventDto dto)
+    {
+        foreach (var listener in _listeners.Keys)
+        {
+            if (listener.WantsAdded)
+            {
+                listener.AddedChannel.Writer.TryWrite(dto);
+            }
         }
     }
 

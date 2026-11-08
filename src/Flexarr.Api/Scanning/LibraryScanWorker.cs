@@ -1,6 +1,8 @@
 using Flexarr.Api.Configuration;
 using Flexarr.Core.Data;
+using Flexarr.Api.Endpoints;
 using Flexarr.Core.Libraries;
+using Flexarr.Core.Media;
 using Flexarr.Core.Paths;
 using Flexarr.Core.Scanning;
 using Flexarr.Metadata;
@@ -16,13 +18,37 @@ public sealed partial class LibraryScanWorker(
     ILibraryScanQueue queue,
     IServiceScopeFactory scopes,
     ILogger<LibraryScanWorker> logger,
-    LibraryWorkGate gate) : BackgroundService
+    LibraryWorkGate gate,
+    FolderWatcher? watcher = null,
+    Events.PlaybackEvents? events = null) : BackgroundService
 {
     private static readonly TimeSpan Debounce = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan ScheduledScanInterval = TimeSpan.FromHours(12);
 
+    /// <summary>
+    /// The schedule's interval for a folder <see cref="FolderWatcher"/> keeps up with: its changes are noticed as they
+    /// happen, so the full scan is only a backstop for an event the system dropped, and the drive is woken less.
+    /// </summary>
+    internal static readonly TimeSpan WatchedScanInterval = TimeSpan.FromDays(7);
+
+    internal const string StartupReason = "Startup";
+
+    /// <summary>
+    /// More new titles than this in one scan (a new library, a big import) aren't news: no "added" events for them, so an
+    /// automation that announces new episodes doesn't read out a whole collection.
+    /// </summary>
+    internal const int MaxAddedEvents = 25;
+
+    /// <summary>No profile has this id, so <see cref="ItemQueries.Summaries"/> says nothing of anyone's watching.</summary>
+    private const string NoProfile = "";
+
     /// <summary>How often the schedule looks for a library folder whose last full scan is <see cref="ScheduledScanInterval"/> old.</summary>
     private static readonly TimeSpan ScheduleCheck = TimeSpan.FromMinutes(15);
+
+    private static readonly TimeSpan RememberScansFor = TimeSpan.FromHours(1);
+
+    /// <summary>When the last scan of each path started (see <see cref="AlreadyScanned"/>). Only this worker's own loop uses it.</summary>
+    private readonly Dictionary<string, DateTime> _scanStartedAt = new(StringComparer.Ordinal);
 
     /// <summary>When the schedule last queued each library folder, since the server started: one queued but not yet done isn't queued again.</summary>
     private readonly Dictionary<string, DateTime> _queuedAt = new(StringComparer.Ordinal);
@@ -31,7 +57,7 @@ public sealed partial class LibraryScanWorker(
     {
         // Catch up on anything that changed while the server was down (and finish interrupted scans). A folder scanned
         // in full less than 12 hours ago waits until then: a restart doesn't scan everything again.
-        await EnqueueAllSafelyAsync("Startup", stoppingToken);
+        await EnqueueAllSafelyAsync(StartupReason, stoppingToken);
 
         _ = ScheduleAsync(stoppingToken);
 
@@ -103,13 +129,14 @@ public sealed partial class LibraryScanWorker(
 
     /// <summary>
     /// Each library folder whose last full scan finished <see cref="ScheduledScanInterval"/> ago or more (or that never
-    /// had one), unless the schedule queued it within that time.
+    /// had one), unless the schedule queued it within that time; <see cref="WatchedScanInterval"/> for a folder that's
+    /// being watched, except at startup or while it's on hold.
     /// </summary>
     internal async Task EnqueueAllAsync(string reason, CancellationToken ct)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-        foreach (var folder in await db.LibraryFolders.AsNoTracking().Select(f => new { f.Path, f.FullScanAt }).ToListAsync(ct))
+        foreach (var folder in await db.LibraryFolders.AsNoTracking().Select(f => new { f.Path, f.FullScanAt, f.Hold }).ToListAsync(ct))
         {
             var now = DateTime.UtcNow;
             var last = folder.FullScanAt;
@@ -118,7 +145,10 @@ public sealed partial class LibraryScanWorker(
                 last = queued; // Queued and not done yet, or it failed: tried again when the interval is up, as before.
             }
 
-            if (last is { } at && at <= now && now - at < ScheduledScanInterval)
+            // At startup the watcher wasn't running while the server was down, so whatever changed then was missed. And a
+            // folder on hold depends on full scans: only they end a hold, or see that it's lasted (LibraryScanner.KeepHolding).
+            var interval = reason != StartupReason && folder.Hold is null && watcher?.KeepsUpWith(folder.Path) == true ? WatchedScanInterval : ScheduledScanInterval;
+            if (last is { } at && at <= now && now - at < interval)
             {
                 continue;
             }
@@ -146,11 +176,46 @@ public sealed partial class LibraryScanWorker(
             .ToList();
         return distinct
             .Where(r => !distinct.Any(o => o.Path != r.Path && PathComparison.IsUnder(r.Path, o.Path)))
-            .Select(r => r with { ForceMetadata = all.Any(o => o.ForceMetadata && PathComparison.IsUnder(o.Path, r.Path)) });
+            .Select(r =>
+            {
+                var covered = all.Where(o => PathComparison.IsUnder(o.Path, r.Path)).ToList();
+                return r with
+                {
+                    ForceMetadata = covered.Any(o => o.ForceMetadata),
+                    LastChange = covered.All(o => o.LastChange is not null) ? covered.Max(o => o.LastChange) : null,
+                    OnlySubtitles = covered.All(o => o.OnlySubtitles),
+                };
+            });
+    }
+
+    /// <summary>
+    /// Whether a scan that started after the watcher last heard of this change has already covered it: Sonarr's webhook
+    /// and the watcher both report one import, and the second would be a scan and a lookup for nothing. Not a changed
+    /// cover or .nfo, which a scan doesn't read afresh without being asked.
+    /// </summary>
+    internal bool AlreadyScanned(LibraryScanRequest request) =>
+        request is { LastChange: { } last, ForceMetadata: false }
+        && _scanStartedAt.Any(s => s.Value >= last && PathComparison.IsUnder(request.Path, s.Key));
+
+    internal void NoteScanned(string path, DateTime started)
+    {
+        foreach (var old in _scanStartedAt.Where(s => started - s.Value > RememberScansFor).Select(s => s.Key).ToList())
+        {
+            _scanStartedAt.Remove(old);
+        }
+
+        _scanStartedAt[path] = started;
     }
 
     private async Task ScanAsync(LibraryScanRequest request, CancellationToken ct)
     {
+        if (AlreadyScanned(request))
+        {
+            LogAlreadyScanned(PathComparison.Printable(request.Path));
+            return;
+        }
+
+        var scanStarted = DateTime.UtcNow;
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
         var scanner = scope.ServiceProvider.GetRequiredService<LibraryScanner>();
@@ -187,7 +252,7 @@ public sealed partial class LibraryScanWorker(
             var result = await scanner.ScanAsync(library, target, request.ForceMetadata, request.Deleted, ct);
             foreach (var folder in library.Folders.Where(f => PathComparison.IsUnder(f.Path, target)))
             {
-                // A scan of the whole folder: the schedule's next one is 12 hours from now, restart or not.
+                // A scan of the whole folder: the schedule's next one is 12 hours (a week, if watched) from now, restart or not.
                 var finished = DateTime.UtcNow;
                 await db.LibraryFolders.Where(f => f.Id == folder.Id).ExecuteUpdateAsync(u => u.SetProperty(f => f.FullScanAt, finished), ct);
             }
@@ -216,7 +281,8 @@ public sealed partial class LibraryScanWorker(
             }
         }
 
-        foreach (var library in targets.Select(t => t.Library).DistinctBy(l => l.Id))
+        // Subtitles alone change nothing a lookup would find.
+        foreach (var library in request.OnlySubtitles ? [] : targets.Select(t => t.Library).DistinctBy(l => l.Id))
         {
             // A scan of one folder (a webhook) also refreshes the films or series in it, so new episodes get their
             // titles straight away rather than when the series is next due. Titles merely out of date are left to
@@ -237,7 +303,66 @@ public sealed partial class LibraryScanWorker(
         // A film or show that came back under a new folder only has its TMDB/TVDB id once Radarr or Sonarr matched it.
         await WatchHistoryCarryOver.CarryOverAsync(db, ct);
         await TraktHolds.ApplyAsync(db, ct);
+
+        NoteScanned(request.Path, scanStarted);
+        if (events is not null)
+        {
+            await AnnounceAddedAsync(db, targets.Select(t => t.Library.Id).Distinct().ToList(), scanStarted, ct);
+        }
     }
+
+    /// <summary>
+    /// "event: added" for the films, episodes, albums and books this scan put in the library, with their details and
+    /// nobody's watch state: the stream is the household's, not one profile's. Not ones that only moved (see
+    /// <see cref="WasHereBeforeAsync"/>).
+    /// </summary>
+    internal async Task AnnounceAddedAsync(FlexarrDbContext db, List<Guid> libraries, DateTime since, CancellationToken ct)
+    {
+        MediaKind[] news = [MediaKind.Movie, MediaKind.Episode, MediaKind.Album, MediaKind.Audiobook];
+        var added = db.MediaItems.IgnoreQueryFilters().Where(i => libraries.Contains(i.LibraryId) && i.FirstSeenAt >= since && i.MissingSince == null && news.Contains(i.Kind));
+        var count = await added.CountAsync(ct);
+        if (count == 0 || count > MaxAddedEvents)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        foreach (var item in await added.OrderBy(i => i.FirstSeenAt).Summaries(NoProfile).ToListAsync(ct))
+        {
+            if (!await WasHereBeforeAsync(db, item.Id, since, ct))
+            {
+                events!.PublishAdded(new Events.LibraryAddedEventDto(item, now));
+            }
+        }
+    }
+
+    /// <summary>
+    /// A film or show Radarr or Sonarr moved or renamed is a new item at its new path, but nothing new to the household:
+    /// the same film or episode is still in the library from before, at its old path, for a day after going missing.
+    /// </summary>
+    private static async Task<bool> WasHereBeforeAsync(FlexarrDbContext db, Guid id, DateTime since, CancellationToken ct)
+    {
+        var items = db.MediaItems.IgnoreQueryFilters();
+        var item = await items.Where(i => i.Id == id).Select(i => new
+        {
+            i.Kind, i.Title, i.TmdbId, i.TvdbId, i.ImdbId, i.SeasonNumber, i.EpisodeNumber,
+            ParentTitle = i.Parent != null ? i.Parent.Title : null,
+            SeriesTmdb = i.Parent != null && i.Parent.Parent != null ? i.Parent.Parent.TmdbId : null,
+            SeriesTvdb = i.Parent != null && i.Parent.Parent != null ? i.Parent.Parent.TvdbId : null,
+            SeriesImdb = i.Parent != null && i.Parent.Parent != null ? i.Parent.Parent.ImdbId : null,
+        }).FirstAsync(ct);
+        var earlier = items.Where(i => i.Id != id && i.Kind == item.Kind && i.FirstSeenAt < since);
+        return item.Kind switch
+        {
+            MediaKind.Movie => await earlier.AnyAsync(i => (item.TmdbId != null && i.TmdbId == item.TmdbId) || (item.TvdbId != null && i.TvdbId == item.TvdbId) || (item.ImdbId != null && i.ImdbId == item.ImdbId), ct),
+            MediaKind.Episode => await earlier.AnyAsync(i => i.SeasonNumber == item.SeasonNumber && i.EpisodeNumber == item.EpisodeNumber && i.Parent != null && i.Parent.Parent != null
+                && ((item.SeriesTmdb != null && i.Parent.Parent.TmdbId == item.SeriesTmdb) || (item.SeriesTvdb != null && i.Parent.Parent.TvdbId == item.SeriesTvdb) || (item.SeriesImdb != null && i.Parent.Parent.ImdbId == item.SeriesImdb)), ct),
+            _ => await earlier.AnyAsync(i => i.Title == item.Title && i.Parent != null && i.Parent.Title == item.ParentTitle, ct),
+        };
+    }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{Path} was already scanned since it last changed")]
+    private partial void LogAlreadyScanned(string path);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't work out path mappings before refreshing metadata")]
     private partial void LogMappingsFailed(Exception ex);

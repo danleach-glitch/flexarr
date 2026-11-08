@@ -346,6 +346,8 @@ builder.Services.AddHostedService<MarkerDetectionWorker>();
 
 builder.Services.AddSingleton<ILibraryScanQueue, LibraryScanQueue>();
 builder.Services.AddSingleton<LibraryWorkGate>();
+builder.Services.AddSingleton<FolderWatcher>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<FolderWatcher>());
 builder.Services.AddHostedService<LibraryScanWorker>();
 builder.Services.AddHostedService<MetadataRefreshWorker>();
 

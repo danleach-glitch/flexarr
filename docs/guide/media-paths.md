@@ -113,7 +113,7 @@ Sonarr and Radarr run in Docker Desktop with `-v /Volumes/Media/data:/data`. Fle
 
 ## Signs the paths don't match
 
-- **New downloads don't appear until the next scan.** Webhooks arrive, but Flexarr can't find the folder they name, so nothing happens until its scheduled scan every 12 hours.
+- **New downloads on a network share don't appear until the next scan.** Webhooks arrive, but Flexarr can't find the folder they name, so nothing happens until its scheduled scan every 12 hours. (On a drive of its own, Flexarr notices the files by itself, so this shows less.)
 - **Deleting a movie or show offers to delete the files itself.** The delete box says Radarr or Sonarr "doesn't manage" a title you know it does, because Flexarr couldn't match the paths.
 - **Importing your history from Plex** matches fewer titles than expected, if Plex saw your files at other paths too.
 - **Albums don't pick up Lidarr's artwork**, because Flexarr matches them to Lidarr by folder.

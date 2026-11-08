@@ -117,7 +117,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Around the house</p>
         <h1>Home Assistant</h1>
         <p class="lede">Add Flexarr to Home Assistant so every Apple TV, iPhone and iPad becomes a media player, and dim the lights when a movie starts.</p>
-        <p class="meta">3 min read</p>
+        <p class="meta">4 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -237,7 +237,7 @@ data:
 <blockquote class="callout tip"><p><strong>Tip</strong> Leave out <code>media_type: movie</code> to dim the lights for episodes too, or add a <code>profile</code> to make it only happen when you&#39;re the one watching.</p>
 </blockquote>
 <h2 id="for-other-automation-tools"><a class="anchor" href="#for-other-automation-tools" aria-hidden="true" tabindex="-1">#</a>For other automation tools</h2>
-<p>The integration is built on Flexarr&#39;s event stream, which anything else can use too. <code>GET /api/v1/events</code> on your server is a stream of server-sent events: one <code>playback</code> event, as JSON, for each change, with a keep-alive comment every twenty seconds. Because it shows what everyone is watching, it needs the API key, sent as an <code>X-Api-Key</code> header.</p>
+<p>The integration is built on Flexarr&#39;s event stream, which anything else can use too. <code>GET /api/v1/events</code> on your server is a stream of server-sent events: one <code>playback</code> event, as JSON, for each change, one <code>added</code> event for each film, episode, album or book new to your library (with its title, show, season and episode), and a keep-alive comment every twenty seconds. A scan that finds more than 25 new titles at once (a new library, a big import) sends no <code>added</code> events. A title first found by a later scan, such as on a network share, is announced when that scan finds it. A film or show that only moved isn&#39;t announced, and <code>added</code> says nothing about who has watched what. Because it shows what everyone is watching, it needs the API key, sent as an <code>X-Api-Key</code> header.</p>
 <pre><code class="language-bash">curl -N -H &quot;X-Api-Key: &lt;your key&gt;&quot; http://&lt;server&gt;:8383/api/v1/events
 </code></pre>
 <blockquote class="callout important"><p><strong>Important</strong> The API key gives full control of your server. Keep Home Assistant and anything else holding it on your home network or your tailnet. See <a href="/guide/away-from-home">Watch away from home</a>.</p>

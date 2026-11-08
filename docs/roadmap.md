@@ -14,11 +14,10 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | The Mac app on the App Store | It [downloads from flexarr.io](https://flexarr.io/apps) now; the App Store copy follows the Apple TV app | 🚧 |
 | Flexarr Server for Mac | The server and web app as a menu bar app for the Mac App Store | 🚧 |
 | Android on Google Play | Phones, tablets, Android TV and Google TV, with Chromecast and Android Auto. In a closed test on Google Play. [#49](https://github.com/danleach-glitch/flexarr/discussions/49) | 🚧 |
-| New files noticed at once | In libraries the \*arr apps don't manage, rather than at the next scan. M. [#3](https://github.com/danleach-glitch/flexarr/issues/3) | 🕐 1 |
-| Flexarr in your language | Translated apps, a language per profile. Every app and the web are ready for translation; the languages come next. M, then ongoing. [#126](https://github.com/danleach-glitch/flexarr/discussions/126) | 🕐 2 |
-| TrueHD Atmos with height channels | Object audio kept for receivers that decode it. Android TV already sends TrueHD as it is. M. [#45](https://github.com/danleach-glitch/flexarr/discussions/45) | 🕐 3 |
-| Multiview | Up to four live channels at once. M. [#38](https://github.com/danleach-glitch/flexarr/discussions/38) | 🕐 4 |
-| Mixes and radio by sound | Built from how songs sound, not just their tags. L. [#47](https://github.com/danleach-glitch/flexarr/discussions/47) | 🕐 5 |
+| Flexarr in your language | Translated apps, a language per profile. Every app and the web are ready for translation; the languages come next. M, then ongoing. [#126](https://github.com/danleach-glitch/flexarr/discussions/126) | 🕐 1 |
+| TrueHD Atmos with height channels | Object audio kept for receivers that decode it. Android TV already sends TrueHD as it is. M. [#45](https://github.com/danleach-glitch/flexarr/discussions/45) | 🕐 2 |
+| Multiview | Up to four live channels at once. M. [#38](https://github.com/danleach-glitch/flexarr/discussions/38) | 🕐 3 |
+| Mixes and radio by sound | Built from how songs sound, not just their tags. L. [#47](https://github.com/danleach-glitch/flexarr/discussions/47) | 🕐 4 |
 | More tracker sync | Trakt is built. Still to come: ratings, then Simkl, MyAnimeList and AniList. M. [#128](https://github.com/danleach-glitch/flexarr/discussions/128) | 🗓️ |
 | A calm pause screen | With the title's artwork. [#114](https://github.com/danleach-glitch/flexarr/discussions/114) | 💡 |
 | Storage manager | Free up space together with Sonarr and Radarr. [#22](https://github.com/danleach-glitch/flexarr/discussions/22) | 💡 |
@@ -28,7 +27,7 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | Feature | Details | Status |
 |---|---|:-:|
 | Foundations | Server, API-key auth, CI (server, web, Apple, Docker, CodeQL), Docker image with PUID/PGID and VA-API/Quick Sync, macOS deploy, semver releases, Settings › Updates with one-click updates on a Mac, backups, logs and opt-in error reports | ✅ |
-| Library | Scanner for films, TV, music and audiobooks, file name parsing, ffprobe media info, webhook-driven and scheduled rescans, Fix match and editing details by hand, delete through Sonarr and Radarr, library health, Plex history import, media folders that find themselves, libraries without the \*arr apps, Home videos | ✅ |
+| Library | Scanner for films, TV, music and audiobooks, file name parsing, ffprobe media info, webhook-driven and scheduled rescans, library folders watched so new files show up at once, Fix match and editing details by hand, delete through Sonarr and Radarr, library health, Plex history import, media folders that find themselves, libraries without the \*arr apps, Home videos | ✅ |
 | Metadata | From Sonarr, Radarr and Lidarr with no keys of our own, local `.nfo` files and artwork, TVmaze, TMDB with your own key, IMDb and Rotten Tomatoes scores, image cache, music artwork and album kinds | ✅ |
 | Playback | Direct play on the device (AV1, VC-1 and the rest), repackaging and hardware transcoding, HDR10, HDR10+, HLG and Dolby Vision 5, 7 and 8.1, Atmos passthrough and lossless surround, subtitles with timing, size, position and the system caption style, styled ASS, closed captions and teletext, subtitle search with Bazarr, dialogue boost, night mode and stereo or 5.1 speakers, audio sync, a sleep timer, speed kept per show, skip intro, recap and credits, Up Next, scrubbing previews, near-instant starts | ✅ |
 | Finding things | Home rows you arrange, libraries of the same kind combined on Home, search, person and genre pages, collections (manual, smart and Radarr series), a watchlist that follows titles until they arrive, Coming soon, Discover and Seerr requests for films, shows, seasons and music, shuffle | ✅ |

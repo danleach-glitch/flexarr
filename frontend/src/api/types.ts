@@ -43,6 +43,15 @@ export interface Library {
   scan: ScanStatus | null
   /** Everything in it is fine for profiles with an age limit, rated or not. Absent from servers before 0.56. */
   fineForKids?: boolean
+  /** How each folder is watched for new files; main profile only. Absent from servers before 0.64. */
+  folderWatch?: FolderWatch[] | null
+}
+
+/** How a library folder is watched for new files. New states may come: treat others as unknown. */
+export interface FolderWatch {
+  path: string
+  state: 'Watching' | 'Share' | 'Unavailable' | 'Off' | 'Excluded' | (string & {})
+  problem: 'Missing' | 'Limit' | 'Failed' | (string & {}) | null
 }
 
 export interface LibraryRequest {
@@ -608,6 +617,8 @@ export interface Settings {
   serverName?: string | null
   /** What the server is called when nobody has named it: the machine's name. Absent from servers before 0.61. */
   defaultServerName?: string | null
+  /** Whether library folders are watched for new files. Absent from servers before 0.64. */
+  watchFolders?: boolean | null
 }
 
 export interface SettingsUpdate {
@@ -633,6 +644,7 @@ export interface SettingsUpdate {
   confirm?: boolean
   /** A new name for the server; empty goes back to the machine's name. */
   serverName?: string
+  watchFolders?: boolean
 }
 
 export interface ArrStatus {
