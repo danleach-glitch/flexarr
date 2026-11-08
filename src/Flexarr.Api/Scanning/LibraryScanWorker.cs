@@ -122,13 +122,13 @@ public sealed partial class LibraryScanWorker(
     /// <summary>
     /// Each library folder whose last full scan finished <see cref="ScheduledScanInterval"/> ago or more (or that never
     /// had one), unless the schedule queued it within that time; <see cref="WatchedScanInterval"/> for a folder that's
-    /// being watched, except at startup.
+    /// being watched, except at startup or while it's on hold.
     /// </summary>
     internal async Task EnqueueAllAsync(string reason, CancellationToken ct)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-        foreach (var folder in await db.LibraryFolders.AsNoTracking().Select(f => new { f.Path, f.FullScanAt }).ToListAsync(ct))
+        foreach (var folder in await db.LibraryFolders.AsNoTracking().Select(f => new { f.Path, f.FullScanAt, f.Hold }).ToListAsync(ct))
         {
             var now = DateTime.UtcNow;
             var last = folder.FullScanAt;
@@ -137,8 +137,9 @@ public sealed partial class LibraryScanWorker(
                 last = queued; // Queued and not done yet, or it failed: tried again when the interval is up, as before.
             }
 
-            // At startup the watcher wasn't running while the server was down, so whatever changed then was missed.
-            var interval = reason != StartupReason && watcher?.KeepsUpWith(folder.Path) == true ? WatchedScanInterval : ScheduledScanInterval;
+            // At startup the watcher wasn't running while the server was down, so whatever changed then was missed. And a
+            // folder on hold depends on full scans: only they end a hold, or see that it's lasted (LibraryScanner.KeepHolding).
+            var interval = reason != StartupReason && folder.Hold is null && watcher?.KeepsUpWith(folder.Path) == true ? WatchedScanInterval : ScheduledScanInterval;
             if (last is { } at && at <= now && now - at < interval)
             {
                 continue;

@@ -114,6 +114,33 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task AWatchedFolderOnHold_KeepsThe12HourScan()
+    {
+        var held = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, $"held-{Guid.NewGuid():N}")).FullName;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.Libraries.Add(new Library
+            {
+                Name = $"Held {Guid.NewGuid():N}", Type = LibraryType.Movies,
+                Folders = [new LibraryFolder { Path = held, FullScanAt = DateTime.UtcNow.AddDays(-1), Hold = FolderHold.MostFilesGone, HeldSince = DateTime.UtcNow.AddDays(-1), HeldScans = 1 }],
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using var watcher = new FolderWatcher(new RecordingScanQueue(), factory.Services.GetRequiredService<IServiceScopeFactory>(), new StaticOptions(new Flexarr.Api.Configuration.FlexarrOptions()),
+            TimeProvider.System, NullLogger<FolderWatcher>.Instance);
+        await watcher.SyncAsync(default);
+        Assert.True(watcher.KeepsUpWith(held));
+
+        var queue = new RecordingScanQueue();
+        using var worker = new LibraryScanWorker(queue, factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            factory.Services.GetRequiredService<LibraryWorkGate>(), watcher);
+        await worker.EnqueueAllAsync("Scheduled", default);
+        Assert.Contains(queue.Requests, r => r.Path == held);
+    }
+
+    [Fact]
     public async Task ANewFilm_IsAnnouncedOnTheEventStream()
     {
         using var host = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<IMediaProbe>(new FixedProbe())));
