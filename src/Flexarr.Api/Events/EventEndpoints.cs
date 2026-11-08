@@ -23,8 +23,9 @@ public static class EventEndpoints
     }
 
     /// <summary>
-    /// "event: playback" with a <see cref="PlaybackEventDto"/> as JSON for each change, and a comment every twenty
-    /// seconds so proxies keep it open. It shows everyone's watching, so only the API key or a trusted sign-in has it.
+    /// "event: playback" with a <see cref="PlaybackEventDto"/> as JSON for each change, "event: added" with a
+    /// <see cref="LibraryAddedEventDto"/> for each film, episode, album or book new to the library (absent from servers
+    /// before 0.64), and a comment every twenty seconds so proxies keep it open. It shows everyone's watching, so only the API key or a trusted sign-in has it.
     /// </summary>
     private static async Task StreamAsync(HttpContext http, CurrentProfile current, PlaybackEvents events, Core.Data.FlexarrDbContext db, CancellationToken ct)
     {
@@ -57,13 +58,16 @@ public static class EventEndpoints
         {
             while (!ct.IsCancellationRequested)
             {
-                using var wait = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                wait.CancelAfter(Heartbeat);
-                try
+                using (var wait = CancellationTokenSource.CreateLinkedTokenSource(ct))
                 {
-                    await listener.Events.WaitToReadAsync(wait.Token);
+                    wait.CancelAfter(Heartbeat);
+                    await Task.WhenAny(listener.Events.WaitToReadAsync(wait.Token).AsTask(), listener.Added.WaitToReadAsync(wait.Token).AsTask());
+                    // Lets go of the wait on the other kind, so a stream open for days doesn't gather them.
+                    await wait.CancelAsync();
                 }
-                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+
+                ct.ThrowIfCancellationRequested();
+                if (listener.Events.Count == 0 && listener.Added.Count == 0)
                 {
                     await http.Response.WriteAsync(": ping\n\n", ct);
                     await http.Response.Body.FlushAsync(ct);
@@ -92,6 +96,28 @@ public static class EventEndpoints
                     }
 
                     await http.Response.WriteAsync($"event: playback\ndata: {JsonSerializer.Serialize(playback, Json)}\n\n", ct);
+                }
+
+                while (listener.Added.TryRead(out var added))
+                {
+                    if (kidsSettings != LibraryVisibility.KidsSettingsVersion)
+                    {
+                        kidsSettings = LibraryVisibility.KidsSettingsVersion;
+                        await LibraryVisibility.ApplyAsync(db, current.Id, ct);
+                        hidden = db.HiddenLibraryIds.ToHashSet();
+                        if (db.ServesKids)
+                        {
+                            return;
+                        }
+                    }
+
+                    // Only what this profile may see: unlike playback, there's nothing to tell without saying what it is.
+                    if (hidden.Contains(added.Item.LibraryId) || db.IsLimited() && !await LibraryVisibility.CanSeeAsync(db, added.Item.LibraryId, added.Item.Id, ct))
+                    {
+                        continue;
+                    }
+
+                    await http.Response.WriteAsync($"event: added\ndata: {JsonSerializer.Serialize(added, Json)}\n\n", ct);
                 }
 
                 await http.Response.Body.FlushAsync(ct);

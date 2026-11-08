@@ -114,6 +114,55 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task ANewFilm_IsAnnouncedOnTheEventStream()
+    {
+        using var host = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<IMediaProbe>(new FixedProbe())));
+        var root = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, $"films-{Guid.NewGuid():N}")).FullName;
+        var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = root }] };
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.Libraries.Add(library);
+            await db.SaveChangesAsync();
+        }
+
+        var client = host.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var response = await client.GetAsync(new Uri("/api/v1/events", UriKind.Relative), HttpCompletionOption.ResponseHeadersRead);
+        using var stream = new StreamReader(await response.Content.ReadAsStreamAsync());
+        Assert.Equal(": connected", await stream.ReadLineAsync());
+
+        Directory.CreateDirectory(Path.Combine(root, "Dune (2021)"));
+        File.WriteAllText(Path.Combine(root, "Dune (2021)", "Dune (2021).mkv"), "x");
+        var queue = new LibraryScanQueue();
+        await queue.EnqueueAsync(new LibraryScanRequest(Path.Combine(root, "Dune (2021)"), FolderWatcher.Reason));
+        using var worker = new LibraryScanWorker(queue, host.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            host.Services.GetRequiredService<LibraryWorkGate>(), events: host.Services.GetRequiredService<Flexarr.Api.Events.PlaybackEvents>());
+        await worker.StartAsync(default);
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            string? line;
+            do
+            {
+                line = await stream.ReadLineAsync(timeout.Token);
+            }
+            while (line is not null && line != "event: added");
+
+            var data = await stream.ReadLineAsync(timeout.Token);
+            Assert.StartsWith("data: ", data, StringComparison.Ordinal);
+            var item = System.Text.Json.JsonDocument.Parse(data!["data: ".Length..]).RootElement.GetProperty("item");
+            Assert.Equal("Movie", item.GetProperty("kind").GetString());
+            Assert.Equal(library.Id, item.GetProperty("libraryId").GetGuid());
+            Assert.StartsWith("Dune", item.GetProperty("title").GetString(), StringComparison.Ordinal);
+        }
+        finally
+        {
+            await worker.StopAsync(default);
+        }
+    }
+
+    [Fact]
     public async Task TheMetadataTimer_RefreshesOutOfDateTitles_AFewAtATime()
     {
         var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = $"/films-{Guid.NewGuid():N}" }] };

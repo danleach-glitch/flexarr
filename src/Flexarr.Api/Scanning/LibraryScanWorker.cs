@@ -1,6 +1,8 @@
 using Flexarr.Api.Configuration;
 using Flexarr.Core.Data;
+using Flexarr.Api.Endpoints;
 using Flexarr.Core.Libraries;
+using Flexarr.Core.Media;
 using Flexarr.Core.Paths;
 using Flexarr.Core.Scanning;
 using Flexarr.Metadata;
@@ -17,7 +19,8 @@ public sealed partial class LibraryScanWorker(
     IServiceScopeFactory scopes,
     ILogger<LibraryScanWorker> logger,
     LibraryWorkGate gate,
-    FolderWatcher? watcher = null) : BackgroundService
+    FolderWatcher? watcher = null,
+    Events.PlaybackEvents? events = null) : BackgroundService
 {
     private static readonly TimeSpan Debounce = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan ScheduledScanInterval = TimeSpan.FromHours(12);
@@ -29,6 +32,12 @@ public sealed partial class LibraryScanWorker(
     internal static readonly TimeSpan WatchedScanInterval = TimeSpan.FromDays(7);
 
     internal const string StartupReason = "Startup";
+
+    /// <summary>
+    /// More new titles than this in one scan (a new library, a big import) aren't news: no "added" events for them, so an
+    /// automation that announces new episodes doesn't read out a whole collection.
+    /// </summary>
+    internal const int MaxAddedEvents = 25;
 
     /// <summary>How often the schedule looks for a library folder whose last full scan is <see cref="ScheduledScanInterval"/> old.</summary>
     private static readonly TimeSpan ScheduleCheck = TimeSpan.FromMinutes(15);
@@ -163,6 +172,7 @@ public sealed partial class LibraryScanWorker(
 
     private async Task ScanAsync(LibraryScanRequest request, CancellationToken ct)
     {
+        var scanStarted = DateTime.UtcNow;
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
         var scanner = scope.ServiceProvider.GetRequiredService<LibraryScanner>();
@@ -249,6 +259,29 @@ public sealed partial class LibraryScanWorker(
         // A film or show that came back under a new folder only has its TMDB/TVDB id once Radarr or Sonarr matched it.
         await WatchHistoryCarryOver.CarryOverAsync(db, ct);
         await TraktHolds.ApplyAsync(db, ct);
+
+        if (events is not null)
+        {
+            await AnnounceAddedAsync(db, targets.Select(t => t.Library.Id).Distinct().ToList(), scanStarted, ct);
+        }
+    }
+
+    /// <summary>"event: added" for the films, episodes, albums and books this scan put in the library, with their details.</summary>
+    private async Task AnnounceAddedAsync(FlexarrDbContext db, List<Guid> libraries, DateTime since, CancellationToken ct)
+    {
+        MediaKind[] news = [MediaKind.Movie, MediaKind.Episode, MediaKind.Album, MediaKind.Audiobook];
+        var added = db.MediaItems.IgnoreQueryFilters().Where(i => libraries.Contains(i.LibraryId) && i.FirstSeenAt >= since && i.MissingSince == null && news.Contains(i.Kind));
+        var count = await added.CountAsync(ct);
+        if (count == 0 || count > MaxAddedEvents)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        foreach (var item in await added.OrderBy(i => i.FirstSeenAt).Summaries(PlaybackState.DefaultUser).ToListAsync(ct))
+        {
+            events!.PublishAdded(new Events.LibraryAddedEventDto(item, now));
+        }
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't work out path mappings before refreshing metadata")]
