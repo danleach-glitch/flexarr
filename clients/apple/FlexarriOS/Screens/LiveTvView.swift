@@ -113,7 +113,7 @@ struct LiveTvView: View {
 
     /// For the main profile: refreshes the guide (and has Dispatcharr download it, with an admin key).
     @ViewBuilder private var refreshButton: some View {
-        if model.isMainProfile {
+        if model.canRefreshLiveTv {
             Button {
                 Task {
                     notice = await model.refreshLiveTv()
@@ -131,12 +131,15 @@ struct LiveTvView: View {
         }
     }
 
-    /// For the main profile, who can do something about it: the guide's detail is in the Live TV guide on the site.
+    /// For the main profile, who can do something about it, with where it says how.
     @ViewBuilder private var missingListings: some View {
         if model.isMainProfile, let count = model.liveTvStatus?.channelsWithoutListings, count > 0 {
-            Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", ["count": count]))
+            HStack(spacing: 6) {
+                Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", ["count": count]))
+                    .foregroundStyle(Color.usher)
+                Link(t("Why?"), destination: URL(string: "https://flexarr.io/guide/live-tv#channels-with-no-listings")!)
+            }
                 .font(.footnote)
-                .foregroundStyle(Color.usher)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
         }

@@ -51,7 +51,7 @@ data class LiveTvStatus(
     /** How far back a channel being watched can be rewound. */
     val rewindMinutes: Int = 0,
     /** Channels with nothing listed from now on. Absent from servers before the release after 0.63. */
-    val channelsWithoutListings: Int = 0,
+    val channelsWithoutListings: Int? = null,
     /** Why Dispatcharr couldn't be asked to download its guides, last time it was. Absent from servers before the release after 0.63. */
     val downloadError: String? = null,
 ) {

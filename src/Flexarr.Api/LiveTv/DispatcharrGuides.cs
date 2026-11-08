@@ -180,7 +180,7 @@ public sealed class DispatcharrGuides(HttpClient http)
         HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => GuideDownloadProblem.KeyRefused,
         // A version of Dispatcharr without these calls, or something else at that address.
         HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed => GuideDownloadProblem.NotSupported,
-        _ => response.IsSuccessStatusCode ? GuideDownloadProblem.None : (int)response.StatusCode is >= 300 and < 400 ? GuideDownloadProblem.NotSupported : GuideDownloadProblem.Unreachable,
+        _ => response.IsSuccessStatusCode ? GuideDownloadProblem.None : GuideDownloadProblem.Unreachable,
     };
 
     private static bool Unreachable(Exception ex, CancellationToken ct) =>

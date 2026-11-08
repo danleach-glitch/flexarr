@@ -74,7 +74,7 @@ public static partial class LiveTvEndpoints
         // A kids profile has no Live TV (its status says it isn't there).
         var group = api.MapGroup("/livetv").WithTags("Live TV").NotForKids();
 
-        api.MapGet("/livetv/status", async (IOptionsMonitor<FlexarrOptions> options, LiveTvStatus status, FlexarrDbContext db, TimeProvider clock, CancellationToken ct) =>
+        api.MapGet("/livetv/status", async (IOptionsMonitor<FlexarrOptions> options, LiveTvStatus status, FlexarrDbContext db, CurrentProfile profile, TimeProvider clock, CancellationToken ct) =>
         {
             var o = options.CurrentValue.LiveTv;
             var channels = await db.LiveChannels.CountAsync(ct);
@@ -82,8 +82,10 @@ public static partial class LiveTvEndpoints
             // To a profile with an age limit, Live TV is only there once a parent has picked channels for it; to a kids profile, never.
             var available = o?.Account is not null && !db.ServesKids && (channels > 0 || !db.IsLimited());
             var now = clock.GetUtcNow().UtcDateTime;
-            var missing = available ? await db.LiveChannels.CountAsync(c => !db.LiveProgrammes.Any(p => p.ChannelId == c.Id && p.End > now), ct) : 0;
-            return new LiveTvStatusDto(available, channels, status.Refreshing, refreshed, status.Error, o?.RewindMinutes ?? 60, missing, DownloadErrorText(status.DownloadProblem));
+            // For the main profile, who can do something about them: the others' apps ask for the status too.
+            var main = profile.IsMainProfile;
+            var missing = available && main ? await db.LiveChannels.CountAsync(c => !db.LiveProgrammes.Any(p => p.ChannelId == c.Id && p.End > now), ct) : 0;
+            return new LiveTvStatusDto(available, channels, status.Refreshing, refreshed, status.Error, o?.RewindMinutes ?? 60, missing, main ? DownloadErrorText(status.DownloadProblem) : null);
         }).WithTags("Live TV");
 
         group.MapGet("/channels", async (FlexarrDbContext db, CurrentProfile profile, TimeProvider clock, CancellationToken ct) =>

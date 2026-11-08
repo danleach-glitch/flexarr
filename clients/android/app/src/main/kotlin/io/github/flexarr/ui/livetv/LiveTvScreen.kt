@@ -6,6 +6,7 @@ import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,6 +59,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
@@ -153,7 +155,7 @@ fun LiveTvScreen(model: AppModel) {
     // the list.
     RepeatWhileShowing(if (showsGuide) GUIDE_REFRESH_MS else 60_000, model.credentials, showsGuide) {
         load()
-        model.loadLiveTvStatus()
+        if (model.isMainProfile) model.loadLiveTvStatus()
         // No channels yet (the server couldn't be reached): tried again each minute, as it was, not left five.
         while (showsGuide && channels == null) {
             delay(60_000)
@@ -201,7 +203,7 @@ fun LiveTvScreen(model: AppModel) {
         Column {
             PageTitle(t(Words.liveTv), onBack = { navigator.back() }) {
                 if (all.isNotEmpty()) {
-                    if (model.isMainProfile) {
+                    if (model.canRefreshLiveTv) {
                         IconButton(
                             enabled = !model.isRefreshingLiveTv,
                             onClick = {
@@ -237,12 +239,11 @@ fun LiveTvScreen(model: AppModel) {
                     Chips(filter, groups, onChoose = { chosen = it })
                     val missing = model.liveTvStatus?.channelsWithoutListings ?: 0
                     if (model.isMainProfile && missing > 0) {
-                        Text(
-                            t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", "count" to missing),
-                            fontSize = 13.sp,
-                            color = Flexarr.usher,
-                            modifier = Modifier.padding(horizontal = Edge, vertical = 4.dp),
-                        )
+                        val links = LocalUriHandler.current
+                        Row(Modifier.padding(horizontal = Edge, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", "count" to missing), fontSize = 13.sp, color = Flexarr.usher)
+                            Text(t("Why?"), fontSize = 13.sp, color = Flexarr.screen, modifier = Modifier.clickable { links.openUri("https://flexarr.io/guide/live-tv#channels-with-no-listings") })
+                        }
                     }
                     if (showsGuide) {
                         LiveGuideView(client, shown, order, filter == Filter.Favourites, model, refreshed, onFavourite = { setFavourite(it, !it.isFavourite) }, onNotice = { notice = it })

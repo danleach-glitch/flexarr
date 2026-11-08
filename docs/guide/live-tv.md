@@ -47,7 +47,7 @@ Flexarr shows the guide Dispatcharr gives it, so **No listings** means Dispatcha
 
 ### Letting Refresh update Dispatcharr
 
-**Refresh guide** normally reads what Dispatcharr already has. To have it make Dispatcharr download its guides first, add an **Admin API key** in **Settings › Connections › Dispatcharr**, using the API key of a Dispatcharr admin. **Test** checks that the key works.
+**Refresh guide** normally reads what Dispatcharr already has. To have it make Dispatcharr download its guides first, add an **Admin API key** in **Settings › Connections › Dispatcharr**, using the API key of a Dispatcharr admin. **Test** checks that the key works. API keys need Dispatcharr 0.20 or later. If a correct key is refused and you use Network Access rules in Dispatcharr, check that its **UI** rule lets your Flexarr server in.
 
 This is optional, and it gives Flexarr admin rights in Dispatcharr, so leave it out if you'd rather not. Your guide sources are contacted at most once every 15 minutes, however often Refresh is pressed.
 

@@ -271,7 +271,7 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     // What's on moves on: fetched again each minute while the screen is up.
     RepeatWhileShowing(60_000, model.credentials) {
         load()
-        model.loadLiveTvStatus()
+        if (model.isMainProfile) model.loadLiveTvStatus()
     }
     LaunchedEffect(focusedCategory) {
         val resting = focusedCategory ?: return@LaunchedEffect
@@ -373,7 +373,7 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                             modifier = if (value == Category.Favourites) Modifier.focusRequester(firstCategory) else Modifier,
                         )
                     }
-                    if (model.isMainProfile) {
+                    if (model.canRefreshLiveTv) {
                         item(key = "refresh") {
                             CategoryButton(
                                 if (model.isRefreshingLiveTv) t("Refreshing…") else t("Refresh guide"),

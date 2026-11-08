@@ -146,7 +146,7 @@ struct LiveTvView: View {
     /// For the main profile: refreshes the guide (and has Dispatcharr download it, with an admin key), and says how many
     /// channels still have no listings. Above the groups, of which there can be more than fit.
     @ViewBuilder private var refreshButton: some View {
-        if model.isMainProfile {
+        if model.canRefreshLiveTv {
             Button {
                 Task {
                     refreshProblem = await model.refreshLiveTv()

@@ -34,10 +34,34 @@ public sealed class FakeDispatcharr : HttpMessageHandler
 
     public ConcurrentQueue<Uri> Requests { get; } = new();
 
+    public const string AdminKey = "admin-k3y";
+
+    /// <summary>How many times its guides have been asked to download.</summary>
+    public int GuideDownloads => _guideDownloads;
+
+    private int _guideDownloads;
+
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var url = request.RequestUri!;
         Requests.Enqueue(url);
+        if (url.AbsolutePath.StartsWith("/api/epg/", StringComparison.Ordinal))
+        {
+            if (!request.Headers.TryGetValues("X-API-Key", out var keys) || keys.Single() != AdminKey)
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized));
+            }
+
+            if (request.Method == HttpMethod.Post)
+            {
+                Interlocked.Increment(ref _guideDownloads);
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Accepted));
+            }
+
+            // Each download finishes at once, stamped with how many there have been.
+            return Task.FromResult(Json($$"""[{"id":1,"source_type":"xmltv","is_active":true,"status":"success","updated_at":"{{_guideDownloads}}"}]"""));
+        }
+
         var query = System.Web.HttpUtility.ParseQueryString(url.Query);
         if (url.AbsolutePath is "/player_api.php" or "/xmltv.php" && (query["username"] != User || query["password"] != Password))
         {
@@ -96,6 +120,7 @@ public sealed class LiveTvTests : IDisposable
         {
             services.AddHttpClient<XtreamClient>().ConfigurePrimaryHttpMessageHandler(() => _dispatcharr);
             services.AddHttpClient(XtreamClient.LogoClientName).ConfigurePrimaryHttpMessageHandler(() => _dispatcharr);
+            services.AddHttpClient<DispatcharrGuides>().ConfigurePrimaryHttpMessageHandler(() => _dispatcharr);
             // GitHub too, so tests never reach the internet.
             services.AddHttpClient(CommunityLogoIndex.ClientName).ConfigurePrimaryHttpMessageHandler(() => _dispatcharr);
         }));
@@ -721,6 +746,70 @@ public sealed class LiveTvTests : IDisposable
         await db.SaveChangesAsync();
         Assert.False(await guide.IsDueAsync(now.AddMinutes(90), CancellationToken.None));
         Assert.True(await guide.IsDueAsync(now.AddHours(7), CancellationToken.None));
+    }
+
+    private static async Task SaveAdminKeyAsync(HttpClient client, string key)
+    {
+        (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, adminApiKey = key } })).EnsureSuccessStatusCode();
+        await LiveTvSettingsAsync(client, l => l.GetProperty("hasAdminApiKey").GetBoolean());
+        // The options reload a moment after the settings say so.
+        await Task.Delay(200);
+    }
+
+    private async Task DownloadAsync()
+    {
+        await using var scope = _server.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<LiveTvGuide>().DownloadSourcesAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Without_an_admin_key_dispatcharr_isnt_asked_to_download()
+    {
+        await ConnectAsync(Client());
+        await DownloadAsync();
+        Assert.Equal(0, _dispatcharr.GuideDownloads);
+    }
+
+    [Fact]
+    public async Task However_often_refresh_is_pressed_dispatcharrs_sources_are_only_asked_every_so_often()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        await SaveAdminKeyAsync(client, FakeDispatcharr.AdminKey);
+
+        await DownloadAsync();
+        Assert.Equal(1, _dispatcharr.GuideDownloads);
+        await DownloadAsync();
+        Assert.Equal(1, _dispatcharr.GuideDownloads);
+    }
+
+    [Fact]
+    public async Task A_refused_key_is_put_in_words_and_can_be_tried_again_straight_away()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        await SaveAdminKeyAsync(client, "wrong");
+
+        await DownloadAsync();
+        Assert.Equal(0, _dispatcharr.GuideDownloads);
+        Assert.Contains("refused", (await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("downloadError").GetString(), StringComparison.Ordinal);
+
+        // A better key: no waiting, and the words go.
+        await SaveAdminKeyAsync(client, FakeDispatcharr.AdminKey);
+        await DownloadAsync();
+        Assert.Equal(1, _dispatcharr.GuideDownloads);
+        Assert.Equal(JsonValueKind.Null, (await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("downloadError").ValueKind);
+    }
+
+    [Fact]
+    public void Only_refresh_pressed_asks_for_a_download_and_it_asks_once()
+    {
+        var signal = new LiveTvRefreshSignal();
+        signal.Request();
+        Assert.False(signal.TakeDownload());
+        signal.Request(download: true);
+        Assert.True(signal.TakeDownload());
+        Assert.False(signal.TakeDownload());
     }
 
     [Fact]

@@ -45,6 +45,10 @@ final class AppModel {
     private(set) var liveTvStatus: LiveTvStatus?
     /// The main profile, locked or not: it can refresh the Live TV guide.
     private(set) var isMainProfile = false
+    /// Managing the server doesn't need the PIN just now.
+    private var isAdmin = false
+    /// Servers before the release after 0.63 refuse a locked main profile, and don't send the count.
+    var canRefreshLiveTv: Bool { isMainProfile && (isAdmin || liveTvStatus?.channelsWithoutListings != nil) }
     /// The Live TV guide is being refreshed at this profile's asking.
     private(set) var isRefreshingLiveTv = false
     /// How this profile listens to podcasts (auto-download, how many to keep, speed, and from 0.58 the skips and smart
@@ -1241,7 +1245,7 @@ final class AppModel {
 
     /// Live TV's status again, for how many channels have no listings.
     func reloadLiveTvStatus() async {
-        guard !isKids, let client, let status = try? await client.liveTvStatus() else { return }
+        guard isMainProfile, let client, let status = try? await client.liveTvStatus() else { return }
         liveTvStatus = status
     }
 
@@ -1278,7 +1282,8 @@ final class AppModel {
         if podcastStatus?.available == true { podcastPreferences = try? await client.podcastPreferences() }
         liveTvStatus = await liveTvAnswer
         let me = await signIn
-        isMainProfile = me?.isAdmin == true || me?.canUnlock == true
+        isAdmin = me?.isAdmin == true
+        isMainProfile = isAdmin || me?.canUnlock == true
         if libraries.contains(where: { $0.type == .audiobooks }), let listening = try? await client.bookListening() {
             bookListening = listening
         }

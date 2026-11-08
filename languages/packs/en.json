@@ -3217,7 +3217,7 @@
  "Who’s watching?": "Who’s watching?",
  "Why?": "Why?",
  "Wide artwork": "Wide artwork",
- "With a Dispatcharr admin’s API key, Refresh also has Dispatcharr download its guides first. It’s optional, and gives Flexarr admin rights in Dispatcharr. Without it, Refresh reads what Dispatcharr already has.": "With a Dispatcharr admin’s API key, Refresh also has Dispatcharr download its guides first. It’s optional, and gives Flexarr admin rights in Dispatcharr. Without it, Refresh reads what Dispatcharr already has.",
+ "With a Dispatcharr admin’s API key (Dispatcharr 0.20 or later), Refresh also has Dispatcharr download its guides first. It’s optional, and gives Flexarr admin rights in Dispatcharr. Without it, Refresh reads what Dispatcharr already has.": "With a Dispatcharr admin’s API key (Dispatcharr 0.20 or later), Refresh also has Dispatcharr download its guides first. It’s optional, and gives Flexarr admin rights in Dispatcharr. Without it, Refresh reads what Dispatcharr already has.",
  "With two or more libraries, you can put them in order here.": "With two or more libraries, you can put them in order here.",
  "Without it the file can’t be opened, by anyone. Flexarr doesn’t keep it.": "Without it the file can’t be opened, by anyone. Flexarr doesn’t keep it.",
  "Won’t record: every stream is wanted by recordings scheduled before it.": "Won’t record: every stream is wanted by recordings scheduled before it.",

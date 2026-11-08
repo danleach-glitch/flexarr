@@ -1562,6 +1562,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         runCatching { client.libraries() }.onSuccess { list -> audiobookLibraries = list.filter { it.type == io.github.flexarr.core.LibraryType.Audiobooks } }
     }
 
+    /** Servers before the release after 0.63 refuse a locked main profile, and don't send the count. */
+    val canRefreshLiveTv: Boolean get() = isAdmin || (canUnlock && liveTvStatus?.channelsWithoutListings != null)
+
     /** The Live TV guide is being refreshed at this profile's asking. */
     var isRefreshingLiveTv by mutableStateOf(false)
         private set

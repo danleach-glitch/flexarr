@@ -793,7 +793,7 @@ function DispatcharrRow({
               {t.rich('Rewinding and recording are in {page}.', { page: <Link to="/settings/livetv">{t(Words.liveTv)}</Link> })}
             </p>
             <p>
-              {t('With a Dispatcharr admin’s API key, Refresh also has Dispatcharr download its guides first. It’s optional, and gives Flexarr admin rights in Dispatcharr. Without it, Refresh reads what Dispatcharr already has.')}
+              {t('With a Dispatcharr admin’s API key (Dispatcharr 0.20 or later), Refresh also has Dispatcharr download its guides first. It’s optional, and gives Flexarr admin rights in Dispatcharr. Without it, Refresh reads what Dispatcharr already has.')}
             </p>
           </details>
           <div className="field-row">

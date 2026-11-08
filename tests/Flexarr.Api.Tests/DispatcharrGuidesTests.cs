@@ -91,7 +91,7 @@ public sealed class DispatcharrGuidesTests
     [InlineData(HttpStatusCode.Unauthorized, GuideDownloadProblem.KeyRefused)]
     [InlineData(HttpStatusCode.Forbidden, GuideDownloadProblem.KeyRefused)]
     [InlineData(HttpStatusCode.NotFound, GuideDownloadProblem.NotSupported)]
-    [InlineData(HttpStatusCode.Found, GuideDownloadProblem.NotSupported)]
+    [InlineData(HttpStatusCode.Found, GuideDownloadProblem.Unreachable)]
     [InlineData(HttpStatusCode.BadGateway, GuideDownloadProblem.Unreachable)]
     public async Task A_refusal_or_an_older_dispatcharr_is_put_in_words(HttpStatusCode answer, GuideDownloadProblem expected)
     {

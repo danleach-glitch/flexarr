@@ -45,6 +45,23 @@ public class AdminLockTests
     }
 
     [Fact]
+    public async Task ALockedMainProfile_CanRefreshTheLiveTvGuide_ButOtherProfilesCant()
+    {
+        using var server = new FlexarrApiFactory();
+        await server.SetMainPinAsync("2580");
+        var tv = await LockedTvAsync(server);
+        Assert.Equal(HttpStatusCode.Accepted, (await tv.PostAsync(Api("/livetv/refresh"), null)).StatusCode);
+
+        var created = await Admin(server).PostAsJsonAsync(Api("/profiles"), new { name = "Guest room" });
+        created.EnsureSuccessStatusCode();
+        var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        var other = await LockedTvAsync(server, "Guest room TV");
+        (await other.PostAsJsonAsync(Api($"/profiles/{id}/select"), new { pin = (string?)null })).EnsureSuccessStatusCode();
+        Assert.Equal(id, (await MeAsync(other)).GetProperty("profileId").GetString());
+        Assert.Equal(HttpStatusCode.Forbidden, (await other.PostAsync(Api("/livetv/refresh"), null)).StatusCode);
+    }
+
+    [Fact]
     public async Task ALockedMainProfile_Watches_ButManagingTheServerTakesItsPin()
     {
         using var server = new FlexarrApiFactory();
