@@ -4,6 +4,11 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Music
+
+- **Discover › Music** has a new row, **Albums you might like**: the best-known album by each of the artists like the ones you play.
+- **Top albums** now shows the albums behind the tracks people are playing most, so it's far more familiar and has fewer obscure picks.
+
 ### iPhone, iPad and Apple TV
 
 - Pictures already on screen, such as Continue watching's, no longer turn into blank placeholders after a while.

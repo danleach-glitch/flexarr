@@ -63,7 +63,8 @@ public sealed class MusicRequestTests : IAsyncLifetime
         _deezer.Responses["GET /artist/134334152/albums?limit=100"] = $$"""{"data":[{{AlbumJson(730000661, "moisturizer", "2025-07-11")}},{{AlbumJson(1, "Wet Leg", "2022-04-08")}}]}""";
         _deezer.Responses["GET /artist/134334152/related?limit=20"] = """{"data":[{"id":5,"name":"Yard Act"},{"id":6,"name":"Dry Cleaning"}]}""";
         _deezer.Responses["GET /search/artist?q=Wet%20Leg&limit=5"] = $$"""{"data":[{{wetLeg}}]}""";
-        _deezer.Responses["GET /chart/0/albums?limit=30"] = $$"""{"data":[{{AlbumJson(730000661, "moisturizer", null, true)}},{{AlbumJson(1, "Wet Leg", null, true)}}]}""";
+        _deezer.Responses["GET /chart/0/tracks?limit=100"] = """{"data":[{"id":11,"title":"CPR","album":{"id":730000661,"title":"moisturizer"}},{"id":12,"title":"Chaise Longue","album":{"id":1,"title":"Wet Leg"}}]}""";
+        _deezer.Responses["GET /album/1"] = AlbumJson(1, "Wet Leg", "2022-04-08", true);
         _deezer.Responses["GET /genre"] = """{"data":[{"id":0,"name":"All"},{"id":152,"name":"Rock","picture_xl":"https://cdn-images.dzcdn.net/images/misc/abc/1000x1000-000000-80-0-0.jpg"}]}""";
         _deezer.Responses["GET /genre/152/artists"] = $$"""{"data":[{{wetLeg}}]}""";
         _deezer.Responses["GET /search/artist?q=wet%20leg&limit=8"] = $$"""{"data":[{{wetLeg}}]}""";
@@ -201,7 +202,7 @@ public sealed class MusicRequestTests : IAsyncLifetime
     public async Task ARowDeezerDoesntAnswerFor_IsLeftOut_NotThePage()
     {
         await MusicLibraryAsync();
-        _deezer.Responses.TryRemove("GET /chart/0/albums?limit=30", out _);
+        _deezer.Responses.TryRemove("GET /chart/0/tracks?limit=100", out _);
 
         var response = await Client().GetAsync(Api("/requests/music/discover"));
         var discover = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -210,6 +211,73 @@ public sealed class MusicRequestTests : IAsyncLifetime
         Assert.DoesNotContain(discover.GetProperty("rows").EnumerateArray(), r => r.GetProperty("id").GetString() == "music-charts");
         Assert.Single(discover.GetProperty("genres").EnumerateArray());
     }
+
+    [Fact]
+    public async Task TopAlbums_AreTheAlbumsBehindTheTrackChart_WithoutSingles()
+    {
+        await MusicLibraryAsync();
+        _deezer.Responses["GET /chart/0/tracks?limit=100"] = """
+            {"data":[
+                {"id":10,"title":"Big Hit","album":{"id":100,"title":"Big Hit"}},
+                {"id":11,"title":"CPR","album":{"id":730000661,"title":"moisturizer"}},
+                {"id":12,"title":"Davina McCall","album":{"id":730000661,"title":"moisturizer"}},
+                {"id":13,"title":"Two Sides","album":{"id":101,"title":"Two Sides / Other"}},
+                {"id":14,"title":"Gone","album":{"id":102,"title":"Deezer lost this"}}
+            ]}
+            """;
+        _deezer.Responses["GET /album/101"] = """{"id":101,"title":"Two Sides / Other","record_type":"single","artist":{"id":5,"name":"Yard Act"}}""";
+
+        var discover = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/discover"));
+
+        var charts = discover.GetProperty("rows").EnumerateArray().Single(r => r.GetProperty("id").GetString() == "music-charts").GetProperty("items").EnumerateArray();
+        Assert.Equal(730000661, Assert.Single(charts).GetProperty("deezerId").GetInt64());
+        Assert.DoesNotContain(_deezer.Requests, r => r.Contains("/album/100", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AlbumsYouMightLike_IsTheBestAlbumOfEachArtistLikeYours()
+    {
+        var (library, artist, _) = await SeedOwnedAsync();
+        await InDbAsync(async db =>
+        {
+            var album = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Album, Title = "Played", SortTitle = "played", ParentId = artist.Id };
+            var track = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Track, Title = "CPR", SortTitle = "cpr", Parent = album };
+            db.MediaItems.AddRange(album, track);
+            db.PlaybackStates.Add(new PlaybackState { UserId = "owner", MediaItem = track, PlayCount = 3 });
+            return await db.SaveChangesAsync();
+        });
+        _deezer.Responses["GET /artist/5/albums?limit=100"] = """
+            {"data":[
+                {"id":50,"title":"The Very Best Of Yard Act","record_type":"album","fans":9000},
+                {"id":51,"title":"The Overload","record_type":"album","fans":4000},
+                {"id":52,"title":"Big Single","record_type":"single","fans":99000}
+            ]}
+            """;
+        // Dry Cleaning (6) has no answer here: left out, not the row.
+
+        var discover = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/discover"));
+
+        var row = discover.GetProperty("rows").EnumerateArray().Single(r => r.GetProperty("id").GetString() == "music-like-albums");
+        Assert.Equal("albums", row.GetProperty("shape").GetString());
+        var item = Assert.Single(row.GetProperty("items").EnumerateArray());
+        Assert.Equal(("The Overload", "Yard Act", 5L), (item.GetProperty("title").GetString(), item.GetProperty("artist").GetString(), item.GetProperty("artistDeezerId").GetInt64()));
+    }
+
+    [Theory]
+    [InlineData("Studio", "The Very Best Of|9000,Studio|4000")]
+    [InlineData("Greatest Hits", "Greatest Hits|100000,Studio|9999")]
+    [InlineData("Night At The Opera", "Live at Wembley|9000,Night At The Opera|5000")]
+    [InlineData("Gold", "Gold|10")]
+    public void BestAlbum_PrefersAStudioAlbumWithEnoughFans(string expected, string albums)
+    {
+        var parsed = albums.Split(',').Select((a, i) => new DeezerAlbum(i, a.Split('|')[0], RecordType: "album", Fans: int.Parse(a.Split('|')[1], System.Globalization.CultureInfo.InvariantCulture)));
+
+        Assert.Equal(expected, Flexarr.Api.Endpoints.MusicRequests.MusicRequestEndpoints.BestAlbum(parsed)?.Title);
+    }
+
+    [Fact]
+    public void BestAlbum_IsNull_WithNoAlbums() =>
+        Assert.Null(Flexarr.Api.Endpoints.MusicRequests.MusicRequestEndpoints.BestAlbum([new DeezerAlbum(1, "Single", RecordType: "single", Fans: 9)]));
 
     [Fact]
     public async Task Search_FindsArtistsAndAlbums()

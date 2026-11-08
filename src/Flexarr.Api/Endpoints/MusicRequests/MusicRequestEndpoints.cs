@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using Flexarr.Api.Localization;
 using Flexarr.Core.Localization;
 
@@ -101,9 +102,11 @@ public static partial class MusicRequestEndpoints
                 }
             }
 
-            await RowAsync("music-like", Loc.T("Like artists you play"), "artists", () => LikeYoursAsync(c, owned, top.Take(8).ToList(), ct));
+            List<MusicExternalDto> like = [];
+            await RowAsync("music-like", Loc.T("Like artists you play"), "artists", async () => like = await LikeYoursAsync(c, owned, top.Take(8).ToList(), ct));
+            await RowAsync("music-like-albums", Loc.T("Albums you might like"), "albums", () => AlbumsLikeYoursAsync(c, owned, like, ct));
             await RowAsync("music-new", Loc.T("New from your artists"), "albums", () => NewFromYoursAsync(c, owned, top, ct));
-            await RowAsync("music-charts", Loc.T("Top albums"), "albums", async () => (await c.Catalog.ChartAlbumsAsync(ct)).Select(a => Album(a, owned)).ToList());
+            await RowAsync("music-charts", Loc.T("Top albums"), "albums", () => TopAlbumsAsync(c, owned, ct));
             var genres = await Quietly(async () => (await c.Catalog.GenresAsync(ct)).Select(g => new MusicGenreDto(g.Id, g.Name, ImageEndpoints.RemoteUrl(g.Picture))).ToList());
             return rows.Count == 0 && genres is null
                 ? Problems.Of("Deezer didn’t answer. Try again in a minute.", status: 502)
@@ -471,6 +474,55 @@ public static partial class MusicRequestEndpoints
         }
 
         return picked;
+    }
+
+    /// <summary>The best-known album of each of these artists, in their order.</summary>
+    private static async Task<List<MusicExternalDto>> AlbumsLikeYoursAsync(MusicRequestContext c, OwnedMusic owned, List<MusicExternalDto> artists, CancellationToken ct)
+    {
+        var albums = await Task.WhenAll(artists.Select(async artist =>
+            BestAlbum(await Quietly(() => c.Catalog.ArtistAlbumsAsync(artist.DeezerId, ct)) ?? []) is { } best
+                ? best with { Artist = new DeezerArtist(artist.DeezerId, artist.Title) }
+                : null));
+        // An album with several artists on it can be the pick of more than one.
+        return albums.OfType<DeezerAlbum>().DistinctBy(a => a.Id).Select(a => Album(a, owned)).ToList();
+    }
+
+    /// <summary>
+    /// The album of an artist's that most people follow. Deezer's fans favour best-ofs, so a studio album with at least
+    /// a tenth of the fans of the most followed one comes first: it's the likelier find, and easier for Lidarr to match.
+    /// </summary>
+    internal static DeezerAlbum? BestAlbum(IEnumerable<DeezerAlbum> albums)
+    {
+        var ranked = albums.Where(a => a.RecordType == "album").OrderByDescending(a => a.Fans).ToList();
+        var studio = ranked.FirstOrDefault(a => !NotAStudioAlbum().IsMatch(a.Title));
+        return studio is not null && studio.Fans * 10L >= ranked[0].Fans ? studio : ranked.FirstOrDefault();
+    }
+
+    [GeneratedRegex(@"\b(best of|the best|greatest hits|hits|essentials?|definitive|collection|anthology|ultimate|platinum|gold|singles|retrospective|love songs)\b|\blive (at|in|from|on)\b|\(live\b|- live\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex NotAStudioAlbum();
+
+    /// <summary>
+    /// The albums behind the tracks charting now, in chart order. A track whose album has its own title is on a single,
+    /// so most singles are passed over without asking Deezer about them; it stops asking once the row is full.
+    /// </summary>
+    private static async Task<List<MusicExternalDto>> TopAlbumsAsync(MusicRequestContext c, OwnedMusic owned, CancellationToken ct)
+    {
+        var candidates = (await c.Catalog.ChartTracksAsync(ct))
+            .Where(t => t.Album is not null && MusicNames.NormaliseTitle(t.Album.Title) != MusicNames.NormaliseTitle(t.Title))
+            .Select(t => t.Album!.Id).Distinct();
+        var picked = new List<DeezerAlbum>();
+        foreach (var batch in candidates.Chunk(8))
+        {
+            // One Deezer doesn't answer for is just left out.
+            var albums = await Task.WhenAll(batch.Select(id => Quietly(() => c.Catalog.AlbumAsync(id, ct))));
+            picked.AddRange(albums.OfType<DeezerAlbum>().Where(a => a.RecordType == "album"));
+            if (picked.Count >= RowSize)
+            {
+                break;
+            }
+        }
+
+        return picked.Take(RowSize).Select(a => Album(a, owned)).ToList();
     }
 
     /// <summary>Releases from the last year by artists in the library, that it doesn't have yet, newest first.</summary>

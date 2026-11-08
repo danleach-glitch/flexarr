@@ -5,8 +5,8 @@ has no music, so music requests go straight to Lidarr. Suggestions come from Dee
 
 ## What people get
 
-- **Discover › Music** (web, Apple TV, Android TV): rows of *Like artists you play*, *New from your artists*,
-  *Top charts*, and genre tiles that open a genre's artists. Search covers artists and albums beyond the library.
+- **Discover › Music** (web, Apple TV, Android TV): rows of *Like artists you play*, *Albums you might like*,
+  *New from your artists*, *Top albums*, and genre tiles that open a genre's artists. Search covers artists and albums beyond the library.
 - **Search** on the phones (iPhone, Android): artists and albums under *Not in your library*, as films and shows are.
 - **Outside artist and album pages**: photo, albums (each with **Request album**), **Follow artist**, tracks, and
   *Fans also like*.
@@ -18,6 +18,11 @@ has no music, so music requests go straight to Lidarr. Suggestions come from Dee
 Who: the same profiles as film and show requests (no age limit; family guests included). Kids and age-limited
 profiles never see any of it: the endpoints sit in the `/requests` group, which is `NotForAgeLimited`, and each checks
 that the profile can see a music library.
+
+Deezer's own album chart (`chart/0/albums`) isn't used: it isn't ranked by listening, and fills with albums few people
+follow. *Top albums* takes the albums behind its track chart instead, leaving out singles. *Albums you might like* takes
+each *Like artists you play* artist's most followed album (`fans` in `artist/{id}/albums`), preferring a studio album
+over a best-of or live one when the studio album has at least a tenth of its fans.
 
 ## What a request does in Lidarr
 

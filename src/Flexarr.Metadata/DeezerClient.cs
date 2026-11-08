@@ -17,7 +17,8 @@ public sealed record DeezerArtist(long Id, string Name, string? PictureXl = null
 
 /// <summary>A track on a Deezer album.</summary>
 /// <param name="Duration">Seconds.</param>
-public sealed record DeezerTrack(long Id, string Title, int Duration = 0, int TrackPosition = 0, int DiskNumber = 0, bool ExplicitLyrics = false);
+/// <param name="Album">Only on tracks in a chart, and then just its id, title and covers.</param>
+public sealed record DeezerTrack(long Id, string Title, int Duration = 0, int TrackPosition = 0, int DiskNumber = 0, bool ExplicitLyrics = false, DeezerAlbum? Album = null);
 
 public sealed record DeezerGenre(long Id, string Name, string? PictureXl = null)
 {
@@ -28,6 +29,7 @@ public sealed record DeezerGenre(long Id, string Name, string? PictureXl = null)
 /// <param name="RecordType">"album", "ep", "single" or "compile".</param>
 /// <param name="ReleaseDate">yyyy-MM-dd.</param>
 /// <param name="Upc">Its barcode: only on the album itself (<c>album/{id}</c>), not in lists. What ties it to MusicBrainz.</param>
+/// <param name="Fans">Deezer's followers of this release: absent from charts and searches.</param>
 public sealed record DeezerAlbum(
     long Id,
     string Title,
@@ -42,7 +44,8 @@ public sealed record DeezerAlbum(
     bool ExplicitLyrics = false,
     DeezerList<DeezerTrack>? Tracks = null,
     DeezerList<DeezerGenre>? Genres = null,
-    string? Upc = null)
+    string? Upc = null,
+    int Fans = 0)
 {
     public string? Cover => DeezerArtist.RealImage(CoverXl) ?? DeezerArtist.RealImage(CoverBig);
 
@@ -93,9 +96,12 @@ public sealed class DeezerClient(HttpClient http)
     /// <summary>An album with its tracks and genres.</summary>
     public Task<DeezerAlbum> GetAlbumAsync(long id, CancellationToken ct = default) => GetAsync<DeezerAlbum>($"album/{id}", ct);
 
-    /// <summary>The albums charting now (genre 0 is all of them), in the country Deezer places the server in.</summary>
-    public async Task<IReadOnlyList<DeezerAlbum>> GetChartAlbumsAsync(int limit, CancellationToken ct = default) =>
-        (await GetAsync<DeezerList<DeezerAlbum>>($"chart/0/albums?limit={limit}", ct).ConfigureAwait(false)).Data;
+    /// <summary>
+    /// The tracks charting now (genre 0 is all of them), in the country Deezer places the server in. Deezer's album chart
+    /// isn't used: it isn't ranked by listening, and fills with albums hardly anyone follows.
+    /// </summary>
+    public async Task<IReadOnlyList<DeezerTrack>> GetChartTracksAsync(int limit, CancellationToken ct = default) =>
+        (await GetAsync<DeezerList<DeezerTrack>>($"chart/0/tracks?limit={limit}", ct).ConfigureAwait(false)).Data;
 
     public async Task<IReadOnlyList<DeezerArtist>> GetChartArtistsAsync(int limit, CancellationToken ct = default) =>
         (await GetAsync<DeezerList<DeezerArtist>>($"chart/0/artists?limit={limit}", ct).ConfigureAwait(false)).Data;
