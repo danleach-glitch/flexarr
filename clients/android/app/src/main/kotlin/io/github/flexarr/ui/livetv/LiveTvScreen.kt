@@ -46,6 +46,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -93,6 +94,7 @@ import io.github.flexarr.ui.components.PageTitle
 import io.github.flexarr.ui.components.StatusView
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.components.RepeatWhileShowing
 import kotlinx.coroutines.CancellationException
@@ -131,6 +133,8 @@ fun LiveTvScreen(model: AppModel) {
     // The list or the guide, remembered on this device.
     var showsGuide by remember { mutableStateOf(context.settings.getBoolean(GUIDE_KEY, false)) }
     var notice by remember { mutableStateOf<String?>(null) }
+    // Counts the refreshes finished, so the guide shown is fetched again.
+    var refreshed by remember { mutableIntStateOf(0) }
     // Recordings have no age to check, so a profile with an age limit has none.
     val records = model.currentProfile?.hasAgeLimit != true
 
@@ -149,6 +153,7 @@ fun LiveTvScreen(model: AppModel) {
     // the list.
     RepeatWhileShowing(if (showsGuide) GUIDE_REFRESH_MS else 60_000, model.credentials, showsGuide) {
         load()
+        model.loadLiveTvStatus()
         // No channels yet (the server couldn't be reached): tried again each minute, as it was, not left five.
         while (showsGuide && channels == null) {
             delay(60_000)
@@ -196,6 +201,24 @@ fun LiveTvScreen(model: AppModel) {
         Column {
             PageTitle(t(Words.liveTv), onBack = { navigator.back() }) {
                 if (all.isNotEmpty()) {
+                    if (model.isMainProfile) {
+                        IconButton(
+                            enabled = !model.isRefreshingLiveTv,
+                            onClick = {
+                                scope.launch {
+                                    notice = model.refreshLiveTv()
+                                    load()
+                                    refreshed++
+                                }
+                            },
+                        ) {
+                            if (model.isRefreshingLiveTv) {
+                                CircularProgressIndicator(Modifier.size(20.dp), color = Flexarr.screen, strokeWidth = 2.dp)
+                            } else {
+                                Icon(FlexarrIcons.refresh, contentDescription = t("Refresh guide"), tint = Flexarr.screen)
+                            }
+                        }
+                    }
                     if (records) IconButton(onClick = navigator::openRecordings) { Icon(Icons.Filled.RadioButtonChecked, contentDescription = t("Recordings"), tint = Flexarr.screen) }
                     IconButton(onClick = {
                         showsGuide = !showsGuide
@@ -212,8 +235,17 @@ fun LiveTvScreen(model: AppModel) {
                 loaded.isEmpty() -> StatusView(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user."), empty = true)
                 else -> {
                     Chips(filter, groups, onChoose = { chosen = it })
+                    val missing = model.liveTvStatus?.channelsWithoutListings ?: 0
+                    if (model.isMainProfile && missing > 0) {
+                        Text(
+                            t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", "count" to missing),
+                            fontSize = 13.sp,
+                            color = Flexarr.usher,
+                            modifier = Modifier.padding(horizontal = Edge, vertical = 4.dp),
+                        )
+                    }
                     if (showsGuide) {
-                        LiveGuideView(client, shown, order, filter == Filter.Favourites, model, onFavourite = { setFavourite(it, !it.isFavourite) }, onNotice = { notice = it })
+                        LiveGuideView(client, shown, order, filter == Filter.Favourites, model, refreshed, onFavourite = { setFavourite(it, !it.isFavourite) }, onNotice = { notice = it })
                     } else {
                         PullToRefreshBox(isRefreshing = refreshing, onRefresh = { refreshing = true; scope.launch { load(); refreshing = false } }) {
                             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -244,7 +276,7 @@ fun LiveTvScreen(model: AppModel) {
     notice?.let { message ->
         AlertDialog(
             onDismissRequest = { notice = null },
-            title = { Text(t("Recording")) },
+            title = { Text(t(Words.liveTv)) },
             text = { Text(message) },
             confirmButton = { TextButton(onClick = { notice = null }) { Text(t("OK")) } },
             containerColor = Flexarr.seat,
@@ -383,6 +415,7 @@ private fun LiveGuideView(
     order: List<LiveChannel>,
     favouritesOnly: Boolean,
     model: AppModel,
+    refreshed: Int,
     onFavourite: (LiveChannel) -> Unit,
     onNotice: (String) -> Unit,
 ) {
@@ -413,7 +446,7 @@ private fun LiveGuideView(
             guideAsk = asking
         }
     }
-    RepeatWhileShowing(GUIDE_REFRESH_MS, ask) {
+    RepeatWhileShowing(GUIDE_REFRESH_MS, ask, refreshed) {
         load()
         // No guide yet for what's shown (the server couldn't be reached, or it took too long to come): tried again
         // every two minutes, as it was, rather than left loading for five.

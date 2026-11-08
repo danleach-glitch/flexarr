@@ -12,6 +12,18 @@ public struct LiveTvStatus: Codable, Sendable, Hashable {
     public let error: String?
     /// How far back a channel being watched can be rewound.
     public let rewindMinutes: Int
+    /// Channels with nothing listed from now on. Absent from servers before the release after 0.63.
+    public var channelsWithoutListings: Int? = nil
+    /// Why Dispatcharr couldn't be asked to download its guides, last time it was. Absent from servers before the
+    /// release after 0.63.
+    public var downloadError: String? = nil
+
+    /// Whether a refresh asked for when the status was `before` has finished. A quick refresh can come and go between
+    /// looks, so an answer that's changed says so as well as having seen it under way.
+    public func finishedRefresh(since before: LiveTvStatus?, sawRefreshing: Bool) -> Bool {
+        guard !refreshing else { return false }
+        return sawRefreshing || refreshedAt != before?.refreshedAt || error != before?.error || downloadError != before?.downloadError
+    }
 }
 
 /// A programme in the guide.
@@ -293,6 +305,22 @@ extension FlexarrClient {
         } catch FlexarrClientError.http(status: 404, _) {
             return nil
         }
+    }
+
+    /// Refreshes the channels and guide (the main profile only), and waits for it: the status once it's done, or as it
+    /// stands once it's been a while. With an admin key saved, the server has Dispatcharr download its guides first,
+    /// which takes minutes at worst. Servers before the release after 0.63 refuse a locked main profile.
+    public func refreshLiveTv() async throws -> LiveTvStatus? {
+        let before = try await liveTvStatus()
+        _ = try await send("POST", "livetv/refresh")
+        var sawRefreshing = false
+        for _ in 0..<180 {
+            try await Task.sleep(for: .seconds(2))
+            guard let status = try await liveTvStatus() else { return nil }
+            sawRefreshing = sawRefreshing || status.refreshing
+            if status.finishedRefresh(since: before, sawRefreshing: sawRefreshing) { return status }
+        }
+        return try await liveTvStatus()
     }
 
     /// Every channel's programmes from `from` for `hours` (at most a day). `descriptions: false` leaves each

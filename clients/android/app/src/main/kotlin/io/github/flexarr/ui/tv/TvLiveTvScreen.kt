@@ -96,6 +96,7 @@ import io.github.flexarr.ui.livetv.seriesLabel
 import io.github.flexarr.ui.livetv.toggleRecording
 import io.github.flexarr.ui.livetv.toggleSeries
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.CancellationException
@@ -246,6 +247,8 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     val scope = rememberCoroutineScope()
     var channels by remember { mutableStateOf<List<LiveChannel>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    // What went wrong refreshing the guide.
+    var refreshProblem by remember { mutableStateOf<String?>(null) }
     // The guide on screen, with what it was asked for and its ETag.
     var kept by remember { mutableStateOf<KeptGuide?>(null) }
     var upcoming by remember { mutableStateOf<Int?>(null) }
@@ -266,7 +269,10 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
         }
     }
     // What's on moves on: fetched again each minute while the screen is up.
-    RepeatWhileShowing(60_000, model.credentials) { load() }
+    RepeatWhileShowing(60_000, model.credentials) {
+        load()
+        model.loadLiveTvStatus()
+    }
     LaunchedEffect(focusedCategory) {
         val resting = focusedCategory ?: return@LaunchedEffect
         delay(250)
@@ -366,6 +372,30 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                             onClick = { focusedCategory = value; chosen = value },
                             modifier = if (value == Category.Favourites) Modifier.focusRequester(firstCategory) else Modifier,
                         )
+                    }
+                    if (model.isMainProfile) {
+                        item(key = "refresh") {
+                            CategoryButton(
+                                if (model.isRefreshingLiveTv) t("Refreshing…") else t("Refresh guide"),
+                                selected = false,
+                                icon = FlexarrIcons.refresh,
+                                count = null,
+                                onFocus = {},
+                                onClick = {
+                                    if (!model.isRefreshingLiveTv) {
+                                        scope.launch {
+                                            refreshProblem = model.refreshLiveTv()
+                                            load()
+                                            loadGuide(fresh = true)
+                                        }
+                                    }
+                                },
+                                modifier = Modifier,
+                            )
+                        }
+                        val missing = model.liveTvStatus?.channelsWithoutListings ?: 0
+                        val note = refreshProblem ?: if (missing > 0) t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", "count" to missing) else null
+                        note?.let { item(key = "refresh-note") { Text(it, fontSize = 12.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 11.dp)) } }
                     }
                 }
                 Box(Modifier.weight(1f)) {

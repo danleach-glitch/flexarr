@@ -45,11 +45,23 @@ data class LiveTvStatus(
     val configured: Boolean,
     val channels: Int,
     val refreshing: Boolean = false,
+    val refreshedAt: String? = null,
     /** Why the last refresh failed, in words. */
     val error: String? = null,
     /** How far back a channel being watched can be rewound. */
     val rewindMinutes: Int = 0,
-)
+    /** Channels with nothing listed from now on. Absent from servers before the release after 0.63. */
+    val channelsWithoutListings: Int = 0,
+    /** Why Dispatcharr couldn't be asked to download its guides, last time it was. Absent from servers before the release after 0.63. */
+    val downloadError: String? = null,
+) {
+    /**
+     * Whether a refresh asked for when the status was [before] has finished. A quick refresh can come and go between
+     * looks, so an answer that's changed says so as well as having seen it under way.
+     */
+    fun finishedRefresh(before: LiveTvStatus?, sawRefreshing: Boolean): Boolean =
+        !refreshing && (sawRefreshing || refreshedAt != before?.refreshedAt || error != before?.error || downloadError != before?.downloadError)
+}
 
 /** A programme in the guide. */
 @Serializable
@@ -266,6 +278,24 @@ suspend fun FlexarrClient.liveTvStatus(): LiveTvStatus? =
     } catch (e: FlexarrException.Http) {
         if (e.status == 404) null else throw e
     }
+
+/**
+ * Refreshes the channels and guide (the main profile only), and waits for it: the status once it's done, or as it stands
+ * once it's been a while. With an admin key saved, the server has Dispatcharr download its guides first, which takes
+ * minutes at worst. Servers before the release after 0.63 refuse a locked main profile.
+ */
+suspend fun FlexarrClient.refreshLiveTv(): LiveTvStatus? {
+    val before = liveTvStatus()
+    send("POST", "livetv/refresh")
+    var sawRefreshing = false
+    repeat(180) {
+        kotlinx.coroutines.delay(2_000)
+        val status = liveTvStatus() ?: return null
+        sawRefreshing = sawRefreshing || status.refreshing
+        if (status.finishedRefresh(before, sawRefreshing)) return status
+    }
+    return liveTvStatus()
+}
 
 /** Every channel's programmes from [from] for [hours] (at most a day). */
 suspend fun FlexarrClient.liveGuide(from: Instant, hours: Int): LiveGuide =

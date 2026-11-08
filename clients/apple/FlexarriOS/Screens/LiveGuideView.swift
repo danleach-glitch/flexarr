@@ -12,6 +12,8 @@ struct LiveGuideView: View {
     /// The channels are the favourites: the guide is asked for only theirs.
     var favouritesOnly = false
     let order: [LiveChannel]
+    /// Changes when a refresh of the guide has finished: fetched again, whatever is kept.
+    var refreshed = 0
     let onFavourite: (LiveChannel) -> Void
 
     /// The guide as fetched: kept a while (`LiveGuide.keptFor`) rather than downloaded again at every look, and asked
@@ -109,6 +111,7 @@ struct LiveGuideView: View {
         }
         // Favourites has only its own channels' guide: another list may want more.
         .onChange(of: favouritesOnly) { Task { await load() } }
+        .onChange(of: refreshed) { Task { await load(force: true) } }
         // A favourite starred on another device, or another list: its channels may not be in the guide kept.
         .onChange(of: channels.map(\.id)) { Task { await load() } }
         .alert(details?.programme.displayTitle ?? "", isPresented: Binding(get: { details != nil }, set: { if !$0 { details = nil } })) {

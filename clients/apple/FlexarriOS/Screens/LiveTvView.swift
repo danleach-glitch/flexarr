@@ -15,6 +15,8 @@ struct LiveTvView: View {
     @State private var chosen: Filter?
     /// The list or the guide, remembered on this device.
     @AppStorage("FlexarrLiveTvGuide") private var showsGuide = false
+    /// Counts the refreshes finished, so the guide shown is fetched again.
+    @State private var refreshed = 0
     #if os(macOS)
     /// The Mac's third tab: the recordings in place, rather than a page of their own.
     @State private var showsRecordings = false
@@ -59,7 +61,8 @@ struct LiveTvView: View {
                 } else if showsGuide {
                     VStack(spacing: 0) {
                         chips.padding(.vertical, 6)
-                        LiveGuideView(channels: shown, favouritesOnly: filter == .favourites, order: order,
+                        missingListings.padding(.bottom, 6)
+                        LiveGuideView(channels: shown, favouritesOnly: filter == .favourites, order: order, refreshed: refreshed,
                                       onFavourite: { setFavourite($0, !$0.isFavourite) })
                     }
                 } else {
@@ -77,9 +80,11 @@ struct LiveTvView: View {
         .navigationBarTitleDisplayMode(showsGuide ? .inline : .automatic)
         #if os(macOS)
         .pageSwitch(tab, tabs)
+        .pageActions { refreshButton }
         #else
         .pageActions {
             if channels?.isEmpty == false {
+                refreshButton
                 // A recording is for everyone, so a profile with an age limit has none to see or set.
                 if !model.hasAgeLimit {
                     NavigationLink { LiveRecordingsView() } label: {
@@ -98,11 +103,43 @@ struct LiveTvView: View {
             guard scenePhase == .active else { return }
             while !Task.isCancelled {
                 await load()
+                await model.reloadLiveTvStatus()
                 try? await Task.sleep(for: .seconds(60))
             }
         }
         .refreshable { await load() }
         .banner($notice, systemImage: "record.circle")
+    }
+
+    /// For the main profile: refreshes the guide (and has Dispatcharr download it, with an admin key).
+    @ViewBuilder private var refreshButton: some View {
+        if model.isMainProfile {
+            Button {
+                Task {
+                    notice = await model.refreshLiveTv()
+                    await load()
+                    refreshed += 1
+                }
+            } label: {
+                if model.isRefreshingLiveTv {
+                    ProgressView()
+                } else {
+                    Label(t("Refresh guide"), systemImage: Symbol.refresh)
+                }
+            }
+            .disabled(model.isRefreshingLiveTv)
+        }
+    }
+
+    /// For the main profile, who can do something about it: the guide's detail is in the Live TV guide on the site.
+    @ViewBuilder private var missingListings: some View {
+        if model.isMainProfile, let count = model.liveTvStatus?.channelsWithoutListings, count > 0 {
+            Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", ["count": count]))
+                .font(.footnote)
+                .foregroundStyle(Color.usher)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+        }
     }
 
     private var favourites: [LiveChannel] { (channels ?? []).filter(\.isFavourite) }
@@ -136,6 +173,11 @@ struct LiveTvView: View {
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
+
+            missingListings
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
 
             ForEach(shown) { channel in
                 ChannelRow(channel: channel, starting: model.liveTv.startingChannel == channel.id)

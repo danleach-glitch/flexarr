@@ -4,6 +4,13 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Live TV
+
+- **Refresh guide** is now on the Live TV page on the web, iPhone, iPad, Mac, Apple TV, Android and Android TV, for the main profile.
+- The main profile can see how many channels have no listings, and the [guide](https://flexarr.io/guide/live-tv#channels-with-no-listings) explains how to fix them.
+- While any channel has nothing listed, Flexarr checks for a fuller guide every hour instead of every six.
+- You can add an optional Dispatcharr admin API key in **Settings › Connections**, so that Refresh has Dispatcharr download its guides first. Your guide sources are contacted at most once every 15 minutes.
+
 ### Music
 
 - **Discover › Music** has a new row, **Albums you might like**: the best-known album by each of the artists like the ones you play.

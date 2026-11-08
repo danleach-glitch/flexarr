@@ -25,6 +25,8 @@ struct LiveTvView: View {
     @State private var marksChanged = false
     /// How many recordings are coming up, for the sidebar.
     @State private var upcoming: Int?
+    /// What went wrong refreshing the guide.
+    @State private var refreshProblem: String?
 
     enum Category: Hashable {
         case favourites
@@ -67,6 +69,7 @@ struct LiveTvView: View {
         .task {
             while !Task.isCancelled {
                 await load()
+                await model.reloadLiveTvStatus()
                 try? await Task.sleep(for: .seconds(60))
             }
         }
@@ -131,12 +134,52 @@ struct LiveTvView: View {
                 categoryButton(.recordings, t("Recordings"), systemImage: "record.circle")
             }
             categoryButton(.all, t("All channels"), systemImage: "square.grid.3x3.fill")
+            refreshButton
             if groups.count > 1 {
                 ForEach(groups, id: \.self) { categoryButton(.group($0), $0, systemImage: nil) }
             }
         }
         .frame(width: 400, alignment: .leading)
         .focusSection()
+    }
+
+    /// For the main profile: refreshes the guide (and has Dispatcharr download it, with an admin key), and says how many
+    /// channels still have no listings. Above the groups, of which there can be more than fit.
+    @ViewBuilder private var refreshButton: some View {
+        if model.isMainProfile {
+            Button {
+                Task {
+                    refreshProblem = await model.refreshLiveTv()
+                    await load()
+                    await loadGuide(force: true)
+                }
+            } label: {
+                HStack(spacing: 14) {
+                    Group {
+                        if model.isRefreshingLiveTv {
+                            ProgressView()
+                        } else {
+                            Image(systemName: Symbol.refresh).foregroundStyle(Color.usher)
+                        }
+                    }
+                    .frame(width: 32)
+                    Text(t("Refresh guide")).lineLimit(1)
+                    Spacer(minLength: 8)
+                }
+            }
+            .buttonStyle(CategoryButtonStyle(selected: false))
+            .disabled(model.isRefreshingLiveTv)
+            if let refreshProblem {
+                Text(refreshProblem)
+                    .font(.system(size: 22))
+                    .foregroundStyle(Color.usher)
+                    .lineLimit(3)
+            } else if let count = model.liveTvStatus?.channelsWithoutListings, count > 0 {
+                Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", ["count": count]))
+                    .font(.system(size: 22))
+                    .foregroundStyle(Color.usher)
+            }
+        }
     }
 
     private func categoryButton(_ value: Category, _ title: String, systemImage: String?) -> some View {

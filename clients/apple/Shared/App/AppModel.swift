@@ -43,6 +43,10 @@ final class AppModel {
     private(set) var podcastStatus: PodcastStatus?
     /// Whether the server has Live TV set up; nil for servers before it.
     private(set) var liveTvStatus: LiveTvStatus?
+    /// The main profile, locked or not: it can refresh the Live TV guide.
+    private(set) var isMainProfile = false
+    /// The Live TV guide is being refreshed at this profile's asking.
+    private(set) var isRefreshingLiveTv = false
     /// How this profile listens to podcasts (auto-download, how many to keep, speed, and from 0.58 the skips and smart
     /// rewind it shares with books); nil until loaded. The podcast player follows it.
     private(set) var podcastPreferences: PodcastPreferences? {
@@ -1235,6 +1239,26 @@ final class AppModel {
         needsProfileChoice = false
     }
 
+    /// Live TV's status again, for how many channels have no listings.
+    func reloadLiveTvStatus() async {
+        guard !isKids, let client, let status = try? await client.liveTvStatus() else { return }
+        liveTvStatus = status
+    }
+
+    /// Refreshes the channels and guide, and waits for it. Says what went wrong, or nil.
+    func refreshLiveTv() async -> String? {
+        guard let client, !isRefreshingLiveTv else { return nil }
+        isRefreshingLiveTv = true
+        defer { isRefreshingLiveTv = false }
+        do {
+            let status = try await client.refreshLiveTv()
+            if let status { liveTvStatus = status }
+            return status?.error ?? status?.downloadError
+        } catch {
+            return ConnectionError(error).message
+        }
+    }
+
     func loadLibraries() async {
         guard let client else { return }
         // What doesn't wait on another answer is asked for together, so a slow link waits for the slowest, not the sum.
@@ -1242,6 +1266,7 @@ final class AppModel {
         let kids = isKids
         async let podcastAnswer: PodcastStatus? = kids ? nil : try? await client.podcastStatus()
         async let liveTvAnswer: LiveTvStatus? = kids ? nil : try? await client.liveTvStatus()
+        async let signIn: SignInInfo? = kids ? nil : try? await client.me()
         async let watchlist: Void = refreshWatchlist()
         do {
             libraries = try await client.libraries()
@@ -1252,6 +1277,8 @@ final class AppModel {
         podcastStatus = await podcastAnswer
         if podcastStatus?.available == true { podcastPreferences = try? await client.podcastPreferences() }
         liveTvStatus = await liveTvAnswer
+        let me = await signIn
+        isMainProfile = me?.isAdmin == true || me?.canUnlock == true
         if libraries.contains(where: { $0.type == .audiobooks }), let listening = try? await client.bookListening() {
             bookListening = listening
         }

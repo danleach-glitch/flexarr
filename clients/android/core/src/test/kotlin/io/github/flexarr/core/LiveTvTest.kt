@@ -14,6 +14,16 @@ class LiveTvTest {
         FlexarrClient.json.decodeFromString(serializer<T>(), javaClass.classLoader!!.getResource("$name.json")!!.readText())
 
     @Test
+    fun `a refresh is finished once it has come and gone or the answer changed`() {
+        val before = LiveTvStatus(configured = true, channels = 1, refreshedAt = "a")
+        assertFalse(before.copy(refreshing = true, refreshedAt = "b").finishedRefresh(before, sawRefreshing = true))
+        assertFalse(before.finishedRefresh(before, sawRefreshing = false))
+        assertTrue(before.finishedRefresh(before, sawRefreshing = true))
+        assertTrue(before.copy(refreshedAt = "b").finishedRefresh(before, sawRefreshing = false))
+        assertTrue(before.copy(downloadError = "No").finishedRefresh(before, sawRefreshing = false))
+    }
+
+    @Test
     fun `reads the server's channels, guide and recordings`() {
         val channels = fixture<List<LiveChannel>>("live-channels")
         assertTrue(channels.isNotEmpty())

@@ -27,6 +27,7 @@ import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.LiveTvStatus
+import io.github.flexarr.core.refreshLiveTv
 import io.github.flexarr.core.liveTvStatus
 import io.github.flexarr.core.offersAlbums
 import io.github.flexarr.audio.BookPlayer
@@ -1559,6 +1560,28 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             return
         }
         runCatching { client.libraries() }.onSuccess { list -> audiobookLibraries = list.filter { it.type == io.github.flexarr.core.LibraryType.Audiobooks } }
+    }
+
+    /** The Live TV guide is being refreshed at this profile's asking. */
+    var isRefreshingLiveTv by mutableStateOf(false)
+        private set
+
+    /** Refreshes the channels and guide, and waits for it. Says what went wrong, or null. */
+    suspend fun refreshLiveTv(): String? {
+        val client = client ?: return null
+        if (isRefreshingLiveTv) return null
+        isRefreshingLiveTv = true
+        return try {
+            val status = client.refreshLiveTv()
+            if (status != null) liveTvStatus = status
+            status?.error ?: status?.downloadError
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            e.message
+        } finally {
+            isRefreshingLiveTv = false
+        }
     }
 
     suspend fun loadLiveTvStatus() {
