@@ -22,8 +22,8 @@ public enum GuideDownloadProblem
 /// </summary>
 /// <remarks>
 /// The client this uses doesn't follow redirects (see Program.cs), so the key only ever goes to the address saved with
-/// it. Dispatcharr's source list holds each source's address and password: only the fields read below are looked at,
-/// and none of it is logged or passed on, nor is Dispatcharr's own message about a source, which can quote an address.
+/// it. Dispatcharr's source list holds each source's address, which can carry a login: only the fields read below are
+/// looked at, and none of it is logged or passed on, nor is Dispatcharr's own message about a source, which can quote one.
 /// </remarks>
 public sealed class DispatcharrGuides(HttpClient http)
 {
