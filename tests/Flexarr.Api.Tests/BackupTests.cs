@@ -311,6 +311,26 @@ public class BackupTests
     }
 
     [Fact]
+    public async Task SettingsFile_CarriesTheWatchSwitch_WithTheLibraries()
+    {
+        await using var factory = new FlexarrApiFactory();
+        var client = Client(factory);
+        ServerConfigStore.Update(factory.DataDirectory, config => config["watchFolders"] = new JsonObject { ["enabled"] = false });
+        var file = await (await client.PostAsJsonAsync(Api("/backups/settings-export"), new { })).Content.ReadAsByteArrayAsync();
+        Assert.False(JsonNode.Parse(file)!["settings"]!["watchFolders"]!["enabled"]!.GetValue<bool>());
+
+        ServerConfigStore.Update(factory.DataDirectory, config => config["watchFolders"] = new JsonObject { ["enabled"] = true });
+        var upload = await UploadAsync(client, file);
+        var sections = upload.GetProperty("settings").GetProperty("sections").EnumerateArray().Select(s => s.GetString()).ToList();
+        Assert.Single(sections, "libraries");
+
+        var import = await client.PostAsJsonAsync(Api($"/backups/uploads/{upload.GetProperty("id").GetString()}/import"), new { sections = new[] { "libraries" } });
+        Assert.Equal(HttpStatusCode.OK, import.StatusCode);
+        var config = JsonNode.Parse(await File.ReadAllTextAsync(ServerConfigStore.PathFor(factory.DataDirectory)))!;
+        Assert.False(config["watchFolders"]!["enabled"]!.GetValue<bool>());
+    }
+
+    [Fact]
     public async Task SettingsFile_CarriesChosenSections_AndLibrariesToNewFolders()
     {
         await using var factory = new FlexarrApiFactory();
