@@ -1853,7 +1853,7 @@ export interface MusicRequested {
   artistMusicBrainzId: string | null
   image: string | null
   releaseDate: string | null
-  state: 'upcoming' | 'searching' | 'downloading' | 'importing'
+  state: 'upcoming' | 'searching' | 'downloading' | 'importing' | 'couldNotImport'
   /** While downloading, 0 to 1. */
   progress: number | null
   artistLibraryItemId: string | null

@@ -598,6 +598,7 @@
   "Couldn’t find a Plex database on this machine.": "s",
   "Couldn’t find that server. Check the address, or use its IP address instead of the name.": "a",
   "Couldn’t follow this artist": "n",
+  "Couldn’t import": "w",
   "Couldn’t keep this match": "w",
   "Couldn’t list the backups: {message}": "w",
   "Couldn’t load the channels: {error}": "w",

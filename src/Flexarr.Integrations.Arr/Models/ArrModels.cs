@@ -145,9 +145,16 @@ public sealed record ArrQueueItem
     public SonarrSeries? Series { get; init; }
     public SonarrEpisode? Episode { get; init; }
 
+    /// <summary>Lidarr's: the album itself, and why a finished download didn't import.</summary>
+    public LidarrAlbum? Album { get; init; }
+    public IReadOnlyList<ArrQueueStatusMessage>? StatusMessages { get; init; }
+
     [JsonIgnore]
     public double Progress => Size > 0 ? 1 - Sizeleft / Size : 0;
 }
+
+/// <summary>A file in a queue entry, or the entry itself, and what the *arr has to say about it.</summary>
+public sealed record ArrQueueStatusMessage(string? Title, IReadOnlyList<string>? Messages);
 
 /// <summary>A film series (a TMDB collection) as Radarr knows it: every film in it, owned or not.</summary>
 public sealed record RadarrCollection

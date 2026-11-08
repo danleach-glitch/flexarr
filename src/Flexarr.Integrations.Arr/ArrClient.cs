@@ -126,6 +126,10 @@ public sealed class ArrClient(HttpClient httpClient)
     public Task RemoveFromQueueAsync(ArrInstance instance, int queueId, CancellationToken ct = default) =>
         RemoveAsync(instance, $"queue/{queueId}?removeFromClient=true&blocklist=false", ct);
 
+    /// <summary>Takes a download out of the queue and the download client and blocklists the release, leaving any new search to the caller. Gone already counts as done.</summary>
+    public Task BlocklistFromQueueAsync(ArrInstance instance, int queueId, CancellationToken ct = default) =>
+        RemoveAsync(instance, $"queue/{queueId}?removeFromClient=true&blocklist=true&skipRedownload=true", ct);
+
     private async Task RemoveAsync(ArrInstance instance, string path, CancellationToken ct)
     {
         using var request = Request(instance, HttpMethod.Delete, path);
@@ -223,7 +227,8 @@ public sealed class ArrClient(HttpClient httpClient)
                 rootFolderPath = placement.RootFolderPath,
                 monitored = true,
                 monitorNewItems = "none",
-                addOptions = new { monitor = "none", searchForMissingAlbums = false },
+                // Lidarr applies these once it has scanned the artist: "none" alone would unmonitor this album too.
+                addOptions = new { monitor = "none", albumsToMonitor = new[] { albumMusicBrainzId }, searchForMissingAlbums = false },
             },
             addOptions = new { addType = "manual", searchForNewAlbum = true },
         }, ct);
@@ -253,6 +258,14 @@ public sealed class ArrClient(HttpClient httpClient)
         var artist = await GetAsync<JsonObject>(lidarr, $"artist/{artistId}", ct).ConfigureAwait(false);
         artist["monitored"] = true;
         artist["monitorNewItems"] = "new";
+        await SendAsync<JsonObject>(lidarr, HttpMethod.Put, $"artist/{artistId}", artist, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Monitors an artist without following them: Lidarr only keeps looking for an album whose artist is monitored too.</summary>
+    public async Task MonitorArtistAsync(ArrInstance lidarr, int artistId, CancellationToken ct = default)
+    {
+        var artist = await GetAsync<JsonObject>(lidarr, $"artist/{artistId}", ct).ConfigureAwait(false);
+        artist["monitored"] = true;
         await SendAsync<JsonObject>(lidarr, HttpMethod.Put, $"artist/{artistId}", artist, ct).ConfigureAwait(false);
     }
 

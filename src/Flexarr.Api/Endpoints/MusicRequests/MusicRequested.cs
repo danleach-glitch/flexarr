@@ -37,6 +37,7 @@ public static class MusicRequested
         var shown = new HashSet<string>(StringComparer.Ordinal);
         var now = DateTime.UtcNow;
         var answered = 0;
+        var queuedAlbums = new Dictionary<string, ArrQueueItem>(StringComparer.Ordinal);
         foreach (var lidarr in c.Lidarrs)
         {
             var lists = await ListsAsync(c, lidarr, now, ct);
@@ -50,6 +51,14 @@ public static class MusicRequested
             var (wanted, upcoming, queue) = lists.Value;
             var artists = (await MusicMatcher.LidarrArtistsAsync(c.Client, lidarr, c.Cache, ct)).ToDictionary(a => a.Id);
             var queued = queue.Where(q => q.AlbumId is not null).ToLookup(q => q.AlbumId!.Value);
+            foreach (var item in queue)
+            {
+                if (item.Album?.ForeignAlbumId is { Length: > 0 } id)
+                {
+                    queuedAlbums.TryAdd(id, item);
+                }
+            }
+
             foreach (var album in wanted.Concat(upcoming).DistinctBy(a => a.Id))
             {
                 var artist = artists.GetValueOrDefault(album.ArtistId) ?? album.Artist;
@@ -107,14 +116,16 @@ public static class MusicRequested
                 var placeable = request.ArtistMusicBrainzId is { } artistId ? !hiddenArtists.Contains(artistId) : owned.VisibleFolders is null;
                 if (placeable && !known.Contains(request.MusicBrainzId!) && shown.Add(request.MusicBrainzId!) && owned.AlbumId(request.ArtistName, request.Title) is null)
                 {
-                    listed.Add(new MusicRequestedDto(request.MusicBrainzId!, request.Title ?? "", request.ArtistName ?? "", request.ArtistMusicBrainzId, null, null, "searching", null,
+                    // An album Lidarr has unmonitored can still be in its queue, from the search the request started.
+                    var (state, progress) = queuedAlbums.TryGetValue(request.MusicBrainzId!, out var item) ? FromQueue(item) : ("searching", null);
+                    listed.Add(new MusicRequestedDto(request.MusicBrainzId!, request.Title ?? "", request.ArtistName ?? "", request.ArtistMusicBrainzId, null, null, state, progress,
                         owned.ArtistId(request.ArtistName)));
                 }
             }
         }
 
-        // What's moving first, then what's being looked for (newest first), then what's coming (soonest first).
-        return listed.OrderBy(r => r.State switch { "importing" => 0, "downloading" => 1, "searching" => 2, _ => 3 })
+        // What needs someone first, then what's moving, then what's being looked for (newest first), then what's coming (soonest first).
+        return listed.OrderBy(r => r.State switch { "couldNotImport" => 0, "importing" => 1, "downloading" => 2, "searching" => 3, _ => 4 })
             .ThenBy(r => r.State == "upcoming" ? r.ReleaseDate?.DayNumber ?? int.MaxValue : -(r.ReleaseDate?.DayNumber ?? 0))
             .ThenBy(r => r.Artist, StringComparer.OrdinalIgnoreCase).ToList();
     }
@@ -176,14 +187,25 @@ public static class MusicRequested
     {
         if (queued is not null)
         {
-            // Finished downloading, whether it's importing or stuck there (blocked, failed): the download's done.
-            return queued.TrackedDownloadState is "importPending" or "importing" or "imported" or "importBlocked" or "importFailed" or "failedPending" or "failed"
-                || queued.Status is "completed" or "failed" or "warning"
-                ? ("importing", null)
-                : ("downloading", Math.Clamp(queued.Progress, 0, 1));
+            return FromQueue(queued);
         }
 
         return album.ReleaseDate is { } released && released > now ? ("upcoming", null) : ("searching", null);
+    }
+
+    private static (string State, double? Progress) FromQueue(ArrQueueItem queued)
+    {
+        // Lidarr tried and gave up: it won't try this download again by itself, so it isn't importing.
+        if (queued.TrackedDownloadState is "importBlocked" or "importFailed")
+        {
+            return ("couldNotImport", null);
+        }
+
+        // Finished downloading, whether it's importing or on its way out: the download's done.
+        return queued.TrackedDownloadState is "importPending" or "importing" or "imported" or "failedPending" or "failed"
+            || queued.Status is "completed" or "failed" or "warning"
+            ? ("importing", null)
+            : ("downloading", Math.Clamp(queued.Progress, 0, 1));
     }
 
     /// <summary>

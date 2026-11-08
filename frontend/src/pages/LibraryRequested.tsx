@@ -66,7 +66,7 @@ export function LibraryRequested({ library, viewSwitch }: { library: Library; vi
   const rows = data?.rows.filter((r) => !gone.has(r.key))
   const answering = data?.answering !== false
   // Downloading 40% moves on: asked again now and then while anything is on its way in, so it doesn't look stuck.
-  usePolling(reload, data?.rows.some((r) => r.state === 'downloading' || r.state === 'importing') ? REFRESH_MS : null)
+  usePolling(reload, data?.rows.some((r) => r.state === 'downloading' || r.state === 'importing' || r.state === 'couldNotImport') ? REFRESH_MS : null)
 
   // The card that opened the dialog is gone: the keyboard moves on to the next one's Unrequest (or the grid).
   function remove(key: string, index: number) {

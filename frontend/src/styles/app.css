@@ -3410,6 +3410,10 @@ a.download-attention {
   color: var(--screen);
 }
 
+.requested-couldNotImport {
+  color: var(--danger);
+}
+
 .requested-progress {
   width: 100%;
   height: 4px;
