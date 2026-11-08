@@ -1007,7 +1007,7 @@ export const setFavouriteChannel = (id: string, favourite: boolean) => request<v
 /** An empty key tests the saved one. */
 export const testTmdb = (apiKey: string) => request<{ ok: boolean; error: string | null }>('POST', '/settings/tmdb/test', { apiKey })
 
-export const testLiveTv = (source: { baseUrl: string; username: string; password?: string }) => request<LiveTvTest>('POST', '/settings/livetv/test', source)
+export const testLiveTv = (source: { baseUrl: string; username: string; password?: string; adminApiKey?: string }) => request<LiveTvTest>('POST', '/settings/livetv/test', source)
 
 // ---------- Podcasts
 

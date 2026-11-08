@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Shuffle
@@ -102,6 +103,8 @@ object FlexarrIcons {
     val details: ImageVector get() = Icons.Outlined.Info
     /** Take something out of Continue watching or Up next. */
     val removeFromRow: ImageVector get() = Icons.Outlined.RemoveCircleOutline
+    /** Refresh the Live TV guide. */
+    val refresh: ImageVector get() = Icons.Filled.Refresh
     /** More actions. */
     val more: ImageVector get() = Icons.Filled.MoreHoriz
     /** Home. */

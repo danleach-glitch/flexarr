@@ -759,6 +759,7 @@ function DispatcharrRow({
   const [baseUrl, setBaseUrl] = useState(liveTv?.baseUrl ?? '')
   const [username, setUsername] = useState(liveTv?.username ?? '')
   const [password, setPassword] = useState('')
+  const [adminKey, setAdminKey] = useState('')
   const [test, setTest] = useState<LiveTvTest | 'testing'>()
   const [saving, setSaving] = useState(false)
   const shown = test === 'testing' ? t('Testing…') : test ? (test.ok ? testSummary(test) : test.error) : status
@@ -778,6 +779,7 @@ function DispatcharrRow({
               baseUrl: baseUrl.trim(),
               username: username.trim(),
               password: password || undefined,
+              adminApiKey: adminKey.trim() || undefined,
             }).finally(() => setSaving(false))
           }}
         >
@@ -789,6 +791,9 @@ function DispatcharrRow({
             </p>
             <p>
               {t.rich('Rewinding and recording are in {page}.', { page: <Link to="/settings/livetv">{t(Words.liveTv)}</Link> })}
+            </p>
+            <p>
+              {t('With a Dispatcharr admin’s API key, Refresh also has Dispatcharr download its guides first. It’s optional, and gives Flexarr admin rights in Dispatcharr. Without it, Refresh reads what Dispatcharr already has.')}
             </p>
           </details>
           <div className="field-row">
@@ -811,6 +816,23 @@ function DispatcharrRow({
               />
             </label>
           </div>
+          <label>
+            {t('Admin API key (optional)')}
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={adminKey}
+              placeholder={liveTv?.hasAdminApiKey ? t('Saved; type to replace') : t('From your user’s page in Dispatcharr')}
+              onChange={(e) => setAdminKey(e.target.value)}
+            />
+          </label>
+          {liveTv?.hasAdminApiKey && (
+            <p>
+              <AsyncButton type="button" className="button quiet small" onClick={() => onSave({ baseUrl: liveTv.baseUrl, username: liveTv.username, adminApiKey: '' }, t('Admin API key removed'))}>
+                {t('Remove admin API key')}
+              </AsyncButton>
+            </p>
+          )}
           <div className="form-actions">
             {liveTv && (
               <AsyncButton
@@ -831,7 +853,7 @@ function DispatcharrRow({
               onClick={async () => {
                 setTest('testing')
                 setTest(
-                  await testLiveTv({ baseUrl: baseUrl.trim(), username: username.trim(), password: password || undefined }).catch(
+                  await testLiveTv({ baseUrl: baseUrl.trim(), username: username.trim(), password: password || undefined, adminApiKey: adminKey.trim() || undefined }).catch(
                     (e: unknown): LiveTvTest => ({ ok: false, channels: null, maxConnections: null, expiresAt: null, error: errorText(e) }),
                   ),
                 )

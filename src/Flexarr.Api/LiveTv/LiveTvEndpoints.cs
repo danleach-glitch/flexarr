@@ -273,11 +273,12 @@ public static partial class LiveTvEndpoints
             viewers.All.Select(v => new LiveWatcherDto(v.ChannelId, v.ChannelName, v.ProfileId, v.StartedAt)).ToList())
             .RequireAuthorization(FlexarrClaims.AdminPolicy);
 
+        // The main profile even while it's locked: a guide read costs little, and how often Dispatcharr's sources are asked has its own limit.
         group.MapPost("/refresh", (LiveTvRefreshSignal signal) =>
         {
             signal.Request(download: true);
             return Results.Accepted();
-        }).RequireAuthorization(FlexarrClaims.AdminPolicy);
+        }).RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
         // The channels profiles with an age limit may watch, picked by a parent.
         group.MapPut("/channels/{id:guid}/kids", async (Guid id, ChannelKidsRequest request, FlexarrDbContext db, CancellationToken ct) =>
