@@ -21,8 +21,8 @@ public enum FolderWatchState
     Share,
 
     /// <summary>
-    /// Couldn't be watched (see <see cref="FolderWatchProblem"/>): the 12-hour scan, and tried again within a minute of
-    /// coming back if missing. If the system refused, 12 hours later, or as soon as its limit is raised.
+    /// Couldn't be watched (see <see cref="FolderWatchProblem"/>): the 12-hour scan, and tried again within five minutes
+    /// of coming back if missing. If the system refused, 12 hours later, or as soon as its limit is raised.
     /// </summary>
     Unavailable,
 
@@ -75,6 +75,11 @@ public sealed partial class FolderWatcher(
     /// that couldn't be watched are tried again.
     /// </summary>
     internal TimeSpan ResyncEvery { get; set; } = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// How often a folder that isn't there is looked for: asking can wake a NAS, or an automount's drive.
+    /// </summary>
+    internal TimeSpan LookForMissingEvery { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>
     /// A title that never goes quiet is scanned anyway after this long: no later than the 12-hour scan it replaced. Not
@@ -354,7 +359,7 @@ public sealed partial class FolderWatcher(
         var starting = new Starting();
         if (!Directory.Exists(root))
         {
-            return (new Watched(null, new FolderWatchStatus(FolderWatchState.Unavailable, FolderWatchProblem.Missing)), starting);
+            return (new Watched(null, new FolderWatchStatus(FolderWatchState.Unavailable, FolderWatchProblem.Missing)) { RetryAt = time.GetUtcNow() + LookForMissingEvery }, starting);
         }
 
         // Before the watch starts: if the folder is swapped meanwhile, the next look sees a difference.
@@ -408,13 +413,13 @@ public sealed partial class FolderWatcher(
         return unavailable;
     }
 
-    /// <summary>What's left of a folder the system won't watch, and when it's tried again: a missing one only needs looking for.</summary>
+    /// <summary>What's left of a folder the system won't watch, and when it's tried again.</summary>
     private Watched Unavailable(string root, Exception ex)
     {
         var problem = IsWatchLimit(ex) ? FolderWatchProblem.Limit : Directory.Exists(root) ? FolderWatchProblem.Failed : FolderWatchProblem.Missing;
         return new Watched(null, new FolderWatchStatus(FolderWatchState.Unavailable, problem))
         {
-            RetryAt = problem == FolderWatchProblem.Missing ? null : time.GetUtcNow() + RetryRefusedAfter,
+            RetryAt = time.GetUtcNow() + (problem == FolderWatchProblem.Missing ? LookForMissingEvery : RetryRefusedAfter),
             LimitsWere = WatchLimits(),
         };
     }

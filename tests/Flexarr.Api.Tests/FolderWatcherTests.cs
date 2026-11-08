@@ -52,6 +52,7 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
         {
             QuietFor = TimeSpan.FromMilliseconds(300),
             SettleFor = TimeSpan.FromMilliseconds(200),
+            LookForMissingEvery = TimeSpan.Zero,
         };
         await watcher.SyncAsync(default);
         return new Setup(watcher, queue, root, options);
@@ -222,6 +223,20 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
 
         Assert.Equal(FolderWatchState.Watching, setup.Watcher.StatusOf(setup.Root)?.State);
         Assert.Contains(setup.Queue.Requests, r => r.Path == setup.Root && r.Reason == FolderWatcher.Reason);
+    }
+
+    [Fact]
+    public async Task AMissingFolder_IsntLookedForEveryMinute()
+    {
+        using var setup = await WatchAsync(create: false);
+        setup.Watcher.LookForMissingEvery = TimeSpan.FromHours(1);
+        Directory.CreateDirectory(setup.Root);
+        Directory.Delete(setup.Root);
+        await setup.Watcher.SyncAsync(default); // Looks, and won't again for an hour.
+
+        Directory.CreateDirectory(setup.Root);
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(FolderWatchProblem.Missing, setup.Watcher.StatusOf(setup.Root)?.Problem);
     }
 
     [Fact]
