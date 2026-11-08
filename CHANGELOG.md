@@ -15,8 +15,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Libraries
 
-- New files show up straight away. Your server watches your library folders, and about half a minute after a file is copied in (once it has finished copying), just that film, show, artist or book is scanned, whether Sonarr, Radarr or Lidarr put it there or you did. A cover or `.nfo` file you replace beside a title shows up straight away too. Turn it off with **Notice new files straight away** in **Settings › Libraries**.
-- Because watched folders keep themselves up to date, they're only read through in full once a week instead of every 12 hours, so the drives your media is on are woken less. Network shares keep the 12-hour scan, since they often don't report files added from other computers. Each folder in **Settings › Libraries** says which it is.
+- New files show up within a minute of being copied in, whoever put them there. Your server watches your library folders and scans just the title that changed, once it has finished copying. A cover or `.nfo` file you replace shows up too. To turn it off, use **Notice new files straight away** in **Settings › Libraries**.
+- Watched folders are read through in full once a week instead of every 12 hours, and after a restart, so your drives are woken less. Network shares keep the 12-hour scan, because they often don't report files added from other computers. A folder that can't be watched says why in **Settings › Libraries**.
 
 ### Home Assistant
 
