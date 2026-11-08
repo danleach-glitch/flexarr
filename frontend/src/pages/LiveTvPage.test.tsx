@@ -50,6 +50,30 @@ describe('refreshing the Live TV guide', () => {
       </SessionContext.Provider>,
     )
 
+  it('finishes a refresh that fails just as the last did, and says when one worked', async () => {
+    let finished = 4
+    let error: string | null = 'Not there'
+    mockApi({
+      '/livetv/status': () => ({ configured: true, channels: 20, refreshing: false, refreshedAt: null, error, rewindMinutes: 0, channelsWithoutListings: 0, refreshesFinished: finished }),
+      '/livetv/channels': () => [],
+      '/livetv/refresh': () => {
+        finished++
+        return {}
+      },
+    })
+    openPage(true)
+    const button = await screen.findByRole('button', { name: 'Refresh guide' })
+    await screen.findByText('Not there')
+    fireEvent.click(button)
+    // Same error, nothing else differs: the count is what says it finished.
+    await waitFor(() => expect(button.getAttribute('aria-busy')).not.toBe('true'), { timeout: 5000 })
+    expect(screen.queryByText('Guide refreshed')).toBeNull()
+
+    error = null
+    fireEvent.click(button)
+    await screen.findByText('Guide refreshed', undefined, { timeout: 5000 })
+  }, 15000)
+
   it('tells the server, says how many channels have no listings, and fetches the channels again when it’s done', async () => {
     let refreshing = false
     let refreshedAt = '2026-11-08T06:00:00Z'

@@ -878,7 +878,9 @@ export interface LiveTvStatus {
   error: string | null
   rewindMinutes: number
   /** Channels with nothing listed from now on. Absent from servers before the release after 0.63. */
-  channelsWithoutListings?: number
+  channelsWithoutListings?: number | null
+  /** Goes up as each refresh finishes, however it went. Absent from servers before the release after 0.63. */
+  refreshesFinished?: number | null
   /** Why Dispatcharr couldn't be asked to download its guides, last time it was. Absent from servers before the release after 0.63. */
   downloadError?: string | null
 }
