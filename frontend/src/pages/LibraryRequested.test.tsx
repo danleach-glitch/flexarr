@@ -39,6 +39,7 @@ describe('LibraryRequested', () => {
   it('says where each album stands', () => {
     expect(requestedState(albums[0])).toBe('Downloading, 45%')
     expect(requestedState({ ...albums[0], state: 'importing' })).toBe('Importing')
+    expect(requestedState({ ...albums[0], state: 'couldNotImport' })).toBe('Couldn’t import')
     expect(requestedState({ ...albums[0], state: 'searching' })).toBe('Searching')
     expect(requestedState(albums[1], new Date('2099-01-01'))).toMatch(/^Out 14 Nov$|^Out Nov 14$/)
   })

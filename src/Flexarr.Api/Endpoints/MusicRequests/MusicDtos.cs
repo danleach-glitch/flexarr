@@ -94,7 +94,7 @@ public sealed record MusicUndoBody(long? DeezerId = null, string? MusicBrainzId 
 
 /// <summary>An album Lidarr is waiting for: asked for, monitored without files, or coming out soon.</summary>
 /// <param name="MusicBrainzId">Its release group: what unrequesting takes.</param>
-/// <param name="State">"upcoming" (not out yet), "searching", "downloading" or "importing".</param>
+/// <param name="State">"upcoming" (not out yet), "searching", "downloading", "importing" or "couldNotImport" (downloaded, and Lidarr gave up importing it; since 0.64).</param>
 /// <param name="Progress">While downloading: how far, 0 to 1.</param>
 /// <param name="ArtistLibraryItemId">The artist in the library, when they're there (a placeholder counts).</param>
 public sealed record MusicRequestedDto(

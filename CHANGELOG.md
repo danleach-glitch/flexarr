@@ -8,6 +8,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 - **Discover › Music** has a new row, **Albums you might like**: the best-known album by each of the artists like the ones you play.
 - **Top albums** now shows the albums behind the tracks people are playing most, so it's far more familiar and has fewer obscure picks.
+- An album you request by an artist new to Lidarr now stays on Lidarr's wanted list, so it keeps being looked for if the first search finds nothing.
+- A requested album that downloads but can't be imported now says **Couldn't import** instead of waiting forever. If the download was missing tracks, Flexarr rejects it and looks for another copy, up to three times.
 
 ### iPhone, iPad and Apple TV
 

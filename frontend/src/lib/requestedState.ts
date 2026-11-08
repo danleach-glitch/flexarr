@@ -8,6 +8,8 @@ export function requestedState(r: Pick<MusicRequested | TitleRequested, 'state' 
       return r.progress != null && r.progress > 0 ? t('Downloading, {percent}%', { percent: Math.round(r.progress * 100) }) : t('Downloading')
     case 'importing':
       return t('Importing')
+    case 'couldNotImport':
+      return t('Couldn’t import')
     case 'upcoming': {
       if (!r.releaseDate) return t(Words.comingSoon)
       const date = new Date(`${r.releaseDate}T00:00:00`)
