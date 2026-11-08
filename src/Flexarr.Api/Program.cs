@@ -49,8 +49,11 @@ var dataDirectory = builder.Configuration[$"{FlexarrOptions.SectionName}:{nameof
 Directory.CreateDirectory(dataDirectory);
 // A backup chosen for restore goes in place now, before anything reads the settings or opens the database.
 var restored = PendingRestore.Apply(dataDirectory, DateTime.UtcNow);
+// Made here rather than left to AddJsonFile, which would make one nothing can let go of: it holds the file's watcher.
+var userConfigFiles = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
+    Path.GetDirectoryName(ServerConfigStore.PathFor(dataDirectory))!, Microsoft.Extensions.FileProviders.Physical.ExclusionFilters.None);
 var userConfig = new ConfigurationBuilder()
-    .AddJsonFile(ServerConfigStore.PathFor(dataDirectory), optional: true, reloadOnChange: true)
+    .AddJsonFile(userConfigFiles, ServerConfigStore.FileName, optional: true, reloadOnChange: true)
     .Build();
 
 // config.json overrides appsettings and is reloaded when it changes, so settings apply without a restart.
@@ -370,8 +373,12 @@ _ = Task.Run(ServerName.Warm);
 // The Mac app's sandbox can't run other programs, Tailscale's command included.
 TailscaleService.Sandboxed = app.Services.GetRequiredService<IInstallEnvironment>().Kind == InstallKind.MacApp;
 // config.json's watcher belongs to this server: let it go when the server stops (tests start many in one process, and
-// Linux allows only so many watchers).
-app.Lifetime.ApplicationStopped.Register(() => (userConfig as IDisposable)?.Dispose());
+// Linux and macOS allow only so many watchers: out of them on macOS, the next server never gets past reading config.json).
+app.Lifetime.ApplicationStopped.Register(() =>
+{
+    (userConfig as IDisposable)?.Dispose();
+    userConfigFiles.Dispose();
+});
 
 // Materialise options at startup so a first-run API key is generated and logged immediately.
 Directory.CreateDirectory(app.Services.GetRequiredService<IOptions<FlexarrOptions>>().Value.DataDirectory);
