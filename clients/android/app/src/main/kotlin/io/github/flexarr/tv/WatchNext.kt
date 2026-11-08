@@ -6,8 +6,10 @@ import android.content.Context
 import android.net.Uri
 import androidx.tvprovider.media.tv.TvContractCompat
 import androidx.tvprovider.media.tv.WatchNextProgram
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -53,6 +55,10 @@ object WatchNext {
         val durationMillis: Int? = null,
         val positionMillis: Int? = null,
         val lastEngagement: Long,
+        /** [lastEngagement] is when it was really played, not a time made up to keep the server's order. */
+        val played: Boolean = false,
+        /** An album's artist (Google TV shows an episode title only for episodes). */
+        val author: String? = null,
         val image: Picture?,
         val link: AppLink,
     )
@@ -67,17 +73,20 @@ object WatchNext {
     fun cards(watching: List<ItemSummary>, albums: List<ItemSummary>, now: Long, image: (ItemSummary) -> Picture?): List<Card> {
         // Google TV orders the row by these times. The server's order (by when each film or show was last played)
         // holds: a show's next episode has never been played and so has no time of its own, so each card's time is
-        // its own or, if that's later, just after the card before.
-        var previous = now + SECOND
+        // its own or, if that's later, just before the card before. Counted from the newest play rather than now, so a
+        // card's time stays the same from one refresh to the next and the row isn't rewritten for nothing.
+        var previous = (watching.mapNotNull(::playedAt).maxOrNull() ?: now) + 2 * SECOND
         val videos = watching.mapNotNull { item ->
-            val engaged = minOf(playedAt(item) ?: Long.MAX_VALUE, previous - SECOND).also { previous = it }
+            val played = playedAt(item)
+            val engaged = minOf(played ?: Long.MAX_VALUE, previous - SECOND).also { previous = it }
             val position = item.userData.positionSeconds.takeIf { it > 0 && !item.userData.watched }
             val duration = item.durationSeconds?.takeIf { it > 0 } ?: item.runtimeMinutes?.takeIf { it > 0 }?.let { it * 60.0 }
             when (item.kind) {
                 MediaKind.Movie -> position?.let {
                     Card(
                         item.id, TvContractCompat.WatchNextPrograms.WATCH_NEXT_TYPE_CONTINUE, TvContractCompat.PreviewPrograms.TYPE_MOVIE, item.title,
-                        durationMillis = duration?.let(::millis), positionMillis = millis(it), lastEngagement = engaged, image = image(item),
+                        durationMillis = duration?.let(::millis), positionMillis = millis(it), lastEngagement = engaged, played = played == engaged,
+                        image = image(item),
                         link = AppLink.Play(item.id),
                     )
                 }
@@ -89,7 +98,7 @@ object WatchNext {
                     episodeTitle = item.title.takeIf { item.seriesTitle != null },
                     season = item.seasonNumber, episode = item.episodeNumber,
                     durationMillis = duration?.let(::millis), positionMillis = position?.let(::millis),
-                    lastEngagement = engaged, image = image(item), link = AppLink.Play(item.id),
+                    lastEngagement = engaged, played = played == engaged, image = image(item), link = AppLink.Play(item.id),
                 )
                 else -> null
             }
@@ -98,8 +107,9 @@ object WatchNext {
         val music = albums.filter { it.kind == MediaKind.Album }.take(MAX_ALBUMS).mapIndexed { index, album ->
             Card(
                 album.id, TvContractCompat.WatchNextPrograms.WATCH_NEXT_TYPE_CONTINUE, TvContractCompat.PreviewPrograms.TYPE_ALBUM, album.title,
-                episodeTitle = album.seriesTitle,
-                lastEngagement = playedAt(album) ?: (oldest - (index + 1) * MINUTE), image = image(album), link = AppLink.Album(album.id),
+                author = album.seriesTitle,
+                lastEngagement = playedAt(album) ?: (oldest - (index + 1) * MINUTE), played = playedAt(album) != null,
+                image = image(album), link = AppLink.Album(album.id),
             )
         }
         return (videos.take(MAX_VIDEOS) + music).sortedByDescending { it.lastEngagement }
@@ -134,7 +144,11 @@ object WatchNext {
     fun schedule(context: Context) {
         if (!context.isTelevision) return
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            "watch-next", ExistingPeriodicWorkPolicy.KEEP, PeriodicWorkRequestBuilder<Worker>(6, TimeUnit.HOURS).build(),
+            "watch-next", ExistingPeriodicWorkPolicy.UPDATE,
+            PeriodicWorkRequestBuilder<Worker>(6, TimeUnit.HOURS)
+                // Offline it could only fail.
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .build(),
         )
     }
 
@@ -149,56 +163,88 @@ object WatchNext {
         val credentials = context.appModel.credentials ?: CredentialStore(context).load()
         if (credentials == null || credentials.isGuest) return write(context, emptyList())
         val client = credentials.client()
-        val profiles = client.profiles()
+        // The app's own list when it's up and signed in the same way, else asked.
+        val model = context.appModel
+        val profiles = model.profiles.takeIf { model.profilesLoaded && it.isNotEmpty() && model.credentials == credentials } ?: client.profiles()
         // Before anyone's chosen the server acts as the main profile, whose titles aren't for whoever's at "Who's
         // watching?" in a house with several.
         if (credentials.profileToken == null && profiles.size > 1) return write(context, emptyList())
         val watching = profiles.firstOrNull { it.isCurrent } ?: profiles.firstOrNull { it.isMain }
         // Its PIN, or the admin PIN that choosing the main profile can take, guards it: so the row stays empty.
-        if (watching?.takesPin == true) return write(context, emptyList())
+        if (watching == null || watching.takesPin) return write(context, emptyList())
         val videos = client.continueWatching(take = MAX_VIDEOS)
-        val albums = runCatching { client.home().rows.firstOrNull { it.id == RECENT_MUSIC }?.items.orEmpty() }.getOrDefault(emptyList())
-        val cards = cards(videos, albums, System.currentTimeMillis()) { item -> picture(item, client) }
-        write(context, cards)
+        val cards = cards(videos, recentAlbums(client, watching.id), System.currentTimeMillis()) { item -> picture(item, client) }
+        write(context, cards, watching.id)
+    }
+
+    /** The last answer for recently played albums: whose they were, when they were asked for, and them. */
+    private var albums: Triple<String, Long, List<ItemSummary>>? = null
+
+    /**
+     * [profile]'s recently played albums. Only the whole home page has them, so they're asked for at most every few
+     * minutes rather than with every change in what's watched.
+     */
+    private suspend fun recentAlbums(client: FlexarrClient, profile: String): List<ItemSummary> {
+        val now = System.currentTimeMillis()
+        albums?.let { (owner, at, list) -> if (owner == profile && now - at < ALBUMS_FRESH) return list }
+        val list = runCatching { client.home().rows.firstOrNull { it.id == RECENT_MUSIC }?.items.orEmpty() }.getOrNull() ?: return emptyList()
+        albums = Triple(profile, now, list)
+        return list
     }
 
     /**
-     * Makes this app's programs in the row match [cards]: changed ones updated, new ones added, the rest removed. One
-     * someone took out of the row (no longer browsable) is left out until it leaves Continue Watching, so an older
-     * server that can't forget it ([WatchNextReceiver]) doesn't put it straight back.
+     * Makes this app's programs in the row match [cards], [owner]'s (a profile id): changed ones updated, new ones
+     * added, the rest removed. One someone took out of the row (no longer browsable) is left out until it leaves
+     * Continue Watching, so an older server that can't forget it ([WatchNextReceiver]) doesn't put it straight back,
+     * or until it's played again (an album, which never leaves).
      */
     @SuppressLint("RestrictedApi")
-    private fun write(context: Context, cards: List<Card>) {
+    private fun write(context: Context, cards: List<Card>, owner: String = "") {
         val resolver = context.contentResolver
-        val existing = mutableMapOf<String, Pair<Long, Boolean>>()
+        val existing = mutableMapOf<String, WatchNextProgram>()
         resolver.query(TvContractCompat.WatchNextPrograms.CONTENT_URI, WatchNextProgram.PROJECTION, null, null, null)?.use { cursor ->
             while (cursor.moveToNext()) {
                 val program = WatchNextProgram.fromCursor(cursor)
-                program.internalProviderId?.let { existing[it] = program.id to program.isBrowsable }
+                program.internalProviderId?.let { existing[it] = program }
             }
         }
-        val wanted = cards.associateBy { it.id }
-        for ((id, row) in existing) {
-            if (id !in wanted) resolver.delete(TvContractCompat.buildWatchNextProgramUri(row.first), null, null)
+        val wanted = cards.associateBy { key(owner, it.id) }
+        var removed = 0
+        for ((key, row) in existing.entries.toList()) {
+            val card = wanted[key]
+            // Taken out of the row, and played again since: it comes back as a new card.
+            val playedAgain = card != null && !row.isBrowsable && card.played && card.lastEngagement > row.lastEngagementTimeUtcMillis
+            if (card == null || playedAgain) {
+                resolver.delete(TvContractCompat.buildWatchNextProgramUri(row.id), null, null)
+                removed++
+                existing.remove(key)
+            }
         }
         var added = 0
-        var kept = 0
-        for (card in cards) {
-            val row = existing[card.id]
-            if (row != null && !row.second) continue
-            val values = program(context, card).toContentValues()
+        var updated = 0
+        for ((key, card) in wanted) {
+            val row = existing[key]
+            if (row != null && !row.isBrowsable) continue
+            val values = program(context, card, key).toContentValues()
             if (row != null) {
-                resolver.update(TvContractCompat.buildWatchNextProgramUri(row.first), values, null, null)
-                kept++
+                // Only what's changed: each write has the launcher look at the row again.
+                val stored = row.toContentValues()
+                if (values.keySet().all { values.get(it)?.toString() == stored.get(it)?.toString() }) continue
+                resolver.update(TvContractCompat.buildWatchNextProgramUri(row.id), values, null, null)
+                updated++
             } else if (resolver.insert(TvContractCompat.WatchNextPrograms.CONTENT_URI, values) != null) {
                 added++
             }
         }
-        log.info("Watch Next: $added added, $kept updated, ${existing.keys.count { it !in wanted }} removed")
+        log.info("Watch Next: $added added, $updated updated, $removed removed")
     }
 
+    /** A row's own id: the profile it's for and the title, so a removal acts only for the profile whose card it was. */
+    private fun key(owner: String, id: String) = "$owner/$id"
+
+
     @SuppressLint("RestrictedApi")
-    private fun program(context: Context, card: Card): WatchNextProgram = WatchNextProgram.Builder()
+    private fun program(context: Context, card: Card, key: String): WatchNextProgram = WatchNextProgram.Builder()
         .setWatchNextType(card.watchNextType)
         .setType(card.programType)
         .setTitle(card.title)
@@ -208,10 +254,11 @@ object WatchNext {
             card.episode?.let { setEpisodeNumber(it) }
             card.durationMillis?.let { setDurationMillis(it) }
             card.positionMillis?.let { setLastPlaybackPositionMillis(it) }
+            card.author?.let { setAuthor(it) }
             card.image?.let { setPosterArtUri(Uri.parse(it.url)); setPosterArtAspectRatio(it.aspect) }
         }
         .setLastEngagementTimeUtcMillis(card.lastEngagement)
-        .setInternalProviderId(card.id)
+        .setInternalProviderId(key)
         .setIntent(card.link.launcherIntent(context))
         .build()
 
@@ -228,17 +275,22 @@ object WatchNext {
             ?: url(art.poster)?.let { Picture(it, TvContractCompat.PreviewPrograms.ASPECT_RATIO_2_3) }
     }
 
+    /** A card someone took out of the row: the profile it was for, the title, and whether it's an album. */
+    data class Removed(val owner: String, val id: String, val isAlbum: Boolean)
+
     /**
-     * The program a [TvContractCompat.ACTION_WATCH_NEXT_PROGRAM_BROWSABLE_DISABLED] broadcast names, as the title's
-     * id: only once the system has really taken it out of the row (no longer browsable), which no other app can do,
-     * so a made-up broadcast changes nothing.
+     * The card a [TvContractCompat.ACTION_WATCH_NEXT_PROGRAM_BROWSABLE_DISABLED] broadcast names: only once the system
+     * has really taken it out of the row (no longer browsable), which no other app can do, so a made-up broadcast
+     * changes nothing.
      */
     @SuppressLint("RestrictedApi")
-    internal fun titleOf(context: Context, programId: Long): String? =
+    internal fun removed(context: Context, programId: Long): Removed? =
         context.contentResolver.query(ContentUris.withAppendedId(TvContractCompat.WatchNextPrograms.CONTENT_URI, programId), WatchNextProgram.PROJECTION, null, null, null)
             ?.use { cursor ->
                 if (!cursor.moveToFirst()) return@use null
-                WatchNextProgram.fromCursor(cursor).takeIf { !it.isBrowsable }?.internalProviderId
+                val program = WatchNextProgram.fromCursor(cursor).takeIf { !it.isBrowsable } ?: return@use null
+                val key = program.internalProviderId ?: return@use null
+                Removed(key.substringBefore('/', ""), key.substringAfter('/'), program.type == TvContractCompat.PreviewPrograms.TYPE_ALBUM)
             }
 
     /** When [item] was last played: the server's time (UTC, sometimes without its zone). */
@@ -256,4 +308,5 @@ object WatchNext {
     private const val MAX_ALBUMS = 4
     private const val WIDTH = 640
     private const val RECENT_MUSIC = "music-recent"
+    private const val ALBUMS_FRESH = 5 * MINUTE
 }

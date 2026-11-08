@@ -23,10 +23,16 @@ class WatchNextReceiver : BroadcastReceiver() {
         val pending = goAsync()
         scope.launch {
             try {
-                val id = WatchNext.titleOf(context, programId) ?: return@launch
+                val card = WatchNext.removed(context, programId) ?: return@launch
+                // An album isn't in Continue Watching: its card just stays out of the row until it's played again.
+                if (card.isAlbum) return@launch
                 val credentials = context.appModel.credentials ?: CredentialStore(context).load() ?: return@launch
                 if (credentials.isGuest) return@launch
-                runCatching { credentials.client().removeFromContinueWatching(id) }
+                val client = credentials.client()
+                // Only for the profile whose card it was: a row left from before a switch isn't the new profile's.
+                val current = runCatching { client.profiles().firstOrNull { it.isCurrent } }.getOrNull()
+                if (current?.id != card.owner) return@launch
+                runCatching { client.removeFromContinueWatching(card.id) }
                     .onSuccess { context.appModel.let { model -> launch(Dispatchers.Main) { model.watchStateChanged() } } }
                     .onFailure { log.info("Couldn't take a title out of Continue Watching", it) }
             } finally {

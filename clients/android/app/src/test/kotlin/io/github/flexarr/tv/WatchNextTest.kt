@@ -7,6 +7,8 @@ import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.UserData
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -88,5 +90,22 @@ class WatchNextTest {
         ))
         assertEquals(listOf("film", "next", "older"), row.map { it.id })
         assertEquals(java.time.Instant.parse("2027-01-14T08:00:00Z").toEpochMilli(), row[0].lastEngagement)
+    }
+
+    @Test fun anAlbum_hasItsArtistAsTheAuthor() {
+        val card = cards(emptyList(), albums = listOf(item("m", MediaKind.Album, series = "Artist", playedAt = "2027-01-15T08:00:00Z"))).single()
+        assertEquals("Artist", card.author)
+        assertNull(card.episodeTitle)
+        assertTrue(card.played)
+    }
+
+    @Test fun madeUpTimes_stayTheSameFromOneRefreshToTheNext() {
+        val watching = listOf(item("next", MediaKind.Episode, series = "Show"), item("film", MediaKind.Movie, position = 600.0, playedAt = "2027-01-14T08:00:00Z"))
+        val first = WatchNext.cards(watching, emptyList(), now) { null }
+        val later = WatchNext.cards(watching, emptyList(), now + 3_600_000) { null }
+        assertEquals(first, later)
+        assertEquals(listOf("next", "film"), first.map { it.id })
+        assertFalse(first[0].played)
+        assertTrue(first[1].played)
     }
 }
