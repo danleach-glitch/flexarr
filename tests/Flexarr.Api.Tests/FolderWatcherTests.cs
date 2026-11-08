@@ -149,6 +149,24 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
+    public async Task ATitleThatNeverGoesQuiet_IsScannedAnywayInTheEnd()
+    {
+        using var setup = await WatchAsync();
+        setup.Watcher.WaitsAtMost = TimeSpan.FromSeconds(2);
+        var title = Directory.CreateDirectory(Path.Combine(setup.Root, "Busy (2020)")).FullName;
+
+        var stop = DateTime.UtcNow.AddSeconds(5);
+        while (DateTime.UtcNow < stop && !setup.Queue.Requests.Any(r => r.Path == title))
+        {
+            setup.Watcher.Changed(setup.Root, "Busy (2020)/Busy (2020).mkv");
+            await setup.Watcher.FlushAsync(default);
+            await Task.Delay(50);
+        }
+
+        Assert.Contains(setup.Queue.Requests, r => r.Path == title);
+    }
+
+    [Fact]
     public async Task ManyTitlesAtOnce_ScanTheWholeFolder()
     {
         using var setup = await WatchAsync();

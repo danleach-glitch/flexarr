@@ -76,6 +76,12 @@ public sealed partial class FolderWatcher(
     /// </summary>
     internal TimeSpan ResyncEvery { get; set; } = TimeSpan.FromMinutes(1);
 
+    /// <summary>
+    /// A title that never goes quiet is scanned anyway after this long: no later than the 12-hour scan it replaced. Not
+    /// sooner, since a slow copy of a big film can take hours, and scanning it half-written would show a broken film.
+    /// </summary>
+    internal TimeSpan WaitsAtMost { get; set; } = TimeSpan.FromHours(12);
+
     internal TimeSpan TickEvery { get; set; } = TimeSpan.FromSeconds(2);
 
     /// <summary>
@@ -561,23 +567,27 @@ public sealed partial class FolderWatcher(
         List<(string Path, Pending Pending)> quiet;
         lock (_lock)
         {
-            quiet = _pending.Where(p => now - p.Value.LastEvent >= QuietFor && (p.Value.Snapshot is null || now - p.Value.SnapshotAt >= SettleFor))
+            quiet = _pending.Where(p => Overdue(p.Value, now) || (now - p.Value.LastEvent >= QuietFor && (p.Value.Snapshot is null || now - p.Value.SnapshotAt >= SettleFor)))
                 .Select(p => (p.Key, p.Value)).ToList();
         }
 
         foreach (var (path, pending) in quiet)
         {
+            // Not for a whole library folder, which would mean walking all of it (twice) to see if it had settled, and not
+            // if it's waited long enough: then it's scanned as it is, and again once it stops.
+            var overdue = Overdue(pending, now);
+            var settled = overdue || path == pending.Root;
             // Read outside the lock: listing a big show's folder takes a moment, and events keep arriving meanwhile.
-            var snapshot = Snapshot(path);
+            var snapshot = settled ? null : Snapshot(path);
             var ready = false;
             lock (_lock)
             {
-                if (!_pending.TryGetValue(path, out var current) || !ReferenceEquals(current, pending) || pending.LastEvent > now)
+                if (!_pending.TryGetValue(path, out var current) || !ReferenceEquals(current, pending) || (pending.LastEvent > now && !overdue))
                 {
                     continue; // Something changed while it was read: it waits again.
                 }
 
-                if (pending.Snapshot is { } before && before == snapshot)
+                if (settled || (pending.Snapshot is { } before && before == snapshot))
                 {
                     _pending.Remove(path);
                     ready = true;
@@ -592,10 +602,12 @@ public sealed partial class FolderWatcher(
             if (ready)
             {
                 LogChanged(PathComparison.Printable(path));
-                await queue.EnqueueAsync(new LibraryScanRequest(path, Reason, ForceMetadata: pending.ForceMetadata), ct);
+                await queue.EnqueueAsync(new LibraryScanRequest(path, Reason, ForceMetadata: pending.ForceMetadata && path != pending.Root), ct);
             }
         }
     }
+
+    private bool Overdue(Pending pending, DateTimeOffset now) => now - pending.FirstEvent >= WaitsAtMost;
 
     /// <summary>The sizes and change times of the files at <paramref name="path"/> (a folder or a file), or "gone".</summary>
     private static string Snapshot(string path)
@@ -700,6 +712,7 @@ public sealed partial class FolderWatcher(
     private sealed class Pending(string root, DateTimeOffset lastEvent)
     {
         public string Root { get; } = root;
+        public DateTimeOffset FirstEvent { get; } = lastEvent;
         public DateTimeOffset LastEvent { get; set; } = lastEvent;
         public string? Snapshot { get; set; }
         public DateTimeOffset SnapshotAt { get; set; }
