@@ -4,7 +4,8 @@ namespace Flexarr.Core.Scanning;
 
 /// <summary>
 /// A request to (re)scan part of a library. <see cref="Path"/> may be a file or a folder.
-/// Metadata for new or stale items is refreshed afterwards; <see cref="ForceMetadata"/> refreshes everything.
+/// Metadata for new or stale items is refreshed afterwards; <see cref="ForceMetadata"/> reads what's at the path afresh
+/// (for a whole library folder, every title in it).
 /// <see cref="Deleted"/>: Sonarr, Radarr or Lidarr said they deleted what's at the path, so its files going is expected
 /// even when that leaves the library folder empty (which otherwise looks like a drive that hasn't mounted).
 /// <see cref="TmdbId"/>, <see cref="TvdbId"/>: the film's or show's id as the webhook gave it, so a title new to Flexarr
