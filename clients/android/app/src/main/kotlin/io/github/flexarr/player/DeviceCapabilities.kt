@@ -25,7 +25,7 @@ object DeviceCapabilities {
     data class Facts(
         /** Decodable types, lower case (`video/hevc`, `audio/ac3`). */
         val decoders: Set<String>,
-        /** Video types with a decoder that takes 3840×2160. */
+        /** Video types with a hardware decoder that takes 3840×2160. */
         val uhdDecoders: Set<String>,
         /** `Display.HdrCapabilities.HDR_TYPE_*` the screen takes in any of its modes. */
         val hdrTypes: Set<Int>,
@@ -40,8 +40,12 @@ object DeviceCapabilities {
 
     private val decoders: Set<String> by lazy { codecs.flatMap { it.supportedTypes.asList() }.map { it.lowercase() }.toSet() }
 
+    /**
+     * Android's own software decoders take 3840×2160 too, but can't keep up with it: only a hardware decoder counts, so
+     * a box without one gets 1080p from the server.
+     */
     private val uhdDecoders: Set<String> by lazy {
-        codecs.flatMap { info ->
+        codecs.filter(::isHardware).flatMap { info ->
             info.supportedTypes.filter { it.startsWith("video/") }.filter { type ->
                 runCatching { info.getCapabilitiesForType(type).videoCapabilities?.isSizeSupported(3840, 2160) == true }.getOrDefault(false)
             }.map { it.lowercase() }
@@ -69,6 +73,12 @@ object DeviceCapabilities {
     }
 
     fun profile(context: Context): DeviceProfile = profile(facts(context))
+
+    /**
+     * [profile] with only what this device decodes itself, nothing passed through to a receiver: for music (whose
+     * visualiser needs the decoded sound) and audiobooks and podcasts (kept, or played later on headphones).
+     */
+    fun decodedProfile(context: Context): DeviceProfile = profile(facts(context).copy(passesThrough = false))
 
     /** The profile for what [facts] says: kept apart from the system so it can be tested. */
     fun profile(facts: Facts): DeviceProfile {
@@ -160,6 +170,11 @@ object DeviceCapabilities {
         "dts" to "DTS", "dts-hd" to "DTS-HD", "truehd" to "Dolby TrueHD",
     ).filter { it.first in formats }.map { it.second }
 
+    /** Passed-through formats by their short names, to fit on one line beside their title. */
+    fun surroundShortNames(formats: Set<String>): List<String> = listOf(
+        "ac3" to "DD", "eac3" to "DD+", "eac3-joc" to "Atmos", "dts" to "DTS", "dts-hd" to "DTS-HD", "truehd" to "TrueHD",
+    ).filter { it.first in formats }.map { it.second }
+
     /** What the TV reports, in English, for the log sent with diagnostics. */
     fun report(context: Context): List<String> {
         val facts = facts(context)
@@ -173,7 +188,13 @@ object DeviceCapabilities {
         )
     }
 
-    fun rate(hz: Float): String = String.format(java.util.Locale.ROOT, "%.3f", hz).trimEnd('0').trimEnd('.')
+    /** A refresh rate, up to three decimals (59.94, 23.976): for the log in [Locale.ROOT], on screen in the language shown. */
+    fun rate(hz: Float, locale: java.util.Locale = java.util.Locale.ROOT): String =
+        java.text.DecimalFormat("0.###", java.text.DecimalFormatSymbols.getInstance(locale)).format(hz.toDouble())
+
+    private fun isHardware(info: MediaCodecInfo): Boolean =
+        if (Build.VERSION.SDK_INT >= 29) info.isHardwareAccelerated
+        else !info.name.startsWith("OMX.google.") && !info.name.startsWith("c2.android.")
 
     const val HDR10 = 2 // Display.HdrCapabilities.HDR_TYPE_HDR10
     const val HLG = 3 // HDR_TYPE_HLG

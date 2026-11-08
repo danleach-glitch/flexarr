@@ -69,4 +69,15 @@ class DeviceCapabilitiesTest {
         assertTrue(SoundSettings(nightMode = SoundSettings.NightMode.Scheduled).decodesSurround)
         assertTrue(SoundSettings(speakers = SoundSettings.Speakers.Stereo).decodesSurround)
     }
+
+    @Test fun surround_hasShortNamesForItsRow() {
+        assertEquals(listOf("DD", "DD+", "Atmos", "DTS", "DTS-HD", "TrueHD"), DeviceCapabilities.surroundShortNames(setOf("truehd", "dts-hd", "dts", "eac3-joc", "eac3", "ac3")))
+    }
+
+    @Test fun refreshRates_followTheLanguageOnScreen() {
+        assertEquals("59.94", DeviceCapabilities.rate(59.94f))
+        assertEquals("23.976", DeviceCapabilities.rate(23.976f))
+        assertEquals("60", DeviceCapabilities.rate(60f))
+        assertEquals("59,94", DeviceCapabilities.rate(59.94f, java.util.Locale.GERMANY))
+    }
 }

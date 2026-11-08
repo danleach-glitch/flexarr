@@ -430,7 +430,7 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
 
     private val profile by lazy {
         // Episodes come as they are: MP3 and AAC files, which ExoPlayer reads itself.
-        DeviceCapabilities.profile(context).let { it.copy(containers = it.containers + listOf("mp3", "m4a", "aac", "flac", "ogg", "wav")) }
+        DeviceCapabilities.decodedProfile(context).let { it.copy(containers = it.containers + listOf("mp3", "m4a", "aac", "flac", "ogg", "wav")) }
     }
 
     companion object {
