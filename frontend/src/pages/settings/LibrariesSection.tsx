@@ -53,7 +53,6 @@ export function LibrariesSection() {
   // Watching folders for new files (servers before 0.64 don't say, and don't watch).
   const settings = useApi((signal) => getSettings(signal), [])
   const [watchError, setWatchError] = useState<string>()
-  const watching = settings.data?.watchFolders
 
   async function watch(on: boolean) {
     setWatchError(undefined)
@@ -79,9 +78,7 @@ export function LibrariesSection() {
           )
         }
       >
-        {watching
-          ? t('Folders of one kind of media. New files show up as soon as they’re copied in.')
-          : t('Folders of one kind of media. Rescanned every 12 hours, and whenever Sonarr, Radarr or Lidarr imports something.')}
+        {t('Folders of one kind of media.')}
       </SettingsHeader>
       {adding && (
         <AddLibraryForm
@@ -101,20 +98,37 @@ export function LibrariesSection() {
           {managed.length === 0 && <p className="muted">{t('No libraries yet. Add one to start.')}</p>}
         </div>
       )}
-      {watching != null && managed.length > 0 && (
-        <SettingsGroup note={watchError && <SaveStatus error={watchError} />}>
-          <ToggleRow
-            label={t('Notice new files straight away')}
-            help={t('Watches these folders, so new files show up within a minute and drives are woken less.')}
-            checked={watching}
-            onChange={(on) => void watch(on)}
-          />
-        </SettingsGroup>
+      {managed.length > 0 && (
+        <WatchSwitch
+          watching={settings.data?.watchFolders}
+          loading={settings.loading && !settings.data}
+          error={watchError ?? (settings.error && errorText(settings.error))}
+          onChange={(on) => void watch(on)}
+        />
       )}
       {podcasts && <PodcastLibrary library={podcasts} onMoved={() => all.reload()} />}
       {managed.some((l) => l.type === 'Audiobooks') && <BookDetailsGroup />}
       <LibraryTools />
     </section>
+  )
+}
+
+/**
+ * Notice new files straight away. Takes its place while the settings load, so nothing below it jumps, and says so if they
+ * can't be read. Not at all for servers before 0.64, which don't watch.
+ */
+export function WatchSwitch({ watching, loading, error, onChange }: { watching?: boolean | null; loading: boolean; error?: string; onChange: (on: boolean) => void }) {
+  if (watching == null && !loading) return error ? <SaveStatus error={error} /> : null
+  return (
+    <SettingsGroup note={error && <SaveStatus error={error} />}>
+      <ToggleRow
+        label={t('Notice new files straight away')}
+        help={t('Watches these folders, so new files show up within a minute and drives are woken less.')}
+        checked={watching ?? true}
+        disabled={loading}
+        onChange={onChange}
+      />
+    </SettingsGroup>
   )
 }
 
