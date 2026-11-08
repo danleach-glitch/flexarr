@@ -1270,6 +1270,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             PodcastWidgets.refresh(context)
             WatchlistWidget.forget(context)
             WatchNext.clear(context)
+            // Cards made for this sign-in can no longer open anything.
+            AppLink.newLauncherToken(context)
         }
     }
 

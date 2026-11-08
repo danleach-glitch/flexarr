@@ -113,6 +113,14 @@ sealed interface AppLink {
             return prefs.getString(key, null) ?: UUID.randomUUID().toString().also { prefs.edit { putString(key, it) } }
         }
 
+        /**
+         * Gives the home screen's cards a new token (at sign-out): the cards made with the old one, or anything that
+         * learnt it, can no longer open the app as the launcher.
+         */
+        fun newLauncherToken(context: Context) {
+            context.getSharedPreferences("links", Context.MODE_PRIVATE).edit { remove(LAUNCHER) }
+        }
+
         private const val SECRET = "secret"
         private const val LAUNCHER = "launcher"
 
