@@ -574,6 +574,10 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     [InlineData("@eaDir/Film.mkv", true)]
     [InlineData("#recycle/Film.mkv", true)]
     [InlineData("Film/Film.mkv~", true)]
+    [InlineData("#snapshot/Film.mkv", true)]
+    [InlineData("Film/@EADIR/Film.mkv", true)]
+    [InlineData("#Alive (2020)/#Alive (2020).mkv", false)]
+    [InlineData("@Home (2021)/@Home (2021).mkv", false)]
     [InlineData("Film/Film.mkv", false)]
     [InlineData("Show/Season 1/Show - S01E01.en.srt", false)]
     public void Ignored(string name, bool ignored) => Assert.Equal(ignored, FolderWatcher.Ignored(name));
