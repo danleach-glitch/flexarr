@@ -4,6 +4,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### iPhone, iPad and Apple TV
+
+- Pictures already on screen, such as Continue watching's, no longer turn into blank placeholders after a while.
+
 ### Android TV
 
 - What you're part way through, your shows' next episodes and albums you've played lately show in **Continue watching** on the Google TV and Android TV home screen. Choose one to carry on; remove it there and it leaves Flexarr's Continue Watching too. It stays empty while a profile with a PIN is watching.
