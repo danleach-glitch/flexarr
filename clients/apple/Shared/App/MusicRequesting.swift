@@ -35,14 +35,40 @@ extension AppModel {
     /// Requests an album or follows an artist, leaving the alert alone: nil when it went through, else why not, for
     /// the button to say beside itself.
     func sendMusicRequest(_ target: MusicRequestTarget) async -> String? {
+        await sendMusicRequest(target, marking: [target.askedKey])
+    }
+
+    private func sendMusicRequest(_ target: MusicRequestTarget, marking keys: [String]) async -> String? {
         guard let client else { return ConnectionError(FlexarrClientError.unreachable).message }
         do {
-            try await client.requestMusic(target)
-            musicAsked.insert(target.askedKey)
-            musicUndone.remove(target.askedKey)
+            try await markingMusic(keys, asked: true) { try await client.requestMusic(target) }
             return nil
         } catch {
             return ConnectionError(error).message
+        }
+    }
+
+    /// Shows music as asked for (or taken back) from the moment it's pressed, since the round buttons have no room to
+    /// say they're waiting, and puts it back as it was if `send` fails.
+    private func markingMusic(_ keys: [String], asked: Bool, send: () async throws -> Void) async throws {
+        let before = keys.map { (key: $0, asked: musicAsked.contains($0), undone: musicUndone.contains($0)) }
+        for key in keys {
+            if asked {
+                musicAsked.insert(key)
+                musicUndone.remove(key)
+            } else {
+                musicAsked.remove(key)
+                musicUndone.insert(key)
+            }
+        }
+        do {
+            try await send()
+        } catch {
+            for mark in before {
+                if mark.asked { musicAsked.insert(mark.key) } else { musicAsked.remove(mark.key) }
+                if mark.undone { musicUndone.insert(mark.key) } else { musicUndone.remove(mark.key) }
+            }
+            throw error
         }
     }
 
@@ -57,12 +83,7 @@ extension AppModel {
         } else {
             return nil
         }
-        if let failure = await sendMusicRequest(target) { return failure }
-        for key in Self.artistKeys(libraryId: libraryId, deezerId: deezerId) {
-            musicAsked.insert(key)
-            musicUndone.remove(key)
-        }
-        return nil
+        return await sendMusicRequest(target, marking: Self.artistKeys(libraryId: libraryId, deezerId: deezerId))
     }
 
     /// The `musicAsked` keys an artist is kept under: by the library artist's id, and Deezer's.
@@ -128,10 +149,8 @@ extension AppModel {
     func unfollowArtist(libraryId: String?, deezerId: Int?) async -> String? {
         guard let client else { return ConnectionError(FlexarrClientError.unreachable).message }
         do {
-            try await client.unfollowArtist(libraryArtistId: libraryId, deezerId: libraryId == nil ? deezerId : nil)
-            for key in Self.artistKeys(libraryId: libraryId, deezerId: deezerId) {
-                musicAsked.remove(key)
-                musicUndone.insert(key)
+            try await markingMusic(Self.artistKeys(libraryId: libraryId, deezerId: deezerId), asked: false) {
+                try await client.unfollowArtist(libraryArtistId: libraryId, deezerId: libraryId == nil ? deezerId : nil)
             }
             return nil
         } catch {
@@ -143,9 +162,7 @@ extension AppModel {
     func unrequestAlbum(_ album: MusicExternal) async -> String? {
         guard let client else { return ConnectionError(FlexarrClientError.unreachable).message }
         do {
-            try await client.unrequestAlbum(album)
-            musicAsked.remove(album.id)
-            musicUndone.insert(album.id)
+            try await markingMusic([album.id], asked: false) { try await client.unrequestAlbum(album) }
             return nil
         } catch {
             return Self.undoFailure(error)
