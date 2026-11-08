@@ -231,6 +231,31 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
         }
     }
 
+    [Fact]
+    public async Task TheLibrariesList_SaysHowEachFolderIsWatched()
+    {
+        var watched = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, $"listed-{Guid.NewGuid():N}")).FullName;
+        var missing = Path.Combine(factory.MediaDirectory, $"listed-missing-{Guid.NewGuid():N}");
+        var library = new Library { Name = $"Listed {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = watched }, new LibraryFolder { Path = missing }] };
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.Libraries.Add(library);
+            await db.SaveChangesAsync();
+        }
+
+        // The server's own watcher (the test server runs no background services, so it's synced by hand).
+        await factory.Services.GetRequiredService<FolderWatcher>().SyncAsync(default);
+        using var admin = factory.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var listed = await admin.GetFromJsonAsync<JsonElement>($"/api/v1/libraries/{library.Id}");
+        var watch = listed.GetProperty("folderWatch").EnumerateArray().ToDictionary(f => f.GetProperty("path").GetString()!, f => f);
+        Assert.Equal("Watching", watch[watched].GetProperty("state").GetString());
+        Assert.Equal("Unavailable", watch[missing].GetProperty("state").GetString());
+        Assert.Equal("Missing", watch[missing].GetProperty("problem").GetString());
+        factory.Services.GetRequiredService<FolderWatcher>().Dispose();
+    }
+
     [Theory]
     [InlineData(".DS_Store", true)]
     [InlineData("Show/._Episode.mkv", true)]

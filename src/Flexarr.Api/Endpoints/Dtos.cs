@@ -15,7 +15,13 @@ public sealed record LibraryDto(
     DateTime? LastScannedAt,
     ScanStatusDto? Scan,
     // Everything in it is fine for profiles with an age limit, rated or not. Absent from servers before 0.56.
-    bool FineForKids = false);
+    bool FineForKids = false,
+    // How each folder is watched for new files, for Settings › Libraries; only for the main profile, like Folders.
+    // Absent from servers before 0.64.
+    IReadOnlyList<FolderWatchDto>? FolderWatch = null);
+
+/// <summary>How a library folder is watched for new files (see <c>FolderWatcher</c>). New states may come.</summary>
+public sealed record FolderWatchDto(string Path, Scanning.FolderWatchState State, Scanning.FolderWatchProblem? Problem);
 
 /// <param name="FineForKids">Everything in it is fine for profiles with an age limit; null leaves it as it is.</param>
 public sealed record LibraryRequest(string Name, LibraryType Type, IReadOnlyList<string> Folders, bool? FineForKids = null);

@@ -143,15 +143,27 @@ public sealed partial class FolderWatcher(
         }
         finally
         {
-            lock (_lock)
-            {
-                foreach (var watched in _folders.Values)
-                {
-                    watched.Watcher?.Dispose();
-                }
+            StopWatching();
+        }
+    }
 
-                _folders.Clear();
+    public override void Dispose()
+    {
+        StopWatching();
+        base.Dispose();
+    }
+
+    private void StopWatching()
+    {
+        lock (_lock)
+        {
+            foreach (var watched in _folders.Values)
+            {
+                watched.Watcher?.Dispose();
             }
+
+            _folders.Clear();
+            _pending.Clear();
         }
     }
 
