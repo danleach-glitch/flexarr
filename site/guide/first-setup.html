@@ -117,7 +117,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
         <h1>First setup</h1>
         <p class="lede">Open your new Flexarr server in a browser, make yourself its owner, add your movies, shows and music, and find the API key if you ever need it.</p>
-        <p class="meta">8 min read</p>
+        <p class="meta">9 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -198,7 +198,7 @@
 <h2 id="the-first-scan"><a class="anchor" href="#the-first-scan" aria-hidden="true" tabindex="-1">#</a>The first scan</h2>
 <p>Adding a library starts a scan straight away. You&#39;ll see its progress in <strong>Settings › Libraries</strong>, and titles appear on Home and in the sidebar as they&#39;re found.</p>
 <p>How long it takes depends on the size of your library and how fast the disks are, and artwork keeps arriving for a while after the files are found. You can start watching as soon as something shows up.</p>
-<p>After that, Flexarr rescans every 12 hours, and straight away whenever Sonarr, Radarr or Lidarr tell it about a new download. Each library has buttons to scan it now, refresh its artwork and details, rename it or remove it. Removing a library never deletes your files.</p>
+<p>After that, Flexarr watches your library folders: a new file shows up about half a minute after it&#39;s copied in, whoever put it there. It also reads through each folder once a week in case it missed something (every 12 hours on a network share, which may not report files added from other computers). Each library has buttons to scan it now, refresh its artwork and details, rename it or remove it. Removing a library never deletes your files.</p>
 <blockquote class="callout tip"><p><strong>Tip</strong> Movies and TV shows get their artwork and details through Radarr and Sonarr. If you run them, <a href="/guide/connect-arrs">connect them</a> next. Without them, movies and episodes still play, named from their files, with artwork and details from any <code>.nfo</code> files and images (<code>poster.jpg</code>, <code>fanart.jpg</code>) beside them, from TVmaze for shows, and from TMDB for movies if you add a free key. See <a href="/guide/without-arrs">Without Sonarr and Radarr</a>. Music reads the tags and cover images in your files, and Lidarr adds more.</p>
 </blockquote>
 <h2 id="the-api-key"><a class="anchor" href="#the-api-key" aria-hidden="true" tabindex="-1">#</a>The API key</h2>

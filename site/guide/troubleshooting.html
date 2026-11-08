@@ -117,7 +117,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Looking after it</p>
         <h1>Troubleshooting</h1>
         <p class="lede">Fixes for the most common Flexarr problems, from an app that can&#39;t find your server to playback that won&#39;t start, HDR, sound and connecting away from home.</p>
-        <p class="meta">9 min read</p>
+        <p class="meta">10 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -171,7 +171,14 @@
 <p>Full details are in <a href="/guide/away-from-home">Away from home</a>.</p>
 <h2 id="your-library"><a class="anchor" href="#your-library" aria-hidden="true" tabindex="-1">#</a>Your library</h2>
 <h3 id="new-downloads-don-t-appear"><a class="anchor" href="#new-downloads-don-t-appear" aria-hidden="true" tabindex="-1">#</a>New downloads don&#39;t appear</h3>
-<p>Flexarr rescans each library every 12 hours, and straight away when Sonarr, Radarr or Lidarr tell it something&#39;s arrived. Connecting one of them in Flexarr adds that webhook to it for you. If new downloads take hours to show up, the webhook is missing or failing: add it by hand.</p>
+<p>Flexarr notices files copied into your library folders within about a minute, and Sonarr, Radarr and Lidarr also tell it straight away with a webhook (connecting one of them in Flexarr adds the webhook for you). Under each folder, <strong>Settings › Libraries</strong> says whether it&#39;s <strong>Watching for new files</strong>, or <strong>Checked every 12 hours</strong> and why:</p>
+<ul>
+<li><strong>A network share:</strong> files another computer adds to a NAS often aren&#39;t reported. The webhooks still are, so if downloads take hours to show up, the webhook is missing or failing: add it by hand (below).</li>
+<li><strong>The system&#39;s watch limit is reached:</strong> on Linux and Docker, a big library can need more than the system allows. Raise it on the computer running Flexarr (the Docker host): <code>echo fs.inotify.max_user_watches=524288 | sudo tee /etc/sysctl.d/40-flexarr.conf &amp;&amp; sudo sysctl --system</code>. Flexarr tries again within the hour.</li>
+<li><strong>Folder not found:</strong> the drive or share isn&#39;t connected. Flexarr watches it once it&#39;s back.</li>
+</ul>
+<p>If nothing says <strong>Watching</strong>, <strong>Notice new files straight away</strong> is off at the bottom of the list.</p>
+<p>To add a webhook by hand:</p>
 <ol>
 <li>In Flexarr, open <strong>Settings › Connections</strong> and find <strong>Webhooks</strong>. Copy the address for each app.</li>
 <li>In Sonarr (and Radarr, and Lidarr), go to <strong>Settings › Connect › + › Webhook</strong>, paste the address, set the method to <strong>POST</strong>, and tick <strong>On Import</strong>, <strong>On Upgrade</strong>, <strong>On Rename</strong> and <strong>On Delete</strong>.</li>

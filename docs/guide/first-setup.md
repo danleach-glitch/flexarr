@@ -98,7 +98,7 @@ Adding a library starts a scan straight away. You'll see its progress in **Setti
 
 How long it takes depends on the size of your library and how fast the disks are, and artwork keeps arriving for a while after the files are found. You can start watching as soon as something shows up.
 
-After that, Flexarr rescans every 12 hours, and straight away whenever Sonarr, Radarr or Lidarr tell it about a new download. Each library has buttons to scan it now, refresh its artwork and details, rename it or remove it. Removing a library never deletes your files.
+After that, Flexarr watches your library folders: a new file shows up about half a minute after it's copied in, whoever put it there. It also reads through each folder once a week in case it missed something (every 12 hours on a network share, which may not report files added from other computers). Each library has buttons to scan it now, refresh its artwork and details, rename it or remove it. Removing a library never deletes your files.
 
 > **Tip** Movies and TV shows get their artwork and details through Radarr and Sonarr. If you run them, [connect them](connect-arrs.md) next. Without them, movies and episodes still play, named from their files, with artwork and details from any `.nfo` files and images (`poster.jpg`, `fanart.jpg`) beside them, from TVmaze for shows, and from TMDB for movies if you add a free key. See [Without Sonarr and Radarr](without-arrs.md). Music reads the tags and cover images in your files, and Lidarr adds more.
 

@@ -45,7 +45,15 @@ Full details are in [Away from home](away-from-home.md).
 
 ### New downloads don't appear
 
-Flexarr rescans each library every 12 hours, and straight away when Sonarr, Radarr or Lidarr tell it something's arrived. Connecting one of them in Flexarr adds that webhook to it for you. If new downloads take hours to show up, the webhook is missing or failing: add it by hand.
+Flexarr notices files copied into your library folders within about a minute, and Sonarr, Radarr and Lidarr also tell it straight away with a webhook (connecting one of them in Flexarr adds the webhook for you). Under each folder, **Settings › Libraries** says whether it's **Watching for new files**, or **Checked every 12 hours** and why:
+
+- **A network share:** files another computer adds to a NAS often aren't reported. The webhooks still are, so if downloads take hours to show up, the webhook is missing or failing: add it by hand (below).
+- **The system's watch limit is reached:** on Linux and Docker, a big library can need more than the system allows. Raise it on the computer running Flexarr (the Docker host): `echo fs.inotify.max_user_watches=524288 | sudo tee /etc/sysctl.d/40-flexarr.conf && sudo sysctl --system`. Flexarr tries again within the hour.
+- **Folder not found:** the drive or share isn't connected. Flexarr watches it once it's back.
+
+If nothing says **Watching**, **Notice new files straight away** is off at the bottom of the list.
+
+To add a webhook by hand:
 
 1. In Flexarr, open **Settings › Connections** and find **Webhooks**. Copy the address for each app.
 2. In Sonarr (and Radarr, and Lidarr), go to **Settings › Connect › + › Webhook**, paste the address, set the method to **POST**, and tick **On Import**, **On Upgrade**, **On Rename** and **On Delete**.
