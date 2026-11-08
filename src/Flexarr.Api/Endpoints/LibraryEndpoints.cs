@@ -96,11 +96,8 @@ public static class LibraryEndpoints
             var removed = library.Folders.Where(f => !folders.Contains(f.Path)).ToList();
             var added = folders.Where(p => library.Folders.All(f => f.Path != p)).Select(p => new LibraryFolder { Path = p }).ToList();
             library.Name = request.Name.Trim();
-            if (request.FineForKids is { } fine && fine != library.FineForKids)
-            {
-                library.FineForKids = fine;
-                LibraryVisibility.KidsSettingsChanged();
-            }
+            var kidsChanged = request.FineForKids is { } fine && fine != library.FineForKids;
+            library.FineForKids = request.FineForKids ?? library.FineForKids;
             library.Folders.RemoveAll(removed.Contains);
             library.Folders.AddRange(added);
 
@@ -120,6 +117,10 @@ public static class LibraryEndpoints
             }
 
             await db.SaveChangesAsync(ct);
+            if (kidsChanged)
+            {
+                LibraryVisibility.KidsSettingsChanged(); // After saving, or a stream reading now keeps the old answer.
+            }
 
             // Only new folders need a scan: a rename, or dropping a folder, leaves the rest as they were.
             foreach (var folder in added)
