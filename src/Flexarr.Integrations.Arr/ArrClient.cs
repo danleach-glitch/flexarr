@@ -261,6 +261,14 @@ public sealed class ArrClient(HttpClient httpClient)
         await SendAsync<JsonObject>(lidarr, HttpMethod.Put, $"artist/{artistId}", artist, ct).ConfigureAwait(false);
     }
 
+    /// <summary>Monitors an artist without following them: Lidarr only keeps looking for an album whose artist is monitored too.</summary>
+    public async Task MonitorArtistAsync(ArrInstance lidarr, int artistId, CancellationToken ct = default)
+    {
+        var artist = await GetAsync<JsonObject>(lidarr, $"artist/{artistId}", ct).ConfigureAwait(false);
+        artist["monitored"] = true;
+        await SendAsync<JsonObject>(lidarr, HttpMethod.Put, $"artist/{artistId}", artist, ct).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Has Lidarr stop watching for an artist's new releases. The artist stays monitored, so albums already asked for
     /// still download.

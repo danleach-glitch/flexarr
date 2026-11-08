@@ -12,6 +12,11 @@ namespace Flexarr.Api.Endpoints.MusicRequests;
 /// a single), and never tries another: it counts as a finished download, so its own redownload doesn't start. For
 /// albums asked for in Flexarr, this blocklists such a release and searches again. A download with all its tracks that
 /// merely scored low stays put for someone to import by hand: it's probably the right music.
+/// <para>
+/// Lidarr also adds an artist unmonitored when an album brings them in, whatever it's told, and then won't keep looking
+/// for the album. So an artist a request added is monitored here, with the album, while the album is missing. Nothing
+/// else of theirs is monitored, so this starts no discography. An artist Lidarr had already is the admin's to decide.
+/// </para>
 /// </summary>
 public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogger<MusicImportRetry> logger) : BackgroundService
 {
@@ -52,10 +57,10 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
         }
 
         var since = DateTime.UtcNow - MusicMatcher.RequestedFor;
-        var asked = (await c.Db.MediaRequests.AsNoTracking()
+        var requests = await c.Db.MediaRequests.AsNoTracking()
             .Where(r => r.Kind == MediaKind.Album && r.FulfilledAt == null && r.RequestedAt > since && r.MusicBrainzId != null)
-            .Select(r => r.MusicBrainzId!).ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
-        if (asked.Count == 0)
+            .Select(r => new AlbumAsked(r.MusicBrainzId!, r.AddedArtist ? r.ArtistMusicBrainzId : null)).ToListAsync(ct);
+        if (requests.Count == 0)
         {
             return;
         }
@@ -64,7 +69,7 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
         {
             try
             {
-                await SweepAsync(c, lidarr, asked, ct);
+                await SweepAsync(c, lidarr, requests, ct);
             }
             catch (Exception ex) when (ex is HttpRequestException or JsonException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
             {
@@ -73,9 +78,13 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
         }
     }
 
-    private async Task SweepAsync(MusicRequestContext c, ArrInstance lidarr, HashSet<string> asked, CancellationToken ct)
+    private sealed record AlbumAsked(string Album, string? ArtistItAdded);
+
+    private async Task SweepAsync(MusicRequestContext c, ArrInstance lidarr, List<AlbumAsked> requests, CancellationToken ct)
     {
         var queue = await c.Client.GetQueueAsync(lidarr, ct);
+        await KeepLookingAsync(c, lidarr, requests, queue, ct);
+        var asked = requests.Select(r => r.Album).ToHashSet(StringComparer.Ordinal);
         foreach (var item in queue)
         {
             if (item.Album is not { } album || item.AlbumId is not { } albumId || album.ForeignAlbumId is not { } id || !asked.Contains(id) || !IsMissingTracks(item))
@@ -105,6 +114,59 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
             await c.Client.SearchAlbumsAsync(lidarr, [albumId], ct);
             MusicRequested.Forget(c.Cache);
             LogRetrying(logger, album.Title, item.Title);
+        }
+    }
+
+    /// <summary>Monitors the artists requests added, and their albums still missing, and searches for what that just put back on the list.</summary>
+    private static async Task KeepLookingAsync(MusicRequestContext c, ArrInstance lidarr, List<AlbumAsked> requests, IReadOnlyList<ArrQueueItem> queue, CancellationToken ct)
+    {
+        var byArtist = requests.Where(r => r.ArtistItAdded is not null).ToLookup(r => r.ArtistItAdded!, r => r.Album, StringComparer.Ordinal);
+        if (byArtist.Count == 0)
+        {
+            return;
+        }
+
+        var changed = false;
+        foreach (var artist in await c.Client.GetArtistsAsync(lidarr, ct))
+        {
+            if (artist.ForeignArtistId is not { } artistId || !byArtist.Contains(artistId))
+            {
+                continue;
+            }
+
+            var missing = (await c.Client.GetArtistAlbumsAsync(lidarr, artist.Id, ct))
+                .Where(a => a.ForeignAlbumId is { } id && byArtist[artistId].Contains(id, StringComparer.Ordinal)
+                    && !(a.Statistics is { TrackFileCount: > 0 } s && s.TrackFileCount >= s.TrackCount))
+                .ToList();
+            var unmonitored = missing.Where(a => !a.Monitored).Select(a => a.Id).ToList();
+            if (missing.Count == 0 || (artist.Monitored && unmonitored.Count == 0))
+            {
+                continue;
+            }
+
+            if (!artist.Monitored)
+            {
+                await c.Client.MonitorArtistAsync(lidarr, artist.Id, ct);
+            }
+
+            if (unmonitored.Count > 0)
+            {
+                await c.Client.SetAlbumsMonitoredAsync(lidarr, unmonitored, monitored: true, ct);
+            }
+
+            var search = missing.Where(a => !queue.Any(q => q.AlbumId == a.Id)).Select(a => a.Id).ToList();
+            if (search.Count > 0)
+            {
+                await c.Client.SearchAlbumsAsync(lidarr, search, ct);
+            }
+
+            changed = true;
+        }
+
+        if (changed)
+        {
+            MusicMatcher.Forget(c.Cache, lidarr);
+            MusicRequested.Forget(c.Cache);
         }
     }
 
