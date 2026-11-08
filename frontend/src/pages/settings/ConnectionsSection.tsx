@@ -247,9 +247,9 @@ export function ConnectionsSection() {
                   ? notConnected('livetv')
                   : liveStatus.data.refreshing
                     ? t('Bringing in the channels and guide…')
-                    : (liveStatus.data.error ?? t('Live TV: {count, plural, one {# channel} other {# channels}}', { count: liveStatus.data.channels }))
+                    : (liveStatus.data.error ?? liveStatus.data.downloadError ?? t('Live TV: {count, plural, one {# channel} other {# channels}}', { count: liveStatus.data.channels }))
             }
-            ok={liveStatus.data?.configured ? !liveStatus.data.error : undefined}
+            ok={liveStatus.data?.configured ? !liveStatus.data.error && !liveStatus.data.downloadError : undefined}
             refreshing={liveStatus.data?.refreshing ?? false}
             open={open === 'livetv'}
             onOpen={() => setOpen('livetv')}
@@ -759,9 +759,20 @@ function DispatcharrRow({
   const [baseUrl, setBaseUrl] = useState(liveTv?.baseUrl ?? '')
   const [username, setUsername] = useState(liveTv?.username ?? '')
   const [password, setPassword] = useState('')
+  const [adminKey, setAdminKey] = useState('')
   const [test, setTest] = useState<LiveTvTest | 'testing'>()
   const [saving, setSaving] = useState(false)
-  const shown = test === 'testing' ? t('Testing…') : test ? (test.ok ? testSummary(test) : test.error) : status
+  // Typed keys don't outlive the form: reopened, a Save would send them again, undoing a removal or reaching a new address.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (!open) {
+      setPassword('')
+      setAdminKey('')
+    }
+  }
+  const keyTested = !!adminKey.trim() || (!!liveTv?.hasAdminApiKey && liveTv.baseUrl === baseUrl.trim())
+  const shown = test === 'testing' ? t('Testing…') : test ? (test.ok ? testSummary(test, keyTested) : test.error) : status
 
   return (
     <div className="connection">
@@ -778,6 +789,7 @@ function DispatcharrRow({
               baseUrl: baseUrl.trim(),
               username: username.trim(),
               password: password || undefined,
+              adminApiKey: adminKey.trim() || undefined,
             }).finally(() => setSaving(false))
           }}
         >
@@ -811,6 +823,26 @@ function DispatcharrRow({
               />
             </label>
           </div>
+          <div className="field-row">
+            <label className="grow">
+              {t('Admin API key (optional)')}
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={adminKey}
+                placeholder={liveTv?.hasAdminApiKey ? t('Saved; type to replace') : t('A Dispatcharr admin’s API key')}
+                onChange={(e) => setAdminKey(e.target.value)}
+              />
+            </label>
+          </div>
+          <p className="muted field-hint">{t('Lets Refresh have Dispatcharr download its guides first. Gives Flexarr admin rights there.')}</p>
+          {liveTv?.hasAdminApiKey && (
+            <p>
+              <AsyncButton type="button" className="button quiet small" onClick={() => onSave({ baseUrl: liveTv.baseUrl, username: liveTv.username, adminApiKey: '' }, t('Admin API key removed'))}>
+                {t('Remove admin API key')}
+              </AsyncButton>
+            </p>
+          )}
           <div className="form-actions">
             {liveTv && (
               <AsyncButton
@@ -823,7 +855,7 @@ function DispatcharrRow({
               </AsyncButton>
             )}
             {liveTv && (
-              <IconButton label={t('Refresh channels and guide')} icon={<Refresh />} busy={refreshing} onClick={() => onRefresh()} />
+              <IconButton label={t('Refresh guide')} icon={<Refresh />} busy={refreshing} onClick={() => onRefresh()} />
             )}
             <AsyncButton
               className="button quiet small"
@@ -831,7 +863,7 @@ function DispatcharrRow({
               onClick={async () => {
                 setTest('testing')
                 setTest(
-                  await testLiveTv({ baseUrl: baseUrl.trim(), username: username.trim(), password: password || undefined }).catch(
+                  await testLiveTv({ baseUrl: baseUrl.trim(), username: username.trim(), password: password || undefined, adminApiKey: adminKey.trim() || undefined }).catch(
                     (e: unknown): LiveTvTest => ({ ok: false, channels: null, maxConnections: null, expiresAt: null, error: errorText(e) }),
                   ),
                 )
@@ -853,8 +885,9 @@ function DispatcharrRow({
   )
 }
 
-function testSummary(test: LiveTvTest) {
+function testSummary(test: LiveTvTest, keyTested: boolean) {
   const parts = [t('Connected: {count, plural, one {# channel} other {# channels}}', { count: test.channels ?? 0 })]
+  if (keyTested) parts.push(t('admin key accepted'))
   if (test.maxConnections) parts.push(t('{count, plural, one {# connection} other {# connections}} at a time', { count: test.maxConnections }))
   if (test.expiresAt) parts.push(t('subscription ends {date}', { date: new Date(test.expiresAt).toLocaleDateString(locale()) }))
   return parts.join(', ')

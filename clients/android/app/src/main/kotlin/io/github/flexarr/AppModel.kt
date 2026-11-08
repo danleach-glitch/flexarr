@@ -27,6 +27,7 @@ import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.LiveTvStatus
+import io.github.flexarr.core.refreshLiveTv
 import io.github.flexarr.core.liveTvStatus
 import io.github.flexarr.core.offersAlbums
 import io.github.flexarr.audio.BookPlayer
@@ -1561,10 +1562,80 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         runCatching { client.libraries() }.onSuccess { list -> audiobookLibraries = list.filter { it.type == io.github.flexarr.core.LibraryType.Audiobooks } }
     }
 
+    /** Servers before the release after 0.63 refuse a locked main profile, and don't send the count. */
+    val canRefreshLiveTv: Boolean get() = isAdmin || (canUnlock && liveTvStatus?.channelsWithoutListings != null)
+
+    /** The Live TV guide is being refreshed at this profile's asking. */
+    val isRefreshingLiveTv: Boolean get() = liveTvRefreshFor != null && liveTvRefreshFor == credentials
+
+    /** Who a refresh is being waited for: another profile, or nobody, doesn't take over the wait. */
+    private var liveTvRefreshFor by mutableStateOf<ServerCredentials?>(null)
+
+    /** How the last refresh went for the screens to pick up: what went wrong, or null. Counted, so each is seen once. */
+    var liveTvRefreshesEnded by mutableIntStateOf(0)
+        private set
+    var liveTvRefreshProblem by mutableStateOf<String?>(null)
+        private set
+
+    /**
+     * Refreshes the channels and guide. It's waited for here rather than on a screen, so going to Recordings and back
+     * doesn't lose it.
+     */
+    fun refreshLiveTv() {
+        val credentials = credentials ?: return
+        val client = client ?: return
+        if (isRefreshingLiveTv) return
+        liveTvRefreshFor = credentials
+        liveTvRefreshProblem = null
+        scope.launch {
+            var problem: String? = null
+            try {
+                val status = client.refreshLiveTv()
+                // Someone else may have been chosen meanwhile, whose status this isn't.
+                if (this@AppModel.credentials != credentials) return@launch
+                if (status != null) liveTvStatus = status
+                problem = status?.error ?: status?.downloadError
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                if (this@AppModel.credentials != credentials) return@launch
+                problem = t("Couldn’t reach the server.")
+            } finally {
+                if (liveTvRefreshFor === credentials) liveTvRefreshFor = null
+            }
+            liveTvRefreshProblem = problem
+            liveTvRefreshesEnded++
+        }
+    }
+
+    /** Live TV's status again, for how many channels have no listings: a look that fails leaves things as they were. */
+    suspend fun reloadLiveTvStatus() {
+        val credentials = credentials ?: return
+        val client = client ?: return
+        if (isKids) return
+        try {
+            val status = client.liveTvStatus() ?: return
+            if (this.credentials == credentials) liveTvStatus = status
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
+    }
+
     suspend fun loadLiveTvStatus() {
         val client = client ?: return
         // A kids profile has no Live TV.
-        liveTvStatus = if (isKids) null else runCatching { client.liveTvStatus() }.getOrNull()
+        liveTvStatus = if (isKids) {
+            null
+        } else {
+            try {
+                client.liveTvStatus()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
+        }
     }
 
     suspend fun loadUpNext() {

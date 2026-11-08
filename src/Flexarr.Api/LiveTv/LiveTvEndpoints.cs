@@ -18,7 +18,12 @@ using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.LiveTv;
 
-public sealed record LiveTvStatusDto(bool Configured, int Channels, bool Refreshing, DateTime? RefreshedAt, string? Error, int RewindMinutes);
+/// <param name="Error">How the last refresh failed; to the main profile only since the release after 0.63.</param>
+/// <param name="ChannelsWithoutListings">Channels with nothing listed from now on; null to any other profile, or without Live TV.</param>
+/// <param name="DownloadError">Why Dispatcharr couldn't be asked to download its guides, last time it was. Main profile only.</param>
+/// <param name="RefreshesFinished">Goes up as each refresh finishes, however it went, for telling when one pressed has. Main profile only.</param>
+public sealed record LiveTvStatusDto(bool Configured, int Channels, bool Refreshing, DateTime? RefreshedAt, string? Error, int RewindMinutes,
+    int? ChannelsWithoutListings = null, string? DownloadError = null, int? RefreshesFinished = null);
 
 /// <param name="Recording">"scheduled" or "recording" when it's on the DVR's list (the guide says); otherwise null.</param>
 /// <param name="Series">A series covers it (every showing of its title is recorded).</param>
@@ -52,6 +57,20 @@ public sealed record LiveWatcherDto(Guid ChannelId, string ChannelName, string P
 
 public static partial class LiveTvEndpoints
 {
+    /// <summary>In words, for the status and for testing a key in Settings.</summary>
+    internal static string? DownloadErrorText(GuideDownloadProblem problem) => problem switch
+    {
+        GuideDownloadProblem.None => null,
+        GuideDownloadProblem.KeyRefused => Loc.T("Dispatcharr refused the key. It needs an admin’s key, on Dispatcharr 0.20 or later."),
+        GuideDownloadProblem.NotSupported => Loc.T("This version of Dispatcharr can’t be asked to download its guides."),
+        GuideDownloadProblem.SourceFailed => Loc.T("Dispatcharr couldn’t download one of its guides. Check its guide sources."),
+        GuideDownloadProblem.TimedOut => Loc.T("Dispatcharr is taking a while to download its guides. They’ll come in at the next refresh."),
+        _ => Loc.T("Flexarr couldn’t ask Dispatcharr to download its guides."),
+    };
+
+    /// <summary>The status is asked for a lot, and the count only changes as programmes run out or a refresh finishes (which clears it).</summary>
+    private static readonly TimeSpan MissingKeptFor = TimeSpan.FromMinutes(1);
+
     private static readonly TimeSpan FormatKeptFor = TimeSpan.FromHours(12);
     private static readonly TimeSpan MaxGuideWindow = TimeSpan.FromHours(24);
 
@@ -60,14 +79,29 @@ public static partial class LiveTvEndpoints
         // A kids profile has no Live TV (its status says it isn't there).
         var group = api.MapGroup("/livetv").WithTags("Live TV").NotForKids();
 
-        api.MapGet("/livetv/status", async (IOptionsMonitor<FlexarrOptions> options, LiveTvStatus status, FlexarrDbContext db, CancellationToken ct) =>
+        api.MapGet("/livetv/status", async (IOptionsMonitor<FlexarrOptions> options, LiveTvStatus status, FlexarrDbContext db, CurrentProfile profile, TimeProvider clock, CancellationToken ct) =>
         {
             var o = options.CurrentValue.LiveTv;
             var channels = await db.LiveChannels.CountAsync(ct);
             var refreshed = status.RefreshedAt ?? await db.LiveChannels.MaxAsync(c => (DateTime?)c.UpdatedAt, ct);
             // To a profile with an age limit, Live TV is only there once a parent has picked channels for it; to a kids profile, never.
             var available = o?.Account is not null && !db.ServesKids && (channels > 0 || !db.IsLimited());
-            return new LiveTvStatusDto(available, channels, status.Refreshing, refreshed, status.Error, o?.RewindMinutes ?? 60);
+            var now = clock.GetUtcNow().UtcDateTime;
+            // For the main profile, who can do something about them: the others' apps ask for the status too.
+            var main = profile.IsMainProfile;
+            int? missing = null;
+            if (available && main)
+            {
+                missing = status.MissingCount(now, MissingKeptFor);
+                if (missing is null)
+                {
+                    missing = await db.LiveChannels.CountAsync(c => !db.LiveProgrammes.Any(p => p.ChannelId == c.Id && p.End > now), ct);
+                    status.RememberMissing(missing.Value, now);
+                }
+            }
+
+            return new LiveTvStatusDto(available, channels, status.Refreshing, refreshed, main ? status.Error : null, o?.RewindMinutes ?? 60, missing,
+                main && !string.IsNullOrEmpty(o?.AdminApiKey) ? DownloadErrorText(status.DownloadProblem) : null, main ? status.RefreshesFinished : null);
         }).WithTags("Live TV");
 
         group.MapGet("/channels", async (FlexarrDbContext db, CurrentProfile profile, TimeProvider clock, CancellationToken ct) =>
@@ -257,11 +291,13 @@ public static partial class LiveTvEndpoints
             viewers.All.Select(v => new LiveWatcherDto(v.ChannelId, v.ChannelName, v.ProfileId, v.StartedAt)).ToList())
             .RequireAuthorization(FlexarrClaims.AdminPolicy);
 
+        // The main profile even while it's locked, which at home with sign-in only away from home is any device on the
+        // network. It's safe to open up: only one refresh waits at a time, and how often Dispatcharr's sources are asked has its own limit.
         group.MapPost("/refresh", (LiveTvRefreshSignal signal) =>
         {
-            signal.Request();
+            signal.Request(download: true);
             return Results.Accepted();
-        }).RequireAuthorization(FlexarrClaims.AdminPolicy);
+        }).RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
         // The channels profiles with an age limit may watch, picked by a parent.
         group.MapPut("/channels/{id:guid}/kids", async (Guid id, ChannelKidsRequest request, FlexarrDbContext db, CancellationToken ct) =>

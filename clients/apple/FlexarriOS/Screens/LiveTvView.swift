@@ -11,10 +11,14 @@ struct LiveTvView: View {
     @State private var error: String?
     /// Something to say about a recording just set.
     @State private var notice: String?
+    @State private var refreshNotice: String?
+    @State private var refreshProblem: String?
     /// Unchosen, the view is Favourites when there are some, otherwise All.
     @State private var chosen: Filter?
     /// The list or the guide, remembered on this device.
     @AppStorage("FlexarrLiveTvGuide") private var showsGuide = false
+    /// Counts the refreshes finished, so the guide shown is fetched again.
+    @State private var refreshed = 0
     #if os(macOS)
     /// The Mac's third tab: the recordings in place, rather than a page of their own.
     @State private var showsRecordings = false
@@ -59,7 +63,8 @@ struct LiveTvView: View {
                 } else if showsGuide {
                     VStack(spacing: 0) {
                         chips.padding(.vertical, 6)
-                        LiveGuideView(channels: shown, favouritesOnly: filter == .favourites, order: order,
+                        missingListings.padding(.bottom, 6)
+                        LiveGuideView(channels: shown, favouritesOnly: filter == .favourites, order: order, refreshed: refreshed,
                                       onFavourite: { setFavourite($0, !$0.isFavourite) })
                     }
                 } else {
@@ -77,8 +82,10 @@ struct LiveTvView: View {
         .navigationBarTitleDisplayMode(showsGuide ? .inline : .automatic)
         #if os(macOS)
         .pageSwitch(tab, tabs)
+        .pageActions { refreshButton }
         #else
         .pageActions {
+            refreshButton
             if channels?.isEmpty == false {
                 // A recording is for everyone, so a profile with an age limit has none to see or set.
                 if !model.hasAgeLimit {
@@ -97,12 +104,74 @@ struct LiveTvView: View {
         .task(id: scenePhase == .active) {
             guard scenePhase == .active else { return }
             while !Task.isCancelled {
-                await load()
+                // A channel plays over this screen rather than replacing it.
+                if !model.liveTv.isWatching {
+                    await load()
+                    await model.reloadLiveTvStatus()
+                }
                 try? await Task.sleep(for: .seconds(60))
             }
         }
         .refreshable { await load() }
         .banner($notice, systemImage: "record.circle")
+        .banner($refreshNotice, systemImage: refreshProblem == nil ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+    }
+
+    /// For the main profile: refreshes the guide (and has Dispatcharr download it, with an admin key).
+    @ViewBuilder private var refreshButton: some View {
+        if model.canRefreshLiveTv {
+            Button {
+                Task {
+                    refreshProblem = nil
+                    guard let result = await model.refreshLiveTv() else { return }
+                    switch result {
+                    case .worked: refreshNotice = t("Guide refreshed")
+                    case .failed(let problem):
+                        refreshProblem = problem
+                        refreshNotice = problem
+                    }
+                    await load()
+                    refreshed += 1
+                }
+            } label: {
+                // The same size either way, or the Mac's labelled button jumps.
+                Label {
+                    Text(t("Refresh guide"))
+                } icon: {
+                    if model.isRefreshingLiveTv {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: Symbol.refresh)
+                    }
+                }
+            }
+            .disabled(model.isRefreshingLiveTv)
+            .accessibilityLabel(model.isRefreshingLiveTv ? t("Refreshing…") : t("Refresh guide"))
+        }
+    }
+
+    /// For the main profile, who can do something about it, with where it says how.
+    @ViewBuilder private var missingListings: some View {
+        if model.isMainProfile {
+            VStack(alignment: .leading, spacing: 2) {
+                if let refreshProblem {
+                    Text(refreshProblem).foregroundStyle(Color.usher)
+                }
+                if let count = model.liveTvStatus?.channelsWithoutListings, count > 0 {
+                    let text = Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", ["count": count]))
+                        .foregroundStyle(Color.usher)
+                    let why = Link(t("Why?"), destination: URL(string: "https://flexarr.io/guide/live-tv#channels-with-no-listings")!)
+                    // Beside each other when they fit; at the largest text sizes, one under the other.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 6) { text; why }
+                        VStack(alignment: .leading, spacing: 2) { text; why }
+                    }
+                }
+            }
+            .font(.footnote)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Layout.edge)
+        }
     }
 
     private var favourites: [LiveChannel] { (channels ?? []).filter(\.isFavourite) }
@@ -136,6 +205,11 @@ struct LiveTvView: View {
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
+
+            missingListings
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
 
             ForEach(shown) { channel in
                 ChannelRow(channel: channel, starting: model.liveTv.startingChannel == channel.id)

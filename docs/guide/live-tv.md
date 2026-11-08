@@ -5,7 +5,7 @@ description: Watch TV channels in Flexarr with a guide, favourites and rewind, a
 
 Flexarr can show TV channels next to your movies and shows, with a programme guide, favourites, pause and rewind, and recording. It doesn't come with any channels. You bring your own, through Dispatcharr.
 
-Live TV is on the web, Apple TV, iPhone and iPad. Kids profiles don't have it, and a profile with an age limit sees only the channels the main profile picks under **Channels for kids** in **Settings › Live TV**.
+Live TV is on the web, Apple TV, iPhone, iPad, Mac, Android and Android TV. Kids profiles don't have it, and a profile with an age limit sees only the channels the main profile picks under **Channels for kids** in **Settings › Live TV**.
 
 ## What you need
 
@@ -26,7 +26,7 @@ Setting up Dispatcharr itself is covered in its own documentation. Once it has c
 First, in Dispatcharr:
 
 1. Add a user for Flexarr, at **Streamer** level.
-2. Give it a long, random XC password. This works as Flexarr's key. It can only list and play channels, never sign in to Dispatcharr or change anything.
+2. Give it a long, random XC password. This works as Flexarr's key. It can only list and play channels, never sign in to Dispatcharr or change anything. (The optional admin key described under [Letting Refresh update Dispatcharr](#letting-refresh-update-dispatcharr) can do more.)
 3. Give that user the channels you want in Flexarr.
 
 Then in Flexarr, as the main profile:
@@ -35,7 +35,23 @@ Then in Flexarr, as the main profile:
 2. Fill in **Address** (for example `http://localhost:9191`), **User name** and **Key (XC password)**.
 3. Choose **Test**. It should say how many channels it found and how many connections your source allows at a time. Then choose **Save**.
 
-The channels and guide come in straight away. The guide refreshes every six hours, and channels you add or remove in Dispatcharr show up within five minutes. **Refresh channels and guide** fetches them now.
+The channels and guide come in straight away. The guide refreshes every six hours (every hour while any channel has nothing listed), and channels you add or remove in Dispatcharr show up within five minutes. **Refresh guide** on the Live TV page, or **Refresh channels and guide** here, fetches them now.
+
+### Channels with no listings
+
+Flexarr shows the guide Dispatcharr gives it, so **No listings** means Dispatcharr has nothing ahead for that channel. The main profile sees how many channels this affects on the Live TV page. There are three usual reasons:
+
+- **Dispatcharr's copy has run out.** Your guide source may have newer listings than its last download. In Dispatcharr, refresh the source, or have it refresh more often. If you've added an admin key (below), **Refresh guide** does this for you.
+- **The channel isn't matched to a guide entry.** Choose one for it in Dispatcharr, then use **Refresh guide**.
+- **The guide entry has no listings.** Sources can hold several entries for one channel, and only some have programmes. Try another entry, or add another guide source in Dispatcharr.
+
+### Letting Refresh update Dispatcharr
+
+**Refresh guide** normally reads what Dispatcharr already has. To have it make Dispatcharr download its guides first, add an **Admin API key** in **Settings › Connections › Dispatcharr**, using the API key of a Dispatcharr admin. **Test** checks that the key works. API keys need Dispatcharr 0.20 or later. If a correct key is refused and you use Network Access rules in Dispatcharr, check that its **UI** rule lets your Flexarr server in.
+
+This is optional, and it gives Flexarr admin rights in Dispatcharr, so leave it out if you'd rather not. If Dispatcharr is on another network, use an `https://` address or a tunnel, so the key isn't sent in the clear. Settings files leave the key out, so add it again after moving to a new server.
+
+Your guide sources are contacted at most once every 15 minutes, however often Refresh is pressed. Schedules Direct sources wait two hours, as Dispatcharr asks.
 
 Channel logos come from a community logo collection where it has a match, and from Dispatcharr where it doesn't.
 

@@ -3,6 +3,8 @@ import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi } from '../test/mockApi'
 import * as livetv from '../lib/livetv'
+import { SessionContext } from '../hooks/sessionContext'
+import type { Me } from '../api/client'
 import LiveTvPage from './LiveTvPage'
 
 vi.mock('../lib/livetv', async (original) => {
@@ -37,6 +39,83 @@ const channels = Array.from({ length: 20 }, (_, c) => ({
   isFavourite: false,
   programmes: Array.from({ length: 6 }, (_, p) => programme(c * 100 + p, p, `Show ${c + 1}.${p + 1}`)),
 }))
+
+describe('refreshing the Live TV guide', () => {
+  const openPage = (isAdmin: boolean) =>
+    render(
+      <SessionContext.Provider value={{ me: { profileId: 'p', method: 'api-key', isAdmin } as Me, profiles: undefined }}>
+        <MemoryRouter>
+          <LiveTvPage />
+        </MemoryRouter>
+      </SessionContext.Provider>,
+    )
+
+  it('finishes a refresh that fails just as the last did, and says when one worked', async () => {
+    let finished = 4
+    let error: string | null = 'Not there'
+    mockApi({
+      '/livetv/status': () => ({ configured: true, channels: 20, refreshing: false, refreshedAt: null, error, rewindMinutes: 0, channelsWithoutListings: 0, refreshesFinished: finished }),
+      '/livetv/channels': () => [],
+      '/livetv/refresh': () => {
+        finished++
+        return {}
+      },
+    })
+    openPage(true)
+    const button = await screen.findByRole('button', { name: 'Refresh guide' })
+    await screen.findByText('Not there')
+    fireEvent.click(button)
+    // Same error, nothing else differs: the count is what says it finished.
+    await waitFor(() => expect(button.getAttribute('aria-busy')).not.toBe('true'), { timeout: 5000 })
+    expect(screen.queryByText('Guide refreshed')).toBeNull()
+
+    error = null
+    fireEvent.click(button)
+    await screen.findByText('Guide refreshed', undefined, { timeout: 5000 })
+  }, 15000)
+
+  it('tells the server, says how many channels have no listings, and fetches the channels again when it’s done', async () => {
+    let refreshing = false
+    let refreshedAt = '2026-11-08T06:00:00Z'
+    let channelFetches = 0
+    const fetchMock = mockApi({
+      '/livetv/status': () => ({ configured: true, channels: 20, refreshing, refreshedAt, error: null, rewindMinutes: 0, channelsWithoutListings: refreshedAt.startsWith('2026-11-08T06') ? 3 : 1 }),
+      '/livetv/channels': () => {
+        channelFetches++
+        return []
+      },
+      '/livetv/refresh': () => {
+        refreshing = true
+        setTimeout(() => {
+          refreshing = false
+          refreshedAt = '2026-11-08T12:00:00Z'
+        }, 100)
+        return undefined
+      },
+    })
+    openPage(true)
+
+    expect(await screen.findByText('3 channels have no listings')).toBeInTheDocument()
+    await waitFor(() => expect(channelFetches).toBeGreaterThan(0))
+    const before = channelFetches
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh guide' }))
+    await waitFor(() => expect(screen.getByText('1 channel has no listings')).toBeInTheDocument(), { timeout: 8000 })
+    await waitFor(() => expect(channelFetches).toBeGreaterThan(before))
+    expect(fetchMock.mock.calls.some(([input, init]) => String(input).includes('/livetv/refresh') && (init as RequestInit)?.method === 'POST')).toBe(true)
+  }, 15000)
+
+  it('isn’t offered to other profiles', async () => {
+    mockApi({
+      '/livetv/status': { configured: true, channels: 20, refreshing: false, refreshedAt: null, error: null, rewindMinutes: 0, channelsWithoutListings: 3 },
+      '/livetv/channels': [],
+    })
+    openPage(false)
+
+    await screen.findByText('On now')
+    expect(screen.queryByRole('button', { name: 'Refresh guide' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/have no listings/)).not.toBeInTheDocument()
+  })
+})
 
 describe('the Live TV guide', () => {
   it('opens a programme’s details by redrawing its own channel’s line, not every channel’s', async () => {

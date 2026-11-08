@@ -1,7 +1,8 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PageLoading } from '../components/PageStatus'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { getLiveChannels, getLiveGuide, getLiveProgramme, getLiveTvStatus, type LiveChannel, type LiveGuide, type LiveProgramme } from '../api/client'
+import { freshly, getLiveChannels, getLiveGuide, getLiveProgramme, getLiveTvStatus, refreshLiveTv, type LiveChannel, type LiveGuide, type LiveProgramme, type LiveTvStatus } from '../api/client'
+import { IconButton } from '../components/AsyncButton'
 import { FavouriteButton } from '../components/FavouriteButton'
 import { RecordControls } from '../components/RecordControls'
 import { ChannelLogo } from '../components/LiveChannelCard'
@@ -16,10 +17,15 @@ import { locale, t, Words } from '../i18n'
 import '../styles/livetv.lazy.css'
 
 const LiveRecordings = lazy(() => import('./LiveRecordings'))
+const RefreshGuide = icon.refresh
 
 /** How wide the guide draws a minute. */
 const PX_PER_MINUTE = 6
 const GUIDE_HOURS = 6
+/** Longer than the server waits for Dispatcharr's downloads, after which the guide is read regardless. */
+const REFRESH_GIVES_UP_MS = 6 * 60_000
+/** On a server that can't say a refresh finished: one not seen under way by then has come and gone. */
+const OLD_SERVER_STARTS_WITHIN_MS = 15_000
 
 /** The guide starts on the half hour before now, a little in the past, so what's just started is in view. */
 function guideStart(now = new Date()) {
@@ -35,6 +41,75 @@ export default function LiveTvPage() {
   const view = params.get('view') === 'guide' ? 'guide' : params.get('view') === 'recordings' && !limited ? 'recordings' : 'now'
   const status = useApi(getLiveTvStatus, [])
   const { me } = useSession()
+  const mainProfile = !!me?.isAdmin || !!me?.canUnlock
+  // A refresh asked for: how the status looked just before, and whether it has been seen under way since.
+  const [refresh, setRefresh] = useState<{ before: LiveTvStatus; seen: boolean; at: number }>()
+  /** Bumped when a refresh finishes, so what's shown is fetched again. */
+  const [refreshed, setRefreshed] = useState(0)
+  const [refreshFailed, setRefreshFailed] = useState<string>()
+  const [refreshWorked, setRefreshWorked] = useState(false)
+  const badLooks = useRef(0)
+  const { reload: reloadStatus, loading: statusLoading } = status
+  // A look still on its way isn't cut off by the next, or a slow connection would never get an answer.
+  const lookAgain = useCallback(() => {
+    if (!statusLoading) reloadStatus()
+  }, [reloadStatus, statusLoading])
+  const configured = status.data?.configured !== false
+  usePolling(lookAgain, !configured ? null : refresh || status.data?.refreshing ? 2000 : mainProfile ? 60_000 : null)
+
+  const finishRefresh = useCallback((failed?: string) => {
+    setRefresh(undefined)
+    setRefreshed((n) => n + 1)
+    setRefreshFailed(failed)
+  }, [])
+  useEffect(() => {
+    if (!refresh || !status.data) return
+    badLooks.current = 0
+    const { refreshing, refreshedAt, error, downloadError, refreshesFinished } = status.data
+    const { before, seen, at } = refresh
+    if (refreshing) {
+      if (!seen) setRefresh({ ...refresh, seen: true })
+      return
+    }
+    // Servers from before the release after 0.63 don't count finished refreshes: one that fails as the last did shows nothing changing.
+    const finished =
+      refreshesFinished != null
+        ? refreshesFinished !== before.refreshesFinished
+        : seen || refreshedAt !== before.refreshedAt || error !== before.error || downloadError !== before.downloadError || Date.now() - at > OLD_SERVER_STARTS_WITHIN_MS
+    if (finished) {
+      finishRefresh()
+      setRefreshWorked(!error && !downloadError)
+    }
+  }, [refresh, status.data, finishRefresh])
+  useEffect(() => {
+    if (!refresh || !status.error) return
+    badLooks.current++
+    if (badLooks.current >= 3) finishRefresh(t('Flexarr didn’t answer. Try again.'))
+  }, [refresh, status.error, finishRefresh])
+  useEffect(() => {
+    if (!refresh) return
+    const giveUp = setTimeout(() => finishRefresh(t('This is taking a while. The guide will update when it’s done.')), REFRESH_GIVES_UP_MS)
+    return () => clearTimeout(giveUp)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one wait per refresh, however often it's seen
+  }, [!!refresh])
+  useEffect(() => {
+    if (!refreshWorked) return
+    const hide = setTimeout(() => setRefreshWorked(false), 6000)
+    return () => clearTimeout(hide)
+  }, [refreshWorked])
+
+  async function startRefresh() {
+    setRefreshFailed(undefined)
+    setRefreshWorked(false)
+    badLooks.current = 0
+    try {
+      const before = await freshly(() => getLiveTvStatus())
+      await refreshLiveTv()
+      setRefresh({ before, seen: false, at: Date.now() })
+    } catch (e) {
+      setRefreshFailed(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   if (status.data && !status.data.configured) {
     return (
@@ -59,6 +134,7 @@ export default function LiveTvPage() {
     <div className="livetv-page">
       <header className="livetv-header">
         <h1 className="livetv-title">{t(Words.liveTv)}</h1>
+        {mainProfile && <IconButton className="button quiet small icon livetv-refresh" label={t('Refresh guide')} icon={<RefreshGuide />} busy={!!refresh || status.data?.refreshing} onClick={startRefresh} />}
         <div className="season-tabs livetv-tabs" role="tablist" aria-label={t('View')}>
           <button role="tab" aria-selected={view === 'now'} className={view === 'now' ? 'season-tab active' : 'season-tab'} onClick={() => setParams({}, { replace: true })}>
             {t('On now')}
@@ -88,10 +164,28 @@ export default function LiveTvPage() {
           {status.data.error}
         </p>
       )}
+      {mainProfile && (refreshFailed || status.data?.downloadError) && (
+        <p className="error livetv-error" role="alert">
+          {refreshFailed ?? status.data?.downloadError}
+        </p>
+      )}
+      {mainProfile && (
+        <div role="status">
+          {refreshWorked && <p className="muted livetv-missing">{t('Guide refreshed')}</p>}
+          {!!status.data?.channelsWithoutListings && (
+            <p className="muted livetv-missing">
+              {t('{count, plural, one {# channel has no listings} other {# channels have no listings}}', { count: status.data.channelsWithoutListings })}{' '}
+              <a href="https://flexarr.io/guide/live-tv#channels-with-no-listings" target="_blank" rel="noreferrer">
+                {t('Why?')}
+              </a>
+            </p>
+          )}
+        </div>
+      )}
       {view === 'now' ? (
-        <OnNow />
+        <OnNow refreshed={refreshed} />
       ) : view === 'guide' ? (
-        <Guide />
+        <Guide refreshed={refreshed} />
       ) : (
         <Suspense fallback={<PageLoading />}>
           <LiveRecordings />
@@ -103,9 +197,13 @@ export default function LiveTvPage() {
 
 const FAVOURITES = '\u0000favourites'
 
-function OnNow() {
+// Only redrawn when a refresh finishes, not by every look at the status above it.
+const OnNow = memo(function OnNow({ refreshed }: { refreshed: number }) {
   const { data, error, reload } = useApi(getLiveChannels, [])
   usePolling(reload, 60_000)
+  useEffect(() => {
+    if (refreshed) reload()
+  }, [refreshed, reload])
   const { isFavourite, toggle } = useFavourites()
   // Unchosen, the view is Favourites when there are some, otherwise All; it's All again once the last is unstarred.
   const [chosen, setGroup] = useState<string>()
@@ -146,7 +244,7 @@ function OnNow() {
       )}
     </>
   )
-}
+})
 
 /**
  * A channel as a row: number, logo, what's on with how far through, and what's next, so hundreds of channels stay
@@ -268,7 +366,8 @@ const GuideRow = memo(function GuideRow({
   )
 })
 
-function Guide() {
+// Only redrawn when a refresh finishes, not by every look at the status above it.
+const Guide = memo(function Guide({ refreshed }: { refreshed: number }) {
   const navigate = useNavigate()
   const { limited } = useAgeLimits()
   const [from] = useState(() => guideStart())
@@ -326,7 +425,7 @@ function Guide() {
       },
     )
     return () => controller.abort()
-  }, [from, hours, version, favouritesOnly])
+  }, [from, hours, version, refreshed, favouritesOnly])
 
   const select = useCallback((channel: LiveGuide['channels'][number], programme: LiveProgramme) => setSelected({ channel, programme }), [])
   const minutes = (iso: string | number) => guideMinutes(from, iso)
@@ -406,5 +505,5 @@ function Guide() {
       )}
     </>
   )
-}
+})
 

@@ -3,6 +3,40 @@ import Testing
 @testable import FlexarrKit
 
 struct LiveTvTests {
+    private func status(refreshing: Bool = false, at: TimeInterval = 0, error: String? = nil) -> LiveTvStatus {
+        LiveTvStatus(configured: true, channels: 1, refreshing: refreshing, refreshedAt: Date(timeIntervalSince1970: at), error: error, rewindMinutes: 60)
+    }
+
+    @Test func aRefreshIsFinishedWhenTheServersCountMoves() throws {
+        let decoder = JSONDecoder()
+        func status(_ finished: Int?, error: String? = "No") throws -> LiveTvStatus {
+            let count = finished.map { ",\"refreshesFinished\":\($0)" } ?? ""
+            return try decoder.decode(LiveTvStatus.self, from: Data("{\"configured\":true,\"channels\":1,\"refreshing\":false,\"error\":\"\(error ?? "")\",\"rewindMinutes\":0\(count)}".utf8))
+        }
+        // Failing as the last did: only the count differs.
+        #expect(try status(5).finishedRefresh(since: status(4), sawRefreshing: false))
+        // The count stays put: still waiting, even having seen another finish.
+        #expect(try !status(4).finishedRefresh(since: status(4), sawRefreshing: true, looks: 100))
+        // A server that doesn't count: only waited for so long.
+        #expect(try !status(nil).finishedRefresh(since: status(nil), sawRefreshing: false, looks: 7))
+        #expect(try status(nil).finishedRefresh(since: status(nil), sawRefreshing: false, looks: 8))
+    }
+
+    @Test func aRefreshIsFinishedOnceItsCameAndGoneOrTheAnswerChanged() {
+        let before = status()
+        #expect(!status(refreshing: true, at: 5).finishedRefresh(since: before, sawRefreshing: true))
+        #expect(!status().finishedRefresh(since: before, sawRefreshing: false))
+        #expect(status().finishedRefresh(since: before, sawRefreshing: true))
+        #expect(status(at: 5).finishedRefresh(since: before, sawRefreshing: false))
+        #expect(status(error: "No").finishedRefresh(since: before, sawRefreshing: false))
+    }
+
+    @Test func statusFromAnOlderServerHasNoCountOfMissingListings() throws {
+        let old = try JSONDecoder().decode(LiveTvStatus.self, from: Data(#"{"configured":true,"channels":1,"refreshing":false,"rewindMinutes":60}"#.utf8))
+        #expect(old.channelsWithoutListings == nil)
+        #expect(old.downloadError == nil)
+    }
+
     @Test func channels() throws {
         let channels = try Fixture.decode([LiveChannel].self, "live-channels")
         let bbc = try #require(channels.first)

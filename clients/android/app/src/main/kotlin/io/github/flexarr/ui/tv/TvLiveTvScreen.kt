@@ -96,6 +96,7 @@ import io.github.flexarr.ui.livetv.seriesLabel
 import io.github.flexarr.ui.livetv.toggleRecording
 import io.github.flexarr.ui.livetv.toggleSeries
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.CancellationException
@@ -246,6 +247,8 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     val scope = rememberCoroutineScope()
     var channels by remember { mutableStateOf<List<LiveChannel>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    // What went wrong refreshing the guide.
+    var refreshNote by remember { mutableStateOf<String?>(null) }
     // The guide on screen, with what it was asked for and its ETag.
     var kept by remember { mutableStateOf<KeptGuide?>(null) }
     var upcoming by remember { mutableStateOf<Int?>(null) }
@@ -266,7 +269,10 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
         }
     }
     // What's on moves on: fetched again each minute while the screen is up.
-    RepeatWhileShowing(60_000, model.credentials) { load() }
+    RepeatWhileShowing(60_000, model.credentials) {
+        load()
+        if (model.isMainProfile) model.reloadLiveTvStatus()
+    }
     LaunchedEffect(focusedCategory) {
         val resting = focusedCategory ?: return@LaunchedEffect
         delay(250)
@@ -313,6 +319,21 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
             if (asking == currentAsk || kept?.covers(currentAsk, currentIds) != true) kept = it
         }
     }
+    // How a refresh went, once each, and the guide fetched again: the note goes a while after one that worked.
+    var refreshesSeen by remember { mutableIntStateOf(model.liveTvRefreshesEnded) }
+    LaunchedEffect(model.isRefreshingLiveTv) { if (model.isRefreshingLiveTv) refreshNote = null }
+    LaunchedEffect(model.liveTvRefreshesEnded) {
+        if (model.liveTvRefreshesEnded == refreshesSeen) return@LaunchedEffect
+        refreshesSeen = model.liveTvRefreshesEnded
+        val problem = model.liveTvRefreshProblem
+        refreshNote = problem ?: t("Guide refreshed")
+        load()
+        loadGuide(true)
+        if (problem == null) {
+            delay(6_000)
+            refreshNote = null
+        }
+    }
     // The count of what's set to record every five minutes, on its own: not again for each category moved onto.
     RepeatWhileShowing(300_000, model.credentials) { loadUpcoming() }
     // The guide (a few hours of it) every five minutes, and more of it as the guide's moved on or another category's
@@ -345,13 +366,19 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
         when {
             loaded == null && error != null -> TvStatusView(error, retry = { scope.launch { load() } })
             loaded == null -> TvStatusView()
-            loaded.isEmpty() -> TvStatusView(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user."), empty = true)
+            loaded.isEmpty() -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user."), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
+                if (model.canRefreshLiveTv) {
+                    TvActionButton(if (model.isRefreshingLiveTv) t("Refreshing…") else t("Refresh guide"), onClick = model::refreshLiveTv, prominent = true)
+                    refreshNote?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher) }
+                }
+            }
             else -> Row(Modifier.fillMaxSize().padding(start = TvLayout.Edge, top = 15.dp), horizontalArrangement = Arrangement.spacedBy(25.dp)) {
                 // Back from the guide, focus returns to the category being shown, not whichever is nearest (which would show it).
                 LazyColumn(Modifier.width(200.dp).fillMaxHeight().focusRestorer(), verticalArrangement = Arrangement.spacedBy(5.dp), contentPadding = PaddingValues(bottom = 30.dp)) {
-                    val entries = listOf<Pair<Category, String>>(Category.Favourites to t("Favourites"), Category.Recordings to t("Recordings"), Category.All to t("All channels")) +
-                        (if (groups.size > 1) groups.map { Category.Group(it) to it } else emptyList())
-                    items(entries, key = { it.second + it.first::class.simpleName }) { (value, title) ->
+                    val entries = listOf<Pair<Category, String>>(Category.Favourites to t("Favourites"), Category.Recordings to t("Recordings"), Category.All to t("All channels"))
+                    val groupEntries = if (groups.size > 1) groups.map { Category.Group(it) to it } else emptyList<Pair<Category, String>>()
+                    val categoryRow: @Composable (Pair<Category, String>) -> Unit = { (value, title) ->
                         CategoryButton(
                             title,
                             selected = category == value,
@@ -367,6 +394,26 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                             modifier = if (value == Category.Favourites) Modifier.focusRequester(firstCategory) else Modifier,
                         )
                     }
+                    items(entries, key = { it.second + it.first::class.simpleName }) { categoryRow(it) }
+                    // Above the groups, of which there can be more than fit, as on Apple TV.
+                    if (model.canRefreshLiveTv) {
+                        item(key = "refresh") {
+                            CategoryButton(
+                                if (model.isRefreshingLiveTv) t("Refreshing…") else t("Refresh guide"),
+                                selected = false,
+                                icon = FlexarrIcons.refresh,
+                                count = null,
+                                onFocus = {},
+                                onClick = model::refreshLiveTv,
+                                modifier = Modifier,
+                            )
+                        }
+                        val missing = model.liveTvStatus?.channelsWithoutListings ?: 0
+                        listOfNotNull(refreshNote, if (missing > 0) t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", "count" to missing) else null).forEach { note ->
+                            item(key = "refresh-note-$note") { Text(note, fontSize = 12.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 11.dp)) }
+                        }
+                    }
+                    items(groupEntries, key = { it.second + it.first::class.simpleName }) { categoryRow(it) }
                 }
                 Box(Modifier.weight(1f)) {
                     when {

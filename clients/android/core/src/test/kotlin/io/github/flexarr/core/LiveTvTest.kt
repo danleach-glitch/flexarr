@@ -14,6 +14,29 @@ class LiveTvTest {
         FlexarrClient.json.decodeFromString(serializer<T>(), javaClass.classLoader!!.getResource("$name.json")!!.readText())
 
     @Test
+    fun `a refresh is finished when the servers count moves`() {
+        val before = LiveTvStatus(configured = true, channels = 1, error = "No", refreshesFinished = 4)
+        // Failing as the last did: only the count differs.
+        assertTrue(before.copy(refreshesFinished = 5).finishedRefresh(before, sawRefreshing = false))
+        // The count stays put: still waiting, even having seen another finish.
+        assertFalse(before.finishedRefresh(before, sawRefreshing = true, looks = 100))
+        // A server that doesn't count: only waited for so long.
+        val old = before.copy(refreshesFinished = null)
+        assertFalse(old.finishedRefresh(old, sawRefreshing = false, looks = 7))
+        assertTrue(old.finishedRefresh(old, sawRefreshing = false, looks = 8))
+    }
+
+    @Test
+    fun `a refresh is finished once it has come and gone or the answer changed`() {
+        val before = LiveTvStatus(configured = true, channels = 1, refreshedAt = "a")
+        assertFalse(before.copy(refreshing = true, refreshedAt = "b").finishedRefresh(before, sawRefreshing = true))
+        assertFalse(before.finishedRefresh(before, sawRefreshing = false))
+        assertTrue(before.finishedRefresh(before, sawRefreshing = true))
+        assertTrue(before.copy(refreshedAt = "b").finishedRefresh(before, sawRefreshing = false))
+        assertTrue(before.copy(downloadError = "No").finishedRefresh(before, sawRefreshing = false))
+    }
+
+    @Test
     fun `reads the server's channels, guide and recordings`() {
         val channels = fixture<List<LiveChannel>>("live-channels")
         assertTrue(channels.isNotEmpty())

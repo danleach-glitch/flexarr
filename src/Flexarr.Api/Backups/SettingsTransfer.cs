@@ -73,6 +73,17 @@ public static class SettingsTransfer
     /// </summary>
     private static JsonNode? Portable(string key, JsonNode? value)
     {
+        // A settings file is meant for carrying around, and this key is full admin of Dispatcharr: it's entered again on the new server.
+        if (key.Equals("liveTv", StringComparison.OrdinalIgnoreCase) && value is JsonObject live)
+        {
+            foreach (var name in live.Where(p => p.Key.Equals("adminApiKey", StringComparison.OrdinalIgnoreCase)).Select(p => p.Key).ToList())
+            {
+                live.Remove(name);
+            }
+
+            return live;
+        }
+
         if (!key.Equals("trakt", StringComparison.OrdinalIgnoreCase) || value is not JsonObject trakt)
         {
             return value;

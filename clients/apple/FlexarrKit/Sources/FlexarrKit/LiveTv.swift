@@ -12,6 +12,22 @@ public struct LiveTvStatus: Codable, Sendable, Hashable {
     public let error: String?
     /// How far back a channel being watched can be rewound.
     public let rewindMinutes: Int
+    /// Channels with nothing listed from now on. Absent from servers before the release after 0.63.
+    public var channelsWithoutListings: Int? = nil
+    /// Why Dispatcharr couldn't be asked to download its guides, last time it was. Absent from servers before the
+    /// release after 0.63.
+    public var downloadError: String? = nil
+    /// Goes up as each refresh finishes, however it went. Absent from servers before the release after 0.63.
+    public var refreshesFinished: Int? = nil
+
+    /// Whether a refresh asked for when the status was `before` has finished, `looks` looks later. Older servers don't
+    /// count finished refreshes: a quick one can come and go between looks, so an answer that's changed says so as well as
+    /// having seen it under way, and one that fails as the last did changes nothing, so it's only waited for so long.
+    public func finishedRefresh(since before: LiveTvStatus?, sawRefreshing: Bool, looks: Int = 0) -> Bool {
+        guard !refreshing else { return false }
+        if let refreshesFinished, let was = before?.refreshesFinished { return refreshesFinished != was }
+        return sawRefreshing || refreshedAt != before?.refreshedAt || error != before?.error || downloadError != before?.downloadError || looks >= 8
+    }
 }
 
 /// A programme in the guide.
@@ -293,6 +309,34 @@ extension FlexarrClient {
         } catch FlexarrClientError.http(status: 404, _) {
             return nil
         }
+    }
+
+    /// Refreshes the channels and guide (the main profile only), and waits for it: the status once it's done, or as it
+    /// stands once it's been a while. With an admin key saved, the server has Dispatcharr download its guides first,
+    /// which takes minutes at worst. Servers before the release after 0.63 refuse a locked main profile.
+    public func refreshLiveTv() async throws -> LiveTvStatus? {
+        let before = try await liveTvStatus()
+        _ = try await send("POST", "livetv/refresh")
+        var sawRefreshing = false
+        var badLooks = 0
+        for look in 1...180 {
+            try await Task.sleep(for: .seconds(2))
+            let status: LiveTvStatus?
+            do {
+                status = try await liveTvStatus()
+                badLooks = 0
+            } catch {
+                // The server carries on without us: a phone changing network doesn't make the refresh a failure.
+                try Task.checkCancellation()
+                badLooks += 1
+                if badLooks >= 3 { throw error }
+                continue
+            }
+            guard let status else { return nil }
+            sawRefreshing = sawRefreshing || status.refreshing
+            if status.finishedRefresh(since: before, sawRefreshing: sawRefreshing, looks: look) { return status }
+        }
+        return try await liveTvStatus()
     }
 
     /// Every channel's programmes from `from` for `hours` (at most a day). `descriptions: false` leaves each

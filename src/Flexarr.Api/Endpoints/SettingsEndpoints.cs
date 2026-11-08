@@ -65,12 +65,13 @@ public sealed record TraktAppUpdate(string ClientId, string? ClientSecret);
 
 /// <summary>The Live TV source; the password is never sent back, only whether there is one.</summary>
 public sealed record LiveTvSettingsDto(string BaseUrl, string Username, bool HasPassword, int RewindMinutes, string? DvrFolder = null,
-    string DvrFolderInUse = "", int? MaxStreams = null, int PaddingBeforeMinutes = 1, int PaddingAfterMinutes = 5, int MinFreeGigabytes = 100);
+    string DvrFolderInUse = "", int? MaxStreams = null, int PaddingBeforeMinutes = 1, int PaddingAfterMinutes = 5, int MinFreeGigabytes = 100, bool HasAdminApiKey = false);
 
 /// <param name="BaseUrl">Empty to remove the source (its channels and guide go with it).</param>
 /// <param name="Password">Omitted to keep the saved one, which is only kept for the same server.</param>
+/// <param name="AdminApiKey">Likewise; empty to remove it.</param>
 public sealed record LiveTvSettingsUpdate(string BaseUrl, string? Username, string? Password, int? RewindMinutes = null, string? DvrFolder = null,
-    int? MaxStreams = null, int? PaddingBeforeMinutes = null, int? PaddingAfterMinutes = null, int? MinFreeGigabytes = null);
+    int? MaxStreams = null, int? PaddingBeforeMinutes = null, int? PaddingAfterMinutes = null, int? MinFreeGigabytes = null, string? AdminApiKey = null);
 
 public sealed record LiveTvTestDto(bool Ok, int? Channels, int? MaxConnections, DateTime? ExpiresAt, string? Error);
 
@@ -300,6 +301,7 @@ public static class SettingsEndpoints
                         ["baseUrl"] = live.BaseUrl.Trim().TrimEnd('/'),
                         ["username"] = live.Username?.Trim() ?? "",
                         ["password"] = string.IsNullOrEmpty(live.Password) ? savedPassword : live.Password,
+                        ["adminApiKey"] = (live.AdminApiKey is null ? current.LiveTv is { } keyed && SameServer(keyed.BaseUrl, live.BaseUrl) ? keyed.AdminApiKey : null : live.AdminApiKey.Trim()) is { Length: > 0 } adminKey ? adminKey : null,
                         ["rewindMinutes"] = Math.Clamp(live.RewindMinutes ?? current.LiveTv?.RewindMinutes ?? 60, 1, 240),
                         // The DVR's settings: an omitted one keeps what's saved; an empty folder (or a limit of 0) goes
                         // back to the default.
@@ -326,9 +328,9 @@ public static class SettingsEndpoints
                 }
             }, ct: ct);
 
-            // Only a new source (or login) needs the channels again: the rewind or the DVR's settings don't.
+            // Only a new source (or login, or admin key: what it ran into goes with it) needs the channels again: the rewind or the DVR's settings don't.
             if (update.LiveTv is { } savedLive && (!SameServer(current.LiveTv?.BaseUrl, savedLive.BaseUrl) || savedLive.BaseUrl.Length == 0
-                || (savedLive.Username is { } user && user.Trim() != current.LiveTv?.Username) || !string.IsNullOrEmpty(savedLive.Password)))
+                || (savedLive.Username is { } user && user.Trim() != current.LiveTv?.Username) || !string.IsNullOrEmpty(savedLive.Password) || savedLive.AdminApiKey is not null))
             {
                 // The refresh reads the options, so it waits until they hold the new source (or its removal): asked for
                 // before then, it found none and cleared the channels instead.
@@ -449,7 +451,7 @@ public static class SettingsEndpoints
         }).WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         api.MapPost("/settings/livetv/test", async (LiveTvSettingsUpdate connection, IOptionsMonitor<FlexarrOptions> options, LiveTv.XtreamClient client,
-            CancellationToken ct) =>
+            LiveTv.DispatcharrGuides guides, CancellationToken ct) =>
         {
             // The saved password is only tried against the server it was saved for.
             var saved = options.CurrentValue.LiveTv;
@@ -471,6 +473,13 @@ public static class SettingsEndpoints
                 }
 
                 var channels = await client.GetChannelsAsync(account, timeout.Token);
+                // The admin key too, when there's one to try; the saved one, like the password, only against its own server.
+                var adminKey = connection.AdminApiKey ?? (saved is not null && SameServer(saved.BaseUrl, connection.BaseUrl) ? saved.AdminApiKey : null);
+                if (!string.IsNullOrWhiteSpace(adminKey) && await guides.CheckKeyAsync(url, adminKey.Trim(), timeout.Token) is var problem and not LiveTv.GuideDownloadProblem.None)
+                {
+                    return Results.Ok(new LiveTvTestDto(false, channels.Count, info.MaxConnections, info.ExpiresAt, LiveTv.LiveTvEndpoints.DownloadErrorText(problem)));
+                }
+
                 return Results.Ok(new LiveTvTestDto(true, channels.Count, info.MaxConnections, info.ExpiresAt, null));
             }
             catch (LiveTv.XtreamException ex)
@@ -538,7 +547,7 @@ public static class SettingsEndpoints
         new PodcastSettingsDto(Podcasts.PodcastCountries.Known(o.Podcasts.Country), o.Podcasts.ResolvedCountry),
         o.LiveTv is { BaseUrl.Length: > 0 } l
             ? new LiveTvSettingsDto(l.BaseUrl, l.Username, l.Password.Length > 0, l.RewindMinutes, l.DvrFolder, dvrFolder, l.MaxStreams,
-                l.PaddingBeforeMinutes, l.PaddingAfterMinutes, l.MinFreeGigabytes)
+                l.PaddingBeforeMinutes, l.PaddingAfterMinutes, l.MinFreeGigabytes, !string.IsNullOrEmpty(l.AdminApiKey))
             : null,
         HostName(),
         o.Tmdb?.ApiKey is { Length: > 0 },

@@ -408,6 +408,23 @@ public class BackupTests
     }
 
     [Fact]
+    public async Task SettingsFile_LeavesOutDispatcharrsAdminKey_BothWays()
+    {
+        await using var factory = new FlexarrApiFactory();
+        var client = Client(factory);
+        const string Secret = "dispatcharr-admin-k3y";
+        (await client.PutAsJsonAsync(Api("/settings"), new { liveTv = new { baseUrl = "http://dispatcharr:9191", username = "flexarr", password = "pw", adminApiKey = Secret } })).EnsureSuccessStatusCode();
+        for (var i = 0; i < 50 && !(await client.GetStringAsync(Api("/settings"))).Contains("\"hasAdminApiKey\":true", StringComparison.Ordinal); i++)
+        {
+            await Task.Delay(100);
+        }
+
+        var file = await (await client.PostAsJsonAsync(Api("/backups/settings-export"), new { })).Content.ReadAsStringAsync();
+        Assert.Contains("http://dispatcharr:9191", file, StringComparison.Ordinal);
+        Assert.DoesNotContain(Secret, file, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SettingsFile_CarriesOnlySettingsFlexarrKnows()
     {
         await using var factory = new FlexarrApiFactory();

@@ -12,6 +12,12 @@ import AppKit
 
 private let log = FlexarrLog("signin")
 
+/// How a refresh of the Live TV guide went.
+enum LiveTvRefreshResult {
+    case worked
+    case failed(String)
+}
+
 /// App-wide state: the signed-in server, who's watching, their libraries and the player.
 @MainActor
 @Observable
@@ -43,6 +49,15 @@ final class AppModel {
     private(set) var podcastStatus: PodcastStatus?
     /// Whether the server has Live TV set up; nil for servers before it.
     private(set) var liveTvStatus: LiveTvStatus?
+    /// The main profile, locked or not: it can refresh the Live TV guide.
+    private(set) var isMainProfile = false
+    /// Managing the server doesn't need the PIN just now.
+    private var isAdmin = false
+    /// Servers before the release after 0.63 refuse a locked main profile, and don't send the count.
+    var canRefreshLiveTv: Bool { isMainProfile && (isAdmin || liveTvStatus?.channelsWithoutListings != nil) }
+    /// The Live TV guide is being refreshed at this profile's asking.
+    private(set) var isRefreshingLiveTv = false
+    @ObservationIgnored private var liveTvRefreshWait: Task<LiveTvStatus?, Error>?
     /// How this profile listens to podcasts (auto-download, how many to keep, speed, and from 0.58 the skips and smart
     /// rewind it shares with books); nil until loaded. The podcast player follows it.
     private(set) var podcastPreferences: PodcastPreferences? {
@@ -521,6 +536,7 @@ final class AppModel {
 
     /// `stoppingTunnel`: false only for a guest's sign-out, which stops the tunnel itself once the server has heard.
     private func forget(stoppingTunnel: Bool = true) {
+        callOffLiveTvRefresh()
         endPlayback()
         music.stop()
         // A guest leaving leaves its host's tailnet too: nothing of the tunnel stays on the device.
@@ -1192,6 +1208,7 @@ final class AppModel {
     private func chose(_ selection: ProfileSelection, among list: [Profile]) {
         guard var credentials else { return }
         let profile = selection.profile
+        callOffLiveTvRefresh()
         endPlayback()
         music.stop()
         // What the last profile got ready is theirs.
@@ -1235,6 +1252,43 @@ final class AppModel {
         needsProfileChoice = false
     }
 
+    /// Live TV's status again, for how many channels have no listings.
+    func reloadLiveTvStatus() async {
+        let asked = credentials
+        guard isMainProfile, let client, let status = try? await client.liveTvStatus(), credentials == asked else { return }
+        liveTvStatus = status
+    }
+
+    /// Refreshes the channels and guide, and waits for it. Says how it went; nil when the wait was called off (someone
+    /// else was chosen meanwhile, whose status this isn't).
+    func refreshLiveTv() async -> LiveTvRefreshResult? {
+        guard let client, !isRefreshingLiveTv else { return nil }
+        isRefreshingLiveTv = true
+        let wait = Task { try await client.refreshLiveTv() }
+        liveTvRefreshWait = wait
+        defer {
+            if liveTvRefreshWait == wait {
+                liveTvRefreshWait = nil
+                isRefreshingLiveTv = false
+            }
+        }
+        do {
+            let status = try await wait.value
+            guard !wait.isCancelled else { return nil }
+            if let status { liveTvStatus = status }
+            return (status?.error ?? status?.downloadError).map(LiveTvRefreshResult.failed) ?? .worked
+        } catch {
+            return wait.isCancelled ? nil : .failed(ConnectionError(error).message)
+        }
+    }
+
+    /// A refresh is waited for on behalf of whoever's signed in: another profile, or nobody, doesn't take over the wait.
+    private func callOffLiveTvRefresh() {
+        liveTvRefreshWait?.cancel()
+        liveTvRefreshWait = nil
+        isRefreshingLiveTv = false
+    }
+
     func loadLibraries() async {
         guard let client else { return }
         // What doesn't wait on another answer is asked for together, so a slow link waits for the slowest, not the sum.
@@ -1242,6 +1296,7 @@ final class AppModel {
         let kids = isKids
         async let podcastAnswer: PodcastStatus? = kids ? nil : try? await client.podcastStatus()
         async let liveTvAnswer: LiveTvStatus? = kids ? nil : try? await client.liveTvStatus()
+        async let signIn: SignInInfo? = kids ? nil : try? await client.me()
         async let watchlist: Void = refreshWatchlist()
         do {
             libraries = try await client.libraries()
@@ -1252,6 +1307,9 @@ final class AppModel {
         podcastStatus = await podcastAnswer
         if podcastStatus?.available == true { podcastPreferences = try? await client.podcastPreferences() }
         liveTvStatus = await liveTvAnswer
+        let me = await signIn
+        isAdmin = me?.isAdmin == true
+        isMainProfile = isAdmin || me?.canUnlock == true
         if libraries.contains(where: { $0.type == .audiobooks }), let listening = try? await client.bookListening() {
             bookListening = listening
         }

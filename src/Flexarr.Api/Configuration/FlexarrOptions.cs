@@ -223,6 +223,9 @@ public sealed class LiveTvOptions
     public string Username { get; set; } = "";
     public string Password { get; set; } = "";
 
+    /// <summary>Optional: a Dispatcharr admin's API key, so that Refresh can have Dispatcharr download its guides.</summary>
+    public string? AdminApiKey { get; set; }
+
     /// <summary>How far back a channel being watched can be rewound.</summary>
     public int RewindMinutes { get; set; } = 60;
 

@@ -590,6 +590,8 @@ export interface Settings {
     baseUrl: string
     username: string
     hasPassword: boolean
+    /** Whether Refresh can have Dispatcharr download its guides. The key is never sent back. */
+    hasAdminApiKey?: boolean
     rewindMinutes: number
     /** Chosen in Settings; null for the default. */
     dvrFolder: string | null
@@ -856,6 +858,8 @@ export interface LiveTvSettingsUpdate {
   baseUrl: string
   username?: string
   password?: string
+  /** A Dispatcharr admin's API key; omitted keeps the saved one, empty removes it. */
+  adminApiKey?: string
   rewindMinutes?: number
   /** Empty for the default. */
   dvrFolder?: string
@@ -873,6 +877,12 @@ export interface LiveTvStatus {
   refreshedAt: string | null
   error: string | null
   rewindMinutes: number
+  /** Channels with nothing listed from now on. Absent from servers before the release after 0.63. */
+  channelsWithoutListings?: number | null
+  /** Goes up as each refresh finishes, however it went. Absent from servers before the release after 0.63. */
+  refreshesFinished?: number | null
+  /** Why Dispatcharr couldn't be asked to download its guides, last time it was. Absent from servers before the release after 0.63. */
+  downloadError?: string | null
 }
 
 export interface LiveProgramme {
