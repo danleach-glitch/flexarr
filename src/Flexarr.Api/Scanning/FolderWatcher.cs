@@ -98,7 +98,7 @@ public sealed partial class FolderWatcher(
     internal Action<FileSystemWatcher> Enable { get; set; } = watcher => watcher.EnableRaisingEvents = true;
 
     /// <summary>More titles than this waiting in one folder (a whole drive copied in): the folder is scanned as a whole.</summary>
-    internal const int MaxPendingPerFolder = 200;
+    internal const int MaxPendingPerFolder = 50;
 
     private readonly Lock _lock = new();
     private readonly Dictionary<string, Watched> _folders = new(StringComparer.Ordinal);
@@ -480,13 +480,21 @@ public sealed partial class FolderWatcher(
                 starting.Error ??= ex;
                 return;
             }
+
+            // Too many changes at once for the system to keep up (macOS says so with a plain IOException, once running).
+            // The watch itself is fine, and starting it again would walk the tree: the folder is just scanned, when it's quiet.
+            if (ex is InternalBufferOverflowException || (ex is IOException && OperatingSystem.IsMacOS() && !IsWatchLimit(ex)))
+            {
+                WholeFolderChanged(root);
+                return;
+            }
         }
 
         Failed(root, watcher, ex);
     }
 
     /// <summary>
-    /// The system lost events or the watch broke (the drive went, the watch limit was reached): whatever changed can't
+    /// The watch broke (the drive went, the watch limit was reached): whatever changed can't
     /// be known, so once the next sync watches it afresh, the whole folder is scanned. The next sync disposes the watcher
     /// too: this runs on the watcher's own thread.
     /// </summary>
@@ -546,18 +554,30 @@ public sealed partial class FolderWatcher(
             else if (_pending.Values.Count(p => p.Root == root) >= MaxPendingPerFolder)
             {
                 // A whole drive's worth arriving: one scan of the library folder, not hundreds of title scans.
-                foreach (var key in _pending.Keys.Where(k => _pending[k].Root == root).ToList())
-                {
-                    _pending.Remove(key);
-                }
-
-                _pending[root] = new Pending(root, now);
+                WholeFolderChanged(root);
             }
             else
             {
                 _pending[target] = new Pending(root, now) { ForceMetadata = artwork };
             }
         }
+    }
+
+    /// <summary>One scan of the library folder, in place of any of its titles waiting. Under the lock.</summary>
+    private void WholeFolderChanged(string root)
+    {
+        if (!_folders.TryGetValue(root, out var watched) || watched.Watcher is null)
+        {
+            return;
+        }
+
+        var first = _pending.TryGetValue(root, out var whole) ? whole.FirstEvent : time.GetUtcNow();
+        foreach (var key in _pending.Keys.Where(k => _pending[k].Root == root).ToList())
+        {
+            _pending.Remove(key);
+        }
+
+        _pending[root] = new Pending(root, time.GetUtcNow(), first);
     }
 
     /// <summary>Queues the titles whose files have stopped changing.</summary>
@@ -728,10 +748,10 @@ public sealed partial class FolderWatcher(
         public Exception? Error { get; set; }
     }
 
-    private sealed class Pending(string root, DateTimeOffset lastEvent)
+    private sealed class Pending(string root, DateTimeOffset lastEvent, DateTimeOffset? firstEvent = null)
     {
         public string Root { get; } = root;
-        public DateTimeOffset FirstEvent { get; } = lastEvent;
+        public DateTimeOffset FirstEvent { get; } = firstEvent ?? lastEvent;
         public DateTimeOffset LastEvent { get; set; } = lastEvent;
         public string? Snapshot { get; set; }
         public DateTimeOffset SnapshotAt { get; set; }

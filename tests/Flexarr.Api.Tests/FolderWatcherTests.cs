@@ -392,6 +392,29 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
+    public async Task LostEvents_ScanTheWholeFolderOnce_AndKeepTheWatch()
+    {
+        using var setup = await WatchAsync(create: false);
+        Directory.CreateDirectory(setup.Root);
+        RefusableWatcher? watching = null;
+        setup.Watcher.NewWatcher = root =>
+        {
+            var watcher = new RefusableWatcher(root);
+            watching = root == setup.Root ? watcher : watching;
+            return watcher;
+        };
+        await setup.Watcher.SyncAsync(default);
+
+        watching!.Report(new InternalBufferOverflowException());
+        watching.Report(new InternalBufferOverflowException());
+        Assert.Equal(FolderWatchState.Watching, setup.Watcher.StatusOf(setup.Root)?.State);
+
+        var requests = await WaitForAsync(setup, r => r.Path == setup.Root);
+        Assert.Equal(setup.Root, Assert.Single(requests).Path);
+        Assert.False(requests[0].ForceMetadata);
+    }
+
+    [Fact]
     public async Task AnUnreadableFolderInside_LeavesTheRestWatched()
     {
         using var setup = await WatchAsync(create: false);
