@@ -50,7 +50,7 @@ public static class EventEndpoints
         http.Response.Headers.CacheControl = "no-cache";
         http.Response.Headers["X-Accel-Buffering"] = "no";
         http.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
-        using var listener = events.Listen();
+        using var listener = events.Listen(added: true);
         await http.Response.WriteAsync(": connected\n\n", ct);
         await http.Response.Body.FlushAsync(ct);
 

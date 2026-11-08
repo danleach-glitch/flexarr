@@ -196,7 +196,8 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
         await db.SaveChangesAsync();
 
         var events = factory.Services.GetRequiredService<Flexarr.Api.Events.PlaybackEvents>();
-        using var listener = events.Listen();
+        using var listener = events.Listen(added: true);
+        using var playbackOnly = events.Listen();
         using var worker = new LibraryScanWorker(new RecordingScanQueue(), factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
             factory.Services.GetRequiredService<LibraryWorkGate>(), events: events);
         await worker.AnnounceAddedAsync(db, [library.Id], since, default);
@@ -205,6 +206,7 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
         Assert.Equal(fresh.Id, announced!.Item.Id);
         Assert.False(announced.Item.UserData.Watched);
         Assert.False(listener.Added.TryRead(out _));
+        Assert.False(playbackOnly.Added.TryRead(out _)); // The Trakt scrobbler, say, which never reads them.
     }
 
     [Fact]

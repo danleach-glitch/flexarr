@@ -72,6 +72,8 @@ public sealed class PlaybackEvents
         internal Channel<PlaybackEventDto> Channel { get; } =
             System.Threading.Channels.Channel.CreateBounded<PlaybackEventDto>(new BoundedChannelOptions(256) { SingleReader = true, FullMode = BoundedChannelFullMode.DropOldest });
 
+        internal bool WantsAdded { get; init; }
+
         internal Channel<LibraryAddedEventDto> AddedChannel { get; } =
             System.Threading.Channels.Channel.CreateBounded<LibraryAddedEventDto>(new BoundedChannelOptions(256) { SingleReader = true, FullMode = BoundedChannelFullMode.DropOldest });
 
@@ -88,9 +90,10 @@ public sealed class PlaybackEvents
         }
     }
 
-    public Listener Listen()
+    /// <param name="added">Whether it wants to hear of what's new in the library too.</param>
+    public Listener Listen(bool added = false)
     {
-        var listener = new Listener(this);
+        var listener = new Listener(this) { WantsAdded = added };
         _listeners[listener] = 0;
         return listener;
     }
@@ -109,7 +112,10 @@ public sealed class PlaybackEvents
     {
         foreach (var listener in _listeners.Keys)
         {
-            listener.AddedChannel.Writer.TryWrite(dto);
+            if (listener.WantsAdded)
+            {
+                listener.AddedChannel.Writer.TryWrite(dto);
+            }
         }
     }
 
