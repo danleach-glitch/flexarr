@@ -141,6 +141,42 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public void AChangeAScanHasAlreadySeen_IsntScannedAgain()
+    {
+        using var worker = new LibraryScanWorker(new RecordingScanQueue(), factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            factory.Services.GetRequiredService<LibraryWorkGate>());
+        var started = DateTime.UtcNow;
+        var title = new LibraryScanRequest("/films/Dune", FolderWatcher.Reason, LastChange: started.AddSeconds(-1));
+        Assert.False(worker.AlreadyScanned(title));
+
+        worker.NoteScanned("/films/Dune", started);
+        Assert.True(worker.AlreadyScanned(title));
+        Assert.False(worker.AlreadyScanned(title with { LastChange = started.AddSeconds(1) }));
+        Assert.False(worker.AlreadyScanned(title with { ForceMetadata = true }));
+        Assert.False(worker.AlreadyScanned(title with { LastChange = null }));
+        Assert.False(worker.AlreadyScanned(title with { Path = "/films/Heat" }));
+
+        // A scan of the whole folder covers its titles.
+        worker.NoteScanned("/films", started.AddSeconds(5));
+        Assert.True(worker.AlreadyScanned(title with { Path = "/films/Heat", LastChange = started }));
+    }
+
+    [Fact]
+    public void Coalesce_KeepsTheLatestChange_AndOnlySubtitlesIfAllAre()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var merged = LibraryScanWorker.Coalesce([
+            new LibraryScanRequest("/films/Dune", FolderWatcher.Reason, LastChange: now, OnlySubtitles: true),
+            new LibraryScanRequest("/films/Dune", FolderWatcher.Reason, LastChange: now.AddSeconds(5), OnlySubtitles: false),
+        ]).Single();
+        Assert.Equal(now.AddSeconds(5), merged.LastChange);
+        Assert.False(merged.OnlySubtitles);
+
+        // A webhook's request has no such time: it's always scanned.
+        Assert.Null(LibraryScanWorker.Coalesce([new LibraryScanRequest("/films/Dune", "Webhook"), new LibraryScanRequest("/films/Dune", FolderWatcher.Reason, LastChange: now)]).Single().LastChange);
+    }
+
+    [Fact]
     public async Task ANewFilm_IsAnnouncedOnTheEventStream()
     {
         using var host = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<IMediaProbe>(new FixedProbe())));

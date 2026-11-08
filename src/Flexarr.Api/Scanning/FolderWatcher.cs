@@ -575,6 +575,9 @@ public sealed partial class FolderWatcher(
 
         var target = Path.Combine(root, segments[0]);
         var artwork = IsArtworkOrNfo(name);
+        // The title's own folder changing says nothing either way: it does whenever anything's added to it.
+        var extension = Path.GetExtension(name).ToLowerInvariant();
+        var subtitles = extension is ".srt" or ".ass" or ".ssa" or ".vtt" or ".sub" or ".idx" or ".sup" || (extension.Length == 0 && segments.Length == 1);
         var now = time.GetUtcNow();
         lock (_lock)
         {
@@ -594,6 +597,7 @@ public sealed partial class FolderWatcher(
                 pending.LastEvent = now;
                 pending.Snapshot = null;
                 pending.ForceMetadata |= artwork;
+                pending.OnlySubtitles &= subtitles;
             }
             else if (_pending.Values.Count(p => p.Root == root) >= MaxPendingPerFolder)
             {
@@ -602,7 +606,7 @@ public sealed partial class FolderWatcher(
             }
             else
             {
-                _pending[target] = new Pending(root, now) { ForceMetadata = artwork };
+                _pending[target] = new Pending(root, now) { ForceMetadata = artwork, OnlySubtitles = subtitles };
             }
         }
     }
@@ -683,7 +687,8 @@ public sealed partial class FolderWatcher(
             if (ready)
             {
                 LogChanged(PathComparison.Printable(path));
-                await queue.EnqueueAsync(new LibraryScanRequest(path, Reason, ForceMetadata: pending.ForceMetadata && path != pending.Root && MayForce(path)), ct);
+                var whole = path == pending.Root;
+                await queue.EnqueueAsync(new LibraryScanRequest(path, Reason, ForceMetadata: pending.ForceMetadata && !whole && MayForce(path), LastChange: pending.LastEvent, OnlySubtitles: pending.OnlySubtitles && !whole), ct);
             }
         }
     }
@@ -819,6 +824,7 @@ public sealed partial class FolderWatcher(
         public string? Snapshot { get; set; }
         public DateTimeOffset SnapshotAt { get; set; }
         public bool ForceMetadata { get; set; }
+        public bool OnlySubtitles { get; set; }
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Watching {Path} for changes{Share}")]

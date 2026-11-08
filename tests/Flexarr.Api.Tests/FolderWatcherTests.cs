@@ -171,6 +171,23 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
+    public async Task OnlySubtitles_AreToldApart()
+    {
+        using var setup = await WatchAsync();
+        var both = Directory.CreateDirectory(Path.Combine(setup.Root, "Both (2020)")).FullName;
+        var subs = Directory.CreateDirectory(Path.Combine(setup.Root, "Subs (2020)")).FullName;
+        setup.Watcher.Changed(setup.Root, "Subs (2020)/Subs (2020).en.srt");
+        setup.Watcher.Changed(setup.Root, "Both (2020)/Both (2020).en.srt");
+        setup.Watcher.Changed(setup.Root, "Both (2020)/Both (2020).mkv");
+
+        var requests = await WaitForAsync(setup, r => r.Path == both);
+        await WaitForAsync(setup, r => r.Path == subs);
+        Assert.True(setup.Queue.Requests.Single(r => r.Path == subs).OnlySubtitles);
+        Assert.False(setup.Queue.Requests.Single(r => r.Path == both).OnlySubtitles);
+        Assert.NotNull(requests[0].LastChange);
+    }
+
+    [Fact]
     public async Task ATitleThatNeverGoesQuiet_IsScannedAnywayInTheEnd()
     {
         using var setup = await WatchAsync();

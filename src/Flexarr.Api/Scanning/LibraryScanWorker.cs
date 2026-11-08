@@ -42,6 +42,11 @@ public sealed partial class LibraryScanWorker(
     /// <summary>How often the schedule looks for a library folder whose last full scan is <see cref="ScheduledScanInterval"/> old.</summary>
     private static readonly TimeSpan ScheduleCheck = TimeSpan.FromMinutes(15);
 
+    private static readonly TimeSpan RememberScansFor = TimeSpan.FromHours(1);
+
+    /// <summary>When the last scan of each path started (see <see cref="AlreadyScanned"/>). Only this worker's own loop uses it.</summary>
+    private readonly Dictionary<string, DateTime> _scanStartedAt = new(StringComparer.Ordinal);
+
     /// <summary>When the schedule last queued each library folder, since the server started: one queued but not yet done isn't queued again.</summary>
     private readonly Dictionary<string, DateTime> _queuedAt = new(StringComparer.Ordinal);
 
@@ -168,11 +173,45 @@ public sealed partial class LibraryScanWorker(
             .ToList();
         return distinct
             .Where(r => !distinct.Any(o => o.Path != r.Path && PathComparison.IsUnder(r.Path, o.Path)))
-            .Select(r => r with { ForceMetadata = all.Any(o => o.ForceMetadata && PathComparison.IsUnder(o.Path, r.Path)) });
+            .Select(r =>
+            {
+                var covered = all.Where(o => PathComparison.IsUnder(o.Path, r.Path)).ToList();
+                return r with
+                {
+                    ForceMetadata = covered.Any(o => o.ForceMetadata),
+                    LastChange = covered.All(o => o.LastChange is not null) ? covered.Max(o => o.LastChange) : null,
+                    OnlySubtitles = covered.All(o => o.OnlySubtitles),
+                };
+            });
+    }
+
+    /// <summary>
+    /// Whether a scan that started after the watcher last heard of this change has already covered it: Sonarr's webhook
+    /// and the watcher both report one import, and the second would be a scan and a lookup for nothing. Not a changed
+    /// cover or .nfo, which a scan doesn't read afresh without being asked.
+    /// </summary>
+    internal bool AlreadyScanned(LibraryScanRequest request) =>
+        request is { LastChange: { } last, ForceMetadata: false }
+        && _scanStartedAt.Any(s => s.Value >= last && PathComparison.IsUnder(request.Path, s.Key));
+
+    internal void NoteScanned(string path, DateTime started)
+    {
+        foreach (var old in _scanStartedAt.Where(s => started - s.Value > RememberScansFor).Select(s => s.Key).ToList())
+        {
+            _scanStartedAt.Remove(old);
+        }
+
+        _scanStartedAt[path] = started;
     }
 
     private async Task ScanAsync(LibraryScanRequest request, CancellationToken ct)
     {
+        if (AlreadyScanned(request))
+        {
+            LogAlreadyScanned(PathComparison.Printable(request.Path));
+            return;
+        }
+
         var scanStarted = DateTime.UtcNow;
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
@@ -239,7 +278,8 @@ public sealed partial class LibraryScanWorker(
             }
         }
 
-        foreach (var library in targets.Select(t => t.Library).DistinctBy(l => l.Id))
+        // Subtitles alone change nothing a lookup would find.
+        foreach (var library in request.OnlySubtitles ? [] : targets.Select(t => t.Library).DistinctBy(l => l.Id))
         {
             // A scan of one folder (a webhook) also refreshes the films or series in it, so new episodes get their
             // titles straight away rather than when the series is next due. Titles merely out of date are left to
@@ -261,6 +301,7 @@ public sealed partial class LibraryScanWorker(
         await WatchHistoryCarryOver.CarryOverAsync(db, ct);
         await TraktHolds.ApplyAsync(db, ct);
 
+        NoteScanned(request.Path, scanStarted);
         if (events is not null)
         {
             await AnnounceAddedAsync(db, targets.Select(t => t.Library.Id).Distinct().ToList(), scanStarted, ct);
@@ -284,6 +325,9 @@ public sealed partial class LibraryScanWorker(
             events!.PublishAdded(new Events.LibraryAddedEventDto(item, now));
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{Path} was already scanned since it last changed")]
+    private partial void LogAlreadyScanned(string path);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't work out path mappings before refreshing metadata")]
     private partial void LogMappingsFailed(Exception ex);
