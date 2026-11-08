@@ -206,6 +206,141 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
         Assert.Equal(FolderWatchState.Watching, setup.Watcher.StatusOf(setup.Root)?.State);
     }
 
+    private sealed class RefusableWatcher(string root) : FileSystemWatcher(root)
+    {
+        public void Report(Exception ex) => OnError(new ErrorEventArgs(ex));
+    }
+
+    private static IOException LimitReached() => new("The configured user limit (8192) on the number of inotify watches has been reached", 28);
+
+    /// <summary>The way Linux refuses: the Error event, during the start, with no exception. Other tests' folders are in the same database.</summary>
+    private static void RefuseWith(Setup setup, Func<Exception> error)
+    {
+        setup.Watcher.NewWatcher = root => new RefusableWatcher(root);
+        setup.Watcher.Enable = w =>
+        {
+            if (w.Path == setup.Root)
+            {
+                ((RefusableWatcher)w).Report(error());
+            }
+            else
+            {
+                w.EnableRaisingEvents = true;
+            }
+        };
+    }
+
+    [Fact]
+    public async Task AWatchRefusedAsItStarts_SaysSo_AndWaitsBeforeTryingAgain()
+    {
+        using var setup = await WatchAsync(create: false);
+        Directory.CreateDirectory(setup.Root);
+        var tries = 0;
+        RefuseWith(setup, () =>
+        {
+            tries++;
+            return LimitReached();
+        });
+
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(new FolderWatchStatus(FolderWatchState.Unavailable, FolderWatchProblem.Limit), setup.Watcher.StatusOf(setup.Root));
+        Assert.False(setup.Watcher.KeepsUpWith(setup.Root));
+        Assert.DoesNotContain(setup.Queue.Requests, r => r.Path == setup.Root);
+
+        // Each try walks the tree, so a minute later it isn't tried again.
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(1, tries);
+
+        // Its time up, it's tried again.
+        setup.Watcher.RetryRefusedAfter = TimeSpan.Zero;
+        setup.Options.WatchFolders.Enabled = false;
+        await setup.Watcher.SyncAsync(default);
+        setup.Options.WatchFolders.Enabled = true;
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(2, tries);
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(3, tries);
+
+        // Once the system lets it, it watches, and looks for what it missed.
+        Assert.DoesNotContain(setup.Queue.Requests, r => r.Path == setup.Root);
+        setup.Watcher.NewWatcher = root => new FileSystemWatcher(root);
+        setup.Watcher.Enable = w => w.EnableRaisingEvents = true;
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(FolderWatchState.Watching, setup.Watcher.StatusOf(setup.Root)?.State);
+        Assert.Contains(setup.Queue.Requests, r => r.Path == setup.Root && r.Reason == FolderWatcher.Reason);
+    }
+
+    [Fact]
+    public async Task AWatchThatFailsAfterStarting_SaysSo_AndHearsNoMore()
+    {
+        using var setup = await WatchAsync(create: false);
+        Directory.CreateDirectory(setup.Root);
+        RefusableWatcher? watching = null;
+        setup.Watcher.NewWatcher = root =>
+        {
+            var watcher = new RefusableWatcher(root);
+            watching = root == setup.Root ? watcher : watching;
+            return watcher;
+        };
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(FolderWatchState.Watching, setup.Watcher.StatusOf(setup.Root)?.State);
+
+        watching!.Report(LimitReached());
+        Assert.Equal(new FolderWatchStatus(FolderWatchState.Unavailable, FolderWatchProblem.Limit), setup.Watcher.StatusOf(setup.Root));
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(FolderWatchProblem.Limit, setup.Watcher.StatusOf(setup.Root)?.Problem);
+    }
+
+    [Fact]
+    public async Task AnUnreadableFolderInside_LeavesTheRestWatched()
+    {
+        using var setup = await WatchAsync(create: false);
+        Directory.CreateDirectory(setup.Root);
+        setup.Watcher.NewWatcher = root => new RefusableWatcher(root);
+        setup.Watcher.Enable = w =>
+        {
+            if (w.Path == setup.Root)
+            {
+                ((RefusableWatcher)w).Report(new UnauthorizedAccessException("lost+found"));
+            }
+
+            w.EnableRaisingEvents = true;
+        };
+
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(FolderWatchState.Watching, setup.Watcher.StatusOf(setup.Root)?.State);
+
+        var film = Path.Combine(setup.Root, "Heat (1995).mkv");
+        await File.WriteAllTextAsync(film, "x");
+        Assert.Contains(await WaitForAsync(setup, r => r.Path == film), r => r.Path == film);
+    }
+
+    [Fact]
+    public async Task ARealUnreadableFolderInside_LeavesTheRestWatched()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return; // File modes are for Linux and macOS.
+        }
+
+        using var setup = await WatchAsync(create: false);
+        var locked = Directory.CreateDirectory(Path.Combine(setup.Root, "lost+found"));
+        File.SetUnixFileMode(locked.FullName, UnixFileMode.None);
+        try
+        {
+            await setup.Watcher.SyncAsync(default);
+            Assert.Equal(FolderWatchState.Watching, setup.Watcher.StatusOf(setup.Root)?.State);
+
+            var film = Path.Combine(setup.Root, "Heat (1995).mkv");
+            await File.WriteAllTextAsync(film, "x");
+            Assert.Contains(await WaitForAsync(setup, r => r.Path == film), r => r.Path == film);
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked.FullName, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
+
     [Fact]
     public async Task Podcasts_AreNotWatched()
     {

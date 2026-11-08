@@ -22,7 +22,7 @@ public enum FolderWatchState
 
     /// <summary>
     /// Couldn't be watched (see <see cref="FolderWatchProblem"/>): the 12-hour scan, and tried again within a minute of
-    /// coming back if missing, or an hour later if the system refused.
+    /// coming back if missing. If the system refused, 12 hours later, or as soon as its limit is raised.
     /// </summary>
     Unavailable,
 
@@ -75,8 +75,12 @@ public sealed partial class FolderWatcher(
 
     internal TimeSpan TickEvery { get; set; } = TimeSpan.FromSeconds(2);
 
-    /// <summary>How long a folder the system refused to watch (its watch limit, say) waits before it's tried again.</summary>
-    internal TimeSpan RetryRefusedAfter { get; set; } = TimeSpan.FromHours(1);
+    /// <summary>
+    /// How long a folder the system refused to watch (its watch limit, say) waits before it's tried again. Each try lists
+    /// every folder in it on Linux, which wakes its drive, so no more often than the 12-hour scan does. A raised limit
+    /// is tried straight away (see <see cref="WatchLimits"/>).
+    /// </summary>
+    internal TimeSpan RetryRefusedAfter { get; set; } = TimeSpan.FromHours(12);
 
     /// <summary>Makes a watcher for a folder. Tests replace it, to have a watch refused.</summary>
     internal Func<string, FileSystemWatcher> NewWatcher { get; set; } = root => new FileSystemWatcher(root);
@@ -90,6 +94,7 @@ public sealed partial class FolderWatcher(
     private readonly Lock _lock = new();
     private readonly Dictionary<string, Watched> _folders = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Pending> _pending = new(StringComparer.Ordinal);
+    private readonly List<FileSystemWatcher> _broken = [];
     private bool _synced;
     private volatile bool _syncSoon;
 
@@ -198,6 +203,8 @@ public sealed partial class FolderWatcher(
                 watched.Watcher?.Dispose();
             }
 
+            _broken.ForEach(watcher => watcher.Dispose());
+            _broken.Clear();
             _folders.Clear();
             _pending.Clear();
         }
@@ -223,8 +230,11 @@ public sealed partial class FolderWatcher(
         var enabled = options.CurrentValue.WatchFolders.Enabled;
         var finished = new List<FileSystemWatcher>();
         var toStart = new List<string>();
+        var limits = WatchLimits();
         lock (_lock)
         {
+            finished.AddRange(_broken);
+            _broken.Clear();
             foreach (var gone in _folders.Keys.Where(p => wanted.All(w => w.Path != p)).ToList())
             {
                 if (_folders[gone].Watcher is { } watcher)
@@ -253,7 +263,8 @@ public sealed partial class FolderWatcher(
                     continue;
                 }
 
-                if (current?.Watcher is null && !(current?.RetryAt > time.GetUtcNow()))
+                var waiting = current?.RetryAt > time.GetUtcNow() && !(current.Status.Problem == FolderWatchProblem.Limit && current.LimitsWere != limits);
+                if (current?.Watcher is null && !waiting)
                 {
                     toStart.Add(path);
                 }
@@ -270,16 +281,24 @@ public sealed partial class FolderWatcher(
         var back = new List<string>();
         foreach (var path in toStart)
         {
-            var started = Start(path);
+            var (started, starting) = Start(path);
+            Exception? late;
             lock (_lock)
             {
                 _folders[path] = started;
+                starting.Installed = true;
+                late = starting.Error;
                 // Watching again after it couldn't be (a drive that's back, the switch turned on): whatever changed in the
                 // meantime was missed, so the folder is scanned. Not at startup, which the schedule already covers.
-                if (_synced && started.Watcher is not null)
+                if (_synced && started.Watcher is not null && late is null)
                 {
                     back.Add(path);
                 }
+            }
+
+            if (late is not null && started.Watcher is { } refused)
+            {
+                Failed(path, refused, late);
             }
         }
 
@@ -295,11 +314,12 @@ public sealed partial class FolderWatcher(
         }
     }
 
-    private Watched Start(string root)
+    private (Watched Watched, Starting Starting) Start(string root)
     {
+        var starting = new Starting();
         if (!Directory.Exists(root))
         {
-            return new Watched(null, new FolderWatchStatus(FolderWatchState.Unavailable, FolderWatchProblem.Missing));
+            return (new Watched(null, new FolderWatchStatus(FolderWatchState.Unavailable, FolderWatchProblem.Missing)), starting);
         }
 
         FileSystemWatcher? watcher = null;
@@ -317,24 +337,49 @@ public sealed partial class FolderWatcher(
                 Changed(root, e.OldName);
                 Changed(root, e.Name);
             };
-            watcher.Error += (_, e) => Failed(root, watcher, e.GetException());
+            var started = watcher;
+            watcher.Error += (_, e) => WatchError(root, started, starting, e.GetException());
+            // Linux adds its watches right here, and reports what it can't add through the Error event, not by throwing.
             Enable(watcher);
+            Exception? refused;
+            lock (_lock)
+            {
+                refused = starting.Error;
+            }
+
+            if (refused is not null)
+            {
+                return (Refused(root, watcher, refused), starting);
+            }
+
             var share = FolderKind.IsShare(root);
             LogWatching(PathComparison.Printable(root), share);
-            return new Watched(watcher, new FolderWatchStatus(share ? FolderWatchState.Share : FolderWatchState.Watching));
+            return (new Watched(watcher, new FolderWatchStatus(share ? FolderWatchState.Share : FolderWatchState.Watching)), starting);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or PlatformNotSupportedException)
         {
-            watcher?.Dispose();
-            var problem = IsWatchLimit(ex) ? FolderWatchProblem.Limit : Directory.Exists(root) ? FolderWatchProblem.Failed : FolderWatchProblem.Missing;
-            LogCantWatch(ex, PathComparison.Printable(root), problem);
-            // Each try at watching a big folder on Linux lists every folder in it, which can wake its drive: one the system
-            // refused waits an hour before the next. A missing one is only looked for, which doesn't.
-            return new Watched(null, new FolderWatchStatus(FolderWatchState.Unavailable, problem))
-            {
-                RetryAt = problem == FolderWatchProblem.Missing ? null : time.GetUtcNow() + RetryRefusedAfter,
-            };
+            return (Refused(root, watcher, ex), starting);
         }
+    }
+
+    private Watched Refused(string root, FileSystemWatcher? watcher, Exception ex)
+    {
+        // The watcher goes, and with it the watches it did manage to add, which other folders may need.
+        watcher?.Dispose();
+        var unavailable = Unavailable(root, ex);
+        LogCantWatch(ex, PathComparison.Printable(root), unavailable.Status.Problem ?? FolderWatchProblem.Failed);
+        return unavailable;
+    }
+
+    /// <summary>What's left of a folder the system won't watch, and when it's tried again: a missing one only needs looking for.</summary>
+    private Watched Unavailable(string root, Exception ex)
+    {
+        var problem = IsWatchLimit(ex) ? FolderWatchProblem.Limit : Directory.Exists(root) ? FolderWatchProblem.Failed : FolderWatchProblem.Missing;
+        return new Watched(null, new FolderWatchStatus(FolderWatchState.Unavailable, problem))
+        {
+            RetryAt = problem == FolderWatchProblem.Missing ? null : time.GetUtcNow() + RetryRefusedAfter,
+            LimitsWere = WatchLimits(),
+        };
     }
 
     /// <summary>
@@ -344,34 +389,89 @@ public sealed partial class FolderWatcher(
     private static bool IsWatchLimit(Exception ex) =>
         ex.Message.Contains("inotify", StringComparison.OrdinalIgnoreCase) || (ex.HResult & 0xFFFF) == 28;
 
+    /// <summary>Linux's watch limits as they stand, or null elsewhere. Reading them doesn't touch a drive.</summary>
+    internal static string? WatchLimits()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return null;
+        }
+
+        try
+        {
+            return File.ReadAllText("/proc/sys/fs/inotify/max_user_watches") + File.ReadAllText("/proc/sys/fs/inotify/max_user_instances");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>A folder inside the library that can't be read (a root-only <c>lost+found</c>): no scan can read it either.</summary>
+    private static bool IsUnreadableSubfolder(string root, Exception ex)
+    {
+        if (ex is not UnauthorizedAccessException)
+        {
+            return false;
+        }
+
+        try
+        {
+            _ = Directory.EnumerateFileSystemEntries(root).Any();
+            return true;
+        }
+        catch (Exception unreadable) when (unreadable is IOException or UnauthorizedAccessException)
+        {
+            return false; // The library folder itself.
+        }
+    }
+
+    private void WatchError(string root, FileSystemWatcher watcher, Starting starting, Exception ex)
+    {
+        // The rest of the folder is still watched: the system carries on past a folder it can't add.
+        if (IsUnreadableSubfolder(root, ex))
+        {
+            LogSubfolderSkipped(PathComparison.Printable(root));
+            return;
+        }
+
+        lock (_lock)
+        {
+            if (!starting.Installed)
+            {
+                // Still starting: Start or the sync that called it decides what becomes of the folder.
+                starting.Error ??= ex;
+                return;
+            }
+        }
+
+        Failed(root, watcher, ex);
+    }
+
     /// <summary>
-    /// The system lost events (its buffer overflowed) or the watch broke (the drive went, the watch limit was reached):
-    /// whatever changed can't be known, so once the next sync watches it afresh, the whole folder is scanned.
+    /// The system lost events or the watch broke (the drive went, the watch limit was reached): whatever changed can't
+    /// be known, so once the next sync watches it afresh, the whole folder is scanned. The next sync disposes the watcher
+    /// too: this runs on the watcher's own thread.
     /// </summary>
     private void Failed(string root, FileSystemWatcher watcher, Exception ex)
     {
         LogWatchFailed(ex, PathComparison.Printable(root));
-        var problem = IsWatchLimit(ex) ? FolderWatchProblem.Limit : Directory.Exists(root) ? FolderWatchProblem.Failed : FolderWatchProblem.Missing;
+        var unavailable = Unavailable(root, ex);
         lock (_lock)
         {
             if (_folders.TryGetValue(root, out var watched) && ReferenceEquals(watched.Watcher, watcher))
             {
-                // Lost events are watched afresh at once; the watch limit waits, as in Start.
-                _folders[root] = new Watched(null, new FolderWatchStatus(FolderWatchState.Unavailable, problem))
-                {
-                    RetryAt = problem == FolderWatchProblem.Limit ? time.GetUtcNow() + RetryRefusedAfter : null,
-                };
+                _folders[root] = unavailable;
             }
 
+            _broken.Add(watcher);
             foreach (var key in _pending.Keys.Where(k => _pending[k].Root == root).ToList())
             {
                 _pending.Remove(key);
             }
         }
 
-        // The next sync watches it afresh (or, if it can't, leaves it to the 12-hour scan) and scans it then as one
-        // that's being watched again.
-        watcher.Dispose();
+        _syncSoon = true;
     }
 
     /// <summary>Something changed at <paramref name="name"/>, relative to the library folder <paramref name="root"/>.</summary>
@@ -551,6 +651,16 @@ public sealed partial class FolderWatcher(
     {
         /// <summary>Not tried again before then (see <see cref="RetryRefusedAfter"/>).</summary>
         public DateTimeOffset? RetryAt { get; init; }
+
+        /// <summary>What <see cref="WatchLimits"/> said when the system refused: if it's changed, it's worth another try.</summary>
+        public string? LimitsWere { get; init; }
+    }
+
+    /// <summary>A watcher on its way to being in <see cref="_folders"/>, which errors can't reach until it is. Under the lock.</summary>
+    private sealed class Starting
+    {
+        public bool Installed { get; set; }
+        public Exception? Error { get; set; }
     }
 
     private sealed class Pending(string root, DateTimeOffset lastEvent)
@@ -576,6 +686,9 @@ public sealed partial class FolderWatcher(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Lost track of changes in {Path}; scanning it")]
     private partial void LogWatchFailed(Exception exception, string path);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "A folder in {Path} can't be read, so it isn't watched; the rest is")]
+    private partial void LogSubfolderSkipped(string path);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "{Path} changed")]
     private partial void LogChanged(string path);
