@@ -79,6 +79,7 @@ public sealed partial class FolderWatcher(
     private readonly Dictionary<string, Watched> _folders = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Pending> _pending = new(StringComparer.Ordinal);
     private bool _synced;
+    private volatile bool _syncSoon;
 
     /// <summary>
     /// How each library folder is watched, by its path as saved. Empty until the first look at the libraries, shortly
@@ -112,12 +113,15 @@ public sealed partial class FolderWatcher(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var nextSync = DateTimeOffset.MinValue;
+        // The switch in Settings takes effect within a tick or two, not at the next minute's look.
+        using var changes = options.OnChange((_, _) => _syncSoon = true);
         try
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                if (time.GetUtcNow() >= nextSync)
+                if (time.GetUtcNow() >= nextSync || _syncSoon)
                 {
+                    _syncSoon = false;
                     try
                     {
                         await SyncAsync(stoppingToken);
@@ -309,22 +313,27 @@ public sealed partial class FolderWatcher(
                 return;
             }
 
-            if (_pending.TryGetValue(root, out var whole) || _pending.TryGetValue(target, out whole))
+            if (_pending.TryGetValue(root, out var whole))
             {
+                // The whole folder is being scanned: that looks at every title's artwork anyway (see below).
                 whole.LastEvent = now;
                 whole.Snapshot = null;
-                whole.ForceMetadata |= artwork;
+            }
+            else if (_pending.TryGetValue(target, out var pending))
+            {
+                pending.LastEvent = now;
+                pending.Snapshot = null;
+                pending.ForceMetadata |= artwork;
             }
             else if (_pending.Values.Count(p => p.Root == root) >= MaxPendingPerFolder)
             {
                 // A whole drive's worth arriving: one scan of the library folder, not hundreds of title scans.
                 foreach (var key in _pending.Keys.Where(k => _pending[k].Root == root).ToList())
                 {
-                    artwork |= _pending[key].ForceMetadata;
                     _pending.Remove(key);
                 }
 
-                _pending[root] = new Pending(root, now) { ForceMetadata = artwork };
+                _pending[root] = new Pending(root, now);
             }
             else
             {
@@ -432,7 +441,12 @@ public sealed partial class FolderWatcher(
         return Path.GetExtension(name).ToLowerInvariant() is ".part" or ".partial" or ".tmp" or ".temp" or ".!qb" or ".crdownload" or ".download" or ".filepart";
     }
 
-    /// <summary>A cover, poster or other picture kept beside the title, or its <c>.nfo</c>: its details are read afresh.</summary>
+    /// <summary>
+    /// A cover, poster or other picture kept beside the title, or its <c>.nfo</c>: the title's details are read afresh.
+    /// Any scan notices a replaced picture by its size and change time (<c>LibraryScanner.NoticeReplacedArtworkAsync</c>),
+    /// and a title's own scan re-reads its <c>.nfo</c>; forcing it also catches a cover added to an album that had none.
+    /// Never for a whole library folder, where it would look every title up again.
+    /// </summary>
     internal static bool IsArtworkOrNfo(string name)
     {
         var extension = Path.GetExtension(name).ToLowerInvariant();

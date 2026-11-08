@@ -1,3 +1,5 @@
+using System.Net.Http.Json;
+using System.Text.Json;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Scanning;
 using Flexarr.Core.Data;
@@ -155,8 +157,13 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
             setup.Watcher.Changed(setup.Root, $"Film {i}/Film {i}.mkv");
         }
 
+        setup.Watcher.Changed(setup.Root, "Film 0/poster.jpg");
+
         var requests = await WaitForAsync(setup, r => r.Path == setup.Root);
-        Assert.Equal(setup.Root, Assert.Single(requests).Path);
+        var request = Assert.Single(requests);
+        Assert.Equal(setup.Root, request.Path);
+        // A scan of the whole folder looks at every title's artwork anyway; forcing would look every title up again.
+        Assert.False(request.ForceMetadata);
     }
 
     [Fact]
@@ -195,6 +202,33 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
         await setup.Watcher.SyncAsync(default);
         Assert.Equal(FolderWatchState.Watching, setup.Watcher.StatusOf(setup.Root)?.State);
         Assert.Contains(setup.Queue.Requests, r => r.Path == setup.Root);
+    }
+
+    [Fact]
+    public async Task TheSwitch_IsSavedInSettings_AndOnByDefault()
+    {
+        using var admin = factory.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        async Task<bool?> ReadAsync() =>
+            (await admin.GetFromJsonAsync<JsonElement>("/api/v1/settings")).GetProperty("watchFolders").GetBoolean();
+
+        Assert.True(await ReadAsync());
+        Assert.True((await admin.PutAsJsonAsync("/api/v1/settings", new { watchFolders = false })).IsSuccessStatusCode);
+        try
+        {
+            var off = true;
+            for (var i = 0; i < 50 && off; i++)
+            {
+                off = await ReadAsync() != false;
+                await Task.Delay(off ? 100 : 0);
+            }
+
+            Assert.False(off, "the switch should read back as off");
+        }
+        finally
+        {
+            await admin.PutAsJsonAsync("/api/v1/settings", new { watchFolders = true });
+        }
     }
 
     [Theory]
