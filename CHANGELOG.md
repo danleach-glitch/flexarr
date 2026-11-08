@@ -12,6 +12,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### iPhone, iPad and Apple TV
 
 - Pictures already on screen, such as Continue watching's, no longer turn into blank placeholders after a while.
+- **Request album** and **Follow** change to **Requested** and **Following** the moment you press them, and so does taking them back. If it doesn't go through, the button changes back and says why.
 
 ### Libraries
 
