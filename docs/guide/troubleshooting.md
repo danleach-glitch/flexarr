@@ -52,7 +52,7 @@ Flexarr notices files copied into your library folders within a minute, and Sona
 - **Folder not found:** the drive or share isn't connected. Flexarr watches it within five minutes of it coming back, and looks for anything it missed.
 - **Can't be watched:** the system refused for another reason, usually that Flexarr isn't allowed to read the folder. Check its permissions. Flexarr tries again every 12 hours, or when you turn the switch below off and on.
 
-If **Notice new files straight away**, under the list, is off, no folder is watched.
+If **Notice new files straight away**, under the list, is off, no folder is watched. Turning it back on looks through your folders once, for anything added while it was off.
 
 To add a webhook by hand:
 

@@ -53,14 +53,17 @@ export function LibrariesSection() {
   // Watching folders for new files (servers before 0.64 don't say, and don't watch).
   const settings = useApi((signal) => getSettings(signal), [])
   const [watchError, setWatchError] = useState<string>()
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([])
+  useEffect(() => () => timers.current.forEach(clearTimeout), [])
 
   async function watch(on: boolean) {
     setWatchError(undefined)
     try {
       await saveSettings({ watchFolders: on })
       settings.reload()
-      // The server starts or stops watching within a few seconds; then each folder says how it's watched.
-      setTimeout(() => all.reload(), 3000)
+      // The server starts or stops watching within a few seconds, longer if a big folder takes a while to walk.
+      timers.current.forEach(clearTimeout)
+      timers.current = [3000, 10000, 30000].map((after) => setTimeout(() => all.reload(), after))
     } catch (e) {
       setWatchError(errorText(e))
     }
