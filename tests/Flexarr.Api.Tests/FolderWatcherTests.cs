@@ -150,6 +150,27 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
+    public async Task ACoverRewrittenOverAndOver_ReadsTheDetailsAfreshOnce()
+    {
+        using var setup = await WatchAsync();
+        var title = Directory.CreateDirectory(Path.Combine(setup.Root, "Up (2009)")).FullName;
+        setup.Watcher.Changed(setup.Root, "Up (2009)/poster.jpg");
+        var first = await WaitForAsync(setup, r => r.Path == title);
+        Assert.True(Assert.Single(first).ForceMetadata);
+
+        setup.Watcher.Changed(setup.Root, "Up (2009)/poster.jpg");
+        for (var i = 0; i < 100 && setup.Queue.Requests.Count(r => r.Path == title) < 2; i++)
+        {
+            await setup.Watcher.FlushAsync(default);
+            await Task.Delay(50);
+        }
+
+        var both = setup.Queue.Requests.Where(r => r.Path == title).ToList();
+        Assert.Equal(2, both.Count);
+        Assert.False(both[1].ForceMetadata);
+    }
+
+    [Fact]
     public async Task ATitleThatNeverGoesQuiet_IsScannedAnywayInTheEnd()
     {
         using var setup = await WatchAsync();

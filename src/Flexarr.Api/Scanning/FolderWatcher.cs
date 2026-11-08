@@ -96,6 +96,13 @@ public sealed partial class FolderWatcher(
     /// </summary>
     internal TimeSpan RetryRefusedAfter { get; set; } = TimeSpan.FromHours(12);
 
+    /// <summary>
+    /// A title's details are read afresh for a changed cover or <c>.nfo</c> at most this often. Each read asks Sonarr,
+    /// Radarr or TMDB, and something rewriting the file shouldn't turn into a stream of lookups. The title's scan still
+    /// picks up a replaced picture.
+    /// </summary>
+    internal TimeSpan ForceAtMostEvery { get; set; } = TimeSpan.FromHours(1);
+
     /// <summary>Makes a watcher for a folder. Tests replace it, to have a watch refused.</summary>
     internal Func<string, FileSystemWatcher> NewWatcher { get; set; } = root => new FileSystemWatcher(root);
 
@@ -109,6 +116,7 @@ public sealed partial class FolderWatcher(
     private readonly Dictionary<string, Watched> _folders = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Pending> _pending = new(StringComparer.Ordinal);
     private readonly List<FileSystemWatcher> _broken = [];
+    private readonly Dictionary<string, DateTimeOffset> _forcedAt = new(StringComparer.Ordinal);
     private bool _synced;
     private volatile bool _syncSoon;
 
@@ -675,8 +683,22 @@ public sealed partial class FolderWatcher(
             if (ready)
             {
                 LogChanged(PathComparison.Printable(path));
-                await queue.EnqueueAsync(new LibraryScanRequest(path, Reason, ForceMetadata: pending.ForceMetadata && path != pending.Root), ct);
+                await queue.EnqueueAsync(new LibraryScanRequest(path, Reason, ForceMetadata: pending.ForceMetadata && path != pending.Root && MayForce(path)), ct);
             }
+        }
+    }
+
+    private bool MayForce(string path)
+    {
+        var now = time.GetUtcNow();
+        lock (_lock)
+        {
+            foreach (var old in _forcedAt.Where(f => now - f.Value >= ForceAtMostEvery).Select(f => f.Key).ToList())
+            {
+                _forcedAt.Remove(old);
+            }
+
+            return _forcedAt.TryAdd(path, now);
         }
     }
 
