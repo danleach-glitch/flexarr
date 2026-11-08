@@ -128,8 +128,9 @@ Suggestions and charts come from Deezer, which needs no account. Requests use Li
 **Discover › Music** has these rows:
 
 - **Like artists you play**: artists like the ones you listen to most.
+- **Albums you might like**: the best-known album by each of those artists.
 - **New from your artists**: this year's releases by artists you have, that you don't have yet.
-- **Top albums**: what's charting now.
+- **Top albums**: the albums behind the tracks people are playing most on Deezer now, in your server's country.
 
 Below them are genres. Each one opens its best-known artists.
 

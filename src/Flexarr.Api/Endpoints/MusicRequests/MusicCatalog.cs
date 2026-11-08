@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using Flexarr.Metadata;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -15,8 +16,18 @@ public sealed class MusicCatalog(IHttpClientFactory httpFactory) : IDisposable
     /// </summary>
     private readonly MemoryCache cache = new(new MemoryCacheOptions { SizeLimit = 5000 });
 
-    /// <summary>Calls to Deezer at once: a cold Discover asks about 40 things, and Deezer allows about 50 per 5 seconds.</summary>
+    /// <summary>Calls to Deezer at once.</summary>
     private readonly SemaphoreSlim gate = new(6);
+
+    /// <summary>A cold Discover asks about 90 things and Deezer allows about 50 per 5 seconds: the rest wait their turn rather than fail.</summary>
+    private readonly SlidingWindowRateLimiter pace = new(new SlidingWindowRateLimiterOptions
+    {
+        PermitLimit = 45,
+        Window = TimeSpan.FromSeconds(5),
+        SegmentsPerWindow = 5,
+        QueueLimit = 6,
+        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+    });
 
     private static readonly TimeSpan Searches = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan Charts = TimeSpan.FromHours(6);
@@ -50,7 +61,7 @@ public sealed class MusicCatalog(IHttpClientFactory httpFactory) : IDisposable
 
     public Task<DeezerAlbum> AlbumAsync(long id, CancellationToken ct) => CachedAsync($"album/{id}", Catalogue, () => Deezer.GetAlbumAsync(id, ct), ct);
 
-    public Task<IReadOnlyList<DeezerAlbum>> ChartAlbumsAsync(CancellationToken ct) => CachedAsync("chart/albums", Charts, () => Deezer.GetChartAlbumsAsync(30, ct), ct);
+    public Task<IReadOnlyList<DeezerTrack>> ChartTracksAsync(CancellationToken ct) => CachedAsync("chart/tracks", Charts, () => Deezer.GetChartTracksAsync(100, ct), ct);
 
     public Task<IReadOnlyList<DeezerArtist>> ChartArtistsAsync(CancellationToken ct) => CachedAsync("chart/artists", Charts, () => Deezer.GetChartArtistsAsync(30, ct), ct);
 
@@ -138,6 +149,8 @@ public sealed class MusicCatalog(IHttpClientFactory httpFactory) : IDisposable
                 return hit;
             }
 
+            // The gate lets six through at a time, so the queue is never longer than the limiter's.
+            using var turn = await pace.AcquireAsync(1, ct);
             var value = await fetch();
             if (value is not null)
             {
@@ -156,6 +169,7 @@ public sealed class MusicCatalog(IHttpClientFactory httpFactory) : IDisposable
     {
         cache.Dispose();
         gate.Dispose();
+        pace.Dispose();
         musicBrainzGate.Dispose();
     }
 }
