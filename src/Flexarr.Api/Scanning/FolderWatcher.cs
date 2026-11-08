@@ -307,12 +307,14 @@ public sealed partial class FolderWatcher(
             Exception? late;
             lock (_lock)
             {
+                // A library folder new to the server was queued when it was added.
+                var existed = _folders.ContainsKey(path);
                 _folders[path] = started;
                 starting.Installed = true;
                 late = starting.Error;
                 // Watching again after it couldn't be (a drive that's back, the switch turned on): whatever changed in the
                 // meantime was missed, so the folder is scanned. Not at startup, which the schedule already covers.
-                if (_synced && started.Watcher is not null && late is null)
+                if (existed && _synced && started.Watcher is not null && late is null)
                 {
                     back.Add(path);
                 }

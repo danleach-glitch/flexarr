@@ -220,6 +220,23 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
+    public async Task AFolderAddedToALibrary_IsWatched_WithoutASecondScan()
+    {
+        using var setup = await WatchAsync();
+        var added = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, $"added-{Guid.NewGuid():N}")).FullName;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.Libraries.Add(new Library { Name = $"Added {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = added }] });
+            await db.SaveChangesAsync();
+        }
+
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(FolderWatchState.Watching, setup.Watcher.StatusOf(added)?.State);
+        Assert.DoesNotContain(setup.Queue.Requests, r => r.Path == added);
+    }
+
+    [Fact]
     public async Task ASlowStart_DoesntHoldUpTheLibrariesList()
     {
         using var setup = await WatchAsync(create: false);
