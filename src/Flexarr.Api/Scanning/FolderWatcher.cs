@@ -20,7 +20,10 @@ public enum FolderWatchState
     /// </summary>
     Share,
 
-    /// <summary>Couldn't be watched (see <see cref="FolderWatchProblem"/>): the 12-hour scan, and tried again every minute or so.</summary>
+    /// <summary>
+    /// Couldn't be watched (see <see cref="FolderWatchProblem"/>): the 12-hour scan, and tried again within a minute of
+    /// coming back if missing, or an hour later if the system refused.
+    /// </summary>
     Unavailable,
 
     /// <summary>Watching is switched off in Settings › Libraries.</summary>
@@ -71,6 +74,9 @@ public sealed partial class FolderWatcher(
     internal TimeSpan ResyncEvery { get; set; } = TimeSpan.FromMinutes(1);
 
     internal TimeSpan TickEvery { get; set; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>How long a folder the system refused to watch (its watch limit, say) waits before it's tried again.</summary>
+    internal TimeSpan RetryRefusedAfter { get; set; } = TimeSpan.FromHours(1);
 
     /// <summary>More titles than this waiting in one folder (a whole drive copied in): the folder is scanned as a whole.</summary>
     internal const int MaxPendingPerFolder = 200;
@@ -208,7 +214,7 @@ public sealed partial class FolderWatcher(
                     continue;
                 }
 
-                if (current?.Watcher is not null)
+                if (current?.Watcher is not null || current?.RetryAt > time.GetUtcNow())
                 {
                     continue;
                 }
@@ -268,7 +274,12 @@ public sealed partial class FolderWatcher(
             watcher?.Dispose();
             var problem = IsWatchLimit(ex) ? FolderWatchProblem.Limit : Directory.Exists(root) ? FolderWatchProblem.Failed : FolderWatchProblem.Missing;
             LogCantWatch(ex, PathComparison.Printable(root), problem);
-            return new Watched(null, new FolderWatchStatus(FolderWatchState.Unavailable, problem));
+            // Each try at watching a big folder on Linux lists every folder in it, which can wake its drive: one the system
+            // refused waits an hour before the next. A missing one is only looked for, which doesn't.
+            return new Watched(null, new FolderWatchStatus(FolderWatchState.Unavailable, problem))
+            {
+                RetryAt = problem == FolderWatchProblem.Missing ? null : time.GetUtcNow() + RetryRefusedAfter,
+            };
         }
     }
 
@@ -291,7 +302,11 @@ public sealed partial class FolderWatcher(
             if (_folders.TryGetValue(root, out var watched) && ReferenceEquals(watched.Watcher, watcher))
             {
                 var problem = IsWatchLimit(ex) ? FolderWatchProblem.Limit : Directory.Exists(root) ? FolderWatchProblem.Failed : FolderWatchProblem.Missing;
-                _folders[root] = new Watched(null, new FolderWatchStatus(FolderWatchState.Unavailable, problem));
+                // Lost events are watched afresh at once; the watch limit waits, as in Start.
+                _folders[root] = new Watched(null, new FolderWatchStatus(FolderWatchState.Unavailable, problem))
+                {
+                    RetryAt = problem == FolderWatchProblem.Limit ? time.GetUtcNow() + RetryRefusedAfter : null,
+                };
             }
 
             foreach (var key in _pending.Keys.Where(k => _pending[k].Root == root).ToList())
@@ -478,7 +493,11 @@ public sealed partial class FolderWatcher(
             or "thumb" or "clearart" or "disc" or "discart" or "keyart" or "front" or "album" or "artist" or "author";
     }
 
-    private sealed record Watched(FileSystemWatcher? Watcher, FolderWatchStatus Status);
+    private sealed record Watched(FileSystemWatcher? Watcher, FolderWatchStatus Status)
+    {
+        /// <summary>Not tried again before then (see <see cref="RetryRefusedAfter"/>).</summary>
+        public DateTimeOffset? RetryAt { get; init; }
+    }
 
     private sealed class Pending(string root, DateTimeOffset lastEvent)
     {
