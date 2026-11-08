@@ -177,6 +177,37 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task TheAddedEvent_SaysNothingOfAnyonesWatching_AndSkipsAFilmThatOnlyMoved()
+    {
+        var since = DateTime.UtcNow.AddMinutes(-1);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"Moved {Guid.NewGuid():N}", Type = LibraryType.Movies };
+        db.Libraries.Add(library);
+        await db.SaveChangesAsync();
+        MediaItem Film(string title, string tmdb, DateTime seen) =>
+            new() { LibraryId = library.Id, Kind = MediaKind.Movie, Title = title, SortTitle = title, TmdbId = tmdb, FirstSeenAt = seen, Path = $"/films/{Guid.NewGuid():N}" };
+        var fresh = Film("Heat", "949001", DateTime.UtcNow);
+        var old = Film("Dune", "949002", DateTime.UtcNow.AddDays(-30));
+        old.MissingSince = DateTime.UtcNow;
+        var moved = Film("Dune", "949002", DateTime.UtcNow);
+        db.MediaItems.AddRange(fresh, old, moved);
+        db.PlaybackStates.Add(new PlaybackState { MediaItem = fresh, UserId = PlaybackState.DefaultUser, Watched = true });
+        await db.SaveChangesAsync();
+
+        var events = factory.Services.GetRequiredService<Flexarr.Api.Events.PlaybackEvents>();
+        using var listener = events.Listen();
+        using var worker = new LibraryScanWorker(new RecordingScanQueue(), factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            factory.Services.GetRequiredService<LibraryWorkGate>(), events: events);
+        await worker.AnnounceAddedAsync(db, [library.Id], since, default);
+
+        Assert.True(listener.Added.TryRead(out var announced));
+        Assert.Equal(fresh.Id, announced!.Item.Id);
+        Assert.False(announced.Item.UserData.Watched);
+        Assert.False(listener.Added.TryRead(out _));
+    }
+
+    [Fact]
     public async Task ANewFilm_IsAnnouncedOnTheEventStream()
     {
         using var host = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<IMediaProbe>(new FixedProbe())));

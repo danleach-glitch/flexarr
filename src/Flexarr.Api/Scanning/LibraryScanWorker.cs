@@ -39,6 +39,9 @@ public sealed partial class LibraryScanWorker(
     /// </summary>
     internal const int MaxAddedEvents = 25;
 
+    /// <summary>No profile has this id, so <see cref="ItemQueries.Summaries"/> says nothing of anyone's watching.</summary>
+    private const string NoProfile = "";
+
     /// <summary>How often the schedule looks for a library folder whose last full scan is <see cref="ScheduledScanInterval"/> old.</summary>
     private static readonly TimeSpan ScheduleCheck = TimeSpan.FromMinutes(15);
 
@@ -308,8 +311,12 @@ public sealed partial class LibraryScanWorker(
         }
     }
 
-    /// <summary>"event: added" for the films, episodes, albums and books this scan put in the library, with their details.</summary>
-    private async Task AnnounceAddedAsync(FlexarrDbContext db, List<Guid> libraries, DateTime since, CancellationToken ct)
+    /// <summary>
+    /// "event: added" for the films, episodes, albums and books this scan put in the library, with their details and
+    /// nobody's watch state: the stream is the household's, not one profile's. Not ones that only moved (see
+    /// <see cref="WasHereBeforeAsync"/>).
+    /// </summary>
+    internal async Task AnnounceAddedAsync(FlexarrDbContext db, List<Guid> libraries, DateTime since, CancellationToken ct)
     {
         MediaKind[] news = [MediaKind.Movie, MediaKind.Episode, MediaKind.Album, MediaKind.Audiobook];
         var added = db.MediaItems.IgnoreQueryFilters().Where(i => libraries.Contains(i.LibraryId) && i.FirstSeenAt >= since && i.MissingSince == null && news.Contains(i.Kind));
@@ -320,10 +327,38 @@ public sealed partial class LibraryScanWorker(
         }
 
         var now = DateTime.UtcNow;
-        foreach (var item in await added.OrderBy(i => i.FirstSeenAt).Summaries(PlaybackState.DefaultUser).ToListAsync(ct))
+        foreach (var item in await added.OrderBy(i => i.FirstSeenAt).Summaries(NoProfile).ToListAsync(ct))
         {
-            events!.PublishAdded(new Events.LibraryAddedEventDto(item, now));
+            if (!await WasHereBeforeAsync(db, item.Id, since, ct))
+            {
+                events!.PublishAdded(new Events.LibraryAddedEventDto(item, now));
+            }
         }
+    }
+
+    /// <summary>
+    /// A film or show Radarr or Sonarr moved or renamed is a new item at its new path, but nothing new to the household:
+    /// the same film or episode is still in the library from before, at its old path, for a day after going missing.
+    /// </summary>
+    private static async Task<bool> WasHereBeforeAsync(FlexarrDbContext db, Guid id, DateTime since, CancellationToken ct)
+    {
+        var items = db.MediaItems.IgnoreQueryFilters();
+        var item = await items.Where(i => i.Id == id).Select(i => new
+        {
+            i.Kind, i.Title, i.TmdbId, i.TvdbId, i.ImdbId, i.SeasonNumber, i.EpisodeNumber,
+            ParentTitle = i.Parent != null ? i.Parent.Title : null,
+            SeriesTmdb = i.Parent != null && i.Parent.Parent != null ? i.Parent.Parent.TmdbId : null,
+            SeriesTvdb = i.Parent != null && i.Parent.Parent != null ? i.Parent.Parent.TvdbId : null,
+            SeriesImdb = i.Parent != null && i.Parent.Parent != null ? i.Parent.Parent.ImdbId : null,
+        }).FirstAsync(ct);
+        var earlier = items.Where(i => i.Id != id && i.Kind == item.Kind && i.FirstSeenAt < since);
+        return item.Kind switch
+        {
+            MediaKind.Movie => await earlier.AnyAsync(i => (item.TmdbId != null && i.TmdbId == item.TmdbId) || (item.TvdbId != null && i.TvdbId == item.TvdbId) || (item.ImdbId != null && i.ImdbId == item.ImdbId), ct),
+            MediaKind.Episode => await earlier.AnyAsync(i => i.SeasonNumber == item.SeasonNumber && i.EpisodeNumber == item.EpisodeNumber && i.Parent != null && i.Parent.Parent != null
+                && ((item.SeriesTmdb != null && i.Parent.Parent.TmdbId == item.SeriesTmdb) || (item.SeriesTvdb != null && i.Parent.Parent.TvdbId == item.SeriesTvdb) || (item.SeriesImdb != null && i.Parent.Parent.ImdbId == item.SeriesImdb)), ct),
+            _ => await earlier.AnyAsync(i => i.Title == item.Title && i.Parent != null && i.Parent.Title == item.ParentTitle, ct),
+        };
     }
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "{Path} was already scanned since it last changed")]
