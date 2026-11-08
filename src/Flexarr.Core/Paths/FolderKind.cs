@@ -45,7 +45,9 @@ public static class FolderKind
         }
     }
 
-    internal static bool IsShareType(DriveType type, string format) => type == DriveType.Network || Shared.Contains(format);
+    /// <summary>NTFS-3G and exFAT drives plugged into Linux, which .NET files under network drives, are <c>fuseblk</c>: block devices.</summary>
+    internal static bool IsShareType(DriveType type, string format) =>
+        !format.Equals("fuseblk", StringComparison.OrdinalIgnoreCase) && (type == DriveType.Network || Shared.Contains(format));
 
     /// <summary><paramref name="path"/> with every symbolic link along it followed.</summary>
     internal static string Resolved(string path)

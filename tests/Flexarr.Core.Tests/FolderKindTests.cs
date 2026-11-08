@@ -10,6 +10,7 @@ public class FolderKindTests
     [InlineData(DriveType.Unknown, "fuse.shfs", true)]
     [InlineData(DriveType.Unknown, "virtiofs", true)]
     [InlineData(DriveType.Fixed, "ext4", false)]
+    [InlineData(DriveType.Network, "fuseblk", false)]
     [InlineData(DriveType.Fixed, "apfs", false)]
     public void WhichAreShares(DriveType type, string format, bool share) => Assert.Equal(share, FolderKind.IsShareType(type, format));
 
