@@ -95,7 +95,7 @@ public static class ItemEndpoints
             var total = await query.CountAsync(ct);
             var ordered = sort switch
             {
-                "added" => query.OrderByDescending(i => i.AddedAt).ThenBy(i => i.SortTitle),
+                "added" => query.NewestArrivalsFirst(),
                 "year" => query.OrderByDescending(i => i.Year).ThenBy(i => i.SortTitle),
                 _ => query.OrderBy(i => i.SortTitle).ThenBy(i => i.Year),
             };
