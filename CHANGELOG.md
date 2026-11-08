@@ -13,6 +13,15 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 - Pictures already on screen, such as Continue watching's, no longer turn into blank placeholders after a while.
 
+### Libraries
+
+- New files show up straight away. Your server watches your library folders, and about half a minute after a file is copied in (once it has finished copying), just that film, show, artist or book is scanned, whether Sonarr, Radarr or Lidarr put it there or you did. A cover or `.nfo` file you replace beside a title shows up straight away too. Turn it off with **Notice new files straight away** in **Settings › Libraries**.
+- Because watched folders keep themselves up to date, they're only read through in full once a week instead of every 12 hours, so the drives your media is on are woken less. Network shares keep the 12-hour scan, since they often don't report files added from other computers. Each folder in **Settings › Libraries** says which it is.
+
+### Home Assistant
+
+- The events stream sends **added** for each film, episode, album or book new to your library, with its details, so an automation can announce a new episode as it arrives. A big import (more than 25 at once) sends none.
+
 ### Android TV
 
 - What you're part way through, your shows' next episodes and albums you've played lately show in **Continue watching** on the Google TV and Android TV home screen. Choose one to carry on; remove it there and it leaves Flexarr's Continue Watching too. It stays empty while a profile with a PIN is watching.

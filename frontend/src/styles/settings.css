@@ -460,6 +460,12 @@
   font-size: var(--step--1);
 }
 
+.library-row .folder-watch {
+  display: block;
+  color: var(--usher);
+  font-size: var(--step--1);
+}
+
 /* ---------- Home and Browse: rows dragged into order ---------- */
 
 .row-list li {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
   ApiError,
   createLibrary,
@@ -10,6 +10,7 @@ import {
   saveSettings,
   scanLibrary,
   updateLibrary,
+  type FolderWatch,
   type Library,
   type LibraryType,
 } from '../../api/client'
@@ -24,7 +25,7 @@ import { libraryIcons } from '../../components/libraryIcons'
 import { useApi } from '../../hooks/useApi'
 import { libraryTypeLabel, relativeTime } from '../../lib/format'
 import { BookDetailsGroup } from './BookDetailsGroup'
-import { SaveStatus, SettingLink, SettingRow, SettingsGroup, SettingsHeader } from './shared'
+import { SaveStatus, SettingLink, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 import { t, Words } from '../../i18n'
 
@@ -49,6 +50,22 @@ export function LibrariesSection() {
     all.reload()
   }
   const [adding, setAdding] = useState(false)
+  // Watching folders for new files (servers before 0.64 don't say, and don't watch).
+  const settings = useApi((signal) => getSettings(signal), [])
+  const [watchError, setWatchError] = useState<string>()
+  const watching = settings.data?.watchFolders
+
+  async function watch(on: boolean) {
+    setWatchError(undefined)
+    try {
+      await saveSettings({ watchFolders: on })
+      settings.reload()
+      // The server starts or stops watching within a few seconds; then each folder says how it's watched.
+      setTimeout(() => all.reload(), 3000)
+    } catch (e) {
+      setWatchError(errorText(e))
+    }
+  }
 
   return (
     <section>
@@ -62,7 +79,9 @@ export function LibrariesSection() {
           )
         }
       >
-        {t('Folders of one kind of media. Rescanned every 12 hours, and whenever Sonarr, Radarr or Lidarr imports something.')}
+        {watching
+          ? t('Folders of one kind of media. New files show up as soon as they’re copied in.')
+          : t('Folders of one kind of media. Rescanned every 12 hours, and whenever Sonarr, Radarr or Lidarr imports something.')}
       </SettingsHeader>
       {adding && (
         <AddLibraryForm
@@ -81,6 +100,16 @@ export function LibrariesSection() {
           ))}
           {managed.length === 0 && <p className="muted">{t('No libraries yet. Add one to start.')}</p>}
         </div>
+      )}
+      {watching != null && managed.length > 0 && (
+        <SettingsGroup note={watchError && <SaveStatus error={watchError} />}>
+          <ToggleRow
+            label={t('Notice new files straight away')}
+            help={t('Watches these folders, so new files show up within a minute and drives are woken less.')}
+            checked={watching}
+            onChange={(on) => void watch(on)}
+          />
+        </SettingsGroup>
       )}
       {podcasts && <PodcastLibrary library={podcasts} onMoved={() => all.reload()} />}
       {managed.some((l) => l.type === 'Audiobooks') && <BookDetailsGroup />}
@@ -226,9 +255,10 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
           {scanning ? <span className="now-scanning">{t('Now scanning…')}</span> : t('scanned {time}', { time: relativeTime(library.lastScannedAt) })}
         </p>
         {library.folders.map((f) => (
-          <code key={f} className="folder">
-            {f}
-          </code>
+          <Fragment key={f}>
+            <code className="folder">{f}</code>
+            <FolderWatchNote watch={library.folderWatch?.find((w) => w.path === f)} />
+          </Fragment>
         ))}
         {/* Kids profiles never see audiobooks, so there's nothing to allow. */}
         {limits && library.fineForKids !== undefined && library.type !== 'Audiobooks' && (
@@ -267,6 +297,24 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
       )}
     </div>
   )
+}
+
+/** Under a library folder: whether new files in it show up straight away, and if not, why. Nothing while watching is off. */
+export function FolderWatchNote({ watch }: { watch?: FolderWatch }) {
+  const text = !watch
+    ? null
+    : watch.state === 'Watching'
+      ? t('Watching for new files')
+      : watch.state === 'Share'
+        ? t('Checked every 12 hours: a network share')
+        : watch.state !== 'Unavailable'
+          ? null
+          : watch.problem === 'Missing'
+            ? t('Checked every 12 hours: folder not found')
+            : watch.problem === 'Limit'
+              ? t('Checked every 12 hours: the system’s watch limit is reached')
+              : t('Checked every 12 hours: couldn’t watch it')
+  return text && <span className="folder-watch">{text}</span>
 }
 
 /** In place of the library's title: the name it goes by in the sidebar and on every device. Escape puts it back. */
