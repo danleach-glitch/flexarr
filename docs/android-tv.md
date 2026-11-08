@@ -49,12 +49,17 @@ brought forward) every build has the TV interface and the manifest offers the ap
      Content: the player asks for the film's frame rate before its first frame (MP4 and HLS say it; MKV doesn't,
      so there it's measured from the first couple of seconds of frames) and the TV decides. No Flexarr
      setting.
-   - **Passthrough is *Lossless surround*** (Settings › Playback › This TV, the Apple TV's wording), on by default
-     when the HDMI output takes a format. The profile lists `dts` and `truehd` only for formats the output takes,
+   - **Passthrough is *Lossless surround*** (Settings › Playback › This TV), on by default when the HDMI output
+     takes a format. Same name as the Apple TV's switch, opposite effect: there *on* decodes to PCM, here it sends
+     the sound as it is. The profile lists `dts` and `truehd` only for formats the output takes,
      and the server then plays those files directly (HLS can't carry them). Dialogue boost, Night mode and Speakers
-     work on decoded sound, so while one is on surround is decoded, as on the Apple TV.
-   - **Real capabilities:** HDR types from the display, Dolby Vision only with its decoder, 4K from the decoders
-     rather than the screen (a 1080p TV scales a 4K file itself). HDR10+ needs no profile field: it rides on HDR10.
+     work on decoded sound, so while one is on surround is decoded first.
+   - **Real capabilities:** HDR types from the display, Dolby Vision only with its decoder, 4K from the hardware
+     decoders rather than the screen (a 1080p TV scales a 4K file itself; software decoders can't keep up).
+     HDR counts every type in *any* of the display's modes, not only the one showing: a TV sitting at SDR whose
+     modes include HDR10 gets HDR10 files as they are, trusting Google TV to switch for them, where before the server
+     tone-mapped them. A TV fixed to SDR with no switching would show those washed out; that's the trade, since
+     Google TV switches for content by default. HDR10+ needs no profile field: it rides on HDR10.
      Settings › Diagnostics shows all of it, since the emulator has no HDR screen or amplifier.
 5. **Release.** Done ahead of stage 4, for Google Play's closed test: the manifest offers the app to TVs, the TV
    screenshots and banner are in the listing (`app/src/main/play`), and release builds still refuse sign-in from

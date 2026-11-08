@@ -3,7 +3,7 @@ title: HDR and Dolby Atmos
 description: How Flexarr gets HDR10, HLG, Dolby Vision, Atmos and lossless surround to your Apple TV or Android TV, and the settings that matter.
 ---
 
-If you have a 4K HDR television and a soundbar or receiver, you want the picture and sound to arrive as they are in the file. Flexarr is built to do that on Apple TV, without converting anything. This page explains what reaches your TV, and the few settings on the Apple TV itself that make the difference.
+If you have a 4K HDR television and a soundbar or receiver, you want the picture and sound to arrive as they are in the file. Flexarr is built to do that on Apple TV and Android TV, without converting anything. This page explains what reaches your TV, and the few settings on the TV box itself that make the difference.
 
 > **Note**
 > The Apple TV app isn't on the App Store yet. Until it is, you can [install it from Xcode](apple-tv-xcode.md).
@@ -87,7 +87,7 @@ On Apple TV and iPhone they need **Play files directly**. While any is on, Atmos
 The Flexarr app on Android TV and Google TV plays the file itself too, so HDR10, HLG and Dolby Vision reach the television as they are when the TV takes them. It tells your server what the TV really shows: a TV without HDR gets SDR, and one that can't play 4K gets 1080p.
 
 - **Frame rate:** Flexarr asks the TV for each movie's frame rate, and the TV's own setting decides whether it switches. On Google TV it's **Settings › Display & Sound › Advanced display settings › Match content frame rate** (the wording varies a little between TVs). **Seamless only** switches when there's no blink; **Always** switches for every movie. Most movies switch before they start; an MKV file doesn't say its frame rate, so with one the switch comes a couple of seconds in.
-- **Lossless surround:** in Flexarr's **Settings › Playback**, under **This TV**. On (the default), Dolby Digital, Dolby Atmos, DTS, DTS-HD and TrueHD go to your receiver or soundbar as they are, whenever it says it takes them, so those movies play without the server converting them. While **Dialogue boost**, **Night mode** or **Speakers** is on, the sound is decoded first so they apply: Dolby on the TV, DTS and TrueHD by the server. Turn Lossless surround off if a movie plays with no sound.
+- **Lossless surround:** in Flexarr's **Settings › Playback**, under **This TV**. On (the default), Dolby Digital, Dolby Atmos, DTS, DTS-HD and TrueHD go to your receiver or soundbar as they are, whenever it says it takes them, so those movies play without the server converting them. While **Dialogue boost**, **Night mode** or **Speakers** is on, the sound is decoded first so they apply: Dolby on the TV, DTS and TrueHD by the server. Turn Lossless surround off if a movie plays with no sound. (On the Apple TV the switch of the same name does the opposite: there it decodes lossless sound for your receiver.)
 - **What your TV reports:** **Settings › Diagnostics** lists the TV's screen and refresh rates, its HDR types, whether it plays 4K, and the surround formats your equipment takes.
 - **Continue watching on the home screen:** what you're part way through, the next episode of your shows and albums you've played lately show in the **Continue watching** row on the TV's home screen. Choose one to carry on; remove it there and it leaves Flexarr's Continue Watching too. The row stays empty while the profile watching has a PIN, since anyone at the TV can see it.
 
