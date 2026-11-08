@@ -13,6 +13,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Music
 
+- **New albums** now shows the albums that reached your library most recently, even when their files carry old dates, so a download no longer goes missing from the row. Its See all page and the Music page's hero follow the same order.
 - **Discover › Music** has a new row, **Albums you might like**: the best-known album by each of the artists like the ones you play.
 - **Top albums** now shows the albums behind the tracks people are playing most, so it's far more familiar and has fewer obscure picks.
 - An album you request by an artist new to Lidarr now stays on Lidarr's wanted list, so it keeps being looked for if the first search finds nothing. Albums already stuck this way are put back on the list and searched for.

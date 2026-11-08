@@ -235,6 +235,45 @@ public class MusicLibraryTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
+    public async Task NewAlbums_GoByTheDayTheyArrived_NotTheirFilesDates()
+    {
+        Guid library;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var music = new Library { Name = $"Music {Guid.NewGuid():N}", Type = LibraryType.Music };
+            var artist = new MediaItem { LibraryId = music.Id, Kind = MediaKind.Artist, Title = "Slowdive", SortTitle = "slowdive" };
+            var now = DateTime.UtcNow;
+            MediaItem Album(string title, DateTime files, DateTime? seen) => new()
+            {
+                LibraryId = music.Id, ParentId = artist.Id, Kind = MediaKind.Album, Title = title, SortTitle = title.ToLowerInvariant(),
+                AddedAt = files, FirstSeenAt = seen, BackdropUrl = "https://example.com/fanart.jpg",
+            };
+
+            db.AddRange(music, artist);
+            db.AddRange(
+                // Arrived today, with files from long ago: the older files come second among today's.
+                Album("Old Files", now.AddYears(-20), now),
+                Album("Older Files", now.AddYears(-30), now),
+                // Found a week ago, with files newer than today's arrivals.
+                Album("Last Week", now.AddDays(-8), now.AddDays(-7)),
+                // From before first-seen dates: its files' date is all there is.
+                Album("Before Dates", now.AddDays(-3), null));
+            await db.SaveChangesAsync();
+            library = music.Id;
+        }
+
+        var client = Client();
+        var browse = await client.GetFromJsonAsync<HomeDto>(Api($"/libraries/{library}/browse"), Json);
+        var all = await client.GetFromJsonAsync<PagedDto<ItemSummaryDto>>(Api($"/libraries/{library}/albums?sort=added"), Json);
+
+        string[] expected = ["Old Files", "Older Files", "Before Dates", "Last Week"];
+        Assert.Equal(expected, browse!.Rows.Single(r => r.Id == "recent").Items.Select(i => i.Title));
+        Assert.Equal(expected, all!.Items.Select(i => i.Title));
+        Assert.Contains(browse.Featured, i => i.Title == "Old Files");
+    }
+
+    [Fact]
     public async Task AGenresTracks_PlayInAlbumOrder_OrShuffled()
     {
         var music = await SeedAsync();

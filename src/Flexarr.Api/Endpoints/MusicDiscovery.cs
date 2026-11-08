@@ -273,7 +273,7 @@ public static class MusicDiscovery
         ids.AddRange(picks.Take(HeroArtists));
         ids.AddRange(await db.MediaItems.Where(i => i.Kind == MediaKind.Album && i.LibraryId == libraryId && !ids.Contains(i.Id)
                 && (i.BackdropUrl != null || (i.Parent != null && i.Parent.BackdropUrl != null)))
-            .OrderByDescending(i => i.AddedAt).ThenBy(i => i.SortTitle).Take(HeroNewAlbums).Select(i => i.Id).ToListAsync(ct));
+            .NewestArrivalsFirst().Take(HeroNewAlbums).Select(i => i.Id).ToListAsync(ct));
 
         var featured = await InOrderAsync(db, ids, profileId, ct);
         var resumeItems = (await InOrderAsync(db, resumes.Values, profileId, ct))
@@ -282,10 +282,18 @@ public static class MusicDiscovery
             .ToDictionary(r => r.Key, r => resumeItems.First(t => t.Id == r.Value)));
     }
 
-    /// <summary>The newest albums by when they were added, in one music library or (null) all of them.</summary>
+    /// <summary>
+    /// Albums by the day they reached the library, not by their files' dates: a download can keep dates from years ago.
+    /// Within a day it's the files' dates, so a whole library scanned at once still reads newest first. Items from before
+    /// 0.59 have no first-seen date, and go by their files'.
+    /// </summary>
+    public static IOrderedQueryable<MediaItem> NewestArrivalsFirst(this IQueryable<MediaItem> albums) =>
+        albums.OrderByDescending(i => (i.FirstSeenAt ?? i.AddedAt).Date).ThenByDescending(i => i.AddedAt).ThenBy(i => i.SortTitle);
+
+    /// <summary>The albums that reached the library last, in one music library or (null) all of them.</summary>
     public static async Task<List<ItemSummaryDto>> NewAlbumsAsync(FlexarrDbContext db, string profileId, Guid? libraryId, int size, CancellationToken ct) =>
         await db.MediaItems.Where(i => i.Kind == MediaKind.Album && (libraryId == null || i.LibraryId == libraryId))
-            .OrderByDescending(i => i.AddedAt).ThenBy(i => i.SortTitle).Take(size).Summaries(profileId).ToListAsync(ct);
+            .NewestArrivalsFirst().Take(size).Summaries(profileId).ToListAsync(ct);
 
     /// <summary>Summaries of these items, in this order (a query alone comes back in the database's order).</summary>
     public static async Task<List<ItemSummaryDto>> InOrderAsync(FlexarrDbContext db, IEnumerable<Guid> ids, string profileId, CancellationToken ct)
