@@ -193,6 +193,17 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
         Assert.Equal(title, Assert.Single(requests).Path);
     }
 
+    [Theory]
+    [InlineData("\\")]
+    [InlineData("\\\\\\")]
+    [InlineData("/")]
+    public async Task AnOddName_DoesNoHarm(string name)
+    {
+        using var setup = await WatchAsync();
+        setup.Watcher.Changed(setup.Root, name);
+        Assert.NotNull(setup.Watcher.StatusOf(setup.Root));
+    }
+
     [Fact]
     public async Task ManyTitlesAtOnce_ScanTheWholeFolder()
     {

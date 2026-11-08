@@ -371,16 +371,26 @@ public sealed partial class FolderWatcher(
             watcher.IncludeSubdirectories = true;
             watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Size | NotifyFilters.LastWrite;
             watcher.InternalBufferSize = 64 * 1024;
-            watcher.Created += (_, e) => Changed(root, e.Name);
-            watcher.Changed += (_, e) => Changed(root, e.Name);
-            watcher.Deleted += (_, e) => Changed(root, e.Name);
+            watcher.Created += (_, e) => Heard(root, e.Name);
+            watcher.Changed += (_, e) => Heard(root, e.Name);
+            watcher.Deleted += (_, e) => Heard(root, e.Name);
             watcher.Renamed += (_, e) =>
             {
-                Changed(root, e.OldName);
-                Changed(root, e.Name);
+                Heard(root, e.OldName);
+                Heard(root, e.Name);
             };
             var started = watcher;
-            watcher.Error += (_, e) => WatchError(root, started, starting, e.GetException());
+            watcher.Error += (_, e) =>
+            {
+                try
+                {
+                    WatchError(root, started, starting, e.GetException());
+                }
+                catch (Exception ex)
+                {
+                    LogChangeFailed(ex, PathComparison.Printable(root));
+                }
+            };
             // Linux adds its watches right here, and reports what it can't add through the Error event, not by throwing.
             Enable(watcher);
             Exception? refused;
@@ -524,6 +534,21 @@ public sealed partial class FolderWatcher(
         _syncSoon = true;
     }
 
+    /// <summary>
+    /// <see cref="Changed"/> on the watcher's own thread, where an exception nobody catches ends the server on macOS.
+    /// </summary>
+    private void Heard(string root, string? name)
+    {
+        try
+        {
+            Changed(root, name);
+        }
+        catch (Exception ex)
+        {
+            LogChangeFailed(ex, PathComparison.Printable(root));
+        }
+    }
+
     /// <summary>Something changed at <paramref name="name"/>, relative to the library folder <paramref name="root"/>.</summary>
     internal void Changed(string root, string? name)
     {
@@ -533,8 +558,14 @@ public sealed partial class FolderWatcher(
         }
 
         // The title's folder: the first one in the library folder. A file loose in the library folder is its own title.
-        var first = name.Split(['/', '\\'], 2, StringSplitOptions.RemoveEmptyEntries)[0];
-        var target = Path.Combine(root, first);
+        // By this system's separators only: on Linux and macOS a backslash can be part of a name.
+        var segments = name.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], 2, StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+        {
+            return;
+        }
+
+        var target = Path.Combine(root, segments[0]);
         var artwork = IsArtworkOrNfo(name);
         var now = time.GetUtcNow();
         lock (_lock)
@@ -785,6 +816,9 @@ public sealed partial class FolderWatcher(
 
     [LoggerMessage(Level = LogLevel.Information, Message = "A folder in {Path} can't be read, so it isn't watched; the rest is")]
     private partial void LogSubfolderSkipped(string path);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Couldn't take note of a change in {Path}")]
+    private partial void LogChangeFailed(Exception exception, string path);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "{Path} changed")]
     private partial void LogChanged(string path);
