@@ -152,6 +152,9 @@ builder.Services.AddScoped<PodcastLibrary>();
 // Live TV from Dispatcharr's Xtream Codes API. Every address it calls carries the password, so the client's request
 // logging is off; the guide can be tens of megabytes, hence the long timeout.
 builder.Services.AddHttpClient<XtreamClient>(c => c.Timeout = TimeSpan.FromMinutes(5)).RemoveAllLoggers();
+// An admin's key goes with these, so they don't follow a redirect anywhere else.
+builder.Services.AddHttpClient<DispatcharrGuides>(c => c.Timeout = TimeSpan.FromSeconds(30))
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false }).RemoveAllLoggers();
 // Its channel logos: redirects are followed by hand, only while they stay on the source (XtreamClient.GetLogoAsync).
 builder.Services.AddHttpClient(XtreamClient.LogoClientName, c => c.Timeout = TimeSpan.FromSeconds(30))
     .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false }).RemoveAllLoggers();

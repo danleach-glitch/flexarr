@@ -16,6 +16,25 @@ public sealed class LiveTvStatus
     public DateTime? RefreshedAt { get; private set; }
     public string? Error { get; private set; }
 
+    /// <summary>What went wrong the last time Dispatcharr was asked to download its guides.</summary>
+    public GuideDownloadProblem DownloadProblem { get; private set; }
+
+    /// <summary>When Dispatcharr was last asked to download its guides and took it up.</summary>
+    public DateTime? DownloadedAt { get; private set; }
+
+    internal void Downloaded(DateTime at, GuideDownloadProblem problem)
+    {
+        lock (_lock)
+        {
+            DownloadProblem = problem;
+            // A key refused, or Dispatcharr out of reach, downloaded nothing, so trying again straight away costs its sources nothing.
+            if (problem is GuideDownloadProblem.None or GuideDownloadProblem.SourceFailed or GuideDownloadProblem.TimedOut)
+            {
+                DownloadedAt = at;
+            }
+        }
+    }
+
     internal void Started()
     {
         lock (_lock)
@@ -39,9 +58,21 @@ public sealed class LiveTvStatus
 }
 
 /// <summary>Brings the channel list and the guide up to date from the Live TV source.</summary>
-public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client, CommunityLogoIndex communityLogos, IOptionsMonitor<FlexarrOptions> options,
+public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client, DispatcharrGuides guides, CommunityLogoIndex communityLogos, IOptionsMonitor<FlexarrOptions> options,
     LiveTvStatus status, TimeProvider clock, ILogger<LiveTvGuide> logger)
 {
+    /// <summary>How often a full refresh comes round.</summary>
+    public static readonly TimeSpan Every = TimeSpan.FromHours(6);
+
+    /// <summary>
+    /// How often it comes round while a channel has nothing listed ahead: a fuller guide may be waiting in Dispatcharr, and
+    /// a channel moved to another guide entry there looks just the same in the channel list.
+    /// </summary>
+    public static readonly TimeSpan EveryWhileMissing = TimeSpan.FromHours(1);
+
+    /// <summary>However often Refresh is pressed, Dispatcharr's sources (often someone's IPTV provider) are only asked this often.</summary>
+    public static readonly TimeSpan DownloadsAtMost = TimeSpan.FromMinutes(15);
+
     /// <summary>Programmes kept after they end, so the guide shows what's just been on.</summary>
     public static readonly TimeSpan KeptBehind = TimeSpan.FromHours(3);
 
@@ -58,6 +89,38 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
     /// channels it was read for, and whether anything was left out for being too far ahead or past the limit.
     /// </summary>
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Hash, bool CutAhead)> Written = new(StringComparer.Ordinal);
+
+    /// <summary>Whether a full refresh is due; a channel with nothing ahead brings it forward.</summary>
+    public async Task<bool> IsDueAsync(DateTime now, CancellationToken ct)
+    {
+        // After a restart: the channels' own stamp says when the last refresh was.
+        var last = status.RefreshedAt ?? await db.LiveChannels.MaxAsync(c => (DateTime?)c.UpdatedAt, ct);
+        if (last is null || now - last > Every)
+        {
+            return true;
+        }
+
+        return now - last > EveryWhileMissing && await db.LiveChannels.AnyAsync(c => !db.LiveProgrammes.Any(p => p.ChannelId == c.Id && p.End > now), ct);
+    }
+
+    /// <summary>With an admin key saved, has Dispatcharr download its guides, for the refresh that follows to read.</summary>
+    public async Task DownloadSourcesAsync(CancellationToken ct)
+    {
+        var live = options.CurrentValue.LiveTv;
+        var now = clock.GetUtcNow().UtcDateTime;
+        if (live?.Account is not { } account || string.IsNullOrEmpty(live.AdminApiKey) || now - status.DownloadedAt < DownloadsAtMost)
+        {
+            return;
+        }
+
+        status.Started();
+        var problem = await guides.DownloadAsync(account.BaseUrl, live.AdminApiKey, ct);
+        status.Downloaded(now, problem);
+        if (problem != GuideDownloadProblem.None)
+        {
+            LogDownloadFailed(problem);
+        }
+    }
 
     /// <param name="onlyIfChanged">
     /// A quick check: the channel list is read, and the guide only fetched again when channels came, went or moved to
@@ -311,6 +374,9 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
     [LoggerMessage(Level = LogLevel.Warning, Message = "Live TV refresh failed: {Error}")]
     private partial void LogFailed(string error);
 
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Asking Dispatcharr to download its guides: {Problem}")]
+    private partial void LogDownloadFailed(GuideDownloadProblem problem);
+
     [LoggerMessage(Level = LogLevel.Warning, Message = "Live TV guide cut off at {Count} programmes")]
     private partial void LogGuideCut(int count);
 }
@@ -322,7 +388,21 @@ public sealed class LiveTvRefreshSignal
     private readonly System.Threading.Channels.Channel<bool> _asked = System.Threading.Channels.Channel.CreateBounded<bool>(
         new System.Threading.Channels.BoundedChannelOptions(1) { FullMode = System.Threading.Channels.BoundedChannelFullMode.DropWrite });
 
-    public void Request() => _asked.Writer.TryWrite(true);
+    private int _download;
+
+    /// <param name="download">Have Dispatcharr download its guides first, when there's a key to ask with (Refresh pressed).</param>
+    public void Request(bool download = false)
+    {
+        if (download)
+        {
+            Interlocked.Exchange(ref _download, 1);
+        }
+
+        _asked.Writer.TryWrite(true);
+    }
+
+    /// <summary>Whether a download was asked for; asked once, it's forgotten.</summary>
+    internal bool TakeDownload() => Interlocked.Exchange(ref _download, 0) == 1;
 
     /// <summary>True when asked within <paramref name="timeout"/>, false when it passed without.</summary>
     internal async Task<bool> WaitAsync(TimeSpan timeout, CancellationToken ct)
@@ -341,10 +421,11 @@ public sealed class LiveTvRefreshSignal
 }
 
 /// <summary>Refreshes the channels and guide every few hours, and when asked to.</summary>
-public sealed partial class LiveTvGuideWorker(IServiceScopeFactory scopes, LiveTvRefreshSignal signal, LiveTvStatus status, IOptionsMonitor<FlexarrOptions> options,
+public sealed partial class LiveTvGuideWorker(IServiceScopeFactory scopes, LiveTvRefreshSignal signal, IOptionsMonitor<FlexarrOptions> options,
     TimeProvider clock, ILogger<LiveTvGuideWorker> logger) : BackgroundService
 {
-    public static readonly TimeSpan Every = TimeSpan.FromHours(6);
+    public static readonly TimeSpan Every = LiveTvGuide.Every;
+
     /// <summary>How often Dispatcharr's channel list is checked for channels added or removed.</summary>
     private static readonly TimeSpan Tick = TimeSpan.FromMinutes(5);
 
@@ -359,9 +440,15 @@ public sealed partial class LiveTvGuideWorker(IServiceScopeFactory scopes, LiveT
                 {
                     // A full refresh every few hours (or when asked); in between, a quick look for channels added or
                     // removed in Dispatcharr, which has no webhook for that.
-                    var full = asked || await DueAsync(stoppingToken);
                     await using var scope = scopes.CreateAsyncScope();
-                    await scope.ServiceProvider.GetRequiredService<LiveTvGuide>().RefreshAsync(stoppingToken, onlyIfChanged: !full);
+                    var guide = scope.ServiceProvider.GetRequiredService<LiveTvGuide>();
+                    var full = asked || await guide.IsDueAsync(clock.GetUtcNow().UtcDateTime, stoppingToken);
+                    if (signal.TakeDownload())
+                    {
+                        await guide.DownloadSourcesAsync(stoppingToken);
+                    }
+
+                    await guide.RefreshAsync(stoppingToken, onlyIfChanged: !full);
                 }
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
@@ -371,25 +458,6 @@ public sealed partial class LiveTvGuideWorker(IServiceScopeFactory scopes, LiveT
 
             asked = await signal.WaitAsync(Tick, stoppingToken);
         }
-    }
-
-    private async Task<bool> DueAsync(CancellationToken ct)
-    {
-        if (options.CurrentValue.LiveTv?.Account is null)
-        {
-            return false;
-        }
-
-        var last = status.RefreshedAt;
-        if (last is null)
-        {
-            // After a restart: the channels' own stamp says when the last refresh was.
-            await using var scope = scopes.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-            last = await db.LiveChannels.MaxAsync(c => (DateTime?)c.UpdatedAt, ct);
-        }
-
-        return last is null || clock.GetUtcNow().UtcDateTime - last > Every;
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Refreshing Live TV failed")]

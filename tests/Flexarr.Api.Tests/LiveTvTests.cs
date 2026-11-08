@@ -701,6 +701,47 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task A_channel_with_nothing_ahead_brings_the_next_full_refresh_forward_and_is_counted()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        // BBC One has programmes ahead; BBC Two and Sky News have none.
+        Assert.Equal(2, (await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("channelsWithoutListings").GetInt32());
+
+        await using var scope = _server.Services.CreateAsyncScope();
+        var guide = scope.ServiceProvider.GetRequiredService<LiveTvGuide>();
+        var now = DateTime.UtcNow;
+        Assert.False(await guide.IsDueAsync(now.AddMinutes(30), CancellationToken.None));
+        Assert.True(await guide.IsDueAsync(now.AddMinutes(90), CancellationToken.None));
+
+        // Every channel listed: back to the usual wait.
+        var db = scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>();
+        var listed = await db.LiveChannels.Select(c => c.Id).ToListAsync();
+        db.LiveProgrammes.AddRange(listed.Select(id => new Flexarr.Core.LiveTv.LiveProgramme { ChannelId = id, Title = "All day", Start = now, End = now.AddDays(1) }));
+        await db.SaveChangesAsync();
+        Assert.False(await guide.IsDueAsync(now.AddMinutes(90), CancellationToken.None));
+        Assert.True(await guide.IsDueAsync(now.AddHours(7), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task The_admin_key_is_never_sent_back_and_stays_with_its_server()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, adminApiKey = "admin-k3y" } })).EnsureSuccessStatusCode();
+        var saved = await LiveTvSettingsAsync(client, l => l.GetProperty("hasAdminApiKey").GetBoolean());
+        Assert.DoesNotContain("admin-k3y", saved.GetRawText(), StringComparison.Ordinal);
+
+        // Saved again without it: kept, while the server's the same.
+        (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, rewindMinutes = 30 } })).EnsureSuccessStatusCode();
+        Assert.True((await LiveTvSettingsAsync(client, l => l.GetProperty("rewindMinutes").GetInt32() == 30)).GetProperty("hasAdminApiKey").GetBoolean());
+
+        // Another server: not carried over.
+        (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = "http://elsewhere:9191", username = FakeDispatcharr.User, password = "other" } })).EnsureSuccessStatusCode();
+        Assert.False((await LiveTvSettingsAsync(client, l => l.GetProperty("baseUrl").GetString() == "http://elsewhere:9191")).GetProperty("hasAdminApiKey").GetBoolean());
+    }
+
+    [Fact]
     public async Task Logos_are_only_fetched_from_the_source_itself()
     {
         var client = Client();

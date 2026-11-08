@@ -18,7 +18,10 @@ using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.LiveTv;
 
-public sealed record LiveTvStatusDto(bool Configured, int Channels, bool Refreshing, DateTime? RefreshedAt, string? Error, int RewindMinutes);
+/// <param name="ChannelsWithoutListings">Channels with nothing listed from now on.</param>
+/// <param name="DownloadError">Why Dispatcharr couldn't be asked to download its guides, last time it was.</param>
+public sealed record LiveTvStatusDto(bool Configured, int Channels, bool Refreshing, DateTime? RefreshedAt, string? Error, int RewindMinutes,
+    int ChannelsWithoutListings = 0, string? DownloadError = null);
 
 /// <param name="Recording">"scheduled" or "recording" when it's on the DVR's list (the guide says); otherwise null.</param>
 /// <param name="Series">A series covers it (every showing of its title is recorded).</param>
@@ -52,6 +55,17 @@ public sealed record LiveWatcherDto(Guid ChannelId, string ChannelName, string P
 
 public static partial class LiveTvEndpoints
 {
+    /// <summary>In words, for the status and for testing a key in Settings.</summary>
+    internal static string? DownloadErrorText(GuideDownloadProblem problem) => problem switch
+    {
+        GuideDownloadProblem.None => null,
+        GuideDownloadProblem.KeyRefused => Loc.T("Dispatcharr refused the admin API key, or it isn’t an admin’s."),
+        GuideDownloadProblem.NotSupported => Loc.T("This version of Dispatcharr can’t be asked to download its guides."),
+        GuideDownloadProblem.SourceFailed => Loc.T("Dispatcharr couldn’t download one of its guides."),
+        GuideDownloadProblem.TimedOut => Loc.T("Dispatcharr is taking a while to download its guides. They’ll come in at the next refresh."),
+        _ => Loc.T("Flexarr couldn’t ask Dispatcharr to download its guides."),
+    };
+
     private static readonly TimeSpan FormatKeptFor = TimeSpan.FromHours(12);
     private static readonly TimeSpan MaxGuideWindow = TimeSpan.FromHours(24);
 
@@ -60,14 +74,16 @@ public static partial class LiveTvEndpoints
         // A kids profile has no Live TV (its status says it isn't there).
         var group = api.MapGroup("/livetv").WithTags("Live TV").NotForKids();
 
-        api.MapGet("/livetv/status", async (IOptionsMonitor<FlexarrOptions> options, LiveTvStatus status, FlexarrDbContext db, CancellationToken ct) =>
+        api.MapGet("/livetv/status", async (IOptionsMonitor<FlexarrOptions> options, LiveTvStatus status, FlexarrDbContext db, TimeProvider clock, CancellationToken ct) =>
         {
             var o = options.CurrentValue.LiveTv;
             var channels = await db.LiveChannels.CountAsync(ct);
             var refreshed = status.RefreshedAt ?? await db.LiveChannels.MaxAsync(c => (DateTime?)c.UpdatedAt, ct);
             // To a profile with an age limit, Live TV is only there once a parent has picked channels for it; to a kids profile, never.
             var available = o?.Account is not null && !db.ServesKids && (channels > 0 || !db.IsLimited());
-            return new LiveTvStatusDto(available, channels, status.Refreshing, refreshed, status.Error, o?.RewindMinutes ?? 60);
+            var now = clock.GetUtcNow().UtcDateTime;
+            var missing = available ? await db.LiveChannels.CountAsync(c => !db.LiveProgrammes.Any(p => p.ChannelId == c.Id && p.End > now), ct) : 0;
+            return new LiveTvStatusDto(available, channels, status.Refreshing, refreshed, status.Error, o?.RewindMinutes ?? 60, missing, DownloadErrorText(status.DownloadProblem));
         }).WithTags("Live TV");
 
         group.MapGet("/channels", async (FlexarrDbContext db, CurrentProfile profile, TimeProvider clock, CancellationToken ct) =>
@@ -259,7 +275,7 @@ public static partial class LiveTvEndpoints
 
         group.MapPost("/refresh", (LiveTvRefreshSignal signal) =>
         {
-            signal.Request();
+            signal.Request(download: true);
             return Results.Accepted();
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
