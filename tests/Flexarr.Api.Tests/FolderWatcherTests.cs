@@ -181,6 +181,45 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
+    public async Task AWatchedFolderThatGoes_SaysSo_AndIsWatchedAndScannedOnceItsBack()
+    {
+        using var setup = await WatchAsync();
+        Directory.Delete(setup.Root);
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(new FolderWatchStatus(FolderWatchState.Unavailable, FolderWatchProblem.Missing), setup.Watcher.StatusOf(setup.Root));
+        Assert.False(setup.Watcher.KeepsUpWith(setup.Root));
+
+        Directory.CreateDirectory(setup.Root);
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(FolderWatchState.Watching, setup.Watcher.StatusOf(setup.Root)?.State);
+        Assert.Contains(setup.Queue.Requests, r => r.Path == setup.Root && r.Reason == FolderWatcher.Reason);
+    }
+
+    [Fact]
+    public async Task AWatchedFolderMadeAgainBetweenLooks_IsWatchedAfresh_AndNewFilesInItAreNoticed()
+    {
+        using var setup = await WatchAsync();
+        Directory.Delete(setup.Root);
+        await Task.Delay(20); // So the new folder's birth time differs, on file systems that keep milliseconds.
+        Directory.CreateDirectory(setup.Root);
+        await setup.Watcher.SyncAsync(default);
+        Assert.Contains(setup.Queue.Requests, r => r.Path == setup.Root && r.Reason == FolderWatcher.Reason);
+
+        var film = Path.Combine(setup.Root, "Heat (1995).mkv");
+        await File.WriteAllTextAsync(film, "x");
+        Assert.Contains(await WaitForAsync(setup, r => r.Path == film), r => r.Path == film);
+    }
+
+    [Fact]
+    public async Task AWatchedFolderThatStaysPut_KeepsItsWatcher()
+    {
+        using var setup = await WatchAsync();
+        await setup.Watcher.SyncAsync(default);
+        await setup.Watcher.SyncAsync(default);
+        Assert.DoesNotContain(setup.Queue.Requests, r => r.Path == setup.Root);
+    }
+
+    [Fact]
     public async Task ASlowStart_DoesntHoldUpTheLibrariesList()
     {
         using var setup = await WatchAsync(create: false);

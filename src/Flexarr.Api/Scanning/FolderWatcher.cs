@@ -70,7 +70,10 @@ public sealed partial class FolderWatcher(
     /// <summary>Then its files' sizes must stay the same for this long: a copy that stalls isn't scanned half-written.</summary>
     internal TimeSpan SettleFor { get; set; } = TimeSpan.FromSeconds(10);
 
-    /// <summary>How often the folders to watch are read again, and folders that couldn't be watched are tried again.</summary>
+    /// <summary>
+    /// How often the folders to watch are read again, watched ones are checked for still being the same folder, and ones
+    /// that couldn't be watched are tried again.
+    /// </summary>
     internal TimeSpan ResyncEvery { get; set; } = TimeSpan.FromMinutes(1);
 
     internal TimeSpan TickEvery { get; set; } = TimeSpan.FromSeconds(2);
@@ -231,6 +234,14 @@ public sealed partial class FolderWatcher(
         var finished = new List<FileSystemWatcher>();
         var toStart = new List<string>();
         var limits = WatchLimits();
+        // Nothing tells a watcher its folder was unmounted, or deleted and made again: only looking does.
+        List<string> live;
+        lock (_lock)
+        {
+            live = _folders.Where(f => f.Value.Watcher is not null).Select(f => f.Key).ToList();
+        }
+
+        var found = live.ToDictionary(path => path, FolderKind.Identity, StringComparer.Ordinal);
         lock (_lock)
         {
             finished.AddRange(_broken);
@@ -263,8 +274,19 @@ public sealed partial class FolderWatcher(
                     continue;
                 }
 
+                if (current?.Watcher is { } running)
+                {
+                    if (found.TryGetValue(path, out var identity) && identity != current.Identity)
+                    {
+                        finished.Add(running);
+                        toStart.Add(path);
+                    }
+
+                    continue;
+                }
+
                 var waiting = current?.RetryAt > time.GetUtcNow() && !(current.Status.Problem == FolderWatchProblem.Limit && current.LimitsWere != limits);
-                if (current?.Watcher is null && !waiting)
+                if (!waiting)
                 {
                     toStart.Add(path);
                 }
@@ -322,6 +344,8 @@ public sealed partial class FolderWatcher(
             return (new Watched(null, new FolderWatchStatus(FolderWatchState.Unavailable, FolderWatchProblem.Missing)), starting);
         }
 
+        // Before the watch starts: if the folder is swapped meanwhile, the next look sees a difference.
+        var identity = FolderKind.Identity(root);
         FileSystemWatcher? watcher = null;
         try
         {
@@ -354,7 +378,7 @@ public sealed partial class FolderWatcher(
 
             var share = FolderKind.IsShare(root);
             LogWatching(PathComparison.Printable(root), share);
-            return (new Watched(watcher, new FolderWatchStatus(share ? FolderWatchState.Share : FolderWatchState.Watching)), starting);
+            return (new Watched(watcher, new FolderWatchStatus(share ? FolderWatchState.Share : FolderWatchState.Watching)) { Identity = identity }, starting);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or PlatformNotSupportedException)
         {
@@ -654,6 +678,9 @@ public sealed partial class FolderWatcher(
 
         /// <summary>What <see cref="WatchLimits"/> said when the system refused: if it's changed, it's worth another try.</summary>
         public string? LimitsWere { get; init; }
+
+        /// <summary>The folder this watcher is on (see <see cref="FolderKind.Identity"/>).</summary>
+        public string? Identity { get; init; }
     }
 
     /// <summary>A watcher on its way to being in <see cref="_folders"/>, which errors can't reach until it is. Under the lock.</summary>
