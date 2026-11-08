@@ -181,6 +181,32 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
+    public async Task ASlowStart_DoesntHoldUpTheLibrariesList()
+    {
+        using var setup = await WatchAsync(create: false);
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        setup.Watcher.Enable = watcher =>
+        {
+            entered.Set();
+            release.Wait(TimeSpan.FromSeconds(20));
+            watcher.EnableRaisingEvents = true;
+        };
+
+        Directory.CreateDirectory(setup.Root);
+        var sync = Task.Run(() => setup.Watcher.SyncAsync(default));
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(10)));
+
+        // A folder taking its time (a big tree, a mount that's stopped answering) leaves the status readable.
+        var status = await Task.Run(() => setup.Watcher.StatusOf(setup.Root)).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(FolderWatchState.Unavailable, status?.State);
+
+        release.Set();
+        await sync;
+        Assert.Equal(FolderWatchState.Watching, setup.Watcher.StatusOf(setup.Root)?.State);
+    }
+
+    [Fact]
     public async Task Podcasts_AreNotWatched()
     {
         using var setup = await WatchAsync(LibraryType.Podcasts);

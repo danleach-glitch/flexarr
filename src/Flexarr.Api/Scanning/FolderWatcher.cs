@@ -78,6 +78,12 @@ public sealed partial class FolderWatcher(
     /// <summary>How long a folder the system refused to watch (its watch limit, say) waits before it's tried again.</summary>
     internal TimeSpan RetryRefusedAfter { get; set; } = TimeSpan.FromHours(1);
 
+    /// <summary>Makes a watcher for a folder. Tests replace it, to have a watch refused.</summary>
+    internal Func<string, FileSystemWatcher> NewWatcher { get; set; } = root => new FileSystemWatcher(root);
+
+    /// <summary>Starts a watcher: this is where the system walks the folder's tree, and can refuse.</summary>
+    internal Action<FileSystemWatcher> Enable { get; set; } = watcher => watcher.EnableRaisingEvents = true;
+
     /// <summary>More titles than this waiting in one folder (a whole drive copied in): the folder is scanned as a whole.</summary>
     internal const int MaxPendingPerFolder = 200;
 
@@ -118,31 +124,12 @@ public sealed partial class FolderWatcher(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var nextSync = DateTimeOffset.MinValue;
         // The switch in Settings takes effect within a tick or two, not at the next minute's look.
         using var changes = options.OnChange((_, _) => _syncSoon = true);
         try
         {
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                if (time.GetUtcNow() >= nextSync || _syncSoon)
-                {
-                    _syncSoon = false;
-                    try
-                    {
-                        await SyncAsync(stoppingToken);
-                    }
-                    catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
-                    {
-                        LogSyncFailed(ex);
-                    }
-
-                    nextSync = time.GetUtcNow() + ResyncEvery;
-                }
-
-                await FlushAsync(stoppingToken);
-                await Task.Delay(TickEvery, time, stoppingToken);
-            }
+            // Apart, so a mount that's stopped answering holds up only the one that reached it.
+            await Task.WhenAll(KeepSyncingAsync(stoppingToken), KeepFlushingAsync(stoppingToken));
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -150,6 +137,49 @@ public sealed partial class FolderWatcher(
         finally
         {
             StopWatching();
+        }
+    }
+
+    private async Task KeepSyncingAsync(CancellationToken ct)
+    {
+        await Task.Yield();
+        var nextSync = DateTimeOffset.MinValue;
+        while (!ct.IsCancellationRequested)
+        {
+            if (time.GetUtcNow() >= nextSync || _syncSoon)
+            {
+                _syncSoon = false;
+                try
+                {
+                    await SyncAsync(ct);
+                }
+                catch (Exception ex) when (!ct.IsCancellationRequested)
+                {
+                    LogSyncFailed(ex);
+                }
+
+                nextSync = time.GetUtcNow() + ResyncEvery;
+            }
+
+            await Task.Delay(TickEvery, time, ct);
+        }
+    }
+
+    private async Task KeepFlushingAsync(CancellationToken ct)
+    {
+        await Task.Yield();
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await FlushAsync(ct);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                LogFlushFailed(ex);
+            }
+
+            await Task.Delay(TickEvery, time, ct);
         }
     }
 
@@ -191,12 +221,17 @@ public sealed partial class FolderWatcher(
         }
 
         var enabled = options.CurrentValue.WatchFolders.Enabled;
-        var back = new List<string>();
+        var finished = new List<FileSystemWatcher>();
+        var toStart = new List<string>();
         lock (_lock)
         {
             foreach (var gone in _folders.Keys.Where(p => wanted.All(w => w.Path != p)).ToList())
             {
-                _folders[gone].Watcher?.Dispose();
+                if (_folders[gone].Watcher is { } watcher)
+                {
+                    finished.Add(watcher);
+                }
+
                 _folders.Remove(gone);
                 foreach (var key in _pending.Keys.Where(k => _pending[k].Root == gone).ToList())
                 {
@@ -209,17 +244,35 @@ public sealed partial class FolderWatcher(
                 _folders.TryGetValue(path, out var current);
                 if (excluded || !enabled)
                 {
-                    current?.Watcher?.Dispose();
+                    if (current?.Watcher is { } watcher)
+                    {
+                        finished.Add(watcher);
+                    }
+
                     _folders[path] = new Watched(null, new FolderWatchStatus(excluded ? FolderWatchState.Excluded : FolderWatchState.Off));
                     continue;
                 }
 
-                if (current?.Watcher is not null || current?.RetryAt > time.GetUtcNow())
+                if (current?.Watcher is null && !(current?.RetryAt > time.GetUtcNow()))
                 {
-                    continue;
+                    toStart.Add(path);
                 }
+            }
+        }
 
-                var started = Start(path);
+        foreach (var watcher in finished)
+        {
+            watcher.Dispose();
+        }
+
+        // Outside the lock: on Linux starting a watch walks the folder's whole tree, and a network mount that's stopped
+        // answering would hang here. The libraries list and the change events only ever wait for the lock.
+        var back = new List<string>();
+        foreach (var path in toStart)
+        {
+            var started = Start(path);
+            lock (_lock)
+            {
                 _folders[path] = started;
                 // Watching again after it couldn't be (a drive that's back, the switch turned on): whatever changed in the
                 // meantime was missed, so the folder is scanned. Not at startup, which the schedule already covers.
@@ -228,7 +281,10 @@ public sealed partial class FolderWatcher(
                     back.Add(path);
                 }
             }
+        }
 
+        lock (_lock)
+        {
             _synced = true;
         }
 
@@ -249,12 +305,10 @@ public sealed partial class FolderWatcher(
         FileSystemWatcher? watcher = null;
         try
         {
-            watcher = new FileSystemWatcher(root)
-            {
-                IncludeSubdirectories = true,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Size | NotifyFilters.LastWrite,
-                InternalBufferSize = 64 * 1024,
-            };
+            watcher = NewWatcher(root);
+            watcher.IncludeSubdirectories = true;
+            watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Size | NotifyFilters.LastWrite;
+            watcher.InternalBufferSize = 64 * 1024;
             watcher.Created += (_, e) => Changed(root, e.Name);
             watcher.Changed += (_, e) => Changed(root, e.Name);
             watcher.Deleted += (_, e) => Changed(root, e.Name);
@@ -264,7 +318,7 @@ public sealed partial class FolderWatcher(
                 Changed(root, e.Name);
             };
             watcher.Error += (_, e) => Failed(root, watcher, e.GetException());
-            watcher.EnableRaisingEvents = true;
+            Enable(watcher);
             var share = FolderKind.IsShare(root);
             LogWatching(PathComparison.Printable(root), share);
             return new Watched(watcher, new FolderWatchStatus(share ? FolderWatchState.Share : FolderWatchState.Watching));
@@ -297,11 +351,11 @@ public sealed partial class FolderWatcher(
     private void Failed(string root, FileSystemWatcher watcher, Exception ex)
     {
         LogWatchFailed(ex, PathComparison.Printable(root));
+        var problem = IsWatchLimit(ex) ? FolderWatchProblem.Limit : Directory.Exists(root) ? FolderWatchProblem.Failed : FolderWatchProblem.Missing;
         lock (_lock)
         {
             if (_folders.TryGetValue(root, out var watched) && ReferenceEquals(watched.Watcher, watcher))
             {
-                var problem = IsWatchLimit(ex) ? FolderWatchProblem.Limit : Directory.Exists(root) ? FolderWatchProblem.Failed : FolderWatchProblem.Missing;
                 // Lost events are watched afresh at once; the watch limit waits, as in Start.
                 _folders[root] = new Watched(null, new FolderWatchStatus(FolderWatchState.Unavailable, problem))
                 {
@@ -525,6 +579,9 @@ public sealed partial class FolderWatcher(
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "{Path} changed")]
     private partial void LogChanged(string path);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Couldn't queue the folders that changed")]
+    private partial void LogFlushFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Couldn't read the library folders to watch")]
     private partial void LogSyncFailed(Exception exception);

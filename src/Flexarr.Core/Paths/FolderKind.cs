@@ -15,7 +15,7 @@ public static class FolderKind
 
     /// <summary>
     /// Whether <paramref name="path"/> is on a network share or a virtual machine's shared folder, going by the mount
-    /// it's on. Reading the system's list of mounts never touches the drive.
+    /// it's on. Reads the system's list of mounts and, on Linux, follows the path: not for inside a lock.
     /// </summary>
     public static bool IsShare(string path)
     {
