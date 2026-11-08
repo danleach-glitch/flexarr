@@ -299,21 +299,19 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
   )
 }
 
-/** Under a library folder: whether new files in it show up straight away, and if not, why. Nothing while watching is off. */
+/** Under a library folder that isn't being watched, and why. Nothing for one that is, or while watching is off: the switch says so. */
 export function FolderWatchNote({ watch }: { watch?: FolderWatch }) {
   const text = !watch
     ? null
-    : watch.state === 'Watching'
-      ? t('Watching for new files')
-      : watch.state === 'Share'
-        ? t('Checked every 12 hours: a network share')
-        : watch.state !== 'Unavailable'
-          ? null
-          : watch.problem === 'Missing'
-            ? t('Checked every 12 hours: folder not found')
-            : watch.problem === 'Limit'
-              ? t('Checked every 12 hours: the system’s watch limit is reached')
-              : t('Checked every 12 hours: couldn’t watch it')
+    : watch.state === 'Share'
+      ? t('Network share: checked every 12 hours')
+      : watch.state !== 'Unavailable'
+        ? null
+        : watch.problem === 'Missing'
+          ? t('Folder not found')
+          : watch.problem === 'Limit'
+            ? t('Watch limit reached: checked every 12 hours')
+            : t('Can’t be watched: checked every 12 hours')
   return text && <span className="folder-watch">{text}</span>
 }
 

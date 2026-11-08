@@ -45,13 +45,14 @@ Full details are in [Away from home](away-from-home.md).
 
 ### New downloads don't appear
 
-Flexarr notices files copied into your library folders within about a minute, and Sonarr, Radarr and Lidarr also tell it straight away with a webhook (connecting one of them in Flexarr adds the webhook for you). Under each folder, **Settings › Libraries** says whether it's **Watching for new files**, or **Checked every 12 hours** and why:
+Flexarr notices files copied into your library folders within a minute, and Sonarr, Radarr and Lidarr also tell it straight away with a webhook (connecting one of them in Flexarr adds the webhook for you). A folder it can't watch says why under it in **Settings › Libraries**, and is checked every 12 hours instead:
 
-- **A network share:** files another computer adds to a NAS often aren't reported. The webhooks still are, so if downloads take hours to show up, the webhook is missing or failing: add it by hand (below).
-- **The system's watch limit is reached:** on Linux and Docker, a big library can need more than the system allows. Raise it on the computer running Flexarr (the Docker host): `echo fs.inotify.max_user_watches=524288 | sudo tee /etc/sysctl.d/40-flexarr.conf && sudo sysctl --system`. Flexarr tries again within the hour.
-- **Folder not found:** the drive or share isn't connected. Flexarr watches it once it's back.
+- **Network share:** files another computer adds to a NAS often aren't reported, and nor are files written straight to one of the disks in a pool (Unraid, mergerfs). The webhooks still arrive, so if downloads take hours to show up, the webhook is missing or failing: add it by hand (below).
+- **Watch limit reached:** on Linux and Docker, a big library can need more than the system allows. Raise it on the computer running Flexarr (the Docker host): `printf 'fs.inotify.max_user_watches=524288\nfs.inotify.max_user_instances=1024\n' | sudo tee /etc/sysctl.d/40-flexarr.conf && sudo sysctl --system`. Flexarr notices the new limit within a minute. On Docker Desktop this doesn't come up, because its folders count as network shares.
+- **Folder not found:** the drive or share isn't connected. Flexarr watches it within five minutes of it coming back, and looks for anything it missed.
+- **Can't be watched:** the system refused for another reason, usually that Flexarr isn't allowed to read the folder. Check its permissions. Flexarr tries again every 12 hours, or when you turn the switch below off and on.
 
-If nothing says **Watching**, **Notice new files straight away** is off at the bottom of the list.
+If **Notice new files straight away**, under the list, is off, no folder is watched.
 
 To add a webhook by hand:
 
