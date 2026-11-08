@@ -271,6 +271,11 @@ public sealed partial class FolderWatcher(
                     }
 
                     _folders[path] = new Watched(null, new FolderWatchStatus(excluded ? FolderWatchState.Excluded : FolderWatchState.Off));
+                    foreach (var key in _pending.Keys.Where(k => _pending[k].Root == path).ToList())
+                    {
+                        _pending.Remove(key);
+                    }
+
                     continue;
                 }
 

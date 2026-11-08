@@ -422,6 +422,17 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
+    public async Task TheSwitchOff_DropsWhatWasWaiting()
+    {
+        using var setup = await WatchAsync();
+        setup.Watcher.Changed(setup.Root, "Heat (1995)/Heat (1995).mkv");
+        setup.Options.WatchFolders.Enabled = false;
+        await setup.Watcher.SyncAsync(default);
+
+        Assert.Empty(await WaitForAsync(setup, _ => false, seconds: 2));
+    }
+
+    [Fact]
     public async Task TheSwitch_IsSavedInSettings_AndOnByDefault()
     {
         using var admin = factory.CreateClient();
