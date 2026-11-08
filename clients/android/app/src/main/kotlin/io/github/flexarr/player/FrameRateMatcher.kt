@@ -33,6 +33,9 @@ internal class FrameRateMatcher(private val player: Player, private val view: Su
     /** Frame times (microseconds) while the format hasn't said its rate; touched only on the playback thread. */
     private val times = ArrayDeque<Long>()
 
+    /** Frames looked at since measuring started: a video with no steady rate (a variable frame rate) is given up on. */
+    private var looked = 0
+
     @Volatile private var measuring = false
 
     fun start() {
@@ -68,14 +71,25 @@ internal class FrameRateMatcher(private val player: Player, private val view: Su
     override fun onVideoFrameAboutToBeRendered(presentationTimeUs: Long, releaseTimeNs: Long, format: Format, mediaFormat: android.media.MediaFormat?) {
         if (!measuring) {
             times.clear()
+            looked = 0
             return
         }
         if (times.lastOrNull()?.let { presentationTimeUs <= it } == true) times.clear() // a seek
         times.addLast(presentationTimeUs)
         if (times.size > FRAMES) times.removeFirst()
-        val rate = measured(times) ?: return
+        val rate = measured(times)
+        if (rate == null) {
+            // No steady rate after a few windows of frames: the screen is left at its own.
+            if (++looked >= FRAMES * GIVE_UP_WINDOWS) {
+                measuring = false
+                times.clear()
+                looked = 0
+            }
+            return
+        }
         measuring = false
         times.clear()
+        looked = 0
         view.post { if (!stopped) apply(rate) }
     }
 
@@ -115,6 +129,9 @@ internal class FrameRateMatcher(private val player: Player, private val view: Su
          * of seconds of them (2.5 at 24 fps).
          */
         const val FRAMES = 60
+
+        /** Windows of [FRAMES] measured without finding a steady rate before giving up. */
+        private const val GIVE_UP_WINDOWS = 4
 
         /** The rates videos are made at: a measured one close to one of these is taken as it. */
         private val STANDARD = listOf(23.976f, 24f, 25f, 29.97f, 30f, 47.952f, 48f, 50f, 59.94f, 60f, 100f, 119.88f, 120f)
